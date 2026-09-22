@@ -54,7 +54,7 @@
     .align-items-center { align-items: center !important; }
   </style>
 </head>
-<body class="color_page Page_ListTopPriceReductionProducts" data-current-url="/neue-toppreise">
+<body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-current_url="/neue-toppreise">
   <div class="breadcrumb" style="margin-bottom: 12px; font-size: 13px; color: #94a3b8;">
     <span>Home</span> &gt; <span>Neue Toppreise</span>
   </div>
@@ -67,7 +67,7 @@
   </div>
 
   <div class="pageContent color_page container" id="FrameContent">
-    <div class="page bestListContainer col-12" id="page-best-list-container">
+    <div class="page bestListContainer col-12" id="Page_ListTopPriceReductionProducts">
       <div class="row no-gutters layout-row" id="page-layout-row">
         <!-- Left Category Sidebar -->
         <div class="filterBoxContainer col-auto p-0 pr-md-3 sidebar-container" id="sidebar-categories">
@@ -84,28 +84,45 @@
 
         <!-- Main Content Column -->
         <div class="contentBox col-12 col-xl main-content-col" id="main-content">
-          <!-- Navigation Tabs Row -->
+          <!-- Native Ignored Categories Bar -->
+          <div id="Plugin_IgnoredCategories_808565" data-context-hash="255904" class="Plugin_IgnoredCategories">
+            <div class="row">
+              <div class="col-12 ignoredCategoriesBar">
+                <span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feed Tabbed Container -->
           <div class="tabbedContainer row tabs-row" id="feed-tabs">
-            <div class="tab">Top 100</div>
-            <div class="tab active">Neue Toppreise</div>
-            <div class="tab">Topbewertungen</div>
-            <div class="tab">Neue Produkte</div>
-          </div>
+            <!-- Navigation Tabs -->
+            <div id="Plugin_TopProductListNavigation_428551" data-context-hash="255904" class="Plugin_TopProductListNavigation tabSwitcherList titleBar col-12">
+              <div class="row">
+                <a href="/topprodukte" class="title tab d-none d-xl-block">Top 100</a>
+                <a href="/top-bewertete-produkte" class="title tab d-none d-xl-block">Topbewertungen</a>
+                <a href="/neue-toppreise" class="title tab active selected">Neue Toppreise</a>
+                <a href="/neue-produkte" class="title tab d-none d-xl-block">Neue Produkte</a>
+              </div>
+            </div>
 
-          <!-- Timeframe Filter Row -->
-          <div class="row timeframe-row" id="timeframe-filter">
-            <span class="time-label">Zeitraum (Stunden):</span>
-            <div class="time-btn">1</div>
-            <div class="time-btn">2</div>
-            <div class="time-btn">4</div>
-            <div class="time-btn active">8</div>
-            <div class="time-btn">12</div>
-            <div class="time-btn">24</div>
-            <div class="time-btn">48</div>
-          </div>
+            <!-- Tab Content Host Column -->
+            <div class="contentBox col-12">
+              <div class="f_tab selected">
+                <div class="tabContent">
+                  <!-- Timeframe Filter Row -->
+                  <div id="timeframe-filter" class="Plugin_TimePeriod f_Plugin_Filter_TimePeriod f_filter_plugin row mb-3 timeframe-row" data-ajax-url="/plugins/filter/TimePeriod" data-trgt="TopPriceReductionProductListFull">
+                    <span class="time-label">Zeitraum (Stunden):</span>
+                    <div class="time-btn"><input type="radio" value="1" name="fi_tp_fidst" id="1_1" class="f_timePeriod d-none"><label for="1_1">1</label></div>
+                    <div class="time-btn"><input type="radio" value="2" name="fi_tp_fidst" id="2_2" class="f_timePeriod d-none"><label for="2_2">2</label></div>
+                    <div class="time-btn"><input type="radio" value="4" name="fi_tp_fidst" id="4_4" class="f_timePeriod d-none"><label for="4_4">4</label></div>
+                    <div class="time-btn active"><input type="radio" value="8" name="fi_tp_fidst" id="8_8" checked class="f_timePeriod d-none"><label for="8_8">8</label></div>
+                    <div class="time-btn"><input type="radio" value="12" name="fi_tp_fidst" id="12_12" class="f_timePeriod d-none"><label for="12_12">12</label></div>
+                    <div class="time-btn"><input type="radio" value="24" name="fi_tp_fidst" id="24_24" class="f_timePeriod d-none"><label for="24_24">24</label></div>
+                    <div class="time-btn"><input type="radio" value="48" name="fi_tp_fidst" id="48_48" class="f_timePeriod d-none"><label for="48_48">48</label></div>
+                  </div>
 
-          <!-- Product Feed Container -->
-          <div id="Plugin_TopPriceReductionProductListFull_119789" class="Plugin_TopPriceReductionProductListFull standardListWithoutBorder">
+                  <!-- Product Feed Container -->
+                  <div id="Plugin_TopPriceReductionProductListFull_119789" class="Plugin_TopPriceReductionProductListFull standardListWithoutBorder">
             <div class="standardList container" id="product-list">
               <!-- Product Grid Row 1 -->
               <div id="product-grid-row-1" class="row product-grid">
@@ -130,7 +147,7 @@
                       <div class="offersCount">12 Angebote</div>
                     </div>
                   </div>
-                  <div class="badge badge-dif m_51_75"><div class="text">Differenz</div><p>-67%</p></div>
+                  <div class="badge badge-dif m_51_100 m_51_75"><div class="text">Differenz</div><p>-67%</p></div>
                 </a>
 
                                 <!-- Card 1.5: Regression Fixture for Competing Reference Price -->
@@ -231,7 +248,7 @@
                       <div class="offersCount">20 Angebote</div>
                     </div>
                   </div>
-                  <div class="badge badge-dif m_51_75"><div class="text">Differenz</div><p>-50%</p></div>
+                  <div class="badge badge-dif m_51_100 m_51_75"><div class="text">Differenz</div><p>-50%</p></div>
                 </a>
 
                 <!-- Card 5: Low Offer Count Product -->
@@ -256,6 +273,10 @@
                   </div>
                   <div class="badge badge-dif m_1_25"><div class="text">Differenz</div><p>-5%</p></div>
                 </a>
+              </div>
+            </div>
+          </div>
+                </div>
               </div>
             </div>
           </div>

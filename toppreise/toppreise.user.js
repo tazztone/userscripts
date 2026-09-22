@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.20
+// @version      2.18.21
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -348,6 +348,7 @@ const STYLES = `
   }
   .Plugin_Product.medium-box .image_container img,
   .Plugin_Product.medium-box .productImage img,
+  .Plugin_Product.medium-box .product-image img,
   .Plugin_Product.medium-box img {
     max-height: 75px !important;
     max-width: 75px !important;
@@ -2417,12 +2418,17 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function isNeueToppreisePage() {
+    if (document.body?.classList.contains('Page_Browsing') || document.body?.classList.contains('Page_ProductSearch')) {
+      return false;
+    }
+    const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url');
+    if (currentUrl !== undefined && currentUrl !== null) {
+      if (/(?:produktsuche|katalog|search|suche)/i.test(currentUrl)) return false;
+      if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(currentUrl)) return true;
+    }
     return /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href) ||
-           /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(document.body?.getAttribute('data-current_url') || '') ||
            document.body?.classList.contains('Page_ListTopPriceReductionProducts') ||
-           document.body?.classList.contains('Page_ListTop100Products') ||
-           !!document.getElementById('Page_ListTopPriceReductionProducts') ||
-           !!document.getElementById('Page_ListTop100Products');
+           document.body?.classList.contains('Page_ListTop100Products');
   }
 
   function getPageType() {

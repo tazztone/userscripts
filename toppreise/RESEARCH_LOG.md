@@ -6,7 +6,7 @@ This document details the DOM selectors, event management, and filter logic for 
 
 ### Product Listings & Filters
 - **Active Store Filter**: `.filters .f_remove_filter[data-target-type="df"]`
-- **Product Card Container**: `.Plugin_Product.mixedBrowsingList, .Plugin_Product`
+- **Product Card Container**: `a.Plugin_Product.medium-box` (feed `/neue-toppreise`), `.Plugin_Product.mixedBrowsingList, .Plugin_Product` (catalog/search)
 - **State Marker Classes**:
   - `tp-is-cheapest`: Filtered store has best price (within margin %).
   - `tp-not-cheapest`: Filtered store sells item, but higher price.
@@ -106,9 +106,30 @@ This document details the DOM selectors, event management, and filter logic for 
 
 14. **Deal-Feed-Only Features on Non-Feed Pages**:
     - *Gotcha*: Heatmap, batch deal-check, Tiefstpreis toggle, and threshold selector are rendered on category/search pages where no discount badges (`.badge-dif`) exist, creating dead UI clutter with permanently-zero counters. Furthermore, when `cards.length === 0` on product detail pages (`/preisvergleich/...-pNNNNN`), the filter bar was inadvertently injected above the dealer table.
+
 15. **Pricechart HTML Grid Structure vs `Element.closest()` Traversal**:
     - *Gotcha*: On real Toppreise pricechart endpoints, title headings carry grid classes directly (`<div class="title col-12">Tiefstpreis</div>`). Calling `found.closest('.col-12, .col-4, ...')` evaluates `closest()` on the element itself, matching `.col-12` and returning the title `<div>` (which contains only text, no price).
     - *Rule*: Always inspect adjacent element containers (`found.nextElementSibling?.querySelector('.Plugin_Price')`) or scope parent traversal to `.col-4, .col-md-3, .col-md, [class*="col-"]:not(.title)` and include regex fallbacks.
+
+16. **Deeply Nested Product Feed in `tabContent` (`.f_tab.selected .tabContent`)**:
+    - *Gotcha*: On `/neue-toppreise`, `Plugin_TopPriceReductionProductListFull` is no longer a top-level sibling in `contentBox`, but deeply nested inside `.tabbedContainer > .contentBox > .f_tab.selected > .tabContent`. Furthermore, the `.tabContent` element has inline responsive classes `d-md-none d-lg-none d-xl-none d-xxl-none`, which appear hidden unless Toppreise's CSS rule `.tabbedContainer .f_tab.selected .tabContent { display: block !important; }` is active.
+    - *Rule*: Never assume the product list container is an immediate child of the main column `contentBox`. Rely on container query selectors (`#Plugin_TopPriceReductionProductListFull_*`, `.Plugin_TopPriceReductionProductListFull`, `.standardList`) or traverse upward to the lowest common parent container.
+
+17. **Product Card Image Wrapper (`.product-image` vs `.image_container`)**:
+    - *Gotcha*: Real cards on `/neue-toppreise` wrap images in `<div class="product-image">` inside `<div class="col-auto">`. Prior CSS targeting only `.image_container` failed to constrain real images on production, causing occasional layout stretching.
+    - *Rule*: Always style both `.product-image img` and `.image_container img` (along with generic `.Plugin_Product.medium-box img`) to ensure robust image size constraint (max 75x75px, object-fit: contain).
+
+18. **Native Ignored Categories Plugin (`Plugin_IgnoredCategories`)**:
+    - *Gotcha*: Toppreise introduced its own native category exclusion feature rendered in `#Plugin_IgnoredCategories_*` at the top of the main content column.
+    - *Rule*: The suite's filter bar must remain clearly distinguishable from native controls, and must never accidentally collide with, remove, or hide `Plugin_IgnoredCategories`.
+
+19. **Timeframe Filter AJAX Reloads (`Plugin_TimePeriod`)**:
+    - *Gotcha*: Timeframe switches (1h, 2h, 4h, 8h, 12h, 24h, 48h) are managed by `.Plugin_TimePeriod.f_Plugin_Filter_TimePeriod.f_filter_plugin` using hidden radio inputs. When the timeframe changes, Toppreise issues an AJAX request replacing `Plugin_TopPriceReductionProductListFull`.
+    - *Rule*: Because the suite filter bar is anchored at `#FrameContent` before `#Page_ListTopPriceReductionProducts`, it is immune to timeframe AJAX wiping. The suite's `MutationObserver` then seamlessly catches the new product cards and runs `processListings()`.
+
+20. **Discount Bracket Consolidation (`m_51_100`)**:
+    - *Gotcha*: Toppreise replaced legacy separate brackets `m_51_75` and `m_76_100` with a unified `m_51_100` class on `.badge.badge-dif`.
+    - *Rule*: Ensure all bracket-matching selectors and test fixtures include `m_51_100` alongside `m_1_25` and `m_26_50`.
 
 ---
 
@@ -139,7 +160,7 @@ Subcategories appear in two distinct patterns across the site:
 ## 7. Discount Heatmap Engine & Thermal Scaling (v2.10.0)
 
 ### 1. Target Selectors & Data Extraction
-- **Discount Badge**: `.badge.badge-dif, .badge` with difference bracket classes (`m_1_25`, `m_26_50`, `m_51_75`, `m_76_100`).
+- **Discount Badge**: `.badge.badge-dif, .badge` with difference bracket classes (`m_1_25`, `m_26_50`, and consolidated `m_51_100`, previously `m_51_75`, `m_76_100`).
 - **Inner Markup**: `<div class="text">Differenz</div> <p>-XX%</p>`.
 - **Extraction Function**: `extractCardDiscount(card)` caches parsed percentage ($0 \le D \le 100$) onto `card.dataset.tpDiscount`.
 
@@ -314,29 +335,136 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
 
 ### Canonical Production Hierarchy
 ```html
-<body class="color_page Page_ListTopPriceReductionProducts" data-current-url="/neue-toppreise">
-  <!-- Layout Wrapper -->
-  <div id="Page_ListTopPriceReductionProducts" class="page bestListContainer col-12">
-    <div class="row no-gutters">
-      <!-- Sidebar Column (xl only) -->
-      <div class="filterBoxContainer d-none d-xl-block col-auto p-0 pr-md-3">
-        ...
-      </div>
-      <!-- Main Content Column -->
-      <div class="contentBox col-12 col-xl">
-        <!-- Tabs -->
-        <div class="tabbedContainer row">...</div>
-        <!-- Timeframe Filter -->
-        <div class="row timeframe-row">...</div>
-        <!-- Product List Plugin Container -->
-        <div id="Plugin_TopPriceReductionProductListFull_..." class="Plugin_TopPriceReductionProductListFull standardListWithoutBorder">
-          <div class="standardList container">
-            <!-- Product Grid Rows -->
-            <div class="row">
-              <!-- Product Card Anchor directly receiving column flex classes -->
-              <a href="/preisvergleich/..." id="Plugin_Product_..." class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="...">
-                ...
-              </a>
+<body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-lng="de" data-ts="..." data-current_url="/neue-toppreise">
+  <!-- Layout Shell Containers -->
+  <div id="tpFrame" class="container p-0">
+    <div id="tpContent">
+      <div id="FrameContent" class="pageContent color_page">
+        <!-- Safe Placement Anchor for #tp-suite-filter-bar precedes #Page_ListTopPriceReductionProducts -->
+        <div id="Page_ListTopPriceReductionProducts" class="page bestListContainer col-12">
+          <div class="row no-gutters">
+            <!-- Left Category Sidebar Column (xl screens only) -->
+            <div class="filterBoxContainer d-none d-xl-block col-auto p-0 pr-md-3">
+              <div class="filterBox row pt-0 px-2">...</div>
+            </div>
+
+            <!-- Main Content Column -->
+            <div class="contentBox col-12 col-xl">
+              <!-- Native Ignored Categories Bar -->
+              <div id="Plugin_IgnoredCategories_808565" data-context-hash="255904" data-ajax-url="/plugins/filter/IgnoredCategories" class="Plugin_IgnoredCategories">
+                <div class="row">
+                  <div class="col-12 ignoredCategoriesBar">
+                    <span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Feed Tabbed Container -->
+              <div class="tabbedContainer row">
+                <!-- Navigation Tabs Row -->
+                <div id="Plugin_TopProductListNavigation_428551" data-context-hash="255904" class="Plugin_TopProductListNavigation tabSwitcherList titleBar">
+                  <div class="row">
+                    <a href="/topprodukte" class="title d-none d-xl-block">Top 100</a>
+                    <a href="/top-bewertete-produkte" class="title d-none d-xl-block">Topbewertungen</a>
+                    <a href="/neue-toppreise" class="title selected">Neue Toppreise</a>
+                    <a href="/neue-produkte" class="title d-none d-xl-block">Neue Produkte</a>
+                  </div>
+                </div>
+
+                <!-- Tab Content Host Column -->
+                <div class="contentBox col-12">
+                  <div class="f_tab selected">
+                    <div class="tabContent d-md-none d-lg-none d-xl-none d-xxl-none">
+                      <!-- Responsive Filter Button & Dropdown (mobile/tablet) -->
+                      <div class="row d-xl-none mb-2">
+                        <div class="col-12 col-sm">
+                          <div id="Plugin_BrowsingFilterResponsiveButton_256113" class="Plugin_BrowsingFilterResponsiveButton">...</div>
+                        </div>
+                        <div class="col-12 col-sm-auto mt-2 mt-sm-0" style="min-width:200px;">
+                          <div id="Plugin_Select_344101" class="Plugin_Select">...</div>
+                        </div>
+                      </div>
+
+                      <!-- Native TimePeriod Filter Plugin (AJAX reloads product list) -->
+                      <div id="Plugin_TimePeriod_288727" data-ajax-url="/plugins/filter/TimePeriod" data-trgt="TopPriceReductionProductListFull" class="Plugin_TimePeriod f_Plugin_Filter_TimePeriod f_filter_plugin row mb-3">
+                        <div class="col-auto p-2 ml-auto">
+                          <div class="row text-center">
+                            <div class="col-12 col-sm-auto"><span>Zeitraum (Stunden)</span></div>
+                            <div class="col-12 col-sm-auto text-center">
+                              <div class="d-block">
+                                <div class="d-inline-block"><input type="radio" value="1" id="1_1" class="f_timePeriod d-none"><label for="1_1">1</label></div>
+                                <div class="d-inline-block"><input type="radio" value="2" id="2_2" class="f_timePeriod d-none"><label for="2_2">2</label></div>
+                                <div class="d-inline-block"><input type="radio" value="4" id="4_4" class="f_timePeriod d-none"><label for="4_4">4</label></div>
+                                <div class="d-inline-block"><input type="radio" value="8" id="8_8" checked class="f_timePeriod d-none"><label for="8_8">8</label></div>
+                                <div class="d-inline-block"><input type="radio" value="12" id="12_12" class="f_timePeriod d-none"><label for="12_12">12</label></div>
+                                <div class="d-inline-block"><input type="radio" value="24" id="24_24" class="f_timePeriod d-none"><label for="24_24">24</label></div>
+                                <div class="d-inline-block"><input type="radio" value="48" id="48_48" class="f_timePeriod d-none"><label for="48_48">48</label></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Product Feed Plugin Container -->
+                      <div id="Plugin_TopPriceReductionProductListFull_119789" data-context-hash="255904" class="Plugin_TopPriceReductionProductListFull standardListWithoutBorder">
+                        <div class="standardList container">
+                          <!-- Single Product Grid Row containing all 96 feed cards -->
+                          <div class="row">
+                            <!-- Direct Anchor Product Card -->
+                            <a href="/preisvergleich/<Category>/<Title>-p<PID>" id="Plugin_Product_<ID>" data-context-hash="..." class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="<PID>">
+                              <div class="row h-100">
+                                <!-- Image Container Column -->
+                                <div class="col-auto">
+                                  <div class="product-image">
+                                    <img id="Plugin_Image_..." class="Plugin_Image lazyload f_showOnlyWithJS" src="/files-.../images/lazy-load.svg" data-src="//imgsrv.toppreise.ch/img/<PID>/80-..." data-srcset="//imgsrv.toppreise.ch/img/<PID>/160-... 2x" data-secsrcset="..." data-secsrc="..." style="height:80px;width:80px;" alt="..." title="...">
+                                  </div>
+                                </div>
+                                <!-- Details Column -->
+                                <div class="col">
+                                  <div class="row h-100">
+                                    <div class="product-name col-12">Product Title</div>
+                                    <div class="product-rating col-12 text-center mb-2">
+                                      <div id="Plugin_ProductAverageRating_..." class="Plugin_ProductAverageRating align-items-center row m-0">
+                                        <div id="Plugin_ProductRatingStars_..." class="Plugin_ProductRatingStars">
+                                          <div class="f_ratingStars row m-0 align-items-start">
+                                            <i class="TPIcons-star" data-rating-value="10"></i>...
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div class="product-price col-12">
+                                      <div class="price">
+                                        <div id="Plugin_PriceInformation_..." class="Plugin_PriceInformation price_information_product_small">
+                                          <div class="priceContainer shippingPrice">
+                                            <span class="text">ab</span>
+                                            <span class="currency">CHF </span>
+                                            <div class="Plugin_Price ">138.30</div>
+                                          </div>
+                                          <div class="priceContainer productPrice ">
+                                            <span class="text">ab</span>
+                                            <span class="currency">CHF </span>
+                                            <div class="Plugin_Price ">138.30</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <!-- Differenz Badge with Bracket m_51_100, m_26_50, or m_1_25 -->
+                              <div class="badge badge-dif m_51_100">
+                                <div class="text">Differenz</div>
+                                <p>-58%</p>
+                              </div>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -351,6 +479,8 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
 2. **Column Wrapped Cards on Other Views**: On certain category or catalog listings, cards may be nested inside a dedicated `<div class="col-12 col-md-6 col-lg-3">`.
 3. **Sortable Unit Resolution**: `getCardSortableUnit()` must distinguish between when the `<a>` tag *itself* has `col-*` classes (in which case the `<a>` is the sortable unit) versus when a parent wrapper `<div>` has `col-*` (in which case the wrapper `<div>` is the sortable unit, NOT climbing past `.product-grid` or `row` or `contentBox`).
 4. **Visibility & Layout Hiding**: Any hide-filter class (`.tp-bestpreise-hidden`, `.tp-negative-filtered`, `.tp-category-filtered`, etc.) must cleanly hide both the card and any wrapping `.col-*` container (via CSS `:has(> .tp-*)`) so no vacant layout columns occupy space in the flex grid.
+5. **Real-World Image Wrapper**: The real image container is `.product-image` inside `.col-auto` (not `.image_container`). Suite CSS must target `.product-image img`, `.image_container img`, and `.productImage img` interchangeably.
+6. **No Offer Counts or Dealer Sublines on Neue Toppreise**: Unlike search/catalog listings which have `.Plugin_DealerRelProdPriceInfo` or `N Angebote`, feed cards only contain shipping/product price and the `-XX%` badge. `extractOfferCount()` correctly returns `0`, and `pageHasOffers` correctly evaluates to `false`, naturally hiding the offer stepper `#tp-bar-min-offers-group` on deal feeds.
 
 ---
 
@@ -419,6 +549,42 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
    - Set `.col` to `min-width: 0 !important; flex: 1 1 auto; overflow: hidden`.
 3. **2-Line Title Clamping with Badge Clearance**: Clamped `.product-name` to 2 lines (`-webkit-line-clamp: 2`) with `padding-right: 52px` to prevent text collision with the top-right discount circle badge and breakdown pill.
 4. **Bottom-Aligned Price Anchor**: Applied `margin-top: auto !important` to `.Plugin_PriceInformation, .price_information_product`, ensuring prices across all cards in the row anchor cleanly at the bottom edge.
+
+---
+
+## 16. Site Structure Overhaul: Deep Tab Nesting, Native Ignored Categories & TimePeriod AJAX Lifecycle
+
+### 1. Comparative Analysis: Legacy vs Production DOM Structure
+
+| Architectural Layer | Previous / Legacy Mock Model | Live Production Structure (`/neue-toppreise`) | Impact on Suite |
+| :--- | :--- | :--- | :--- |
+| **`<body>` Attributes** | `class="color_page Page_ListTopPriceReductionProducts"`<br>`data-current-url="/neue-toppreise"` | `class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de"`<br>`data-current_url="/neue-toppreise"` | `isNeueToppreisePage()` must check both `data-current_url` and `data-current-url`. |
+| **Outer Wrapper** | `#page-best-list-container` | `#Page_ListTopPriceReductionProducts.page.bestListContainer.col-12` | `targets` in `getSuiteBarPlacement()` matches `#Page_ListTopPriceReductionProducts`, anchoring bar at `#FrameContent` before the 2-column layout. |
+| **Ignored Categories** | Custom suite category drawer only | `#Plugin_IgnoredCategories_*` at top of `.contentBox.col-12.col-xl` | Suite must not collide with or displace native hint bar. |
+| **Navigation Tabs** | Flat `.tabbedContainer > .tab` | `#Plugin_TopProductListNavigation_*` in `.tabSwitcherList.titleBar` with `<a href="...">` links | Suite must not treat navigation links as product cards or alter tab rows during sorting. |
+| **Feed Container Nesting** | Direct child of `.contentBox.col-12.col-xl` | Deeply nested inside `.tabbedContainer > .contentBox.col-12 > .f_tab.selected > .tabContent` | Grid resolver must not traverse past `.tabContent` or `.f_tab`. |
+| **Timeframe Filter** | Mock `<div class="row timeframe-row">` with `.time-btn` | Real plugin `#Plugin_TimePeriod_*` with `<input type="radio" class="f_timePeriod d-none">` + `<label>` | Timeframe selection triggers AJAX reloading of `#Plugin_TopPriceReductionProductListFull`. Anchor must sit outside AJAX target. |
+| **Card Image Wrapper** | `<div class="image_container">` | `<div class="product-image">` inside `<div class="col-auto">` | CSS rules must include `.product-image img` for size bounding (max 75x75px). |
+| **Card Interior Details** | Flat name + price | `.product-name`, `.product-rating` (stars), `.product-price` (`shippingPrice` + `productPrice`) | Vertical flex column must group rating and price cleanly without clipping sparklines. |
+| **Discount Badge Bracket** | `m_1_25`, `m_26_50`, `m_51_75`, `m_76_100` | `m_1_25`, `m_26_50`, `m_51_100` | Unified bracket `m_51_100` covers all deals ≥ 51%. |
+
+### 2. Required Code & Test Fixture Adjustments
+
+1. **Suite CSS Enhancements (`toppreise.user.js`)**:
+   - Add `.Plugin_Product.medium-box .product-image img` and `.Plugin_Product .product-image` to image constraint rules alongside legacy `.image_container`.
+   - Ensure `.product-rating` does not push `.Plugin_PriceInformation` out of the card bounds on compact viewports.
+
+2. **Test Fixture Modernization (`mock_toppreise.html`)**:
+   - Update `mock_toppreise.html` with the authentic production hierarchy:
+     - Outer wrapper `id="Page_ListTopPriceReductionProducts"` inside `#FrameContent`.
+     - Real tabs `#Plugin_TopProductListNavigation_428551` and native hint bar `#Plugin_IgnoredCategories_808565`.
+     - Native timeframe plugin `#Plugin_TimePeriod_288727` with radio inputs.
+     - Product feed nested within `.tabbedContainer > .contentBox.col-12 > .f_tab.selected > .tabContent`.
+     - Authentic product cards with `<div class="product-image">`, `.product-rating`, and `m_51_100` badges.
+     - Both `data-current_url` and `data-current-url` attributes.
+
+3. **Test Suite Compatibility (`test_userscript.py`)**:
+   - Preserve dual-selector support in test assertions so tests pass against both authentic production markup and existing selectors.
 
 
 
