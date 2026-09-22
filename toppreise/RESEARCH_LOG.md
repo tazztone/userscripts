@@ -131,6 +131,10 @@ This document details the DOM selectors, event management, and filter logic for 
     - *Gotcha*: Toppreise replaced legacy separate brackets `m_51_75` and `m_76_100` with a unified `m_51_100` class on `.badge.badge-dif`.
     - *Rule*: Ensure all bracket-matching selectors and test fixtures include `m_51_100` alongside `m_1_25` and `m_26_50`.
 
+21. **Filter Bar Stale Closure on Dynamic Counts (`uncheckedDeals`)**:
+    - *Gotcha*: When the suite filter bar is created on initial page load, `counts.uncheckedDeals` may be `0` before card parsing finishes. If event handlers attached inside `if (!bar)` close over `uncheckedDeals` lexically, subsequent clicks on the button (e.g. `🔍 Check Deals (10)`) read the stale `0` count from the initial closure, showing "Keine ungeprüften Deals vorhanden" instead of scanning.
+    - *Rule*: Store dynamic UI counts in DOM element dataset properties (`batchBtn.dataset.uncheckedCount = String(uncheckedDeals)`) on every update pass, and read from `dataset` (or inspect live DOM cards) inside event listeners rather than relying on lexical scoping.
+
 ---
 
 ## 6. Comprehensive Category Taxonomy & Resolution Engine (v2.8.12)

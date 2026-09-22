@@ -3096,4 +3096,37 @@ def test_card_layout_prevents_wrapping_and_irregular_heights(page: Page):
     assert res['cardHeight'] < 210
 
 
+def test_batch_check_button_click_when_deals_populated_after_initial_bar_render(page: Page):
+    # Regression test for stale closure bug where initial bar creation with 0 deals
+    # prevented subsequent batch clicks from running even after deals were discovered.
+    batch_btn = page.locator('#tp-bar-batch-check-btn')
+    assert batch_btn.is_visible()
 
+    res = page.evaluate("""() => {
+        // 1. Force bar recreation with 0 unchecked deals to emulate initial render state
+        const oldBar = document.getElementById('tp-suite-filter-bar');
+        if (oldBar) oldBar.remove();
+
+        // 2. Clear stats cache for the cards so they are unchecked deals
+        window.ToppreiseSuite.clearCardCache();
+
+        // 3. Process listings -> renders bar and populates count
+        window.ToppreiseSuite.processListings();
+
+        const btn = document.getElementById('tp-bar-batch-check-btn');
+        return {
+            btnText: btn ? btn.textContent : '',
+            datasetCount: btn ? btn.dataset.uncheckedCount : null
+        };
+    }""")
+
+    assert 'Check Deals (3)' in res['btnText']
+    assert res['datasetCount'] == '3'
+
+    # Clicking batch button should immediately start the scan (tp-batch-active), NOT bail out
+    batch_btn.click()
+    page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
+    
+    # Cleanly cancel scan to finish test
+    page.evaluate("() => window.ToppreiseSuite.cancelBatchDealCheck()")
+    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")

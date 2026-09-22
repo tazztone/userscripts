@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.30
+// @version      2.18.32
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2274,7 +2274,7 @@ const SHADOW_MODAL_STYLES = `
             </div>
           </div>
           <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: ${isDealFeed ? 'inline-flex' : 'none'};">
-            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" title="${uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`}" style="border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;">
+            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`}" style="border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;">
               ${isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
             </button>
             <button class="tp-threshold-btn" id="tp-bar-threshold-btn" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
@@ -2367,12 +2367,14 @@ const SHADOW_MODAL_STYLES = `
         batchBtn.onclick = () => {
           if (isBatchChecking) {
             cancelBatchDealCheck();
-            batchBtn.innerHTML = `🔍 Check Deals (${uncheckedDeals})`;
+            const curCount = parseInt(batchBtn.dataset.uncheckedCount || '0', 10);
+            batchBtn.innerHTML = `🔍 Check Deals (${curCount})`;
             batchBtn.classList.remove('tp-batch-active');
             showToast('Batch-Prüfung abgebrochen');
             return;
           }
-          if (uncheckedDeals === 0) {
+          const curCount = parseInt(batchBtn.dataset.uncheckedCount || '0', 10);
+          if (curCount === 0) {
             showToast('Keine ungeprüften Deals vorhanden');
             return;
           }
@@ -2586,6 +2588,7 @@ const SHADOW_MODAL_STYLES = `
 
     const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
     if (batchBtn && !isBatchChecking) {
+      batchBtn.dataset.uncheckedCount = String(uncheckedDeals);
       batchBtn.classList.remove('tp-disabled');
       const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       batchBtn.title = uncheckedDeals > 0
