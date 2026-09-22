@@ -1298,6 +1298,49 @@ def test_category_page_batch_check_scans_visible_cards(page: Page):
     assert page.locator('.badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record, .badge-dif.tp-deal-not-low').count() > 0
 
 
+def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
+    # Switch mock to realistic Category Browsing mode with real headphones markup
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', '/produktsuche/HiFi-Audio/Kopfhoerer/Kopfhoerer-c3308');
+        const feed = document.getElementById('product-list');
+        if (feed) feed.style.display = 'none';
+        if (!document.getElementById('Page_Browsing')) {
+            const tmpl = document.getElementById('mock-category-browsing-template');
+            if (tmpl) document.body.appendChild(tmpl.content.cloneNode(true));
+        }
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_timeout(200)
+
+    # 1. Verify AirPods 5 collection item remains intact as a grouped family
+    coll_item = page.locator('#Plugin_ProductCollItem_411970')
+    assert coll_item.is_visible()
+
+    # 2. Verify variants remain inside the collection's related products list (NOT flattened into root)
+    rel_list = coll_item.locator('.Plugin_ProductCollectionRelProductsList')
+    assert rel_list.is_visible()
+    variants = rel_list.locator('.Plugin_Product')
+    assert variants.count() == 2
+
+    # 3. Verify deal pills are injected as inline pills inside price information (not 50px absolute circles)
+    pills = page.locator('#Page_Browsing .badge-dif.tp-deal-pill')
+    assert pills.count() >= 3 # AirPods Pro 3 + 2 AirPods 5 variants
+
+    # 4. Verify unscanned pills display clean "Deal" with single magnifying glass (no duplicate loupe artifact)
+    first_pill = pills.first
+    pill_text = first_pill.inner_text()
+    assert 'Deal' in pill_text
+    assert '🔍' in pill_text
+    assert first_pill.locator('.tp-badge-loupe-icon').count() == 0
+
+    # 5. Verify price text is completely visible and NOT obscured by the pill
+    price_info = page.locator('#Plugin_Product_492326 .Plugin_PriceInformation')
+    assert '170.19' in price_info.inner_text()
+    avail = page.locator('#Plugin_Product_492326 .Plugin_AvailabilityInformation')
+    assert avail.is_visible()
+
+
 def test_slash_key_focuses_negative_filter(page: Page):
     filter_bar = page.locator('#tp-suite-filter-bar')
     assert filter_bar.is_visible()

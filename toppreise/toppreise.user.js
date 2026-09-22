@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.34
+// @version      2.18.35
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -230,9 +230,76 @@ const STYLES = `
     font-weight: bold !important;
     line-height: 1.1 !important;
   }
-  .mixedBrowsingListProduct {
-    position: relative !important;
-    padding-right: 68px !important;
+  /* ─── INLINE DEAL PILL FOR LIST VIEWS ─── */
+  .badge.badge-dif.tp-deal-pill,
+  .badge-dif.tp-deal-pill {
+    position: static !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 62px !important;
+    height: 22px !important;
+    border-radius: 11px !important;
+    padding: 2px 8px !important;
+    margin-bottom: 4px !important;
+    margin-left: auto !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    text-align: center !important;
+    gap: 4px !important;
+    background: rgba(30, 41, 59, 0.9) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #f1f5f9 !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    transform: none !important;
+  }
+  .badge.badge-dif.tp-deal-pill .text,
+  .badge-dif.tp-deal-pill .text {
+    display: none !important;
+  }
+  .badge.badge-dif.tp-deal-pill p,
+  .badge-dif.tp-deal-pill p {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+  }
+  .badge.badge-dif.tp-deal-pill .tp-badge-loupe-icon {
+    display: none !important;
+  }
+  .badge.badge-dif.tp-deal-pill.tp-deal-alltime-low {
+    background: rgba(6, 78, 59, 0.92) !important;
+    border: 1.5px solid #10b981 !important;
+    color: #6ee7b7 !important;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4) !important;
+  }
+  .badge.badge-dif.tp-deal-pill.tp-deal-not-low {
+    background: rgba(120, 53, 15, 0.92) !important;
+    border: 1.5px solid #f59e0b !important;
+    color: #fde68a !important;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.35) !important;
+  }
+  .badge.badge-dif.tp-deal-pill.tp-is-severe-markup {
+    background: rgba(136, 19, 55, 0.92) !important;
+    border: 1.5px solid #f43f5e !important;
+    color: #fecdd3 !important;
+    box-shadow: 0 0 8px rgba(244, 63, 94, 0.35) !important;
+  }
+  .badge.badge-dif.tp-deal-pill.tp-deal-loading {
+    background: rgba(30, 41, 59, 0.9) !important;
+    border-color: #38bdf8 !important;
+    color: #38bdf8 !important;
+  }
+  .price-availability {
+    align-items: flex-start !important;
+  }
+  .price-availability .Plugin_AvailabilityInformation {
+    margin-top: 4px !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive,
   .badge-dif.tp-deal-badge-interactive {
@@ -1401,7 +1468,11 @@ const SHADOW_MODAL_STYLES = `
 
   function getProductCards() {
     const rawCards = Array.from(document.querySelectorAll('a.Plugin_Product, .Plugin_Product.medium-box, .Plugin_Product.mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_Product'));
-    const standardCards = rawCards.filter(c => !c.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList'));
+    const standardCards = rawCards.filter(c => {
+      if (c.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList')) return false;
+      if (c.closest('.d-none, [style*="display: none"], [style*="display:none"]')) return false;
+      return true;
+    });
     if (standardCards.length > 0) {
       const leafCards = standardCards.filter(c => !c.querySelector('.Plugin_Product, .mixedBrowsingListProduct'));
       if (leafCards.length > 0) return leafCards;
@@ -3134,18 +3205,40 @@ const SHADOW_MODAL_STYLES = `
     // Remove any legacy floating wrappers if present
     card.querySelector('.tp-real-deal-wrapper')?.remove();
 
+    const isListView = !isNeueFeed && (
+      card.classList.contains('mixedBrowsingList') ||
+      card.classList.contains('mixedBrowsingListProduct') ||
+      !!card.querySelector('.priceAvailabilityContainer, .price-availability') ||
+      !!card.closest('#Page_Browsing, .Page_Browsing')
+    );
+
     if (!badgeDifEl && pid) {
       badgeDifEl = document.createElement('div');
       badgeDifEl.className = 'badge badge-dif tp-injected-badge';
-      card.appendChild(badgeDifEl);
     }
 
     if (badgeDifEl) {
+      if (isListView) {
+        badgeDifEl.classList.add('tp-deal-pill');
+        const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product');
+        if (priceInfo) {
+          if (badgeDifEl.parentElement !== priceInfo) {
+            priceInfo.insertBefore(badgeDifEl, priceInfo.firstChild);
+          }
+        } else if (badgeDifEl.parentElement !== card) {
+          card.appendChild(badgeDifEl);
+        }
+      } else {
+        badgeDifEl.classList.remove('tp-deal-pill');
+        if (badgeDifEl.parentElement !== card) {
+          card.appendChild(badgeDifEl);
+        }
+      }
+
       if (!badgeDifEl.dataset.tpOriginalDiscount) {
         const initialDiscount = extractCardDiscount(card);
         badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
       }
-      const isNeueFeed = isNeueToppreisePage();
       const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
 
       // Bind single click handler on badge
@@ -3206,7 +3299,11 @@ const SHADOW_MODAL_STYLES = `
             badgeDifEl.classList.remove('tp-deal-new-record');
           }
 
-          setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealData.score}%</p>`);
+          if (isListView) {
+            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${dealData.score}%</p>`);
+          } else {
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealData.score}%</p>`);
+          }
 
           const prevLow = stats?.previousLow;
           const medianVal = stats?.medianPrice;
@@ -3271,14 +3368,22 @@ const SHADOW_MODAL_STYLES = `
 
           if (currentlyScanningPid && currentlyScanningPid === pid) {
             badgeDifEl.classList.add('tp-deal-loading');
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfe...</div><p>⏳</p>`);
+            if (isListView) {
+              setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
+            } else {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfe...</div><p>⏳</p>`);
+            }
           } else {
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
             } else {
               setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p><span class="tp-badge-loupe-icon">🔍</span>`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
+              }
             }
           }
           card.querySelector('.tp-card-historical-price')?.remove();
@@ -3290,7 +3395,11 @@ const SHADOW_MODAL_STYLES = `
 
         if (currentlyScanningPid && currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
-          setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfe...</div><p>⏳</p>`);
+          if (isListView) {
+            setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
+          } else {
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfe...</div><p>⏳</p>`);
+          }
         } else {
           badgeDifEl.classList.remove('tp-deal-loading');
         }
@@ -3330,14 +3439,22 @@ const SHADOW_MODAL_STYLES = `
             const avgContext = stats.avgPrice && stats.avgPrice > cardPrice ? ` | Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}` : '';
 
             setTitleIfChanged(badgeDifEl, `🌟 ${isNewRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!${prevLowContext}${avgContext}${peakContext} (Klicken zum Aktualisieren)`);
-            if (rawDiscount !== null && !isNaN(rawDiscount)) {
+            if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p>`);
             } else {
               const dealPct = cd.dealScore?.score || (stats.realDiscountVsMedian || stats.realDiscountVsAvg || 0);
-              if (dealPct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealPct}%</p>`);
+              if (isListView) {
+                if (dealPct > 0) {
+                  setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${dealPct}%</p>`);
+                } else {
+                  setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+                }
               } else {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+                if (dealPct > 0) {
+                  setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealPct}%</p>`);
+                } else {
+                  setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+                }
               }
             }
           } else {
@@ -3357,7 +3474,11 @@ const SHADOW_MODAL_STYLES = `
             const fakeDiscContext = (rawDiscount !== null && !isNaN(rawDiscount)) ? ` | Schein-Rabatt: -${rawDiscount}%` : '';
             setTitleIfChanged(badgeDifEl, `⚠️ Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${fakeDiscContext}${peakContext} (Klicken zum Aktualisieren)`);
             const fakeDiscHtml = (rawDiscount !== null && !isNaN(rawDiscount)) ? `<span class="tp-fake-discount"><s>-${rawDiscount}%</s></span>` : '';
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${markupPct}%</p>${fakeDiscHtml}`);
+            if (isListView) {
+              setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
+            } else {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${markupPct}%</p>${fakeDiscHtml}`);
+            }
           }
 
           // 4A: Historical Tiefstpreis line right below current price
@@ -3410,12 +3531,16 @@ const SHADOW_MODAL_STYLES = `
 
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
-          if (rawDiscount !== null && !isNaN(rawDiscount)) {
+          if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
             setTitleIfChanged(badgeDifEl, `🔍 Klicken: Echten Allzeit-Tiefstpreis prüfen (-${rawDiscount}% Schein-Rabatt vs Realität)`);
             setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
           } else {
             setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p><span class="tp-badge-loupe-icon">🔍</span>`);
+            if (isListView) {
+              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
+            } else {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
+            }
           }
         }
       }
@@ -3474,6 +3599,8 @@ const SHADOW_MODAL_STYLES = `
 
   function getCardSortableUnit(card) {
     if (!card) return null;
+    const collItem = card.closest('.Plugin_ProductCollItem');
+    if (collItem) return collItem;
     const parent = card.parentElement;
     if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
       if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
@@ -3485,6 +3612,18 @@ const SHADOW_MODAL_STYLES = `
 
   function applySorting(cards, pageHasOffers) {
     if (!cards || cards.length <= 1) return;
+
+    const isCustomSortActive = CONFIG.BESTPREISE_MODE_ACTIVE ||
+                               CONFIG.SORT_BY_OFFERS === 'discount-desc' ||
+                               (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none');
+
+    if (!isCustomSortActive) {
+      const wasCustomSorted = cards.some(c => {
+        const u = getCardSortableUnit(c);
+        return u?.style.order || u?.dataset.tpOrigParentId;
+      });
+      if (!wasCustomSorted) return;
+    }
 
     // Ensure initial order and original parent IDs are recorded on all cards/columns
     cards.forEach((c, idx) => {
@@ -3509,9 +3648,6 @@ const SHADOW_MODAL_STYLES = `
     if (productRows.length === 0) return;
 
     const primaryRow = productRows[0];
-    const isCustomSortActive = CONFIG.BESTPREISE_MODE_ACTIVE ||
-                               CONFIG.SORT_BY_OFFERS === 'discount-desc' ||
-                               (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none');
 
     if (isCustomSortActive) {
       let sortedEntries = [];
@@ -3554,6 +3690,17 @@ const SHADOW_MODAL_STYLES = `
         scored.sort((a, b) => CONFIG.SORT_BY_OFFERS === 'desc' ? (b.count - a.count) : (a.count - b.count));
         sortedEntries = scored;
       }
+
+      // Deduplicate by item so grouped collection items appearing for multiple child cards are only moved once
+      const seenItems = new Set();
+      const uniqueEntries = [];
+      for (const entry of sortedEntries) {
+        if (entry.item && !seenItems.has(entry.item)) {
+          seenItems.add(entry.item);
+          uniqueEntries.push(entry);
+        }
+      }
+      sortedEntries = uniqueEntries;
 
       // Move sortable items into primaryRow and apply CSS flex order
       sortedEntries.forEach((entry, rank) => {
