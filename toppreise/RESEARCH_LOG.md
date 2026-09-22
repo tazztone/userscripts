@@ -25,6 +25,22 @@ This document details the DOM selectors, event management, and filter logic for 
 - **Submit Button**: `.Plugin_NewInfoMailForm input.f_submitbtn`
 - **Dialog Close Button**: `.AbstractDialog_CloseButton`
 
+### Native Category Management Engine
+- **Main Bar Container**: `.Plugin_IgnoredCategories` (`#Plugin_IgnoredCategories_*`) with `data-context-hash`, `data-ajax-url="/plugins/filter/IgnoredCategories"`, `data-ignored-count`, `data-active="1"`
+- **Bar Chips Wrapper**: `.ignoredCategoriesBar` inside `.Plugin_IgnoredCategories`
+- **Empty State Hint**: `.ignoreCategoryHint` ("Kategorien, die Sie nicht interessieren...")
+- **Ignored Category Chip**: `.ignoredCategory.f_IgnoredCategories_Show[data-vcat-id][data-ident]`
+- **Overflow Toggle**: `.moreChipsToggle.f_IgnoredCategories_MoreChips[data-more-template="+{1}"][data-less="weniger"]`
+- **Reset All Trigger**: `.resetAll.f_IgnoredCategories_Reset[data-ident]` ("Alle einblenden")
+- **Reset Modal Dialog**: `.AbstractDialog.AbstractDialog_IgnoredCategoriesResetDialog` with `.f_IgnoredCategories_ResetConfirm`
+- **Left Sidebar Selector**: `.Plugin_CategoryMainSelectionLeft.submenuList` (`#Plugin_CategoryMainSelectionLeft_*`) with `data-trgt="TopPriceReductionProductListFull"`
+- **Sidebar Category Cross Button**: `span.ignoreCategory.f_IgnoredCategories_Hide[data-vcat-id][data-ident]`
+- **Sidebar Category List Entry**: `li.category_level_0` (gets `.ignoredCategoryEntry` when excluded)
+- **Sidebar Expand/Collapse Toggles**: `.f_showMoreCatDetails.showClosedOnly` / `.f_hideMoreCatDetails.showExpandedOnly`
+- **Per-Card Hover Menu Trigger**: `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger` (adds `.hasHideTrigger` to `.Plugin_Product`)
+- **Card Context Flyout Menu**: `.IgnoredCategoriesMenu` with `.entry.f_IgnoredCategories_MenuEntry[data-vcat-id][data-ident]`
+- **Full-Page Empty State**: `.emptyBecauseIgnored` with `.hint` and `.resetAll`
+
 ---
 
 ## 2. UI Encapsulation & Shadow DOM Architecture
@@ -119,9 +135,12 @@ This document details the DOM selectors, event management, and filter logic for 
     - *Gotcha*: Real cards on `/neue-toppreise` wrap images in `<div class="product-image">` inside `<div class="col-auto">`. Prior CSS targeting only `.image_container` failed to constrain real images on production, causing occasional layout stretching.
     - *Rule*: Always style both `.product-image img` and `.image_container img` (along with generic `.Plugin_Product.medium-box img`) to ensure robust image size constraint (max 75x75px, object-fit: contain).
 
-18. **Native Ignored Categories Plugin (`Plugin_IgnoredCategories`)**:
-    - *Gotcha*: Toppreise introduced its own native category exclusion feature rendered in `#Plugin_IgnoredCategories_*` at the top of the main content column.
-    - *Rule*: The suite's filter bar must remain clearly distinguishable from native controls, and must never accidentally collide with, remove, or hide `Plugin_IgnoredCategories`.
+18. **Native Ignored Categories Plugin (`Plugin_IgnoredCategories`) & Sidebar Selection (`Plugin_CategoryMainSelectionLeft`)**:
+    - *Gotcha*: Toppreise introduced its own native category exclusion feature across three interconnected UI surfaces: (1) a chip bar `#Plugin_IgnoredCategories_*` at the top of the main content column, (2) category exclusion buttons `.f_IgnoredCategories_Hide` inside the left sidebar `#Plugin_CategoryMainSelectionLeft_*`, and (3) dynamic hover menu triggers `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger` placed at `top: 0; right: 0; z-index: 3` on every product card.
+    - *Rule*:
+      1. *Placement Separation*: Mount the Suite filter bar (`#tp-suite-filter-bar`) outside the main column as a direct child of `#FrameContent` before `#Page_ListTopPriceReductionProducts`, ensuring zero DOM collisions with `#Plugin_IgnoredCategories_*`.
+      2. *Card UI Harmony*: Position Suite card quick-block buttons (`.tp-card-quick-block`) strictly at the bottom-left (`bottom: 6px; left: 8px`), and Suite discount circle badges at `top: 10px; right: 10px`, completely avoiding the native cross button at `top: 0; right: 0;` and preventing click/hover interference.
+      3. *AJAX Refresh Resilience*: When users toggle categories natively, Toppreise fires an AJAX POST to `/plugins/filter/IgnoredCategories` and reloads `Plugin_TopPriceReductionProductListFull`. The Suite's `mainObserver` must passively capture the reloaded product grid and execute `processListings()` without race conditions or re-render loops.
 
 19. **Timeframe Filter AJAX Reloads (`Plugin_TimePeriod`)**:
     - *Gotcha*: Timeframe switches (1h, 2h, 4h, 8h, 12h, 24h, 48h) are managed by `.Plugin_TimePeriod.f_Plugin_Filter_TimePeriod.f_filter_plugin` using hidden radio inputs. When the timeframe changes, Toppreise issues an AJAX request replacing `Plugin_TopPriceReductionProductListFull`.
@@ -349,13 +368,28 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
           <div class="row no-gutters">
             <!-- Left Category Sidebar Column (xl screens only) -->
             <div class="filterBoxContainer d-none d-xl-block col-auto p-0 pr-md-3">
-              <div class="filterBox row pt-0 px-2">...</div>
+              <div class="filterBox row pt-0 px-2">
+                <div class="col-12 mb-3 filterContainer p-1 mb-2">
+                  <div id="Plugin_CategoryMainSelectionLeft_173425" data-trgt="TopPriceReductionProductListFull" class="Plugin_CategoryMainSelectionLeft submenuList f_Plugin_Filter_CategoryMainSelectionLeft opened f_filter_plugin">
+                    <div class="label bold"><a href="/neue-toppreise">Alle Kategorien</a></div>
+                    <ul>
+                      <li class="category_level_0">
+                        <a href="/neue-toppreise/Computer-Zubehoer-c200">Computer &amp; Zubehör</a>
+                        <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="200" data-ident="..." title="Kategorie ausblenden"><i class="TPIcons-cross"></i></span>
+                      </li>
+                      <!-- ... additional categories ... -->
+                    </ul>
+                    <a class="f_showMoreCatDetails showClosedOnly" title="mehr Kategorien anzeigen"><i class="TPIcons-chevron-down pr-2"></i> mehr anzeigen...</a>
+                    <a class="f_hideMoreCatDetails showExpandedOnly" title="weniger Kategorien anzeigen"><i class="TPIcons-chevron-up pr-2"></i> weniger anzeigen</a>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Main Content Column -->
             <div class="contentBox col-12 col-xl">
               <!-- Native Ignored Categories Bar -->
-              <div id="Plugin_IgnoredCategories_808565" data-context-hash="255904" data-ajax-url="/plugins/filter/IgnoredCategories" class="Plugin_IgnoredCategories">
+              <div id="Plugin_IgnoredCategories_808565" data-context-hash="255904" data-ajax-url="/plugins/filter/IgnoredCategories" data-menu-title="Kategorie ausblenden" data-menu-heading="Kategorie ausblenden:" data-ignored-count="0" data-active="1" class="Plugin_IgnoredCategories">
                 <div class="row">
                   <div class="col-12 ignoredCategoriesBar">
                     <span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>
@@ -415,7 +449,7 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
                           <!-- Single Product Grid Row containing all 96 feed cards -->
                           <div class="row">
                             <!-- Direct Anchor Product Card -->
-                            <a href="/preisvergleich/<Category>/<Title>-p<PID>" id="Plugin_Product_<ID>" data-context-hash="..." class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="<PID>">
+                            <a href="/preisvergleich/<Category>/<Title>-p<PID>" id="Plugin_Product_<ID>" data-context-hash="..." class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="<PID>">
                               <div class="row h-100">
                                 <!-- Image Container Column -->
                                 <div class="col-auto">
@@ -460,6 +494,10 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
                                 <div class="text">Differenz</div>
                                 <p>-58%</p>
                               </div>
+                              <!-- Native Ignored Categories Hover Menu Trigger -->
+                              <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden">
+                                <i class="TPIcons-cross"></i>
+                              </span>
                             </a>
                           </div>
                         </div>
@@ -741,6 +779,313 @@ Analysis of user screenshots and DOM layout mechanics revealed why some cards ex
    - Adjusted `.tp-card-quick-block` to `bottom: 6px !important; left: 8px !important; padding: 2px 7px !important;` to ensure it is never cut off or clipped by card bounds on hover.
 4. **Automated Verification**:
    - Added Playwright regression test `test_card_layout_nested_rows_preserves_vertical_stacking_and_prices` verifying that prices remain vertically stacked below titles, within card bounds, with `innerDir: column` and `outerWrap: nowrap`.
+
+---
+
+## 22. Native Category Management Engine (`Plugin_IgnoredCategories` & `Plugin_CategoryMainSelectionLeft`)
+
+### 1. Architectural Motivation & System Overview
+Toppreise introduced native server-side category exclusion across deal feeds (`/neue-toppreise`) and top product lists (`.topProductsTabs`, `.bestListContainer`). Unlike client-side CSS filtering, the native system excludes products at the database/server layer, returning an AJAX-reloaded product list containing only non-ignored categories.
+
+The native system operates across three coordinated UI surfaces:
+1. **Left Sidebar Selection (`Plugin_CategoryMainSelectionLeft`)**: Preselection list where users can exclude major root categories.
+2. **Top Management Chip Bar (`Plugin_IgnoredCategories`)**: Dynamic bar displaying active exclusion chips with overflow calculation and reset options.
+3. **Per-Card Context Flyout Trigger (`hideCategoryTrigger`)**: Quick-exclusion cross icon attached to each product card with an asynchronous breadcrumb menu.
+
+---
+
+### 2. The Three Core UI Touchpoints & DOM Architecture
+
+#### Surface 1: Left Category Sidebar (`Plugin_CategoryMainSelectionLeft`)
+- **Container**: `#Plugin_CategoryMainSelectionLeft_*` with classes `.Plugin_CategoryMainSelectionLeft.submenuList.f_Plugin_Filter_CategoryMainSelectionLeft.opened.f_filter_plugin` and attribute `data-trgt="TopPriceReductionProductListFull"`.
+- **Category Items**: Rendered inside `<ul>` as `<li class="category_level_0">`:
+  ```html
+  <li class="category_level_0">
+    <a href="/neue-toppreise/Computer-Zubehoer-c200">Computer &amp; Zubehör</a>
+    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="200" data-ident="0083e551df0b7a84c4ba6b308951816a" title="Kategorie ausblenden">
+      <i class="TPIcons-cross"></i>
+    </span>
+  </li>
+  ```
+- **Collapsible Disclosure**: The top 15 categories are visible by default. Trailing categories carry `.showExpandedOnly` and are toggled via:
+  - `.f_showMoreCatDetails.showClosedOnly` ("mehr anzeigen...") $\rightarrow$ sets `CategoryMainSelectionLeft_setOpened(true)`
+  - `.f_hideMoreCatDetails.showExpandedOnly` ("weniger anzeigen") $\rightarrow$ sets `CategoryMainSelectionLeft_setOpened(false)`
+- **Visual Feedback**: When a category is excluded, the `<li>` element receives class `.ignoredCategoryEntry`, reducing opacity to `0.45` with strike-through styling.
+
+#### Surface 2: Main Column Management Chip Bar (`Plugin_IgnoredCategories`)
+- **Container**: `#Plugin_IgnoredCategories_*` at the top of `.contentBox.col-12.col-xl` with attributes:
+  - `data-context-hash="<hash>"`: Context identifier for session validation.
+  - `data-ajax-url="/plugins/filter/IgnoredCategories"`: AJAX management endpoint.
+  - `data-menu-title="Kategorie ausblenden"`: Default title for triggers.
+  - `data-menu-heading="Kategorie ausblenden:"`: Default heading for menus.
+  - `data-ignored-count="<N>"`: Real-time count of excluded categories.
+  - `data-active="1"`: Feature flag indicator.
+- **State A: Default Empty Hint (`data-ignored-count="0"`)**:
+  ```html
+  <div class="row">
+    <div class="col-12 ignoredCategoriesBar">
+      <span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>
+    </div>
+  </div>
+  ```
+- **State B: Active Excluded Chips (`data-ignored-count="N"`)**:
+  ```html
+  <div class="row">
+    <div class="col-12 ignoredCategoriesBar">
+      <span class="label">Ausgeblendet:</span>
+      <span class="ignoredCategory f_IgnoredCategories_Show" data-vcat-id="200" data-ident="0083e551df0b7a84c4ba6b308951816a" title="Wieder einblenden">
+        Computer &amp; Zubehör
+        <span class="removeFilter"><i class="TPIcons-add"></i></span>
+      </span>
+      <button type="button" class="moreChipsToggle f_IgnoredCategories_MoreChips d-none" aria-expanded="false" data-more-template="+{1}" data-less="weniger">+0</button>
+      <a class="resetAll f_IgnoredCategories_Reset" data-ident="ed424749e4d077a3df1943edb75bda12">Alle einblenden</a>
+    </div>
+  </div>
+  ```
+- **Dynamic Chip Fitting (`IgnoredCategories_fitChips`)**:
+  - Automatically calculates line capacity against `.ignoredCategoriesBar` width via `ResizeObserver`.
+  - Max lines allowed: `IgnoredCategories_MAX_ZEILEN = 1` (fallback `2`).
+  - Chips exceeding available single-line width receive class `.moreChip` (`display: none !important`).
+  - `.moreChipsToggle` updates dynamically to display `+{N}` extra chips. Clicking toggles `aria-expanded="true"` and displays all chips.
+- **Reset All Dialog (`.AbstractDialog_IgnoredCategoriesResetDialog`)**:
+  - Clicking `.resetAll.f_IgnoredCategories_Reset` opens the native confirmation modal:
+    ```html
+    <div id="AbstractDialog_IgnoredCategoriesResetDialog_..." class="AbstractDialog AbstractDialog_IgnoredCategoriesResetDialog">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="titleBar">Alle Kategorien einblenden</div>
+          <div class="contentBox">
+            <p>Alle ausgeblendeten Kategorien wieder einblenden?</p>
+            <span class="btnInverted" onclick="AbstractDialog_hide();">Nein</span>
+            <span class="btn f_IgnoredCategories_ResetConfirm" data-ident="...">Alle einblenden</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    ```
+- **Total Empty Page State (`.emptyBecauseIgnored`)**:
+  - If 100% of products in the current view are excluded by native category filters, Toppreise replaces the feed with:
+    ```html
+    <div class="emptyBecauseIgnored">
+      <i class="TPIcons-funnel"></i>
+      <div class="hint">Sie haben alle Kategorien ausgeblendet...</div>
+      <a class="resetAll f_IgnoredCategories_Reset" data-ident="...">Alle zurücksetzen</a>
+    </div>
+    ```
+
+#### Surface 3: Per-Card Hover Trigger & Flyout Menu
+- **Trigger Injection (`IgnoredCategories_attachMenus`)**:
+  - Toppreise iterates over `.topProductsTabs .Plugin_Product[data-entity-id], .bestListContainer .Plugin_Product[data-entity-id]`.
+  - Appends `<span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross"></i></span>`.
+  - Adds `.hasHideTrigger` class to the card, which applies `padding-right: 22px` to `.product-name`.
+  - Stacking & Position: `position: absolute; top: 0; right: 0; z-index: 3;`.
+- **Flyout Menu Execution (`IgnoredCategories_loadMenu`)**:
+  - On `mouseenter`, triggers an AJAX POST to `/plugins/filter/IgnoredCategories` with `aicatpr=<entity_id>`.
+  - Renders a Tippy.js popover (`.IgnoredCategoriesMenu`) containing the exact category hierarchy breadcrumbs:
+    ```html
+    <div class="IgnoredCategoriesMenu">
+      <div class="title">Kategorie ausblenden:</div>
+      <div class="path">
+        <a class="entry f_IgnoredCategories_MenuEntry" data-vcat-id="643" data-ident="...">Drogerie</a>
+        <i class="TPIcons-next"></i>
+        <a class="entry f_IgnoredCategories_MenuEntry" data-vcat-id="839" data-ident="...">Rasur &amp; Haarpflege</a>
+        <i class="TPIcons-next"></i>
+        <a class="entry f_IgnoredCategories_MenuEntry" data-vcat-id="845" data-ident="...">Haarpflege</a>
+      </div>
+    </div>
+    ```
+  - Clicking any level (`.entry.f_IgnoredCategories_MenuEntry`) immediately excludes that specific category node.
+
+---
+
+### 3. AJAX Protocol & API Specification
+
+- **Endpoint**: `POST /plugins/filter/IgnoredCategories`
+- **Content-Type**: `application/x-www-form-urlencoded; charset=UTF-8`
+- **Headers**: `X-Requested-With: XMLHttpRequest`
+
+#### Request Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `aicat` | `string` (hex hash) | Conditional | Target category identifier token for toggle (e.g. `0083e551df0b7a84c4ba6b308951816a`). |
+| `aicatvc` | `integer` | Conditional | Virtual Category ID (`data-vcat-id`, e.g. `200`, `900`, `654`). |
+| `aicatpr` | `integer` | Conditional | Product ID (`data-entity-id`) used when fetching per-card taxonomy breadcrumb menu. |
+| `aicatrs` | `string` (hex hash) | Conditional | Reset token used when clearing all ignored categories via `IgnoredCategories_resetAll`. |
+| `fp_ic_ch` | `integer` / `string` | **Yes** | Context hash matching `data-context-hash` on `.Plugin_IgnoredCategories` (e.g. `255904`). |
+| `lang` | `string` | **Yes** | Active site language code (`de`, `fr`, `it`, `en`). |
+
+#### Lifecycle Orchestration
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Card as Product Card / Sidebar
+    participant JS as standard.js (IgnoredCategories)
+    participant Server as Toppreise Server (/plugins/filter/IgnoredCategories)
+    participant DOM as Product Feed & Filter Bar
+    participant Suite as Toppreise Suite (mainObserver)
+
+    User->>Card: Clicks [✕] on Sidebar or Card Menu Entry
+    Card->>JS: Event: .f_IgnoredCategories_Hide / .f_IgnoredCategories_MenuEntry
+    JS->>Server: POST /plugins/filter/IgnoredCategories (aicat, aicatvc, fp_ic_ch)
+    Server-->>JS: HTML Response (Updated #Plugin_IgnoredCategories)
+    JS->>DOM: IgnoredCategories_replaceBar(html) (Updates chips & data-ignored-count)
+    JS->>DOM: reloadAllByClass("Plugin_TopPriceReductionProductsList")
+    Note over DOM: Server reloads product grid without ignored items
+    DOM->>JS: Callback: IgnoredCategories_attachMenus()
+    DOM-->>Suite: MutationObserver triggers on new .Plugin_Product cards
+    Suite->>Suite: processListings() updates Real Deals, heatmaps & deal-scores
+```
+
+---
+
+### 4. CSS Architecture & Visual Design System
+
+```css
+/* Sidebar Category Entries */
+.Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry > a {
+  opacity: .45;
+  text-decoration: line-through;
+}
+.Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry .ignoreCategory {
+  opacity: .45;
+}
+
+/* Management Chip Bar */
+.Plugin_IgnoredCategories.ignoredCategoriesBar,
+.Plugin_IgnoredCategories .ignoredCategoriesBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 4px;
+  margin: 8px 0;
+}
+.Plugin_IgnoredCategories .ignoredCategory {
+  display: inline-block;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: .25rem .5rem;
+}
+.Plugin_IgnoredCategories .ignoredCategory:hover {
+  color: #005a8c;
+}
+.Plugin_IgnoredCategories .ignoredCategory.moreChip {
+  display: none;
+}
+.Plugin_IgnoredCategories .moreChipsToggle {
+  cursor: pointer;
+  color: #004098;
+}
+.Plugin_IgnoredCategories .resetAll {
+  display: inline-block;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-left: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: .25rem .5rem;
+  color: #cc0001;
+}
+
+/* Per-Card Hover Trigger */
+.Plugin_Product .hideCategoryTrigger {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  cursor: pointer;
+  opacity: 0;
+  padding: 5px;
+  line-height: 1;
+}
+.Plugin_Product:hover .hideCategoryTrigger {
+  opacity: .45;
+}
+.Plugin_Product .hideCategoryTrigger:hover {
+  color: #005a8c;
+  opacity: 1;
+}
+.Plugin_Product.hasHideTrigger .product-name {
+  padding-right: 22px;
+}
+
+/* Context Menu Flyout */
+.IgnoredCategoriesMenu {
+  max-width: calc(100vw - 32px);
+}
+.IgnoredCategoriesMenu .title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+.IgnoredCategoriesMenu .entry {
+  display: inline-block;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.IgnoredCategoriesMenu .entry:hover {
+  color: #005a8c;
+}
+```
+
+---
+
+### 5. Architectural Coexistence & Synergy with Toppreise Suite
+
+#### Comparison: Native Exclusion vs. Suite Filtering
+| Capability | Native Ignored Categories (`Toppreise.ch`) | Toppreise Suite Userscript (`toppreise.user.js`) |
+| :--- | :--- | :--- |
+| **Execution Layer** | Server-side database query | Client-side DOM filtering (instant, 0ms) |
+| **Granularity** | Root virtual categories (`vcat-id`, ~23 categories) | 6-layer engine: 669 subcategories, leaf URLs, brands, keywords |
+| **Network Overhead** | Full AJAX page reload per change | Zero HTTP requests; in-memory DOM filtering |
+| **Persistence** | Server-side user cookie / session | 2-layer storage (`GM_setValue` + domain `localStorage` backup) |
+| **Portability** | Session-bound | 1-Click JSON config export & import |
+| **Master Bypass** | Must reset all categories (destroys blacklist) | Non-destructive `[ ⚡ Filter: AN / AUS ]` master toggle |
+| **Accidental Click Protection** | Modal confirmation only on "Reset All" | 5-second glassmorphic **Undo ("Rückgängig")** toast on quick-block |
+| **Feed Scope** | Excludes items from feed entirely | Can hide, dim, preview with `👁️ N`, or rank in Bestpreise mode |
+
+#### Spatial Layout Isolation (Zero UI Collisions)
+- **Top Filter Bar**: `#tp-suite-filter-bar` is mounted at `#FrameContent` before `#Page_ListTopPriceReductionProducts`, entirely separated from `#Plugin_IgnoredCategories_*` inside `.contentBox`.
+- **Card Action Anchoring**:
+  - Native trigger `.hideCategoryTrigger`: Anchored at `top: 0; right: 0; z-index: 3`.
+  - Suite discount badge `.badge-dif`: Anchored at `top: 10px; right: 10px;` (clears the 0,0 corner).
+  - Suite quick-block button `.tp-card-quick-block`: Anchored at `bottom: 6px; left: 8px; z-index: 4`.
+  - Neither feature overlaps or intercepts clicks intended for the other.
+- **MutationObserver Cooperation**:
+  - When native AJAX reloads `.Plugin_TopPriceReductionProductListFull`, the Suite's scoped `mainObserver` detects the newly injected `.Plugin_Product` nodes.
+  - The Suite seamlessly triggers `processListings()`, injecting Deal-Scores, sparklines, thermal heatmaps, and Suite category badges without competing or entering recursive mutation loops.
+
+---
+
+## 11. Category & Catalog Listing Deal Quality & Heatmap Engine (v2.18.0)
+
+### 1. Motivation & Context
+Regular category/catalog listings (`/produktsuche/...`, e.g. Monitore, Grafikkarten, SSDs) lack the native `-XX%` Differenz badges found on `/neue-toppreise`. Users browsing catalog categories could not easily assess whether current prices represent exceptional historical deals, median prices, or marked-up items without manually opening every product price chart.
+
+### 2. Unified Badge Injection & Visual Architecture
+- **Injected Deal Badge (`.badge.badge-dif.tp-injected-badge`)**:
+  - Automatically injected on `.Plugin_Product` cards across catalog pages when missing native `.badge-dif`.
+  - **Unchecked State**: Displays a clean Deal icon (`🔍`) with tooltip prompting on-demand price chart inspection.
+  - **Verified All-Time Low**: Morphs into `Real Deal -XX%` with pulsing emerald halo (`.tp-deal-alltime-low`).
+  - **Verified Non-Bestpreis**: Morphs into `Aufschlag +XX%` with amber alert styling (`.tp-deal-not-low`).
+  - **List-View Padding Protection**: `.mixedBrowsingListProduct { padding-right: 68px !important; }` prevents badge collisions with titles and price containers in dense list view layouts.
+
+### 3. Thermal Heatmap Integration
+- Cards with verified deals on catalog listings calculate `effectiveHeatPercent` directly from `cd.dealScore.score` or median savings.
+- Smooth thermal gradient mapping:
+  - `0% – 10%`: Cool Cobalt
+  - `15% – 25%`: Vibrant Teal / Cyan
+  - `28% – 38%`: Warm Golden Amber
+  - `40%+`: Fiery Flame Orange & Blazing Crimson
+- Card container receives `.tp-heatmap-active` with CSS variables `--tp-heat-bg`, `--tp-heat-border`, and `--tp-heat-glow`.
+
+### 4. Toolbar Synergy & Batch Check
+- **Toolbar Integration**: `[ 🔥 Heatmap ]` and `[ 🔍 Check Deals (N) ]` are dynamically enabled on category/catalog pages.
+- **Feed Exclusives**: Threshold dropdown (`#tp-bar-threshold-btn`) remains hidden on category listings since catalog cards lack native initial discount percentages.
+- **Batch Scanner (`runBatchDealCheck`)**:
+  - Automatically identifies visible, uncached catalog cards and scans them sequentially with 250–350ms delay.
+  - Live progress feedback on the batch button with auto-caching into `localStorage` (`tp_hist_v1_{pid}`).
 
 
 

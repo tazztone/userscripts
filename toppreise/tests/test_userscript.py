@@ -1142,7 +1142,7 @@ def test_filter_bar_hidden_on_product_detail_page(page: Page):
     assert fab.is_visible()
 
 
-def test_deal_only_buttons_hidden_on_category_page(page: Page):
+def test_deal_features_enabled_on_category_page(page: Page):
     # Simulate standard category/search listing page
     page.evaluate('''() => {
         document.body.className = 'color_bg Page_Browsing';
@@ -1160,24 +1160,142 @@ def test_deal_only_buttons_hidden_on_category_page(page: Page):
     assert page.locator('#tp-bar-reveal-btn').is_visible()
     assert page.locator('#tp-toggle-neg').is_visible()
 
-    # Deal-feed-only features are hidden
-    assert not page.locator('#tp-bar-heat-btn').is_visible()
-    assert not page.locator('#tp-bar-threshold-wrapper').is_visible()
+    # Category deal check and heatmap features are visible
+    assert page.locator('#tp-bar-heat-btn').is_visible()
+    assert page.locator('#tp-bar-batch-check-btn').is_visible()
+
+    # Claimed discount threshold dropdown and Neue Bestpreise feed toggle remain hidden
+    assert not page.locator('#tp-bar-bestpreise-btn').is_visible()
+    assert not page.locator('#tp-bar-threshold-btn').is_visible()
 
 
-def test_check_deal_button_not_injected_on_category_page(page: Page):
+def test_category_page_injects_interactive_deal_badges(page: Page):
     # Simulate category page where cards have no difference badge
     page.evaluate('''() => {
         document.body.className = 'color_bg Page_Browsing';
         document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
-        // Remove badge-dif elements from cards to simulate real category catalog
+        // Remove native badge-dif elements from cards to simulate real category catalog
         document.querySelectorAll('.badge-dif').forEach(b => b.remove());
         window.ToppreiseSuite?.processListings?.();
     }''')
     page.wait_for_timeout(200)
 
-    # Verify no interactive deal badges exist on standard catalog listings
-    assert page.locator('.badge-dif.tp-deal-badge-interactive').count() == 0
+    # Verify interactive deal badges are injected on cards
+    badges = page.locator('.badge-dif.tp-deal-badge-interactive')
+    assert badges.count() > 0
+    # Unscanned badges display Deal loupe
+    first_badge = badges.first
+    assert '🔍' in first_badge.inner_text() or 'Deal' in first_badge.inner_text()
+
+
+def test_category_page_single_card_on_demand_check_renders_percentage_and_halo(page: Page):
+    # Mock price chart series for product 797571
+    # Card price is 1800.00. Set historical prices with median 2400.00, previous low 2100.00
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
+        document.querySelectorAll('.badge-dif').forEach(b => b.remove());
+
+        // Mock window.fetch to return a new record low price chart for product 797571
+        const origFetch = window.fetch;
+        window.fetch = async function(url, opts) {
+            if (typeof url === 'string' && url.includes('pricechart')) {
+                const now = Date.now();
+                const day = 86400 * 1000;
+                // Historical points well above 1800
+                const points = [
+                    [now - 300 * day, 2600.00],
+                    [now - 200 * day, 2500.00],
+                    [now - 150 * day, 2400.00],
+                    [now - 100 * day, 2300.00],
+                    [now - 50 * day, 2100.00],
+                    [now - 5 * day, 1800.00]
+                ];
+                return {
+                    ok: true,
+                    status: 200,
+                    headers: new Headers({ 'content-type': 'application/json' }),
+                    json: async () => points,
+                    text: async () => JSON.stringify(points)
+                };
+            }
+            return origFetch.apply(this, arguments);
+        };
+
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_timeout(200)
+
+    card = page.locator('#card-cheapest')
+    badge = card.locator('.badge-dif.tp-deal-badge-interactive')
+    assert badge.is_visible()
+
+    # Click badge to trigger on-demand check
+    badge.click()
+    page.wait_for_timeout(300)
+
+    # Badge transforms to Real Deal percentage with halo ring
+    assert badge.locator('.tp-deal-new-record, .tp-deal-alltime-low').count() > 0 or 'tp-deal-new-record' in (badge.get_attribute('class') or '') or 'tp-deal-alltime-low' in (badge.get_attribute('class') or '')
+    badge_text = badge.inner_text()
+    assert '%' in badge_text or 'Real Deal' in badge_text
+
+    # Historical subline is rendered
+    hist = card.locator('.tp-card-historical-price')
+    assert hist.is_visible()
+
+
+def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
+    # Verify card with verified deal receives thermal heatmap
+    card = page.locator('#card-cheapest')
+    has_heat = card.evaluate("el => el.classList.contains('tp-heatmap-active') || el.style.getPropertyValue('--tp-heat-bg') !== ''")
+    assert has_heat
+
+
+def test_category_page_batch_check_scans_visible_cards(page: Page):
+    # Setup mock for all products
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
+        window.localStorage.clear();
+        document.querySelectorAll('.badge-dif').forEach(b => b.remove());
+
+        const now = Date.now();
+        const day = 86400 * 1000;
+        window.fetch = async function(url, opts) {
+            if (typeof url === 'string' && url.includes('pricechart')) {
+                const points = [
+                    [now - 200 * day, 500.00],
+                    [now - 150 * day, 480.00],
+                    [now - 100 * day, 450.00],
+                    [now - 50 * day, 400.00],
+                    [now - 2 * day, 350.00]
+                ];
+                return {
+                    ok: true,
+                    status: 200,
+                    headers: new Headers({ 'content-type': 'application/json' }),
+                    json: async () => points,
+                    text: async () => JSON.stringify(points)
+                };
+            }
+            return { ok: false, status: 404 };
+        };
+
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_timeout(200)
+
+    batch_btn = page.locator('#tp-bar-batch-check-btn')
+    assert batch_btn.is_visible()
+    initial_text = batch_btn.inner_text()
+    assert 'Check Deals' in initial_text
+
+    # Click batch check button
+    batch_btn.click()
+    page.wait_for_timeout(1000)
+
+    # After scan finishes, cards are verified
+    assert page.locator('.badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record, .badge-dif.tp-deal-not-low').count() > 0
 
 
 def test_slash_key_focuses_negative_filter(page: Page):
@@ -3211,3 +3329,187 @@ def test_batch_check_button_click_when_deals_populated_after_initial_bar_render(
     # Cleanly cancel scan to finish test
     page.evaluate("() => window.ToppreiseSuite.cancelBatchDealCheck()")
     page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
+
+
+def test_native_category_management_coexistence(page: Page):
+    # Verifies that native category management elements (sidebar, Plugin_IgnoredCategories,
+    # card .hideCategoryTrigger) coexist seamlessly with Toppreise Suite controls.
+    res = page.evaluate("""() => {
+        const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
+        const nativeBar = document.querySelector('.Plugin_IgnoredCategories');
+        const suiteBar = document.getElementById('tp-suite-filter-bar');
+        const card = document.getElementById('card-cheapest');
+        const nativeTrigger = card ? card.querySelector('.hideCategoryTrigger') : null;
+        const quickBlock = card ? card.querySelector('.tp-card-quick-block') : null;
+        const badge = card ? card.querySelector('.badge-dif') : null;
+
+        return {
+            sidebarExists: !!sidebar,
+            nativeBarExists: !!nativeBar,
+            suiteBarExists: !!suiteBar,
+            nativeTriggerExists: !!nativeTrigger,
+            quickBlockExists: !!quickBlock,
+            badgeExists: !!badge,
+            nativeTriggerTop: nativeTrigger ? window.getComputedStyle(nativeTrigger).top : '',
+            nativeTriggerRight: nativeTrigger ? window.getComputedStyle(nativeTrigger).right : '',
+            quickBlockBottom: quickBlock ? window.getComputedStyle(quickBlock).bottom : '',
+            quickBlockLeft: quickBlock ? window.getComputedStyle(quickBlock).left : ''
+        };
+    }""")
+
+    assert res['sidebarExists'] is True
+    assert res['nativeBarExists'] is True
+    assert res['suiteBarExists'] is True
+    assert res['nativeTriggerExists'] is True
+    assert res['quickBlockExists'] is True
+    assert res['badgeExists'] is True
+    assert res['nativeTriggerTop'] == '0px'
+    assert res['nativeTriggerRight'] == '0px'
+    assert res['quickBlockBottom'] == '6px'
+    assert res['quickBlockLeft'] == '8px'
+
+
+def test_native_category_management_interactions(page: Page):
+    # Verifies interactive native category controls:
+    # 1. Expand/collapse sidebar categories
+    # 2. Clicking .f_IgnoredCategories_Hide adds an ignored chip to Plugin_IgnoredCategories
+    # 3. Clicking .f_IgnoredCategories_Show removes the chip
+    res = page.evaluate("""() => {
+        const showMore = document.querySelector('.f_showMoreCatDetails');
+        const hideMore = document.querySelector('.f_hideMoreCatDetails');
+        const hiddenBefore = Array.from(document.querySelectorAll('.Plugin_CategoryMainSelectionLeft li.showExpandedOnly')).map(el => el.style.display);
+        
+        // Click show more
+        showMore.click();
+        const shownAfter = Array.from(document.querySelectorAll('.Plugin_CategoryMainSelectionLeft li.showExpandedOnly')).map(el => el.style.display);
+
+        // Click hide more
+        hideMore.click();
+        const hiddenAgain = Array.from(document.querySelectorAll('.Plugin_CategoryMainSelectionLeft li.showExpandedOnly')).map(el => el.style.display);
+
+        // Click first hide cross in sidebar (Computer & Zubehör)
+        const firstCross = document.querySelector('.Plugin_CategoryMainSelectionLeft .f_IgnoredCategories_Hide');
+        firstCross.click();
+
+        const bar = document.querySelector('.Plugin_IgnoredCategories');
+        const ignoredCount = bar.getAttribute('data-ignored-count');
+        const chip = bar.querySelector('.ignoredCategory');
+        const chipText = chip ? chip.textContent.trim() : '';
+
+        // Click chip to remove
+        if (chip) chip.click();
+        const countAfterRemove = bar.getAttribute('data-ignored-count');
+
+        return {
+            hiddenBeforeAllNone: hiddenBefore.every(s => s === 'none'),
+            shownAfterAllFlex: shownAfter.every(s => s === 'flex'),
+            hiddenAgainAllNone: hiddenAgain.every(s => s === 'none'),
+            ignoredCount,
+            chipText,
+            countAfterRemove
+        };
+    }""")
+
+    assert res['hiddenBeforeAllNone'] is True
+    assert res['shownAfterAllFlex'] is True
+    assert res['hiddenAgainAllNone'] is True
+    assert res['ignoredCount'] == '1'
+    assert 'Computer & Zubehör' in res['chipText']
+    assert res['countAfterRemove'] == '0'
+
+
+def test_showproductprice_vs_showshippingprice_consistency(page: Page):
+    """
+    Validates that when Toppreise is in 'showproductprice' mode (Produktpreis exkl. Versand):
+    1. isShippingPriceActive() returns false.
+    2. The visible product price (e.g. 39.95) is extracted, NOT the hidden shipping price (47.90).
+    3. The price history series matches the active mode (Series 0 for product price),
+       preventing false markup calculations like +21% next to a 39.95 price.
+    4. Switching to 'showshippingprice' dynamically selects the shipping price (47.90) and Series 1.
+    """
+    test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
+    page.goto(f'file://{test_html_path}')
+    with open('userscripts/toppreise/toppreise.user.js', 'r') as f:
+        page.add_script_tag(content=f.read())
+
+    # Mock pricechart response with distinct series:
+    # Series 0 (Produktpreis): current 39.95, low 39.65 -> +0.75% (+1%)
+    # Series 1 (Versandpreis): current 47.90, low 39.65 -> +20.8% (+21%)
+    now = page.evaluate("Date.now()")
+    def handle_pricechart(route):
+        if '787382' in (route.request.post_data or '') or 'p_pc_pid=787382' in route.request.url:
+            route.fulfill(
+                status=200,
+                headers={'access-control-allow-origin': '*'},
+                content_type='application/json',
+                body=f'[[[{now - 86400000}, 39.65], [{now}, 39.95]], [[{now - 86400000}, 39.65], [{now}, 47.90]]]'
+            )
+        else:
+            route.continue_()
+
+    page.route("**/plugins/product/pricechart*", handle_pricechart)
+
+    # 1. Switch body to showproductprice (native Toppreise 'Produktpreis' setting)
+    page.evaluate("""() => {
+        document.body.classList.remove('showshippingprice');
+        document.body.classList.add('showproductprice');
+
+        const card = document.getElementById('card-competing-reference');
+        card.setAttribute('href', '/preisvergleich/Kopfhoerer/JBL-Wave-Flex-2-p787382');
+        card.dataset.entityId = '787382';
+        card.dataset.tpProductId = '787382';
+        card._tpPriceInfo = null;
+
+        const priceInfo = card.querySelector('.Plugin_PriceInformation');
+        priceInfo.innerHTML = `
+            <div class="priceContainer productPrice">ab <span class="currency">CHF </span><div class="Plugin_Price">39.95</div></div>
+            <div class="priceContainer shippingPrice" style="display: none;">ab <span class="currency">CHF </span><div class="Plugin_Price">47.90</div></div>
+        `;
+
+        const badge = card.querySelector('.badge-dif');
+        badge.className = 'badge badge-dif tp-deal-badge-interactive';
+        badge.dataset.tpOriginalDiscount = '33';
+        badge.innerHTML = '<div class="text">Differenz</div><p>-33%</p>';
+
+        localStorage.clear();
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+    }""")
+
+    # Verify isShippingPriceActive() is false
+    assert page.evaluate("() => window.ToppreiseSuite.isShippingPriceActive()") is False
+
+    # Click badge to trigger price check
+    page.locator('#card-competing-reference .badge-dif').click()
+
+    # Wait for check to complete (loading class removed)
+    page.wait_for_selector("#card-competing-reference .badge-dif:not(.tp-deal-loading)")
+
+    # The badge markup must NOT be +21% (it should be +1% based on 39.95 vs 39.65)
+    badge_html = page.locator('#card-competing-reference .badge-dif').inner_html()
+    assert "+21%" not in badge_html, f"Expected no +21% false markup, got {badge_html}"
+    assert "+1%" in badge_html or "-33%" in badge_html, f"Expected +1% markup, got {badge_html}"
+
+    # 2. Now switch body to showshippingprice
+    page.evaluate("""() => {
+        document.body.classList.remove('showproductprice');
+        document.body.classList.add('showshippingprice');
+        const card = document.getElementById('card-competing-reference');
+        card._tpPriceInfo = null;
+        const shp = card.querySelector('.priceContainer.shippingPrice');
+        if (shp) shp.style.display = '';
+        localStorage.clear();
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+    }""")
+
+    assert page.evaluate("() => window.ToppreiseSuite.isShippingPriceActive()") is True
+
+    # Re-click to check with shipping active
+    page.locator('#card-competing-reference .badge-dif').click()
+    page.wait_for_selector("#card-competing-reference .badge-dif:not(.tp-deal-loading)")
+
+    # Now shipping price (47.90 vs 39.65) yields +21%
+    badge_html_shp = page.locator('#card-competing-reference .badge-dif').inner_html()
+    assert "+21%" in badge_html_shp, f"Expected +21% markup with shipping active, got {badge_html_shp}"
+
+
+

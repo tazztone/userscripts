@@ -10,13 +10,13 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.33)**](https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.34)**](https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.33)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.34)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
    - **🔥 Continuous Deal-Score & Thermal Heatmap**: Berechnet für jedes verifizierte Angebot einen gewichteten Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$). Die Heatmap färbt die Karten direkt anhand dieses echten Scores (kühles Cyan $\rightarrow$ warmes Bernstein $\rightarrow$ feuriges Rubinrot).
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
@@ -38,7 +38,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 3. **📈 Mini Preis-Trend Sparklines (Beta)**: Zeigt auf Karten mit geprüfter Preishistorie kompakte Inline-SVG-Sparklines des historischen Preisverlaufs (Grün für fallenden Trend / Allzeit-Tief 🟢, Rot für steigenden Trend 🔴) mit Hover-Skalierung und Tooltip (optional in den Einstellungen aktivierbar). Lädt blitzschnell in einem einzigen Request ohne zusätzliche Server-Abfragen.
 4. **🔥 Rabatt-Heatmap (100% Heiß bis 0% Kalt)**: Dynamische thermische Hintergrund-Verläufe auf allen Produktkarten anhand der Rabatthöhe (z. B. auf `neue-toppreise`). Realistische Deal-Kalibrierung: 0–15% Kaltes Mitternachtsblau ❄️ $\rightarrow$ 35% Warmes Bernstein ⚡ $\rightarrow$ 70%+ Vulkanisches Rubinrot 🔥 mit leuchtenden Akzenten. 1-Klick-Toggle direkt in der oberen Filterleiste.
 5. **🚫 1-Click Product Card Category Quick-Block & Toast Undo**: Direct "🚫 [Kategorie]" action button overlay on every product card on `neue-toppreise`. Clicking instantly hides the product's category from the feed and displays a glassmorphic toast notification with a **"Rückgängig"** (Undo) action button.
-6. **📋 Blocked Categories Overview Chips & Undo Protection**: Top filter bar shows a compact overview row `🚫 Ausgeblendet (N)` with dismissable chips (`[ 💻 Externe SSD ✕ ]`, `[ 🧸 Lego ✕ ]`) and an *Alle freigeben* button with 5-second undo toast recovery.
+6. **📋 Blocked Categories Overview Chips & Undo Protection**: Top filter bar shows a compact overview row `🚫 Ausgeblendet (N)` with dismissable chips (`[ 💻 Externe SSD ✕ ]`, `[ 🧸 Lego ✕ ]`) and an *Alle freigeben* button with 5-second undo toast recovery. Operates alongside Toppreise's native server-side category exclusions (`Plugin_IgnoredCategories`) with zero spatial or event collisions.
 7. **📁 Intelligent Category Taxonomy Resolution**: Multi-level resolution algorithm with card URL path parsing (`/preisvergleich/<RootSlug>/...`), domain brand rules (*Lego*, *Playmobil*, *Cobi*, *Schleich*, *Barbie*, *Hot Wheels*, *CaDA*, *Amiibo* $\rightarrow$ 🧸 **Spielwaren** / 🎮 **Videogames**), and keyword fallback routing.
 8. **🛡️ Encapsulated Shadow DOM Settings Modal (`#tp-root`)**: Floating action button (FAB) and settings dialog are isolated inside an open Shadow Root, elevated to the browser Top Layer via native `<dialog>` (`showModal()`) to bypass host site z-index and CSS reset collisions.
 9. **⌨️ Tastatur-Shortcuts**:

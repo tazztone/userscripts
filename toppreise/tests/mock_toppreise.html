@@ -52,9 +52,55 @@
     .flex-column { flex-direction: column !important; }
     .justify-content-between { justify-content: space-between !important; }
     .align-items-center { align-items: center !important; }
+
+    /* Native Ignored Categories & Sidebar Management */
+    .Plugin_CategoryMainSelectionLeft { background: #242424; border: 1px solid #334155; border-radius: 6px; padding: 12px; }
+    .Plugin_CategoryMainSelectionLeft .label.bold { font-weight: 700; margin-bottom: 8px; }
+    .Plugin_CategoryMainSelectionLeft .label.bold a { color: #f1f5f9; text-decoration: none; }
+    .Plugin_CategoryMainSelectionLeft ul { list-style: none; padding-left: 0; margin: 0 0 10px 0; }
+    .Plugin_CategoryMainSelectionLeft li { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+    .Plugin_CategoryMainSelectionLeft li a { color: #94a3b8; text-decoration: none; flex: 1; }
+    .Plugin_CategoryMainSelectionLeft li a:hover { color: #38bdf8; }
+    .Plugin_CategoryMainSelectionLeft .ignoreCategory { cursor: pointer; color: #64748b; font-size: 11px; padding: 2px 6px; border-radius: 3px; }
+    .Plugin_CategoryMainSelectionLeft .ignoreCategory:hover { color: #f43f5e; background: rgba(244,63,94,0.1); }
+    .Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry > a { opacity: 0.45; text-decoration: line-through; }
+    .Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry .ignoreCategory { opacity: 0.45; }
+    .Plugin_CategoryMainSelectionLeft .f_showMoreCatDetails,
+    .Plugin_CategoryMainSelectionLeft .f_hideMoreCatDetails { display: block; font-size: 12px; color: #38bdf8; cursor: pointer; text-decoration: none; margin-top: 6px; }
+
+    .Plugin_IgnoredCategories.ignoredCategoriesBar,
+    .Plugin_IgnoredCategories .ignoredCategoriesBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 4px; margin: 8px 0; font-size: 13px; }
+    .Plugin_IgnoredCategories .label { padding: 4px; font-weight: 600; color: #94a3b8; }
+    .Plugin_IgnoredCategories .ignoreCategoryHint { display: inline-block; padding: 5px 4px; color: #94a3b8; font-size: 12px; }
+    .Plugin_IgnoredCategories .ignoredCategory { display: inline-flex; align-items: center; cursor: pointer; background: #1e293b; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 12px; color: #f1f5f9; gap: 4px; }
+    .Plugin_IgnoredCategories .ignoredCategory:hover { color: #38bdf8; border-color: #38bdf8; }
+    .Plugin_IgnoredCategories .ignoredCategory .removeFilter { font-size: 10px; margin-left: 4px; color: #94a3b8; }
+    .Plugin_IgnoredCategories .ignoredCategory.moreChip { display: none; }
+    .Plugin_IgnoredCategories .moreChipsToggle { cursor: pointer; color: #38bdf8; background: none; border: none; font-size: 12px; padding: 0; }
+    .Plugin_IgnoredCategories .moreChipsToggle:hover { text-decoration: underline; }
+    .Plugin_IgnoredCategories .resetAll { display: inline-block; cursor: pointer; white-space: nowrap; margin-left: auto; background: #1e293b; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; color: #f43f5e; font-size: 12px; text-decoration: none; }
+    .Plugin_IgnoredCategories .resetAll:hover { color: #fb7185; border-color: #f43f5e; }
+
+    .Plugin_Product .hideCategoryTrigger { position: absolute; top: 0; right: 0; z-index: 3; cursor: pointer; opacity: 0; padding: 5px; line-height: 1; color: #94a3b8; transition: opacity 0.2s, color 0.2s; }
+    .Plugin_Product:hover .hideCategoryTrigger { opacity: 0.65; }
+    .Plugin_Product .hideCategoryTrigger:hover { color: #f43f5e; opacity: 1; }
+    .Plugin_Product.hasHideTrigger .product-name { padding-right: 22px; }
+
+    .emptyBecauseIgnored { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 16px 44px; color: #94a3b8; }
+    .emptyBecauseIgnored i { font-size: 34px; color: #64748b; margin-bottom: 14px; }
+    .emptyBecauseIgnored .hint { color: #94a3b8; max-width: 420px; font-size: 14px; margin-bottom: 12px; }
+    .emptyBecauseIgnored .resetAll { display: inline-block; cursor: pointer; margin-top: 16px; padding: 0.25rem 0.5rem; border: 1px solid #475569; background: #1e293b; color: #f43f5e; border-radius: 4px; }
+
+    .IgnoredCategoriesMenu { max-width: calc(100vw - 32px); font-size: 12px; }
+    .IgnoredCategoriesMenu .title { font-weight: 700; margin-bottom: 6px; white-space: nowrap; }
+    .IgnoredCategoriesMenu .path { white-space: normal; }
+    .IgnoredCategoriesMenu .path i { opacity: 0.4; padding: 0 4px; }
+    .IgnoredCategoriesMenu .entry { display: inline-block; cursor: pointer; white-space: nowrap; color: #38bdf8; }
+    .IgnoredCategoriesMenu .entry:hover { text-decoration: underline; }
+    .IgnoredCategoriesMenu .entry.ignored { opacity: 0.45; text-decoration: line-through; }
   </style>
 </head>
-<body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-current_url="/neue-toppreise">
+<body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-lng="de" data-current_url="/neue-toppreise" data-current-url="/neue-toppreise">
   <div class="breadcrumb" style="margin-bottom: 12px; font-size: 13px; color: #94a3b8;">
     <span>Home</span> &gt; <span>Neue Toppreise</span>
   </div>
@@ -71,21 +117,67 @@
       <div class="row no-gutters layout-row" id="page-layout-row">
         <!-- Left Category Sidebar -->
         <div class="filterBoxContainer col-auto p-0 pr-md-3 sidebar-container" id="sidebar-categories">
-          <div class="sidebar-title">Alle Kategorien</div>
-          <ul class="category-tree">
-            <li>Computer &amp; Zubehör</li>
-            <li>Videogames</li>
-            <li>TV &amp; Video</li>
-            <li>Haushalt &amp; Küche</li>
-            <li>HiFi &amp; Audio</li>
-            <li>Spielwaren</li>
-          </ul>
+          <div class="filterBox row pt-0 px-2">
+            <div class="col-12 mb-3 filterContainer p-1 mb-2">
+              <div id="Plugin_CategoryMainSelectionLeft_173425" data-trgt="TopPriceReductionProductListFull" class="Plugin_CategoryMainSelectionLeft submenuList f_Plugin_Filter_CategoryMainSelectionLeft opened f_filter_plugin">
+                <div class="label bold"><a href="/neue-toppreise">Alle Kategorien</a></div>
+                <ul class="category-tree">
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/Computer-Zubehoer-c200">Computer &amp; Zubehör</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="200" data-ident="0083e551df0b7a84c4ba6b308951816a" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/Videogames-c900">Videogames</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="900" data-ident="9274bfc2955ff42ef13202ad259d1530" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/TV-Video-c654">TV &amp; Video</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="654" data-ident="3e39132f24a412dd482884d25a4a3246" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/Foto-c1316">Foto</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="1316" data-ident="b13966b155ba307d2ff38b4bdf3c5377" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/Smartphones-Mobiltelefone-c1346">Smartphones &amp; Mobiltelefone</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="1346" data-ident="d6926d3b2f17f5f7bd49fdecde16f338" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/Haushalt-Kueche-c644">Haushalt &amp; Küche</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="644" data-ident="1eb2b5848b30512ae69aae1d23106abb" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/HiFi-Audio-c653">HiFi &amp; Audio</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="653" data-ident="76789faf05bf3d3e1958280955a596fe" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0">
+                    <a href="/neue-toppreise/Spielwaren-c901">Spielwaren</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="901" data-ident="4861e396d3b5de781ec5308e734c7c7f" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0 showExpandedOnly" style="display: none;">
+                    <a href="/neue-toppreise/Auto-Motorrad-c651">Auto &amp; Motorrad</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="651" data-ident="6131bba668160a14ebd4575b2854de6c" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0 showExpandedOnly" style="display: none;">
+                    <a href="/neue-toppreise/Filme-c1388">Filme</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="1388" data-ident="44e499c53c133fbf10b384f4f532b9f5" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                  <li class="category_level_0 showExpandedOnly" style="display: none;">
+                    <a href="/neue-toppreise/Drogerie-c643">Drogerie</a>
+                    <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="643" data-ident="87957f5244d9c64a95a7eb3d0c9064c0" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
+                  </li>
+                </ul>
+                <a class="f_showMoreCatDetails showClosedOnly" title="mehr Kategorien anzeigen"><i class="TPIcons-chevron-down pr-2">▼</i> mehr anzeigen...</a>
+                <a class="f_hideMoreCatDetails showExpandedOnly" style="display: none;" title="weniger Kategorien anzeigen"><i class="TPIcons-chevron-up pr-2">▲</i> weniger anzeigen</a>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Main Content Column -->
         <div class="contentBox col-12 col-xl main-content-col" id="main-content">
           <!-- Native Ignored Categories Bar -->
-          <div id="Plugin_IgnoredCategories_808565" data-context-hash="255904" class="Plugin_IgnoredCategories">
+          <div id="Plugin_IgnoredCategories_808565" data-context-hash="255904" data-ajax-url="/plugins/filter/IgnoredCategories" data-menu-title="Kategorie ausblenden" data-menu-heading="Kategorie ausblenden:" data-ignored-count="0" data-active="1" class="Plugin_IgnoredCategories">
             <div class="row">
               <div class="col-12 ignoredCategoriesBar">
                 <span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>
@@ -127,10 +219,10 @@
               <!-- Product Grid Row 1 -->
               <div id="product-grid-row-1" class="row product-grid">
                 <!-- Card 1: Cheapest Store Product -->
-                <a href="/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571" id="card-cheapest" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="797571">
+                <a href="/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571" id="card-cheapest" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="797571">
                   <div class="row h-100">
                     <div class="col-auto p-0">
-                      <div class="image_container">
+                      <div class="product-image image_container">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23334155'/%3E%3C/svg%3E" alt="RTX 4090" />
                       </div>
                     </div>
@@ -148,13 +240,14 @@
                     </div>
                   </div>
                   <div class="badge badge-dif m_51_100 m_51_75"><div class="text">Differenz</div><p>-67%</p></div>
+                  <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
                 </a>
 
                                 <!-- Card 1.5: Regression Fixture for Competing Reference Price -->
-                <a href="/preisvergleich/PC-Zubehoer/Endgame-Gear-XM2w-p1003795" id="card-competing-reference" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="1003795">
+                <a href="/preisvergleich/PC-Zubehoer/Endgame-Gear-XM2w-p1003795" id="card-competing-reference" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="1003795">
                   <div class="row h-100">
                     <div class="col-auto p-0">
-                      <div class="image_container">
+                      <div class="product-image image_container">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23334155'/%3E%3C/svg%3E" alt="Endgame Gear XM2w 4k Wireless" />
                       </div>
                     </div>
@@ -177,13 +270,14 @@
                     </div>
                   </div>
                   <div class="badge badge-dif m_26_50"><div class="text">Aufschlag</div><p>+26%</p></div>
+                  <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
                 </a>
 
 <!-- Card 2: Expensive Store Product -->
-                <a href="/preisvergleich/Grafikkarten/Nvidia-RTX-4080-p797572" id="card-expensive" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="797572">
+                <a href="/preisvergleich/Grafikkarten/Nvidia-RTX-4080-p797572" id="card-expensive" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="797572">
                   <div class="row h-100">
                     <div class="col-auto p-0">
-                      <div class="image_container">
+                      <div class="product-image image_container">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23334155'/%3E%3C/svg%3E" alt="RTX 4080" />
                       </div>
                     </div>
@@ -200,13 +294,14 @@
                     </div>
                   </div>
                   <div class="badge badge-dif m_1_25"><div class="text">Differenz</div><p>-10%</p></div>
+                  <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
                 </a>
 
                 <!-- Card 3: Negative Keyword Product -->
-                <a href="/preisvergleich/Zubehoer/Silikon-Case-Huelle-p797573" id="card-negative" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="797573">
+                <a href="/preisvergleich/Zubehoer/Silikon-Case-Huelle-p797573" id="card-negative" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="797573">
                   <div class="row h-100">
                     <div class="col-auto p-0">
-                      <div class="image_container">
+                      <div class="product-image image_container">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23334155'/%3E%3C/svg%3E" alt="Silikon Case" />
                       </div>
                     </div>
@@ -223,16 +318,17 @@
                     </div>
                   </div>
                   <div class="badge badge-dif m_26_50"><div class="text">Differenz</div><p>-35%</p></div>
+                  <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
                 </a>
               </div>
 
               <!-- Product Grid Row 2 -->
               <div id="product-grid-row-2" class="row product-grid">
                 <!-- Card 4: Category Excluded Product -->
-                <a href="/preisvergleich/Smartphones/Apple-iPhone-15-p797574" id="card-cat-excluded" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="797574">
+                <a href="/preisvergleich/Smartphones/Apple-iPhone-15-p797574" id="card-cat-excluded" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="797574">
                   <div class="row h-100">
                     <div class="col-auto p-0">
-                      <div class="image_container">
+                      <div class="product-image image_container">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23334155'/%3E%3C/svg%3E" alt="iPhone 15" />
                       </div>
                     </div>
@@ -249,13 +345,14 @@
                     </div>
                   </div>
                   <div class="badge badge-dif m_51_100 m_51_75"><div class="text">Differenz</div><p>-50%</p></div>
+                  <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
                 </a>
 
                 <!-- Card 5: Low Offer Count Product -->
-                <a href="/preisvergleich/Monitore/Dell-UltraSharp-p797575" id="card-low-offers" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3" data-entity-id="797575">
+                <a href="/preisvergleich/Monitore/Dell-UltraSharp-p797575" id="card-low-offers" class="Plugin_Product medium-box mixedBrowsingList col-12 col-sm-6 col-lg-4 col-xxxl-3 hasHideTrigger" data-entity-id="797575">
                   <div class="row h-100">
                     <div class="col-auto p-0">
-                      <div class="image_container">
+                      <div class="product-image image_container">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23334155'/%3E%3C/svg%3E" alt="Dell Monitor" />
                       </div>
                     </div>
@@ -272,6 +369,7 @@
                     </div>
                   </div>
                   <div class="badge badge-dif m_1_25"><div class="text">Differenz</div><p>-5%</p></div>
+                  <span class="hideCategoryTrigger f_IgnoredCategories_MenuTrigger" title="Kategorie ausblenden"><i class="TPIcons-cross">✕</i></span>
                 </a>
               </div>
             </div>
@@ -319,6 +417,104 @@
           document.querySelector('#mock-alarm-dialog').dataset.submittedAt = Date.now();
         });
       }
+
+      // Native category sidebar show more / less
+      const showMoreBtn = document.querySelector('.f_showMoreCatDetails');
+      const hideMoreBtn = document.querySelector('.f_hideMoreCatDetails');
+      if (showMoreBtn && hideMoreBtn) {
+        showMoreBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.Plugin_CategoryMainSelectionLeft li.showExpandedOnly').forEach(el => el.style.display = 'flex');
+          showMoreBtn.style.display = 'none';
+          hideMoreBtn.style.display = 'block';
+        });
+        hideMoreBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.Plugin_CategoryMainSelectionLeft li.showExpandedOnly').forEach(el => el.style.display = 'none');
+          showMoreBtn.style.display = 'block';
+          hideMoreBtn.style.display = 'none';
+        });
+      }
+
+      // Native category hide / show chip handlers
+      document.body.addEventListener('click', (e) => {
+        const hideTrigger = e.target.closest('.f_IgnoredCategories_Hide');
+        if (hideTrigger) {
+          e.preventDefault();
+          e.stopPropagation();
+          const vcatId = hideTrigger.getAttribute('data-vcat-id');
+          const li = hideTrigger.closest('li');
+          const catName = li ? li.querySelector('a')?.textContent?.trim() : 'Kategorie';
+          const bar = document.querySelector('.Plugin_IgnoredCategories');
+          if (bar) {
+            let barContainer = bar.querySelector('.ignoredCategoriesBar');
+            if (barContainer) {
+              const hint = barContainer.querySelector('.ignoreCategoryHint');
+              if (hint) hint.remove();
+              let label = barContainer.querySelector('.label');
+              if (!label) {
+                label = document.createElement('span');
+                label.className = 'label';
+                label.textContent = 'Ausgeblendet:';
+                barContainer.prepend(label);
+              }
+              const chip = document.createElement('span');
+              chip.className = 'ignoredCategory f_IgnoredCategories_Show';
+              chip.setAttribute('data-vcat-id', vcatId || '');
+              chip.setAttribute('title', 'Wieder einblenden');
+              chip.innerHTML = `${catName} <span class="removeFilter"><i class="TPIcons-cross">✕</i></span>`;
+              barContainer.appendChild(chip);
+
+              let resetBtn = barContainer.querySelector('.resetAll');
+              if (!resetBtn) {
+                resetBtn = document.createElement('a');
+                resetBtn.className = 'resetAll f_IgnoredCategories_Reset';
+                resetBtn.textContent = 'Alle einblenden';
+                barContainer.appendChild(resetBtn);
+              }
+              const count = barContainer.querySelectorAll('.ignoredCategory').length;
+              bar.setAttribute('data-ignored-count', String(count));
+              if (li) li.classList.add('ignoredCategoryEntry');
+            }
+          }
+        }
+
+        const showChip = e.target.closest('.f_IgnoredCategories_Show');
+        if (showChip) {
+          e.preventDefault();
+          e.stopPropagation();
+          const vcatId = showChip.getAttribute('data-vcat-id');
+          showChip.remove();
+          const bar = document.querySelector('.Plugin_IgnoredCategories');
+          if (bar) {
+            const barContainer = bar.querySelector('.ignoredCategoriesBar');
+            const chips = barContainer ? barContainer.querySelectorAll('.ignoredCategory') : [];
+            bar.setAttribute('data-ignored-count', String(chips.length));
+            if (chips.length === 0 && barContainer) {
+              barContainer.innerHTML = '<span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>';
+            }
+          }
+          if (vcatId) {
+            const sidebarLi = document.querySelector(`.Plugin_CategoryMainSelectionLeft [data-vcat-id="${vcatId}"]`)?.closest('li');
+            if (sidebarLi) sidebarLi.classList.remove('ignoredCategoryEntry');
+          }
+        }
+
+        const resetBtn = e.target.closest('.f_IgnoredCategories_Reset');
+        if (resetBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const bar = document.querySelector('.Plugin_IgnoredCategories');
+          if (bar) {
+            bar.setAttribute('data-ignored-count', '0');
+            const barContainer = bar.querySelector('.ignoredCategoriesBar');
+            if (barContainer) {
+              barContainer.innerHTML = '<span class="ignoreCategoryHint">Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.</span>';
+            }
+          }
+          document.querySelectorAll('.Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry').forEach(li => li.classList.remove('ignoredCategoryEntry'));
+        }
+      });
     });
   </script>
 </body>

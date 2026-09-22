@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.33
+// @version      2.18.34
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -197,6 +197,43 @@ const STYLES = `
     pointer-events: auto !important;
   }
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
+  .badge.badge-dif.tp-injected-badge,
+  .badge-dif.tp-injected-badge {
+    position: absolute !important;
+    top: 10px !important;
+    right: 10px !important;
+    width: 50px !important;
+    height: 50px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    z-index: 15 !important;
+    box-sizing: border-box !important;
+    background: rgba(30, 41, 59, 0.88) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #f1f5f9 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  }
+  .badge.badge-dif.tp-injected-badge .text,
+  .badge-dif.tp-injected-badge .text {
+    font-size: 9px !important;
+    line-height: 12px !important;
+    margin-top: 2px !important;
+  }
+  .badge.badge-dif.tp-injected-badge p,
+  .badge-dif.tp-injected-badge p {
+    margin: 0 !important;
+    font-size: 13px !important;
+    font-weight: bold !important;
+    line-height: 1.1 !important;
+  }
+  .mixedBrowsingListProduct {
+    position: relative !important;
+    padding-right: 68px !important;
+  }
   .badge.badge-dif.tp-deal-badge-interactive,
   .badge-dif.tp-deal-badge-interactive {
     cursor: pointer !important;
@@ -1508,6 +1545,25 @@ const SHADOW_MODAL_STYLES = `
     return { bg, border, glow };
   }
 
+  function isShippingPriceActive(card = null) {
+    if (!CONFIG.USE_SHIPPING_PRICE) return false;
+    if (typeof document !== 'undefined' && document.body) {
+      if (document.body.classList.contains('showproductprice')) return false;
+      if (document.body.classList.contains('showshippingprice')) return true;
+    }
+    if (card) {
+      const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
+      const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
+      if (shp && prd) {
+        const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
+        if (shpContainer && (shpContainer.offsetParent === null || shpContainer.style.display === 'none')) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   // ─── REAL DEAL & PRICE HISTORY ENGINE ───────────────────────────────────────
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
 
@@ -1577,6 +1633,10 @@ const SHADOW_MODAL_STYLES = `
       if (ignoreNegative) return false;
       const negTtlMs = (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000;
       return ageMs < negTtlMs;
+    }
+
+    if (typeof parsed.isShippingPrice === 'boolean' && parsed.isShippingPrice !== isShippingPriceActive()) {
+      return false;
     }
 
     const ttlMs = (CONFIG.REAL_DEAL_CACHE_HOURS || 48) * 3600 * 1000;
@@ -1964,8 +2024,8 @@ const SHADOW_MODAL_STYLES = `
       if (Array.isArray(data)) {
         // If 2D array of series [[series0], [series1]]
         if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-          // If USE_SHIPPING_PRICE is true and the shipping series exists, use it
-          if (CONFIG.USE_SHIPPING_PRICE && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
+          // If shipping price is active and the shipping series exists, use it
+          if (isShippingPriceActive() && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
             return data[1];
           }
           return data[0]; // Series 0: Produktpreis
@@ -2018,6 +2078,7 @@ const SHADOW_MODAL_STYLES = `
           if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
             const analysis = analyzePriceTimeSeries(timeSeries);
             if (analysis && analysis.tiefstpreis > 0) {
+              analysis.isShippingPrice = isShippingPriceActive();
               setCachedPriceStats(productId, analysis);
               return analysis;
             }
@@ -2072,6 +2133,7 @@ const SHADOW_MODAL_STYLES = `
         const html = await resHtml.text();
         const stats = parsePriceStatsFromHtml(html);
         if (stats) {
+          stats.isShippingPrice = isShippingPriceActive();
           setCachedPriceStats(productId, stats);
           return stats;
         } else {
@@ -2176,8 +2238,9 @@ const SHADOW_MODAL_STYLES = `
     batchCancelRequested = false;
 
     try {
+      const isFeed = isNeueToppreisePage();
       await runProductScanner({
-        filterFn: item => item.discount >= minDiscount,
+        filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
         delayMs: () => 250 + Math.floor(Math.random() * 100),
         shouldCancelFn: () => batchCancelRequested,
         onProgress,
@@ -2273,7 +2336,7 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Ausgeblendete Produkte anzeigen/verbergen">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
           </button>
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Rabatt-Heatmap ein-/ausschalten" style="display: ${isDealFeed ? 'flex' : 'none'};">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Rabatt-Heatmap ein-/ausschalten" style="display: flex;">🔥 Heatmap</button>
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
@@ -2289,11 +2352,11 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-threshold-option" data-weight="0.00">📊 100% Median (Marktpreis)</button>
             </div>
           </div>
-          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: ${isDealFeed ? 'inline-flex' : 'none'};">
-            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`}" style="border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;">
+          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
+            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
               ${isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
             </button>
-            <button class="tp-threshold-btn" id="tp-bar-threshold-btn" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
+            <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
             <div class="tp-threshold-popover" id="tp-threshold-popover">
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 20 ? 'tp-selected' : ''}" data-val="20">≥ 20%</button>
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 30 ? 'tp-selected' : ''}" data-val="30">≥ 30%</button>
@@ -2561,7 +2624,7 @@ const SHADOW_MODAL_STYLES = `
     const heatBtn = bar.querySelector('#tp-bar-heat-btn');
     if (heatBtn) {
       heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
-      heatBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+      heatBtn.style.setProperty('display', 'flex', 'important');
     }
 
     const bestpreiseBtn = bar.querySelector('#tp-bar-bestpreise-btn');
@@ -2607,11 +2670,14 @@ const SHADOW_MODAL_STYLES = `
       batchBtn.dataset.uncheckedCount = String(uncheckedDeals);
       batchBtn.classList.remove('tp-disabled');
       const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      batchBtn.title = uncheckedDeals > 0
-        ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${minDisc}% Rabatt prüfen`
-        : `Keine ungeprüften Deals ab ${minDisc}% Rabatt vorhanden`;
+      batchBtn.title = isDealFeed
+        ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${minDisc}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${minDisc}% Rabatt vorhanden`)
+        : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`);
       batchBtn.innerHTML = `🔍 Check Deals (${uncheckedDeals})`;
       batchBtn.classList.remove('tp-batch-active');
+      batchBtn.style.setProperty('border-top-right-radius', isDealFeed ? '0' : '8px', 'important');
+      batchBtn.style.setProperty('border-bottom-right-radius', isDealFeed ? '0' : '8px', 'important');
+      batchBtn.style.setProperty('border-right', isDealFeed ? 'none' : '1px solid rgba(255,255,255,0.15)', 'important');
     }
 
     const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
@@ -2619,6 +2685,7 @@ const SHADOW_MODAL_STYLES = `
       const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       threshBtn.textContent = `≥${minDisc}% ▾`;
       threshBtn.title = `Mindest-Rabatt für Deal-Check wählen (aktuell ≥${minDisc}%)`;
+      threshBtn.style.setProperty('display', isDealFeed ? 'block' : 'none', 'important');
     }
     const threshPopover = bar.querySelector('#tp-threshold-popover');
     if (threshPopover) {
@@ -2630,7 +2697,7 @@ const SHADOW_MODAL_STYLES = `
 
     const threshWrapper = bar.querySelector('#tp-bar-threshold-wrapper');
     if (threshWrapper) {
-      threshWrapper.style.setProperty('display', isDealFeed ? 'inline-flex' : 'none', 'important');
+      threshWrapper.style.setProperty('display', 'inline-flex', 'important');
     }
 
     const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
@@ -2761,15 +2828,16 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const { mainPriceInfo, mainShipping, mainProduct, fallbackShipping, fallbackProduct } = card._tpPriceInfo;
+    const useShipping = isShippingPriceActive(card);
     let priceEl = null;
     if (mainPriceInfo) {
-      priceEl = CONFIG.USE_SHIPPING_PRICE
+      priceEl = useShipping
         ? (mainShipping || mainProduct)
         : (mainProduct || mainShipping);
     }
 
     if (!priceEl) {
-      priceEl = CONFIG.USE_SHIPPING_PRICE
+      priceEl = useShipping
         ? (fallbackShipping || fallbackProduct)
         : (fallbackProduct || fallbackShipping);
     }
@@ -2788,6 +2856,7 @@ const SHADOW_MODAL_STYLES = `
     const stats = pid ? getCachedPriceStats(pid) : null;
     const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
     const discountVal = extractCardDiscount(card);
+    const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     const catName = extractCardCategory(card);
     const rootGroup = resolveCategoryGroup(catName, card);
     const offerCount = extractOfferCount(card);
@@ -2800,6 +2869,7 @@ const SHADOW_MODAL_STYLES = `
       stats,
       isVerifiedNonBest,
       discountVal,
+      dealScore,
       catName,
       rootGroup,
       offerCount
@@ -2919,10 +2989,10 @@ const SHADOW_MODAL_STYLES = `
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, discountVal, catName, rootGroup } = cd;
 
-    // 0. Heatmap (in Bestpreise mode, driven by Deal-Score; in regular mode, driven by feed discount)
-    const effectiveHeatPercent = CONFIG.BESTPREISE_MODE_ACTIVE
-      ? (cd.dealScore ? cd.dealScore.score : null)
-      : (discountVal !== null && !isVerifiedNonBest ? discountVal : null);
+    // 0. Heatmap (driven by Deal-Score when verified or in Bestpreise mode; in unverified feed mode, driven by feed discount)
+    const effectiveHeatPercent = isVerifiedNonBest
+      ? null
+      : (cd.dealScore ? cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : discountVal));
 
     if (CONFIG.HEATMAP_ENABLED && effectiveHeatPercent !== null && effectiveHeatPercent > 0) {
       const heatKey = `${effectiveHeatPercent}_${CONFIG.HEATMAP_INTENSITY}_${CONFIG.HEATMAP_CURVE}`;
@@ -3031,7 +3101,8 @@ const SHADOW_MODAL_STYLES = `
       }
 
       if (matchedRow) {
-        const storePriceEl = CONFIG.USE_SHIPPING_PRICE
+        const useShipping = isShippingPriceActive(card);
+        const storePriceEl = useShipping
           ? (matchedRow.querySelector('.shippingPrice .Plugin_Price') || matchedRow.querySelector('.productPrice .Plugin_Price'))
           : (matchedRow.querySelector('.productPrice .Plugin_Price') || matchedRow.querySelector('.shippingPrice .Plugin_Price'));
         const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
@@ -3059,16 +3130,23 @@ const SHADOW_MODAL_STYLES = `
     }
 
     // 3.5 Real Deal & Allzeit-Tiefstpreis Check (Consolidated into Differenz Circle Badge)
-    const badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+    let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     // Remove any legacy floating wrappers if present
     card.querySelector('.tp-real-deal-wrapper')?.remove();
 
+    if (!badgeDifEl && pid) {
+      badgeDifEl = document.createElement('div');
+      badgeDifEl.className = 'badge badge-dif tp-injected-badge';
+      card.appendChild(badgeDifEl);
+    }
+
     if (badgeDifEl) {
       if (!badgeDifEl.dataset.tpOriginalDiscount) {
-        const initialDiscount = extractCardDiscount(card) ?? 0;
-        badgeDifEl.dataset.tpOriginalDiscount = String(initialDiscount);
+        const initialDiscount = extractCardDiscount(card);
+        badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
       }
-      const rawDiscount = parseFloat(badgeDifEl.dataset.tpOriginalDiscount) || (extractCardDiscount(card) ?? 0);
+      const isNeueFeed = isNeueToppreisePage();
+      const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
 
       // Bind single click handler on badge
       if (!badgeDifEl.dataset.tpDealBound) {
@@ -3198,6 +3276,9 @@ const SHADOW_MODAL_STYLES = `
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+            } else {
+              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p><span class="tp-badge-loupe-icon">🔍</span>`);
             }
           }
           card.querySelector('.tp-card-historical-price')?.remove();
@@ -3234,8 +3315,8 @@ const SHADOW_MODAL_STYLES = `
           if (isAllTimeLow) {
             // 3B: Verified All-Time Low (Glowing Emerald Halo)
             badgeDifEl.classList.add('tp-deal-alltime-low', 'tp-deal-badge-interactive');
-            badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
-            
+            badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
+
             let peakContext = '';
             if (hasSignificantPeak) {
               const peakDropPct = Math.round(((stats.hoechstpreis - cardPrice) / stats.hoechstpreis) * 100);
@@ -3249,14 +3330,23 @@ const SHADOW_MODAL_STYLES = `
             const avgContext = stats.avgPrice && stats.avgPrice > cardPrice ? ` | Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}` : '';
 
             setTitleIfChanged(badgeDifEl, `🌟 ${isNewRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!${prevLowContext}${avgContext}${peakContext} (Klicken zum Aktualisieren)`);
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p>`);
+            if (rawDiscount !== null && !isNaN(rawDiscount)) {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p>`);
+            } else {
+              const dealPct = cd.dealScore?.score || (stats.realDiscountVsMedian || stats.realDiscountVsAvg || 0);
+              if (dealPct > 0) {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealPct}%</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+              }
+            }
           } else {
             // 2A: Verified Non-Tiefstpreis (Amber Alert Morph with Shrunken Strikethrough)
             const markupPct = Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100);
             const isSevere = markupPct >= 50;
 
             badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
-            badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-loading');
+            badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-loading');
             if (isSevere) {
               badgeDifEl.classList.add('tp-is-severe-markup');
             } else {
@@ -3264,8 +3354,10 @@ const SHADOW_MODAL_STYLES = `
             }
 
             const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-            setTitleIfChanged(badgeDifEl, `⚠️ Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag) | Schein-Rabatt: -${rawDiscount}%${peakContext} (Klicken zum Aktualisieren)`);
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${markupPct}%</p><span class="tp-fake-discount"><s>-${rawDiscount}%</s></span>`);
+            const fakeDiscContext = (rawDiscount !== null && !isNaN(rawDiscount)) ? ` | Schein-Rabatt: -${rawDiscount}%` : '';
+            setTitleIfChanged(badgeDifEl, `⚠️ Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${fakeDiscContext}${peakContext} (Klicken zum Aktualisieren)`);
+            const fakeDiscHtml = (rawDiscount !== null && !isNaN(rawDiscount)) ? `<span class="tp-fake-discount"><s>-${rawDiscount}%</s></span>` : '';
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${markupPct}%</p>${fakeDiscHtml}`);
           }
 
           // 4A: Historical Tiefstpreis line right below current price
@@ -3294,6 +3386,20 @@ const SHADOW_MODAL_STYLES = `
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
             setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
             setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`);
+          } else if (!isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice) {
+            if (!histPriceEl) {
+              histPriceEl = document.createElement('div');
+              const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
+                                     cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
+                                     cardPriceEl?.parentElement ||
+                                     card;
+              priceContainer.appendChild(histPriceEl);
+            }
+            const dMedian = Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100);
+            const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
+            histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
+            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (-${dMedian}%)`);
+            setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}`);
           } else if (histPriceEl) {
             histPriceEl.remove();
           }
@@ -3303,9 +3409,14 @@ const SHADOW_MODAL_STYLES = `
           card.querySelector('.tp-card-historical-price')?.remove();
 
           badgeDifEl.classList.add('tp-deal-badge-interactive');
-          badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
-          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Echten Allzeit-Tiefstpreis prüfen (-${rawDiscount}% Schein-Rabatt vs Realität)`);
-          setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+          badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
+          if (rawDiscount !== null && !isNaN(rawDiscount)) {
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Echten Allzeit-Tiefstpreis prüfen (-${rawDiscount}% Schein-Rabatt vs Realität)`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+          } else {
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p><span class="tp-badge-loupe-icon">🔍</span>`);
+          }
         }
       }
     } else {
@@ -3636,8 +3747,14 @@ const SHADOW_MODAL_STYLES = `
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isCatExcluded) counts.cat++;
         if (cd.filters.isLowOffers) counts.min++;
-        if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
-          counts.uncheckedDeals++;
+        if (isNeueFeed) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
+            counts.uncheckedDeals++;
+          }
+        } else {
+          if (cd.pid && !cd.stats && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
+            counts.uncheckedDeals++;
+          }
         }
         if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && cd.isVerifiedNonBest && CONFIG.REAL_DEAL_FILTER_ACTIVE) {
           counts.nonBest++;
@@ -4528,6 +4645,7 @@ const SHADOW_MODAL_STYLES = `
       getCardDealerRows,
       clearCardCache,
       parsePrice,
+      isShippingPriceActive,
       CONFIG,
       memoryCache
     };
