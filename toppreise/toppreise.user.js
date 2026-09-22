@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.28
+// @version      2.18.29
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -959,10 +959,234 @@ const SHADOW_MODAL_STYLES = `
     DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
   };
 
+  let uiShadowRoot = null;
+
   const saveConfigKey = (key, val) => {
     CONFIG[key] = val;
     _setValue(key, val);
   };
+
+  const CONFIG_BODY_KEYS = new Set(['MODE', 'DIM_OPACITY']);
+
+  function syncUiControl(key, val) {
+    // 1. Sync Settings Modal (Shadow DOM) if open/exists
+    if (uiShadowRoot) {
+      try {
+        switch (key) {
+          case 'MODE': {
+            const el = uiShadowRoot.querySelector(`input[name="tp-mode"][value="${val}"]`);
+            if (el) el.checked = true;
+            break;
+          }
+          case 'DIM_OPACITY': {
+            const range = uiShadowRoot.getElementById('tp-opacity-range');
+            const label = uiShadowRoot.getElementById('tp-opacity-val');
+            if (range) range.value = val;
+            if (label) label.textContent = `${Math.round(val * 100)}%`;
+            break;
+          }
+          case 'NEGATIVE_TERMS': {
+            const input = uiShadowRoot.getElementById('tp-negative-terms-input');
+            if (input && input.value !== val) input.value = val || '';
+            break;
+          }
+          case 'MIN_OFFERS': {
+            const input = uiShadowRoot.getElementById('tp-min-offers-val');
+            const range = uiShadowRoot.getElementById('tp-min-offers-range');
+            if (input) input.value = val;
+            if (range) range.value = val;
+            break;
+          }
+          case 'HEATMAP_ENABLED': {
+            const toggle = uiShadowRoot.getElementById('tp-heatmap-enabled-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_MODE_ACTIVE': {
+            const toggle = uiShadowRoot.getElementById('tp-bestpreise-mode-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_WEIGHT_RECORD': {
+            const range = uiShadowRoot.getElementById('tp-bestpreise-weight-range');
+            const valEl = uiShadowRoot.getElementById('tp-bestpreise-weight-val');
+            const descEl = uiShadowRoot.getElementById('tp-bestpreise-weight-desc');
+            const pct = Math.round((val ?? 0.5) * 100);
+            if (range) range.value = pct;
+            if (valEl) valEl.textContent = `${pct}%`;
+            if (descEl) {
+              if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
+              else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
+              else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median`;
+            }
+            break;
+          }
+          case 'REAL_DEAL_MIN_DISCOUNT': {
+            const range = uiShadowRoot.getElementById('tp-real-deal-min-range');
+            const valEl = uiShadowRoot.getElementById('tp-real-deal-min-val');
+            if (range) range.value = val;
+            if (valEl) valEl.value = val;
+            break;
+          }
+          case 'REAL_DEAL_FILTER_ACTIVE': {
+            const toggle = uiShadowRoot.getElementById('tp-real-deal-filter-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'USE_SHIPPING_PRICE': {
+            const toggle = uiShadowRoot.getElementById('tp-use-shipping-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'ENABLE_SPARKLINES': {
+            const toggle = uiShadowRoot.getElementById('tp-sparklines-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
+      }
+    }
+
+    // 2. Sync Inline Filter Bar if present
+    const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
+    if (bar) {
+      try {
+        switch (key) {
+          case 'NEGATIVE_TERMS': {
+            const input = bar.querySelector('#tp-inline-negative-input');
+            const clearBtn = bar.querySelector('#tp-clear-neg-btn');
+            if (input && document.activeElement !== input && input.value !== val) {
+              input.value = val || '';
+            }
+            if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+            break;
+          }
+          case 'HEATMAP_ENABLED': {
+            const heatBtn = bar.querySelector('#tp-bar-heat-btn');
+            if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
+            break;
+          }
+          case 'BESTPREISE_MODE_ACTIVE': {
+            const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
+            if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
+            bar.classList.toggle('tp-bestpreise-bar', val === true);
+            break;
+          }
+          case 'FILTER_NEG_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-neg');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'FILTER_CAT_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-cat');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'FILTER_MIN_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-min');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'FILTER_BESTPREIS_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-bestpreis');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'MIN_OFFERS': {
+            const minVal = bar.querySelector('#tp-bar-min-val');
+            if (minVal) minVal.textContent = val;
+            break;
+          }
+          case 'REAL_DEAL_MIN_DISCOUNT': {
+            const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
+            if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
+            bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
+              btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
+            });
+            break;
+          }
+          case 'EXCLUDED_CATEGORIES': {
+            const catsCount = bar.querySelector('#tp-bar-cats-count');
+            const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
+            const count = (val || []).length;
+            if (catsCount) catsCount.textContent = count;
+            if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
+            break;
+          }
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl bar error', err);
+      }
+    }
+  }
+
+  function updateConfig(key, val, options = {}) {
+    saveConfigKey(key, val);
+    if (!options.skipUiSync) {
+      syncUiControl(key, val);
+    }
+    if (CONFIG_BODY_KEYS.has(key)) {
+      updateBodyClasses();
+    }
+    if (!options.skipRender) {
+      processListings();
+    }
+  }
+
+  function updateConfigs(entries, options = {}) {
+    let requiresBodyUpdate = false;
+    for (const [k, v] of Object.entries(entries)) {
+      saveConfigKey(k, v);
+      if (!options.skipUiSync) {
+        syncUiControl(k, v);
+      }
+      if (CONFIG_BODY_KEYS.has(k)) {
+        requiresBodyUpdate = true;
+      }
+    }
+    if (requiresBodyUpdate) {
+      updateBodyClasses();
+    }
+    if (!options.skipRender) {
+      processListings();
+    }
+  }
+
+  // ─── DOM QUERY MEMOIZATION ──────────────────────────────────────────────────
+  function getCardDealerRows(card) {
+    if (!card._tpDealerRows) {
+      card._tpDealerRows = Array.from(card.querySelectorAll('.Plugin_DealerRelProdPriceInfo')).map(row => ({
+        row,
+        storeName: normalizeName(row.querySelector('.title')?.textContent || '')
+      }));
+    }
+    return card._tpDealerRows;
+  }
+
+  function clearCardCache(card) {
+    if (!card) return;
+    delete card._tpDealerRows;
+    delete card._tpTextLower;
+    delete card._tpPriceInfo;
+  }
 
   const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ...args); };
 
@@ -1176,7 +1400,11 @@ const SHADOW_MODAL_STYLES = `
 
   function matchesNegativeTerms(card, termsList) {
     if (!termsList || termsList.length === 0) return false;
-    const text = (card.textContent || '').toLowerCase();
+    let text = card._tpTextLower;
+    if (text === undefined) {
+      text = (card.textContent || '').toLowerCase();
+      card._tpTextLower = text;
+    }
     return termsList.some(term => {
       if (!term) return false;
       if (term.length <= 3) {
@@ -1715,7 +1943,18 @@ const SHADOW_MODAL_STYLES = `
 
   const activeFetches = new Map();
 
-  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false) {
+  async function interruptibleSleep(ms, shouldCancelFn = null) {
+    const step = 100;
+    let elapsed = 0;
+    while (elapsed < ms) {
+      if (shouldCancelFn && shouldCancelFn()) break;
+      const wait = Math.min(step, ms - elapsed);
+      await new Promise(r => setTimeout(r, wait));
+      elapsed += wait;
+    }
+  }
+
+  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
     if (!productId) return null;
     const cached = getCachedPriceStats(productId, forceFresh);
     if (cached) {
@@ -1747,6 +1986,7 @@ const SHADOW_MODAL_STYLES = `
         const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
         let resHtml = null;
         for (let attempt = 0; attempt <= retries; attempt++) {
+          if (shouldCancelFn && shouldCancelFn()) return null;
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 7000);
@@ -1760,13 +2000,23 @@ const SHADOW_MODAL_STYLES = `
             });
             clearTimeout(timeoutId);
             if (resHtml.ok) break;
-            // If rate limited (429) or temporary server error, back off before retrying
-            if (attempt < retries) {
-              await new Promise(r => setTimeout(r, 400 + attempt * 400));
+
+            if (resHtml.status === 429) {
+              const retryAfterHeader = resHtml.headers?.get('Retry-After');
+              const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+              const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
+              if (onThrottle) {
+                onThrottle({ productId, attempt, backoffMs, status: resHtml.status });
+              }
+              if (attempt < retries) {
+                await interruptibleSleep(backoffMs, shouldCancelFn);
+              }
+            } else if (attempt < retries) {
+              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
             }
           } catch (fetchErr) {
             if (attempt < retries) {
-              await new Promise(r => setTimeout(r, 400 + attempt * 400));
+              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
             } else {
               throw fetchErr;
             }
@@ -1807,7 +2057,8 @@ const SHADOW_MODAL_STYLES = `
       delayMs = 200,
       shouldCancelFn = () => false,
       onProgress = null,
-      onComplete = null
+      onComplete = null,
+      onStatus = null
     } = options;
 
     const cards = getProductCards();
@@ -1840,7 +2091,18 @@ const SHADOW_MODAL_STYLES = `
         processListings();
 
         try {
-          await fetchSingleProductPriceStats(item.pid);
+          await fetchSingleProductPriceStats(
+            item.pid,
+            2,
+            false,
+            throttleInfo => {
+              const secs = Math.ceil(throttleInfo.backoffMs / 1000);
+              if (onStatus) {
+                onStatus(`⏳ Rate-Limit (${secs}s Pause)...`);
+              }
+            },
+            shouldCancelFn
+          );
         } finally {
           currentlyScanningPid = null;
         }
@@ -1849,7 +2111,7 @@ const SHADOW_MODAL_STYLES = `
         if (onProgress) onProgress(completed, total);
         processListings();
         const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
-        await new Promise(r => setTimeout(r, delay));
+        await interruptibleSleep(delay, shouldCancelFn);
       }
     } finally {
       currentlyScanningPid = null;
@@ -1863,7 +2125,7 @@ const SHADOW_MODAL_STYLES = `
   let isBatchChecking = false;
   let batchCancelRequested = false;
 
-  async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null) {
+  async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
     if (isBatchChecking) {
       batchCancelRequested = true;
       return;
@@ -1877,7 +2139,8 @@ const SHADOW_MODAL_STYLES = `
         delayMs: () => 250 + Math.floor(Math.random() * 100),
         shouldCancelFn: () => batchCancelRequested,
         onProgress,
-        onComplete
+        onComplete,
+        onStatus
       });
     } finally {
       isBatchChecking = false;
@@ -2045,24 +2308,11 @@ const SHADOW_MODAL_STYLES = `
       };
 
       input.oninput = e => {
-        saveConfigKey('NEGATIVE_TERMS', e.target.value);
-        if (clearBtn) clearBtn.style.display = e.target.value ? 'block' : 'none';
-        if (uiShadowRoot) {
-          const modalInput = uiShadowRoot.getElementById('tp-negative-terms-input');
-          if (modalInput) modalInput.value = e.target.value;
-        }
-        processListings();
+        updateConfig('NEGATIVE_TERMS', e.target.value);
       };
 
       clearBtn.onclick = () => {
-        input.value = '';
-        saveConfigKey('NEGATIVE_TERMS', '');
-        clearBtn.style.display = 'none';
-        if (uiShadowRoot) {
-          const modalInput = uiShadowRoot.getElementById('tp-negative-terms-input');
-          if (modalInput) modalInput.value = '';
-        }
-        processListings();
+        updateConfig('NEGATIVE_TERMS', '');
       };
 
       bar.querySelector('#tp-bar-reveal-btn').onclick = () => {
@@ -2072,25 +2322,15 @@ const SHADOW_MODAL_STYLES = `
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
         const nextState = !CONFIG.HEATMAP_ENABLED;
-        saveConfigKey('HEATMAP_ENABLED', nextState);
-        if (uiShadowRoot) {
-          const modalToggle = uiShadowRoot.getElementById('tp-heatmap-enabled-toggle');
-          if (modalToggle) modalToggle.checked = nextState;
-        }
-        processListings();
+        updateConfig('HEATMAP_ENABLED', nextState);
       };
 
       const bestpreiseToggleBtn = bar.querySelector('#tp-bar-bestpreise-btn');
       if (bestpreiseToggleBtn) {
         bestpreiseToggleBtn.onclick = () => {
           const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
-          saveConfigKey('BESTPREISE_MODE_ACTIVE', next);
-          if (uiShadowRoot) {
-            const modalToggle = uiShadowRoot.getElementById('tp-bestpreise-mode-toggle');
-            if (modalToggle) modalToggle.checked = next;
-          }
           cancelBestpreiseScan();
-          processListings();
+          updateConfig('BESTPREISE_MODE_ACTIVE', next);
           showToast(next ? '💎 Neue Bestpreise-Modus aktiviert' : 'Bestpreise-Modus deaktiviert');
         };
       }
@@ -2135,6 +2375,11 @@ const SHADOW_MODAL_STYLES = `
                   showToast('Keine ungeprüften Deals vorhanden');
                 }
               }
+            },
+            statusText => {
+              if (batchBtn) {
+                batchBtn.innerHTML = `${statusText} <span title="Abbrechen" style="font-weight:700;margin-left:4px;">✕</span>`;
+              }
             }
           );
         };
@@ -2161,16 +2406,9 @@ const SHADOW_MODAL_STYLES = `
             e.stopPropagation();
             const val = parseInt(opt.dataset.val, 10);
             if (!isNaN(val)) {
-              saveConfigKey('REAL_DEAL_MIN_DISCOUNT', val);
-              if (uiShadowRoot) {
-                const modalRange = uiShadowRoot.getElementById('tp-real-deal-min-range');
-                const modalVal = uiShadowRoot.getElementById('tp-real-deal-min-val');
-                if (modalRange) modalRange.value = val;
-                if (modalVal) modalVal.value = val;
-              }
               threshPopover.classList.remove('tp-show');
               threshBtn.classList.remove('tp-open');
-              processListings();
+              updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
               showToast(`Mindest-Rabatt für Deals auf ${val}% gesetzt`);
             }
           };
@@ -2193,19 +2431,9 @@ const SHADOW_MODAL_STYLES = `
             e.stopPropagation();
             const w = parseFloat(opt.dataset.weight);
             if (!isNaN(w)) {
-              saveConfigKey('BESTPREISE_WEIGHT_RECORD', w);
-              if (uiShadowRoot) {
-                const modalRange = uiShadowRoot.getElementById('tp-bestpreise-weight-range');
-                const modalVal = uiShadowRoot.getElementById('tp-bestpreise-weight-val');
-                const modalDesc = uiShadowRoot.getElementById('tp-bestpreise-weight-desc');
-                const pct = Math.round(w * 100);
-                if (modalRange) modalRange.value = pct;
-                if (modalVal) modalVal.value = pct;
-                if (modalDesc) modalDesc.textContent = `${100 - pct}% Median / ${pct}% Neuer Rekord`;
-              }
               weightPopover.classList.remove('tp-show');
               weightBtn.classList.remove('tp-open');
-              processListings();
+              updateConfig('BESTPREISE_WEIGHT_RECORD', w);
               showToast(`Deal-Score Gewichtung: ${Math.round((1 - w) * 100)}% Median / ${Math.round(w * 100)}% Rekord`);
             }
           };
@@ -2230,14 +2458,7 @@ const SHADOW_MODAL_STYLES = `
       const updateMinOffers = delta => {
         const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
         if (next !== CONFIG.MIN_OFFERS) {
-          saveConfigKey('MIN_OFFERS', next);
-          if (uiShadowRoot) {
-            const modalVal = uiShadowRoot.getElementById('tp-min-offers-val');
-            const modalRange = uiShadowRoot.getElementById('tp-min-offers-range');
-            if (modalVal) modalVal.value = next;
-            if (modalRange) modalRange.value = next;
-          }
-          processListings();
+          updateConfig('MIN_OFFERS', next);
         }
       };
 
@@ -2245,35 +2466,29 @@ const SHADOW_MODAL_STYLES = `
       bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
       bar.querySelector('#tp-toggle-neg').onclick = () => {
         const next = !CONFIG.FILTER_NEG_ENABLED;
-        saveConfigKey('FILTER_NEG_ENABLED', next);
-        processListings();
+        updateConfig('FILTER_NEG_ENABLED', next);
         showToast(next ? '📝 Negativ-Filter AN' : '📝 Negativ-Filter AUS');
       };
       bar.querySelector('#tp-toggle-cat').onclick = () => {
         const next = !CONFIG.FILTER_CAT_ENABLED;
-        saveConfigKey('FILTER_CAT_ENABLED', next);
-        processListings();
+        updateConfig('FILTER_CAT_ENABLED', next);
         showToast(next ? '🚫 Kategorien-Filter AN' : '🚫 Kategorien-Filter AUS');
       };
       bar.querySelector('#tp-toggle-min').onclick = () => {
         const next = !CONFIG.FILTER_MIN_ENABLED;
-        saveConfigKey('FILTER_MIN_ENABLED', next);
-        processListings();
+        updateConfig('FILTER_MIN_ENABLED', next);
         showToast(next ? '🔢 Min-Angebote-Filter AN' : '🔢 Min-Angebote-Filter AUS');
       };
       bar.querySelector('#tp-toggle-bestpreis').onclick = () => {
         const next = !CONFIG.FILTER_BESTPREIS_ENABLED;
-        saveConfigKey('FILTER_BESTPREIS_ENABLED', next);
-        processListings();
+        updateConfig('FILTER_BESTPREIS_ENABLED', next);
         showToast(next ? '💎 Deal-Filter AN' : '💎 Deal-Filter AUS');
       };
       bar.querySelector('#tp-blocked-clear-all-btn').onclick = () => {
         const prevCats = [...(CONFIG.EXCLUDED_CATEGORIES || [])];
-        saveConfigKey('EXCLUDED_CATEGORIES', []);
-        processListings();
+        updateConfig('EXCLUDED_CATEGORIES', []);
         showToast('Alle blockierten Kategorien freigegeben', 5000, 'Rückgängig', () => {
-          saveConfigKey('EXCLUDED_CATEGORIES', prevCats);
-          processListings();
+          updateConfig('EXCLUDED_CATEGORIES', prevCats);
           showToast('Blockierte Kategorien wiederhergestellt');
         });
       };
@@ -2483,26 +2698,35 @@ const SHADOW_MODAL_STYLES = `
   function extractCanonicalPrice(card) {
     if (!card) return { price: 0, el: null };
 
-    // First, try to find the specific layout for "ab CHF XX.XX" inside price_information_product
-    // which represents the actual current best price shown to the user on the card.
-    // It is typically in .productPrice .Plugin_Price or .shippingPrice .Plugin_Price,
-    // BUT we must avoid grabbing reference prices that might be hiding in tooltips or other elements.
+    if (!card._tpPriceInfo) {
+      const mainPriceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product');
+      let fallbackShipping = null;
+      let fallbackProduct = null;
+      if (!mainPriceInfo) {
+        fallbackShipping = card.querySelector('.priceContainer.shippingPrice .Plugin_Price');
+        fallbackProduct = card.querySelector('.priceContainer.productPrice .Plugin_Price');
+      }
+      card._tpPriceInfo = {
+        mainPriceInfo,
+        mainShipping: mainPriceInfo?.querySelector('.shippingPrice .Plugin_Price') || null,
+        mainProduct: mainPriceInfo?.querySelector('.productPrice .Plugin_Price') || null,
+        fallbackShipping,
+        fallbackProduct
+      };
+    }
 
-    // Select the main price container usually containing the primary displayed price
-    const mainPriceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product');
-
+    const { mainPriceInfo, mainShipping, mainProduct, fallbackShipping, fallbackProduct } = card._tpPriceInfo;
     let priceEl = null;
     if (mainPriceInfo) {
       priceEl = CONFIG.USE_SHIPPING_PRICE
-        ? (mainPriceInfo.querySelector('.shippingPrice .Plugin_Price') || mainPriceInfo.querySelector('.productPrice .Plugin_Price'))
-        : (mainPriceInfo.querySelector('.productPrice .Plugin_Price') || mainPriceInfo.querySelector('.shippingPrice .Plugin_Price'));
+        ? (mainShipping || mainProduct)
+        : (mainProduct || mainShipping);
     }
 
-    // Fallbacks: Explicitly restrict to price containers to avoid catching rogue reference prices.
     if (!priceEl) {
       priceEl = CONFIG.USE_SHIPPING_PRICE
-        ? (card.querySelector('.priceContainer.shippingPrice .Plugin_Price') || card.querySelector('.priceContainer.productPrice .Plugin_Price'))
-        : (card.querySelector('.priceContainer.productPrice .Plugin_Price') || card.querySelector('.priceContainer.shippingPrice .Plugin_Price'));
+        ? (fallbackShipping || fallbackProduct)
+        : (fallbackProduct || fallbackShipping);
     }
 
     return {
@@ -2728,11 +2952,9 @@ const SHADOW_MODAL_STYLES = `
           const key = `PATH:${rootGroup}/${catName}`;
           if (!curr.includes(key) && !curr.includes(catName)) {
             isBlockedCatsOpen = true;
-            saveConfigKey('EXCLUDED_CATEGORIES', [...curr, key]);
-            processListings();
+            updateConfig('EXCLUDED_CATEGORIES', [...curr, key]);
             showToast(`Kategorie "${catName}" ausgeblendet`, 4000, 'Rückgängig', () => {
-              saveConfigKey('EXCLUDED_CATEGORIES', (CONFIG.EXCLUDED_CATEGORIES || []).filter(c => c !== key && c !== catName));
-              processListings();
+              updateConfig('EXCLUDED_CATEGORIES', (CONFIG.EXCLUDED_CATEGORIES || []).filter(c => c !== key && c !== catName));
               showToast(`Kategorie "${catName}" wieder eingeblendet`);
             });
           }
@@ -2753,15 +2975,13 @@ const SHADOW_MODAL_STYLES = `
       card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
       card.querySelector('.tp-best-price-badge')?.remove();
     } else {
+      const dealerRows = getCardDealerRows(card);
       let matchedRow = null;
-      for (const row of card.querySelectorAll('.Plugin_DealerRelProdPriceInfo')) {
-        const titleEl = row.querySelector('.title');
-        if (titleEl) {
-          const rowStoreNormalized = normalizeName(titleEl.textContent);
-          if (activeStores.some(store => rowStoreNormalized.includes(store) || store.includes(rowStoreNormalized))) {
-            matchedRow = row;
-            break;
-          }
+      for (let d = 0; d < dealerRows.length; d++) {
+        const item = dealerRows[d];
+        if (item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName))) {
+          matchedRow = item.row;
+          break;
         }
       }
 
@@ -2770,11 +2990,7 @@ const SHADOW_MODAL_STYLES = `
           ? (matchedRow.querySelector('.shippingPrice .Plugin_Price') || matchedRow.querySelector('.productPrice .Plugin_Price'))
           : (matchedRow.querySelector('.productPrice .Plugin_Price') || matchedRow.querySelector('.shippingPrice .Plugin_Price'));
         const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
-
-        const bestPriceEl = CONFIG.USE_SHIPPING_PRICE
-          ? (card.querySelector('.price_information_product .shippingPrice .Plugin_Price') || card.querySelector('.price_information_product .productPrice .Plugin_Price') || card.querySelector('.priceContainer.shippingPrice .Plugin_Price') || card.querySelector('.priceContainer.productPrice .Plugin_Price'))
-          : (card.querySelector('.price_information_product .productPrice .Plugin_Price') || card.querySelector('.price_information_product .shippingPrice .Plugin_Price') || card.querySelector('.priceContainer.productPrice .Plugin_Price') || card.querySelector('.priceContainer.shippingPrice .Plugin_Price'));
-        const bestPrice = bestPriceEl ? parsePrice(bestPriceEl.textContent) : 0;
+        const bestPrice = cardPrice > 0 ? cardPrice : (cardPriceEl ? parsePrice(cardPriceEl.textContent) : 0);
 
         if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) {
           card.classList.add('tp-is-cheapest');
@@ -3322,21 +3538,17 @@ const SHADOW_MODAL_STYLES = `
         processListings();
       });
       emptyNotice.querySelector('#tp-empty-disable-bestpreise-btn')?.addEventListener('click', () => {
-        saveConfigKey('BESTPREISE_MODE_ACTIVE', false);
         cancelBestpreiseScan();
-        if (uiShadowRoot) {
-          const modalToggle = uiShadowRoot.getElementById('tp-bestpreise-mode-toggle');
-          if (modalToggle) modalToggle.checked = false;
-        }
-        processListings();
+        updateConfig('BESTPREISE_MODE_ACTIVE', false);
         showToast('Bestpreise-Modus deaktiviert');
       });
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-        saveConfigKey('FILTER_NEG_ENABLED', false);
-        saveConfigKey('FILTER_CAT_ENABLED', false);
-        saveConfigKey('FILTER_MIN_ENABLED', false);
-        saveConfigKey('FILTER_BESTPREIS_ENABLED', false);
-        processListings();
+        updateConfigs({
+          FILTER_NEG_ENABLED: false,
+          FILTER_CAT_ENABLED: false,
+          FILTER_MIN_ENABLED: false,
+          FILTER_BESTPREIS_ENABLED: false
+        });
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
     } else if (emptyNotice) {
@@ -3553,8 +3765,6 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // ─── UNIFIED SETTINGS UI IN SHADOW DOM ─────────────────────────────────────
-  let uiShadowRoot = null;
-
   function showToast(message, durationMs = 2500, actionLabel = null, onAction = null) {
     ensureSkeleton();
     const container = uiShadowRoot?.getElementById('tp-toast-container');
@@ -4103,56 +4313,54 @@ const SHADOW_MODAL_STYLES = `
     shadow.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
     btnSave.addEventListener('click', () => {
+      const updates = {};
       const checkedModeEl = shadow.querySelector('input[name="tp-mode"]:checked');
-      if (checkedModeEl) saveConfigKey('MODE', checkedModeEl.value);
+      if (checkedModeEl) updates.MODE = checkedModeEl.value;
 
-      saveConfigKey('MARGIN_PERCENT', Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0)));
-      saveConfigKey('DIM_OPACITY', Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25)));
-      saveConfigKey('USE_SHIPPING_PRICE', shippingToggle.checked);
-      saveConfigKey('NEGATIVE_TERMS', negTermsInput.value.trim());
-      saveConfigKey('MIN_OFFERS', Math.max(0, parseInt(minOffersVal.value) || 0));
+      updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
+      updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
+      updates.USE_SHIPPING_PRICE = shippingToggle.checked;
+      updates.NEGATIVE_TERMS = negTermsInput.value.trim();
+      updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
 
       const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
-      if (checkedSort) saveConfigKey('SORT_BY_OFFERS', checkedSort.value);
+      if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
-      saveConfigKey('ALARM_ENABLED', alarmEnabledToggle.checked);
-      saveConfigKey('ALARM_TARGET_PERCENT', Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100)));
+      updates.ALARM_ENABLED = alarmEnabledToggle.checked;
+      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
 
       const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
-      if (checkedDur) saveConfigKey('ALARM_DURATION_DAYS', checkedDur.value);
+      if (checkedDur) updates.ALARM_DURATION_DAYS = checkedDur.value;
 
-      saveConfigKey('ALARM_AUTO_SUBMIT', alarmAutoSubmitToggle.checked);
+      updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
       if (alarmSubmitDelayVal) {
-        saveConfigKey('ALARM_SUBMIT_DELAY_MS', Math.max(0, parseInt(alarmSubmitDelayVal.value) ?? 300));
+        updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, parseInt(alarmSubmitDelayVal.value) ?? 300);
       }
       if (alarmCloseDelayVal) {
-        saveConfigKey('ALARM_CLOSE_DELAY_MS', Math.max(0, parseInt(alarmCloseDelayVal.value) ?? 800));
+        updates.ALARM_CLOSE_DELAY_MS = Math.max(0, parseInt(alarmCloseDelayVal.value) ?? 800);
       }
-      saveConfigKey('HEATMAP_ENABLED', heatmapEnabledToggle.checked);
-      saveConfigKey('HEATMAP_INTENSITY', Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100)));
+      updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
+      updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));
 
       if (bestpreiseModeToggle) {
-        const wasActive = CONFIG.BESTPREISE_MODE_ACTIVE;
-        const nowActive = bestpreiseModeToggle.checked;
-        saveConfigKey('BESTPREISE_MODE_ACTIVE', nowActive);
+        updates.BESTPREISE_MODE_ACTIVE = bestpreiseModeToggle.checked;
         if (bestpreiseWeightVal) {
           const rawW = parseInt(bestpreiseWeightVal.value, 10);
           const weightNum = isNaN(rawW) ? 50 : rawW;
-          saveConfigKey('BESTPREISE_WEIGHT_RECORD', Math.max(0, Math.min(1.0, weightNum / 100)));
+          updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
         }
         if (bestpreiseHorizonSelect) {
-          saveConfigKey('BESTPREISE_MEDIAN_HORIZON_DAYS', parseInt(bestpreiseHorizonSelect.value, 10) || 0);
+          updates.BESTPREISE_MEDIAN_HORIZON_DAYS = parseInt(bestpreiseHorizonSelect.value, 10) || 0;
         }
       }
-      if (cacheTtlSelect) saveConfigKey('REAL_DEAL_CACHE_HOURS', parseInt(cacheTtlSelect.value, 10) || 48);
-      if (cacheNegTtlSelect) saveConfigKey('NEGATIVE_CACHE_HOURS', parseInt(cacheNegTtlSelect.value, 10) || 2);
+      if (cacheTtlSelect) updates.REAL_DEAL_CACHE_HOURS = parseInt(cacheTtlSelect.value, 10) || 48;
+      if (cacheNegTtlSelect) updates.NEGATIVE_CACHE_HOURS = parseInt(cacheNegTtlSelect.value, 10) || 2;
 
-      if (realDealFilterToggle) saveConfigKey('REAL_DEAL_FILTER_ACTIVE', realDealFilterToggle.checked);
-      if (realDealMinVal) saveConfigKey('REAL_DEAL_MIN_DISCOUNT', Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30)));
-      if (sparklinesToggle) saveConfigKey('ENABLE_SPARKLINES', sparklinesToggle.checked);
+      if (realDealFilterToggle) updates.REAL_DEAL_FILTER_ACTIVE = realDealFilterToggle.checked;
+      if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
+      if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
 
-      updateBodyClasses();
-      processListings();
+      updateConfigs(updates);
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });
@@ -4270,6 +4478,10 @@ const SHADOW_MODAL_STYLES = `
       cancelBatchDealCheck,
       isCardIgnoredOrInvisible,
       saveConfigKey,
+      updateConfig,
+      updateConfigs,
+      getCardDealerRows,
+      clearCardCache,
       parsePrice,
       CONFIG,
       memoryCache

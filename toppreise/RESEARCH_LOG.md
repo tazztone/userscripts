@@ -642,6 +642,42 @@ Investigation of card flickering revealed two intersecting feedback loops betwee
 - **Root Cause**: In `renderSuiteFilterBar()`, `document.addEventListener('click', ...)` for popover dismissal was bound on each bar construction. Across SPA navigations, duplicate document click listeners accumulated.
 - **Fix**: Guarded registration with `window._tpDocClickBound` and directly resolved popover elements by ID.
 
+---
+
+## 19. Monolithic Architecture & Resilience Improvements (v2.18.29)
+
+### 1. Per-Card DOM Query Memoization & Text Content Caching
+- **Problem**: In `renderCardEffects()` and `matchesNegativeTerms()`, deep DOM selector queries (`.Plugin_DealerRelProdPriceInfo`, `.title`, `.Plugin_Price`, `.price_information_product`) and `card.textContent` extractions were evaluated across all 96 cards on every keystroke, filter toggle, or hover event, causing 600–800 selector evaluations per pass.
+- **Solution**:
+  - Implemented `getCardDealerRows(card)`: queries and extracts normalized dealer names once per card lifecycle, caching `{ row, storeName }` directly on `card._tpDealerRows`.
+  - Implemented memoized lowercase text extraction (`card._tpTextLower`) in `matchesNegativeTerms()`.
+  - Memoized canonical price element lookups on `card._tpPriceInfo`.
+  - Reused `cd.cardPrice` in `renderCardEffects()`, eliminating redundant 4-selector fallback searches when the canonical best price was already extracted during the data pass.
+  - Added `clearCardCache(card)` to cleanly flush expando references when nodes mutate or get recycled.
+
+### 2. Centralized Config Dispatcher (`updateConfig` / `updateConfigs`)
+- **Problem**: Settings updates from the inline toolbar, quick-block buttons, and settings modal were previously scattered across 15+ inline event handlers. Each handler manually saved to config, inspected `uiShadowRoot` to update counterpart inputs/checkboxes, synchronized toolbar classes, updated `document.body` classes, and triggered `processListings()`. This generated ~150+ lines of redundant glue code and risked state drift between the toolbar and settings modal.
+- **Solution**:
+  - Unified all setting mutations into `updateConfig(key, value, options)` and batch updates into `updateConfigs(entries, options)`.
+  - Centralized two-way UI synchronization in `syncUiControl(key, value)`, which updates both Shadow DOM modal controls and the inline filter bar (`#tp-suite-filter-bar`).
+  - Automatically updates body classes and executes `processListings()`.
+  - Replaced repetitive boilerplate across all toolbar buttons, popover options, steppers, and quick-block handlers with clean 1-line `updateConfig(...)` calls.
+
+### 3. Scanner Rate-Limit Resilience & Responsive Cancellation
+- **Problem**: When performing batch deal scans or background time-series fetches, HTTP 429 (rate-limit) or server errors triggered silent backoff sleep without notifying the user, making the scanner appear hung. Furthermore, user cancellation could not abort mid-sleep, forcing the user to wait out the retry delays.
+- **Solution**:
+  - Implemented `interruptibleSleep(ms, shouldCancelFn)`: sleeps in 100ms slices and checks cancellation state immediately.
+  - Enhanced `fetchSingleProductPriceStats()`: detects HTTP 429 status, parses the `Retry-After` header when provided, applies adaptive backoff, and reports live status via `onThrottle` / `onStatus` callbacks.
+  - Integrated real-time toolbar feedback: when rate limits occur, the batch button displays `⏳ Rate-Limit (Pause 2s)... ✕`, allowing immediate cancellation at any point during backoff.
+
+### 4. Verification & Testing
+- Added regression tests in `test_userscript.py`:
+  - `test_config_dispatcher_syncs_toolbar_and_modal`: verifies two-way synchronization between toolbar and settings modal.
+  - `test_card_memoization_caches_dom_queries_and_text`: verifies memory caching of dealer rows and lowercase text content, and cache clearing.
+  - `test_scanner_cancellation_during_batch_check`: verifies immediate cancellation response during batch scans.
+- All 88 userscript Playwright tests pass (34.43s), and all 55 Python unit tests pass (0.12s).
+
+
 
 
 

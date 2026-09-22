@@ -2956,3 +2956,102 @@ def test_process_listings_is_idempotent_and_does_not_flicker_or_loop(page: Page)
     }""")
     assert observer_ignored, "MutationObserver fired processListings on an internal card mutation (lazyload loop)"
 
+
+def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
+    # Ensure modal is constructed by opening it
+    page.click('#tp-root >> #tp-settings-fab')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+
+    # 1. Update config via updateConfig for HEATMAP_ENABLED
+    res = page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('HEATMAP_ENABLED', false);
+        const barHeatActive = document.getElementById('tp-bar-heat-btn')?.classList.contains('tp-active');
+        const modalHeatChecked = document.getElementById('tp-root').shadowRoot.getElementById('tp-heatmap-enabled-toggle')?.checked;
+        return {
+            config: window.ToppreiseSuite.CONFIG.HEATMAP_ENABLED,
+            barHeatActive,
+            modalHeatChecked
+        };
+    }""")
+    assert res['config'] is False
+    assert res['barHeatActive'] is False
+    assert res['modalHeatChecked'] is False
+
+    # 2. Update config for MIN_OFFERS
+    res_min = page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('MIN_OFFERS', 5);
+        const barVal = document.getElementById('tp-bar-min-val')?.textContent;
+        const modalVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-min-offers-val')?.value;
+        return {
+            config: window.ToppreiseSuite.CONFIG.MIN_OFFERS,
+            barVal,
+            modalVal
+        };
+    }""")
+    assert res_min['config'] == 5
+    assert res_min['barVal'] == '5'
+    assert res_min['modalVal'] == '5'
+
+    # Close modal
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_card_memoization_caches_dom_queries_and_text(page: Page):
+    res = page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        window.ToppreiseSuite.clearCardCache(card);
+
+        // Before caching, _tpDealerRows and _tpTextLower should be undefined
+        const beforeDealer = card._tpDealerRows;
+        const beforeText = card._tpTextLower;
+
+        // Query dealer rows
+        const dealerRows = window.ToppreiseSuite.getCardDealerRows(card);
+
+        // Trigger negative terms check to populate _tpTextLower
+        window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'randomtestterm');
+
+        const afterDealer = card._tpDealerRows;
+        const afterText = card._tpTextLower;
+
+        // Clear cache and verify deletion
+        window.ToppreiseSuite.clearCardCache(card);
+        const resetDealer = card._tpDealerRows;
+        const resetText = card._tpTextLower;
+
+        // Reset negative terms
+        window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '');
+
+        return {
+            beforeDealer: beforeDealer === undefined,
+            beforeText: beforeText === undefined,
+            hasDealerRows: Array.isArray(dealerRows) && dealerRows.length > 0,
+            dealerCached: afterDealer === dealerRows,
+            textCached: typeof afterText === 'string' && afterText.length > 0,
+            cleared: resetDealer === undefined && resetText === undefined
+        };
+    }""")
+
+    assert res['beforeDealer'] is True
+    assert res['beforeText'] is True
+    assert res['hasDealerRows'] is True
+    assert res['dealerCached'] is True
+    assert res['textCached'] is True
+    assert res['cleared'] is True
+
+
+def test_scanner_cancellation_during_batch_check(page: Page):
+    # Verify cancelBatchDealCheck immediately stops
+    res = page.evaluate("""async () => {
+        let statusCalls = [];
+        const p = window.ToppreiseSuite.runBatchDealCheck(10, null, null, s => statusCalls.push(s));
+        // Immediately request cancellation
+        window.ToppreiseSuite.cancelBatchDealCheck();
+        await p;
+        return {
+            finished: true
+        };
+    }""")
+    assert res['finished'] is True
+
+
