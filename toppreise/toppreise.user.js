@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.36
+// @version      2.18.37
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -235,6 +235,8 @@ const STYLES = `
   .badge-dif.tp-deal-pill {
     position: static !important;
     display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
     align-items: center !important;
     justify-content: center !important;
     width: auto !important;
@@ -262,11 +264,26 @@ const STYLES = `
   .badge-dif.tp-deal-pill .text {
     display: none !important;
   }
+  .badge.badge-dif.tp-deal-pill span {
+    display: inline-flex !important;
+    align-items: center !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+  }
   .badge.badge-dif.tp-deal-pill p,
   .badge-dif.tp-deal-pill p {
+    display: inline-flex !important;
+    align-items: center !important;
     font-size: 11px !important;
     font-weight: 700 !important;
     margin: 0 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+  .badge.badge-dif.tp-deal-pill p.tp-markup-val {
+    font-size: 11px !important;
+    font-weight: 700 !important;
     line-height: 1 !important;
   }
   .badge.badge-dif.tp-deal-pill .tp-badge-loupe-icon {
@@ -297,6 +314,16 @@ const STYLES = `
   }
   .price-availability {
     align-items: center !important;
+    max-width: 100% !important;
+    padding-right: 8px !important;
+  }
+  .price-availability a.col,
+  .price-availability .col {
+    min-width: 0 !important;
+  }
+  .price-availability .col-auto {
+    flex-shrink: 0 !important;
+    padding-right: 0 !important;
   }
   .Plugin_Product.f_collection .tp-deal-pill,
   .Plugin_ProductCollItem .tp-deal-pill {
@@ -305,6 +332,7 @@ const STYLES = `
     margin-top: 0 !important;
     vertical-align: middle !important;
     display: inline-flex !important;
+    flex-direction: row !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive,
   .badge-dif.tp-deal-badge-interactive {

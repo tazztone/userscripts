@@ -1354,6 +1354,46 @@ def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
     assert subcard.locator('.bold + .tp-deal-pill').count() == 1
     assert subcard.locator('.Plugin_PriceInformation .tp-deal-pill').count() == 0
 
+    # 7. Verify deal pill displays icon and text on ONE horizontal line (flex-direction: row, not stacked)
+    first_pill_dir = page.evaluate("el => window.getComputedStyle(el).flexDirection", first_pill.element_handle())
+    assert first_pill_dir == 'row'
+    span_box = first_pill.locator('span').bounding_box()
+    p_box = first_pill.locator('p').bounding_box()
+    assert span_box is not None and p_box is not None
+    assert p_box['x'] > span_box['x'] # Horizontally side-by-side
+    assert abs(span_box['y'] - p_box['y']) < 5 # On same vertical baseline/line
+
+    # 8. Verify markup badge and availability checkmark clearance (not cut off at card edge)
+    page.evaluate('''() => {
+        const card = document.getElementById("Plugin_Product_492326");
+        const badge = card.querySelector(".badge-dif");
+        badge.className = "badge badge-dif tp-injected-badge tp-deal-pill tp-deal-not-low tp-deal-badge-interactive";
+        badge.innerHTML = '<span>⚠️</span><p class="tp-markup-val">+10%</p>';
+        
+        const priceInfo = card.querySelector(".Plugin_PriceInformation");
+        let hist = document.createElement("div");
+        hist.className = "tp-card-historical-price tp-is-markup";
+        hist.textContent = "Tiefstpreis: CHF 107.10";
+        let subline = document.createElement("div");
+        subline.className = "tp-card-subline-row";
+        subline.innerHTML = '<span class="tp-sparkline-container"><svg class="tp-sparkline" width="50" height="14"></svg></span>';
+        subline.insertBefore(hist, subline.firstChild);
+        priceInfo.appendChild(subline);
+    }''')
+    page.wait_for_timeout(100)
+    markup_span = page.locator('#Plugin_Product_492326 .badge-dif span').bounding_box()
+    markup_p = page.locator('#Plugin_Product_492326 .badge-dif p').bounding_box()
+    assert markup_span is not None and markup_p is not None
+    assert markup_p['x'] > markup_span['x'] # +10% is horizontally adjacent to warning icon
+    assert abs(markup_span['y'] - markup_p['y']) < 5
+
+    # Checkmark is fully contained within the card and not clipped
+    card_box = page.locator('#Plugin_Product_492326').bounding_box()
+    avail_box = page.locator('#Plugin_Product_492326 .Plugin_AvailabilityInformation').bounding_box()
+    assert card_box is not None and avail_box is not None
+    assert avail_box['x'] + avail_box['width'] <= card_box['x'] + card_box['width'] # Checkmark not cut off
+
+
 
 def test_category_page_cards_not_dimmed_when_store_filter_active(page: Page):
     # On category pages without store dealer rows, cards should not be dimmed as tp-no-store-offer
