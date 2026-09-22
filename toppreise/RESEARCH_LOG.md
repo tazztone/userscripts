@@ -38,11 +38,11 @@ This document details the DOM selectors, event management, and filter logic for 
 
 ---
 
-## 3. INP Protection & Asynchronous Chunked Batching
+## 3. Fast Synchronous & Idempotent DOM Processing
 
-- `processListings()` processes product cards in chunked batches of 20 with `requestAnimationFrame` + `globalThis.scheduler?.yield()`.
-- A monotonically increasing `listingRunId` sequence token cancels stale in-flight batches when users type into filter inputs or resize the window.
-- Extracted metadata is cached on `card.dataset.tpCategory` and `card.dataset.tpOfferCount` to avoid repeated parsing during DOM mutations.
+- `processListings()` processes product cards synchronously with idempotent guards (`setHtmlIfChanged`, `setTextIfChanged`, cached heatmap styles, and in-place DOM order checks) to eliminate forced reflows and layout thrashing.
+- Extracted metadata is cached on `card.dataset.tpCategory`, `card.dataset.tpOfferCount`, and `card.dataset.tpAppliedHeat` to avoid repeated parsing during DOM mutations.
+- Network scans (`runProductScanner`) pace asynchronous requests with jittered delays (200–350ms) to protect the main UI thread and prevent site rate limits.
 
 ---
 
@@ -625,6 +625,23 @@ Investigation of card flickering revealed two intersecting feedback loops betwee
    - Caches applied heat configuration key on `card.dataset.tpAppliedHeat`, bypassing redundant property sets and attribute removals.
 5. **Automated Verification**:
    - Added `test_process_listings_is_idempotent_and_does_not_flicker_or_loop` in `test_userscript.py` verifying DOM node stability, badge element retention, and absence of lazyload-triggered observer loops.
+
+---
+
+## 18. Performance & Resilience Quick Wins (v2.18.27)
+
+### 1. Layout Thrashing Elimination in `matchesNegativeTerms`
+- **Root Cause**: `matchesNegativeTerms` checked `(card.innerText || card.textContent || '').toLowerCase()`. In browser rendering engines, reading `Element.innerText` forces an immediate synchronous style recalculation and layout reflow. Across 96 cards on every filter run, this caused 96 consecutive forced reflows.
+- **Fix**: Replaced with `(card.textContent || '').toLowerCase()`. `textContent` retrieves raw string contents directly from the DOM node tree without invoking the layout engine.
+
+### 2. Throttled Cache Pruning in `setCachedPriceStats`
+- **Root Cause**: Calling `prunePriceStatsCache()` synchronously on every cached item scanned all `localStorage` keys and parsed JSON for 300+ entries. A 50-item deal check performed ~15,000 synchronous JSON parses on the UI thread.
+- **Fix**: Enforced 10-minute pruning throttling (`lastPruneTimestamp`), with immediate pruning triggered only if `localStorage` throws a `QuotaExceededError`.
+
+### 3. Popover Click Listener Deduplication
+- **Root Cause**: In `renderSuiteFilterBar()`, `document.addEventListener('click', ...)` for popover dismissal was bound on each bar construction. Across SPA navigations, duplicate document click listeners accumulated.
+- **Fix**: Guarded registration with `window._tpDocClickBound` and directly resolved popover elements by ID.
+
 
 
 

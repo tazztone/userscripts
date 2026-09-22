@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.27
+// @version      2.18.28
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1176,7 +1176,7 @@ const SHADOW_MODAL_STYLES = `
 
   function matchesNegativeTerms(card, termsList) {
     if (!termsList || termsList.length === 0) return false;
-    const text = (card.innerText || card.textContent || '').toLowerCase();
+    const text = (card.textContent || '').toLowerCase();
     return termsList.some(term => {
       if (!term) return false;
       if (term.length <= 3) {
@@ -2212,12 +2212,15 @@ const SHADOW_MODAL_STYLES = `
         });
       }
 
-      document.addEventListener('click', () => {
-        threshPopover?.classList.remove('tp-show');
-        threshBtn?.classList.remove('tp-open');
-        weightPopover?.classList.remove('tp-show');
-        weightBtn?.classList.remove('tp-open');
-      });
+      if (!window._tpDocClickBound) {
+        window._tpDocClickBound = true;
+        document.addEventListener('click', () => {
+          document.getElementById('tp-threshold-popover')?.classList.remove('tp-show');
+          document.getElementById('tp-bar-threshold-btn')?.classList.remove('tp-open');
+          document.getElementById('tp-weight-popover')?.classList.remove('tp-show');
+          document.getElementById('tp-bar-weight-btn')?.classList.remove('tp-open');
+        });
+      }
 
       bar.querySelector('#tp-bar-cats-toggle').onclick = () => {
         isBlockedCatsOpen = !isBlockedCatsOpen;
