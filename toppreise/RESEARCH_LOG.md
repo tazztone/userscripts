@@ -1087,6 +1087,38 @@ Regular category/catalog listings (`/produktsuche/...`, e.g. Monitore, Grafikkar
   - Automatically identifies visible, uncached catalog cards and scans them sequentially with 250–350ms delay.
   - Live progress feedback on the batch button with auto-caching into `localStorage` (`tp_hist_v1_{pid}`).
 
+---
+
+## 12. Category Listing Layout Architecture, Subcard Hierarchy & Flex Containment (v2.18.37)
+
+### 1. Grouped Product Variant Families (`.Plugin_ProductCollItem`)
+- **Structure**: On category listing pages, series with variants (e.g. AirPods 5 with standard case vs. wireless case) are grouped inside `.Plugin_ProductCollItem` containers holding a `.Plugin_ProductCollectionRelProductsList` row of child `.Plugin_Product.f_collection` cards.
+- **Sorting Isolation (`getCardSortableUnit`)**:
+  - Naive DOM reordering based on product ID or discount splits subcards from their collection container and flattens them into root cards.
+  - `getCardSortableUnit(card)` detects `.Plugin_ProductCollItem` ancestors and returns the top-level collection element as an indivisible sorting block.
+  - DOM mutation passes deduplicate sortable units to avoid redundant node moves.
+
+### 2. Inline Deal Pill Architecture (`.tp-deal-pill`)
+- **List View Detection (`isListView`)**: `!isNeueFeed` cards in search/category listings switch from the 50px absolute circular badge (`.badge-dif`) to the compact inline deal pill.
+- **Single-Line Flex Rule (`flex-direction: row !important; flex-wrap: nowrap !important;`)**:
+  - Injected circle badges use `flex-direction: column` to stack label over percentage.
+  - `.tp-deal-pill` strictly enforces `flex-direction: row !important` with `display: inline-flex` on `span` and `p`, ensuring icons (`⚠️`, `🔍`, `🌟`) and text/percentages are always horizontally aligned on a single line.
+- **Subcard Placement**:
+  - In standard category cards, the pill is inserted at the top of `.Plugin_PriceInformation`.
+  - In variant subcards (`.f_collection`), the pill is attached inline beside the variant title link (`.bold`) to avoid breaking native variant badges (`🏷️ günstigste Variante`).
+
+### 3. Grid Harmonization Scope & Flex Containment
+- **Scoped Layout Rules**:
+  - Rules harmonizing card heights and image columns are strictly scoped to `#product-list .Plugin_Product` and `.Plugin_TopPriceReductionProductListFull .Plugin_Product`.
+  - Unscoped column flex overrides broke subcard Bootstrap columns, causing heights to balloon from ~50px to 370px+.
+- **Availability Icon Containment (`.price-availability`)**:
+  - Historical price sublines (`.tp-card-subline-row`, ~185px) in `.Plugin_PriceInformation` expanded `<a class="col">` due to default `min-width: auto`.
+  - Adding `.price-availability a.col { min-width: 0 !important; }` allows flex shrinking and text truncation with ellipsis.
+  - `.price-availability { padding-right: 8px !important; max-width: 100% !important; align-items: center !important; }` prevents the availability checkmark (`.Plugin_AvailabilityInformation`) from overflowing or being clipped by the card's right border.
+- **Store Filter Protection**:
+  - Category listings often omit individual dealer price rows in listing cards.
+  - Store filtering checks guard `dealerRows.length === 0` to prevent false dimming (`tp-no-store-offer`) on category browse views.
+
 
 
 
