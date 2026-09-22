@@ -3055,3 +3055,45 @@ def test_scanner_cancellation_during_batch_check(page: Page):
     assert res['finished'] is True
 
 
+def test_card_layout_prevents_wrapping_and_irregular_heights(page: Page):
+    res = page.evaluate("""() => {
+        const card = document.getElementById('card-expensive');
+        // Set long product title and subline similar to Samsung TV in screenshot
+        card.querySelector('.product-name').textContent = 'SAMSUNG UE55U8070HUXXN (Crystal UHD U8070H, 2026), CH-Modell';
+        
+        let hist = card.querySelector('.tp-card-historical-price');
+        if (!hist) {
+            hist = document.createElement('div');
+            hist.className = 'tp-card-historical-price tp-is-record-low';
+            hist.textContent = 'Bisher: CHF 699.00 (-39%)';
+            card.querySelector('.Plugin_PriceInformation').appendChild(hist);
+        }
+
+        const innerRow = card.querySelector('.row.h-100');
+        const imgCol = innerRow.children[0];
+        const textCol = innerRow.children[1];
+
+        const innerRowFlexWrap = window.getComputedStyle(innerRow).flexWrap;
+        const textColMinWidth = window.getComputedStyle(textCol).minWidth;
+        const imgTop = imgCol.getBoundingClientRect().top;
+        const textTop = textCol.getBoundingClientRect().top;
+        const imgLeft = imgCol.getBoundingClientRect().left;
+        const textLeft = textCol.getBoundingClientRect().left;
+
+        return {
+            innerRowFlexWrap,
+            textColMinWidth,
+            isSideBySide: Math.abs(imgTop - textTop) < 5,
+            isTextToRightOfImage: textLeft > imgLeft,
+            cardHeight: card.getBoundingClientRect().height
+        };
+    }""")
+
+    assert res['innerRowFlexWrap'] == 'nowrap'
+    assert res['textColMinWidth'] == '0px'
+    assert res['isSideBySide'] is True
+    assert res['isTextToRightOfImage'] is True
+    assert res['cardHeight'] < 210
+
+
+

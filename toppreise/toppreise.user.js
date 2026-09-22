@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.29
+// @version      2.18.30
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -306,6 +306,8 @@ const STYLES = `
     text-align: right !important;
     margin: 0 !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
     user-select: none !important;
     pointer-events: auto !important;
   }
@@ -346,6 +348,15 @@ const STYLES = `
   .Plugin_Product.medium-box {
     padding: 10px 12px !important;
   }
+  .Plugin_Product .row.h-100,
+  .Plugin_Product > .row {
+    flex-wrap: nowrap !important;
+  }
+  .Plugin_Product .col-auto,
+  .Plugin_Product .product-image,
+  .Plugin_Product .image_container {
+    flex-shrink: 0 !important;
+  }
   .Plugin_Product.medium-box .image_container img,
   .Plugin_Product.medium-box .productImage img,
   .Plugin_Product.medium-box .product-image img,
@@ -362,10 +373,25 @@ const STYLES = `
     flex-direction: column !important;
     justify-content: space-between !important;
     gap: 4px !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+  .Plugin_Product .product-name,
+  .Plugin_Product .productDetails {
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
   }
   .Plugin_Product .Plugin_PriceInformation,
   .Plugin_Product .price_information_product {
     margin-top: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .tp-card-subline-row {
+    max-width: 100% !important;
+  }
+  .tp-sparkline-container {
+    flex-shrink: 0 !important;
   }
   .tp-bar-btn.tp-batch-active {
     background: rgba(245, 158, 11, 0.25) !important;

@@ -677,6 +677,37 @@ Investigation of card flickering revealed two intersecting feedback loops betwee
   - `test_scanner_cancellation_during_batch_check`: verifies immediate cancellation response during batch scans.
 - All 88 userscript Playwright tests pass (34.43s), and all 55 Python unit tests pass (0.12s).
 
+---
+
+## 20. Elimination of Irregular Card Sizes & Flex-Wrap Bursting (v2.18.30)
+
+### 1. Root Cause Analysis: Why Were Card Sizes Irregular?
+Analysis of user screenshots and DOM layout mechanics revealed why some cards expanded vertically to nearly double height while others remained compact:
+1. **Bootstrap Default `.row` Flex-Wrapping Inside Cards**:
+   - Each card uses `.Plugin_Product > .row.h-100` containing `<div class="col-auto">` (image) and `<div class="col d-flex flex-column">` (title, price, historical subline, sparkline).
+   - In Bootstrap, `.row` defaults to `flex-wrap: wrap;`, and `.col` defaults to `min-width: auto;`.
+2. **Intrinsic Width Collision**:
+   - When a card has a long multi-line product title (e.g. `SAMSUNG UE55U8070HUXXN`, `LG ELECTRONICS UltraGear OLED 32GS94UX-B`) or when a price subline with `white-space: nowrap !important;` (e.g. `Bisher: CHF 699.00 (-39%)` + 44px sparkline) was injected, the intrinsic content width of `.col` exceeded remaining space alongside the 75–90px image container.
+   - Because `.row.h-100` allowed wrapping and `.col` refused to shrink below its content (`min-width: auto`), flexbox pushed the text container **underneath** the image container.
+3. **Cascading Row Height Bursting**:
+   - Once `.col` wrapped beneath `.col-auto`, that card's vertical height jumped from ~150px to ~260px–390px (stacked layout: 80px image + 180px text).
+   - Because CSS grid rows stretch sibling flex columns to match the tallest item in the line, this single wrapped card forced all sibling cards in that row (e.g. `ON Cloud 6`, `KYOCERA`) to expand to 392px with a massive vertical void space in the middle.
+   - Rows where no cards wrapped (e.g. Row 2 with `EPSON`, `SIEMENS`, `PHILIPS`) remained at their natural ~252px height, producing jarring, irregular card sizes across the feed.
+
+### 2. Architectural Solution
+1. **Strict Non-Wrapping on Card Rows**:
+   - Enforced `.Plugin_Product .row.h-100, .Plugin_Product > .row { flex-wrap: nowrap !important; }` so the text column is strictly locked to the right of the image and can never drop underneath.
+2. **Defensive Image Container Anchoring**:
+   - Set `.Plugin_Product .col-auto, .Plugin_Product .product-image, .Plugin_Product .image_container { flex-shrink: 0 !important; }` to preserve image dimensions.
+3. **Flex Shrink & Text Wrapping**:
+   - Added `min-width: 0 !important; flex: 1 1 auto !important;` to `.Plugin_Product .col.d-flex.flex-column` so flexbox allows the text column to scale within available card bounds without forcing parent wrap.
+   - Added `overflow-wrap: break-word !important; word-break: break-word !important;` to `.product-name, .productDetails`.
+4. **Subline Overflow Protection**:
+   - Added `max-width: 100% !important;` and `overflow: hidden !important; text-overflow: ellipsis !important;` to `.tp-card-historical-price` and `.tp-card-subline-row`, with `flex-shrink: 0` on sparklines.
+5. **Automated Verification**:
+   - Added Playwright regression test `test_card_layout_prevents_wrapping_and_irregular_heights` asserting side-by-side alignment, `innerRowFlexWrap: nowrap`, `minWidth: 0px`, and compact card height (<210px) even with long model names and price sublines.
+
+
 
 
 
