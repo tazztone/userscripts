@@ -2893,3 +2893,66 @@ def test_shipping_price_mismatch(page: Page):
     title = badge.get_attribute("title") or ""
     assert "Allzeit-Tiefstpreis" in title
     assert "CHF 65.98" in title
+
+
+def test_process_listings_is_idempotent_and_does_not_flicker_or_loop(page: Page):
+    """
+    Validates that:
+    1. Calling processListings repeatedly does NOT detach/re-append cards to the DOM (flicker prevention).
+    2. Badge innerHTML is not unnecessarily recreated when content is identical.
+    3. MutationObserver ignores internal card mutations (like image lazyload) and doesn't trigger loops.
+    """
+    # 1. Verify card DOM node identity stability across multiple processListings() calls
+    is_node_stable = page.evaluate("""() => {
+        const card = document.getElementById('card-cheapest');
+        card._sentinel = { created: Date.now() };
+
+        // Run processListings multiple times
+        window.ToppreiseSuite.processListings();
+        window.ToppreiseSuite.processListings();
+        window.ToppreiseSuite.processListings();
+
+        // Check if sentinel is still present on the exact same DOM node instance
+        const cardAfter = document.getElementById('card-cheapest');
+        return cardAfter._sentinel && cardAfter._sentinel === card._sentinel;
+    }""")
+    assert is_node_stable, "Card element was detached/re-created during processListings calls"
+
+    # 2. Verify badge child node identity stability (no innerHTML thrashing)
+    badge_child_stable = page.evaluate("""() => {
+        const badge = document.querySelector('#card-cheapest .badge-dif');
+        const firstChild = badge.firstElementChild;
+        firstChild._sentinel = true;
+
+        window.ToppreiseSuite.processListings();
+
+        return badge.firstElementChild && badge.firstElementChild._sentinel === true;
+    }""")
+    assert badge_child_stable, "Badge inner DOM elements were destroyed/re-created during processListings"
+
+    # 3. Verify MutationObserver does not fire on card-internal mutations (e.g. image lazyload)
+    observer_ignored = page.evaluate("""() => {
+        return new Promise(resolve => {
+            let runs = 0;
+            const orig = window.ToppreiseSuite.processListings;
+            window.ToppreiseSuite.processListings = function() {
+                runs++;
+                return orig.apply(this, arguments);
+            };
+
+            // Simulate image lazyload attribute/child modification inside card
+            const imgContainer = document.querySelector('#card-cheapest .image_container');
+            const dummy = document.createElement('span');
+            dummy.className = 'lazyload-placeholder';
+            imgContainer.appendChild(dummy);
+
+            // Wait longer than CONFIG.OBSERVER_DEBOUNCE_MS (200ms)
+            setTimeout(() => {
+                window.ToppreiseSuite.processListings = orig;
+                dummy.remove();
+                resolve(runs === 0);
+            }, 350);
+        });
+    }""")
+    assert observer_ignored, "MutationObserver fired processListings on an internal card mutation (lazyload loop)"
+

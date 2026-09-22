@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.25
+// @version      2.18.27
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2626,6 +2626,24 @@ const SHADOW_MODAL_STYLES = `
     return svg;
   }
 
+  function setHtmlIfChanged(el, newHtml) {
+    if (el && el.innerHTML !== newHtml) {
+      el.innerHTML = newHtml;
+    }
+  }
+
+  function setTextIfChanged(el, newText) {
+    if (el && el.textContent !== newText) {
+      el.textContent = newText;
+    }
+  }
+
+  function setTitleIfChanged(el, newTitle) {
+    if (el && el.title !== newTitle) {
+      el.title = newTitle;
+    }
+  }
+
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, discountVal, catName, rootGroup } = cd;
 
@@ -2635,40 +2653,45 @@ const SHADOW_MODAL_STYLES = `
       : (discountVal !== null && !isVerifiedNonBest ? discountVal : null);
 
     if (CONFIG.HEATMAP_ENABLED && effectiveHeatPercent !== null && effectiveHeatPercent > 0) {
-      const heatStyles = getHeatmapStyles(effectiveHeatPercent, CONFIG.HEATMAP_INTENSITY, CONFIG.HEATMAP_CURVE);
-      card.style.setProperty('--tp-heat-bg', heatStyles.bg);
-      card.style.setProperty('--tp-heat-border', heatStyles.border);
-      card.style.setProperty('--tp-heat-glow', heatStyles.glow);
+      const heatKey = `${effectiveHeatPercent}_${CONFIG.HEATMAP_INTENSITY}_${CONFIG.HEATMAP_CURVE}`;
+      if (card.dataset.tpAppliedHeat !== heatKey) {
+        card.dataset.tpAppliedHeat = heatKey;
+        const heatStyles = getHeatmapStyles(effectiveHeatPercent, CONFIG.HEATMAP_INTENSITY, CONFIG.HEATMAP_CURVE);
+        card.style.setProperty('--tp-heat-bg', heatStyles.bg);
+        card.style.setProperty('--tp-heat-border', heatStyles.border);
+        card.style.setProperty('--tp-heat-glow', heatStyles.glow);
 
-      // DarkReader Dynamic Theme compatibility:
-      card.style.setProperty('--darkreader-inline-bgimage', heatStyles.bg);
-      card.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
-      card.style.setProperty('--darkreader-inline-border', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-top', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-right', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-bottom', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-left', heatStyles.border);
-      card.style.setProperty('background', heatStyles.bg, 'important');
-      card.style.setProperty('background-image', heatStyles.bg, 'important');
-      card.style.setProperty('background-color', 'transparent', 'important');
-      card.style.setProperty('border-color', heatStyles.border, 'important');
+        // DarkReader Dynamic Theme compatibility:
+        card.style.setProperty('--darkreader-inline-bgimage', heatStyles.bg);
+        card.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
+        card.style.setProperty('--darkreader-inline-border', heatStyles.border);
+        card.style.setProperty('--darkreader-inline-border-top', heatStyles.border);
+        card.style.setProperty('--darkreader-inline-border-right', heatStyles.border);
+        card.style.setProperty('--darkreader-inline-border-bottom', heatStyles.border);
+        card.style.setProperty('--darkreader-inline-border-left', heatStyles.border);
+        card.style.setProperty('background', heatStyles.bg, 'important');
+        card.style.setProperty('background-image', heatStyles.bg, 'important');
+        card.style.setProperty('background-color', 'transparent', 'important');
+        card.style.setProperty('border-color', heatStyles.border, 'important');
 
-      card.removeAttribute('data-darkreader-inline-bgcolor');
-      card.removeAttribute('data-darkreader-inline-bgimage');
+        if (card.hasAttribute('data-darkreader-inline-bgcolor')) card.removeAttribute('data-darkreader-inline-bgcolor');
+        if (card.hasAttribute('data-darkreader-inline-bgimage')) card.removeAttribute('data-darkreader-inline-bgimage');
 
-      const subElements = card.querySelectorAll('.product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, .f_product_info, .productDescription, .productDetailsDescription');
-      for (let s = 0; s < subElements.length; s++) {
-        const sub = subElements[s];
-        sub.removeAttribute('data-darkreader-inline-bgcolor');
-        sub.removeAttribute('data-darkreader-inline-bgimage');
-        sub.style.setProperty('background-color', 'transparent', 'important');
-        sub.style.setProperty('background', 'transparent', 'important');
-        sub.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
-        sub.style.setProperty('--darkreader-inline-bgimage', 'none');
+        const subElements = card.querySelectorAll('.product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, .f_product_info, .productDescription, .productDetailsDescription');
+        for (let s = 0; s < subElements.length; s++) {
+          const sub = subElements[s];
+          if (sub.hasAttribute('data-darkreader-inline-bgcolor')) sub.removeAttribute('data-darkreader-inline-bgcolor');
+          if (sub.hasAttribute('data-darkreader-inline-bgimage')) sub.removeAttribute('data-darkreader-inline-bgimage');
+          sub.style.setProperty('background-color', 'transparent', 'important');
+          sub.style.setProperty('background', 'transparent', 'important');
+          sub.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
+          sub.style.setProperty('--darkreader-inline-bgimage', 'none');
+        }
+
+        card.classList.add('tp-heatmap-active');
       }
-
-      card.classList.add('tp-heatmap-active');
-    } else {
+    } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
+      delete card.dataset.tpAppliedHeat;
       card.classList.remove('tp-heatmap-active');
       card.style.removeProperty('--tp-heat-bg');
       card.style.removeProperty('--tp-heat-border');
@@ -2841,7 +2864,7 @@ const SHADOW_MODAL_STYLES = `
             badgeDifEl.classList.remove('tp-deal-new-record');
           }
 
-          badgeDifEl.innerHTML = `<div class="text">Real Deal</div><p>-${dealData.score}%</p>`;
+          setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealData.score}%</p>`);
 
           const prevLow = stats?.previousLow;
           const medianVal = stats?.medianPrice;
@@ -2849,9 +2872,9 @@ const SHADOW_MODAL_STYLES = `
           const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
 
           if (dealData.isNewRecord) {
-            badgeDifEl.title = `🔥 Neuer Rekord! Score: -${dealData.score}% (Ø ${horizonLabel}: -${dealData.dMedian}%, Rekord: -${dealData.dRecord}% vs CHF ${prevLow ? prevLow.toFixed(2) : '?'})${outlierText} [Klicken zum Aktualisieren]`;
+            setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord! Score: -${dealData.score}% (Ø ${horizonLabel}: -${dealData.dMedian}%, Rekord: -${dealData.dRecord}% vs CHF ${prevLow ? prevLow.toFixed(2) : '?'})${outlierText} [Klicken zum Aktualisieren]`);
           } else {
-            badgeDifEl.title = `🌟 Allzeit-Tiefstpreis! Score: -${dealData.score}% (Ø ${horizonLabel}: -${dealData.dMedian}%, kein neuer Rekord)${outlierText} [Klicken zum Aktualisieren]`;
+            setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis! Score: -${dealData.score}% (Ø ${horizonLabel}: -${dealData.dMedian}%, kein neuer Rekord)${outlierText} [Klicken zum Aktualisieren]`);
           }
 
           // Compact dual-score breakdown pill directly underneath the circle badge
@@ -2862,9 +2885,9 @@ const SHADOW_MODAL_STYLES = `
             card.appendChild(breakdownEl);
           }
           if (dealData.isNewRecord && dealData.dRecord > 0) {
-            breakdownEl.innerHTML = `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`;
+            setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
           } else {
-            breakdownEl.innerHTML = `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`;
+            setHtmlIfChanged(breakdownEl, `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
           }
 
           let histPriceEl = card.querySelector('.tp-card-historical-price');
@@ -2879,12 +2902,12 @@ const SHADOW_MODAL_STYLES = `
 
           if (dealData.isNewRecord && prevLow) {
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-            histPriceEl.textContent = `Bisher: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)`;
-            histPriceEl.title = `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)${outlierText}`;
+            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)`);
+            setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)${outlierText}`);
           } else if (medianVal && medianVal > cardPrice) {
             histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-            histPriceEl.textContent = `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`;
-            histPriceEl.title = `Allzeit-Tiefstpreis! Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}${outlierText}`;
+            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+            setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}${outlierText}`);
           } else {
             histPriceEl.remove();
           }
@@ -2906,11 +2929,11 @@ const SHADOW_MODAL_STYLES = `
 
           if (currentlyScanningPid && currentlyScanningPid === pid) {
             badgeDifEl.classList.add('tp-deal-loading');
-            badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfe...</div><p>⏳</p>`);
           } else {
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
-              badgeDifEl.innerHTML = `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`;
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
             }
           }
           card.querySelector('.tp-card-historical-price')?.remove();
@@ -2922,7 +2945,7 @@ const SHADOW_MODAL_STYLES = `
 
         if (currentlyScanningPid && currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
-          badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
+          setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfe...</div><p>⏳</p>`);
         } else {
           badgeDifEl.classList.remove('tp-deal-loading');
         }
@@ -2961,8 +2984,8 @@ const SHADOW_MODAL_STYLES = `
             }
             const avgContext = stats.avgPrice && stats.avgPrice > cardPrice ? ` | Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}` : '';
 
-            badgeDifEl.title = `🌟 ${isNewRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!${prevLowContext}${avgContext}${peakContext} (Klicken zum Aktualisieren)`;
-            badgeDifEl.innerHTML = `<div class="text">Differenz</div><p>-${rawDiscount}%</p>`;
+            setTitleIfChanged(badgeDifEl, `🌟 ${isNewRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!${prevLowContext}${avgContext}${peakContext} (Klicken zum Aktualisieren)`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p>`);
           } else {
             // 2A: Verified Non-Tiefstpreis (Amber Alert Morph with Shrunken Strikethrough)
             const markupPct = Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100);
@@ -2977,8 +3000,8 @@ const SHADOW_MODAL_STYLES = `
             }
 
             const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-            badgeDifEl.title = `⚠️ Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag) | Schein-Rabatt: -${rawDiscount}%${peakContext} (Klicken zum Aktualisieren)`;
-            badgeDifEl.innerHTML = `<div class="text">Aufschlag</div><p class="tp-markup-val">+${markupPct}%</p><span class="tp-fake-discount"><s>-${rawDiscount}%</s></span>`;
+            setTitleIfChanged(badgeDifEl, `⚠️ Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag) | Schein-Rabatt: -${rawDiscount}%${peakContext} (Klicken zum Aktualisieren)`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${markupPct}%</p><span class="tp-fake-discount"><s>-${rawDiscount}%</s></span>`);
           }
 
           // 4A: Historical Tiefstpreis line right below current price
@@ -2993,8 +3016,8 @@ const SHADOW_MODAL_STYLES = `
               priceContainer.appendChild(histPriceEl);
             }
             histPriceEl.className = 'tp-card-historical-price tp-is-markup';
-            histPriceEl.textContent = `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`;
-            histPriceEl.title = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)}% Aufschlag)`;
+            setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
+            setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)}% Aufschlag)`);
           } else if (isNewRecord && prevLow) {
             if (!histPriceEl) {
               histPriceEl = document.createElement('div');
@@ -3005,8 +3028,8 @@ const SHADOW_MODAL_STYLES = `
               priceContainer.appendChild(histPriceEl);
             }
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-            histPriceEl.textContent = `Bisher: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`;
-            histPriceEl.title = `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`;
+            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
+            setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`);
           } else if (histPriceEl) {
             histPriceEl.remove();
           }
@@ -3017,8 +3040,8 @@ const SHADOW_MODAL_STYLES = `
 
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
-          badgeDifEl.title = `🔍 Klicken: Echten Allzeit-Tiefstpreis prüfen (-${rawDiscount}% Schein-Rabatt vs Realität)`;
-          badgeDifEl.innerHTML = `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`;
+          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Echten Allzeit-Tiefstpreis prüfen (-${rawDiscount}% Schein-Rabatt vs Realität)`);
+          setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
         }
       }
     } else {
@@ -3163,12 +3186,30 @@ const SHADOW_MODAL_STYLES = `
         if (item) {
           if (item.parentElement !== primaryRow) {
             primaryRow.appendChild(item);
-          } else {
-            primaryRow.appendChild(item);
           }
-          item.style.setProperty('order', String(rank), 'important');
+          if (item.style.order !== String(rank)) {
+            item.style.setProperty('order', String(rank), 'important');
+          }
         }
       });
+
+      // Ensure DOM order inside primaryRow matches sortedEntries order without unnecessary detach/re-attach
+      const currentChildren = Array.from(primaryRow.children);
+      const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
+      let domOrderMatches = true;
+      for (let i = 0; i < targetItems.length; i++) {
+        if (currentChildren[i] !== targetItems[i]) {
+          domOrderMatches = false;
+          break;
+        }
+      }
+      if (!domOrderMatches) {
+        targetItems.forEach((item, idx) => {
+          if (primaryRow.children[idx] !== item) {
+            primaryRow.insertBefore(item, primaryRow.children[idx] || null);
+          }
+        });
+      }
 
       // Hide empty secondary product rows
       if (productRows.length > 1) {
@@ -3203,7 +3244,9 @@ const SHADOW_MODAL_STYLES = `
       itemsToRestore.forEach(entry => {
         const item = entry.item;
         if (!item) return;
-        item.style.removeProperty('order');
+        if (item.style.order) {
+          item.style.removeProperty('order');
+        }
 
         if (entry.origParentId) {
           let origParent = document.getElementById(entry.origParentId) ||
@@ -3214,12 +3257,21 @@ const SHADOW_MODAL_STYLES = `
         }
       });
 
-      // Ensure each product row has its children in initial order and unhide
+      // Ensure each product row has its children in initial order and unhide without redundant re-appends
       allOrigParents.forEach(row => {
         const children = Array.from(row.children).filter(ch => ch.dataset.tpInitialOrder !== undefined);
-        children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-        children.forEach(ch => row.appendChild(ch));
-        row.style.removeProperty('display');
+        const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
+        if (!isAlreadySorted) {
+          children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
+          children.forEach((ch, idx) => {
+            if (row.children[idx] !== ch) {
+              row.insertBefore(ch, row.children[idx] || null);
+            }
+          });
+        }
+        if (row.style.display === 'none') {
+          row.style.removeProperty('display');
+        }
         row.classList.remove('tp-empty-product-row-hidden');
       });
     }
@@ -4107,20 +4159,46 @@ const SHADOW_MODAL_STYLES = `
   let debounceTimer = null;
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
-    const isSelfMutation = mutations.every(m => {
+
+    const hasRelevantMutation = mutations.some(m => {
       const target = m.target;
-      if (!target) return true;
-      if (target.id === 'tp-root' || target.closest?.('#tp-root')) return true;
-      if (target.id === 'tp-suite-filter-bar' || target.closest?.('#tp-suite-filter-bar')) return true;
-      if (target.id === 'tp-blocked-cats-container' || target.closest?.('#tp-blocked-cats-container')) return true;
-      if (target.classList?.contains('tp-card-subline-row') || target.closest?.('.tp-card-subline-row')) return true;
-      if (target.classList?.contains('tp-badge-score-breakdown') || target.closest?.('.tp-badge-score-breakdown')) return true;
-      if (target.classList?.contains('tp-sparkline-container') || target.closest?.('.tp-sparkline-container')) return true;
-      if (target.classList?.contains('tp-best-price-badge') || target.closest?.('.tp-best-price-badge')) return true;
-      if (target.classList?.contains('tp-empty-state-notice') || target.closest?.('.tp-empty-state-notice')) return true;
+      if (!target) return false;
+
+      // Ignore mutations inside our own root UI or filter bar
+      if (target.id === 'tp-root' || target.closest?.('#tp-root')) return false;
+      if (target.id === 'tp-suite-filter-bar' || target.closest?.('#tp-suite-filter-bar')) return false;
+
+      // Ignore mutations inside document.head (DarkReader dynamic styles, font loading, etc.)
+      if (target === document.head || target.closest?.('head')) return false;
+
+      // If the mutation target is inside an existing card, ignore it (image lazyloads, badges, tooltips)
+      if (target.closest?.('.Plugin_Product, .mixedBrowsingListProduct')) return false;
+
+      const checkNode = node => {
+        if (!node || node.nodeType !== 1) return false;
+        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice') return false;
+        if (node.classList?.contains('tp-card-subline-row') ||
+            node.classList?.contains('tp-badge-score-breakdown') ||
+            node.classList?.contains('tp-sparkline-container') ||
+            node.classList?.contains('tp-best-price-badge') ||
+            node.classList?.contains('tp-card-quick-block') ||
+            node.classList?.contains('tp-empty-state-notice')) {
+          return false;
+        }
+        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading') ||
+               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading');
+      };
+
+      for (let i = 0; i < m.addedNodes.length; i++) {
+        if (checkNode(m.addedNodes[i])) return true;
+      }
+      for (let i = 0; i < m.removedNodes.length; i++) {
+        if (checkNode(m.removedNodes[i])) return true;
+      }
       return false;
     });
-    if (isSelfMutation) return;
+
+    if (!hasRelevantMutation) return;
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {

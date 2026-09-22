@@ -586,6 +586,46 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
 3. **Test Suite Compatibility (`test_userscript.py`)**:
    - Preserve dual-selector support in test assertions so tests pass against both authentic production markup and existing selectors.
 
+---
+
+## 17. Elimination of Card Flickering & DOM Reload Loops (v2.18.26)
+
+### 1. Root Cause Analysis: Why Did Cards Reload & Flicker?
+Investigation of card flickering revealed two intersecting feedback loops between the userscript DOM mutations and the browser rendering lifecycle:
+
+1. **Unconditional DOM Detach & Re-append in `applySorting()`**:
+   - In default / natural browsing mode (`!isCustomSortActive`), `applySorting()` executed `allOrigParents.forEach(row => children.forEach(ch => row.appendChild(ch)))` on **every** single invocation of `processListings()`.
+   - In custom sort mode (`isCustomSortActive`), `primaryRow.appendChild(item)` was similarly executed on every card on every run even when `item` was already at that exact DOM position inside `primaryRow`.
+   - Calling `node.appendChild(child)` on an already-present DOM node detaches it and re-inserts it. In the browser:
+     - All CSS transitions (`transition: all 0.3s ease`, `transition: opacity 0.3s ease`, `transition: background 0.2s ease`) reset and replay from default styles, producing a rapid flash in brightness/opacity.
+     - Lazy-loaded `<img>` elements inside cards are re-evaluated by browser render engines and IntersectionObservers, causing image decode/redraw flashes.
+     - The browser invalidates the composited layer for the entire product grid.
+
+2. **Rogue MutationObserver Feedback Loop (`mainObserver`)**:
+   - `mainObserver` was observing `document.documentElement` for `{ childList: true, subtree: true }`.
+   - Its self-mutation guard (`isSelfMutation`) only checked for specific IDs/classes (`#tp-root`, `#tp-suite-filter-bar`, etc.).
+   - Whenever an image finished lazy-loading inside a card, or DarkReader injected a `<style>` tag into `document.head`, or an advertisement rotated, `mainObserver` evaluated the mutation as non-self, resetting `debounceTimer` and queuing `processListings()` to run 200ms later.
+   - When `processListings()` executed, `applySorting()` re-appended all 96 cards to the DOM.
+   - Re-appending the cards reset lazyloaded images and DarkReader attributes, triggering subsequent mutations and restarting the 200ms cycle indefinitely. Cards appeared to reload and flicker constantly every ~200ms.
+
+3. **DOM Thrashing via Unconditional `.innerHTML` / Attribute Removals**:
+   - For every card, `badgeDifEl.innerHTML = ...` and `breakdownEl.innerHTML = ...` were re-assigned raw strings on every execution of `renderCardEffects()`, destroying and re-creating inner DOM nodes (text nodes, loupe icons) even when content was identical.
+   - Continuous removal of DarkReader data attributes triggered DarkReader's own MutationObserver to re-inject stylesheets into `<head>`.
+
+### 2. Architectural Solution
+1. **Idempotent DOM Ordering (`applySorting`)**:
+   - **Custom Sort**: Compares current child order in `primaryRow` against `sortedEntries`. Only elements not currently at `targetIndex` are moved via `primaryRow.insertBefore()`. If already matching, zero DOM mutations occur.
+   - **Natural Order Restoration**: Checks `isAlreadySorted` across `children`. If children are already in initial order, skips `appendChild` and `insertBefore` entirely.
+2. **Scoped MutationObserver Filtering**:
+   - Replaced broad blacklist with a strict relevance gate: `mainObserver` only triggers if `addedNodes` or `removedNodes` actually contain product cards (`.Plugin_Product, .mixedBrowsingListProduct`), feed containers (`.Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list`), price alarm modals (`.Plugin_NewInfoMailForm, .AbstractDialog`), or product detail headers.
+   - Explicitly ignores mutations inside `document.head` (DarkReader/fonts/meta) and mutations internal to existing cards (image lazyloading, badges, tooltips).
+3. **Idempotent DOM Text/HTML Setters (`setHtmlIfChanged`, `setTextIfChanged`, `setTitleIfChanged`)**:
+   - Compares `innerHTML`, `textContent`, and `title` before assignment to prevent deleting and reconstructing child DOM nodes when identical.
+4. **Heatmap Style Caching**:
+   - Caches applied heat configuration key on `card.dataset.tpAppliedHeat`, bypassing redundant property sets and attribute removals.
+5. **Automated Verification**:
+   - Added `test_process_listings_is_idempotent_and_does_not_flicker_or_loop` in `test_userscript.py` verifying DOM node stability, badge element retention, and absence of lazyload-triggered observer loops.
+
 
 
 
