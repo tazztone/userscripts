@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.32
+// @version      2.18.33
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -348,7 +348,7 @@ const STYLES = `
   .Plugin_Product.medium-box {
     padding: 10px 12px !important;
   }
-  .Plugin_Product .row.h-100,
+  .Plugin_Product > .row.h-100,
   .Plugin_Product > .row {
     flex-wrap: nowrap !important;
   }
@@ -367,14 +367,29 @@ const STYLES = `
     height: auto !important;
     object-fit: contain !important;
   }
-  .Plugin_Product .col.d-flex.flex-column,
-  .Plugin_Product .row.h-100 > .col {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
-    gap: 4px !important;
+  .Plugin_Product > .row > .col,
+  .Plugin_Product > .row.h-100 > .col,
+  .Plugin_Product .col.d-flex.flex-column {
     min-width: 0 !important;
     flex: 1 1 auto !important;
+  }
+  .Plugin_Product .col > .row {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-between !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .Plugin_Product .col > .row > [class*="col-"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
   .Plugin_Product .product-name,
   .Plugin_Product .productDetails {
@@ -382,7 +397,8 @@ const STYLES = `
     word-break: break-word !important;
   }
   .Plugin_Product .Plugin_PriceInformation,
-  .Plugin_Product .price_information_product {
+  .Plugin_Product .price_information_product,
+  .Plugin_Product .product-price {
     margin-top: auto !important;
     min-width: 0 !important;
     max-width: 100% !important;
@@ -541,14 +557,14 @@ const STYLES = `
   }
   .tp-card-quick-block {
     position: absolute !important;
-    bottom: 1px !important;
+    bottom: 6px !important;
     left: 8px !important;
     background: rgba(15,23,42,0.92) !important;
     backdrop-filter: blur(8px) !important;
     border: 1px solid rgba(244,63,94,0.5) !important;
     color: #fda4af !important;
     font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    padding: 3px 8px !important;
+    padding: 2px 7px !important;
     border-radius: 6px !important;
     cursor: pointer !important;
     opacity: 0 !important;

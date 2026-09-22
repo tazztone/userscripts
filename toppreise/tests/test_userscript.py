@@ -3096,6 +3096,87 @@ def test_card_layout_prevents_wrapping_and_irregular_heights(page: Page):
     assert res['cardHeight'] < 210
 
 
+def test_card_layout_nested_rows_preserves_vertical_stacking_and_prices(page: Page):
+    # Regression test for production /neue-toppreise card hierarchy where details column contains
+    # an inner <div class="row h-100"> holding .product-name and .product-price.
+    # Verifies price and sparklines are vertically stacked below title, never pushed horizontally.
+    res = page.evaluate("""() => {
+        // Create authentic production /neue-toppreise nested row card
+        const card = document.createElement('a');
+        card.id = 'test-nested-card';
+        card.className = 'Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3';
+        card.href = '/preisvergleich/Audio/JBL-Wave-Flex-2-p12345';
+        card.dataset.entityId = '12345';
+        card.innerHTML = `
+            <div class="row h-100">
+                <div class="col-auto">
+                    <div class="product-image">
+                        <img style="height:80px;width:80px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23334155'/%3E%3C/svg%3E">
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="row h-100">
+                        <div class="product-name col-12">JBL Wave Flex 2, Weiss (JBLWFLEX2WHT)</div>
+                        <div class="product-price col-12">
+                            <div class="price">
+                                <div class="Plugin_PriceInformation price_information_product_small">
+                                    <div class="priceContainer shippingPrice">
+                                        <span class="currency">CHF </span><div class="Plugin_Price">49.90</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="badge badge-dif m_26_50"><div class="text">Differenz</div><p>-33%</p></div>
+        `;
+
+        const grid = document.querySelector('.standardList') || document.body;
+        grid.appendChild(card);
+
+        // Inject quick block pill
+        const pill = document.createElement('button');
+        pill.className = 'tp-card-quick-block';
+        pill.innerHTML = '🚫 <span>Kopfhörer</span>';
+        card.appendChild(pill);
+
+        // Compute layout geometry
+        const outerRow = card.children[0];
+        const innerRow = card.querySelector('.col > .row');
+        const nameEl = card.querySelector('.product-name');
+        const priceEl = card.querySelector('.product-price');
+
+        const cardRect = card.getBoundingClientRect();
+        const nameRect = nameEl.getBoundingClientRect();
+        const priceRect = priceEl.getBoundingClientRect();
+        const pillBottom = window.getComputedStyle(pill).bottom;
+
+        const outerWrap = window.getComputedStyle(outerRow).flexWrap;
+        const innerDir = window.getComputedStyle(innerRow).flexDirection;
+
+        // Clean up
+        card.remove();
+
+        return {
+            outerWrap,
+            innerDir,
+            priceIsBelowName: priceRect.top >= nameRect.bottom - 2,
+            priceIsInsideCard: priceRect.right <= cardRect.right + 2,
+            priceIsVisible: priceRect.height > 0 && priceRect.width > 0,
+            pillBottom
+        };
+    }""")
+
+    assert res['outerWrap'] == 'nowrap'
+    assert res['innerDir'] == 'column'
+    assert res['priceIsBelowName'] is True
+    assert res['priceIsInsideCard'] is True
+    assert res['priceIsVisible'] is True
+    assert res['pillBottom'] == '6px'
+
+
+
 def test_batch_check_button_click_when_deals_populated_after_initial_bar_render(page: Page):
     # Regression test for stale closure bug where initial bar creation with 0 deals
     # prevented subsequent batch clicks from running even after deals were discovered.

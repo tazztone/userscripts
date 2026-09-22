@@ -699,17 +699,49 @@ Analysis of user screenshots and DOM layout mechanics revealed why some cards ex
    - Rows where no cards wrapped (e.g. Row 2 with `EPSON`, `SIEMENS`, `PHILIPS`) remained at their natural ~252px height, producing jarring, irregular card sizes across the feed.
 
 ### 2. Architectural Solution
-1. **Strict Non-Wrapping on Card Rows**:
-   - Enforced `.Plugin_Product .row.h-100, .Plugin_Product > .row { flex-wrap: nowrap !important; }` so the text column is strictly locked to the right of the image and can never drop underneath.
+1. **Strict Non-Wrapping on Outer Card Rows**:
+   - Enforced `.Plugin_Product > .row.h-100, .Plugin_Product > .row { flex-wrap: nowrap !important; }` so the details column is strictly locked to the right of the image and can never drop underneath.
 2. **Defensive Image Container Anchoring**:
    - Set `.Plugin_Product .col-auto, .Plugin_Product .product-image, .Plugin_Product .image_container { flex-shrink: 0 !important; }` to preserve image dimensions.
 3. **Flex Shrink & Text Wrapping**:
-   - Added `min-width: 0 !important; flex: 1 1 auto !important;` to `.Plugin_Product .col.d-flex.flex-column` so flexbox allows the text column to scale within available card bounds without forcing parent wrap.
+   - Added `min-width: 0 !important; flex: 1 1 auto !important;` to `.Plugin_Product > .row > .col, .Plugin_Product > .row.h-100 > .col, .Plugin_Product .col.d-flex.flex-column` so flexbox allows the text column to scale within available card bounds without forcing parent wrap.
    - Added `overflow-wrap: break-word !important; word-break: break-word !important;` to `.product-name, .productDetails`.
 4. **Subline Overflow Protection**:
    - Added `max-width: 100% !important;` and `overflow: hidden !important; text-overflow: ellipsis !important;` to `.tp-card-historical-price` and `.tp-card-subline-row`, with `flex-shrink: 0` on sparklines.
 5. **Automated Verification**:
    - Added Playwright regression test `test_card_layout_prevents_wrapping_and_irregular_heights` asserting side-by-side alignment, `innerRowFlexWrap: nowrap`, `minWidth: 0px`, and compact card height (<210px) even with long model names and price sublines.
+
+---
+
+## 21. Restoration of Card Details Row (Price, Sparklines & Sublines) on Production Nested Card Hierarchy (v2.18.33)
+
+### 1. Root Cause Analysis: Nested `.row.h-100` Selector Over-matching
+- **The Problem**: In `v2.18.30`, `.Plugin_Product .row.h-100` was applied to prevent outer wrap. However, on live `/neue-toppreise`, cards feature a nested hierarchy:
+  ```html
+  <div class="row h-100">               <!-- Outer row: img (col-auto) + details (col) -->
+    <div class="col-auto">...</div>
+    <div class="col">
+      <div class="row h-100">           <!-- Inner row: title (col-12) + price (col-12) -->
+        <div class="product-name col-12">...</div>
+        <div class="product-price col-12">...</div>
+      </div>
+    </div>
+  </div>
+  ```
+- Because `.Plugin_Product .row.h-100` matched the **inner** row as well, Bootstrap's horizontal flex layout could not wrap `.product-name` and `.product-price` vertically. `.product-name` expanded to 100% width, pushing `.product-price` (and all nested price elements, sparklines, and deal sublines) horizontally off-screen, where `.Plugin_Product`'s native `overflow: hidden` clipped it completely out of view.
+- Consequently, cards collapsed in height, causing `.tp-card-quick-block` (`bottom: 1px !important`) to get clipped by the card bottom boundary.
+
+### 2. Architectural Solution
+1. **Direct Child Outer Row Scoping**:
+   - Changed outer selector from `.Plugin_Product .row.h-100` to `.Plugin_Product > .row.h-100, .Plugin_Product > .row { flex-wrap: nowrap !important; }`.
+2. **Inner Row Vertical Column Stacking**:
+   - Explicitly configured `.Plugin_Product .col > .row` with `display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; justify-content: space-between !important; height: 100% !important;`.
+   - Set `.Plugin_Product .col > .row > [class*="col-"]` to `width: 100% !important; flex: 0 0 auto !important;` and `.product-price` to `margin-top: auto !important;`.
+3. **Quick-Block Pill Offset**:
+   - Adjusted `.tp-card-quick-block` to `bottom: 6px !important; left: 8px !important; padding: 2px 7px !important;` to ensure it is never cut off or clipped by card bounds on hover.
+4. **Automated Verification**:
+   - Added Playwright regression test `test_card_layout_nested_rows_preserves_vertical_stacking_and_prices` verifying that prices remain vertically stacked below titles, within card bounds, with `innerDir: column` and `outerWrap: nowrap`.
+
 
 
 
