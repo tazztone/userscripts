@@ -829,6 +829,78 @@ def test_real_deal_batch_check_button_counter_and_run(page: Page):
     assert 'Check Deals (0)' in btn_text or 'geprüft' in btn_text
 
 
+def test_check_deals_skips_ignored_invisible_products(page: Page):
+    batch_btn = page.locator('#tp-bar-batch-check-btn')
+    assert batch_btn.is_visible()
+
+    # In mock_toppreise.html without filters, 3 cards qualify (-67%, -35%, -50%)
+    # card-competing-reference has Aufschlag +26%, so it is not counted
+    assert 'Check Deals (3)' in (batch_btn.text_content() or '')
+
+    # 1. Filter out card-negative (-35%) using negative keyword
+    page.fill('#tp-inline-negative-input', 'Silikon')
+    page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
+
+    # Count should immediately drop from 3 to 2 because card-negative is now an ignored invisible product
+    assert 'Check Deals (2)' in (batch_btn.text_content() or '')
+
+    # 2. Exclude category for card-cat-excluded (-50%)
+    page.evaluate("""() => {
+        const curr = window.ToppreiseSuite.CONFIG.EXCLUDED_CATEGORIES || [];
+        window.ToppreiseSuite.saveConfigKey('EXCLUDED_CATEGORIES', [...curr, 'Smartphones']);
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cat-excluded.tp-category-filtered', state='attached')
+
+    # Count drops to 1 (only card-cheapest -67% remains visible)
+    assert 'Check Deals (1)' in (batch_btn.text_content() or '')
+
+    # Track network requests for pricechart
+    requested_pids = []
+    def handle_pricechart(route):
+        post_data = route.request.post_data or ''
+        import urllib.parse
+        parsed = urllib.parse.parse_qs(post_data)
+        pid = parsed.get('pcspagdpi', [''])[0]
+        requested_pids.append(pid)
+        route.fulfill(
+            status=200,
+            headers={'access-control-allow-origin': '*'},
+            content_type='text/html',
+            body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">500.00</div></div>'
+        )
+    page.route('**/plugins/product/pricechart*', handle_pricechart)
+
+    # 3. Click batch button -> should only scan card-cheapest (pid 797571), NOT the ignored cards
+    batch_btn.click()
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-not-low')
+    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
+
+    # Verify only card-cheapest (797571) was requested
+    assert '797571' in requested_pids
+    assert '797573' not in requested_pids  # card-negative (Silikon) must NOT be checked
+    assert '797574' not in requested_pids  # card-cat-excluded (Kabel) must NOT be checked
+
+    # Now unchecked deals is 0! Button should show Check Deals (0)
+    page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').textContent.includes('Check Deals (0)')")
+    btn_text = batch_btn.text_content() or ''
+    assert 'Check Deals (0)' in btn_text
+
+    # 4. Clicking Check Deals (0) when 0 visible deals are left must show toast and NOT hang in ⏳ Starte...
+    batch_btn.click()
+    page.wait_for_selector('#tp-root >> .tp-toast', state='visible')
+    toast = page.locator('#tp-root >> .tp-toast').last
+    assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
+    assert '⏳ Starte...' not in (batch_btn.text_content() or '')
+    assert 'Check Deals (0)' in (batch_btn.text_content() or '')
+
+    # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
+    page.click('#tp-bar-reveal-btn')
+    page.wait_for_selector('body.tp-reveal-filtered')
+    # Both card-negative and card-cat-excluded are now visible (revealed)
+    assert 'Check Deals (2)' in (batch_btn.text_content() or '')
+
+
 def test_empty_state_notice_and_actions(page: Page):
     # Initially all 5 cards in mock_toppreise are visible, no empty notice
     assert not page.locator('#tp-empty-state-notice').is_visible()

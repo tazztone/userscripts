@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.23
+// @version      2.18.25
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1193,12 +1193,20 @@ const SHADOW_MODAL_STYLES = `
       return isNaN(cached) ? null : cached;
     }
     const badgeEl = card.querySelector('.badge-dif, .badge, [class*="badge-dif"]');
-    const match = (badgeEl ? badgeEl.textContent : (card.textContent || '')).match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
+    const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
+    if (/aufschlag/i.test(text)) {
+      if (card.dataset) card.dataset.tpDiscount = '';
+      return null;
+    }
+    const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
     if (match) {
-      const discount = Math.min(100, Math.max(0, Math.abs(parseFloat(match[1].replace(',', '.')))));
-      if (!isNaN(discount)) {
-        if (card.dataset) card.dataset.tpDiscount = String(discount);
-        return discount;
+      const val = parseFloat(match[1].replace(',', '.'));
+      if (val < 0) {
+        const discount = Math.min(100, Math.max(0, Math.abs(val)));
+        if (!isNaN(discount)) {
+          if (card.dataset) card.dataset.tpDiscount = String(discount);
+          return discount;
+        }
       }
     }
     if (card.dataset) card.dataset.tpDiscount = '';
@@ -1810,6 +1818,7 @@ const SHADOW_MODAL_STYLES = `
       if (!pid) continue;
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
+      if (isCardIgnoredOrInvisible(card)) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
         targets.push({ pid, card, discount });
@@ -1976,7 +1985,7 @@ const SHADOW_MODAL_STYLES = `
             </div>
           </div>
           <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: ${isDealFeed ? 'inline-flex' : 'none'};">
-            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" title="Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen" style="border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;">
+            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" title="${uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`}" style="border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;">
               ${isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
             </button>
             <button class="tp-threshold-btn" id="tp-bar-threshold-btn" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
@@ -2097,6 +2106,10 @@ const SHADOW_MODAL_STYLES = `
             showToast('Batch-Prüfung abgebrochen');
             return;
           }
+          if (uncheckedDeals === 0) {
+            showToast('Keine ungeprüften Deals vorhanden');
+            return;
+          }
           batchBtn.classList.add('tp-batch-active');
           batchBtn.innerHTML = '⏳ Starte...';
           runBatchDealCheck(
@@ -2117,6 +2130,9 @@ const SHADOW_MODAL_STYLES = `
                     }
                   }, 3000);
                   showToast(`${completed} Deal-Tiefstpreise verifiziert`);
+                } else {
+                  processListings();
+                  showToast('Keine ungeprüften Deals vorhanden');
                 }
               }
             }
@@ -2327,7 +2343,10 @@ const SHADOW_MODAL_STYLES = `
     const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
     if (batchBtn && !isBatchChecking) {
       batchBtn.classList.remove('tp-disabled');
-      batchBtn.title = `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen`;
+      const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+      batchBtn.title = uncheckedDeals > 0
+        ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${minDisc}% Rabatt prüfen`
+        : `Keine ungeprüften Deals ab ${minDisc}% Rabatt vorhanden`;
       batchBtn.innerHTML = `🔍 Check Deals (${uncheckedDeals})`;
       batchBtn.classList.remove('tp-batch-active');
     }
@@ -2520,6 +2539,41 @@ const SHADOW_MODAL_STYLES = `
     const isCatExcluded = CONFIG.FILTER_CAT_ENABLED ? !!(cd.catName && isPathExcluded(cd.catName, cd.rootGroup, excludedCats)) : false;
     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
     return { isNeg, isCatExcluded, isLowOffers };
+  }
+
+  function isCardIgnoredOrInvisible(card, filters = null) {
+    if (!card) return true;
+    const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
+    if (!isRevealed) {
+      if (filters) {
+        if (filters.isNeg || filters.isCatExcluded || filters.isLowOffers) return true;
+      } else {
+        if (card.classList?.contains('tp-negative-filtered') ||
+            card.classList?.contains('tp-category-filtered') ||
+            card.classList?.contains('tp-min-offers-filtered') ||
+            card.classList?.contains('tp-non-bestpreis-filtered') ||
+            card.classList?.contains('tp-bestpreise-hidden')) {
+          return true;
+        }
+        const termsList = parseNegativeTerms();
+        const excludedCats = CONFIG.EXCLUDED_CATEGORIES || [];
+        const catName = extractCardCategory(card);
+        const rootGroup = resolveCategoryGroup(catName, card);
+        const offerCount = extractOfferCount(card);
+        const f = applyCardFilters({ card, catName, rootGroup, offerCount }, termsList, excludedCats, CONFIG.MIN_OFFERS, true);
+        if (f.isNeg || f.isCatExcluded || f.isLowOffers) return true;
+      }
+    }
+    const tab = card.closest?.('.f_tab');
+    if (tab && !tab.classList.contains('selected')) return true;
+
+    if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
+    if (typeof card.checkVisibility === 'function') {
+      if (!card.checkVisibility()) return true;
+    } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+      return true;
+    }
+    return false;
   }
 
   function renderSparkline(timeSeries, width = 60, height = 18) {
@@ -3270,7 +3324,7 @@ const SHADOW_MODAL_STYLES = `
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isCatExcluded) counts.cat++;
         if (cd.filters.isLowOffers) counts.min++;
-        if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount) {
+        if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
           counts.uncheckedDeals++;
         }
         if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && cd.isVerifiedNonBest && CONFIG.REAL_DEAL_FILTER_ACTIVE) {
@@ -4131,6 +4185,9 @@ const SHADOW_MODAL_STYLES = `
       sanitizeTimeSeries,
       runBestpreiseScan,
       cancelBestpreiseScan,
+      runBatchDealCheck,
+      cancelBatchDealCheck,
+      isCardIgnoredOrInvisible,
       saveConfigKey,
       parsePrice,
       CONFIG,
