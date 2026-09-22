@@ -1337,8 +1337,75 @@ def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
     # 5. Verify price text is completely visible and NOT obscured by the pill
     price_info = page.locator('#Plugin_Product_492326 .Plugin_PriceInformation')
     assert '170.19' in price_info.inner_text()
+    assert price_info.locator('.tp-deal-pill').count() == 1
     avail = page.locator('#Plugin_Product_492326 .Plugin_AvailabilityInformation')
     assert avail.is_visible()
+
+    # 6. Verify subcard variant layout: compact height and pill placed next to variant title
+    subcard = page.locator('#Plugin_Product_383251')
+    assert subcard.is_visible()
+    box = subcard.bounding_box()
+    assert box is not None
+    assert box['height'] < 100 # Authentic compact subcard height is ~50-60px, well below the bloated 372px
+
+    # Variant pill is adjacent to title, NOT inside PriceInformation
+    subcard_pill = subcard.locator('.badge-dif.tp-deal-pill')
+    assert subcard_pill.count() == 1
+    assert subcard.locator('.bold + .tp-deal-pill').count() == 1
+    assert subcard.locator('.Plugin_PriceInformation .tp-deal-pill').count() == 0
+
+
+def test_category_page_cards_not_dimmed_when_store_filter_active(page: Page):
+    # On category pages without store dealer rows, cards should not be dimmed as tp-no-store-offer
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', '/produktsuche/HiFi-Audio/Kopfhoerer/Kopfhoerer-c3308');
+        const feed = document.getElementById('product-list');
+        if (feed) feed.style.display = 'none';
+        if (!document.getElementById('Page_Browsing')) {
+            const tmpl = document.getElementById('mock-category-browsing-template');
+            if (tmpl) document.body.appendChild(tmpl.content.cloneNode(true));
+        }
+        window.ToppreiseSuite?.updateConfig?.('ACTIVE_STORES', ['Digitec']);
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_timeout(200)
+
+    # Verify category cards do not have tp-no-store-offer class
+    cat_cards = page.locator('#Page_Browsing .Plugin_Product')
+    for i in range(cat_cards.count()):
+        assert not cat_cards.nth(i).evaluate("el => el.classList.contains('tp-no-store-offer')")
+
+
+def test_grid_card_title_and_best_price_badge_clearance(page: Page):
+    # Test on default feed (/neue-toppreise)
+    card = page.locator('#product-list .Plugin_Product').first
+    assert card.is_visible()
+
+    # Inject best price badge
+    page.evaluate('''() => {
+        const firstCard = document.querySelector('#product-list .Plugin_Product');
+        firstCard.classList.add('tp-is-cheapest');
+        if (!firstCard.querySelector('.tp-best-price-badge')) {
+            const badge = document.createElement('div');
+            badge.className = 'tp-best-price-badge';
+            badge.textContent = 'Best Price';
+            firstCard.appendChild(badge);
+        }
+    }''')
+    page.wait_for_timeout(100)
+
+    # Verify best price badge position
+    badge = card.locator('.tp-best-price-badge')
+    assert badge.is_visible()
+    badge_right = page.evaluate("el => window.getComputedStyle(el).right", badge.element_handle())
+    assert badge_right == '68px'
+
+    # Verify best price badge clears the 50px circular badge (at right: 10px..60px)
+    # 68px gives an 8px clearance between badges, and card height remains compact (< 210px)
+    box = card.bounding_box()
+    assert box is not None
+    assert box['height'] < 210
 
 
 def test_slash_key_focuses_negative_filter(page: Page):

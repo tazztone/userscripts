@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.35
+// @version      2.18.36
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -136,8 +136,8 @@ const STYLES = `
   }
   .tp-best-price-badge {
     position: absolute;
-    top: 12px;
-    right: 50px;
+    top: 13px;
+    right: 68px;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #fff;
     font: 700 11px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -296,10 +296,15 @@ const STYLES = `
     color: #38bdf8 !important;
   }
   .price-availability {
-    align-items: flex-start !important;
+    align-items: center !important;
   }
-  .price-availability .Plugin_AvailabilityInformation {
-    margin-top: 4px !important;
+  .Plugin_Product.f_collection .tp-deal-pill,
+  .Plugin_ProductCollItem .tp-deal-pill {
+    margin-left: 8px !important;
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+    vertical-align: middle !important;
+    display: inline-flex !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive,
   .badge-dif.tp-deal-badge-interactive {
@@ -448,36 +453,50 @@ const STYLES = `
   .tp-sparkline:hover {
     opacity: 1 !important;
   }
-  /* Harmonize product card column contents without clipping sparklines, prices, or tall images */
-  .Plugin_Product.medium-box {
+  /* Harmonize product card column contents on feed pages without distorting category browsing or subcards */
+  #product-list .Plugin_Product.medium-box,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box {
     padding: 10px 12px !important;
   }
-  .Plugin_Product > .row.h-100,
-  .Plugin_Product > .row {
+  #product-list .Plugin_Product > .row.h-100,
+  #product-list .Plugin_Product > .row,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row.h-100,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row {
     flex-wrap: nowrap !important;
   }
-  .Plugin_Product .col-auto,
-  .Plugin_Product .product-image,
-  .Plugin_Product .image_container {
+  #product-list .Plugin_Product .col-auto,
+  #product-list .Plugin_Product .product-image,
+  #product-list .Plugin_Product .image_container,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col-auto,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-image,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .image_container {
     flex-shrink: 0 !important;
   }
-  .Plugin_Product.medium-box .image_container img,
-  .Plugin_Product.medium-box .productImage img,
-  .Plugin_Product.medium-box .product-image img,
-  .Plugin_Product.medium-box img {
+  #product-list .Plugin_Product.medium-box .image_container img,
+  #product-list .Plugin_Product.medium-box .productImage img,
+  #product-list .Plugin_Product.medium-box .product-image img,
+  #product-list .Plugin_Product.medium-box img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .image_container img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .productImage img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .product-image img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box img {
     max-height: 75px !important;
     max-width: 75px !important;
     width: auto !important;
     height: auto !important;
     object-fit: contain !important;
   }
-  .Plugin_Product > .row > .col,
-  .Plugin_Product > .row.h-100 > .col,
-  .Plugin_Product .col.d-flex.flex-column {
+  #product-list .Plugin_Product > .row > .col,
+  #product-list .Plugin_Product > .row.h-100 > .col,
+  #product-list .Plugin_Product .col.d-flex.flex-column,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row > .col,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row.h-100 > .col,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col.d-flex.flex-column {
     min-width: 0 !important;
     flex: 1 1 auto !important;
   }
-  .Plugin_Product .col > .row {
+  #product-list .Plugin_Product .col > .row,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col > .row {
     display: flex !important;
     flex-direction: column !important;
     flex-wrap: nowrap !important;
@@ -488,21 +507,27 @@ const STYLES = `
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
-  .Plugin_Product .col > .row > [class*="col-"] {
+  #product-list .Plugin_Product .col > .row > [class*="col-"],
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col > .row > [class*="col-"] {
     max-width: 100% !important;
     width: 100% !important;
     flex: 0 0 auto !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
   }
-  .Plugin_Product .product-name,
-  .Plugin_Product .productDetails {
+  #product-list .Plugin_Product .product-name,
+  #product-list .Plugin_Product .productDetails,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-name,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .productDetails {
     overflow-wrap: break-word !important;
     word-break: break-word !important;
   }
-  .Plugin_Product .Plugin_PriceInformation,
-  .Plugin_Product .price_information_product,
-  .Plugin_Product .product-price {
+  #product-list .Plugin_Product .Plugin_PriceInformation,
+  #product-list .Plugin_Product .price_information_product,
+  #product-list .Plugin_Product .product-price,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .Plugin_PriceInformation,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .price_information_product,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-price {
     margin-top: auto !important;
     min-width: 0 !important;
     max-width: 100% !important;
@@ -3157,11 +3182,11 @@ const SHADOW_MODAL_STYLES = `
     card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
 
     // 3. Best Price Highlighting
-    if (activeStores.length === 0) {
+    const dealerRows = activeStores.length > 0 ? getCardDealerRows(card) : [];
+    if (activeStores.length === 0 || (!isNeueFeed && dealerRows.length === 0)) {
       card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
       card.querySelector('.tp-best-price-badge')?.remove();
     } else {
-      const dealerRows = getCardDealerRows(card);
       let matchedRow = null;
       for (let d = 0; d < dealerRows.length; d++) {
         const item = dealerRows[d];
@@ -3194,9 +3219,9 @@ const SHADOW_MODAL_STYLES = `
           card.querySelector('.tp-best-price-badge')?.remove();
         }
       } else {
-        cd.card.classList.add('tp-no-store-offer');
-        cd.card.classList.remove('tp-is-cheapest', 'tp-not-cheapest');
-        cd.card.querySelector('.tp-best-price-badge')?.remove();
+        card.classList.add('tp-no-store-offer');
+        card.classList.remove('tp-is-cheapest', 'tp-not-cheapest');
+        card.querySelector('.tp-best-price-badge')?.remove();
       }
     }
 
@@ -3211,6 +3236,7 @@ const SHADOW_MODAL_STYLES = `
       !!card.querySelector('.priceAvailabilityContainer, .price-availability') ||
       !!card.closest('#Page_Browsing, .Page_Browsing')
     );
+    const isSubcard = card.classList.contains('f_collection') || !!card.closest('.Plugin_ProductCollectionRelProductsList');
 
     if (!badgeDifEl && pid) {
       badgeDifEl = document.createElement('div');
@@ -3220,13 +3246,24 @@ const SHADOW_MODAL_STYLES = `
     if (badgeDifEl) {
       if (isListView) {
         badgeDifEl.classList.add('tp-deal-pill');
-        const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product');
-        if (priceInfo) {
-          if (badgeDifEl.parentElement !== priceInfo) {
-            priceInfo.insertBefore(badgeDifEl, priceInfo.firstChild);
+        if (isSubcard) {
+          const titleContainer = card.querySelector('.bold') || card.querySelector('.product-name');
+          if (titleContainer) {
+            if (badgeDifEl.parentElement !== titleContainer.parentNode || badgeDifEl.previousElementSibling !== titleContainer) {
+              titleContainer.insertAdjacentElement('afterend', badgeDifEl);
+            }
+          } else if (badgeDifEl.parentElement !== card) {
+            card.appendChild(badgeDifEl);
           }
-        } else if (badgeDifEl.parentElement !== card) {
-          card.appendChild(badgeDifEl);
+        } else {
+          const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product');
+          if (priceInfo) {
+            if (badgeDifEl.parentElement !== priceInfo) {
+              priceInfo.insertBefore(badgeDifEl, priceInfo.firstChild);
+            }
+          } else if (badgeDifEl.parentElement !== card) {
+            card.appendChild(badgeDifEl);
+          }
         }
       } else {
         badgeDifEl.classList.remove('tp-deal-pill');
@@ -3318,15 +3355,19 @@ const SHADOW_MODAL_STYLES = `
 
           // Compact dual-score breakdown pill directly underneath the circle badge
           let breakdownEl = card.querySelector('.tp-badge-score-breakdown');
-          if (!breakdownEl) {
-            breakdownEl = document.createElement('div');
-            breakdownEl.className = 'tp-badge-score-breakdown';
-            card.appendChild(breakdownEl);
-          }
-          if (dealData.isNewRecord && dealData.dRecord > 0) {
-            setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
+          if (isListView) {
+            breakdownEl?.remove();
           } else {
-            setHtmlIfChanged(breakdownEl, `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
+            if (!breakdownEl) {
+              breakdownEl = document.createElement('div');
+              breakdownEl.className = 'tp-badge-score-breakdown';
+              card.appendChild(breakdownEl);
+            }
+            if (dealData.isNewRecord && dealData.dRecord > 0) {
+              setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
+            } else {
+              setHtmlIfChanged(breakdownEl, `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
+            }
           }
 
           let histPriceEl = card.querySelector('.tp-card-historical-price');
@@ -3376,7 +3417,11 @@ const SHADOW_MODAL_STYLES = `
           } else {
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>-${rawDiscount}%</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+              }
             } else {
               setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
               if (isListView) {
