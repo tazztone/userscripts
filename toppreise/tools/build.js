@@ -45,11 +45,17 @@ export function buildBundle() {
   const cacheCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'cache.js'), 'utf-8'));
   const configCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'state', 'config.js'), 'utf-8'));
   const storeCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'state', 'store.js'), 'utf-8'));
+  const adapterCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'adapter.js'), 'utf-8'));
   const cardsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'cards.js'), 'utf-8'));
+  const sparklineCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'sparkline.js'), 'utf-8'));
+  const sortCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'sort.js'), 'utf-8'));
   const scannerCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'scanner.js'), 'utf-8'));
+  const badgesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'badges.js'), 'utf-8'));
   const modalCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'modal.js'), 'utf-8'));
   const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
   const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
+  const priceAlarmCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'price-alarm.js'), 'utf-8'));
+  const productDetailCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'product-detail.js'), 'utf-8'));
   const rawAppCode = fs.readFileSync(path.join(SRC_DIR, 'app.js'), 'utf-8');
 
   // Strip top imports from app.js
@@ -117,11 +123,23 @@ ${indent(configCode, 2)}
   // ─── MODULE: src/state/store.js ─────────────────────────────────────────────
 ${indent(storeCode, 2)}
 
+  // ─── MODULE: src/page/adapter.js ────────────────────────────────────────────
+${indent(adapterCode, 2)}
+
   // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
 ${indent(cardsCode, 2)}
 
+  // ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────
+${indent(sparklineCode, 2)}
+
+  // ─── MODULE: src/page/sort.js ───────────────────────────────────────────────
+${indent(sortCode, 2)}
+
   // ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────
 ${indent(scannerCode, 2)}
+
+  // ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────
+${indent(badgesCode, 2)}
 
   // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
 ${indent(modalCode, 2)}
@@ -131,6 +149,12 @@ ${indent(toastCode, 2)}
 
   // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
 ${indent(toolbarCode, 2)}
+
+  // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
+${indent(priceAlarmCode, 2)}
+
+  // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
+${indent(productDetailCode, 2)}
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
 ${indent(iifeBody, 0)}

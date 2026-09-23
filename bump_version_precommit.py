@@ -108,7 +108,9 @@ def check_toppreise_quality_gates(toppreise_dir):
             'tests/unit/deal-score.test.js',
             'tests/unit/cache.test.js',
             'tests/unit/selectors.test.js',
-            'tests/unit/store.test.js'
+            'tests/unit/store.test.js',
+            'tests/unit/adapter.test.js',
+            'tests/unit/sparkline.test.js'
         ]
         subprocess.run(['node', '--test'] + unit_test_files, cwd=toppreise_dir, check=True)
 

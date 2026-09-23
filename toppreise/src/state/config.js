@@ -42,8 +42,8 @@ export const DEFAULTS = Object.freeze({
 });
 
 // Compact GM_getValue + localStorage Fallback
-export const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null')) ?? def;
-export const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)));
+export const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null') : null)) ?? def;
+export const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : (typeof localStorage !== 'undefined' ? localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)) : null));
 
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
