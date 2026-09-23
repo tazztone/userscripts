@@ -91,6 +91,37 @@ def process_script(script_relpath):
     print(f"🚀 [pre-commit] Auto-bumped {script_name} to v{extracted_version}")
 
 
+def check_toppreise_quality_gates(toppreise_dir):
+    print("🔍 [pre-commit] Running Toppreise quality gates...")
+    try:
+        # 1. Build bundle to ensure compiled output matches src/
+        subprocess.run(['node', 'tools/build.js'], cwd=toppreise_dir, check=True)
+        bundle_path = os.path.join(toppreise_dir, 'toppreise.user.js')
+        subprocess.run(['git', 'add', bundle_path], check=True)
+
+        # 2. Check drift gate
+        subprocess.run(['node', 'tools/build.js', '--check'], cwd=toppreise_dir, check=True)
+
+        # 3. Fast unit tests (<100ms)
+        unit_test_files = [
+            'tests/unit/price.test.js',
+            'tests/unit/deal-score.test.js',
+            'tests/unit/cache.test.js',
+            'tests/unit/selectors.test.js',
+            'tests/unit/store.test.js'
+        ]
+        subprocess.run(['node', '--test'] + unit_test_files, cwd=toppreise_dir, check=True)
+
+        # 4. Fast category taxonomy gate (~30ms)
+        subprocess.run(['python3', 'tools/verify_category_map.py'], cwd=toppreise_dir, check=True)
+
+        print("✅ [pre-commit] All Toppreise quality gates passed successfully!")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ [pre-commit] Quality gate failed (exit code {e.returncode})")
+        return False
+    return True
+
+
 def main():
     try:
         staged_files = subprocess.check_output(
@@ -105,6 +136,13 @@ def main():
         if path.endswith('.user.js') and path.startswith('userscripts/')
     ]
 
+    # If any file in userscripts/toppreise/ is staged, run quality gates
+    toppreise_staged = any(path.startswith('userscripts/toppreise/') for path in staged_files)
+    if toppreise_staged:
+        toppreise_dir = os.path.join(REPO_ROOT, 'userscripts', 'toppreise')
+        if not check_toppreise_quality_gates(toppreise_dir):
+            return 1
+
     for script_path in staged_userscripts:
         process_script(script_path)
 
@@ -113,3 +151,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

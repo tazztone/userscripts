@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.39
+// @version      2.18.41
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -17,42 +17,6 @@
 // Source modules are located in src/.
 // Built with: node tools/build.js
 // ─────────────────────────────────────────────────────────────────────────────
-
-// ─── CONFIG DEFAULT VALUES ───────────────────────────────────────────────────
-const DEFAULTS = {
-  FILTER_NEG_ENABLED: true,
-  FILTER_CAT_ENABLED: true,
-  FILTER_MIN_ENABLED: true,
-  FILTER_BESTPREIS_ENABLED: true,
-  MODE: 'dim',
-  MARGIN_PERCENT: 0.0,
-  DIM_OPACITY: 0.25,
-  USE_SHIPPING_PRICE: true,
-  HEATMAP_ENABLED: true,
-  HEATMAP_INTENSITY: 1.0,
-  HEATMAP_CURVE: 'calibrated',
-  REAL_DEAL_FILTER_ACTIVE: false,
-  REAL_DEAL_MIN_DISCOUNT: 30,
-  REAL_DEAL_CACHE_HOURS: 48,
-  NEGATIVE_CACHE_HOURS: 2,
-  BESTPREISE_MODE_ACTIVE: false,
-  BESTPREISE_WEIGHT_RECORD: 0.50,
-  BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
-  OUTLIER_REJECTION_ENABLED: true,
-  ENABLE_SPARKLINES: false,
-  NEGATIVE_TERMS: '',
-  EXCLUDED_CATEGORIES: [],
-  MIN_OFFERS: 0,
-  SORT_BY_OFFERS: 'none',
-  ALARM_ENABLED: true,
-  ALARM_TARGET_PERCENT: 0.60,
-  ALARM_DURATION_DAYS: "730",
-  ALARM_AUTO_SUBMIT: true,
-  ALARM_SUBMIT_DELAY_MS: 300,
-  ALARM_CLOSE_DELAY_MS: 800,
-  OBSERVER_DEBOUNCE_MS: 200,
-  DEBUG: true
-};
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 
@@ -1787,6 +1751,367 @@ const SHADOW_MODAL_STYLES = `
 
   const getCachedProductCount = countCachedPriceStats;
 
+  // ─── MODULE: src/state/config.js ────────────────────────────────────────────
+  /**
+   * Configuration & Persistent Settings State Layer
+   * Manages defaults, GM_getValue/localStorage synchronization,
+   * active configuration object, and bidirectional UI control sync.
+   */
+
+
+  const DEFAULTS = Object.freeze({
+    FILTER_NEG_ENABLED: true,
+    FILTER_CAT_ENABLED: true,
+    FILTER_MIN_ENABLED: true,
+    FILTER_BESTPREIS_ENABLED: true,
+    MODE: 'dim',
+    MARGIN_PERCENT: 0.0,
+    DIM_OPACITY: 0.25,
+    USE_SHIPPING_PRICE: true,
+    HEATMAP_ENABLED: true,
+    HEATMAP_INTENSITY: 1.0,
+    HEATMAP_CURVE: 'calibrated',
+    REAL_DEAL_FILTER_ACTIVE: false,
+    REAL_DEAL_MIN_DISCOUNT: 30,
+    REAL_DEAL_CACHE_HOURS: 48,
+    NEGATIVE_CACHE_HOURS: 2,
+    BESTPREISE_MODE_ACTIVE: false,
+    BESTPREISE_WEIGHT_RECORD: 0.50,
+    BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
+    OUTLIER_REJECTION_ENABLED: true,
+    ENABLE_SPARKLINES: false,
+    NEGATIVE_TERMS: '',
+    EXCLUDED_CATEGORIES: [],
+    MIN_OFFERS: 0,
+    SORT_BY_OFFERS: 'none',
+    ALARM_ENABLED: true,
+    ALARM_TARGET_PERCENT: 0.60,
+    ALARM_DURATION_DAYS: '730',
+    ALARM_AUTO_SUBMIT: true,
+    ALARM_SUBMIT_DELAY_MS: 300,
+    ALARM_CLOSE_DELAY_MS: 800,
+    OBSERVER_DEBOUNCE_MS: 200,
+    DEBUG: true
+  });
+
+  // Compact GM_getValue + localStorage Fallback
+  const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null')) ?? def;
+  const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)));
+
+  const CONFIG = {
+    FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
+    FILTER_CAT_ENABLED: _getValue('FILTER_CAT_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_CAT_ENABLED)),
+    FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
+    FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
+    MODE: _getValue('MODE', DEFAULTS.MODE),
+    MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
+    DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
+    USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
+    HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
+    HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
+    HEATMAP_CURVE: _getValue('HEATMAP_CURVE', DEFAULTS.HEATMAP_CURVE),
+    REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
+    REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
+    BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
+    BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+    ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
+    NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
+    EXCLUDED_CATEGORIES: _getValue('EXCLUDED_CATEGORIES', DEFAULTS.EXCLUDED_CATEGORIES),
+    MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
+    SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
+    ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
+    ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
+    ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
+    ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
+    ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
+    ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
+    OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
+    DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
+  };
+
+  const saveConfigKey = (key, val) => {
+    CONFIG[key] = val;
+    _setValue(key, val);
+  };
+
+  const CONFIG_BODY_KEYS = new Set(['MODE', 'DIM_OPACITY']);
+
+  function updateBodyClasses() {
+    if (typeof document === 'undefined' || !document.body) return;
+    document.body.classList.remove('tp-mode-dim', 'tp-mode-hide', 'tp-mode-highlight-only');
+    document.body.classList.add(`tp-mode-${CONFIG.MODE}`);
+    document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+  }
+
+  function syncUiControl(key, val) {
+    // 1. Sync Settings Modal (Shadow DOM) if open/exists
+    const shadow = uiShadowRoot || (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
+    if (shadow) {
+      try {
+        switch (key) {
+          case 'MODE': {
+            const el = shadow.querySelector(`input[name="tp-mode"][value="${val}"]`);
+            if (el) el.checked = true;
+            break;
+          }
+          case 'DIM_OPACITY': {
+            const range = shadow.getElementById('tp-opacity-range');
+            const label = shadow.getElementById('tp-opacity-val');
+            if (range) range.value = val;
+            if (label) label.textContent = `${Math.round(val * 100)}%`;
+            break;
+          }
+          case 'NEGATIVE_TERMS': {
+            const input = shadow.getElementById('tp-negative-terms-input');
+            if (input && input.value !== val) input.value = val || '';
+            break;
+          }
+          case 'MIN_OFFERS': {
+            const input = shadow.getElementById('tp-min-offers-val');
+            const range = shadow.getElementById('tp-min-offers-range');
+            if (input) input.value = val;
+            if (range) range.value = val;
+            break;
+          }
+          case 'HEATMAP_ENABLED': {
+            const toggle = shadow.getElementById('tp-heatmap-enabled-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_MODE_ACTIVE': {
+            const toggle = shadow.getElementById('tp-bestpreise-mode-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_WEIGHT_RECORD': {
+            const range = shadow.getElementById('tp-bestpreise-weight-range');
+            const valEl = shadow.getElementById('tp-bestpreise-weight-val');
+            const descEl = shadow.getElementById('tp-bestpreise-weight-desc');
+            const pct = Math.round((val ?? 0.5) * 100);
+            if (range) range.value = pct;
+            if (valEl) valEl.textContent = `${pct}%`;
+            if (descEl) {
+              if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
+              else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
+              else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median`;
+            }
+            break;
+          }
+          case 'REAL_DEAL_MIN_DISCOUNT': {
+            const range = shadow.getElementById('tp-real-deal-min-range');
+            const valEl = shadow.getElementById('tp-real-deal-min-val');
+            if (range) range.value = val;
+            if (valEl) valEl.value = val;
+            break;
+          }
+          case 'REAL_DEAL_FILTER_ACTIVE': {
+            const toggle = shadow.getElementById('tp-real-deal-filter-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'USE_SHIPPING_PRICE': {
+            const toggle = shadow.getElementById('tp-use-shipping-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'ENABLE_SPARKLINES': {
+            const toggle = shadow.getElementById('tp-sparklines-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
+      }
+    }
+
+    // 2. Sync Inline Filter Bar if present
+    if (typeof document !== 'undefined') {
+      const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
+      if (bar) {
+        try {
+          switch (key) {
+            case 'NEGATIVE_TERMS': {
+              const input = bar.querySelector('#tp-inline-negative-input');
+              const clearBtn = bar.querySelector('#tp-clear-neg-btn');
+              if (input && document.activeElement !== input && input.value !== val) {
+                input.value = val || '';
+              }
+              if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+              break;
+            }
+            case 'HEATMAP_ENABLED': {
+              const heatBtn = bar.querySelector('#tp-bar-heat-btn');
+              if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
+              break;
+            }
+            case 'BESTPREISE_MODE_ACTIVE': {
+              const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
+              if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
+              bar.classList.toggle('tp-bestpreise-bar', val === true);
+              break;
+            }
+            case 'FILTER_NEG_ENABLED': {
+              const toggle = bar.querySelector('#tp-toggle-neg');
+              if (toggle) {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+              }
+              break;
+            }
+            case 'FILTER_CAT_ENABLED': {
+              const toggle = bar.querySelector('#tp-toggle-cat');
+              if (toggle) {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
+              }
+              break;
+            }
+            case 'FILTER_MIN_ENABLED': {
+              const toggle = bar.querySelector('#tp-toggle-min');
+              if (toggle) {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+              }
+              break;
+            }
+            case 'FILTER_BESTPREIS_ENABLED': {
+              const toggle = bar.querySelector('#tp-toggle-bestpreis');
+              if (toggle) {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+              }
+              break;
+            }
+            case 'MIN_OFFERS': {
+              const minVal = bar.querySelector('#tp-bar-min-val');
+              if (minVal) minVal.textContent = val;
+              break;
+            }
+            case 'REAL_DEAL_MIN_DISCOUNT': {
+              const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
+              if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
+              bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
+                btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
+              });
+              break;
+            }
+            case 'EXCLUDED_CATEGORIES': {
+              const catsCount = bar.querySelector('#tp-bar-cats-count');
+              const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
+              const count = (val || []).length;
+              if (catsCount) catsCount.textContent = count;
+              if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
+              break;
+            }
+          }
+        } catch (err) {
+          if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl bar error', err);
+        }
+      }
+    }
+  }
+
+  function updateConfig(key, val, options = {}) {
+    saveConfigKey(key, val);
+    if (!options.skipUiSync) {
+      syncUiControl(key, val);
+    }
+    if (CONFIG_BODY_KEYS.has(key)) {
+      updateBodyClasses();
+    }
+    if (!options.skipRender && typeof processListings === 'function') {
+      processListings();
+    }
+  }
+
+  function updateConfigs(entries, options = {}) {
+    let requiresBodyUpdate = false;
+    for (const [k, v] of Object.entries(entries)) {
+      saveConfigKey(k, v);
+      if (!options.skipUiSync) {
+        syncUiControl(k, v);
+      }
+      if (CONFIG_BODY_KEYS.has(k)) {
+        requiresBodyUpdate = true;
+      }
+    }
+    if (requiresBodyUpdate) {
+      updateBodyClasses();
+    }
+    if (!options.skipRender && typeof processListings === 'function') {
+      processListings();
+    }
+  }
+
+  // ─── MODULE: src/state/store.js ─────────────────────────────────────────────
+  /**
+   * Runtime Session State Store
+   * Manages active scanner status, cancellation flags, filter count metrics,
+   * and event subscription listeners for reactive UI updates.
+   */
+
+  const scanState = {
+    isBatchChecking: false,
+    batchCancelRequested: false,
+    isBestpreiseScanning: false,
+    bestpreiseScanCancel: false,
+    currentlyScanningPid: null,
+    progress: { completed: 0, total: 0 }
+  };
+
+  let filterCounts = {
+    neg: 0,
+    cat: 0,
+    min: 0,
+    nonBest: 0,
+    uncheckedDeals: 0,
+    bestpreiseDeals: 0,
+    bestpreiseHidden: 0
+  };
+
+  const listeners = new Set();
+
+  function getScanState() {
+    return { ...scanState };
+  }
+
+  function setScanState(patch) {
+    Object.assign(scanState, patch);
+    notify('scan-state-changed', scanState);
+  }
+
+  function getFilterCounts() {
+    return { ...filterCounts };
+  }
+
+  function setFilterCounts(counts) {
+    filterCounts = { ...filterCounts, ...counts };
+    notify('filter-counts-changed', filterCounts);
+  }
+
+  function subscribe(listener) {
+    if (typeof listener === 'function') {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }
+    return () => {};
+  }
+
+  function notify(event, data) {
+    for (const listener of listeners) {
+      try {
+        listener(event, data);
+      } catch (err) {
+        console.warn('[Toppreise-Store] Error in subscriber', err);
+      }
+    }
+  }
+
   // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
   /**
    * Page & Card Extraction Layer
@@ -2026,6 +2351,318 @@ const SHADOW_MODAL_STYLES = `
       }
     }
     return card;
+  }
+
+  // ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────
+  /**
+   * Price History & Product Scanner Engine
+   * Handles background batch checking, live price history retrieval,
+   * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
+   */
+
+
+
+
+
+
+  const activeFetches = new Map();
+
+  async function interruptibleSleep(ms, shouldCancelFn = null) {
+    const step = 100;
+    let elapsed = 0;
+    while (elapsed < ms) {
+      if (shouldCancelFn && shouldCancelFn()) break;
+      const wait = Math.min(step, ms - elapsed);
+      await new Promise(r => setTimeout(r, wait));
+      elapsed += wait;
+    }
+  }
+
+  async function fetchPriceTimeSeries(productId) {
+    if (!productId) return null;
+    try {
+      const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+      const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/javascript, */*; q=0.01'
+        },
+        credentials: 'same-origin',
+        body: postBody,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const shippingActive = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+      if (Array.isArray(data)) {
+        if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
+          if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
+            return data[1];
+          }
+          return data[0]; // Series 0: Produktpreis
+        }
+        if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
+          return data; // Raw points [[t1, p1], [t2, p2]]
+        }
+      }
+      if (Array.isArray(data?.series)) return data.series;
+      if (Array.isArray(data?.data)) return data.data;
+      return null;
+    } catch (err) {
+      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
+      return null;
+    }
+  }
+
+  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
+    if (!productId) return null;
+    const cached = getCachedPriceStats(productId, forceFresh);
+    if (cached) {
+      if (cached.unavailable) return null;
+      return cached;
+    }
+
+    if (activeFetches.has(productId)) {
+      return activeFetches.get(productId);
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+      
+        // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+        try {
+          const timeSeries = await fetchPriceTimeSeries(productId);
+          if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
+            const analysis = analyzePriceTimeSeries(timeSeries);
+            if (analysis && analysis.tiefstpreis > 0) {
+              analysis.isShippingPrice = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+              setCachedPriceStats(productId, analysis);
+              return analysis;
+            }
+          }
+        } catch (seriesErr) {}
+
+        // 2. Fallback route: GET HTML modal dialog
+        const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
+        let resHtml = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          if (shouldCancelFn && shouldCancelFn()) return null;
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 7000);
+            resHtml = await fetch(url, {
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html, */*; q=0.01'
+              },
+              credentials: 'same-origin',
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (resHtml.ok) break;
+
+            if (resHtml.status === 429) {
+              const retryAfterHeader = resHtml.headers?.get('Retry-After');
+              const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+              const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
+              if (onThrottle) {
+                onThrottle({ productId, attempt, backoffMs, status: resHtml.status });
+              }
+              if (attempt < retries) {
+                await interruptibleSleep(backoffMs, shouldCancelFn);
+              }
+            } else if (attempt < retries) {
+              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+            }
+          } catch (fetchErr) {
+            if (attempt < retries) {
+              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+            } else {
+              throw fetchErr;
+            }
+          }
+        }
+
+        if (!resHtml || !resHtml.ok) {
+          setCachedPriceStats(productId, null, true);
+          return null;
+        }
+        const html = await resHtml.text();
+        const stats = parsePriceStatsFromHtml(html);
+        if (stats) {
+          stats.isShippingPrice = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+          setCachedPriceStats(productId, stats);
+          return stats;
+        } else {
+          setCachedPriceStats(productId, null, true);
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
+        setCachedPriceStats(productId, null, true);
+      } finally {
+        activeFetches.delete(productId);
+      }
+      return null;
+    })();
+
+    activeFetches.set(productId, fetchPromise);
+    return fetchPromise;
+  }
+
+  let currentlyScanningPid = null;
+
+  async function runProductScanner(options = {}) {
+    const {
+      filterFn = () => true,
+      sortFn = null,
+      delayMs = 200,
+      shouldCancelFn = () => false,
+      onProgress = null,
+      onComplete = null,
+      onStatus = null
+    } = options;
+
+    const cards = getProductCards();
+    const targets = [];
+
+    for (const card of cards) {
+      const pid = getCardProductId(card);
+      if (!pid) continue;
+      const cached = getCachedPriceStats(pid);
+      if (cached) continue;
+      if (typeof isCardIgnoredOrInvisible === 'function' && isCardIgnoredOrInvisible(card)) continue;
+      const discount = extractCardDiscount(card) ?? 0;
+      if (filterFn({ pid, card, discount })) {
+        targets.push({ pid, card, discount });
+      }
+    }
+
+    if (sortFn) {
+      targets.sort(sortFn);
+    }
+
+    const total = targets.length;
+    let completed = 0;
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (shouldCancelFn()) break;
+        const item = targets[i];
+        currentlyScanningPid = item.pid;
+        setScanState({ currentlyScanningPid: item.pid, progress: { completed, total } });
+        if (typeof processListings === 'function') processListings();
+
+        try {
+          await fetchSingleProductPriceStats(
+            item.pid,
+            2,
+            false,
+            throttleInfo => {
+              const secs = Math.ceil(throttleInfo.backoffMs / 1000);
+              if (onStatus) {
+                onStatus(`⏳ Rate-Limit (${secs}s Pause)...`);
+              }
+            },
+            shouldCancelFn
+          );
+        } finally {
+          currentlyScanningPid = null;
+          setScanState({ currentlyScanningPid: null });
+        }
+
+        completed++;
+        setScanState({ progress: { completed, total } });
+        if (onProgress) onProgress(completed, total);
+        if (typeof processListings === 'function') processListings();
+        const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
+        await interruptibleSleep(delay, shouldCancelFn);
+      }
+    } finally {
+      currentlyScanningPid = null;
+      setScanState({ currentlyScanningPid: null });
+    }
+
+    if (typeof processListings === 'function') processListings();
+    if (onComplete) onComplete(completed, total);
+    return { completed, total };
+  }
+
+  let isBatchChecking = false;
+  let batchCancelRequested = false;
+
+  async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
+    if (isBatchChecking) {
+      batchCancelRequested = true;
+      setScanState({ batchCancelRequested: true });
+      return;
+    }
+    isBatchChecking = true;
+    batchCancelRequested = false;
+    setScanState({ isBatchChecking: true, batchCancelRequested: false });
+
+    try {
+      const isFeed = typeof isNeueToppreisePage === 'function' ? isNeueToppreisePage() : false;
+      await runProductScanner({
+        filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
+        delayMs: () => 250 + Math.floor(Math.random() * 100),
+        shouldCancelFn: () => batchCancelRequested,
+        onProgress,
+        onComplete,
+        onStatus
+      });
+    } finally {
+      isBatchChecking = false;
+      batchCancelRequested = false;
+      setScanState({ isBatchChecking: false, batchCancelRequested: false });
+      if (typeof processListings === 'function') processListings();
+    }
+  }
+
+  function cancelBatchDealCheck() {
+    batchCancelRequested = true;
+    setScanState({ batchCancelRequested: true });
+  }
+
+  let isBestpreiseScanning = false;
+  let bestpreiseScanCancel = false;
+
+  async function runBestpreiseScan(onProgress = null, onComplete = null) {
+    if (isBestpreiseScanning) {
+      bestpreiseScanCancel = true;
+      setScanState({ bestpreiseScanCancel: true });
+      return;
+    }
+    isBestpreiseScanning = true;
+    bestpreiseScanCancel = false;
+    setScanState({ isBestpreiseScanning: true, bestpreiseScanCancel: false });
+
+    try {
+      await runProductScanner({
+        filterFn: () => true,
+        sortFn: (a, b) => b.discount - a.discount,
+        delayMs: 200,
+        shouldCancelFn: () => bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
+        onProgress,
+        onComplete
+      });
+    } finally {
+      isBestpreiseScanning = false;
+      bestpreiseScanCancel = false;
+      setScanState({ isBestpreiseScanning: false, bestpreiseScanCancel: false });
+      if (typeof processListings === 'function') processListings();
+    }
+  }
+
+  function cancelBestpreiseScan() {
+    bestpreiseScanCancel = true;
+    setScanState({ bestpreiseScanCancel: true });
   }
 
   // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
@@ -3150,252 +3787,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
-// Compact GM_getValue + localStorage Fallback
-  const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null')) ?? def;
-  const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)));
-
-  const CONFIG = {
-    FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
-    FILTER_CAT_ENABLED: _getValue('FILTER_CAT_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_CAT_ENABLED)),
-    FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
-    FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
-    MODE: _getValue('MODE', DEFAULTS.MODE),
-    MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
-    DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
-    USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
-    HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
-    HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-    HEATMAP_CURVE: _getValue('HEATMAP_CURVE', DEFAULTS.HEATMAP_CURVE),
-    REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
-    REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
-    BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
-    BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
-    ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
-    NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
-    EXCLUDED_CATEGORIES: _getValue('EXCLUDED_CATEGORIES', DEFAULTS.EXCLUDED_CATEGORIES),
-    MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
-    SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
-    ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
-    ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
-    ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
-    ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
-    ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
-    ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
-    OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-    DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
-  };
-
-
-  const saveConfigKey = (key, val) => {
-    CONFIG[key] = val;
-    _setValue(key, val);
-  };
-
-  const CONFIG_BODY_KEYS = new Set(['MODE', 'DIM_OPACITY']);
-
-  function syncUiControl(key, val) {
-    // 1. Sync Settings Modal (Shadow DOM) if open/exists
-    if (uiShadowRoot) {
-      try {
-        switch (key) {
-          case 'MODE': {
-            const el = uiShadowRoot.querySelector(`input[name="tp-mode"][value="${val}"]`);
-            if (el) el.checked = true;
-            break;
-          }
-          case 'DIM_OPACITY': {
-            const range = uiShadowRoot.getElementById('tp-opacity-range');
-            const label = uiShadowRoot.getElementById('tp-opacity-val');
-            if (range) range.value = val;
-            if (label) label.textContent = `${Math.round(val * 100)}%`;
-            break;
-          }
-          case 'NEGATIVE_TERMS': {
-            const input = uiShadowRoot.getElementById('tp-negative-terms-input');
-            if (input && input.value !== val) input.value = val || '';
-            break;
-          }
-          case 'MIN_OFFERS': {
-            const input = uiShadowRoot.getElementById('tp-min-offers-val');
-            const range = uiShadowRoot.getElementById('tp-min-offers-range');
-            if (input) input.value = val;
-            if (range) range.value = val;
-            break;
-          }
-          case 'HEATMAP_ENABLED': {
-            const toggle = uiShadowRoot.getElementById('tp-heatmap-enabled-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'BESTPREISE_MODE_ACTIVE': {
-            const toggle = uiShadowRoot.getElementById('tp-bestpreise-mode-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'BESTPREISE_WEIGHT_RECORD': {
-            const range = uiShadowRoot.getElementById('tp-bestpreise-weight-range');
-            const valEl = uiShadowRoot.getElementById('tp-bestpreise-weight-val');
-            const descEl = uiShadowRoot.getElementById('tp-bestpreise-weight-desc');
-            const pct = Math.round((val ?? 0.5) * 100);
-            if (range) range.value = pct;
-            if (valEl) valEl.textContent = `${pct}%`;
-            if (descEl) {
-              if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
-              else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
-              else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median`;
-            }
-            break;
-          }
-          case 'REAL_DEAL_MIN_DISCOUNT': {
-            const range = uiShadowRoot.getElementById('tp-real-deal-min-range');
-            const valEl = uiShadowRoot.getElementById('tp-real-deal-min-val');
-            if (range) range.value = val;
-            if (valEl) valEl.value = val;
-            break;
-          }
-          case 'REAL_DEAL_FILTER_ACTIVE': {
-            const toggle = uiShadowRoot.getElementById('tp-real-deal-filter-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'USE_SHIPPING_PRICE': {
-            const toggle = uiShadowRoot.getElementById('tp-use-shipping-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'ENABLE_SPARKLINES': {
-            const toggle = uiShadowRoot.getElementById('tp-sparklines-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-        }
-      } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
-      }
-    }
-
-    // 2. Sync Inline Filter Bar if present
-    const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
-    if (bar) {
-      try {
-        switch (key) {
-          case 'NEGATIVE_TERMS': {
-            const input = bar.querySelector('#tp-inline-negative-input');
-            const clearBtn = bar.querySelector('#tp-clear-neg-btn');
-            if (input && document.activeElement !== input && input.value !== val) {
-              input.value = val || '';
-            }
-            if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
-            break;
-          }
-          case 'HEATMAP_ENABLED': {
-            const heatBtn = bar.querySelector('#tp-bar-heat-btn');
-            if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
-            break;
-          }
-          case 'BESTPREISE_MODE_ACTIVE': {
-            const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
-            if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
-            bar.classList.toggle('tp-bestpreise-bar', val === true);
-            break;
-          }
-          case 'FILTER_NEG_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-neg');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'FILTER_CAT_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-cat');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'FILTER_MIN_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-min');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'FILTER_BESTPREIS_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-bestpreis');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'MIN_OFFERS': {
-            const minVal = bar.querySelector('#tp-bar-min-val');
-            if (minVal) minVal.textContent = val;
-            break;
-          }
-          case 'REAL_DEAL_MIN_DISCOUNT': {
-            const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
-            if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
-            bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
-              btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
-            });
-            break;
-          }
-          case 'EXCLUDED_CATEGORIES': {
-            const catsCount = bar.querySelector('#tp-bar-cats-count');
-            const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
-            const count = (val || []).length;
-            if (catsCount) catsCount.textContent = count;
-            if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
-            break;
-          }
-        }
-      } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl bar error', err);
-      }
-    }
-  }
-
-  function updateConfig(key, val, options = {}) {
-    saveConfigKey(key, val);
-    if (!options.skipUiSync) {
-      syncUiControl(key, val);
-    }
-    if (CONFIG_BODY_KEYS.has(key)) {
-      updateBodyClasses();
-    }
-    if (!options.skipRender) {
-      processListings();
-    }
-  }
-
-  function updateConfigs(entries, options = {}) {
-    let requiresBodyUpdate = false;
-    for (const [k, v] of Object.entries(entries)) {
-      saveConfigKey(k, v);
-      if (!options.skipUiSync) {
-        syncUiControl(k, v);
-      }
-      if (CONFIG_BODY_KEYS.has(k)) {
-        requiresBodyUpdate = true;
-      }
-    }
-    if (requiresBodyUpdate) {
-      updateBodyClasses();
-    }
-    if (!options.skipRender) {
-      processListings();
-    }
-  }
-
-  // ─── DOM QUERY MEMOIZATION ──────────────────────────────────────────────────
+// ─── DOM QUERY MEMOIZATION ──────────────────────────────────────────────────
 
   function clearCardCache(card) {
     if (!card) return;
@@ -3444,296 +3836,6 @@ const SHADOW_MODAL_STYLES = `
     return true;
   }
 
-  // ─── REAL DEAL & PRICE HISTORY ENGINE ───────────────────────────────────────
-
-  async function fetchPriceTimeSeries(productId) {
-    if (!productId) return null;
-    try {
-      const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
-      const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json, text/javascript, */*; q=0.01'
-        },
-        credentials: 'same-origin',
-        body: postBody,
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        // If 2D array of series [[series0], [series1]]
-        if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-          // If shipping price is active and the shipping series exists, use it
-          if (isShippingPriceActive() && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-            return data[1];
-          }
-          return data[0]; // Series 0: Produktpreis
-        }
-        if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
-          return data; // Raw points [[t1, p1], [t2, p2]]
-        }
-      }
-      if (Array.isArray(data?.series)) return data.series;
-      if (Array.isArray(data?.data)) return data.data;
-      return null;
-    } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
-      return null;
-    }
-  }
-
-  const activeFetches = new Map();
-
-  async function interruptibleSleep(ms, shouldCancelFn = null) {
-    const step = 100;
-    let elapsed = 0;
-    while (elapsed < ms) {
-      if (shouldCancelFn && shouldCancelFn()) break;
-      const wait = Math.min(step, ms - elapsed);
-      await new Promise(r => setTimeout(r, wait));
-      elapsed += wait;
-    }
-  }
-
-  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
-    if (!productId) return null;
-    const cached = getCachedPriceStats(productId, forceFresh);
-    if (cached) {
-      if (cached.unavailable) return null;
-      return cached;
-    }
-
-    if (activeFetches.has(productId)) {
-      return activeFetches.get(productId);
-    }
-
-    const fetchPromise = (async () => {
-      try {
-        const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-        
-        // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
-        try {
-          const timeSeries = await fetchPriceTimeSeries(productId);
-          if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
-            const analysis = analyzePriceTimeSeries(timeSeries);
-            if (analysis && analysis.tiefstpreis > 0) {
-              analysis.isShippingPrice = isShippingPriceActive();
-              setCachedPriceStats(productId, analysis);
-              return analysis;
-            }
-          }
-        } catch (seriesErr) {}
-
-        // 2. Fallback route: GET HTML modal dialog
-        const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
-        let resHtml = null;
-        for (let attempt = 0; attempt <= retries; attempt++) {
-          if (shouldCancelFn && shouldCancelFn()) return null;
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 7000);
-            resHtml = await fetch(url, {
-              headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/html, */*; q=0.01'
-              },
-              credentials: 'same-origin',
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            if (resHtml.ok) break;
-
-            if (resHtml.status === 429) {
-              const retryAfterHeader = resHtml.headers?.get('Retry-After');
-              const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-              const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
-              if (onThrottle) {
-                onThrottle({ productId, attempt, backoffMs, status: resHtml.status });
-              }
-              if (attempt < retries) {
-                await interruptibleSleep(backoffMs, shouldCancelFn);
-              }
-            } else if (attempt < retries) {
-              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-            }
-          } catch (fetchErr) {
-            if (attempt < retries) {
-              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-            } else {
-              throw fetchErr;
-            }
-          }
-        }
-
-        if (!resHtml || !resHtml.ok) {
-          setCachedPriceStats(productId, null, true);
-          return null;
-        }
-        const html = await resHtml.text();
-        const stats = parsePriceStatsFromHtml(html);
-        if (stats) {
-          stats.isShippingPrice = isShippingPriceActive();
-          setCachedPriceStats(productId, stats);
-          return stats;
-        } else {
-          setCachedPriceStats(productId, null, true);
-        }
-      } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-        setCachedPriceStats(productId, null, true);
-      } finally {
-        activeFetches.delete(productId);
-      }
-      return null;
-    })();
-
-    activeFetches.set(productId, fetchPromise);
-    return fetchPromise;
-  }
-
-  let currentlyScanningPid = null;
-
-  async function runProductScanner(options = {}) {
-    const {
-      filterFn = () => true,
-      sortFn = null,
-      delayMs = 200,
-      shouldCancelFn = () => false,
-      onProgress = null,
-      onComplete = null,
-      onStatus = null
-    } = options;
-
-    const cards = getProductCards();
-    const targets = [];
-
-    for (const card of cards) {
-      const pid = getCardProductId(card);
-      if (!pid) continue;
-      const cached = getCachedPriceStats(pid);
-      if (cached) continue;
-      if (isCardIgnoredOrInvisible(card)) continue;
-      const discount = extractCardDiscount(card) ?? 0;
-      if (filterFn({ pid, card, discount })) {
-        targets.push({ pid, card, discount });
-      }
-    }
-
-    if (sortFn) {
-      targets.sort(sortFn);
-    }
-
-    const total = targets.length;
-    let completed = 0;
-
-    try {
-      for (let i = 0; i < targets.length; i++) {
-        if (shouldCancelFn()) break;
-        const item = targets[i];
-        currentlyScanningPid = item.pid;
-        processListings();
-
-        try {
-          await fetchSingleProductPriceStats(
-            item.pid,
-            2,
-            false,
-            throttleInfo => {
-              const secs = Math.ceil(throttleInfo.backoffMs / 1000);
-              if (onStatus) {
-                onStatus(`⏳ Rate-Limit (${secs}s Pause)...`);
-              }
-            },
-            shouldCancelFn
-          );
-        } finally {
-          currentlyScanningPid = null;
-        }
-
-        completed++;
-        if (onProgress) onProgress(completed, total);
-        processListings();
-        const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
-        await interruptibleSleep(delay, shouldCancelFn);
-      }
-    } finally {
-      currentlyScanningPid = null;
-    }
-
-    processListings();
-    if (onComplete) onComplete(completed, total);
-    return { completed, total };
-  }
-
-  let isBatchChecking = false;
-  let batchCancelRequested = false;
-
-  async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
-    if (isBatchChecking) {
-      batchCancelRequested = true;
-      return;
-    }
-    isBatchChecking = true;
-    batchCancelRequested = false;
-
-    try {
-      const isFeed = isNeueToppreisePage();
-      await runProductScanner({
-        filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
-        delayMs: () => 250 + Math.floor(Math.random() * 100),
-        shouldCancelFn: () => batchCancelRequested,
-        onProgress,
-        onComplete,
-        onStatus
-      });
-    } finally {
-      isBatchChecking = false;
-      batchCancelRequested = false;
-      processListings();
-    }
-  }
-
-  function cancelBatchDealCheck() {
-    batchCancelRequested = true;
-  }
-
-  let isBestpreiseScanning = false;
-  let bestpreiseScanCancel = false;
-
-  async function runBestpreiseScan(onProgress = null, onComplete = null) {
-    if (isBestpreiseScanning) {
-      bestpreiseScanCancel = true;
-      return;
-    }
-    isBestpreiseScanning = true;
-    bestpreiseScanCancel = false;
-
-    try {
-      await runProductScanner({
-        filterFn: () => true,
-        sortFn: (a, b) => b.discount - a.discount,
-        delayMs: 200,
-        shouldCancelFn: () => bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
-        onProgress,
-        onComplete
-      });
-    } finally {
-      isBestpreiseScanning = false;
-      bestpreiseScanCancel = false;
-      processListings();
-    }
-  }
-
-  function cancelBestpreiseScan() {
-    bestpreiseScanCancel = true;
-  }
 
 
   function isNeueToppreisePage() {

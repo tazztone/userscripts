@@ -23,8 +23,8 @@ function stripModuleSyntax(code) {
   return code
     // Remove top-level import statements
     .replace(/^import\s+[^;]+;\s*$/gm, '')
-    // Replace export function / export const / export let / export var / export class
-    .replace(/^export\s+(const|let|var|function|class)\s+/gm, '$1 ')
+    // Replace export function / export const / export let / export var / export class / export async function
+    .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s+/gm, '$1$2 ')
     // Remove export default / export { ... }
     .replace(/^export\s+default\s+[^;]+;\s*$/gm, '')
     .replace(/^export\s*\{[^}]*\}\s*;?\s*$/gm, '')
@@ -43,7 +43,10 @@ export function buildBundle() {
   const priceCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'price.js'), 'utf-8'));
   const dealScoreCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'deal-score.js'), 'utf-8'));
   const cacheCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'cache.js'), 'utf-8'));
+  const configCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'state', 'config.js'), 'utf-8'));
+  const storeCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'state', 'store.js'), 'utf-8'));
   const cardsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'cards.js'), 'utf-8'));
+  const scannerCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'scanner.js'), 'utf-8'));
   const modalCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'modal.js'), 'utf-8'));
   const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
   const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
@@ -108,8 +111,17 @@ ${indent(dealScoreCode, 2)}
   // ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────
 ${indent(cacheCode, 2)}
 
+  // ─── MODULE: src/state/config.js ────────────────────────────────────────────
+${indent(configCode, 2)}
+
+  // ─── MODULE: src/state/store.js ─────────────────────────────────────────────
+${indent(storeCode, 2)}
+
   // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
 ${indent(cardsCode, 2)}
+
+  // ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────
+${indent(scannerCode, 2)}
 
   // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
 ${indent(modalCode, 2)}
