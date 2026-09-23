@@ -385,17 +385,17 @@ def test_sparklines_beta_settings_toggle(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
     toggle = page.locator('#tp-root >> #tp-sparklines-toggle')
-    assert not toggle.is_checked()
-
-    # Toggle sparklines on via slider click
-    page.click('#tp-root >> #tp-sparklines-toggle + .tp-slider')
     assert toggle.is_checked()
+
+    # Toggle sparklines off via slider click
+    page.click('#tp-root >> #tp-sparklines-toggle + .tp-slider')
+    assert not toggle.is_checked()
 
     # Save
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
-    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.ENABLE_SPARKLINES") is True
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.ENABLE_SPARKLINES") is False
 
 
 

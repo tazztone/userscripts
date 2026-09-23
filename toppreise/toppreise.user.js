@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.43
+// @version      2.18.45
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -29,6 +29,10 @@
 
 const STYLES = `
   /* ─── HEATMAP CARD STYLES & DARKREADER DYNAMIC COMPATIBILITY ─── */
+  html body .tp-heatmap-active,
+  html body .Plugin_Product.tp-heatmap-active,
+  html body .mixedBrowsingListProduct.tp-heatmap-active,
+  html body a.Plugin_Product.tp-heatmap-active,
   .tp-heatmap-active,
   .Plugin_Product.tp-heatmap-active,
   .mixedBrowsingListProduct.tp-heatmap-active,
@@ -39,7 +43,6 @@ const STYLES = `
   .Plugin_Product.tp-heatmap-active[data-darkreader-inline-bgimage],
   .mixedBrowsingListProduct.tp-heatmap-active[data-darkreader-inline-bgimage] {
     background: var(--tp-heat-bg) !important;
-    background-color: transparent !important;
     background-image: var(--tp-heat-bg) !important;
     border: 1.5px solid var(--tp-heat-border) !important;
     border-color: var(--tp-heat-border) !important;
@@ -62,6 +65,19 @@ const STYLES = `
   .Plugin_Product.tp-heatmap-active .badge.badge-dif {
     box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 10px var(--tp-heat-border) !important;
   }
+  .tp-heatmap-active .row,
+  .tp-heatmap-active .col,
+  .tp-heatmap-active [class*="col-"],
+  .tp-heatmap-active .priceAvailabilityContainer,
+  .tp-heatmap-active .price-availability,
+  .tp-heatmap-active .offersContainer,
+  .tp-heatmap-active .offers,
+  .tp-heatmap-active .priceContainer,
+  .tp-heatmap-active .Plugin_Price,
+  .tp-heatmap-active .productPrice,
+  .tp-heatmap-active .shippingPrice,
+  .tp-heatmap-active .shippingText,
+  .tp-heatmap-active .manufacturer-image,
   .tp-heatmap-active .product-name,
   .tp-heatmap-active .product-name[data-darkreader-inline-bgcolor],
   .tp-heatmap-active .productDetails,
@@ -85,7 +101,10 @@ const STYLES = `
   .tp-heatmap-active .productImage,
   .tp-heatmap-active .productImage[data-darkreader-inline-bgcolor],
   .tp-heatmap-active .image_container,
-  .tp-heatmap-active .image_container[data-darkreader-inline-bgcolor] {
+  .tp-heatmap-active .image_container[data-darkreader-inline-bgcolor],
+  .tp-heatmap-active .image,
+  .tp-heatmap-active [data-darkreader-inline-bgcolor],
+  .tp-heatmap-active [data-darkreader-inline-bgimage] {
     background: transparent !important;
     background-color: transparent !important;
     --darkreader-inline-bgcolor: transparent !important;
@@ -733,7 +752,7 @@ const STYLES = `
     display: flex !important;
     flex-direction: column !important;
     gap: 8px !important;
-    z-index: 9990 !important;
+    z-index: 10 !important;
     position: relative !important;
   }
   .tp-filter-main-row {
@@ -1779,7 +1798,7 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_WEIGHT_RECORD: 0.50,
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
-    ENABLE_SPARKLINES: false,
+    ENABLE_SPARKLINES: true,
     NEGATIVE_TERMS: '',
     EXCLUDED_CATEGORIES: [],
     MIN_OFFERS: 0,
@@ -3088,15 +3107,25 @@ const SHADOW_MODAL_STYLES = `
         card.style.setProperty('--darkreader-inline-border-left', heatStyles.border);
         card.style.setProperty('background', heatStyles.bg, 'important');
         card.style.setProperty('background-image', heatStyles.bg, 'important');
-        card.style.setProperty('background-color', 'transparent', 'important');
         card.style.setProperty('border-color', heatStyles.border, 'important');
 
         if (card.hasAttribute('data-darkreader-inline-bgcolor')) card.removeAttribute('data-darkreader-inline-bgcolor');
         if (card.hasAttribute('data-darkreader-inline-bgimage')) card.removeAttribute('data-darkreader-inline-bgimage');
 
-        const subElements = card.querySelectorAll('.product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, .f_product_info, .productDescription, .productDetailsDescription');
+        const subElements = card.querySelectorAll(
+          '.row, .col, [class*="col-"], .priceAvailabilityContainer, .price-availability, ' +
+          '.offersContainer, .offers, .priceContainer, .Plugin_Price, .productPrice, .shippingPrice, .shippingText, ' +
+          '.manufacturer-image, .product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, ' +
+          '.f_product_info, .productDescription, .productDetailsDescription, .product-details, .f_product_container, ' +
+          '.product-image, .productImage, .image_container, .image, [data-darkreader-inline-bgcolor], [data-darkreader-inline-bgimage]'
+        );
         for (let s = 0; s < subElements.length; s++) {
           const sub = subElements[s];
+          if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
+              sub.classList.contains('tp-best-price-badge') || sub.classList.contains('tp-card-quick-block') ||
+              sub.classList.contains('tp-sparkline-container') || sub.tagName === 'BUTTON') {
+            continue;
+          }
           if (sub.hasAttribute('data-darkreader-inline-bgcolor')) sub.removeAttribute('data-darkreader-inline-bgcolor');
           if (sub.hasAttribute('data-darkreader-inline-bgimage')) sub.removeAttribute('data-darkreader-inline-bgimage');
           sub.style.setProperty('background-color', 'transparent', 'important');

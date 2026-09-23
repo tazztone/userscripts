@@ -82,15 +82,25 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       card.style.setProperty('--darkreader-inline-border-left', heatStyles.border);
       card.style.setProperty('background', heatStyles.bg, 'important');
       card.style.setProperty('background-image', heatStyles.bg, 'important');
-      card.style.setProperty('background-color', 'transparent', 'important');
       card.style.setProperty('border-color', heatStyles.border, 'important');
 
       if (card.hasAttribute('data-darkreader-inline-bgcolor')) card.removeAttribute('data-darkreader-inline-bgcolor');
       if (card.hasAttribute('data-darkreader-inline-bgimage')) card.removeAttribute('data-darkreader-inline-bgimage');
 
-      const subElements = card.querySelectorAll('.product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, .f_product_info, .productDescription, .productDetailsDescription');
+      const subElements = card.querySelectorAll(
+        '.row, .col, [class*="col-"], .priceAvailabilityContainer, .price-availability, ' +
+        '.offersContainer, .offers, .priceContainer, .Plugin_Price, .productPrice, .shippingPrice, .shippingText, ' +
+        '.manufacturer-image, .product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, ' +
+        '.f_product_info, .productDescription, .productDetailsDescription, .product-details, .f_product_container, ' +
+        '.product-image, .productImage, .image_container, .image, [data-darkreader-inline-bgcolor], [data-darkreader-inline-bgimage]'
+      );
       for (let s = 0; s < subElements.length; s++) {
         const sub = subElements[s];
+        if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
+            sub.classList.contains('tp-best-price-badge') || sub.classList.contains('tp-card-quick-block') ||
+            sub.classList.contains('tp-sparkline-container') || sub.tagName === 'BUTTON') {
+          continue;
+        }
         if (sub.hasAttribute('data-darkreader-inline-bgcolor')) sub.removeAttribute('data-darkreader-inline-bgcolor');
         if (sub.hasAttribute('data-darkreader-inline-bgimage')) sub.removeAttribute('data-darkreader-inline-bgimage');
         sub.style.setProperty('background-color', 'transparent', 'important');

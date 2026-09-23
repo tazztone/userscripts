@@ -6,6 +6,10 @@
 
 export const STYLES = `
   /* ─── HEATMAP CARD STYLES & DARKREADER DYNAMIC COMPATIBILITY ─── */
+  html body .tp-heatmap-active,
+  html body .Plugin_Product.tp-heatmap-active,
+  html body .mixedBrowsingListProduct.tp-heatmap-active,
+  html body a.Plugin_Product.tp-heatmap-active,
   .tp-heatmap-active,
   .Plugin_Product.tp-heatmap-active,
   .mixedBrowsingListProduct.tp-heatmap-active,
@@ -16,7 +20,6 @@ export const STYLES = `
   .Plugin_Product.tp-heatmap-active[data-darkreader-inline-bgimage],
   .mixedBrowsingListProduct.tp-heatmap-active[data-darkreader-inline-bgimage] {
     background: var(--tp-heat-bg) !important;
-    background-color: transparent !important;
     background-image: var(--tp-heat-bg) !important;
     border: 1.5px solid var(--tp-heat-border) !important;
     border-color: var(--tp-heat-border) !important;
@@ -39,6 +42,19 @@ export const STYLES = `
   .Plugin_Product.tp-heatmap-active .badge.badge-dif {
     box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 10px var(--tp-heat-border) !important;
   }
+  .tp-heatmap-active .row,
+  .tp-heatmap-active .col,
+  .tp-heatmap-active [class*="col-"],
+  .tp-heatmap-active .priceAvailabilityContainer,
+  .tp-heatmap-active .price-availability,
+  .tp-heatmap-active .offersContainer,
+  .tp-heatmap-active .offers,
+  .tp-heatmap-active .priceContainer,
+  .tp-heatmap-active .Plugin_Price,
+  .tp-heatmap-active .productPrice,
+  .tp-heatmap-active .shippingPrice,
+  .tp-heatmap-active .shippingText,
+  .tp-heatmap-active .manufacturer-image,
   .tp-heatmap-active .product-name,
   .tp-heatmap-active .product-name[data-darkreader-inline-bgcolor],
   .tp-heatmap-active .productDetails,
@@ -62,7 +78,10 @@ export const STYLES = `
   .tp-heatmap-active .productImage,
   .tp-heatmap-active .productImage[data-darkreader-inline-bgcolor],
   .tp-heatmap-active .image_container,
-  .tp-heatmap-active .image_container[data-darkreader-inline-bgcolor] {
+  .tp-heatmap-active .image_container[data-darkreader-inline-bgcolor],
+  .tp-heatmap-active .image,
+  .tp-heatmap-active [data-darkreader-inline-bgcolor],
+  .tp-heatmap-active [data-darkreader-inline-bgimage] {
     background: transparent !important;
     background-color: transparent !important;
     --darkreader-inline-bgcolor: transparent !important;
@@ -710,7 +729,7 @@ export const STYLES = `
     display: flex !important;
     flex-direction: column !important;
     gap: 8px !important;
-    z-index: 9990 !important;
+    z-index: 10 !important;
     position: relative !important;
   }
   .tp-filter-main-row {
