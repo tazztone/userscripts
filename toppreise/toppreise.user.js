@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.38
+// @version      2.18.39
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -55,6 +55,14 @@ const DEFAULTS = {
 };
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
+
+// ─── STYLES ──────────────────────────────────────────────────────────────────
+/**
+ * CSS Stylesheets for Toppreise.ch Suite
+ * Contains main document styles (heatmap, badges, pills, filter bar, toasts)
+ * and isolated Shadow DOM modal dialog styles.
+ */
+
 const STYLES = `
   /* ─── HEATMAP CARD STYLES & DARKREADER DYNAMIC COMPATIBILITY ─── */
   .tp-heatmap-active,
@@ -1123,8 +1131,6 @@ const SHADOW_MODAL_STYLES = `
   }
 `;
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 (() => {
   'use strict';
 
@@ -1171,6 +1177,88 @@ const SHADOW_MODAL_STYLES = `
       activeStoreFilters: '.filters .f_remove_filter[data-target-type="df"]'
     })
   });
+
+  // ─── MODULE: src/domain/category.js ─────────────────────────────────────────
+  /**
+   * Category & Taxonomy Domain Layer
+   * Manages category group mapping, emojis, brand rules, root slug normalization,
+   * and category exclusion checks.
+   */
+
+  const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+
+  const ROOT_SLUG_MAP = Object.freeze({
+    'computer-zubehoer': 'Computer & Zubehör', 'videogames': 'Videogames', 'tv-video': 'TV & Video',
+    'foto-video': 'Foto & Video', 'foto': 'Foto & Video', 'smartphones-mobiltelefone': 'Smartphones & Mobiltelefone',
+    'hifi-audio': 'HiFi & Audio', 'haushalt-kueche': 'Haushalt & Küche', 'drogerie': 'Drogerie',
+    'sport-freizeit': 'Sport & Freizeit', 'spielwaren': 'Spielwaren', 'buerobedarf-schreibwaren': 'Bürobedarf & Schreibwaren',
+    'haus-garten': 'Garten & Baumarkt', 'garten-baumarkt': 'Garten & Baumarkt', 'werkzeuge-werkstatt': 'Garten & Baumarkt',
+    'auto-motorrad': 'Auto & Motorrad', 'filme': 'Filme', 'uhren': 'Uhren', 'buecher-medien': 'Bücher & Medien',
+    'kleidung-mode': 'Kleidung & Mode', 'bekleidung-schuhe': 'Kleidung & Mode'
+  });
+
+  const GROUP_EMOJIS = Object.freeze({
+    'Filme': '🎬', 'Spielwaren': '🧸', 'Computer & Zubehör': '💻', 'Videogames': '🎮', 'HiFi & Audio': '🎧',
+    'TV & Video': '📺', 'Smartphones & Mobiltelefone': '📱', 'Drogerie': '🧴', 'Sport & Freizeit': '⚽',
+    'Haushalt & Küche': '☕', 'Auto & Motorrad': '🚗', 'Uhren': '⌚', 'Foto & Video': '📷', 'Bücher & Medien': '📚',
+    'Kleidung & Mode': '👕', 'Garten & Baumarkt': '🪴', 'Sonstiges': '📦'
+  });
+
+  const getGroupEmoji = g => GROUP_EMOJIS[g] || '📦';
+  const normalizeRootSlug = s => s ? ROOT_SLUG_MAP[s.split('-c')[0].toLowerCase().trim()] || null : null;
+
+  function extractCategoryDisplay(key) {
+    if (!key) return { label: '', group: '' };
+    if (key.startsWith('GROUP:')) return { label: key.slice(6), group: key.slice(6) };
+    if (key.startsWith('PATH:')) {
+      const parts = key.slice(5).split('/');
+      return { label: parts.slice(1).join('/') || parts[0] || '', group: parts[0] || '' };
+    }
+    return { label: key, group: '' };
+  }
+
+  const BRAND_RULES = Object.freeze([
+    { regex: /\b(game|games|spiel|spiele|nintendo|switch|playstation|ps[3-5]|xbox|pc spiele|konsole|konsolen|gamepad|controller|lenkrad|vr headset|amiibo|simulationen|rennspiel|actionspiele|tabletop spiele)\b/i, group: 'Videogames' },
+    { regex: /\b(lego[s]?|playmobil|cobi|cada|mega construx|fischertechnik|ravensburger|schleich|barbie|hot wheels|action figuren|funko|nerf|spielwaren|spielzeug|puppe[n]?|plue?sch|autorennbahn|rc modelle|multicopter|puzzles|gesellschaftsspiele|familienspiele|kartenspiele|experimentierkaesten|bau konstruktionsspielzeug|outdoor spielzeug|spielzeugroboter)\b/i, group: 'Spielwaren' },
+    { regex: /\b(reifen|pneus|sommerreifen|winterreifen|allwetterreifen|felgen|dachbox(?:en)?|dachtrae?ger|kindersitz(?:e)?|autozubehoer|car hifi|car video|motorradhelm|dashcam)\b/i, group: 'Auto & Motorrad' },
+    { regex: /\b(fritteuse[n]?|heissluftfritteuse[n]?|vollautomat(?:en)?|kaffee|espressomaschine[n]?|kaffeemue?hle|kue?chengera?e?te?|haushaltsgera?e?te?|staubsauger|saugroboter|wischroboter|fensterreinigungsroboter|mikrowelle[n]?|backofen|herd|kue?hlschrank|gefrierschrank|geschirrspue?ler|waschmaschine[n]?|wae?schetrockner|mixer|blender|wasserkocher|toaster|thermoskanne|abfallsystem|raumduft|dampfgarer|slowcooker|saftpresse|entsafter|geschirr|besteck|glae?ser|toe?pfe?|pfanne[n]?|kochgeschirr|spirituosen|wein|whisky|gin|rum|vodka|saug und wischroboter|klimageraete|senseo maschinen|sonstige kuechengeraete)\b/i, group: 'Haushalt & Küche' },
+    { regex: /\b(haarglae?tter|glae?tteisen|bartschneider|haarschneider|haar bartschneider|rasierer|elektrorasierer|epilierer|haartrockner|foe?hn|zahnbue?rste[n]?|elektrozahnbue?rste[n]?|parfu?e?m|due?fte?|eau de|duschpflege|duschgel|shampoo|seife|geschenkset[s]?|hautpflege|koe?rperpflege|kosmetik|make-up|makeup|sonnenschutz|kontaktlinsen|hygiene)\b/i, group: 'Drogerie' },
+    { regex: /\b(smartphone[s]?|mobiltelefon[e]?|handy[s]?|iphone|galaxy|pixel|smartring[e]?|smartwatch(es)?|activity tracker|hue?lle[n]?|cover|oberschalen cover|schutzfolie|panzerglas|ladekabel|powerbank[s]?|magsafe|funktelefon|festnetz)\b/i, group: 'Smartphones & Mobiltelefone' },
+    { regex: /\b(kopfhoe?rer|in-ear|earbuds|lautsprecher|bluetooth lautsprecher|soundbar|plattenspieler|receiver|av receiver|home cinema av receiver|verstae?rker|hifi|radio|cd player|dac|subwoofer|mikrofon|musikinstrument|gitarre|piano|keyboard)\b/i, group: 'HiFi & Audio' },
+    { regex: /\b(tv|fernseher|tv geraete|beamer|projektor|home cinema|heimkino|blu-ray player|dvd player|actioncam|actionkamera|camcorder|media player|streaming stick|chromecast|apple tv)\b/i, group: 'TV & Video' },
+    { regex: /\b(kamera[s]?|digitalkamera|spiegellose|dslr|objektiv[e]?|stativ[e]?|blitz|fotostudio|drohne|sofortbildkamera)\b/i, group: 'Foto & Video' },
+    { regex: /\b(dvd|blu-ray|blu ray|4k ultra hd|film[e]?|kino|serie|tv serien|western|abenteuer|action|krimi|drama|komoe?die|thriller|horror|anime|dokumentation)\b/i, group: 'Filme' },
+    { regex: /\b(crosstrainer|laufband|laufbae?nder|ergometer|rudergera?e?t|fitness|krafttraining|fitness krafttraining|hantel[n]?|matten|velo[s]?|fahrrad|ebike|e-bike|velohelm|skihelme|skibrille|skihelm|koffer|rucksack|taschenmesser|fernglas|camping|zelt|schlafsack|tretroller|scooter|inline skates|gps|gps navigations geraete|navigation|navigations|activity tracker smartwatches)\b/i, group: 'Sport & Freizeit' },
+    { regex: /\b(rasenmae?her|rasenroboter|grill|gasgrill|elektrogrill|holzkohlegrill|bohrmaschine|akkuschrauber|sae?ge|schleifer|schwingschleifer|schalter|taster|steckdose|lampe[n]?|leuchtmittel|led|smart home|gartenmoe?bel|hochdruckreiniger|werkzeug[e]?)\b/i, group: 'Garten & Baumarkt' },
+    { regex: /\b(uhr[en]?|armbanduhr|damenuhr|herrenuhr|chronograph|automatikuhr|wanduhr|wecker)\b/i, group: 'Uhren' },
+    { regex: /\b(kleidung|bekleidung|jacke[n]?|hose[n]?|t-shirt|pullover|hemd|kleid|schuhe|sneaker|stiefel|tasche[n]?|handtasche|rucksack|sonnenbrille[n]?|schmuck|ring|kette)\b/i, group: 'Kleidung & Mode' },
+    { regex: /\b(buch|bue?cher|roman|taschenbuch|sachbuch|hoe?rbuch|comic|manga|zeitschrift)\b/i, group: 'Bücher & Medien' },
+    { regex: /\b(usb|speicherstick[s]?|ssd|hdds?|solid state|festplatte[n]?|grafikkarte[n]?|notebook[s]?|laptop[s]?|tablet[s]?|ebook|monitore|monitor|drucker|scanner|nas|mainboard[s]?|prozessor[en]?|cpu|gpu|pc gehaeuse|netzteil[e]?|ladegera?e?t[e]?|ladegeraete netzadapter|kabel|hub|dockingstation|tastatur[en]?|maus|mae?use|mausmatte|webcam[s]?|headset|aktenvernichter|papierschredder|arbeitsspeicher|ram|netzwerk|wlan|router|switch|server|western digital|externe solid state drives ssd|usb speichersticks)\b/i, group: 'Computer & Zubehör' }
+  ]);
+
+  function resolveCategoryGroup(categoryName, card = null, cardHrefsGetter = null) {
+    if (card && cardHrefsGetter) {
+      for (const href of cardHrefsGetter(card)) {
+        const match = href.match(/\/(?:preisvergleich|produktsuche)\/([^\/]+)\//i);
+        if (match && match[1]) {
+          for (const seg of match[1].split('/').filter(Boolean)) {
+            const canonical = normalizeRootSlug(seg);
+            if (canonical) return canonical;
+            const normSeg = seg.toLowerCase().replace(/-/g, ' ');
+            for (const rule of BRAND_RULES) if (rule.regex.test(normSeg)) return rule.group;
+          }
+        }
+      }
+    }
+    if (categoryName) {
+      const norm = categoryName.toLowerCase();
+      for (const rule of BRAND_RULES) if (rule.regex.test(norm)) return rule.group;
+    }
+    return 'Sonstiges';
+  }
+
+  const isPathExcluded = (catName, rootGroup, excludedCats = []) =>
+    excludedCats.includes(`GROUP:${rootGroup}`) || (catName && (excludedCats.includes(catName) || excludedCats.includes(`PATH:${rootGroup}/${catName}`)));
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
   /**
@@ -1699,254 +1787,18 @@ const SHADOW_MODAL_STYLES = `
 
   const getCachedProductCount = countCachedPriceStats;
 
-  // ─── APPLICATION & UI LOGIC ─────────────────────────────────────────────────
-// Compact GM_getValue + localStorage Fallback
-  const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null')) ?? def;
-  const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)));
+  // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
+  /**
+   * Page & Card Extraction Layer
+   * Manages card discovery, ID extraction, DOM query memoization,
+   * discount extraction, category resolution, and heatmap styling.
+   */
 
-  const CONFIG = {
-    FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
-    FILTER_CAT_ENABLED: _getValue('FILTER_CAT_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_CAT_ENABLED)),
-    FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
-    FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
-    MODE: _getValue('MODE', DEFAULTS.MODE),
-    MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
-    DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
-    USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
-    HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
-    HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-    HEATMAP_CURVE: _getValue('HEATMAP_CURVE', DEFAULTS.HEATMAP_CURVE),
-    REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
-    REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
-    BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
-    BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
-    ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
-    NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
-    EXCLUDED_CATEGORIES: _getValue('EXCLUDED_CATEGORIES', DEFAULTS.EXCLUDED_CATEGORIES),
-    MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
-    SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
-    ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
-    ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
-    ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
-    ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
-    ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
-    ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
-    OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-    DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
-  };
 
-  let uiShadowRoot = null;
 
-  const saveConfigKey = (key, val) => {
-    CONFIG[key] = val;
-    _setValue(key, val);
-  };
 
-  const CONFIG_BODY_KEYS = new Set(['MODE', 'DIM_OPACITY']);
 
-  function syncUiControl(key, val) {
-    // 1. Sync Settings Modal (Shadow DOM) if open/exists
-    if (uiShadowRoot) {
-      try {
-        switch (key) {
-          case 'MODE': {
-            const el = uiShadowRoot.querySelector(`input[name="tp-mode"][value="${val}"]`);
-            if (el) el.checked = true;
-            break;
-          }
-          case 'DIM_OPACITY': {
-            const range = uiShadowRoot.getElementById('tp-opacity-range');
-            const label = uiShadowRoot.getElementById('tp-opacity-val');
-            if (range) range.value = val;
-            if (label) label.textContent = `${Math.round(val * 100)}%`;
-            break;
-          }
-          case 'NEGATIVE_TERMS': {
-            const input = uiShadowRoot.getElementById('tp-negative-terms-input');
-            if (input && input.value !== val) input.value = val || '';
-            break;
-          }
-          case 'MIN_OFFERS': {
-            const input = uiShadowRoot.getElementById('tp-min-offers-val');
-            const range = uiShadowRoot.getElementById('tp-min-offers-range');
-            if (input) input.value = val;
-            if (range) range.value = val;
-            break;
-          }
-          case 'HEATMAP_ENABLED': {
-            const toggle = uiShadowRoot.getElementById('tp-heatmap-enabled-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'BESTPREISE_MODE_ACTIVE': {
-            const toggle = uiShadowRoot.getElementById('tp-bestpreise-mode-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'BESTPREISE_WEIGHT_RECORD': {
-            const range = uiShadowRoot.getElementById('tp-bestpreise-weight-range');
-            const valEl = uiShadowRoot.getElementById('tp-bestpreise-weight-val');
-            const descEl = uiShadowRoot.getElementById('tp-bestpreise-weight-desc');
-            const pct = Math.round((val ?? 0.5) * 100);
-            if (range) range.value = pct;
-            if (valEl) valEl.textContent = `${pct}%`;
-            if (descEl) {
-              if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
-              else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
-              else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median`;
-            }
-            break;
-          }
-          case 'REAL_DEAL_MIN_DISCOUNT': {
-            const range = uiShadowRoot.getElementById('tp-real-deal-min-range');
-            const valEl = uiShadowRoot.getElementById('tp-real-deal-min-val');
-            if (range) range.value = val;
-            if (valEl) valEl.value = val;
-            break;
-          }
-          case 'REAL_DEAL_FILTER_ACTIVE': {
-            const toggle = uiShadowRoot.getElementById('tp-real-deal-filter-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'USE_SHIPPING_PRICE': {
-            const toggle = uiShadowRoot.getElementById('tp-use-shipping-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-          case 'ENABLE_SPARKLINES': {
-            const toggle = uiShadowRoot.getElementById('tp-sparklines-toggle');
-            if (toggle) toggle.checked = !!val;
-            break;
-          }
-        }
-      } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
-      }
-    }
 
-    // 2. Sync Inline Filter Bar if present
-    const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
-    if (bar) {
-      try {
-        switch (key) {
-          case 'NEGATIVE_TERMS': {
-            const input = bar.querySelector('#tp-inline-negative-input');
-            const clearBtn = bar.querySelector('#tp-clear-neg-btn');
-            if (input && document.activeElement !== input && input.value !== val) {
-              input.value = val || '';
-            }
-            if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
-            break;
-          }
-          case 'HEATMAP_ENABLED': {
-            const heatBtn = bar.querySelector('#tp-bar-heat-btn');
-            if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
-            break;
-          }
-          case 'BESTPREISE_MODE_ACTIVE': {
-            const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
-            if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
-            bar.classList.toggle('tp-bestpreise-bar', val === true);
-            break;
-          }
-          case 'FILTER_NEG_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-neg');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'FILTER_CAT_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-cat');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'FILTER_MIN_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-min');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'FILTER_BESTPREIS_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-bestpreis');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
-          case 'MIN_OFFERS': {
-            const minVal = bar.querySelector('#tp-bar-min-val');
-            if (minVal) minVal.textContent = val;
-            break;
-          }
-          case 'REAL_DEAL_MIN_DISCOUNT': {
-            const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
-            if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
-            bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
-              btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
-            });
-            break;
-          }
-          case 'EXCLUDED_CATEGORIES': {
-            const catsCount = bar.querySelector('#tp-bar-cats-count');
-            const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
-            const count = (val || []).length;
-            if (catsCount) catsCount.textContent = count;
-            if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
-            break;
-          }
-        }
-      } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl bar error', err);
-      }
-    }
-  }
-
-  function updateConfig(key, val, options = {}) {
-    saveConfigKey(key, val);
-    if (!options.skipUiSync) {
-      syncUiControl(key, val);
-    }
-    if (CONFIG_BODY_KEYS.has(key)) {
-      updateBodyClasses();
-    }
-    if (!options.skipRender) {
-      processListings();
-    }
-  }
-
-  function updateConfigs(entries, options = {}) {
-    let requiresBodyUpdate = false;
-    for (const [k, v] of Object.entries(entries)) {
-      saveConfigKey(k, v);
-      if (!options.skipUiSync) {
-        syncUiControl(k, v);
-      }
-      if (CONFIG_BODY_KEYS.has(k)) {
-        requiresBodyUpdate = true;
-      }
-    }
-    if (requiresBodyUpdate) {
-      updateBodyClasses();
-    }
-    if (!options.skipRender) {
-      processListings();
-    }
-  }
-
-  // ─── DOM QUERY MEMOIZATION ──────────────────────────────────────────────────
   function getCardDealerRows(card) {
     if (!card._tpDealerRows) {
       card._tpDealerRows = Array.from(card.querySelectorAll(SELECTORS.cards.dealerRows)).map(row => ({
@@ -1956,108 +1808,6 @@ const SHADOW_MODAL_STYLES = `
     }
     return card._tpDealerRows;
   }
-
-  function clearCardCache(card) {
-    if (!card) return;
-    delete card._tpDealerRows;
-    delete card._tpTextLower;
-    delete card._tpPriceInfo;
-  }
-
-  const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ...args); };
-
-  if (!document.getElementById('tp-unified-settings-styles')) {
-    const styleEl = document.createElement('style');
-    styleEl.id = 'tp-unified-settings-styles';
-    styleEl.textContent = STYLES;
-    document.head.appendChild(styleEl);
-  }
-
-  let isBlockedCatsOpen = false;
-
-  function updateBodyClasses() {
-    document.body.classList.remove('tp-mode-dim', 'tp-mode-hide', 'tp-mode-highlight-only');
-    document.body.classList.add(`tp-mode-${CONFIG.MODE}`);
-    document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
-  }
-  updateBodyClasses();
-
-  const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-
-  const ROOT_SLUG_MAP = {
-    'computer-zubehoer': 'Computer & Zubehör', 'videogames': 'Videogames', 'tv-video': 'TV & Video',
-    'foto-video': 'Foto & Video', 'foto': 'Foto & Video', 'smartphones-mobiltelefone': 'Smartphones & Mobiltelefone',
-    'hifi-audio': 'HiFi & Audio', 'haushalt-kueche': 'Haushalt & Küche', 'drogerie': 'Drogerie',
-    'sport-freizeit': 'Sport & Freizeit', 'spielwaren': 'Spielwaren', 'buerobedarf-schreibwaren': 'Bürobedarf & Schreibwaren',
-    'haus-garten': 'Garten & Baumarkt', 'garten-baumarkt': 'Garten & Baumarkt', 'werkzeuge-werkstatt': 'Garten & Baumarkt',
-    'auto-motorrad': 'Auto & Motorrad', 'filme': 'Filme', 'uhren': 'Uhren', 'buecher-medien': 'Bücher & Medien',
-    'kleidung-mode': 'Kleidung & Mode', 'bekleidung-schuhe': 'Kleidung & Mode'
-  };
-
-  const GROUP_EMOJIS = {
-    'Filme': '🎬', 'Spielwaren': '🧸', 'Computer & Zubehör': '💻', 'Videogames': '🎮', 'HiFi & Audio': '🎧',
-    'TV & Video': '📺', 'Smartphones & Mobiltelefone': '📱', 'Drogerie': '🧴', 'Sport & Freizeit': '⚽',
-    'Haushalt & Küche': '☕', 'Auto & Motorrad': '🚗', 'Uhren': '⌚', 'Foto & Video': '📷', 'Bücher & Medien': '📚',
-    'Kleidung & Mode': '👕', 'Garten & Baumarkt': '🪴', 'Sonstiges': '📦'
-  };
-
-  const getGroupEmoji = g => GROUP_EMOJIS[g] || '📦';
-  const normalizeRootSlug = s => s ? ROOT_SLUG_MAP[s.split('-c')[0].toLowerCase().trim()] || null : null;
-
-  function extractCategoryDisplay(key) {
-    if (!key) return { label: '', group: '' };
-    if (key.startsWith('GROUP:')) return { label: key.slice(6), group: key.slice(6) };
-    if (key.startsWith('PATH:')) {
-      const parts = key.slice(5).split('/');
-      return { label: parts.slice(1).join('/') || parts[0] || '', group: parts[0] || '' };
-    }
-    return { label: key, group: '' };
-  }
-
-  const BRAND_RULES = [
-    { regex: /\b(game|games|spiel|spiele|nintendo|switch|playstation|ps[3-5]|xbox|pc spiele|konsole|konsolen|gamepad|controller|lenkrad|vr headset|amiibo|simulationen|rennspiel|actionspiele|tabletop spiele)\b/i, group: 'Videogames' },
-    { regex: /\b(lego[s]?|playmobil|cobi|cada|mega construx|fischertechnik|ravensburger|schleich|barbie|hot wheels|action figuren|funko|nerf|spielwaren|spielzeug|puppe[n]?|plue?sch|autorennbahn|rc modelle|multicopter|puzzles|gesellschaftsspiele|familienspiele|kartenspiele|experimentierkaesten|bau konstruktionsspielzeug|outdoor spielzeug|spielzeugroboter)\b/i, group: 'Spielwaren' },
-    { regex: /\b(reifen|pneus|sommerreifen|winterreifen|allwetterreifen|felgen|dachbox(?:en)?|dachtrae?ger|kindersitz(?:e)?|autozubehoer|car hifi|car video|motorradhelm|dashcam)\b/i, group: 'Auto & Motorrad' },
-    { regex: /\b(fritteuse[n]?|heissluftfritteuse[n]?|vollautomat(?:en)?|kaffee|espressomaschine[n]?|kaffeemue?hle|kue?chengera?e?te?|haushaltsgera?e?te?|staubsauger|saugroboter|wischroboter|fensterreinigungsroboter|mikrowelle[n]?|backofen|herd|kue?hlschrank|gefrierschrank|geschirrspue?ler|waschmaschine[n]?|wae?schetrockner|mixer|blender|wasserkocher|toaster|thermoskanne|abfallsystem|raumduft|dampfgarer|slowcooker|saftpresse|entsafter|geschirr|besteck|glae?ser|toe?pfe?|pfanne[n]?|kochgeschirr|spirituosen|wein|whisky|gin|rum|vodka|saug und wischroboter|klimageraete|senseo maschinen|sonstige kuechengeraete)\b/i, group: 'Haushalt & Küche' },
-    { regex: /\b(haarglae?tter|glae?tteisen|bartschneider|haarschneider|haar bartschneider|rasierer|elektrorasierer|epilierer|haartrockner|foe?hn|zahnbue?rste[n]?|elektrozahnbue?rste[n]?|parfu?e?m|due?fte?|eau de|duschpflege|duschgel|shampoo|seife|geschenkset[s]?|hautpflege|koe?rperpflege|kosmetik|make-up|makeup|sonnenschutz|kontaktlinsen|hygiene)\b/i, group: 'Drogerie' },
-    { regex: /\b(smartphone[s]?|mobiltelefon[e]?|handy[s]?|iphone|galaxy|pixel|smartring[e]?|smartwatch(es)?|activity tracker|hue?lle[n]?|cover|oberschalen cover|schutzfolie|panzerglas|ladekabel|powerbank[s]?|magsafe|funktelefon|festnetz)\b/i, group: 'Smartphones & Mobiltelefone' },
-    { regex: /\b(kopfhoe?rer|in-ear|earbuds|lautsprecher|bluetooth lautsprecher|soundbar|plattenspieler|receiver|av receiver|home cinema av receiver|verstae?rker|hifi|radio|cd player|dac|subwoofer|mikrofon|musikinstrument|gitarre|piano|keyboard)\b/i, group: 'HiFi & Audio' },
-    { regex: /\b(tv|fernseher|tv geraete|beamer|projektor|home cinema|heimkino|blu-ray player|dvd player|actioncam|actionkamera|camcorder|media player|streaming stick|chromecast|apple tv)\b/i, group: 'TV & Video' },
-    { regex: /\b(kamera[s]?|digitalkamera|spiegellose|dslr|objektiv[e]?|stativ[e]?|blitz|fotostudio|drohne|sofortbildkamera)\b/i, group: 'Foto & Video' },
-    { regex: /\b(dvd|blu-ray|blu ray|4k ultra hd|film[e]?|kino|serie|tv serien|western|abenteuer|action|krimi|drama|komoe?die|thriller|horror|anime|dokumentation)\b/i, group: 'Filme' },
-    { regex: /\b(crosstrainer|laufband|laufbae?nder|ergometer|rudergera?e?t|fitness|krafttraining|fitness krafttraining|hantel[n]?|matten|velo[s]?|fahrrad|ebike|e-bike|velohelm|skihelme|skibrille|skihelm|koffer|rucksack|taschenmesser|fernglas|camping|zelt|schlafsack|tretroller|scooter|inline skates|gps|gps navigations geraete|navigation|navigations|activity tracker smartwatches)\b/i, group: 'Sport & Freizeit' },
-    { regex: /\b(rasenmae?her|rasenroboter|grill|gasgrill|elektrogrill|holzkohlegrill|bohrmaschine|akkuschrauber|sae?ge|schleifer|schwingschleifer|schalter|taster|steckdose|lampe[n]?|leuchtmittel|led|smart home|gartenmoe?bel|hochdruckreiniger|werkzeug[e]?)\b/i, group: 'Garten & Baumarkt' },
-    { regex: /\b(uhr[en]?|armbanduhr|damenuhr|herrenuhr|chronograph|automatikuhr|wanduhr|wecker)\b/i, group: 'Uhren' },
-    { regex: /\b(kleidung|bekleidung|jacke[n]?|hose[n]?|t-shirt|pullover|hemd|kleid|schuhe|sneaker|stiefel|tasche[n]?|handtasche|rucksack|sonnenbrille[n]?|schmuck|ring|kette)\b/i, group: 'Kleidung & Mode' },
-    { regex: /\b(buch|bue?cher|roman|taschenbuch|sachbuch|hoe?rbuch|comic|manga|zeitschrift)\b/i, group: 'Bücher & Medien' },
-    { regex: /\b(usb|speicherstick[s]?|ssd|hdds?|solid state|festplatte[n]?|grafikkarte[n]?|notebook[s]?|laptop[s]?|tablet[s]?|ebook|monitore|monitor|drucker|scanner|nas|mainboard[s]?|prozessor[en]?|cpu|gpu|pc gehaeuse|netzteil[e]?|ladegera?e?t[e]?|ladegeraete netzadapter|kabel|hub|dockingstation|tastatur[en]?|maus|mae?use|mausmatte|webcam[s]?|headset|aktenvernichter|papierschredder|arbeitsspeicher|ram|netzwerk|wlan|router|switch|server|western digital|externe solid state drives ssd|usb speichersticks)\b/i, group: 'Computer & Zubehör' }
-  ];
-
-  function resolveCategoryGroup(categoryName, card = null) {
-    if (card) {
-      for (const href of getCardHrefs(card)) {
-        const match = href.match(/\/(?:preisvergleich|produktsuche)\/([^\/]+)\//i);
-        if (match && match[1]) {
-          for (const seg of match[1].split('/').filter(Boolean)) {
-            const canonical = normalizeRootSlug(seg);
-            if (canonical) return canonical;
-            const normSeg = seg.toLowerCase().replace(/-/g, ' ');
-            for (const rule of BRAND_RULES) if (rule.regex.test(normSeg)) return rule.group;
-          }
-        }
-      }
-    }
-    if (categoryName) {
-      const norm = categoryName.toLowerCase();
-      for (const rule of BRAND_RULES) if (rule.regex.test(norm)) return rule.group;
-    }
-    return 'Sonstiges';
-  }
-
-  const isPathExcluded = (catName, rootGroup, excludedCats = []) =>
-    excludedCats.includes(`GROUP:${rootGroup}`) || (catName && (excludedCats.includes(catName) || excludedCats.includes(`PATH:${rootGroup}/${catName}`)));
-
-
 
   function getProductCards() {
     const rawCards = Array.from(document.querySelectorAll(SELECTORS.cards.standard));
@@ -2173,7 +1923,6 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
-  // ─── DISCOUNT HEATMAP ENGINE ────────────────────────────────────────────────
   function extractCardDiscount(card) {
     if (card.dataset?.tpDiscount !== undefined) {
       const cached = parseFloat(card.dataset.tpDiscount);
@@ -2225,315 +1974,692 @@ const SHADOW_MODAL_STYLES = `
     return { bg, border, glow };
   }
 
-  function isShippingPriceActive(card = null) {
-    if (!CONFIG.USE_SHIPPING_PRICE) return false;
-    if (typeof document !== 'undefined' && document.body) {
-      if (document.body.classList.contains('showproductprice')) return false;
-      if (document.body.classList.contains('showshippingprice')) return true;
-    }
-    if (card) {
-      const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
-      const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
-      if (shp && prd) {
-        const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
-        if (shpContainer && (shpContainer.offsetParent === null || shpContainer.style.display === 'none')) {
-          return false;
-        }
-      }
-    }
-    return true;
+  function extractActiveStores() {
+    const filterElements = document.querySelectorAll(SELECTORS.layout.activeStoreFilters);
+    return Array.from(filterElements).map(el => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('.icon-close, .f_remove_icon, .close, span').forEach(i => i.remove());
+      return normalizeName(clone.textContent);
+    }).filter(name => name.length > 0);
   }
 
-  // ─── REAL DEAL & PRICE HISTORY ENGINE ───────────────────────────────────────
+  function parseNegativeTerms(rawTerms = (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_TERMS : '')) {
+    return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean);
+  }
 
-  async function fetchPriceTimeSeries(productId) {
-    if (!productId) return null;
-    try {
-      const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
-      const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json, text/javascript, */*; q=0.01'
+  function extractCardData(card) {
+    const pid = getCardProductId(card);
+    const priceData = extractCanonicalPrice(card);
+    const cardPriceEl = priceData.el;
+    const cardPrice = priceData.price;
+    const stats = pid ? getCachedPriceStats(pid) : null;
+    const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
+    const discountVal = extractCardDiscount(card);
+    const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
+    const catName = extractCardCategory(card);
+    const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);
+    const offerCount = extractOfferCount(card);
+
+    return {
+      card,
+      pid,
+      cardPriceEl,
+      cardPrice,
+      stats,
+      isVerifiedNonBest,
+      discountVal,
+      dealScore,
+      catName,
+      rootGroup,
+      offerCount
+    };
+  }
+
+  function getCardSortableUnit(card) {
+    if (!card) return null;
+    const collItem = card.closest('.Plugin_ProductCollItem');
+    if (collItem) return collItem;
+    const parent = card.parentElement;
+    if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
+      if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
+        return parent;
+      }
+    }
+    return card;
+  }
+
+  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
+  /**
+   * Settings Modal & Shadow DOM Component
+   * Manages the floating action button, multi-tab settings dialog,
+   * dual-binding input controls, theme selection, import/export, and cache controls.
+   */
+
+
+
+  let uiShadowRoot = null;
+  function getUiShadowRoot() {
+    return uiShadowRoot;
+  }
+
+  function ensureSkeleton() {
+    let host = document.getElementById('tp-root');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'tp-root';
+      document.body.appendChild(host);
+    }
+    const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' });
+    uiShadowRoot = shadow;
+
+    if (!shadow.getElementById('tp-settings-fab')) {
+      shadow.innerHTML = `
+        <style>${SHADOW_MODAL_STYLES}</style>
+        <button id="tp-settings-fab" type="button" title="Toppreise Suite Einstellungen öffnen" aria-label="Toppreise Suite Einstellungen">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+        <dialog id="tp-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="tp-settings-title">
+          <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
+          <div id="tp-settings-sections"></div>
+          <div class="tp-modal-actions">
+            <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-close">Abbrechen</button>
+            <button type="button" class="tp-btn tp-btn-primary" id="tp-btn-save">Speichern</button>
+          </div>
+        </dialog>
+        <div id="tp-toast-container"></div>
+      `;
+    }
+    return { shadow };
+  }
+
+  function setupUI() {
+    const { shadow } = ensureSkeleton();
+    let section = shadow.getElementById('tp-section-unified-suite');
+    if (!section) {
+      const sectionsHolder = shadow.getElementById('tp-settings-sections');
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = `
+        <div id="tp-section-unified-suite">
+          <div class="tp-section-header">1. Händler Bestpreis Highlights</div>
+          <div class="tp-settings-group">
+            <label>Filter Modus</label>
+            <div class="tp-segmented-control">
+              <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
+              <label for="tp-mode-highlight-only">Highlight</label>
+              <input type="radio" id="tp-mode-dim" name="tp-mode" value="dim">
+              <label for="tp-mode-dim">Dimmen</label>
+              <input type="radio" id="tp-mode-hide" name="tp-mode" value="hide">
+              <label for="tp-mode-hide">Verbergen</label>
+            </div>
+          </div>
+          <div class="tp-settings-group">
+            <label>Preis-Toleranz (%)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
+              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
+            </div>
+          </div>
+          <div class="tp-settings-group" id="tp-dim-opacity-group">
+            <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
+              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
+            </div>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label"><label>inkl. Versandkosten vergleichen</label></div>
+            <label class="tp-switch">
+              <input type="checkbox" id="tp-shipping-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-section-header">2. Negativer Textfilter (Ausschluss)</div>
+          <div class="tp-settings-group">
+            <label>Auszuschließende Begriffe (Kommagetrennt)</label>
+            <textarea id="tp-negative-terms-input" class="tp-textarea" placeholder="z. B. Hülle, Case, Refurbished, Gebraucht"></textarea>
+          </div>
+          <div class="tp-section-header">3. Angebote & Sortierung</div>
+          <div class="tp-settings-group">
+            <label>Mindestanzahl Angebote (0 = Aus)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-min-offers-range" min="0" max="15" step="1" value="0">
+              <input type="number" id="tp-min-offers-val" min="0" max="50" step="1" value="0">
+            </div>
+          </div>
+          <div class="tp-settings-group">
+            <label>Sortierung nach Angeboten / Rabatt</label>
+            <div class="tp-segmented-control">
+              <input type="radio" id="tp-sort-none" name="tp-sort-offers" value="none">
+              <label for="tp-sort-none">Standard</label>
+              <input type="radio" id="tp-sort-desc" name="tp-sort-offers" value="desc">
+              <label for="tp-sort-desc">Meiste ⬇</label>
+              <input type="radio" id="tp-sort-asc" name="tp-sort-offers" value="asc">
+              <label for="tp-sort-asc">Wenigste ⬆</label>
+              <input type="radio" id="tp-sort-discount" name="tp-sort-offers" value="discount-desc">
+              <label for="tp-sort-discount">% Rabatt ⬇</label>
+            </div>
+          </div>
+          <div class="tp-section-header" style="color: #3b82f6;">4. Preisalarm Auto-Filler</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Preisalarm Auto-Fill aktivieren</label>
+              <span class="tp-switch-desc">Beim Klick auf die Glocke Formular automatisch ausfüllen</span>
+            </div>
+            <label class="tp-switch tp-blue">
+              <input type="checkbox" id="tp-alarm-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label>Zielpreis (% vom aktuellen Preis)</label>
+            <div class="tp-range-container tp-blue">
+              <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
+              <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
+            </div>
+          </div>
+          <div class="tp-settings-group">
+            <label>Laufzeit Dauer</label>
+            <div class="tp-segmented-control tp-segmented-control-blue">
+              <input type="radio" id="tp-dur-90" name="tp-alarm-duration" value="90"><label for="tp-dur-90">3 Monate</label>
+              <input type="radio" id="tp-dur-180" name="tp-alarm-duration" value="180"><label for="tp-dur-180">6 Monate</label>
+              <input type="radio" id="tp-dur-365" name="tp-alarm-duration" value="365"><label for="tp-dur-365">1 Jahr</label>
+              <input type="radio" id="tp-dur-730" name="tp-alarm-duration" value="730"><label for="tp-dur-730">2 Jahre</label>
+            </div>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Automatisch Absenden & Schließen</label>
+              <span class="tp-switch-desc">Formular direkt einreichen und Dialog schließen</span>
+            </div>
+            <label class="tp-switch tp-blue">
+              <input type="checkbox" id="tp-alarm-autosubmit-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group" id="tp-alarm-delays-group">
+            <label>Submit-Verzögerung (ms)</label>
+            <div class="tp-range-container tp-blue">
+              <input type="range" id="tp-alarm-submit-delay-range" min="0" max="2000" step="50" value="300">
+              <input type="number" id="tp-alarm-submit-delay-val" min="0" max="5000" step="50" value="300">
+            </div>
+            <label style="margin-top: 8px;">Schließ-Verzögerung nach Submit (ms)</label>
+            <div class="tp-range-container tp-blue">
+              <input type="range" id="tp-alarm-close-delay-range" min="0" max="3000" step="50" value="800">
+              <input type="number" id="tp-alarm-close-delay-val" min="0" max="10000" step="50" value="800">
+            </div>
+          </div>
+          <div class="tp-section-header" style="color: #f43f5e;">5. Rabatt-Heatmap</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Rabatt-Heatmap aktivieren</label>
+              <span class="tp-switch-desc">Kartenhintergrund färbt sich nach % Rabatt</span>
+            </div>
+            <label class="tp-switch tp-rose">
+              <input type="checkbox" id="tp-heatmap-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label>Heatmap-Intensität (%)</label>
+            <div class="tp-range-container tp-rose">
+              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
+              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
+            </div>
+          </div>
+          <div class="tp-section-header" style="color: #10b981;">6. Real Deals & Allzeit-Tiefstpreise</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>💎 Neue Bestpreise Modus</label>
+              <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-bestpreise-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
+            <label>Deal-Score Gewichtung (Median ↔ Neuer Rekord)</label>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
+              <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
+            </div>
+            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord</span>
+          </div>
+          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
+            <label>Median-Berechnungszeitraum (Ø-Preis)</label>
+            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+              <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
+              <option value="180">6 Monate (180 Tage)</option>
+              <option value="90">3 Monate (90 Tage)</option>
+              <option value="0">Gesamte Historie (Lifetime)</option>
+            </select>
+            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Nur echte Tiefstpreise filtern</label>
+              <span class="tp-switch-desc">Verifizierte Nicht-Bestpreise im Feed ausblenden</span>
+            </div>
+            <label class="tp-switch">
+              <input type="checkbox" id="tp-real-deal-filter-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label>Mindest-Rabatt für Batch-Check (%)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
+              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
+            </div>
+          </div>
+          <div class="tp-section-header" style="color: #06b6d4;">7. Cache & Performance</div>
+          <div class="tp-settings-group">
+            <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
+            <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+              <option value="24">24 Stunden (1 Tag)</option>
+              <option value="48">48 Stunden (2 Tage) [Standard]</option>
+              <option value="72">72 Stunden (3 Tage)</option>
+              <option value="168">7 Tage (1 Woche)</option>
+              <option value="336">14 Tage (2 Wochen)</option>
+            </select>
+            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
+          </div>
+          <div class="tp-settings-group">
+            <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
+            <select id="tp-cache-neg-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+              <option value="1">1 Stunde</option>
+              <option value="2">2 Stunden [Standard]</option>
+              <option value="6">6 Stunden</option>
+              <option value="12">12 Stunden</option>
+              <option value="24">24 Stunden</option>
+            </select>
+            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
+          </div>
+          <div class="tp-settings-group" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
+            <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
+            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
+          </div>
+          <div class="tp-section-header" style="color: #8b5cf6;">8. Experimentell / Beta</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-sparklines-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-section-header" style="color: #6366f1;">9. Import / Export</div>
+          <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
+            <button type="button" id="tp-export-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
+            <button type="button" id="tp-import-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
+            <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
+          </div>
+        </div>
+      `;
+      section = tempDiv.firstElementChild;
+      sectionsHolder.appendChild(section);
+    }
+
+    const dialog = shadow.getElementById('tp-settings-dialog');
+    const fabButton = shadow.getElementById('tp-settings-fab');
+    const btnClose = shadow.getElementById('tp-btn-close');
+    const btnSave = shadow.getElementById('tp-btn-save');
+
+    const modeHighlight = shadow.getElementById('tp-mode-highlight-only');
+    const modeDim = shadow.getElementById('tp-mode-dim');
+    const modeHide = shadow.getElementById('tp-mode-hide');
+    const marginRange = shadow.getElementById('tp-margin-range');
+    const marginVal = shadow.getElementById('tp-margin-val');
+    const opacityRange = shadow.getElementById('tp-opacity-range');
+    const opacityVal = shadow.getElementById('tp-opacity-val');
+    const shippingToggle = shadow.getElementById('tp-shipping-toggle');
+    const negTermsInput = shadow.getElementById('tp-negative-terms-input');
+    const minOffersRange = shadow.getElementById('tp-min-offers-range');
+    const minOffersVal = shadow.getElementById('tp-min-offers-val');
+    const sortNone = shadow.getElementById('tp-sort-none');
+    const sortDesc = shadow.getElementById('tp-sort-desc');
+    const sortAsc = shadow.getElementById('tp-sort-asc');
+    const sortDiscount = shadow.getElementById('tp-sort-discount');
+    const alarmEnabledToggle = shadow.getElementById('tp-alarm-enabled-toggle');
+    const alarmTargetRange = shadow.getElementById('tp-alarm-target-range');
+    const alarmTargetVal = shadow.getElementById('tp-alarm-target-val');
+    const alarmAutoSubmitToggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
+    const alarmSubmitDelayRange = shadow.getElementById('tp-alarm-submit-delay-range');
+    const alarmSubmitDelayVal = shadow.getElementById('tp-alarm-submit-delay-val');
+    const alarmCloseDelayRange = shadow.getElementById('tp-alarm-close-delay-range');
+    const alarmCloseDelayVal = shadow.getElementById('tp-alarm-close-delay-val');
+    const alarmDelaysGroup = shadow.getElementById('tp-alarm-delays-group');
+    const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
+    const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
+    const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
+    const realDealFilterToggle = shadow.getElementById('tp-real-deal-filter-toggle');
+    const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
+    const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
+    const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
+    const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
+    const bestpreiseWeightDesc = shadow.getElementById('tp-bestpreise-weight-desc');
+    const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
+    const bestpreiseHorizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
+    const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
+    const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
+    const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
+    const cacheClearBtn = shadow.getElementById('tp-cache-clear-btn');
+    const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
+    const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
+    const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
+    const dur90 = shadow.getElementById('tp-dur-90');
+    const dur180 = shadow.getElementById('tp-dur-180');
+    const dur365 = shadow.getElementById('tp-dur-365');
+    const dur730 = shadow.getElementById('tp-dur-730');
+
+    const exportBtn = shadow.getElementById('tp-export-config-btn');
+    const importBtn = shadow.getElementById('tp-import-config-btn');
+    const importFile = shadow.getElementById('tp-import-config-file');
+
+    function syncFieldsFromConfig() {
+      if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
+      else if (CONFIG.MODE === 'hide') modeHide.checked = true;
+      else modeDim.checked = true;
+
+      marginRange.value = CONFIG.MARGIN_PERCENT;
+      marginVal.value = CONFIG.MARGIN_PERCENT;
+      opacityRange.value = CONFIG.DIM_OPACITY;
+      opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
+      shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
+      negTermsInput.value = CONFIG.NEGATIVE_TERMS || '';
+      minOffersRange.value = CONFIG.MIN_OFFERS || 0;
+      minOffersVal.value = CONFIG.MIN_OFFERS || 0;
+
+      if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
+      else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
+      else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') sortDiscount.checked = true;
+      else sortNone.checked = true;
+
+      alarmEnabledToggle.checked = CONFIG.ALARM_ENABLED !== false;
+      const targetPct = Math.round(CONFIG.ALARM_TARGET_PERCENT * 100);
+      alarmTargetRange.value = targetPct;
+      alarmTargetVal.value = targetPct;
+
+      const dur = String(CONFIG.ALARM_DURATION_DAYS);
+      if (dur === '90') dur90.checked = true;
+      else if (dur === '180') dur180.checked = true;
+      else if (dur === '365') dur365.checked = true;
+      else dur730.checked = true;
+
+      alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
+      if (alarmSubmitDelayRange && alarmSubmitDelayVal) {
+        alarmSubmitDelayRange.value = CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300;
+        alarmSubmitDelayVal.value = CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300;
+      }
+      if (alarmCloseDelayRange && alarmCloseDelayVal) {
+        alarmCloseDelayRange.value = CONFIG.ALARM_CLOSE_DELAY_MS ?? 800;
+        alarmCloseDelayVal.value = CONFIG.ALARM_CLOSE_DELAY_MS ?? 800;
+      }
+      if (alarmDelaysGroup) {
+        alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
+      }
+
+      heatmapEnabledToggle.checked = CONFIG.HEATMAP_ENABLED !== false;
+      const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
+      heatmapIntensityRange.value = heatIntensityPct;
+      heatmapIntensityVal.value = heatIntensityPct;
+
+      if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
+      if (bestpreiseWeightGroup) {
+        bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
+      }
+      if (bestpreiseHorizonGroup) {
+        bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
+      }
+      if (bestpreiseHorizonSelect) {
+        bestpreiseHorizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
+      }
+      const weightPct = Math.round((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50) * 100);
+      if (bestpreiseWeightRange) bestpreiseWeightRange.value = weightPct;
+      if (bestpreiseWeightVal) bestpreiseWeightVal.value = weightPct;
+      if (bestpreiseWeightDesc) {
+        bestpreiseWeightDesc.textContent = `${100 - weightPct}% Median / ${weightPct}% Neuer Rekord`;
+      }
+
+      if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
+      if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
+      if (cacheStatsLabel) {
+        const count = getCachedProductCount();
+        cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+      }
+
+      if (realDealFilterToggle) realDealFilterToggle.checked = CONFIG.REAL_DEAL_FILTER_ACTIVE === true;
+      if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+      if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+      if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
+    }
+
+    const bindDual = (rangeEl, numEl, scale = 1, onInput = null) => {
+      if (!rangeEl || !numEl) return;
+      rangeEl.addEventListener('input', e => {
+        numEl.value = Math.round(parseFloat(e.target.value) * scale);
+        onInput?.(parseFloat(e.target.value));
+      });
+      numEl.addEventListener('input', e => {
+        const val = (parseFloat(e.target.value) || 0) / scale;
+        rangeEl.value = val;
+        onInput?.(val);
+      });
+    };
+
+    bindDual(marginRange, marginVal, 1);
+    bindDual(opacityRange, opacityVal, 100, val => document.documentElement.style.setProperty('--tp-dim-opacity', val));
+    bindDual(minOffersRange, minOffersVal, 1);
+    bindDual(alarmTargetRange, alarmTargetVal, 1);
+    bindDual(alarmSubmitDelayRange, alarmSubmitDelayVal, 1);
+    bindDual(alarmCloseDelayRange, alarmCloseDelayVal, 1);
+    bindDual(heatmapIntensityRange, heatmapIntensityVal, 1);
+    bindDual(realDealMinRange, realDealMinVal, 1);
+
+    const updateWeightDesc = (val) => {
+      const pct = Math.round(val);
+      if (bestpreiseWeightDesc) {
+        bestpreiseWeightDesc.textContent = `${100 - pct}% Median / ${pct}% Neuer Rekord`;
+      }
+    };
+    bindDual(bestpreiseWeightRange, bestpreiseWeightVal, 1, updateWeightDesc);
+
+    bestpreiseModeToggle?.addEventListener('change', () => {
+      if (bestpreiseWeightGroup) {
+        bestpreiseWeightGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
+      }
+      if (bestpreiseHorizonGroup) {
+        bestpreiseHorizonGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
+      }
+    });
+
+    alarmAutoSubmitToggle?.addEventListener('change', () => {
+      if (alarmDelaysGroup) {
+        alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
+      }
+    });
+
+    cacheClearBtn?.addEventListener('click', () => {
+      const removed = clearPriceStatsCache();
+      if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+      processListings();
+      showToast(`Cache geleert (${removed} Produkte entfernt)`);
+    });
+
+    exportBtn?.addEventListener('click', () => {
+      const exportData = {
+        _meta: {
+          version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.20',
+          exported: new Date().toISOString()
         },
-        credentials: 'same-origin',
-        body: postBody,
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        // If 2D array of series [[series0], [series1]]
-        if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-          // If shipping price is active and the shipping series exists, use it
-          if (isShippingPriceActive() && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-            return data[1];
-          }
-          return data[0]; // Series 0: Produktpreis
-        }
-        if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
-          return data; // Raw points [[t1, p1], [t2, p2]]
-        }
-      }
-      if (Array.isArray(data?.series)) return data.series;
-      if (Array.isArray(data?.data)) return data.data;
-      return null;
-    } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
-      return null;
-    }
-  }
+        config: { ...CONFIG }
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `toppreise-suite-config-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Einstellungen exportiert');
+    });
 
-  const activeFetches = new Map();
+    importBtn?.addEventListener('click', () => {
+      importFile?.click();
+    });
 
-  async function interruptibleSleep(ms, shouldCancelFn = null) {
-    const step = 100;
-    let elapsed = 0;
-    while (elapsed < ms) {
-      if (shouldCancelFn && shouldCancelFn()) break;
-      const wait = Math.min(step, ms - elapsed);
-      await new Promise(r => setTimeout(r, wait));
-      elapsed += wait;
-    }
-  }
-
-  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
-    if (!productId) return null;
-    const cached = getCachedPriceStats(productId, forceFresh);
-    if (cached) {
-      if (cached.unavailable) return null;
-      return cached;
-    }
-
-    if (activeFetches.has(productId)) {
-      return activeFetches.get(productId);
-    }
-
-    const fetchPromise = (async () => {
-      try {
-        const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-        
-        // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+    importFile?.addEventListener('change', e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
         try {
-          const timeSeries = await fetchPriceTimeSeries(productId);
-          if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
-            const analysis = analyzePriceTimeSeries(timeSeries);
-            if (analysis && analysis.tiefstpreis > 0) {
-              analysis.isShippingPrice = isShippingPriceActive();
-              setCachedPriceStats(productId, analysis);
-              return analysis;
+          const data = JSON.parse(reader.result);
+          const importConfig = data.config || data;
+          let count = 0;
+          for (const [key, val] of Object.entries(importConfig)) {
+            if (key in DEFAULTS && key !== 'DEBUG') {
+              saveConfigKey(key, val);
+              count++;
             }
           }
-        } catch (seriesErr) {}
-
-        // 2. Fallback route: GET HTML modal dialog
-        const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
-        let resHtml = null;
-        for (let attempt = 0; attempt <= retries; attempt++) {
-          if (shouldCancelFn && shouldCancelFn()) return null;
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 7000);
-            resHtml = await fetch(url, {
-              headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/html, */*; q=0.01'
-              },
-              credentials: 'same-origin',
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            if (resHtml.ok) break;
-
-            if (resHtml.status === 429) {
-              const retryAfterHeader = resHtml.headers?.get('Retry-After');
-              const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-              const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
-              if (onThrottle) {
-                onThrottle({ productId, attempt, backoffMs, status: resHtml.status });
-              }
-              if (attempt < retries) {
-                await interruptibleSleep(backoffMs, shouldCancelFn);
-              }
-            } else if (attempt < retries) {
-              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-            }
-          } catch (fetchErr) {
-            if (attempt < retries) {
-              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-            } else {
-              throw fetchErr;
-            }
-          }
+          updateBodyClasses();
+          processListings();
+          syncFieldsFromConfig();
+          showToast(`${count} Einstellungen importiert`);
+        } catch (err) {
+          showToast('Import fehlgeschlagen: Ungültige JSON-Datei');
         }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
 
-        if (!resHtml || !resHtml.ok) {
-          setCachedPriceStats(productId, null, true);
-          return null;
-        }
-        const html = await resHtml.text();
-        const stats = parsePriceStatsFromHtml(html);
-        if (stats) {
-          stats.isShippingPrice = isShippingPriceActive();
-          setCachedPriceStats(productId, stats);
-          return stats;
-        } else {
-          setCachedPriceStats(productId, null, true);
-        }
-      } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-        setCachedPriceStats(productId, null, true);
-      } finally {
-        activeFetches.delete(productId);
+    const openModal = () => {
+      syncFieldsFromConfig();
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    };
+
+    const closeModal = () => {
+      document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+      if (typeof dialog.close === 'function') dialog.close();
+      else dialog.removeAttribute('open');
+    };
+
+    fabButton.addEventListener('click', openModal);
+    btnClose.addEventListener('click', closeModal);
+    shadow.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    btnSave.addEventListener('click', () => {
+      const updates = {};
+      const checkedModeEl = shadow.querySelector('input[name="tp-mode"]:checked');
+      if (checkedModeEl) updates.MODE = checkedModeEl.value;
+
+      updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
+      updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
+      updates.USE_SHIPPING_PRICE = shippingToggle.checked;
+      updates.NEGATIVE_TERMS = negTermsInput.value.trim();
+      updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
+
+      const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
+      if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
+
+      updates.ALARM_ENABLED = alarmEnabledToggle.checked;
+      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
+
+      const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
+      if (checkedDur) updates.ALARM_DURATION_DAYS = checkedDur.value;
+
+      updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
+      if (alarmSubmitDelayVal) {
+        updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, parseInt(alarmSubmitDelayVal.value) ?? 300);
       }
-      return null;
-    })();
-
-    activeFetches.set(productId, fetchPromise);
-    return fetchPromise;
-  }
-
-  let currentlyScanningPid = null;
-
-  async function runProductScanner(options = {}) {
-    const {
-      filterFn = () => true,
-      sortFn = null,
-      delayMs = 200,
-      shouldCancelFn = () => false,
-      onProgress = null,
-      onComplete = null,
-      onStatus = null
-    } = options;
-
-    const cards = getProductCards();
-    const targets = [];
-
-    for (const card of cards) {
-      const pid = getCardProductId(card);
-      if (!pid) continue;
-      const cached = getCachedPriceStats(pid);
-      if (cached) continue;
-      if (isCardIgnoredOrInvisible(card)) continue;
-      const discount = extractCardDiscount(card) ?? 0;
-      if (filterFn({ pid, card, discount })) {
-        targets.push({ pid, card, discount });
+      if (alarmCloseDelayVal) {
+        updates.ALARM_CLOSE_DELAY_MS = Math.max(0, parseInt(alarmCloseDelayVal.value) ?? 800);
       }
-    }
+      updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
+      updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));
 
-    if (sortFn) {
-      targets.sort(sortFn);
-    }
-
-    const total = targets.length;
-    let completed = 0;
-
-    try {
-      for (let i = 0; i < targets.length; i++) {
-        if (shouldCancelFn()) break;
-        const item = targets[i];
-        currentlyScanningPid = item.pid;
-        processListings();
-
-        try {
-          await fetchSingleProductPriceStats(
-            item.pid,
-            2,
-            false,
-            throttleInfo => {
-              const secs = Math.ceil(throttleInfo.backoffMs / 1000);
-              if (onStatus) {
-                onStatus(`⏳ Rate-Limit (${secs}s Pause)...`);
-              }
-            },
-            shouldCancelFn
-          );
-        } finally {
-          currentlyScanningPid = null;
+      if (bestpreiseModeToggle) {
+        updates.BESTPREISE_MODE_ACTIVE = bestpreiseModeToggle.checked;
+        if (bestpreiseWeightVal) {
+          const rawW = parseInt(bestpreiseWeightVal.value, 10);
+          const weightNum = isNaN(rawW) ? 50 : rawW;
+          updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
         }
-
-        completed++;
-        if (onProgress) onProgress(completed, total);
-        processListings();
-        const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
-        await interruptibleSleep(delay, shouldCancelFn);
+        if (bestpreiseHorizonSelect) {
+          updates.BESTPREISE_MEDIAN_HORIZON_DAYS = parseInt(bestpreiseHorizonSelect.value, 10) || 0;
+        }
       }
-    } finally {
-      currentlyScanningPid = null;
-    }
+      if (cacheTtlSelect) updates.REAL_DEAL_CACHE_HOURS = parseInt(cacheTtlSelect.value, 10) || 48;
+      if (cacheNegTtlSelect) updates.NEGATIVE_CACHE_HOURS = parseInt(cacheNegTtlSelect.value, 10) || 2;
 
-    processListings();
-    if (onComplete) onComplete(completed, total);
-    return { completed, total };
+      if (realDealFilterToggle) updates.REAL_DEAL_FILTER_ACTIVE = realDealFilterToggle.checked;
+      if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
+      if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
+
+      updateConfigs(updates);
+      showToast('Toppreise Suite Einstellungen gespeichert');
+      closeModal();
+    });
   }
 
-  let isBatchChecking = false;
-  let batchCancelRequested = false;
+  // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
+  /**
+   * Toast Notification Component
+   * Renders glassmorphic notifications with optional undo actions inside Shadow DOM.
+   */
 
-  async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
-    if (isBatchChecking) {
-      batchCancelRequested = true;
-      return;
-    }
-    isBatchChecking = true;
-    batchCancelRequested = false;
 
-    try {
-      const isFeed = isNeueToppreisePage();
-      await runProductScanner({
-        filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
-        delayMs: () => 250 + Math.floor(Math.random() * 100),
-        shouldCancelFn: () => batchCancelRequested,
-        onProgress,
-        onComplete,
-        onStatus
-      });
-    } finally {
-      isBatchChecking = false;
-      batchCancelRequested = false;
-      processListings();
+  function showToast(message, durationMs = 2500, actionLabel = null, onAction = null) {
+    ensureSkeleton();
+    const shadow = getUiShadowRoot?.() || (typeof uiShadowRoot !== 'undefined' ? uiShadowRoot : null);
+    const container = shadow?.getElementById('tp-toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'tp-toast';
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message;
+    toast.appendChild(textSpan);
+
+    if (actionLabel && typeof onAction === 'function') {
+      const actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = 'tp-toast-undo';
+      actionBtn.textContent = actionLabel;
+      actionBtn.onclick = e => {
+        e.stopPropagation();
+        toast.remove();
+        onAction();
+      };
+      toast.appendChild(actionBtn);
     }
+
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => toast.remove(), 400);
+    }, durationMs);
   }
 
-  function cancelBatchDealCheck() {
-    batchCancelRequested = true;
-  }
+  // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
+  /**
+   * Suite Filter Toolbar Component
+   * Manages the inline/floating contextual filter bar, quick filters,
+   * deal thresholds, chips, category filters, and scan progress.
+   */
 
-  let isBestpreiseScanning = false;
-  let bestpreiseScanCancel = false;
 
-  async function runBestpreiseScan(onProgress = null, onComplete = null) {
-    if (isBestpreiseScanning) {
-      bestpreiseScanCancel = true;
-      return;
-    }
-    isBestpreiseScanning = true;
-    bestpreiseScanCancel = false;
 
-    try {
-      await runProductScanner({
-        filterFn: () => true,
-        sortFn: (a, b) => b.discount - a.discount,
-        delayMs: 200,
-        shouldCancelFn: () => bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
-        onProgress,
-        onComplete
-      });
-    } finally {
-      isBestpreiseScanning = false;
-      bestpreiseScanCancel = false;
-      processListings();
-    }
-  }
-
-  function cancelBestpreiseScan() {
-    bestpreiseScanCancel = true;
-  }
 
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
@@ -3023,6 +3149,593 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
+// Compact GM_getValue + localStorage Fallback
+  const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null')) ?? def;
+  const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)));
+
+  const CONFIG = {
+    FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
+    FILTER_CAT_ENABLED: _getValue('FILTER_CAT_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_CAT_ENABLED)),
+    FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
+    FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
+    MODE: _getValue('MODE', DEFAULTS.MODE),
+    MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
+    DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
+    USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
+    HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
+    HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
+    HEATMAP_CURVE: _getValue('HEATMAP_CURVE', DEFAULTS.HEATMAP_CURVE),
+    REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
+    REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
+    BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
+    BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+    ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
+    NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
+    EXCLUDED_CATEGORIES: _getValue('EXCLUDED_CATEGORIES', DEFAULTS.EXCLUDED_CATEGORIES),
+    MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
+    SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
+    ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
+    ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
+    ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
+    ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
+    ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
+    ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
+    OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
+    DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
+  };
+
+
+  const saveConfigKey = (key, val) => {
+    CONFIG[key] = val;
+    _setValue(key, val);
+  };
+
+  const CONFIG_BODY_KEYS = new Set(['MODE', 'DIM_OPACITY']);
+
+  function syncUiControl(key, val) {
+    // 1. Sync Settings Modal (Shadow DOM) if open/exists
+    if (uiShadowRoot) {
+      try {
+        switch (key) {
+          case 'MODE': {
+            const el = uiShadowRoot.querySelector(`input[name="tp-mode"][value="${val}"]`);
+            if (el) el.checked = true;
+            break;
+          }
+          case 'DIM_OPACITY': {
+            const range = uiShadowRoot.getElementById('tp-opacity-range');
+            const label = uiShadowRoot.getElementById('tp-opacity-val');
+            if (range) range.value = val;
+            if (label) label.textContent = `${Math.round(val * 100)}%`;
+            break;
+          }
+          case 'NEGATIVE_TERMS': {
+            const input = uiShadowRoot.getElementById('tp-negative-terms-input');
+            if (input && input.value !== val) input.value = val || '';
+            break;
+          }
+          case 'MIN_OFFERS': {
+            const input = uiShadowRoot.getElementById('tp-min-offers-val');
+            const range = uiShadowRoot.getElementById('tp-min-offers-range');
+            if (input) input.value = val;
+            if (range) range.value = val;
+            break;
+          }
+          case 'HEATMAP_ENABLED': {
+            const toggle = uiShadowRoot.getElementById('tp-heatmap-enabled-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_MODE_ACTIVE': {
+            const toggle = uiShadowRoot.getElementById('tp-bestpreise-mode-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_WEIGHT_RECORD': {
+            const range = uiShadowRoot.getElementById('tp-bestpreise-weight-range');
+            const valEl = uiShadowRoot.getElementById('tp-bestpreise-weight-val');
+            const descEl = uiShadowRoot.getElementById('tp-bestpreise-weight-desc');
+            const pct = Math.round((val ?? 0.5) * 100);
+            if (range) range.value = pct;
+            if (valEl) valEl.textContent = `${pct}%`;
+            if (descEl) {
+              if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
+              else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
+              else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median`;
+            }
+            break;
+          }
+          case 'REAL_DEAL_MIN_DISCOUNT': {
+            const range = uiShadowRoot.getElementById('tp-real-deal-min-range');
+            const valEl = uiShadowRoot.getElementById('tp-real-deal-min-val');
+            if (range) range.value = val;
+            if (valEl) valEl.value = val;
+            break;
+          }
+          case 'REAL_DEAL_FILTER_ACTIVE': {
+            const toggle = uiShadowRoot.getElementById('tp-real-deal-filter-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'USE_SHIPPING_PRICE': {
+            const toggle = uiShadowRoot.getElementById('tp-use-shipping-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'ENABLE_SPARKLINES': {
+            const toggle = uiShadowRoot.getElementById('tp-sparklines-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
+      }
+    }
+
+    // 2. Sync Inline Filter Bar if present
+    const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
+    if (bar) {
+      try {
+        switch (key) {
+          case 'NEGATIVE_TERMS': {
+            const input = bar.querySelector('#tp-inline-negative-input');
+            const clearBtn = bar.querySelector('#tp-clear-neg-btn');
+            if (input && document.activeElement !== input && input.value !== val) {
+              input.value = val || '';
+            }
+            if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+            break;
+          }
+          case 'HEATMAP_ENABLED': {
+            const heatBtn = bar.querySelector('#tp-bar-heat-btn');
+            if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
+            break;
+          }
+          case 'BESTPREISE_MODE_ACTIVE': {
+            const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
+            if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
+            bar.classList.toggle('tp-bestpreise-bar', val === true);
+            break;
+          }
+          case 'FILTER_NEG_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-neg');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'FILTER_CAT_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-cat');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'FILTER_MIN_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-min');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'FILTER_BESTPREIS_ENABLED': {
+            const toggle = bar.querySelector('#tp-toggle-bestpreis');
+            if (toggle) {
+              toggle.classList.toggle('tp-active', !!val);
+              toggle.classList.toggle('tp-filter-off', !val);
+              toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+            }
+            break;
+          }
+          case 'MIN_OFFERS': {
+            const minVal = bar.querySelector('#tp-bar-min-val');
+            if (minVal) minVal.textContent = val;
+            break;
+          }
+          case 'REAL_DEAL_MIN_DISCOUNT': {
+            const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
+            if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
+            bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
+              btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
+            });
+            break;
+          }
+          case 'EXCLUDED_CATEGORIES': {
+            const catsCount = bar.querySelector('#tp-bar-cats-count');
+            const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
+            const count = (val || []).length;
+            if (catsCount) catsCount.textContent = count;
+            if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
+            break;
+          }
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl bar error', err);
+      }
+    }
+  }
+
+  function updateConfig(key, val, options = {}) {
+    saveConfigKey(key, val);
+    if (!options.skipUiSync) {
+      syncUiControl(key, val);
+    }
+    if (CONFIG_BODY_KEYS.has(key)) {
+      updateBodyClasses();
+    }
+    if (!options.skipRender) {
+      processListings();
+    }
+  }
+
+  function updateConfigs(entries, options = {}) {
+    let requiresBodyUpdate = false;
+    for (const [k, v] of Object.entries(entries)) {
+      saveConfigKey(k, v);
+      if (!options.skipUiSync) {
+        syncUiControl(k, v);
+      }
+      if (CONFIG_BODY_KEYS.has(k)) {
+        requiresBodyUpdate = true;
+      }
+    }
+    if (requiresBodyUpdate) {
+      updateBodyClasses();
+    }
+    if (!options.skipRender) {
+      processListings();
+    }
+  }
+
+  // ─── DOM QUERY MEMOIZATION ──────────────────────────────────────────────────
+
+  function clearCardCache(card) {
+    if (!card) return;
+    delete card._tpDealerRows;
+    delete card._tpTextLower;
+    delete card._tpPriceInfo;
+  }
+
+  const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ...args); };
+
+  if (!document.getElementById('tp-unified-settings-styles')) {
+    const styleEl = document.createElement('style');
+    styleEl.id = 'tp-unified-settings-styles';
+    styleEl.textContent = STYLES;
+    document.head.appendChild(styleEl);
+  }
+
+  let isBlockedCatsOpen = false;
+
+  function updateBodyClasses() {
+    document.body.classList.remove('tp-mode-dim', 'tp-mode-hide', 'tp-mode-highlight-only');
+    document.body.classList.add(`tp-mode-${CONFIG.MODE}`);
+    document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+  }
+  updateBodyClasses();
+
+
+
+
+  function isShippingPriceActive(card = null) {
+    if (!CONFIG.USE_SHIPPING_PRICE) return false;
+    if (typeof document !== 'undefined' && document.body) {
+      if (document.body.classList.contains('showproductprice')) return false;
+      if (document.body.classList.contains('showshippingprice')) return true;
+    }
+    if (card) {
+      const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
+      const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
+      if (shp && prd) {
+        const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
+        if (shpContainer && (shpContainer.offsetParent === null || shpContainer.style.display === 'none')) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  // ─── REAL DEAL & PRICE HISTORY ENGINE ───────────────────────────────────────
+
+  async function fetchPriceTimeSeries(productId) {
+    if (!productId) return null;
+    try {
+      const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+      const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/javascript, */*; q=0.01'
+        },
+        credentials: 'same-origin',
+        body: postBody,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // If 2D array of series [[series0], [series1]]
+        if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
+          // If shipping price is active and the shipping series exists, use it
+          if (isShippingPriceActive() && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
+            return data[1];
+          }
+          return data[0]; // Series 0: Produktpreis
+        }
+        if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
+          return data; // Raw points [[t1, p1], [t2, p2]]
+        }
+      }
+      if (Array.isArray(data?.series)) return data.series;
+      if (Array.isArray(data?.data)) return data.data;
+      return null;
+    } catch (err) {
+      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
+      return null;
+    }
+  }
+
+  const activeFetches = new Map();
+
+  async function interruptibleSleep(ms, shouldCancelFn = null) {
+    const step = 100;
+    let elapsed = 0;
+    while (elapsed < ms) {
+      if (shouldCancelFn && shouldCancelFn()) break;
+      const wait = Math.min(step, ms - elapsed);
+      await new Promise(r => setTimeout(r, wait));
+      elapsed += wait;
+    }
+  }
+
+  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
+    if (!productId) return null;
+    const cached = getCachedPriceStats(productId, forceFresh);
+    if (cached) {
+      if (cached.unavailable) return null;
+      return cached;
+    }
+
+    if (activeFetches.has(productId)) {
+      return activeFetches.get(productId);
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+        
+        // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+        try {
+          const timeSeries = await fetchPriceTimeSeries(productId);
+          if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
+            const analysis = analyzePriceTimeSeries(timeSeries);
+            if (analysis && analysis.tiefstpreis > 0) {
+              analysis.isShippingPrice = isShippingPriceActive();
+              setCachedPriceStats(productId, analysis);
+              return analysis;
+            }
+          }
+        } catch (seriesErr) {}
+
+        // 2. Fallback route: GET HTML modal dialog
+        const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
+        let resHtml = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          if (shouldCancelFn && shouldCancelFn()) return null;
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 7000);
+            resHtml = await fetch(url, {
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html, */*; q=0.01'
+              },
+              credentials: 'same-origin',
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (resHtml.ok) break;
+
+            if (resHtml.status === 429) {
+              const retryAfterHeader = resHtml.headers?.get('Retry-After');
+              const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+              const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
+              if (onThrottle) {
+                onThrottle({ productId, attempt, backoffMs, status: resHtml.status });
+              }
+              if (attempt < retries) {
+                await interruptibleSleep(backoffMs, shouldCancelFn);
+              }
+            } else if (attempt < retries) {
+              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+            }
+          } catch (fetchErr) {
+            if (attempt < retries) {
+              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+            } else {
+              throw fetchErr;
+            }
+          }
+        }
+
+        if (!resHtml || !resHtml.ok) {
+          setCachedPriceStats(productId, null, true);
+          return null;
+        }
+        const html = await resHtml.text();
+        const stats = parsePriceStatsFromHtml(html);
+        if (stats) {
+          stats.isShippingPrice = isShippingPriceActive();
+          setCachedPriceStats(productId, stats);
+          return stats;
+        } else {
+          setCachedPriceStats(productId, null, true);
+        }
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
+        setCachedPriceStats(productId, null, true);
+      } finally {
+        activeFetches.delete(productId);
+      }
+      return null;
+    })();
+
+    activeFetches.set(productId, fetchPromise);
+    return fetchPromise;
+  }
+
+  let currentlyScanningPid = null;
+
+  async function runProductScanner(options = {}) {
+    const {
+      filterFn = () => true,
+      sortFn = null,
+      delayMs = 200,
+      shouldCancelFn = () => false,
+      onProgress = null,
+      onComplete = null,
+      onStatus = null
+    } = options;
+
+    const cards = getProductCards();
+    const targets = [];
+
+    for (const card of cards) {
+      const pid = getCardProductId(card);
+      if (!pid) continue;
+      const cached = getCachedPriceStats(pid);
+      if (cached) continue;
+      if (isCardIgnoredOrInvisible(card)) continue;
+      const discount = extractCardDiscount(card) ?? 0;
+      if (filterFn({ pid, card, discount })) {
+        targets.push({ pid, card, discount });
+      }
+    }
+
+    if (sortFn) {
+      targets.sort(sortFn);
+    }
+
+    const total = targets.length;
+    let completed = 0;
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (shouldCancelFn()) break;
+        const item = targets[i];
+        currentlyScanningPid = item.pid;
+        processListings();
+
+        try {
+          await fetchSingleProductPriceStats(
+            item.pid,
+            2,
+            false,
+            throttleInfo => {
+              const secs = Math.ceil(throttleInfo.backoffMs / 1000);
+              if (onStatus) {
+                onStatus(`⏳ Rate-Limit (${secs}s Pause)...`);
+              }
+            },
+            shouldCancelFn
+          );
+        } finally {
+          currentlyScanningPid = null;
+        }
+
+        completed++;
+        if (onProgress) onProgress(completed, total);
+        processListings();
+        const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
+        await interruptibleSleep(delay, shouldCancelFn);
+      }
+    } finally {
+      currentlyScanningPid = null;
+    }
+
+    processListings();
+    if (onComplete) onComplete(completed, total);
+    return { completed, total };
+  }
+
+  let isBatchChecking = false;
+  let batchCancelRequested = false;
+
+  async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
+    if (isBatchChecking) {
+      batchCancelRequested = true;
+      return;
+    }
+    isBatchChecking = true;
+    batchCancelRequested = false;
+
+    try {
+      const isFeed = isNeueToppreisePage();
+      await runProductScanner({
+        filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
+        delayMs: () => 250 + Math.floor(Math.random() * 100),
+        shouldCancelFn: () => batchCancelRequested,
+        onProgress,
+        onComplete,
+        onStatus
+      });
+    } finally {
+      isBatchChecking = false;
+      batchCancelRequested = false;
+      processListings();
+    }
+  }
+
+  function cancelBatchDealCheck() {
+    batchCancelRequested = true;
+  }
+
+  let isBestpreiseScanning = false;
+  let bestpreiseScanCancel = false;
+
+  async function runBestpreiseScan(onProgress = null, onComplete = null) {
+    if (isBestpreiseScanning) {
+      bestpreiseScanCancel = true;
+      return;
+    }
+    isBestpreiseScanning = true;
+    bestpreiseScanCancel = false;
+
+    try {
+      await runProductScanner({
+        filterFn: () => true,
+        sortFn: (a, b) => b.discount - a.discount,
+        delayMs: 200,
+        shouldCancelFn: () => bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
+        onProgress,
+        onComplete
+      });
+    } finally {
+      isBestpreiseScanning = false;
+      bestpreiseScanCancel = false;
+      processListings();
+    }
+  }
+
+  function cancelBestpreiseScan() {
+    bestpreiseScanCancel = true;
+  }
+
+
   function isNeueToppreisePage() {
     if (document.body?.classList.contains('Page_Browsing') || document.body?.classList.contains('Page_ProductSearch')) {
       return false;
@@ -3046,48 +3759,6 @@ const SHADOW_MODAL_STYLES = `
   let isModifyingDOM = false;
   let mainObserver = null;
 
-  function extractActiveStores() {
-    const filterElements = document.querySelectorAll(SELECTORS.layout.activeStoreFilters);
-    return Array.from(filterElements).map(el => {
-      const clone = el.cloneNode(true);
-      clone.querySelectorAll('.icon-close, .f_remove_icon, .close, span').forEach(i => i.remove());
-      return normalizeName(clone.textContent);
-    }).filter(name => name.length > 0);
-  }
-
-  function parseNegativeTerms() {
-    const rawTerms = CONFIG.NEGATIVE_TERMS || '';
-    return rawTerms.split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean);
-  }
-
-
-  function extractCardData(card) {
-    const pid = getCardProductId(card);
-    const priceData = extractCanonicalPrice(card);
-    const cardPriceEl = priceData.el;
-    const cardPrice = priceData.price;
-    const stats = pid ? getCachedPriceStats(pid) : null;
-    const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
-    const discountVal = extractCardDiscount(card);
-    const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
-    const catName = extractCardCategory(card);
-    const rootGroup = resolveCategoryGroup(catName, card);
-    const offerCount = extractOfferCount(card);
-
-    return {
-      card,
-      pid,
-      cardPriceEl,
-      cardPrice,
-      stats,
-      isVerifiedNonBest,
-      discountVal,
-      dealScore,
-      catName,
-      rootGroup,
-      offerCount
-    };
-  }
 
   function applyCardFilters(cd, termsList, excludedCats, minOffers, pageHasOffers) {
     const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
@@ -3762,18 +4433,6 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function getCardSortableUnit(card) {
-    if (!card) return null;
-    const collItem = card.closest('.Plugin_ProductCollItem');
-    if (collItem) return collItem;
-    const parent = card.parentElement;
-    if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
-      if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
-        return parent;
-      }
-    }
-    return card;
-  }
 
   function applySorting(cards, pageHasOffers) {
     if (!cards || cards.length <= 1) return;
@@ -4239,606 +4898,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // ─── UNIFIED SETTINGS UI IN SHADOW DOM ─────────────────────────────────────
-  function showToast(message, durationMs = 2500, actionLabel = null, onAction = null) {
-    ensureSkeleton();
-    const container = uiShadowRoot?.getElementById('tp-toast-container');
-    if (!container) return;
 
-    const toast = document.createElement('div');
-    toast.className = 'tp-toast';
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message;
-    toast.appendChild(textSpan);
-
-    if (actionLabel && typeof onAction === 'function') {
-      const actionBtn = document.createElement('button');
-      actionBtn.type = 'button';
-      actionBtn.className = 'tp-toast-undo';
-      actionBtn.textContent = actionLabel;
-      actionBtn.onclick = e => {
-        e.stopPropagation();
-        toast.remove();
-        onAction();
-      };
-      toast.appendChild(actionBtn);
-    }
-
-    container.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add('fade-out');
-      setTimeout(() => toast.remove(), 400);
-    }, durationMs);
-  }
-
-  function ensureSkeleton() {
-    let host = document.getElementById('tp-root');
-    if (!host) {
-      host = document.createElement('div');
-      host.id = 'tp-root';
-      document.body.appendChild(host);
-    }
-    const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' });
-    uiShadowRoot = shadow;
-
-    if (!shadow.getElementById('tp-settings-fab')) {
-      shadow.innerHTML = `
-        <style>${SHADOW_MODAL_STYLES}</style>
-        <button id="tp-settings-fab" type="button" title="Toppreise Suite Einstellungen öffnen" aria-label="Toppreise Suite Einstellungen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
-        <dialog id="tp-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="tp-settings-title">
-          <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
-          <div id="tp-settings-sections"></div>
-          <div class="tp-modal-actions">
-            <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-close">Abbrechen</button>
-            <button type="button" class="tp-btn tp-btn-primary" id="tp-btn-save">Speichern</button>
-          </div>
-        </dialog>
-        <div id="tp-toast-container"></div>
-      `;
-    }
-    return { shadow };
-  }
-
-  function setupUI() {
-    const { shadow } = ensureSkeleton();
-    let section = shadow.getElementById('tp-section-unified-suite');
-    if (!section) {
-      const sectionsHolder = shadow.getElementById('tp-settings-sections');
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = `
-        <div id="tp-section-unified-suite">
-          <div class="tp-section-header">1. Händler Bestpreis Highlights</div>
-          <div class="tp-settings-group">
-            <label>Filter Modus</label>
-            <div class="tp-segmented-control">
-              <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
-              <label for="tp-mode-highlight-only">Highlight</label>
-              <input type="radio" id="tp-mode-dim" name="tp-mode" value="dim">
-              <label for="tp-mode-dim">Dimmen</label>
-              <input type="radio" id="tp-mode-hide" name="tp-mode" value="hide">
-              <label for="tp-mode-hide">Verbergen</label>
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label>Preis-Toleranz (%)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
-              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
-            </div>
-          </div>
-          <div class="tp-settings-group" id="tp-dim-opacity-group">
-            <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
-              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
-            </div>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label"><label>inkl. Versandkosten vergleichen</label></div>
-            <label class="tp-switch">
-              <input type="checkbox" id="tp-shipping-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-section-header">2. Negativer Textfilter (Ausschluss)</div>
-          <div class="tp-settings-group">
-            <label>Auszuschließende Begriffe (Kommagetrennt)</label>
-            <textarea id="tp-negative-terms-input" class="tp-textarea" placeholder="z. B. Hülle, Case, Refurbished, Gebraucht"></textarea>
-          </div>
-          <div class="tp-section-header">3. Angebote & Sortierung</div>
-          <div class="tp-settings-group">
-            <label>Mindestanzahl Angebote (0 = Aus)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-min-offers-range" min="0" max="15" step="1" value="0">
-              <input type="number" id="tp-min-offers-val" min="0" max="50" step="1" value="0">
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label>Sortierung nach Angeboten / Rabatt</label>
-            <div class="tp-segmented-control">
-              <input type="radio" id="tp-sort-none" name="tp-sort-offers" value="none">
-              <label for="tp-sort-none">Standard</label>
-              <input type="radio" id="tp-sort-desc" name="tp-sort-offers" value="desc">
-              <label for="tp-sort-desc">Meiste ⬇</label>
-              <input type="radio" id="tp-sort-asc" name="tp-sort-offers" value="asc">
-              <label for="tp-sort-asc">Wenigste ⬆</label>
-              <input type="radio" id="tp-sort-discount" name="tp-sort-offers" value="discount-desc">
-              <label for="tp-sort-discount">% Rabatt ⬇</label>
-            </div>
-          </div>
-          <div class="tp-section-header" style="color: #3b82f6;">4. Preisalarm Auto-Filler</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Preisalarm Auto-Fill aktivieren</label>
-              <span class="tp-switch-desc">Beim Klick auf die Glocke Formular automatisch ausfüllen</span>
-            </div>
-            <label class="tp-switch tp-blue">
-              <input type="checkbox" id="tp-alarm-enabled-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label>Zielpreis (% vom aktuellen Preis)</label>
-            <div class="tp-range-container tp-blue">
-              <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
-              <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label>Laufzeit Dauer</label>
-            <div class="tp-segmented-control tp-segmented-control-blue">
-              <input type="radio" id="tp-dur-90" name="tp-alarm-duration" value="90"><label for="tp-dur-90">3 Monate</label>
-              <input type="radio" id="tp-dur-180" name="tp-alarm-duration" value="180"><label for="tp-dur-180">6 Monate</label>
-              <input type="radio" id="tp-dur-365" name="tp-alarm-duration" value="365"><label for="tp-dur-365">1 Jahr</label>
-              <input type="radio" id="tp-dur-730" name="tp-alarm-duration" value="730"><label for="tp-dur-730">2 Jahre</label>
-            </div>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Automatisch Absenden & Schließen</label>
-              <span class="tp-switch-desc">Formular direkt einreichen und Dialog schließen</span>
-            </div>
-            <label class="tp-switch tp-blue">
-              <input type="checkbox" id="tp-alarm-autosubmit-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group" id="tp-alarm-delays-group">
-            <label>Submit-Verzögerung (ms)</label>
-            <div class="tp-range-container tp-blue">
-              <input type="range" id="tp-alarm-submit-delay-range" min="0" max="2000" step="50" value="300">
-              <input type="number" id="tp-alarm-submit-delay-val" min="0" max="5000" step="50" value="300">
-            </div>
-            <label style="margin-top: 8px;">Schließ-Verzögerung nach Submit (ms)</label>
-            <div class="tp-range-container tp-blue">
-              <input type="range" id="tp-alarm-close-delay-range" min="0" max="3000" step="50" value="800">
-              <input type="number" id="tp-alarm-close-delay-val" min="0" max="10000" step="50" value="800">
-            </div>
-          </div>
-          <div class="tp-section-header" style="color: #f43f5e;">5. Rabatt-Heatmap</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Rabatt-Heatmap aktivieren</label>
-              <span class="tp-switch-desc">Kartenhintergrund färbt sich nach % Rabatt</span>
-            </div>
-            <label class="tp-switch tp-rose">
-              <input type="checkbox" id="tp-heatmap-enabled-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label>Heatmap-Intensität (%)</label>
-            <div class="tp-range-container tp-rose">
-              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
-              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
-            </div>
-          </div>
-          <div class="tp-section-header" style="color: #10b981;">6. Real Deals & Allzeit-Tiefstpreise</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>💎 Neue Bestpreise Modus</label>
-              <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-bestpreise-mode-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-            <label>Deal-Score Gewichtung (Median ↔ Neuer Rekord)</label>
-            <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
-              <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
-            </div>
-            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord</span>
-          </div>
-          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
-            <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
-              <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
-              <option value="180">6 Monate (180 Tage)</option>
-              <option value="90">3 Monate (90 Tage)</option>
-              <option value="0">Gesamte Historie (Lifetime)</option>
-            </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Nur echte Tiefstpreise filtern</label>
-              <span class="tp-switch-desc">Verifizierte Nicht-Bestpreise im Feed ausblenden</span>
-            </div>
-            <label class="tp-switch">
-              <input type="checkbox" id="tp-real-deal-filter-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label>Mindest-Rabatt für Batch-Check (%)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
-            </div>
-          </div>
-          <div class="tp-section-header" style="color: #06b6d4;">7. Cache & Performance</div>
-          <div class="tp-settings-group">
-            <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
-            <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
-              <option value="24">24 Stunden (1 Tag)</option>
-              <option value="48">48 Stunden (2 Tage) [Standard]</option>
-              <option value="72">72 Stunden (3 Tage)</option>
-              <option value="168">7 Tage (1 Woche)</option>
-              <option value="336">14 Tage (2 Wochen)</option>
-            </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
-          </div>
-          <div class="tp-settings-group">
-            <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
-            <select id="tp-cache-neg-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
-              <option value="1">1 Stunde</option>
-              <option value="2">2 Stunden [Standard]</option>
-              <option value="6">6 Stunden</option>
-              <option value="12">12 Stunden</option>
-              <option value="24">24 Stunden</option>
-            </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
-          </div>
-          <div class="tp-settings-group" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
-            <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
-            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
-          </div>
-          <div class="tp-section-header" style="color: #8b5cf6;">8. Experimentell / Beta</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-sparklines-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-section-header" style="color: #6366f1;">9. Import / Export</div>
-          <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
-            <button type="button" id="tp-export-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
-            <button type="button" id="tp-import-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
-            <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
-          </div>
-        </div>
-      `;
-      section = tempDiv.firstElementChild;
-      sectionsHolder.appendChild(section);
-    }
-
-    const dialog = shadow.getElementById('tp-settings-dialog');
-    const fabButton = shadow.getElementById('tp-settings-fab');
-    const btnClose = shadow.getElementById('tp-btn-close');
-    const btnSave = shadow.getElementById('tp-btn-save');
-
-    const modeHighlight = shadow.getElementById('tp-mode-highlight-only');
-    const modeDim = shadow.getElementById('tp-mode-dim');
-    const modeHide = shadow.getElementById('tp-mode-hide');
-    const marginRange = shadow.getElementById('tp-margin-range');
-    const marginVal = shadow.getElementById('tp-margin-val');
-    const opacityRange = shadow.getElementById('tp-opacity-range');
-    const opacityVal = shadow.getElementById('tp-opacity-val');
-    const shippingToggle = shadow.getElementById('tp-shipping-toggle');
-    const negTermsInput = shadow.getElementById('tp-negative-terms-input');
-    const minOffersRange = shadow.getElementById('tp-min-offers-range');
-    const minOffersVal = shadow.getElementById('tp-min-offers-val');
-    const sortNone = shadow.getElementById('tp-sort-none');
-    const sortDesc = shadow.getElementById('tp-sort-desc');
-    const sortAsc = shadow.getElementById('tp-sort-asc');
-    const sortDiscount = shadow.getElementById('tp-sort-discount');
-    const alarmEnabledToggle = shadow.getElementById('tp-alarm-enabled-toggle');
-    const alarmTargetRange = shadow.getElementById('tp-alarm-target-range');
-    const alarmTargetVal = shadow.getElementById('tp-alarm-target-val');
-    const alarmAutoSubmitToggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
-    const alarmSubmitDelayRange = shadow.getElementById('tp-alarm-submit-delay-range');
-    const alarmSubmitDelayVal = shadow.getElementById('tp-alarm-submit-delay-val');
-    const alarmCloseDelayRange = shadow.getElementById('tp-alarm-close-delay-range');
-    const alarmCloseDelayVal = shadow.getElementById('tp-alarm-close-delay-val');
-    const alarmDelaysGroup = shadow.getElementById('tp-alarm-delays-group');
-    const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
-    const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
-    const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
-    const realDealFilterToggle = shadow.getElementById('tp-real-deal-filter-toggle');
-    const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
-    const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
-    const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
-    const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
-    const bestpreiseWeightDesc = shadow.getElementById('tp-bestpreise-weight-desc');
-    const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
-    const bestpreiseHorizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
-    const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
-    const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
-    const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
-    const cacheClearBtn = shadow.getElementById('tp-cache-clear-btn');
-    const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
-    const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
-    const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
-    const dur90 = shadow.getElementById('tp-dur-90');
-    const dur180 = shadow.getElementById('tp-dur-180');
-    const dur365 = shadow.getElementById('tp-dur-365');
-    const dur730 = shadow.getElementById('tp-dur-730');
-
-    const exportBtn = shadow.getElementById('tp-export-config-btn');
-    const importBtn = shadow.getElementById('tp-import-config-btn');
-    const importFile = shadow.getElementById('tp-import-config-file');
-
-    function syncFieldsFromConfig() {
-      if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
-      else if (CONFIG.MODE === 'hide') modeHide.checked = true;
-      else modeDim.checked = true;
-
-      marginRange.value = CONFIG.MARGIN_PERCENT;
-      marginVal.value = CONFIG.MARGIN_PERCENT;
-      opacityRange.value = CONFIG.DIM_OPACITY;
-      opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
-      shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
-      negTermsInput.value = CONFIG.NEGATIVE_TERMS || '';
-      minOffersRange.value = CONFIG.MIN_OFFERS || 0;
-      minOffersVal.value = CONFIG.MIN_OFFERS || 0;
-
-      if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
-      else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
-      else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') sortDiscount.checked = true;
-      else sortNone.checked = true;
-
-      alarmEnabledToggle.checked = CONFIG.ALARM_ENABLED !== false;
-      const targetPct = Math.round(CONFIG.ALARM_TARGET_PERCENT * 100);
-      alarmTargetRange.value = targetPct;
-      alarmTargetVal.value = targetPct;
-
-      const dur = String(CONFIG.ALARM_DURATION_DAYS);
-      if (dur === '90') dur90.checked = true;
-      else if (dur === '180') dur180.checked = true;
-      else if (dur === '365') dur365.checked = true;
-      else dur730.checked = true;
-
-      alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
-      if (alarmSubmitDelayRange && alarmSubmitDelayVal) {
-        alarmSubmitDelayRange.value = CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300;
-        alarmSubmitDelayVal.value = CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300;
-      }
-      if (alarmCloseDelayRange && alarmCloseDelayVal) {
-        alarmCloseDelayRange.value = CONFIG.ALARM_CLOSE_DELAY_MS ?? 800;
-        alarmCloseDelayVal.value = CONFIG.ALARM_CLOSE_DELAY_MS ?? 800;
-      }
-      if (alarmDelaysGroup) {
-        alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
-      }
-
-      heatmapEnabledToggle.checked = CONFIG.HEATMAP_ENABLED !== false;
-      const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
-      heatmapIntensityRange.value = heatIntensityPct;
-      heatmapIntensityVal.value = heatIntensityPct;
-
-      if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
-      if (bestpreiseWeightGroup) {
-        bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
-      }
-      if (bestpreiseHorizonGroup) {
-        bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
-      }
-      if (bestpreiseHorizonSelect) {
-        bestpreiseHorizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
-      }
-      const weightPct = Math.round((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50) * 100);
-      if (bestpreiseWeightRange) bestpreiseWeightRange.value = weightPct;
-      if (bestpreiseWeightVal) bestpreiseWeightVal.value = weightPct;
-      if (bestpreiseWeightDesc) {
-        bestpreiseWeightDesc.textContent = `${100 - weightPct}% Median / ${weightPct}% Neuer Rekord`;
-      }
-
-      if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
-      if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
-      if (cacheStatsLabel) {
-        const count = getCachedProductCount();
-        cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
-      }
-
-      if (realDealFilterToggle) realDealFilterToggle.checked = CONFIG.REAL_DEAL_FILTER_ACTIVE === true;
-      if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
-    }
-
-    const bindDual = (rangeEl, numEl, scale = 1, onInput = null) => {
-      if (!rangeEl || !numEl) return;
-      rangeEl.addEventListener('input', e => {
-        numEl.value = Math.round(parseFloat(e.target.value) * scale);
-        onInput?.(parseFloat(e.target.value));
-      });
-      numEl.addEventListener('input', e => {
-        const val = (parseFloat(e.target.value) || 0) / scale;
-        rangeEl.value = val;
-        onInput?.(val);
-      });
-    };
-
-    bindDual(marginRange, marginVal, 1);
-    bindDual(opacityRange, opacityVal, 100, val => document.documentElement.style.setProperty('--tp-dim-opacity', val));
-    bindDual(minOffersRange, minOffersVal, 1);
-    bindDual(alarmTargetRange, alarmTargetVal, 1);
-    bindDual(alarmSubmitDelayRange, alarmSubmitDelayVal, 1);
-    bindDual(alarmCloseDelayRange, alarmCloseDelayVal, 1);
-    bindDual(heatmapIntensityRange, heatmapIntensityVal, 1);
-    bindDual(realDealMinRange, realDealMinVal, 1);
-
-    const updateWeightDesc = (val) => {
-      const pct = Math.round(val);
-      if (bestpreiseWeightDesc) {
-        bestpreiseWeightDesc.textContent = `${100 - pct}% Median / ${pct}% Neuer Rekord`;
-      }
-    };
-    bindDual(bestpreiseWeightRange, bestpreiseWeightVal, 1, updateWeightDesc);
-
-    bestpreiseModeToggle?.addEventListener('change', () => {
-      if (bestpreiseWeightGroup) {
-        bestpreiseWeightGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
-      }
-      if (bestpreiseHorizonGroup) {
-        bestpreiseHorizonGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
-      }
-    });
-
-    alarmAutoSubmitToggle?.addEventListener('change', () => {
-      if (alarmDelaysGroup) {
-        alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
-      }
-    });
-
-    cacheClearBtn?.addEventListener('click', () => {
-      const removed = clearPriceStatsCache();
-      if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
-      processListings();
-      showToast(`Cache geleert (${removed} Produkte entfernt)`);
-    });
-
-    exportBtn?.addEventListener('click', () => {
-      const exportData = {
-        _meta: {
-          version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.20',
-          exported: new Date().toISOString()
-        },
-        config: { ...CONFIG }
-      };
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `toppreise-suite-config-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      showToast('Einstellungen exportiert');
-    });
-
-    importBtn?.addEventListener('click', () => {
-      importFile?.click();
-    });
-
-    importFile?.addEventListener('change', e => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(reader.result);
-          const importConfig = data.config || data;
-          let count = 0;
-          for (const [key, val] of Object.entries(importConfig)) {
-            if (key in DEFAULTS && key !== 'DEBUG') {
-              saveConfigKey(key, val);
-              count++;
-            }
-          }
-          updateBodyClasses();
-          processListings();
-          syncFieldsFromConfig();
-          showToast(`${count} Einstellungen importiert`);
-        } catch (err) {
-          showToast('Import fehlgeschlagen: Ungültige JSON-Datei');
-        }
-      };
-      reader.readAsText(file);
-      e.target.value = '';
-    });
-
-    const openModal = () => {
-      syncFieldsFromConfig();
-      if (typeof dialog.showModal === 'function') dialog.showModal();
-      else dialog.setAttribute('open', '');
-    };
-
-    const closeModal = () => {
-      document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
-      if (typeof dialog.close === 'function') dialog.close();
-      else dialog.removeAttribute('open');
-    };
-
-    fabButton.addEventListener('click', openModal);
-    btnClose.addEventListener('click', closeModal);
-    shadow.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-    btnSave.addEventListener('click', () => {
-      const updates = {};
-      const checkedModeEl = shadow.querySelector('input[name="tp-mode"]:checked');
-      if (checkedModeEl) updates.MODE = checkedModeEl.value;
-
-      updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
-      updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
-      updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-      updates.NEGATIVE_TERMS = negTermsInput.value.trim();
-      updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
-
-      const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
-      if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
-
-      updates.ALARM_ENABLED = alarmEnabledToggle.checked;
-      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
-
-      const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
-      if (checkedDur) updates.ALARM_DURATION_DAYS = checkedDur.value;
-
-      updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
-      if (alarmSubmitDelayVal) {
-        updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, parseInt(alarmSubmitDelayVal.value) ?? 300);
-      }
-      if (alarmCloseDelayVal) {
-        updates.ALARM_CLOSE_DELAY_MS = Math.max(0, parseInt(alarmCloseDelayVal.value) ?? 800);
-      }
-      updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
-      updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));
-
-      if (bestpreiseModeToggle) {
-        updates.BESTPREISE_MODE_ACTIVE = bestpreiseModeToggle.checked;
-        if (bestpreiseWeightVal) {
-          const rawW = parseInt(bestpreiseWeightVal.value, 10);
-          const weightNum = isNaN(rawW) ? 50 : rawW;
-          updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
-        }
-        if (bestpreiseHorizonSelect) {
-          updates.BESTPREISE_MEDIAN_HORIZON_DAYS = parseInt(bestpreiseHorizonSelect.value, 10) || 0;
-        }
-      }
-      if (cacheTtlSelect) updates.REAL_DEAL_CACHE_HOURS = parseInt(cacheTtlSelect.value, 10) || 48;
-      if (cacheNegTtlSelect) updates.NEGATIVE_CACHE_HOURS = parseInt(cacheNegTtlSelect.value, 10) || 2;
-
-      if (realDealFilterToggle) updates.REAL_DEAL_FILTER_ACTIVE = realDealFilterToggle.checked;
-      if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
-      if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
-
-      updateConfigs(updates);
-      showToast('Toppreise Suite Einstellungen gespeichert');
-      closeModal();
-    });
-  }
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;

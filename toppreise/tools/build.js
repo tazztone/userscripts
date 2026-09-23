@@ -37,10 +37,16 @@ function indent(code, spaces = 2) {
 }
 
 export function buildBundle() {
+  const stylesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'styles.js'), 'utf-8'));
   const selectorsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'selectors.js'), 'utf-8'));
-  const cacheCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'cache.js'), 'utf-8'));
+  const categoryCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'category.js'), 'utf-8'));
   const priceCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'price.js'), 'utf-8'));
   const dealScoreCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'deal-score.js'), 'utf-8'));
+  const cacheCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'cache.js'), 'utf-8'));
+  const cardsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'cards.js'), 'utf-8'));
+  const modalCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'modal.js'), 'utf-8'));
+  const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
+  const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
   const rawAppCode = fs.readFileSync(path.join(SRC_DIR, 'app.js'), 'utf-8');
 
   // Strip top imports from app.js
@@ -81,11 +87,17 @@ export function buildBundle() {
 
 ${topDeclarations}
 
+// ─── STYLES ──────────────────────────────────────────────────────────────────
+${stylesCode}
+
 (() => {
   'use strict';
 
   // ─── MODULE: src/page/selectors.js ──────────────────────────────────────────
 ${indent(selectorsCode, 2)}
+
+  // ─── MODULE: src/domain/category.js ─────────────────────────────────────────
+${indent(categoryCode, 2)}
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
 ${indent(priceCode, 2)}
@@ -96,7 +108,19 @@ ${indent(dealScoreCode, 2)}
   // ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────
 ${indent(cacheCode, 2)}
 
-  // ─── APPLICATION & UI LOGIC ─────────────────────────────────────────────────
+  // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
+${indent(cardsCode, 2)}
+
+  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
+${indent(modalCode, 2)}
+
+  // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
+${indent(toastCode, 2)}
+
+  // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
+${indent(toolbarCode, 2)}
+
+  // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
 ${indent(iifeBody, 0)}
 `;
 
