@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Verification Script for Toppreise Category Lookup Engine
-Tests category mapping accuracy against benchmark site category terms.
+Tests category mapping accuracy against benchmark site category terms using BRAND_RULES and ROOT_SLUG_MAP.
 """
 
-import json
 import os
+import re
 import sys
 
 BENCHMARK_CATEGORIES = [
@@ -45,26 +45,28 @@ def main():
     with open(userscript_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    import re
-    match = re.search(r'const CATEGORY_LOOKUP\s*=\s*({[\s\S]*?});', content)
-    if not match:
-        print("❌ Error: CATEGORY_LOOKUP not found in toppreise.user.js")
-        sys.exit(1)
+    rules = []
+    for m in re.finditer(r"regex:\s*/\\b\((.*?)\)\\b/i,\s*group:\s*['\"](.*?)['\"]", content):
+        pattern = re.compile(rf"\b({m.group(1)})\b", re.IGNORECASE)
+        group = m.group(2)
+        rules.append((pattern, group))
 
-    lookup = json.loads(match.group(1))
+    if not rules:
+        print("❌ Error: BRAND_RULES not found in toppreise.user.js")
+        sys.exit(1)
 
     mapped = []
     unmapped = []
     
     for cat in BENCHMARK_CATEGORIES:
         norm = cat.strip().lower()
-        slug = norm.replace(' ', '')
-        space_slug = norm.replace('-', ' ')
-        
-        root = lookup.get(norm) or lookup.get(slug) or lookup.get(space_slug)
-        if root:
-            mapped.append((cat, root))
-        else:
+        matched = False
+        for pat, grp in rules:
+            if pat.search(norm):
+                mapped.append((cat, grp))
+                matched = True
+                break
+        if not matched:
             unmapped.append(cat)
 
     print("==================================================")
@@ -73,17 +75,24 @@ def main():
     print(f"Total Benchmark Terms : {len(BENCHMARK_CATEGORIES)}")
     print(f"Mapped Terms          : {len(mapped)} ({len(mapped)/len(BENCHMARK_CATEGORIES)*100:.1f}%)")
     print(f"Unmapped (Sonstiges)  : {len(unmapped)}")
-    print(f"Total Generated Keys  : {len(lookup)}")
+    print(f"Total Active Rules    : {len(rules)}")
     print("==================================================")
 
     if unmapped:
-        print("\n⚠️ Unmapped categories (fall back to regex/card URL):")
+        print("\n⚠️ Unmapped categories (fall back to card URL / Sonstiges):")
         for u in unmapped:
             print(f"  • {u}")
 
     print("\n✅ Sample Mapped Categories:")
     for cat, root in sorted(mapped[:20], key=lambda x: x[1]):
         print(f"  • {cat:35s} => {root}")
+
+    # Success criteria: At least 95% of benchmark categories must be resolved
+    if len(mapped) / len(BENCHMARK_CATEGORIES) < 0.95:
+        print("\n❌ Verification failed: Mapped percentage below 95% threshold.")
+        sys.exit(1)
+    else:
+        print("\n✨ Verification PASSED! Taxonomy coverage satisfies quality gate.")
 
 if __name__ == '__main__':
     main()

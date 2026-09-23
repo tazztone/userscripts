@@ -65,6 +65,28 @@ def process_script(script_relpath):
                 f.write(new_readme)
             subprocess.run(['git', 'add', readme_path], check=True)
 
+    # Sync src/app.js if modular structure exists
+    app_path = os.path.join(script_dir, 'src', 'app.js')
+    if os.path.exists(app_path):
+        with open(app_path, 'r', encoding='utf-8') as f:
+            app_content = f.read()
+        new_app_content = re.sub(pattern, lambda m: f"{m.group(1)}{extracted_version}", app_content, count=1)
+        if new_app_content != app_content:
+            with open(app_path, 'w', encoding='utf-8') as f:
+                f.write(new_app_content)
+            subprocess.run(['git', 'add', app_path], check=True)
+
+    # Sync package.json if it exists
+    pkg_path = os.path.join(script_dir, 'package.json')
+    if os.path.exists(pkg_path):
+        with open(pkg_path, 'r', encoding='utf-8') as f:
+            pkg_content = f.read()
+        new_pkg_content = re.sub(r'("version"\s*:\s*")\d+\.\d+\.\d+(")', f"\\g<1>{extracted_version}\\g<2>", pkg_content, count=1)
+        if new_pkg_content != pkg_content:
+            with open(pkg_path, 'w', encoding='utf-8') as f:
+                f.write(new_pkg_content)
+            subprocess.run(['git', 'add', pkg_path], check=True)
+
     script_name = os.path.basename(script_relpath)
     print(f"🚀 [pre-commit] Auto-bumped {script_name} to v{extracted_version}")
 

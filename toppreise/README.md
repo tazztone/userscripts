@@ -10,13 +10,13 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.37)**](https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.38)**](https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.37)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.38)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
    - **🔥 Continuous Deal-Score & Thermal Heatmap**: Berechnet für jedes verifizierte Angebot einen gewichteten Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$). Die Heatmap färbt die Karten direkt anhand dieses echten Scores (kühles Cyan $\rightarrow$ warmes Bernstein $\rightarrow$ feuriges Rubinrot).
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
@@ -85,9 +85,39 @@ Click the floating **gear button** in the bottom corner of Toppreise.ch to open 
 
 ---
 
-## 🧪 Development Checks
+## 🏗️ Architecture & Development
+
+The source code is modularized under `src/`:
+- `src/domain/price.js`: Pure price parsing, integer cents conversion, time-series anomaly filtering, and rolling horizon analytics.
+- `src/domain/deal-score.js`: Deal classification and weighted continuous scoring algorithms.
+- `src/scanner/cache.js`: Bounded in-memory LRU cache (`MAX_MEMORY_CACHE_ITEMS = 500`) with TTL validation and localStorage pruning.
+- `src/page/selectors.js`: Central immutable `SELECTORS` registry for feed, catalog, detail, and price containers.
+- `src/app.js`: Userscript orchestration, UI components, observers, and DOM lifecycle.
+
+### Build Pipeline & Quality Gates
 
 ```bash
+# Build the distributable toppreise.user.js artifact from src/
+node userscripts/toppreise/tools/build.js
+
+# Verify bundle integrity and detect drift (CI gate)
+node userscripts/toppreise/tools/build.js --check
+
+# Syntax verification
 node --check userscripts/toppreise/toppreise.user.js
-pytest userscripts/toppreise/tests
+```
+
+### 🧪 Test Execution
+
+```bash
+# Fast unit tests (~40ms, zero-browser overhead)
+node --test userscripts/toppreise/tests/unit/*.test.js
+# Or via pytest:
+userscripts/venv/bin/pytest userscripts/toppreise/tests/test_price_logic.py
+
+# Category taxonomy verification
+python3 userscripts/toppreise/tools/verify_category_map.py
+
+# Targeted Playwright browser regression test suite (~40s)
+userscripts/venv/bin/pytest userscripts/toppreise/tests/test_userscript.py
 ```
