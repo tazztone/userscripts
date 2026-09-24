@@ -3,6 +3,7 @@ Fast Pure Unit Test Runner for Toppreise Domain & Infrastructure Modules.
 Executes the native Node.js unit tests in <100ms without Playwright browser launch overhead.
 """
 
+import glob
 import os
 import subprocess
 import pytest
@@ -11,13 +12,12 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 TOPPREISE_DIR = os.path.dirname(TESTS_DIR)
 UNIT_TESTS_DIR = os.path.join(TESTS_DIR, "unit")
 
+UNIT_TEST_FILES = sorted(
+    os.path.basename(f) for f in glob.glob(os.path.join(UNIT_TESTS_DIR, "*.test.js"))
+)
 
-@pytest.mark.parametrize("test_file", [
-    "price.test.js",
-    "deal-score.test.js",
-    "cache.test.js",
-    "selectors.test.js"
-])
+
+@pytest.mark.parametrize("test_file", UNIT_TEST_FILES)
 def test_node_unit_suite(test_file):
     test_path = os.path.join(UNIT_TESTS_DIR, test_file)
     assert os.path.exists(test_path), f"Unit test file not found: {test_path}"

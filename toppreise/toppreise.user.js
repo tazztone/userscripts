@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.48
+// @version      2.18.49
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1798,7 +1798,6 @@ const SHADOW_MODAL_STYLES = `
     USE_SHIPPING_PRICE: true,
     HEATMAP_ENABLED: true,
     HEATMAP_INTENSITY: 1.0,
-    HEATMAP_CURVE: 'calibrated',
     REAL_DEAL_FILTER_ACTIVE: false,
     REAL_DEAL_MIN_DISCOUNT: 30,
     REAL_DEAL_CACHE_HOURS: 48,
@@ -1837,7 +1836,6 @@ const SHADOW_MODAL_STYLES = `
     USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
     HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
     HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-    HEATMAP_CURVE: _getValue('HEATMAP_CURVE', DEFAULTS.HEATMAP_CURVE),
     REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
     REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
     BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
@@ -1887,18 +1885,6 @@ const SHADOW_MODAL_STYLES = `
             const label = shadow.getElementById('tp-opacity-val');
             if (range) range.value = val;
             if (label) label.textContent = `${Math.round(val * 100)}%`;
-            break;
-          }
-          case 'NEGATIVE_TERMS': {
-            const input = shadow.getElementById('tp-negative-terms-input');
-            if (input && input.value !== val) input.value = val || '';
-            break;
-          }
-          case 'MIN_OFFERS': {
-            const input = shadow.getElementById('tp-min-offers-val');
-            const range = shadow.getElementById('tp-min-offers-range');
-            if (input) input.value = val;
-            if (range) range.value = val;
             break;
           }
           case 'HEATMAP_ENABLED': {
@@ -2397,13 +2383,9 @@ const SHADOW_MODAL_STYLES = `
     if (match) {
       let val = parseFloat(match[1].replace(',', '.'));
       if (!isNaN(val)) {
-        if (/aufschlag/i.test(text) && val > 0) {
-          val = Math.abs(val);
-        }
-        val = val === 0 ? 0 : val;
         if (card.dataset) {
-          card.dataset.tpDiff = String(val);
-          card.dataset.tpDiscount = String(val === 0 ? 0 : -val);
+          card.dataset.tpDiff = val;
+          card.dataset.tpDiscount = val ? -val : 0;
         }
         return val;
       }
@@ -2468,7 +2450,7 @@ const SHADOW_MODAL_STYLES = `
     const stats = pid ? getCachedPriceStats(pid) : null;
     const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
     const diffVal = extractCardDiff(card);
-    const discountVal = diffVal === null ? null : (diffVal === 0 ? 0 : -diffVal);
+    const discountVal = extractCardDiscount(card);
     const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     const catName = extractCardCategory(card);
     const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);
@@ -3126,7 +3108,7 @@ const SHADOW_MODAL_STYLES = `
     // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
     const effectiveDiff = isVerifiedNonBest
       ? null
-      : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal !== undefined && diffVal !== null ? diffVal : (discountVal !== null ? (discountVal === 0 ? 0 : -discountVal) : null))));
+      : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal ?? null)));
 
     if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const heatKey = `${effectiveDiff}_${CONFIG.HEATMAP_INTENSITY}`;
@@ -4028,9 +4010,6 @@ const SHADOW_MODAL_STYLES = `
     const opacityRange = shadow.getElementById('tp-opacity-range');
     const opacityVal = shadow.getElementById('tp-opacity-val');
     const shippingToggle = shadow.getElementById('tp-shipping-toggle');
-    const negTermsInput = shadow.getElementById('tp-negative-terms-input');
-    const minOffersRange = shadow.getElementById('tp-min-offers-range');
-    const minOffersVal = shadow.getElementById('tp-min-offers-val');
     const sortNone = shadow.getElementById('tp-sort-none');
     const sortDesc = shadow.getElementById('tp-sort-desc');
     const sortAsc = shadow.getElementById('tp-sort-asc');
@@ -4081,9 +4060,6 @@ const SHADOW_MODAL_STYLES = `
       opacityRange.value = CONFIG.DIM_OPACITY;
       opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
       if (shippingToggle) shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
-      if (negTermsInput) negTermsInput.value = CONFIG.NEGATIVE_TERMS || '';
-      if (minOffersRange) minOffersRange.value = CONFIG.MIN_OFFERS || 0;
-      if (minOffersVal) minOffersVal.value = CONFIG.MIN_OFFERS || 0;
 
       if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
       else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
@@ -4164,7 +4140,6 @@ const SHADOW_MODAL_STYLES = `
 
     bindDual(marginRange, marginVal, 1);
     bindDual(opacityRange, opacityVal, 100, val => document.documentElement.style.setProperty('--tp-dim-opacity', val));
-    bindDual(minOffersRange, minOffersVal, 1);
     bindDual(alarmTargetRange, alarmTargetVal, 1);
     bindDual(alarmSubmitDelayRange, alarmSubmitDelayVal, 1);
     bindDual(alarmCloseDelayRange, alarmCloseDelayVal, 1);
@@ -4276,8 +4251,6 @@ const SHADOW_MODAL_STYLES = `
       updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
       updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
       if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-      if (negTermsInput) updates.NEGATIVE_TERMS = negTermsInput.value.trim();
-      if (minOffersVal) updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
 
       const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;

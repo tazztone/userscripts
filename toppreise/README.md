@@ -10,13 +10,13 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.48)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.49)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.48)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.49)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
    - **🔥 Continuous Deal-Score & Thermal Heatmap**: Berechnet für jedes verifizierte Angebot einen gewichteten Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$). Die Heatmap färbt die Karten direkt anhand dieses echten Scores (kühles Cyan $\rightarrow$ warmes Bernstein $\rightarrow$ feuriges Rubinrot).
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
@@ -105,26 +105,26 @@ The source code is modularized under `src/`:
 
 ```bash
 # Build the distributable toppreise.user.js artifact from src/
-node userscripts/toppreise/tools/build.js
+node toppreise/tools/build.js
 
 # Verify bundle integrity and detect drift (CI gate)
-node userscripts/toppreise/tools/build.js --check
+node toppreise/tools/build.js --check
 
 # Syntax verification
-node --check userscripts/toppreise/toppreise.user.js
+node --check toppreise/toppreise.user.js
 ```
 
 ### 🧪 Test Execution
 
 ```bash
 # Fast unit tests (~40ms, zero-browser overhead)
-node --test userscripts/toppreise/tests/unit/*.test.js
+node --test toppreise/tests/unit/*.test.js
 # Or via pytest:
-userscripts/venv/bin/pytest userscripts/toppreise/tests/test_price_logic.py
+venv/bin/pytest toppreise/tests/test_price_logic.py
 
 # Category taxonomy verification
-python3 userscripts/toppreise/tools/verify_category_map.py
+python3 toppreise/tools/verify_category_map.py
 
 # Targeted Playwright browser regression test suite (~40s)
-userscripts/venv/bin/pytest userscripts/toppreise/tests/test_userscript.py
+venv/bin/pytest toppreise/tests/test_catalog_layout.py
 ```

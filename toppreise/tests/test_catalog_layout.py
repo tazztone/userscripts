@@ -1,6 +1,8 @@
 import os
 from playwright.sync_api import Page, expect
 
+SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'toppreise.user.js'))
+
 
 
 def test_best_price_highlighting_and_dimming(page: Page):
@@ -1481,7 +1483,7 @@ def test_shipping_price_mismatch(page: Page):
     test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
     # Use the local mock file and evaluate the script contents
     page.goto(f'file://{test_html_path}')
-    with open('userscripts/toppreise/toppreise.user.js', 'r') as f:
+    with open(SCRIPT_PATH, 'r', encoding='utf-8') as f:
         page.add_script_tag(content=f.read())
 
     page.evaluate("() => { if(window.ToppreiseSuite) { window.ToppreiseSuite.CONFIG.USE_SHIPPING_PRICE = true; window.ToppreiseSuite.processListings(); } }")
@@ -1872,7 +1874,7 @@ def test_showproductprice_vs_showshippingprice_consistency(page: Page):
     """
     test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
     page.goto(f'file://{test_html_path}')
-    with open('userscripts/toppreise/toppreise.user.js', 'r') as f:
+    with open(SCRIPT_PATH, 'r', encoding='utf-8') as f:
         page.add_script_tag(content=f.read())
 
     # Mock pricechart response with distinct series:

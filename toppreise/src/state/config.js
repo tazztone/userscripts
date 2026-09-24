@@ -17,7 +17,6 @@ export const DEFAULTS = Object.freeze({
   USE_SHIPPING_PRICE: true,
   HEATMAP_ENABLED: true,
   HEATMAP_INTENSITY: 1.0,
-  HEATMAP_CURVE: 'calibrated',
   REAL_DEAL_FILTER_ACTIVE: false,
   REAL_DEAL_MIN_DISCOUNT: 30,
   REAL_DEAL_CACHE_HOURS: 48,
@@ -56,7 +55,6 @@ export const CONFIG = {
   USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
   HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
   HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-  HEATMAP_CURVE: _getValue('HEATMAP_CURVE', DEFAULTS.HEATMAP_CURVE),
   REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
   REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
   BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
@@ -106,18 +104,6 @@ export function syncUiControl(key, val) {
           const label = shadow.getElementById('tp-opacity-val');
           if (range) range.value = val;
           if (label) label.textContent = `${Math.round(val * 100)}%`;
-          break;
-        }
-        case 'NEGATIVE_TERMS': {
-          const input = shadow.getElementById('tp-negative-terms-input');
-          if (input && input.value !== val) input.value = val || '';
-          break;
-        }
-        case 'MIN_OFFERS': {
-          const input = shadow.getElementById('tp-min-offers-val');
-          const range = shadow.getElementById('tp-min-offers-range');
-          if (input) input.value = val;
-          if (range) range.value = val;
           break;
         }
         case 'HEATMAP_ENABLED': {

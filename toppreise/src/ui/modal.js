@@ -273,9 +273,6 @@ export function setupUI() {
   const opacityRange = shadow.getElementById('tp-opacity-range');
   const opacityVal = shadow.getElementById('tp-opacity-val');
   const shippingToggle = shadow.getElementById('tp-shipping-toggle');
-  const negTermsInput = shadow.getElementById('tp-negative-terms-input');
-  const minOffersRange = shadow.getElementById('tp-min-offers-range');
-  const minOffersVal = shadow.getElementById('tp-min-offers-val');
   const sortNone = shadow.getElementById('tp-sort-none');
   const sortDesc = shadow.getElementById('tp-sort-desc');
   const sortAsc = shadow.getElementById('tp-sort-asc');
@@ -326,9 +323,6 @@ export function setupUI() {
     opacityRange.value = CONFIG.DIM_OPACITY;
     opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
     if (shippingToggle) shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
-    if (negTermsInput) negTermsInput.value = CONFIG.NEGATIVE_TERMS || '';
-    if (minOffersRange) minOffersRange.value = CONFIG.MIN_OFFERS || 0;
-    if (minOffersVal) minOffersVal.value = CONFIG.MIN_OFFERS || 0;
 
     if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
     else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
@@ -409,7 +403,6 @@ export function setupUI() {
 
   bindDual(marginRange, marginVal, 1);
   bindDual(opacityRange, opacityVal, 100, val => document.documentElement.style.setProperty('--tp-dim-opacity', val));
-  bindDual(minOffersRange, minOffersVal, 1);
   bindDual(alarmTargetRange, alarmTargetVal, 1);
   bindDual(alarmSubmitDelayRange, alarmSubmitDelayVal, 1);
   bindDual(alarmCloseDelayRange, alarmCloseDelayVal, 1);
@@ -521,8 +514,6 @@ export function setupUI() {
     updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
     updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
     if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-    if (negTermsInput) updates.NEGATIVE_TERMS = negTermsInput.value.trim();
-    if (minOffersVal) updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
 
     const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
     if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;

@@ -32,8 +32,11 @@ jobs:
       - name: Verify Category Taxonomy Coverage
         run: python3 toppreise/tools/verify_category_map.py
 
+      - name: Run Hugging Face Node Unit Tests
+        run: node --test huggingface/tests/test_logic.js
+
   playwright-e2e:
-    name: Toppreise Playwright E2E Tests
+    name: Userscripts Playwright E2E Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,3 +60,9 @@ jobs:
 
       - name: Run Targeted Catalog Layout Suite
         run: pytest toppreise/tests/test_catalog_layout.py -o addopts="--import-mode=importlib"
+
+      - name: Run Hugging Face Tests
+        run: pytest huggingface/tests/ -o addopts="--import-mode=importlib"
+
+      - name: Run Perplexity Tests
+        run: pytest perplexity/tests/ -o addopts="--import-mode=importlib"

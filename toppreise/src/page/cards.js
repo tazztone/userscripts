@@ -164,13 +164,9 @@ export function extractCardDiff(card) {
   if (match) {
     let val = parseFloat(match[1].replace(',', '.'));
     if (!isNaN(val)) {
-      if (/aufschlag/i.test(text) && val > 0) {
-        val = Math.abs(val);
-      }
-      val = val === 0 ? 0 : val;
       if (card.dataset) {
-        card.dataset.tpDiff = String(val);
-        card.dataset.tpDiscount = String(val === 0 ? 0 : -val);
+        card.dataset.tpDiff = val;
+        card.dataset.tpDiscount = val ? -val : 0;
       }
       return val;
     }
@@ -235,7 +231,7 @@ export function extractCardData(card) {
   const stats = pid ? getCachedPriceStats(pid) : null;
   const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
   const diffVal = extractCardDiff(card);
-  const discountVal = diffVal === null ? null : (diffVal === 0 ? 0 : -diffVal);
+  const discountVal = extractCardDiscount(card);
   const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
   const catName = extractCardCategory(card);
   const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);

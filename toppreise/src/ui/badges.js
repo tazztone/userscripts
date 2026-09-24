@@ -61,7 +61,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
   const effectiveDiff = isVerifiedNonBest
     ? null
-    : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal !== undefined && diffVal !== null ? diffVal : (discountVal !== null ? (discountVal === 0 ? 0 : -discountVal) : null))));
+    : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal ?? null)));
 
   if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
     const heatKey = `${effectiveDiff}_${CONFIG.HEATMAP_INTENSITY}`;

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Universal pre-commit hook: Auto-bumps patch versions for any staged userscripts (*.user.js) and syncs their adjacent README.md files."""
 
+import glob
 import os
 import re
 import subprocess
@@ -103,15 +104,8 @@ def check_toppreise_quality_gates(toppreise_dir):
         subprocess.run(['node', 'tools/build.js', '--check'], cwd=toppreise_dir, check=True)
 
         # 3. Fast unit tests (<100ms)
-        unit_test_files = [
-            'tests/unit/price.test.js',
-            'tests/unit/deal-score.test.js',
-            'tests/unit/cache.test.js',
-            'tests/unit/selectors.test.js',
-            'tests/unit/store.test.js',
-            'tests/unit/adapter.test.js',
-            'tests/unit/sparkline.test.js'
-        ]
+        unit_test_dir = os.path.join(toppreise_dir, 'tests', 'unit')
+        unit_test_files = sorted(glob.glob(os.path.join(unit_test_dir, '*.test.js')))
         subprocess.run(['node', '--test'] + unit_test_files, cwd=toppreise_dir, check=True)
 
         # 4. Fast category taxonomy gate (~30ms)
@@ -124,26 +118,32 @@ def check_toppreise_quality_gates(toppreise_dir):
     return True
 
 
-def main():
+def get_staged_files():
     try:
-        staged_files = subprocess.check_output(
+        return subprocess.check_output(
             ['git', 'diff', '--cached', '--name-only'],
             text=True
         ).splitlines()
     except subprocess.CalledProcessError:
-        return 0
+        return []
 
-    staged_userscripts = [
-        path for path in staged_files
-        if path.endswith('.user.js')
-    ]
 
-    # If any file in userscripts/toppreise/ is staged, run quality gates
+def main():
+    staged_files = get_staged_files()
+
+    # If any file in toppreise/ is staged, run quality gates
     toppreise_staged = any(path.startswith('toppreise/') for path in staged_files)
     if toppreise_staged:
         toppreise_dir = os.path.join(REPO_ROOT, 'toppreise')
         if not check_toppreise_quality_gates(toppreise_dir):
             return 1
+        # Re-read staged files after quality gate may have staged the bundle
+        staged_files = get_staged_files()
+
+    staged_userscripts = [
+        path for path in staged_files
+        if path.endswith('.user.js')
+    ]
 
     for script_path in staged_userscripts:
         process_script(script_path)
