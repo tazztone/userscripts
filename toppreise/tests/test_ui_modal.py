@@ -380,7 +380,7 @@ def test_config_import_ignores_unknown_and_debug_keys(page: Page):
 
 
 
-def test_sparklines_beta_settings_toggle(page: Page):
+def test_sparklines_settings_toggle(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
@@ -539,20 +539,26 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     assert res['barHeatActive'] is False
     assert res['modalHeatChecked'] is False
 
-    # 2. Update config for MIN_OFFERS
-    res_min = page.evaluate("""() => {
+    # 2. Update config for MIN_OFFERS (toolbar) and REAL_DEAL_MIN_DISCOUNT (toolbar & modal)
+    res_sync = page.evaluate("""() => {
         window.ToppreiseSuite.updateConfig('MIN_OFFERS', 5);
-        const barVal = document.getElementById('tp-bar-min-val')?.textContent;
-        const modalVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-min-offers-val')?.value;
+        window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 25);
+        const barMinVal = document.getElementById('tp-bar-min-val')?.textContent;
+        const barThreshBtn = document.getElementById('tp-bar-threshold-btn')?.textContent;
+        const modalThreshVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-real-deal-min-val')?.value;
         return {
-            config: window.ToppreiseSuite.CONFIG.MIN_OFFERS,
-            barVal,
-            modalVal
+            minConfig: window.ToppreiseSuite.CONFIG.MIN_OFFERS,
+            barMinVal,
+            threshConfig: window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT,
+            barThreshBtn,
+            modalThreshVal
         };
     }""")
-    assert res_min['config'] == 5
-    assert res_min['barVal'] == '5'
-    assert res_min['modalVal'] == '5'
+    assert res_sync['minConfig'] == 5
+    assert res_sync['barMinVal'] == '5'
+    assert res_sync['threshConfig'] == 25
+    assert res_sync['barThreshBtn'] == '≥25% ▾'
+    assert res_sync['modalThreshVal'] == '25'
 
     # Close modal
     page.click('#tp-root >> #tp-btn-close')

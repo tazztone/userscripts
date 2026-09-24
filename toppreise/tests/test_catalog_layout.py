@@ -15,10 +15,9 @@ def test_best_price_highlighting_and_dimming(page: Page):
 
 
 def test_negative_keywords_filtering(page: Page):
-    # Open settings dialog and set negative keyword
-    page.click('#tp-root >> #tp-settings-fab')
-    page.fill('#tp-root >> #tp-negative-terms-input', 'Case, Hülle')
-    page.click('#tp-root >> #tp-btn-save')
+    # Set negative keyword via inline filter bar input
+    page.fill('#tp-inline-negative-input', 'Case, Hülle')
+    page.dispatch_event('#tp-inline-negative-input', 'input')
 
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     assert 'tp-negative-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
@@ -27,10 +26,8 @@ def test_negative_keywords_filtering(page: Page):
 
 
 def test_min_offers_filter(page: Page):
-    # Open settings and set min offers to 3
-    page.click('#tp-root >> #tp-settings-fab')
-    page.fill('#tp-root >> #tp-min-offers-val', '3')
-    page.click('#tp-root >> #tp-btn-save')
+    # Set min offers to 3 via updateConfig
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 3)")
 
     page.wait_for_selector('#card-low-offers.tp-min-offers-filtered', state='attached')
     assert 'tp-min-offers-filtered' in (page.locator('#card-low-offers').get_attribute('class') or '')
@@ -67,10 +64,9 @@ def test_sort_by_offers(page: Page):
 
 def test_master_filter_toggle_and_category_preservation(page: Page):
     # Add negative term, min offers filter, and blocked category
-    page.click('#tp-root >> #tp-settings-fab')
-    page.fill('#tp-root >> #tp-negative-terms-input', 'Case')
-    page.fill('#tp-root >> #tp-min-offers-val', '10')
-    page.click('#tp-root >> #tp-btn-save')
+    page.fill('#tp-inline-negative-input', 'Case')
+    page.dispatch_event('#tp-inline-negative-input', 'input')
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 10)")
 
     page.evaluate("""() => {
         window.ToppreiseSuite.saveConfigKey('EXCLUDED_CATEGORIES', ['PATH:Hardware/Grafikkarten']);

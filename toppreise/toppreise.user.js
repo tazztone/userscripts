@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.45
+// @version      2.18.46
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3605,7 +3605,7 @@ const SHADOW_MODAL_STYLES = `
       card.querySelector('.tp-card-historical-price')?.remove();
     }
 
-    // 3.6 Mini Price-Trend Sparkline (Beta Feature)
+    // 3.6 Mini Price-Trend Sparkline
     if (CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2) {
       let sparkContainer = card.querySelector('.tp-sparkline-container');
       if (!sparkContainer) {

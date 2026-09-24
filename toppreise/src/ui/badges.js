@@ -580,7 +580,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     card.querySelector('.tp-card-historical-price')?.remove();
   }
 
-  // 3.6 Mini Price-Trend Sparkline (Beta Feature)
+  // 3.6 Mini Price-Trend Sparkline
   if (CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2) {
     let sparkContainer = card.querySelector('.tp-sparkline-container');
     if (!sparkContainer) {
