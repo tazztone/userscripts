@@ -21,12 +21,12 @@ Every userscript resides in its own subdirectory:
 
 ## Directory Inventory
 
-| Directory | Description |
-| :--- | :--- |
-| [**`huggingface`**](./huggingface) | Hugging Face Heart & Date Filter: Filter models/datasets by last modified date, auto-unheart/heart toggle, non-blocking toasts. |
-| [**`perplexity`**](./perplexity) | Perplexity Enhancements: Keeps preferred model active, auto-approves action cards, and enables GitHub connector. |
-| [**`toppreise`**](./toppreise) | Toppreise.ch Suite: Best price highlighting, discount heatmap, negative text filter, hierarchical category exclusion, and price alarm automation. |
-| [**`fastlog-watcher`**](./fastlog-watcher) | Fastlog Watcher: Real-time event and log stream monitor (under development). |
+| Userscript | Description | Direct Install |
+| :--- | :--- | :---: |
+| [**Toppreise Suite**](./toppreise) | Best price highlighting, discount heatmap, negative text filter, hierarchical category exclusion, and price alarm automation. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js) |
+| [**Perplexity Enhancements**](./perplexity) | Keeps preferred model active, auto-approves action cards, and enables GitHub connector. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/perplexity/perplexity-enhancements.user.js) |
+| [**Hugging Face Heart & Filter**](./huggingface) | Filter models/datasets by last modified date, auto-unheart/heart toggle, non-blocking toasts. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/huggingface/huggingface-heart.user.js) |
+| [**Fastlog Watcher**](./fastlog-watcher) | Real-time event and log stream monitor. | *(In development)* |
 
 ---
 

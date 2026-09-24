@@ -237,6 +237,6 @@ def create_annotated_screenshot(src_path, output_png, output_webp):
 
 if __name__ == "__main__":
     src = "/home/tazztone/.gemini/antigravity-ide/brain/d8407f79-485a-4ba0-bf03-ae441b553729/.user_uploaded/media_1787743263048.png"
-    out_png = "/home/tazztone/_coding/scripts/userscripts/toppreise/Screenshot.png"
-    out_webp = "/home/tazztone/_coding/scripts/userscripts/toppreise/Screenshot.webp"
+    out_png = "/home/tazztone/_coding/userscripts/toppreise/Screenshot.png"
+    out_webp = "/home/tazztone/_coding/userscripts/toppreise/Screenshot.webp"
     create_annotated_screenshot(src, out_png, out_webp)
