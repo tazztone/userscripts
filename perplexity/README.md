@@ -8,7 +8,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v1.1.0)**](https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/perplexity/perplexity-enhancements.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v1.1.2)**](https://raw.githubusercontent.com/tazztone/userscripts/main/perplexity/perplexity-enhancements.user.js)
 
 > [!IMPORTANT]
 > Before installing, disable old standalone `Perplexity Model Lock` or `Perplexity Auto Approve` scripts if previously installed. Running multiple scripts simultaneously can duplicate click events.

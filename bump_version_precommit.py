@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def bump_version_string(match):
@@ -135,13 +135,13 @@ def main():
 
     staged_userscripts = [
         path for path in staged_files
-        if path.endswith('.user.js') and path.startswith('userscripts/')
+        if path.endswith('.user.js')
     ]
 
     # If any file in userscripts/toppreise/ is staged, run quality gates
-    toppreise_staged = any(path.startswith('userscripts/toppreise/') for path in staged_files)
+    toppreise_staged = any(path.startswith('toppreise/') for path in staged_files)
     if toppreise_staged:
-        toppreise_dir = os.path.join(REPO_ROOT, 'userscripts', 'toppreise')
+        toppreise_dir = os.path.join(REPO_ROOT, 'toppreise')
         if not check_toppreise_quality_gates(toppreise_dir):
             return 1
 

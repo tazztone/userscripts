@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         Perplexity Enhancements
-// @namespace    https://github.com/tazztone/scripts
-// @version      1.1.1
+// @namespace    https://github.com/tazztone/userscripts
+// @version      1.1.2
 // @description  Keeps a preferred Perplexity model active and safely automates agent approvals and GitHub connector enablement.
 // @author       tazztone
 // @match        https://www.perplexity.ai/*
 // @match        https://perplexity.ai/*
-// @updateURL    https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/perplexity/perplexity-enhancements.user.js
-// @downloadURL  https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/perplexity/perplexity-enhancements.user.js
+// @updateURL    https://raw.githubusercontent.com/tazztone/userscripts/main/perplexity/perplexity-enhancements.user.js
+// @downloadURL  https://raw.githubusercontent.com/tazztone/userscripts/main/perplexity/perplexity-enhancements.user.js
 // @run-at       document-idle
 // @grant        GM_getValue
 // @grant        GM_setValue

@@ -10,7 +10,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.0.2)**](https://raw.githubusercontent.com/tazztone/scripts/main/userscripts/huggingface/huggingface-heart.user.js?v=2.0.0)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.0.3)**](https://raw.githubusercontent.com/tazztone/userscripts/main/huggingface/huggingface-heart.user.js?v=2.0.0)
 
 ---
 

@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
+# Environments & virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# Playwright browser binaries
+.playwright-browsers/
+
+# Node dependencies
+node_modules/
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs & scratch
+*.log
+scratch/
+*/scratch/
