@@ -87,6 +87,15 @@ export const STYLES = `
     --darkreader-inline-bgcolor: transparent !important;
     --darkreader-inline-bgimage: none !important;
   }
+  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
+  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
+  .tp-heatmap-active p,
+  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-card-quick-block *):not(.tp-sparkline-container *) {
+    background: transparent !important;
+    background-color: transparent !important;
+    --darkreader-inline-bgcolor: transparent !important;
+    --darkreader-inline-bgimage: none !important;
+  }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest,
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-top],
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-right],
@@ -213,24 +222,24 @@ export const STYLES = `
     align-items: center !important;
     justify-content: center !important;
     width: auto !important;
-    min-width: 62px !important;
-    height: 22px !important;
-    border-radius: 11px !important;
-    padding: 2px 8px !important;
+    min-width: 74px !important;
+    height: 26px !important;
+    border-radius: 13px !important;
+    padding: 3px 10px !important;
     margin-bottom: 4px !important;
     margin-left: auto !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
     line-height: 1 !important;
     white-space: nowrap !important;
     box-sizing: border-box !important;
     cursor: pointer !important;
     text-align: center !important;
     gap: 4px !important;
-    background: rgba(30, 41, 59, 0.9) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1.5px solid rgba(56, 189, 248, 0.6) !important;
     color: #f1f5f9 !important;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 6px rgba(56, 189, 248, 0.25) !important;
     transform: none !important;
   }
   .badge.badge-dif.tp-deal-pill .text,

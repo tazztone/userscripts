@@ -20,11 +20,24 @@ export function getCardDealerRows(card) {
   return card._tpDealerRows;
 }
 
+export function getDistinctProductIds(el) {
+  if (!el || !el.querySelectorAll) return [];
+  const ids = new Set();
+  const links = [el.tagName?.toLowerCase() === 'a' ? el : null, ...Array.from(el.querySelectorAll('a[href]'))].filter(Boolean);
+  for (const a of links) {
+    const href = a.getAttribute('href') || a.href || '';
+    const m = href.match(/-p(\d+)/i);
+    if (m) ids.add(m[1]);
+  }
+  return Array.from(ids);
+}
+
 export function getProductCards() {
   const rawCards = Array.from(document.querySelectorAll(SELECTORS.cards.standard));
   const standardCards = rawCards.filter(c => {
     if (c.closest(SELECTORS.cards.excludedParents)) return false;
     if (c.closest(SELECTORS.cards.hiddenStyles)) return false;
+    if (getDistinctProductIds(c).length > 1) return false;
     return true;
   });
   if (standardCards.length > 0) {
@@ -37,6 +50,12 @@ export function getProductCards() {
     if (link.closest(SELECTORS.cards.excludedParents)) return;
     let container = link.parentElement;
     while (container && container !== document.body && container.parentElement !== document.body) {
+      if (container.matches && container.matches('.tab-content, .tab-pane, #FrameContent, .standardList, #product-list, main, section')) {
+        break;
+      }
+      if (getDistinctProductIds(container).length > 1) {
+        break;
+      }
       if (container.querySelector(SELECTORS.price.genericPriceMatch) || container.querySelector(SELECTORS.price.genericDiffMatch)) {
         gridCards.add(container);
         break;
@@ -134,40 +153,50 @@ export function matchesNegativeTerms(card, termsList) {
   });
 }
 
-export function extractCardDiscount(card) {
-  if (card.dataset?.tpDiscount !== undefined) {
-    const cached = parseFloat(card.dataset.tpDiscount);
-    return isNaN(cached) ? null : cached;
+export function extractCardDiff(card) {
+  if (card.dataset?.tpDiff !== undefined && card.dataset.tpDiff !== '') {
+    const cached = parseFloat(card.dataset.tpDiff);
+    return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
   }
   const badgeEl = card.querySelector('.badge-dif, .badge, [class*="badge-dif"]');
   const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
-  if (/aufschlag/i.test(text)) {
-    if (card.dataset) card.dataset.tpDiscount = '';
-    return null;
-  }
   const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
   if (match) {
-    const val = parseFloat(match[1].replace(',', '.'));
-    if (val < 0) {
-      const discount = Math.min(100, Math.max(0, Math.abs(val)));
-      if (!isNaN(discount)) {
-        if (card.dataset) card.dataset.tpDiscount = String(discount);
-        return discount;
+    let val = parseFloat(match[1].replace(',', '.'));
+    if (!isNaN(val)) {
+      if (/aufschlag/i.test(text) && val > 0) {
+        val = Math.abs(val);
       }
+      val = val === 0 ? 0 : val;
+      if (card.dataset) {
+        card.dataset.tpDiff = String(val);
+        card.dataset.tpDiscount = String(val === 0 ? 0 : -val);
+      }
+      return val;
     }
   }
-  if (card.dataset) card.dataset.tpDiscount = '';
+  if (card.dataset) {
+    card.dataset.tpDiff = '';
+    card.dataset.tpDiscount = '';
+  }
   return null;
 }
 
-export function getHeatmapStyles(discountPercent, intensity = 1.0, curve = 'calibrated') {
-  const d = Math.max(0, Math.min(100, discountPercent));
-  let t = curve === 'linear' ? d / 100 : (d <= 10 ? (d / 10) * 0.12 : d >= 50 ? Math.min(1.0, 0.85 + ((d - 50) / 25) * 0.15) : 0.12 + ((d - 10) / 40) * 0.73);
+export function extractCardDiscount(card) {
+  const diff = extractCardDiff(card);
+  return diff === null ? null : (diff === 0 ? 0 : -diff);
+}
+
+export function getHeatmapStyles(diffPercent, intensity = 1.0) {
+  const diff = typeof diffPercent === 'number' ? diffPercent : parseFloat(diffPercent);
+  if (isNaN(diff)) return null;
+  const clamped = Math.max(-100, Math.min(100, diff));
+  const t = (100 - clamped) / 200; // 0.0 (Cold, +100%) to 1.0 (Hot, -100%)
   const stops = [
-    { t: 0.00, base: [18, 48, 88],   acc: [28, 92, 175],   border: [56, 140, 248, 0.70] },
-    { t: 0.25, base: [12, 58, 64],   acc: [16, 130, 125],  border: [20, 210, 190, 0.75] },
-    { t: 0.50, base: [68, 48, 10],   acc: [180, 118, 15],  border: [245, 175, 20, 0.80] },
-    { t: 0.75, base: [85, 28, 12],   acc: [228, 76, 18],   border: [251, 115, 36, 0.88] },
+    { t: 0.00, base: [14, 38, 74],   acc: [24, 100, 185],  border: [56, 140, 248, 0.70] },
+    { t: 0.25, base: [12, 50, 60],   acc: [16, 130, 125],  border: [20, 210, 190, 0.75] },
+    { t: 0.50, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
+    { t: 0.75, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
     { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
   ];
   let i = stops.findIndex((s, idx) => idx < stops.length - 1 && t >= s.t && t <= stops[idx + 1].t);
@@ -181,7 +210,7 @@ export function getHeatmapStyles(discountPercent, intensity = 1.0, curve = 'cali
   const safeInt = Math.max(0.2, Math.min(1.0, intensity));
   const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
   const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
-  const glow = t >= 0.45 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
+  const glow = (t >= 0.70 || t <= 0.15) ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
   return { bg, border, glow };
 }
 
@@ -205,7 +234,8 @@ export function extractCardData(card) {
   const cardPrice = priceData.price;
   const stats = pid ? getCachedPriceStats(pid) : null;
   const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
-  const discountVal = extractCardDiscount(card);
+  const diffVal = extractCardDiff(card);
+  const discountVal = diffVal === null ? null : (diffVal === 0 ? 0 : -diffVal);
   const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
   const catName = extractCardCategory(card);
   const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);
@@ -218,6 +248,7 @@ export function extractCardData(card) {
     cardPrice,
     stats,
     isVerifiedNonBest,
+    diffVal,
     discountVal,
     dealScore,
     catName,

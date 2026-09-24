@@ -56,18 +56,18 @@ export function setTitleIfChanged(el, newTitle) {
 }
 
 export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-  const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, discountVal, catName, rootGroup } = cd;
+  const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal, catName, rootGroup } = cd;
 
-  // 0. Heatmap (driven by Deal-Score when verified or in Bestpreise mode; in unverified feed mode, driven by feed discount)
-  const effectiveHeatPercent = isVerifiedNonBest
+  // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
+  const effectiveDiff = isVerifiedNonBest
     ? null
-    : (cd.dealScore ? cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : discountVal));
+    : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal !== undefined && diffVal !== null ? diffVal : (discountVal !== null ? (discountVal === 0 ? 0 : -discountVal) : null))));
 
-  if (CONFIG.HEATMAP_ENABLED && effectiveHeatPercent !== null && effectiveHeatPercent > 0) {
-    const heatKey = `${effectiveHeatPercent}_${CONFIG.HEATMAP_INTENSITY}_${CONFIG.HEATMAP_CURVE}`;
+  if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+    const heatKey = `${effectiveDiff}_${CONFIG.HEATMAP_INTENSITY}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
-      const heatStyles = getHeatmapStyles(effectiveHeatPercent, CONFIG.HEATMAP_INTENSITY, CONFIG.HEATMAP_CURVE);
+      const heatStyles = getHeatmapStyles(effectiveDiff, CONFIG.HEATMAP_INTENSITY);
       card.style.setProperty('--tp-heat-bg', heatStyles.bg);
       card.style.setProperty('--tp-heat-border', heatStyles.border);
       card.style.setProperty('--tp-heat-glow', heatStyles.glow);

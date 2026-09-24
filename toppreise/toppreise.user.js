@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/scripts
-// @version      2.18.46
+// @version      2.18.47
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -105,6 +105,15 @@ const STYLES = `
   .tp-heatmap-active .image,
   .tp-heatmap-active [data-darkreader-inline-bgcolor],
   .tp-heatmap-active [data-darkreader-inline-bgimage] {
+    background: transparent !important;
+    background-color: transparent !important;
+    --darkreader-inline-bgcolor: transparent !important;
+    --darkreader-inline-bgimage: none !important;
+  }
+  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
+  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
+  .tp-heatmap-active p,
+  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-card-quick-block *):not(.tp-sparkline-container *) {
     background: transparent !important;
     background-color: transparent !important;
     --darkreader-inline-bgcolor: transparent !important;
@@ -236,24 +245,24 @@ const STYLES = `
     align-items: center !important;
     justify-content: center !important;
     width: auto !important;
-    min-width: 62px !important;
-    height: 22px !important;
-    border-radius: 11px !important;
-    padding: 2px 8px !important;
+    min-width: 74px !important;
+    height: 26px !important;
+    border-radius: 13px !important;
+    padding: 3px 10px !important;
     margin-bottom: 4px !important;
     margin-left: auto !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
     line-height: 1 !important;
     white-space: nowrap !important;
     box-sizing: border-box !important;
     cursor: pointer !important;
     text-align: center !important;
     gap: 4px !important;
-    background: rgba(30, 41, 59, 0.9) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1.5px solid rgba(56, 189, 248, 0.6) !important;
     color: #f1f5f9 !important;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 6px rgba(56, 189, 248, 0.25) !important;
     transform: none !important;
   }
   .badge.badge-dif.tp-deal-pill .text,
@@ -2244,11 +2253,24 @@ const SHADOW_MODAL_STYLES = `
     return card._tpDealerRows;
   }
 
+  function getDistinctProductIds(el) {
+    if (!el || !el.querySelectorAll) return [];
+    const ids = new Set();
+    const links = [el.tagName?.toLowerCase() === 'a' ? el : null, ...Array.from(el.querySelectorAll('a[href]'))].filter(Boolean);
+    for (const a of links) {
+      const href = a.getAttribute('href') || a.href || '';
+      const m = href.match(/-p(\d+)/i);
+      if (m) ids.add(m[1]);
+    }
+    return Array.from(ids);
+  }
+
   function getProductCards() {
     const rawCards = Array.from(document.querySelectorAll(SELECTORS.cards.standard));
     const standardCards = rawCards.filter(c => {
       if (c.closest(SELECTORS.cards.excludedParents)) return false;
       if (c.closest(SELECTORS.cards.hiddenStyles)) return false;
+      if (getDistinctProductIds(c).length > 1) return false;
       return true;
     });
     if (standardCards.length > 0) {
@@ -2261,6 +2283,12 @@ const SHADOW_MODAL_STYLES = `
       if (link.closest(SELECTORS.cards.excludedParents)) return;
       let container = link.parentElement;
       while (container && container !== document.body && container.parentElement !== document.body) {
+        if (container.matches && container.matches('.tab-content, .tab-pane, #FrameContent, .standardList, #product-list, main, section')) {
+          break;
+        }
+        if (getDistinctProductIds(container).length > 1) {
+          break;
+        }
         if (container.querySelector(SELECTORS.price.genericPriceMatch) || container.querySelector(SELECTORS.price.genericDiffMatch)) {
           gridCards.add(container);
           break;
@@ -2358,40 +2386,50 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
-  function extractCardDiscount(card) {
-    if (card.dataset?.tpDiscount !== undefined) {
-      const cached = parseFloat(card.dataset.tpDiscount);
-      return isNaN(cached) ? null : cached;
+  function extractCardDiff(card) {
+    if (card.dataset?.tpDiff !== undefined && card.dataset.tpDiff !== '') {
+      const cached = parseFloat(card.dataset.tpDiff);
+      return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
     }
     const badgeEl = card.querySelector('.badge-dif, .badge, [class*="badge-dif"]');
     const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
-    if (/aufschlag/i.test(text)) {
-      if (card.dataset) card.dataset.tpDiscount = '';
-      return null;
-    }
     const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
     if (match) {
-      const val = parseFloat(match[1].replace(',', '.'));
-      if (val < 0) {
-        const discount = Math.min(100, Math.max(0, Math.abs(val)));
-        if (!isNaN(discount)) {
-          if (card.dataset) card.dataset.tpDiscount = String(discount);
-          return discount;
+      let val = parseFloat(match[1].replace(',', '.'));
+      if (!isNaN(val)) {
+        if (/aufschlag/i.test(text) && val > 0) {
+          val = Math.abs(val);
         }
+        val = val === 0 ? 0 : val;
+        if (card.dataset) {
+          card.dataset.tpDiff = String(val);
+          card.dataset.tpDiscount = String(val === 0 ? 0 : -val);
+        }
+        return val;
       }
     }
-    if (card.dataset) card.dataset.tpDiscount = '';
+    if (card.dataset) {
+      card.dataset.tpDiff = '';
+      card.dataset.tpDiscount = '';
+    }
     return null;
   }
 
-  function getHeatmapStyles(discountPercent, intensity = 1.0, curve = 'calibrated') {
-    const d = Math.max(0, Math.min(100, discountPercent));
-    let t = curve === 'linear' ? d / 100 : (d <= 10 ? (d / 10) * 0.12 : d >= 50 ? Math.min(1.0, 0.85 + ((d - 50) / 25) * 0.15) : 0.12 + ((d - 10) / 40) * 0.73);
+  function extractCardDiscount(card) {
+    const diff = extractCardDiff(card);
+    return diff === null ? null : (diff === 0 ? 0 : -diff);
+  }
+
+  function getHeatmapStyles(diffPercent, intensity = 1.0) {
+    const diff = typeof diffPercent === 'number' ? diffPercent : parseFloat(diffPercent);
+    if (isNaN(diff)) return null;
+    const clamped = Math.max(-100, Math.min(100, diff));
+    const t = (100 - clamped) / 200; // 0.0 (Cold, +100%) to 1.0 (Hot, -100%)
     const stops = [
-      { t: 0.00, base: [18, 48, 88],   acc: [28, 92, 175],   border: [56, 140, 248, 0.70] },
-      { t: 0.25, base: [12, 58, 64],   acc: [16, 130, 125],  border: [20, 210, 190, 0.75] },
-      { t: 0.50, base: [68, 48, 10],   acc: [180, 118, 15],  border: [245, 175, 20, 0.80] },
-      { t: 0.75, base: [85, 28, 12],   acc: [228, 76, 18],   border: [251, 115, 36, 0.88] },
+      { t: 0.00, base: [14, 38, 74],   acc: [24, 100, 185],  border: [56, 140, 248, 0.70] },
+      { t: 0.25, base: [12, 50, 60],   acc: [16, 130, 125],  border: [20, 210, 190, 0.75] },
+      { t: 0.50, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
+      { t: 0.75, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
       { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
     ];
     let i = stops.findIndex((s, idx) => idx < stops.length - 1 && t >= s.t && t <= stops[idx + 1].t);
@@ -2405,7 +2443,7 @@ const SHADOW_MODAL_STYLES = `
     const safeInt = Math.max(0.2, Math.min(1.0, intensity));
     const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
     const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
-    const glow = t >= 0.45 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
+    const glow = (t >= 0.70 || t <= 0.15) ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
     return { bg, border, glow };
   }
 
@@ -2429,7 +2467,8 @@ const SHADOW_MODAL_STYLES = `
     const cardPrice = priceData.price;
     const stats = pid ? getCachedPriceStats(pid) : null;
     const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
-    const discountVal = extractCardDiscount(card);
+    const diffVal = extractCardDiff(card);
+    const discountVal = diffVal === null ? null : (diffVal === 0 ? 0 : -diffVal);
     const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     const catName = extractCardCategory(card);
     const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);
@@ -2442,6 +2481,7 @@ const SHADOW_MODAL_STYLES = `
       cardPrice,
       stats,
       isVerifiedNonBest,
+      diffVal,
       discountVal,
       dealScore,
       catName,
@@ -3081,18 +3121,18 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-    const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, discountVal, catName, rootGroup } = cd;
+    const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal, catName, rootGroup } = cd;
 
-    // 0. Heatmap (driven by Deal-Score when verified or in Bestpreise mode; in unverified feed mode, driven by feed discount)
-    const effectiveHeatPercent = isVerifiedNonBest
+    // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
+    const effectiveDiff = isVerifiedNonBest
       ? null
-      : (cd.dealScore ? cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : discountVal));
+      : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal !== undefined && diffVal !== null ? diffVal : (discountVal !== null ? (discountVal === 0 ? 0 : -discountVal) : null))));
 
-    if (CONFIG.HEATMAP_ENABLED && effectiveHeatPercent !== null && effectiveHeatPercent > 0) {
-      const heatKey = `${effectiveHeatPercent}_${CONFIG.HEATMAP_INTENSITY}_${CONFIG.HEATMAP_CURVE}`;
+    if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+      const heatKey = `${effectiveDiff}_${CONFIG.HEATMAP_INTENSITY}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
-        const heatStyles = getHeatmapStyles(effectiveHeatPercent, CONFIG.HEATMAP_INTENSITY, CONFIG.HEATMAP_CURVE);
+        const heatStyles = getHeatmapStyles(effectiveDiff, CONFIG.HEATMAP_INTENSITY);
         card.style.setProperty('--tp-heat-bg', heatStyles.bg);
         card.style.setProperty('--tp-heat-border', heatStyles.border);
         card.style.setProperty('--tp-heat-glow', heatStyles.glow);
@@ -3768,7 +3808,7 @@ const SHADOW_MODAL_STYLES = `
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
-          <div class="tp-section-header">1. Händler Bestpreis Highlights</div>
+          <div class="tp-section-header">1. Händler Bestpreis Highlights & Sortierung</div>
           <div class="tp-settings-group">
             <label>Filter Modus</label>
             <div class="tp-segmented-control">
@@ -3801,19 +3841,6 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-section-header">2. Negativer Textfilter (Ausschluss)</div>
-          <div class="tp-settings-group">
-            <label>Auszuschließende Begriffe (Kommagetrennt)</label>
-            <textarea id="tp-negative-terms-input" class="tp-textarea" placeholder="z. B. Hülle, Case, Refurbished, Gebraucht"></textarea>
-          </div>
-          <div class="tp-section-header">3. Angebote & Sortierung</div>
-          <div class="tp-settings-group">
-            <label>Mindestanzahl Angebote (0 = Aus)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-min-offers-range" min="0" max="15" step="1" value="0">
-              <input type="number" id="tp-min-offers-val" min="0" max="50" step="1" value="0">
-            </div>
-          </div>
           <div class="tp-settings-group">
             <label>Sortierung nach Angeboten / Rabatt</label>
             <div class="tp-segmented-control">
@@ -3827,7 +3854,70 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-sort-discount">% Rabatt ⬇</label>
             </div>
           </div>
-          <div class="tp-section-header" style="color: #3b82f6;">4. Preisalarm Auto-Filler</div>
+          <div class="tp-section-header" style="color: #f43f5e;">2. Rabatt-Heatmap & Deals</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Rabatt-Heatmap aktivieren</label>
+              <span class="tp-switch-desc">Färbt Karten kontinuierlich (-100% Rot / Heiß bis +100% Blau / Kalt)</span>
+            </div>
+            <label class="tp-switch tp-rose">
+              <input type="checkbox" id="tp-heatmap-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label>Heatmap-Intensität (%)</label>
+            <div class="tp-range-container tp-rose">
+              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
+              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
+            </div>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>💎 Neue Bestpreise Modus</label>
+              <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-bestpreise-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
+            <label>Deal-Score Gewichtung (Median ↔ Neuer Rekord)</label>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
+              <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
+            </div>
+            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord</span>
+          </div>
+          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
+            <label>Median-Berechnungszeitraum (Ø-Preis)</label>
+            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+              <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
+              <option value="180">6 Monate (180 Tage)</option>
+              <option value="90">3 Monate (90 Tage)</option>
+              <option value="0">Gesamte Historie (Lifetime)</option>
+            </select>
+            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Nur echte Tiefstpreise filtern</label>
+              <span class="tp-switch-desc">Verifizierte Nicht-Bestpreise im Feed ausblenden</span>
+            </div>
+            <label class="tp-switch">
+              <input type="checkbox" id="tp-real-deal-filter-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label>Mindest-Rabatt für Batch-Check (%)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
+              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
+            </div>
+          </div>
+          <div class="tp-section-header" style="color: #3b82f6;">3. Preisalarm Auto-Filler</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>Preisalarm Auto-Fill aktivieren</label>
@@ -3876,71 +3966,17 @@ const SHADOW_MODAL_STYLES = `
               <input type="number" id="tp-alarm-close-delay-val" min="0" max="10000" step="50" value="800">
             </div>
           </div>
-          <div class="tp-section-header" style="color: #f43f5e;">5. Rabatt-Heatmap</div>
+          <div class="tp-section-header" style="color: #06b6d4;">4. Performance, Cache & Preiskurven</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label>Rabatt-Heatmap aktivieren</label>
-              <span class="tp-switch-desc">Kartenhintergrund färbt sich nach % Rabatt</span>
-            </div>
-            <label class="tp-switch tp-rose">
-              <input type="checkbox" id="tp-heatmap-enabled-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label>Heatmap-Intensität (%)</label>
-            <div class="tp-range-container tp-rose">
-              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
-              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
-            </div>
-          </div>
-          <div class="tp-section-header" style="color: #10b981;">6. Real Deals & Allzeit-Tiefstpreise</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>💎 Neue Bestpreise Modus</label>
-              <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
+              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
             </div>
             <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-bestpreise-mode-toggle">
+              <input type="checkbox" id="tp-sparklines-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-            <label>Deal-Score Gewichtung (Median ↔ Neuer Rekord)</label>
-            <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
-              <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
-            </div>
-            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord</span>
-          </div>
-          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
-            <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
-              <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
-              <option value="180">6 Monate (180 Tage)</option>
-              <option value="90">3 Monate (90 Tage)</option>
-              <option value="0">Gesamte Historie (Lifetime)</option>
-            </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Nur echte Tiefstpreise filtern</label>
-              <span class="tp-switch-desc">Verifizierte Nicht-Bestpreise im Feed ausblenden</span>
-            </div>
-            <label class="tp-switch">
-              <input type="checkbox" id="tp-real-deal-filter-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label>Mindest-Rabatt für Batch-Check (%)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
-            </div>
-          </div>
-          <div class="tp-section-header" style="color: #06b6d4;">7. Cache & Performance</div>
           <div class="tp-settings-group">
             <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
             <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
@@ -3967,18 +4003,7 @@ const SHADOW_MODAL_STYLES = `
             <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
           </div>
-          <div class="tp-section-header" style="color: #8b5cf6;">8. Experimentell / Beta</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-sparklines-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-section-header" style="color: #6366f1;">9. Import / Export</div>
+          <div class="tp-section-header" style="color: #6366f1;">5. Backup & Übertragen</div>
           <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
             <button type="button" id="tp-export-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
             <button type="button" id="tp-import-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
@@ -4055,10 +4080,10 @@ const SHADOW_MODAL_STYLES = `
       marginVal.value = CONFIG.MARGIN_PERCENT;
       opacityRange.value = CONFIG.DIM_OPACITY;
       opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
-      shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
-      negTermsInput.value = CONFIG.NEGATIVE_TERMS || '';
-      minOffersRange.value = CONFIG.MIN_OFFERS || 0;
-      minOffersVal.value = CONFIG.MIN_OFFERS || 0;
+      if (shippingToggle) shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
+      if (negTermsInput) negTermsInput.value = CONFIG.NEGATIVE_TERMS || '';
+      if (minOffersRange) minOffersRange.value = CONFIG.MIN_OFFERS || 0;
+      if (minOffersVal) minOffersVal.value = CONFIG.MIN_OFFERS || 0;
 
       if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
       else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
@@ -4250,9 +4275,9 @@ const SHADOW_MODAL_STYLES = `
 
       updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
       updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
-      updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-      updates.NEGATIVE_TERMS = negTermsInput.value.trim();
-      updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
+      if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
+      if (negTermsInput) updates.NEGATIVE_TERMS = negTermsInput.value.trim();
+      if (minOffersVal) updates.MIN_OFFERS = Math.max(0, parseInt(minOffersVal.value) || 0);
 
       const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
