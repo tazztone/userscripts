@@ -242,18 +242,8 @@ export function updateConfig(key, val, options = {}) {
 }
 
 export function updateConfigs(entries, options = {}) {
-  let requiresBodyUpdate = false;
   for (const [k, v] of Object.entries(entries)) {
-    saveConfigKey(k, v);
-    if (!options.skipUiSync) {
-      syncUiControl(k, v);
-    }
-    if (CONFIG_BODY_KEYS.has(k)) {
-      requiresBodyUpdate = true;
-    }
-  }
-  if (requiresBodyUpdate) {
-    updateBodyClasses();
+    updateConfig(k, v, { ...options, skipRender: true });
   }
   if (!options.skipRender && typeof processListings === 'function') {
     processListings();

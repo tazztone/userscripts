@@ -49,7 +49,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.56
+// @version      2.18.57
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -85,7 +85,7 @@ import { processProductDetailPage } from './features/product-detail.js';
     return { isNeg, isLowOffers };
   }
 
-  function isCardIgnoredOrInvisible(card, filters = null) {
+  function isCardFilteredOut(card, filters = null) {
     if (!card) return true;
     const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
     if (!isRevealed) {
@@ -150,11 +150,11 @@ import { processProductDetailPage } from './features/product-detail.js';
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters)) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
+          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters)) {
             counts.uncheckedDeals++;
           }
         }
@@ -299,7 +299,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       cancelBestpreiseScan,
       runBatchDealCheck,
       cancelBatchDealCheck,
-      isCardIgnoredOrInvisible,
+      isCardFilteredOut,
       saveConfigKey,
       updateConfig,
       updateConfigs,

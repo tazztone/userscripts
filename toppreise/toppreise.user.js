@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.56
+// @version      2.18.57
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1888,18 +1888,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function updateConfigs(entries, options = {}) {
-    let requiresBodyUpdate = false;
     for (const [k, v] of Object.entries(entries)) {
-      saveConfigKey(k, v);
-      if (!options.skipUiSync) {
-        syncUiControl(k, v);
-      }
-      if (CONFIG_BODY_KEYS.has(k)) {
-        requiresBodyUpdate = true;
-      }
-    }
-    if (requiresBodyUpdate) {
-      updateBodyClasses();
+      updateConfig(k, v, { ...options, skipRender: true });
     }
     if (!options.skipRender && typeof processListings === 'function') {
       processListings();
@@ -2532,10 +2522,10 @@ const SHADOW_MODAL_STYLES = `
 
   const activeFetches = new Map();
 
-  function isCardIgnored(card) {
-    if (typeof isCardIgnoredOrInvisible === 'function') return isCardIgnoredOrInvisible(card);
-    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardIgnoredOrInvisible === 'function') {
-      return window.ToppreiseSuite.isCardIgnoredOrInvisible(card);
+  function isCardFiltered(card) {
+    if (typeof isCardFilteredOut === 'function') return isCardFilteredOut(card);
+    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardFilteredOut === 'function') {
+      return window.ToppreiseSuite.isCardFilteredOut(card);
     }
     return false;
   }
@@ -2708,7 +2698,7 @@ const SHADOW_MODAL_STYLES = `
       if (!pid) continue;
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
-      if (isCardIgnored(card)) continue;
+      if (isCardFiltered(card)) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
         targets.push({ pid, card, discount });
@@ -4639,7 +4629,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     return { isNeg, isLowOffers };
   }
 
-  function isCardIgnoredOrInvisible(card, filters = null) {
+  function isCardFilteredOut(card, filters = null) {
     if (!card) return true;
     const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
     if (!isRevealed) {
@@ -4704,11 +4694,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters)) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
+          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters)) {
             counts.uncheckedDeals++;
           }
         }
@@ -4853,7 +4843,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       cancelBestpreiseScan,
       runBatchDealCheck,
       cancelBatchDealCheck,
-      isCardIgnoredOrInvisible,
+      isCardFilteredOut,
       saveConfigKey,
       updateConfig,
       updateConfigs,

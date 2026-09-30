@@ -13,10 +13,10 @@ import { getScanState, setScanState } from '../state/store.js';
 
 export const activeFetches = new Map();
 
-function isCardIgnored(card) {
-  if (typeof isCardIgnoredOrInvisible === 'function') return isCardIgnoredOrInvisible(card);
-  if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardIgnoredOrInvisible === 'function') {
-    return window.ToppreiseSuite.isCardIgnoredOrInvisible(card);
+function isCardFiltered(card) {
+  if (typeof isCardFilteredOut === 'function') return isCardFilteredOut(card);
+  if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardFilteredOut === 'function') {
+    return window.ToppreiseSuite.isCardFilteredOut(card);
   }
   return false;
 }
@@ -189,7 +189,7 @@ export async function runProductScanner(options = {}) {
     if (!pid) continue;
     const cached = getCachedPriceStats(pid);
     if (cached) continue;
-    if (isCardIgnored(card)) continue;
+    if (isCardFiltered(card)) continue;
     const discount = extractCardDiscount(card) ?? 0;
     if (filterFn({ pid, card, discount })) {
       targets.push({ pid, card, discount });
