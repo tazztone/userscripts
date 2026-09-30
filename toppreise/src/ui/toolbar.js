@@ -66,15 +66,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
         <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Bestpreise-Feed (nur Ranking — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
+          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
             ⚖️ 50/50 ▾
           </button>
-          <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 170px;">
-            <button class="tp-threshold-option" data-weight="0.50">⚖️ 50/50 (Ausgewogen)</button>
-            <button class="tp-threshold-option" data-weight="1.00">🌟 100% Rekord (Nur Rekorde)</button>
-            <button class="tp-threshold-option" data-weight="0.70">🔥 70% Rekord / 30% Median</button>
-            <button class="tp-threshold-option" data-weight="0.30">💎 30% Rekord / 70% Median</button>
-            <button class="tp-threshold-option" data-weight="0.00">📊 100% Median (Marktpreis)</button>
+          <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
+            <div class="tp-threshold-hint">Nur Feed-Reihenfolge — Farben & Badge-% bleiben gleich.</div>
+            <button class="tp-threshold-option" data-weight="0.50" title="Rekord-Rabatt und Ø-Ersparnis zählen je zur Hälfte">⚖️ Ausgewogen (je 50%)</button>
+            <button class="tp-threshold-option" data-weight="1.00" title="Frisch gefallene Preise stehen zuerst, egal wie gross die Ø-Ersparnis ist">🔥 Rekord-Jagd (frische Tiefs zuerst)</button>
+            <button class="tp-threshold-option" data-weight="0.70" title="Neue Tiefs stehen weiter oben (70% Rekord / 30% Ø-Preis)">📈 Rekord-lastig (70/30)</button>
+            <button class="tp-threshold-option" data-weight="0.30" title="Grösste Ersparnis vs üblich steht weiter oben (30% Rekord / 70% Ø-Preis)">📉 Ø-lastig (30/70)</button>
+            <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
           </div>
         </div>
         <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
@@ -255,7 +256,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
             weightPopover.classList.remove('tp-show');
             weightBtn.classList.remove('tp-open');
             updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-            showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Median / ${Math.round(w * 100)}% Rekord (nur Ranking)`);
+            showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
           }
         };
       });
@@ -402,7 +403,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   const weightBtn = bar.querySelector('#tp-bar-weight-btn');
   if (weightBtn) {
     weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-    weightBtn.title = `Sortier-Gewichtung für den Bestpreise-Feed (nur Ranking, aktuell: ${Math.round((1 - curWeight) * 100)}% Median / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
+    weightBtn.title = `Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
   }
   const weightPopover = bar.querySelector('#tp-weight-popover');
   if (weightPopover) {

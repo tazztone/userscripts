@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightDescText } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 
 export function setupUI() {
@@ -92,12 +92,12 @@ export function setupUI() {
           </label>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-          <label>Deal-Score Gewichtung: Bestpreise-Sortierung (nur Ranking)</label>
+          <label>Deal-Score Gewichtung: Bestpreise-Sortierung (nur Sortierung)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
           </div>
-          <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord (nur Sortierung — Farben & Badge-% bleiben unverändert)</span>
+          <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (nur Sortierung) · z.B. Rek −10% + Ø −25% → Score 18</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -337,7 +337,7 @@ export function setupUI() {
     if (bestpreiseWeightRange) bestpreiseWeightRange.value = weightPct;
     if (bestpreiseWeightVal) bestpreiseWeightVal.value = weightPct;
     if (bestpreiseWeightDesc) {
-      bestpreiseWeightDesc.textContent = `${100 - weightPct}% Median / ${weightPct}% Neuer Rekord`;
+      bestpreiseWeightDesc.textContent = weightDescText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50));
     }
 
     if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
@@ -377,7 +377,7 @@ export function setupUI() {
   const updateWeightDesc = (val) => {
     const pct = Math.round(val);
     if (bestpreiseWeightDesc) {
-      bestpreiseWeightDesc.textContent = `${100 - pct}% Median / ${pct}% Neuer Rekord (nur Sortierung)`;
+      bestpreiseWeightDesc.textContent = weightDescText(val / 100);
     }
   };
   bindDual(bestpreiseWeightRange, bestpreiseWeightVal, 1, updateWeightDesc);

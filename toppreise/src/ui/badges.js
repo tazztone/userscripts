@@ -338,14 +338,20 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           }
         }
 
-        const colorLegend = `🎨 Farbe = Abstand zum Ø-Preis (Rot = günstig vs üblich)`;
+        const colorLegend = `Farbe = Ø-Abstand (rot = günstig vs üblich)`;
+        const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
+        const wMed = 1 - wRec;
+        const fmtW = w => String(Math.round(w * 100) / 100);
+        const scoreFormula = `Deal-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
+        const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
         if (showRecord) {
-          setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord-Tiefstpreis: -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'} (Ø ${horizonLabel}: -${dealData.dMedian}%). Badge-% = Rekord-Rabatt. Ranking-Score: -${dealData.score}% (nur Sortierung). ${colorLegend}${outlierText} [Klicken zum Aktualisieren]`);
+          setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'}\nBadge = Rekord-Rabatt · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
         } else {
-          setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})! Badge-% = Ø-Rabatt (-${badgePct}% vs Ø ${horizonLabel}${medianVal ? ` CHF ${medianVal.toFixed(2)}` : ''}, kein neuer Rekord). Ranking-Score: -${dealData.score}% (nur Sortierung). ${colorLegend}${outlierText} [Klicken zum Aktualisieren]`);
+          setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge = Ø-Rabatt -${badgePct}% (Ø ${horizonLabel}${medianVal ? ` CHF ${medianVal.toFixed(2)}` : ''}, kein neuer Rekord) · ${colorLegend}` : `Kein neuer Rekord · ${colorLegend}`}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
         }
 
-        // Compact dual-score breakdown pill directly underneath the circle badge
+        // Score pill: inputs + weights + result in one glance (teaches the formula).
+        // (Container has pointer-events:none, so the formula lives in the badge title above.)
         let breakdownEl = card.querySelector('.tp-badge-score-breakdown');
         if (isListView) {
           breakdownEl?.remove();
@@ -355,10 +361,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             breakdownEl.className = 'tp-badge-score-breakdown';
             card.appendChild(breakdownEl);
           }
+          const scoreTail = ` → <span class="tp-score-result">Score: ${dealData.score}</span>`;
           if (dealData.isNewRecord && dealData.dRecord > 0) {
-            setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
+            setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>${scoreTail}`);
           } else {
-            setHtmlIfChanged(breakdownEl, `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>`);
+            setHtmlIfChanged(breakdownEl, `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>${scoreTail}`);
           }
         }
 
@@ -465,21 +472,24 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const badgePct = showRecord ? displayDelta.dRecord : levelPct;
           const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
-          let peakContext = '';
+          const detailParts = [];
+          if (isNewRecord && prevLow) {
+            detailParts.push(`Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
+          }
+          if (stats.avgPrice && stats.avgPrice > cardPrice) {
+            detailParts.push(`Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}`);
+          }
           if (hasSignificantPeak) {
             const peakDropPct = Math.round(((stats.hoechstpreis - cardPrice) / stats.hoechstpreis) * 100);
-            peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
+            detailParts.push(`-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)}`);
           }
-
-          let prevLowContext = '';
-          if (isNewRecord && prevLow) {
-            prevLowContext = ` | Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`;
+          if (sitePctText) {
+            detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
           }
-          const avgContext = stats.avgPrice && stats.avgPrice > cardPrice ? ` | Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}` : '';
-          const siteContext = sitePctText ? ` | Site-Rabatt: ${sitePctText} (ungeprüft, z.B. vs UVP)` : '';
-          const colorLegend = `🎨 Farbe = Abstand zum Ø-Preis (Rot = günstig vs üblich)`;
+          const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
+          const colorLegend = `Farbe = Ø-Abstand (rot = günstig vs üblich)`;
 
-          setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})! Badge: -${badgePct}% (${badgeKind})${prevLowContext}${avgContext}${peakContext}${siteContext}. ${colorLegend} (Klicken zum Aktualisieren)`);
+          setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
           if (isListView) {
             if (badgePct > 0) {
               setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
@@ -506,9 +516,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             badgeDifEl.classList.remove('tp-is-severe-markup');
           }
 
-          const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-          const fakeDiscContext = sitePctText ? ` | Site-Rabatt: ${sitePctText} (ungeprüft, z.B. vs UVP)` : '';
-          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: aktuell CHF ${cardPrice.toFixed(2)}, historisches Tief CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${fakeDiscContext}${peakContext}. 🎨 Farbe = Abstand zum Ø-Preis (Blau = teuer vs üblich; blass = ungeprüft) (Klicken zum Aktualisieren)`);
+          const notLowParts = [];
+          if (sitePctText) {
+            notLowParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
+          }
+          if (hasSignificantPeak) {
+            notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
+          }
+          const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
+          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Ø-Abstand (blau = teuer vs üblich; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
           const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);

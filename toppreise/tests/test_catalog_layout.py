@@ -1278,6 +1278,9 @@ def test_deal_score_weight_preset_dropdown_in_filter_bar(page: Page):
     weight_btn.click()
     popover = page.locator('#tp-weight-popover')
     assert popover.is_visible()
+    # Plain-language hint clarifies the control sorts only
+    assert 'Nur Feed-Reihenfolge' in (popover.inner_text() or '')
+    assert 'Rekord-Jagd' in (popover.inner_text() or '')
 
     # Select 100% Rekord
     page.locator('#tp-weight-popover button[data-weight="1.00"]').click()
@@ -1333,13 +1336,14 @@ def test_dual_score_breakdown_pill_rendering(page: Page):
     assert 'Real Deal' in badge.inner_text()
     assert '-10%' in badge.inner_text()
     assert 'Rekord' in badge.inner_text()
-    assert 'Ranking-Score' in (badge.get_attribute('title') or '')
+    assert 'Deal-Score' in (badge.get_attribute('title') or '')
 
-    # Dual-score breakdown pill is rendered
+    # Dual-score breakdown pill renders inputs + result (teaches the formula)
     breakdown = card.locator('.tp-badge-score-breakdown')
     assert breakdown.is_visible()
     text = breakdown.inner_text()
     assert 'Rek:' in text and 'Ø:' in text
+    assert 'Score: 18' in text
 
 
 

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue } from '../../src/state/config.js';
+import { _getValue, _setValue, weightDescText } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -41,5 +41,18 @@ describe('Config dual-layer storage', () => {
   it('recovers domain backup when GM is empty (reinstall)', () => {
     lsStore['tp_suite_v2_NEGATIVE_TERMS'] = JSON.stringify('lego,playmobil');
     assert.equal(_getValue('NEGATIVE_TERMS', ''), 'lego,playmobil');
+  });
+});
+
+describe('weightDescText (worked example moves with the slider)', () => {
+  it('shows Score 18 at 50/50 for the demo Rek -10% + O -25%', () => {
+    const text = weightDescText(0.50);
+    assert.ok(text.includes('Score 18'));
+    assert.ok(text.includes('nur Sortierung'));
+  });
+
+  it('moves the demo score with the weight (pure Rekord / pure O)', () => {
+    assert.ok(weightDescText(1.00).includes('Score 10'));
+    assert.ok(weightDescText(0.00).includes('Score 25'));
   });
 });

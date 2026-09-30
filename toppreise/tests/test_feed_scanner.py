@@ -307,7 +307,7 @@ def test_real_deal_rich_tooltips_with_peak_context(page: Page):
 
     badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
     title3 = badge3.get_attribute('title') or ''
-    assert 'historisches Tief CHF 10.00 (+50% Aufschlag)' in title3
+    assert 'historisches Tief CHF 10.00, +50% Aufschlag' in title3
     assert 'Höchstpreis: CHF 25.00' in title3
 
 

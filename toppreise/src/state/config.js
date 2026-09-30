@@ -6,6 +6,18 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 
+// One vocabulary everywhere: the Deal-Score only ever sorts the Bestpreise feed.
+// The worked example uses fixed demo numbers so dragging the slider visibly
+// moves the result (Rek −10%, Ø −25%).
+export function weightDescText(weightRecord) {
+  const pct = Math.round((weightRecord ?? 0.5) * 100);
+  const score = Math.round(((100 - pct) * 25 + pct * 10) / 100);
+  const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
+    : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
+    : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
+  return `${base} (nur Sortierung) · z.B. Rek −10% + Ø −25% → Score ${score}`;
+}
+
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
@@ -148,10 +160,7 @@ export function syncUiControl(key, val) {
           if (range) range.value = pct;
           if (valEl) valEl.value = pct;
           if (descEl) {
-            const suffix = ' (nur Sortierung)';
-            if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)' + suffix;
-            else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)' + suffix;
-            else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median${suffix}`;
+            descEl.textContent = weightDescText(val);
           }
           break;
         }

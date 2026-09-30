@@ -10,19 +10,19 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.63)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.64)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.63)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.64)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
    - **🔥 Deal-Score Ranking & Level-Heatmap (getrennt)**: Für jedes verifizierte Angebot wird ein gewichteter Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **der Score sortiert nur** (Bestpreise-Feed). Die Kartenfarbe zeigt dagegen den **Preis-Level vs. Ø-Preis (Median)**: Rot = günstig vs üblich, Grau = üblich (±5%), Blau = teuer vs üblich. Blasse Farben = ungeprüft (Site-Rabatt). Das Badge zeigt das **Rekord-Ereignis** (`Real Deal · Rekord -X%` vs Bisher bzw. `Real Deal · Ø-Preis -Y%`), niemals den Score und nach Prüfung niemals die Site-Differenz.
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
    - **🛡️ Multi-Pass Preisfehler- & Ausreisser-Filter**: Erkennt und ignoriert automatisch kurzzeitige Händler-Fehllistings (z. B. ein CHF 15 Handy-Case, das versehentlich unter einem CHF 1'200 Smartphone gelistet war), sodass echte Allzeit-Tiefstpreise nicht fälschlicherweise blockiert werden.
    - **🏷️ Real Deal Badge & Sublines**: Das Kreisbadge zeigt den echten Rabatt mit Baseline (`Real Deal · Rekord -X%` bei neuem Rekord, `Real Deal · Ø-Preis -Y%` am Tiefstpreis). Die Subline unter dem Preis liefert glasklare Transparenz (`Bisher: CHF 2'399.00 (-21%)` bei neuen Rekorden bzw. `Ø-Preis (1J): CHF 2'450.00 (-28%)` bei Allzeit-Tiefstpreisen). Mini-Rekorde (< 2%) erscheinen als schlichtes `Tiefstpreis 🌟`. Der Tooltip erklärt Badge-Baseline, Ranking-Score und Farb-Bedeutung.
-   - **⚖️ Konfigurierbare Sortier-Gewichtung**: Im Einstellungsmenü kann das Ranking-Verhältnis zwischen Alltags-Ersparnis (Median) und Rekord-Tiefstpreis per Slider stufenlos angepasst werden (Standard: 50% / 50%) — betrifft nur die Feed-Sortierung, Farben & Badge-Prozente bleiben unverändert.
+   - **⚖️ Konfigurierbare Sortier-Gewichtung**: Im Einstellungsmenü kann das Ranking-Verhältnis zwischen Alltags-Ersparnis (Median) und Rekord-Tiefstpreis per Slider stufenlos angepasst werden (Standard: 50% / 50%) — betrifft nur die Feed-Sortierung, Farben & Badge-Prozente bleiben unverändert. Ein Rechenbeispiel (`z.B. Rek −10% + Ø −25% → Score 18`) läuft live beim Ziehen mit; die Filterleiste erklärt die Optionen als Ordnung (`Rekord-Jagd`, `Ø-Schnäppchen`).
    - **Non-Destructive Auto-Scan & Grid-Safe Sorting**: Ungeprüfte Produkte bleiben während des Paced Scans mit dezentem `⏳ Prüfe...`-Spinner sichtbar und sortieren sich live ein, ohne das Bootstrap-Grid zu beschädigen. Beim Deaktivieren wird die ursprüngliche Feed-Reihenfolge 100% sauber wiederhergestellt.
 2. **🌟 Integrierte Real Deals & Allzeit-Tiefstpreis Prüfung**: Verifiziert echte Rekord-Preise direkt im bestehenden Toppreise Differenz-Kreisbadge (`.badge-dif`) ohne störende Extra-Badges.
    - **1-Klick-Check im Differenz-Badge (`🔍`)**: Das Rabatt-Kreisbadge besitzt eine dezente Eck-Lupe und löst per Klick direkt die historische Tiefstpreis-Prüfung aus.

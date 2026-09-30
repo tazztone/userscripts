@@ -416,6 +416,10 @@ export const STYLES = `
   .tp-badge-score-breakdown .tp-score-median {
     color: #34d399 !important;
   }
+  .tp-badge-score-breakdown .tp-score-result {
+    color: #f8fafc !important;
+    font-weight: 700 !important;
+  }
   .tp-card-historical-price {
     font: 500 10px/1.15 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #94a3b8 !important;
@@ -601,6 +605,12 @@ export const STYLES = `
     min-width: 84px !important;
   }
   .tp-threshold-popover.tp-show { display: flex !important; }
+  .tp-threshold-hint {
+    color: #94a3b8 !important;
+    padding: 5px 10px 3px !important;
+    font: 500 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    cursor: default !important;
+  }
   .tp-threshold-option {
     background: transparent !important;
     border: none !important;
