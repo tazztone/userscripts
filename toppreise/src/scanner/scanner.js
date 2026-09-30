@@ -9,7 +9,7 @@ import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price
 import { getProductCards, getCardProductId, extractCardDiscount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
-import { setScanState } from '../state/store.js';
+import { getScanState, setScanState } from '../state/store.js';
 
 export const activeFetches = new Map();
 
@@ -170,8 +170,6 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
   return fetchPromise;
 }
 
-export let currentlyScanningPid = null;
-
 export async function runProductScanner(options = {}) {
   const {
     filterFn = () => true,
@@ -209,7 +207,6 @@ export async function runProductScanner(options = {}) {
     for (let i = 0; i < targets.length; i++) {
       if (shouldCancelFn()) break;
       const item = targets[i];
-      currentlyScanningPid = item.pid;
       setScanState({ currentlyScanningPid: item.pid, progress: { completed, total } });
       triggerProcessListings();
 
@@ -227,7 +224,6 @@ export async function runProductScanner(options = {}) {
           shouldCancelFn
         );
       } finally {
-        currentlyScanningPid = null;
         setScanState({ currentlyScanningPid: null });
       }
 
@@ -239,7 +235,6 @@ export async function runProductScanner(options = {}) {
       await interruptibleSleep(delay, shouldCancelFn);
     }
   } finally {
-    currentlyScanningPid = null;
     setScanState({ currentlyScanningPid: null });
   }
 
@@ -248,17 +243,11 @@ export async function runProductScanner(options = {}) {
   return { completed, total };
 }
 
-export let isBatchChecking = false;
-export let batchCancelRequested = false;
-
 export async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
-  if (isBatchChecking) {
-    batchCancelRequested = true;
+  if (getScanState().isBatchChecking) {
     setScanState({ batchCancelRequested: true });
     return;
   }
-  isBatchChecking = true;
-  batchCancelRequested = false;
   setScanState({ isBatchChecking: true, batchCancelRequested: false });
 
   try {
@@ -266,35 +255,26 @@ export async function runBatchDealCheck(minDiscount = 30, onProgress = null, onC
     await runProductScanner({
       filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
       delayMs: () => 250 + Math.floor(Math.random() * 100),
-      shouldCancelFn: () => batchCancelRequested,
+      shouldCancelFn: () => getScanState().batchCancelRequested,
       onProgress,
       onComplete,
       onStatus
     });
   } finally {
-    isBatchChecking = false;
-    batchCancelRequested = false;
     setScanState({ isBatchChecking: false, batchCancelRequested: false });
     triggerProcessListings();
   }
 }
 
 export function cancelBatchDealCheck() {
-  batchCancelRequested = true;
   setScanState({ batchCancelRequested: true });
 }
 
-export let isBestpreiseScanning = false;
-export let bestpreiseScanCancel = false;
-
 export async function runBestpreiseScan(onProgress = null, onComplete = null) {
-  if (isBestpreiseScanning) {
-    bestpreiseScanCancel = true;
+  if (getScanState().isBestpreiseScanning) {
     setScanState({ bestpreiseScanCancel: true });
     return;
   }
-  isBestpreiseScanning = true;
-  bestpreiseScanCancel = false;
   setScanState({ isBestpreiseScanning: true, bestpreiseScanCancel: false });
 
   try {
@@ -302,19 +282,16 @@ export async function runBestpreiseScan(onProgress = null, onComplete = null) {
       filterFn: () => true,
       sortFn: (a, b) => b.discount - a.discount,
       delayMs: 200,
-      shouldCancelFn: () => bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
+      shouldCancelFn: () => getScanState().bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
       onProgress,
       onComplete
     });
   } finally {
-    isBestpreiseScanning = false;
-    bestpreiseScanCancel = false;
     setScanState({ isBestpreiseScanning: false, bestpreiseScanCancel: false });
     triggerProcessListings();
   }
 }
 
 export function cancelBestpreiseScan() {
-  bestpreiseScanCancel = true;
   setScanState({ bestpreiseScanCancel: true });
 }

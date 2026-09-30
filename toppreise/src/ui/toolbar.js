@@ -9,10 +9,9 @@ import { CONFIG, updateConfig } from "../state/config.js";
 import {
   runBatchDealCheck,
   cancelBatchDealCheck,
-  cancelBestpreiseScan,
-  isBatchChecking,
-  isBestpreiseScanning
+  cancelBestpreiseScan
 } from "../scanner/scanner.js";
+import { getScanState } from "../state/store.js";
 import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 
@@ -79,8 +78,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           </div>
         </div>
         <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
-          <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
-            ${isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
+          <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
+            ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
           </button>
           <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
           <div class="tp-threshold-popover" id="tp-threshold-popover">
@@ -159,7 +158,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
     if (batchBtn) {
       batchBtn.onclick = () => {
-        if (isBatchChecking) {
+        if (getScanState().isBatchChecking) {
           cancelBatchDealCheck();
           const curCount = parseInt(batchBtn.dataset.uncheckedCount || '0', 10);
           batchBtn.innerHTML = `🔍 Check Deals (${curCount})`;
@@ -187,7 +186,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
               if (total > 0) {
                 batchBtn.innerHTML = `✅ ${completed}/${total} geprüft`;
                 setTimeout(() => {
-                  if (batchBtn && !isBatchChecking) {
+                  if (batchBtn && !getScanState().isBatchChecking) {
                     triggerProcessListings();
                   }
                 }, 3000);
@@ -328,7 +327,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
     bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-    if (isBestpreiseScanning) {
+    if (getScanState().isBestpreiseScanning) {
       // Leave dynamic text during scan
     } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       bestpreiseBtn.innerHTML = `💎 Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals} Deals)</span>`;
@@ -357,7 +356,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   }
 
   const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
-  if (batchBtn && !isBatchChecking) {
+  if (batchBtn && !getScanState().isBatchChecking) {
     batchBtn.dataset.uncheckedCount = String(uncheckedDeals);
     batchBtn.classList.remove('tp-disabled');
     const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;

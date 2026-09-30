@@ -34,9 +34,13 @@ describe('Page Adapter Layer', () => {
 
   describe('isShippingPriceActive', () => {
     it('returns false when CONFIG.USE_SHIPPING_PRICE is disabled', () => {
+      const prev = CONFIG.USE_SHIPPING_PRICE;
       CONFIG.USE_SHIPPING_PRICE = false;
-      assert.equal(isShippingPriceActive(), false);
-      CONFIG.USE_SHIPPING_PRICE = true;
+      try {
+        assert.equal(isShippingPriceActive(), false);
+      } finally {
+        CONFIG.USE_SHIPPING_PRICE = prev;
+      }
     });
   });
 

@@ -16,9 +16,9 @@ import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price
 import { getDealState, computeDealScore } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
-  currentlyScanningPid,
   cancelBestpreiseScan
 } from '../scanner/scanner.js';
+import { getScanState } from '../state/store.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline } from './sparkline.js';
@@ -347,7 +347,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
         card.querySelector('.tp-badge-score-breakdown')?.remove();
 
-        if (currentlyScanningPid && currentlyScanningPid === pid) {
+        if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -378,7 +378,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       badgeDifEl.classList.remove('tp-deal-new-record');
       card.querySelector('.tp-badge-score-breakdown')?.remove();
 
-      if (currentlyScanningPid && currentlyScanningPid === pid) {
+      if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
         badgeDifEl.classList.add('tp-deal-loading');
         if (isListView) {
           setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.55
+// @version      2.18.56
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2689,8 +2689,6 @@ const SHADOW_MODAL_STYLES = `
     return fetchPromise;
   }
 
-  let currentlyScanningPid = null;
-
   async function runProductScanner(options = {}) {
     const {
       filterFn = () => true,
@@ -2728,7 +2726,6 @@ const SHADOW_MODAL_STYLES = `
       for (let i = 0; i < targets.length; i++) {
         if (shouldCancelFn()) break;
         const item = targets[i];
-        currentlyScanningPid = item.pid;
         setScanState({ currentlyScanningPid: item.pid, progress: { completed, total } });
         triggerProcessListings();
 
@@ -2746,7 +2743,6 @@ const SHADOW_MODAL_STYLES = `
             shouldCancelFn
           );
         } finally {
-          currentlyScanningPid = null;
           setScanState({ currentlyScanningPid: null });
         }
 
@@ -2758,7 +2754,6 @@ const SHADOW_MODAL_STYLES = `
         await interruptibleSleep(delay, shouldCancelFn);
       }
     } finally {
-      currentlyScanningPid = null;
       setScanState({ currentlyScanningPid: null });
     }
 
@@ -2767,17 +2762,11 @@ const SHADOW_MODAL_STYLES = `
     return { completed, total };
   }
 
-  let isBatchChecking = false;
-  let batchCancelRequested = false;
-
   async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
-    if (isBatchChecking) {
-      batchCancelRequested = true;
+    if (getScanState().isBatchChecking) {
       setScanState({ batchCancelRequested: true });
       return;
     }
-    isBatchChecking = true;
-    batchCancelRequested = false;
     setScanState({ isBatchChecking: true, batchCancelRequested: false });
 
     try {
@@ -2785,35 +2774,26 @@ const SHADOW_MODAL_STYLES = `
       await runProductScanner({
         filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
         delayMs: () => 250 + Math.floor(Math.random() * 100),
-        shouldCancelFn: () => batchCancelRequested,
+        shouldCancelFn: () => getScanState().batchCancelRequested,
         onProgress,
         onComplete,
         onStatus
       });
     } finally {
-      isBatchChecking = false;
-      batchCancelRequested = false;
       setScanState({ isBatchChecking: false, batchCancelRequested: false });
       triggerProcessListings();
     }
   }
 
   function cancelBatchDealCheck() {
-    batchCancelRequested = true;
     setScanState({ batchCancelRequested: true });
   }
 
-  let isBestpreiseScanning = false;
-  let bestpreiseScanCancel = false;
-
   async function runBestpreiseScan(onProgress = null, onComplete = null) {
-    if (isBestpreiseScanning) {
-      bestpreiseScanCancel = true;
+    if (getScanState().isBestpreiseScanning) {
       setScanState({ bestpreiseScanCancel: true });
       return;
     }
-    isBestpreiseScanning = true;
-    bestpreiseScanCancel = false;
     setScanState({ isBestpreiseScanning: true, bestpreiseScanCancel: false });
 
     try {
@@ -2821,20 +2801,17 @@ const SHADOW_MODAL_STYLES = `
         filterFn: () => true,
         sortFn: (a, b) => b.discount - a.discount,
         delayMs: 200,
-        shouldCancelFn: () => bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
+        shouldCancelFn: () => getScanState().bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
         onProgress,
         onComplete
       });
     } finally {
-      isBestpreiseScanning = false;
-      bestpreiseScanCancel = false;
       setScanState({ isBestpreiseScanning: false, bestpreiseScanCancel: false });
       triggerProcessListings();
     }
   }
 
   function cancelBestpreiseScan() {
-    bestpreiseScanCancel = true;
     setScanState({ bestpreiseScanCancel: true });
   }
 
@@ -2845,6 +2822,7 @@ const SHADOW_MODAL_STYLES = `
    * Neuer Rekord, Differenz loupe, markup alert), score breakdown pills,
    * mini sparklines, and empty-state messaging.
    */
+
 
 
 
@@ -3178,7 +3156,7 @@ const SHADOW_MODAL_STYLES = `
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
           card.querySelector('.tp-badge-score-breakdown')?.remove();
 
-          if (currentlyScanningPid && currentlyScanningPid === pid) {
+          if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
             badgeDifEl.classList.add('tp-deal-loading');
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -3209,7 +3187,7 @@ const SHADOW_MODAL_STYLES = `
         badgeDifEl.classList.remove('tp-deal-new-record');
         card.querySelector('.tp-badge-score-breakdown')?.remove();
 
-        if (currentlyScanningPid && currentlyScanningPid === pid) {
+        if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -4093,6 +4071,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
     const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -4156,8 +4135,8 @@ const SHADOW_MODAL_STYLES = `
             </div>
           </div>
           <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
-            <button class="tp-bar-btn ${isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
-              ${isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
+            <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
+              ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
             </button>
             <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
             <div class="tp-threshold-popover" id="tp-threshold-popover">
@@ -4236,7 +4215,7 @@ const SHADOW_MODAL_STYLES = `
       const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
       if (batchBtn) {
         batchBtn.onclick = () => {
-          if (isBatchChecking) {
+          if (getScanState().isBatchChecking) {
             cancelBatchDealCheck();
             const curCount = parseInt(batchBtn.dataset.uncheckedCount || '0', 10);
             batchBtn.innerHTML = `🔍 Check Deals (${curCount})`;
@@ -4264,7 +4243,7 @@ const SHADOW_MODAL_STYLES = `
                 if (total > 0) {
                   batchBtn.innerHTML = `✅ ${completed}/${total} geprüft`;
                   setTimeout(() => {
-                    if (batchBtn && !isBatchChecking) {
+                    if (batchBtn && !getScanState().isBatchChecking) {
                       triggerProcessListings();
                     }
                   }, 3000);
@@ -4405,7 +4384,7 @@ const SHADOW_MODAL_STYLES = `
     if (bestpreiseBtn) {
       bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
       bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-      if (isBestpreiseScanning) {
+      if (getScanState().isBestpreiseScanning) {
         // Leave dynamic text during scan
       } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
         bestpreiseBtn.innerHTML = `💎 Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals} Deals)</span>`;
@@ -4434,7 +4413,7 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
-    if (batchBtn && !isBatchChecking) {
+    if (batchBtn && !getScanState().isBatchChecking) {
       batchBtn.dataset.uncheckedCount = String(uncheckedDeals);
       batchBtn.classList.remove('tp-disabled');
       const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
