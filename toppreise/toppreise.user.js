@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.61
+// @version      2.18.62
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2278,6 +2278,47 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
+    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
+    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
+    return { isNeg, isLowOffers };
+  }
+
+  function isCardFilteredOut(card, filters = null) {
+    if (!card) return true;
+    const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
+    if (!isRevealed) {
+      if (filters) {
+        if (filters.isNeg || filters.isLowOffers) return true;
+      } else {
+        if (card.classList?.contains('tp-negative-filtered') ||
+            card.classList?.contains('tp-min-offers-filtered') ||
+            card.classList?.contains('tp-non-bestpreis-filtered') ||
+            card.classList?.contains('tp-bestpreise-hidden')) {
+          return true;
+        }
+        // ponytail: no page context here; callers with a card list must pass
+        // explicit filters built with the real pageHasOffers (feed cards have
+        // no offer counts, so assuming true wrongly filters the whole feed).
+        const termsList = parseNegativeTerms();
+        const offerCount = extractOfferCount(card);
+        const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+        const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+        if (f.isNeg || f.isLowOffers) return true;
+      }
+    }
+    const tab = card.closest?.('.f_tab');
+    if (tab && !tab.classList.contains('selected')) return true;
+
+    if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
+    if (typeof card.checkVisibility === 'function') {
+      if (!card.checkVisibility()) return true;
+    } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+      return true;
+    }
+    return false;
+  }
+
   function getCardSortableUnit(card) {
     if (!card) return null;
     const collItem = card.closest('.Plugin_ProductCollItem');
@@ -2565,14 +2606,6 @@ const SHADOW_MODAL_STYLES = `
 
   const activeFetches = new Map();
 
-  function isCardFiltered(card) {
-    if (typeof isCardFilteredOut === 'function') return isCardFilteredOut(card);
-    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardFilteredOut === 'function') {
-      return window.ToppreiseSuite.isCardFilteredOut(card);
-    }
-    return false;
-  }
-
   async function interruptibleSleep(ms, shouldCancelFn = null) {
     const step = 100;
     let elapsed = 0;
@@ -2739,13 +2772,18 @@ const SHADOW_MODAL_STYLES = `
 
     const cards = getProductCards();
     const targets = [];
+    // Same pageHasOffers semantics as the processListings counter: offer-less
+    // feeds must not min-offers-filter everything when Min >= 1.
+    const pageHasOffers = cards.some(card => extractOfferCount(card) > 0);
+    const termsList = parseNegativeTerms();
 
     for (const card of cards) {
       const pid = getCardProductId(card);
       if (!pid) continue;
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
-      if (isCardFiltered(card)) continue;
+      const offerCount = extractOfferCount(card);
+      if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers))) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
         targets.push({ pid, card, discount });
@@ -4690,43 +4728,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
   let isModifyingDOM = false;
   let mainObserver = null;
-
-  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
-    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
-    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-    return { isNeg, isLowOffers };
-  }
-
-  function isCardFilteredOut(card, filters = null) {
-    if (!card) return true;
-    const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
-    if (!isRevealed) {
-      if (filters) {
-        if (filters.isNeg || filters.isLowOffers) return true;
-      } else {
-        if (card.classList?.contains('tp-negative-filtered') ||
-            card.classList?.contains('tp-min-offers-filtered') ||
-            card.classList?.contains('tp-non-bestpreis-filtered') ||
-            card.classList?.contains('tp-bestpreise-hidden')) {
-          return true;
-        }
-        const termsList = parseNegativeTerms();
-        const offerCount = extractOfferCount(card);
-        const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, true);
-        if (f.isNeg || f.isLowOffers) return true;
-      }
-    }
-    const tab = card.closest?.('.f_tab');
-    if (tab && !tab.classList.contains('selected')) return true;
-
-    if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
-    if (typeof card.checkVisibility === 'function') {
-      if (!card.checkVisibility()) return true;
-    } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
-      return true;
-    }
-    return false;
-  }
 
   function processListings() {
     if (isModifyingDOM) return;

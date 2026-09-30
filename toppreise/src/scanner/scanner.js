@@ -6,20 +6,12 @@
 
 import { getCachedPriceStats, setCachedPriceStats, clearCachedPriceStats } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price.js';
-import { getProductCards, getCardProductId, extractCardDiscount } from '../page/cards.js';
+import { getProductCards, getCardProductId, extractCardDiscount, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { getScanState, setScanState } from '../state/store.js';
 
 export const activeFetches = new Map();
-
-function isCardFiltered(card) {
-  if (typeof isCardFilteredOut === 'function') return isCardFilteredOut(card);
-  if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardFilteredOut === 'function') {
-    return window.ToppreiseSuite.isCardFilteredOut(card);
-  }
-  return false;
-}
 
 export async function interruptibleSleep(ms, shouldCancelFn = null) {
   const step = 100;
@@ -187,13 +179,18 @@ export async function runProductScanner(options = {}) {
 
   const cards = getProductCards();
   const targets = [];
+  // Same pageHasOffers semantics as the processListings counter: offer-less
+  // feeds must not min-offers-filter everything when Min >= 1.
+  const pageHasOffers = cards.some(card => extractOfferCount(card) > 0);
+  const termsList = parseNegativeTerms();
 
   for (const card of cards) {
     const pid = getCardProductId(card);
     if (!pid) continue;
     const cached = getCachedPriceStats(pid);
     if (cached) continue;
-    if (isCardFiltered(card)) continue;
+    const offerCount = extractOfferCount(card);
+    if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers))) continue;
     const discount = extractCardDiscount(card) ?? 0;
     if (filterFn({ pid, card, discount })) {
       targets.push({ pid, card, discount });

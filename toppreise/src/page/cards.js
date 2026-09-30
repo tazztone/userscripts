@@ -209,6 +209,47 @@ export function extractCardData(card) {
   };
 }
 
+export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
+  const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
+  const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
+  return { isNeg, isLowOffers };
+}
+
+export function isCardFilteredOut(card, filters = null) {
+  if (!card) return true;
+  const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
+  if (!isRevealed) {
+    if (filters) {
+      if (filters.isNeg || filters.isLowOffers) return true;
+    } else {
+      if (card.classList?.contains('tp-negative-filtered') ||
+          card.classList?.contains('tp-min-offers-filtered') ||
+          card.classList?.contains('tp-non-bestpreis-filtered') ||
+          card.classList?.contains('tp-bestpreise-hidden')) {
+        return true;
+      }
+      // ponytail: no page context here; callers with a card list must pass
+      // explicit filters built with the real pageHasOffers (feed cards have
+      // no offer counts, so assuming true wrongly filters the whole feed).
+      const termsList = parseNegativeTerms();
+      const offerCount = extractOfferCount(card);
+      const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+      const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+      if (f.isNeg || f.isLowOffers) return true;
+    }
+  }
+  const tab = card.closest?.('.f_tab');
+  if (tab && !tab.classList.contains('selected')) return true;
+
+  if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
+  if (typeof card.checkVisibility === 'function') {
+    if (!card.checkVisibility()) return true;
+  } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+    return true;
+  }
+  return false;
+}
+
 export function getCardSortableUnit(card) {
   if (!card) return null;
   const collItem = card.closest('.Plugin_ProductCollItem');

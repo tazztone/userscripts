@@ -1222,3 +1222,60 @@ def test_batch_check_button_click_when_deals_populated_after_initial_bar_render(
     page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
 
 
+
+
+def test_batch_check_offerless_feed_with_min_offers(page: Page):
+    """
+    Production /neue-toppreise cards carry NO dealer rows or offer counts
+    (extractOfferCount -> 0, pageHasOffers == False), but users can still set
+    Min-Angebote >= 1 via the stepper. The batch counter (real pageHasOffers)
+    and the scanner predicate (hardcoded pageHasOffers=True in the no-arg
+    isCardFilteredOut recompute) must agree, otherwise the button shows
+    "Check Deals (N)" while the click scans 0 targets and toasts
+    "Keine ungeprüften Deals vorhanden".
+    """
+    # Fresh state: no cached stats, no negative terms, Min=2 like the bug report
+    page.evaluate("""() => {
+        Object.keys(localStorage).filter(k => k.startsWith('tp_hist_v1_')).forEach(k => localStorage.removeItem(k));
+        window.ToppreiseSuite.memoryCache.clear();
+        // Simulate production feed: strip dealer rows + offer count text
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        document.querySelectorAll('a.Plugin_Product, .Plugin_Product').forEach(card => {
+            window.ToppreiseSuite.clearCardCache(card);
+        });
+        window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '');
+        window.ToppreiseSuite.updateConfig('MIN_OFFERS', 2);
+    }""")
+
+    batch_btn = page.locator('#tp-bar-batch-check-btn')
+    # Counter sees 3 unchecked deals (-67%, -35%, -50%) despite Min=2:
+    # offer-less feed => pageHasOffers False => no low-offers filtering
+    page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').textContent.includes('Check Deals (3)')")
+
+    # The exact predicate the scanner uses (no-arg recompute) must agree
+    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-cheapest'))") is False
+
+    requested_pids = []
+    def handle_pricechart(route):
+        post_data = route.request.post_data or ''
+        import urllib.parse
+        parsed = urllib.parse.parse_qs(post_data)
+        pid = parsed.get('pcspagdpi', [''])[0] or route.request.url
+        requested_pids.append(pid)
+        route.fulfill(
+            status=200,
+            headers={'access-control-allow-origin': '*'},
+            content_type='text/html',
+            body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">500.00</div></div>'
+        )
+    page.route('**/plugins/product/pricechart*', handle_pricechart)
+
+    batch_btn.click()
+    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')", timeout=30000)
+
+    # Scanner must have checked the 3 deals, not toasted "Keine ungeprüften"
+    assert '797571' in requested_pids
+    assert '797573' in requested_pids
+    assert '797574' in requested_pids
+
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 0)")
