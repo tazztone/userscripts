@@ -4,7 +4,7 @@
  * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
  */
 
-import { getCachedPriceStats, setCachedPriceStats } from './cache.js';
+import { getCachedPriceStats, setCachedPriceStats, clearCachedPriceStats } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price.js';
 import { getProductCards, getCardProductId, extractCardDiscount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
@@ -76,6 +76,10 @@ export async function fetchPriceTimeSeries(productId) {
 
 export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
   if (!productId) return null;
+  // Refresh bypass: evict any cached entry (positive or negative) so the
+  // manual "Aktualisieren" click always hits the network. Without this,
+  // forceFresh only skipped negative entries and served stale positives.
+  if (forceFresh) clearCachedPriceStats(productId);
   const cached = getCachedPriceStats(productId, forceFresh);
   if (cached) {
     if (cached.unavailable) return null;

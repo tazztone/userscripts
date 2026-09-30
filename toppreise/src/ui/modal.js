@@ -6,6 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 
 export function setupUI() {
@@ -436,10 +437,25 @@ export function setupUI() {
         const importConfig = data.config || data;
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
-          if (key in DEFAULTS && key !== 'DEBUG') {
-            saveConfigKey(key, val);
-            count++;
+          if (!(key in DEFAULTS) || key === 'DEBUG') continue;
+          // Coerce to the DEFAULTS type: save clamps, import must not store
+          // NaN/garbage (or legacy numeric strings) raw.
+          const def = DEFAULTS[key];
+          let coerced = val;
+          if (typeof def === 'number') {
+            coerced = typeof val === 'number' ? val : parseFloat(val);
+            if (!Number.isFinite(coerced)) continue;
+          } else if (typeof def === 'boolean') {
+            if (val === true || val === 'true') coerced = true;
+            else if (val === false || val === 'false') coerced = false;
+            else continue;
+          } else if (typeof def === 'string') {
+            coerced = String(val);
+          } else {
+            continue;
           }
+          saveConfigKey(key, coerced);
+          count++;
         }
         updateBodyClasses();
         processListings();
@@ -476,6 +492,9 @@ export function setupUI() {
 
     updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
     updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
+    // Cached price stats are shipping-mode specific (product vs shipping series
+    // share one cache key), so a mode change must invalidate them.
+    const shippingChanged = !!shippingToggle && CONFIG.USE_SHIPPING_PRICE !== shippingToggle.checked;
     if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
 
     const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
@@ -518,6 +537,7 @@ export function setupUI() {
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
 
     updateConfigs(updates);
+    if (shippingChanged) clearPriceStatsCache();
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();
   });

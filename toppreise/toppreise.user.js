@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.58
+// @version      2.18.59
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1625,6 +1625,14 @@ const SHADOW_MODAL_STYLES = `
     return count;
   }
 
+  function clearCachedPriceStats(productId, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+    if (!productId) return;
+    memoryCache.delete(productId);
+    try {
+      storage?.removeItem(STATS_CACHE_PREFIX + productId);
+    } catch (e) {}
+  }
+
   function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     memoryCache.clear();
     let count = 0;
@@ -2592,6 +2600,10 @@ const SHADOW_MODAL_STYLES = `
 
   async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
     if (!productId) return null;
+    // Refresh bypass: evict any cached entry (positive or negative) so the
+    // manual "Aktualisieren" click always hits the network. Without this,
+    // forceFresh only skipped negative entries and served stale positives.
+    if (forceFresh) clearCachedPriceStats(productId);
     const cached = getCachedPriceStats(productId, forceFresh);
     if (cached) {
       if (cached.unavailable) return null;
@@ -3502,6 +3514,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function setupUI() {
     const { shadow } = ensureSkeleton();
     let section = shadow.getElementById('tp-section-unified-suite');
@@ -3930,10 +3943,25 @@ const SHADOW_MODAL_STYLES = `
           const importConfig = data.config || data;
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
-            if (key in DEFAULTS && key !== 'DEBUG') {
-              saveConfigKey(key, val);
-              count++;
+            if (!(key in DEFAULTS) || key === 'DEBUG') continue;
+            // Coerce to the DEFAULTS type: save clamps, import must not store
+            // NaN/garbage (or legacy numeric strings) raw.
+            const def = DEFAULTS[key];
+            let coerced = val;
+            if (typeof def === 'number') {
+              coerced = typeof val === 'number' ? val : parseFloat(val);
+              if (!Number.isFinite(coerced)) continue;
+            } else if (typeof def === 'boolean') {
+              if (val === true || val === 'true') coerced = true;
+              else if (val === false || val === 'false') coerced = false;
+              else continue;
+            } else if (typeof def === 'string') {
+              coerced = String(val);
+            } else {
+              continue;
             }
+            saveConfigKey(key, coerced);
+            count++;
           }
           updateBodyClasses();
           processListings();
@@ -3970,6 +3998,9 @@ const SHADOW_MODAL_STYLES = `
 
       updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
       updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
+      // Cached price stats are shipping-mode specific (product vs shipping series
+      // share one cache key), so a mode change must invalidate them.
+      const shippingChanged = !!shippingToggle && CONFIG.USE_SHIPPING_PRICE !== shippingToggle.checked;
       if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
 
       const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
@@ -4012,6 +4043,7 @@ const SHADOW_MODAL_STYLES = `
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
 
       updateConfigs(updates);
+      if (shippingChanged) clearPriceStatsCache();
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });

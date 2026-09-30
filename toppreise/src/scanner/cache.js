@@ -130,6 +130,14 @@ export function countCachedPriceStats(storage = (typeof window !== 'undefined' ?
   return count;
 }
 
+export function clearCachedPriceStats(productId, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  if (!productId) return;
+  memoryCache.delete(productId);
+  try {
+    storage?.removeItem(STATS_CACHE_PREFIX + productId);
+  } catch (e) {}
+}
+
 export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   memoryCache.clear();
   let count = 0;
