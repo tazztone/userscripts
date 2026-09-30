@@ -13,7 +13,7 @@ import {
   getCardProductId
 } from '../page/cards.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
-import { getDealState, computeDealScore } from '../domain/deal-score.js';
+import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
@@ -64,18 +64,25 @@ function ensureHistPriceEl(card, cardPriceEl) {
 }
 
 export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-  const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal } = cd;
+  const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
+  const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-  // 1. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
-  const effectiveDiff = isVerifiedNonBest
-    ? null
-    : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal ?? null)));
+  // Heatmap: color = price LEVEL vs usual (Ø/Median, continuous, parity at 0).
+  // Badge % = deal EVENT (record breakthrough / markup). Never the twain:
+  // the blended ranking score drives sorting only, never color or badge text.
+  // Unverified site-Differenz renders paler so provisional heat reads provisional.
+  const heatInfo = getHeatInput(cardPrice, stats, diffVal);
+  const effectiveDiff = heatInfo.value;
+  const heatProvisional = heatInfo.provisional;
+  const heatIntensity = heatProvisional
+    ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
+    : CONFIG.HEATMAP_INTENSITY;
 
   if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-    const heatKey = `${effectiveDiff}_${CONFIG.HEATMAP_INTENSITY}`;
+    const heatKey = `${effectiveDiff}_${heatProvisional ? 'prov' : 'ver'}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
-      const heatStyles = getHeatmapStyles(effectiveDiff, CONFIG.HEATMAP_INTENSITY);
+      const heatStyles = getHeatmapStyles(effectiveDiff, heatIntensity);
       card.style.setProperty('--tp-heat-bg', heatStyles.bg);
       card.style.setProperty('--tp-heat-border', heatStyles.border);
       card.style.setProperty('--tp-heat-glow', heatStyles.glow);
@@ -239,6 +246,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
     }
     const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
+    // rawDiscount is the site DISCOUNT (positive = "-X%" deal, negative = "+X%"
+    // markup). Render it sign-aware so markup badges never print "--X%".
+    const sitePctText = (rawDiscount !== null && !isNaN(rawDiscount))
+      ? (rawDiscount >= 0 ? `-${rawDiscount}%` : `+${-rawDiscount}%`)
+      : '';
 
     // Bind single click handler on badge
     if (!badgeDifEl.dataset.tpDealBound) {
@@ -285,12 +297,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       const dealData = cd.dealScore || computeDealScore(stats, cardPrice);
       if (dealData) {
-        // Qualified Bestpreis Deal!
+        // Qualified Bestpreis Deal! Badge-% = echter Rabatt (Rekord vs Bisher
+        // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
+        // sortiert nur (siehe Tooltip) und treibt keine Farben an.
         card.classList.remove('tp-bestpreise-hidden', 'tp-non-bestpreis-filtered');
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
-        if (dealData.isNewRecord) {
+        const showRecord = dealData.isNewRecord && isSignificantRecord(displayDelta);
+        if (showRecord) {
           badgeDifEl.classList.add('tp-deal-new-record');
           badgeDifEl.classList.remove('tp-deal-alltime-low');
         } else {
@@ -298,21 +313,36 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           badgeDifEl.classList.remove('tp-deal-new-record');
         }
 
-        if (isListView) {
-          setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${dealData.score}%</p>`);
-        } else {
-          setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealData.score}%</p>`);
-        }
-
         const prevLow = stats?.previousLow;
         const medianVal = stats?.medianPrice;
         const horizonLabel = stats?.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : 'Lifetime';
         const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
+        const levelPct = (medianVal && medianVal > cardPrice)
+          ? Math.round(((medianVal - cardPrice) / medianVal) * 100)
+          : 0;
+        // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt.
+        const badgePct = showRecord ? displayDelta.dRecord : levelPct;
+        const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
-        if (dealData.isNewRecord) {
-          setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord! Score: -${dealData.score}% (Ø ${horizonLabel}: -${dealData.dMedian}%, Rekord: -${dealData.dRecord}% vs CHF ${prevLow ? prevLow.toFixed(2) : '?'})${outlierText} [Klicken zum Aktualisieren]`);
+        if (isListView) {
+          if (badgePct > 0) {
+            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
+          } else {
+            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+          }
         } else {
-          setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis! Score: -${dealData.score}% (Ø ${horizonLabel}: -${dealData.dMedian}%, kein neuer Rekord)${outlierText} [Klicken zum Aktualisieren]`);
+          if (badgePct > 0) {
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal · ${badgeKind}</div><p>-${badgePct}%</p>`);
+          } else {
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+          }
+        }
+
+        const colorLegend = `🎨 Farbe = Abstand zum Ø-Preis (Rot = günstig vs üblich)`;
+        if (showRecord) {
+          setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord-Tiefstpreis: -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'} (Ø ${horizonLabel}: -${dealData.dMedian}%). Badge-% = Rekord-Rabatt. Ranking-Score: -${dealData.score}% (nur Sortierung). ${colorLegend}${outlierText} [Klicken zum Aktualisieren]`);
+        } else {
+          setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})! Badge-% = Ø-Rabatt (-${badgePct}% vs Ø ${horizonLabel}${medianVal ? ` CHF ${medianVal.toFixed(2)}` : ''}, kein neuer Rekord). Ranking-Score: -${dealData.score}% (nur Sortierung). ${colorLegend}${outlierText} [Klicken zum Aktualisieren]`);
         }
 
         // Compact dual-score breakdown pill directly underneath the circle badge
@@ -371,13 +401,14 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         } else {
           badgeDifEl.classList.remove('tp-deal-loading');
           if (rawDiscount !== null && !isNaN(rawDiscount)) {
+            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
             if (isListView) {
-              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>-${rawDiscount}%</p>`);
+              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
             } else {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
             }
           } else {
-            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis).`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
             } else {
@@ -422,8 +453,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
 
         if (isAllTimeLow) {
           // 3B: Verified All-Time Low (Glowing Emerald Halo)
+          // Badge-% = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis) — die
+          // Site-Differenz steht nach Prüfung nur noch.Tooltip als Kontext.
           badgeDifEl.classList.add('tp-deal-alltime-low', 'tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
+
+          const showRecord = isSignificantRecord(displayDelta);
+          const levelPct = (stats.medianPrice && stats.medianPrice > cardPrice)
+            ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
+            : 0;
+          const badgePct = showRecord ? displayDelta.dRecord : levelPct;
+          const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
           let peakContext = '';
           if (hasSignificantPeak) {
@@ -436,24 +476,21 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             prevLowContext = ` | Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`;
           }
           const avgContext = stats.avgPrice && stats.avgPrice > cardPrice ? ` | Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}` : '';
+          const siteContext = sitePctText ? ` | Site-Rabatt: ${sitePctText} (ungeprüft, z.B. vs UVP)` : '';
+          const colorLegend = `🎨 Farbe = Abstand zum Ø-Preis (Rot = günstig vs üblich)`;
 
-          setTitleIfChanged(badgeDifEl, `🌟 ${isNewRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!${prevLowContext}${avgContext}${peakContext} (Klicken zum Aktualisieren)`);
-          if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p>`);
-          } else {
-            const dealPct = cd.dealScore?.score || (stats.realDiscountVsMedian || stats.realDiscountVsAvg || 0);
-            if (isListView) {
-              if (dealPct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${dealPct}%</p>`);
-              } else {
-                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
-              }
+          setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})! Badge: -${badgePct}% (${badgeKind})${prevLowContext}${avgContext}${peakContext}${siteContext}. ${colorLegend} (Klicken zum Aktualisieren)`);
+          if (isListView) {
+            if (badgePct > 0) {
+              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
             } else {
-              if (dealPct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal</div><p>-${dealPct}%</p>`);
-              } else {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
-              }
+              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+            }
+          } else {
+            if (badgePct > 0) {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal · ${badgeKind}</div><p>-${badgePct}%</p>`);
+            } else {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
             }
           }
         } else {
@@ -470,9 +507,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           }
 
           const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-          const fakeDiscContext = (rawDiscount !== null && !isNaN(rawDiscount)) ? ` | Schein-Rabatt: -${rawDiscount}%` : '';
-          setTitleIfChanged(badgeDifEl, `⚠️ Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${fakeDiscContext}${peakContext} (Klicken zum Aktualisieren)`);
-          const fakeDiscHtml = (rawDiscount !== null && !isNaN(rawDiscount)) ? `<span class="tp-fake-discount"><s>-${rawDiscount}%</s></span>` : '';
+          const fakeDiscContext = sitePctText ? ` | Site-Rabatt: ${sitePctText} (ungeprüft, z.B. vs UVP)` : '';
+          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: aktuell CHF ${cardPrice.toFixed(2)}, historisches Tief CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${fakeDiscContext}${peakContext}. 🎨 Farbe = Abstand zum Ø-Preis (Blau = teuer vs üblich; blass = ungeprüft) (Klicken zum Aktualisieren)`);
+          const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
           } else {
@@ -511,10 +548,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
         if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Echten Allzeit-Tiefstpreis prüfen (-${rawDiscount}% Schein-Rabatt vs Realität)`);
-          setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>-${rawDiscount}%</p><span class="tp-badge-loupe-icon">🔍</span>`);
+          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
+          setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
         } else {
-          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen`);
+          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); 🎨 Farbe = Abstand zum Ø-Preis.`);
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
           } else {
@@ -606,7 +643,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.innerHTML = `
       <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Bestpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
       <div class="tp-empty-state-actions">
-        ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;">🔍 Deals prüfen (≥${minDisc}%)</button>` : ''}
+        ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Deals mit Site-Rabatt ≥ ${minDisc}% (Site-% ≠ verifizierter Tiefstpreis)">🔍 Deals prüfen (Site ≥${minDisc}%)</button>` : ''}
         <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
         ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Bestpreise-Modus ausschalten</button>' : ''}
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>

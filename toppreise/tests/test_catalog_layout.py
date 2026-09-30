@@ -605,20 +605,23 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 1: New Record -> Gold halo, "Real Deal -22%", and subline
+    # Card 1: New Record -> Gold halo, "Real Deal -18% (Rekord)", and subline
+    # (badge-% = record discount vs Bisher, NOT the blended score -22%)
     card1_badge = page.locator('#card-cheapest .badge-dif')
     assert 'tp-deal-new-record' in (card1_badge.get_attribute('class') or '')
     assert 'Real Deal' in (card1_badge.text_content() or '')
-    assert '-22%' in (card1_badge.text_content() or '')
+    assert '-18%' in (card1_badge.text_content() or '')
+    assert 'Rekord' in (card1_badge.text_content() or '')
 
     card1_subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
     assert 'Bisher: CHF 2200.00 (-18%)' in (card1_subline.text_content() or '')
 
-    # Card 2: Matching Low -> Emerald halo, "Real Deal -14%", and median subline
+    # Card 2: Matching Low -> Emerald halo, "Real Deal -27% (Ø-Preis)", and median subline
+    # (badge-% = median discount, NOT the blended score -14%)
     card2_badge = page.locator('#card-expensive .badge-dif')
     assert 'tp-deal-alltime-low' in (card2_badge.get_attribute('class') or '')
     assert 'Real Deal' in (card2_badge.text_content() or '')
-    assert '-14%' in (card2_badge.text_content() or '')
+    assert '-27%' in (card2_badge.text_content() or '')
 
     card2_subline = page.locator('#card-expensive .tp-card-historical-price.tp-is-at-low')
     assert 'CHF 1500.00 (-27%)' in (card2_subline.text_content() or '')
@@ -631,14 +634,14 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     uncached_badge = page.locator('#card-low-offers .badge-dif')
     assert 'tp-deal-loading' not in (uncached_badge.get_attribute('class') or '')
 
-    # Toggle Bestpreise mode OFF -> Restores original badges and removes hidden classes
+    # Toggle Bestpreise mode OFF -> verified badges keep truthful event-% (no longer site Differenz)
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false;
         window.ToppreiseSuite.processListings();
     }""")
     assert 'tp-bestpreise-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-deal-new-record' not in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
-    assert '-67%' in (page.locator('#card-cheapest .badge-dif').text_content() or '')
+    assert '-18%' in (page.locator('#card-cheapest .badge-dif').text_content() or '')
 
 
 
@@ -1299,8 +1302,10 @@ def test_deal_score_weight_preset_dropdown_in_filter_bar(page: Page):
 
 def test_dual_score_breakdown_pill_rendering(page: Page):
     """
-    Validates that a verified deal renders both its combined weighted score in the circle badge
-    and its individual scores (Rek: -X% · Ø: -Y%) in .tp-badge-score-breakdown underneath.
+    Validates that a verified deal renders its truthful event-% in the circle badge
+    (Rekord vs Bisher, NOT the blended score) and its individual components
+    (Rek: -X% · Ø: -Y%) in .tp-badge-score-breakdown underneath.
+    The blended score survives only as ranking info in the badge tooltip.
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1322,9 +1327,13 @@ def test_dual_score_breakdown_pill_rendering(page: Page):
     card = page.locator('#card-cheapest')
     assert card.is_visible()
 
-    # Badge circle has Real Deal text
+    # Badge circle shows the truthful event-% (Rekord -10%), not the blended score
     badge = card.locator('.badge-dif')
     assert badge.is_visible()
+    assert 'Real Deal' in badge.inner_text()
+    assert '-10%' in badge.inner_text()
+    assert 'Rekord' in badge.inner_text()
+    assert 'Ranking-Score' in (badge.get_attribute('title') or '')
 
     # Dual-score breakdown pill is rendered
     breakdown = card.locator('.tp-badge-score-breakdown')

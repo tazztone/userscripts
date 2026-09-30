@@ -173,6 +173,23 @@ describe('Price Domain Module', () => {
       assert.ok(analysis.medianPriceLifetime > analysis.medianPrice); // Lifetime is higher
       assert.equal(analysis.realDiscountVsPrevLow, 7); // (750 - 699) / 750 = 6.8% -> 7%
     });
+
+    it('uses strict cent comparison for the trailing plateau (no 1% swallow)', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      // -0.5% micro-dip: previous low must stay the adjacent 100.00,
+      // not an older higher level.
+      const series = [
+        [now - 30 * dayMs, 120.00],
+        [now - 20 * dayMs, 110.00],
+        [now - 10 * dayMs, 100.00],
+        [now, 99.50]
+      ];
+      const analysis = analyzePriceTimeSeries(series, 99.50, 0, { outlierRejectionEnabled: false });
+      assert.ok(analysis);
+      assert.equal(analysis.previousLow, 100.00);
+      assert.equal(analysis.realDiscountVsPrevLow, 1); // honest micro-dip, badge renders "Tiefstpreis"
+    });
   });
 
   describe('parsePriceStatsFromHtml', () => {

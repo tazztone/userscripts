@@ -96,5 +96,12 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       const styles4 = getHeatmapStyles(100);
       assert.strictEqual(styles3.bg, styles4.bg);
     });
+
+    it('renders visibly distinct shades for distinct deal sizes (PIMAX vs TRUST)', () => {
+      const pim = getHeatmapStyles(-58, 1.0);
+      const tru = getHeatmapStyles(-52, 1.0);
+      assert.notEqual(pim.bg, tru.bg);
+      assert.notEqual(pim.border, tru.border);
+    });
   });
 });

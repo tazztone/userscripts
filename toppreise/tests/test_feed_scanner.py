@@ -81,8 +81,8 @@ def test_exact_cent_boundary_badge_states(page: Page):
         # currentPrice, expected_state (Allzeit-Tiefstpreis string), expected_class, not_expected_class
         (37.94, 'Neuer Allzeit-Tiefstpreis (CHF 37.94)', 'tp-deal-alltime-low', 'tp-deal-not-low'), # new low
         (37.95, 'Allzeit-Tiefstpreis (CHF 37.95)', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low
-        (37.96, 'Historischer Tiefstpreis lag bei CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
-        (38.00, 'Historischer Tiefstpreis lag bei CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
+        (37.96, 'historisches Tief CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
+        (38.00, 'historisches Tief CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
         (37.9500001, 'Allzeit-Tiefstpreis (CHF 37.95)', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low normalized
     ]
 
@@ -185,10 +185,12 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-badge-interactive')
     page.click('#card-cheapest .badge-dif')
 
-    # Verify badge transforms into Allzeit-Tiefstpreis with halo and clean percentage
+    # Verify badge transforms into Allzeit-Tiefstpreis with halo and truthful percentage
+    # (verified badge shows the real event, never the -67% site Differenz)
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge1 = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    assert '-67%' in (badge1.text_content() or '')
+    assert 'Tiefstpreis' in (badge1.text_content() or '')
+    assert '-67%' not in (badge1.text_content() or '')
     assert 'Allzeit-Tiefstpreis' in (badge1.get_attribute('title') or '')
     assert not page.locator('#card-cheapest .tp-card-historical-price').is_visible()
 
@@ -305,7 +307,7 @@ def test_real_deal_rich_tooltips_with_peak_context(page: Page):
 
     badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
     title3 = badge3.get_attribute('title') or ''
-    assert 'Historischer Tiefstpreis lag bei CHF 10.00 (+50% Aufschlag)' in title3
+    assert 'historisches Tief CHF 10.00 (+50% Aufschlag)' in title3
     assert 'Höchstpreis: CHF 25.00' in title3
 
 
@@ -342,8 +344,9 @@ def test_real_deal_dom_memoization_and_cache_pruning(page: Page):
 
 
 
-def test_real_deal_removes_heatmap_on_non_bestpreis(page: Page):
+def test_real_deal_cold_heatmap_on_non_bestpreis(page: Page):
     # Both card 1 (all-time low) and card 3 (non-bestpreis) initially have heatmap
+    # (unverified site-Differenz, rendered paler)
     card1 = page.locator('#card-cheapest')
     card3 = page.locator('#card-negative')
     assert 'tp-heatmap-active' in (card1.get_attribute('class') or '')
@@ -361,15 +364,18 @@ def test_real_deal_removes_heatmap_on_non_bestpreis(page: Page):
 
     page.route('**/plugins/product/pricechart*', handle_pricechart)
 
-    # Check card 1 (all-time low) -> heatmap stays active
+    # Check card 1 (verified all-time low, no median) -> heatmap goes neutral:
+    # the old warmth was the fake -67% site Differenz; the emerald badge now
+    # carries the "Tiefstpreis" signal instead.
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    assert 'tp-heatmap-active' in (card1.get_attribute('class') or '')
+    assert 'tp-heatmap-active' not in (card1.get_attribute('class') or '')
 
-    # Check card 3 (non-bestpreis, 15 CHF vs 10 CHF low) -> heatmap is removed
+    # Check card 3 (non-bestpreis, 15 CHF vs 10 CHF low, no median) -> cold heatmap stays
+    # (verified +50% markup renders cold blue instead of nothing: color = level)
     page.click('#card-negative .badge-dif')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-not-low')
-    assert 'tp-heatmap-active' not in (card3.get_attribute('class') or '')
+    assert 'tp-heatmap-active' in (card3.get_attribute('class') or '')
 
 
 
@@ -651,7 +657,10 @@ def test_real_world_toppreise_pricechart_html_parsing(page: Page):
     page.click('#card-negative .badge-dif')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low', timeout=3000)
     neg_badge = page.locator('#card-negative .badge-dif.tp-deal-alltime-low')
-    assert '-35%' in (neg_badge.text_content() or '')
+    # Verified badge shows truthful Tiefstpreis, site -35% evicted to the tooltip
+    assert 'Tiefstpreis' in (neg_badge.text_content() or '')
+    assert '-35%' not in (neg_badge.text_content() or '')
+    assert '-35%' in (neg_badge.get_attribute('title') or '')
 
 
 
@@ -889,7 +898,9 @@ def test_negative_caching_and_manual_click_override(page: Page):
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    assert '-67%' in (badge.text_content() or '')
+    # Verified badge shows truthful Tiefstpreis, site -67% evicted to the tooltip
+    assert 'Tiefstpreis' in (badge.text_content() or '')
+    assert '-67%' not in (badge.text_content() or '')
     assert 'Allzeit-Tiefstpreis' in (badge.get_attribute('title') or '')
 
 

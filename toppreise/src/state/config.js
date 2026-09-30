@@ -148,9 +148,10 @@ export function syncUiControl(key, val) {
           if (range) range.value = pct;
           if (valEl) valEl.value = pct;
           if (descEl) {
-            if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
-            else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
-            else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median`;
+            const suffix = ' (nur Sortierung)';
+            if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)' + suffix;
+            else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)' + suffix;
+            else descEl.textContent = `${pct}% Rekord / ${100 - pct}% Median${suffix}`;
           }
           break;
         }

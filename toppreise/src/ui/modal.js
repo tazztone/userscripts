@@ -67,7 +67,7 @@ export function setupUI() {
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>Rabatt-Heatmap aktivieren</label>
-            <span class="tp-switch-desc">Färbt Karten kontinuierlich (-100% Rot / Heiß bis +100% Blau / Kalt)</span>
+            <span class="tp-switch-desc">Kartenfarbe = Abstand zum Ø-Preis (Median): Rot = günstig vs üblich, Grau = üblich (±5%), Blau = teuer vs üblich. Blass = ungeprüft. Badge-% = Rekord-Ereignis.</span>
           </div>
           <label class="tp-switch tp-rose">
             <input type="checkbox" id="tp-heatmap-enabled-toggle">
@@ -92,12 +92,12 @@ export function setupUI() {
           </label>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-          <label>Deal-Score Gewichtung (Median ↔ Neuer Rekord)</label>
+          <label>Deal-Score Gewichtung: Bestpreise-Sortierung (nur Ranking)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
           </div>
-          <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord</span>
+          <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Median / 50% Neuer Rekord (nur Sortierung — Farben & Badge-% bleiben unverändert)</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -120,11 +120,12 @@ export function setupUI() {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label>Mindest-Rabatt für Batch-Check (%)</label>
+          <label>Check-Vorauswahl: Mindest-Site-Rabatt für Batch-Check (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
             <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
           </div>
+          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Deals mit mindestens so viel Site-Rabatt (Differenz, ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt ihn durch den echten Rabatt.</span>
         </div>
         <div class="tp-section-header" style="color: #3b82f6;">3. Preisalarm Auto-Filler</div>
         <div class="tp-settings-group tp-switch-container">
@@ -376,7 +377,7 @@ export function setupUI() {
   const updateWeightDesc = (val) => {
     const pct = Math.round(val);
     if (bestpreiseWeightDesc) {
-      bestpreiseWeightDesc.textContent = `${100 - pct}% Median / ${pct}% Neuer Rekord`;
+      bestpreiseWeightDesc.textContent = `${100 - pct}% Median / ${pct}% Neuer Rekord (nur Sortierung)`;
     }
   };
   bindDual(bestpreiseWeightRange, bestpreiseWeightVal, 1, updateWeightDesc);

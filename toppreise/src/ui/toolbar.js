@@ -61,12 +61,12 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
         <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
           👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
         </button>
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Rabatt-Heatmap ein-/ausschalten" style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Kartenfarbe = Abstand zum Ø-Preis (Median) — Rot = günstig vs üblich, Blau = teuer vs üblich, Grau = im üblichen Bereich (±5%). Blasse Farben = ungeprüft (Site-Rabatt). Badge-% = Rekord-Ereignis (vs Bisher / Ø-Preis)." style="display: flex;">🔥 Heatmap</button>
         <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
         <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Deal-Score Gewichtung wählen" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
+          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Bestpreise-Feed (nur Ranking — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
             ⚖️ 50/50 ▾
           </button>
           <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 170px;">
@@ -78,10 +78,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           </div>
         </div>
         <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
-          <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% Rabatt vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
+          <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
             ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
           </button>
-          <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Mindest-Rabatt für Deal-Check wählen (aktuell ≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}%)">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
+          <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Check-Vorauswahl: Es werden nur Deals mit Site-Rabatt ≥ ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% geprüft. Site-% (Differenz, z.B. vs UVP) ≠ verifizierter Tiefstpreis — die Prüfung ersetzt ihn durch den echten Rabatt.">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
           <div class="tp-threshold-popover" id="tp-threshold-popover">
             <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 20 ? 'tp-selected' : ''}" data-val="20">≥ 20%</button>
             <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 30 ? 'tp-selected' : ''}" data-val="30">≥ 30%</button>
@@ -230,7 +230,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
             threshPopover.classList.remove('tp-show');
             threshBtn.classList.remove('tp-open');
             updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
-            showToast(`Mindest-Rabatt für Deals auf ${val}% gesetzt`);
+            showToast(`Check-Vorauswahl: nur Deals mit Site-Rabatt ≥ ${val}% werden geprüft`);
           }
         };
       });
@@ -255,7 +255,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
             weightPopover.classList.remove('tp-show');
             weightBtn.classList.remove('tp-open');
             updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-            showToast(`Deal-Score Gewichtung: ${Math.round((1 - w) * 100)}% Median / ${Math.round(w * 100)}% Rekord`);
+            showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Median / ${Math.round(w * 100)}% Rekord (nur Ranking)`);
           }
         };
       });
@@ -361,7 +361,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     batchBtn.classList.remove('tp-disabled');
     const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     batchBtn.title = isDealFeed
-      ? (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Deals ab ${minDisc}% Rabatt prüfen` : `Keine ungeprüften Deals ab ${minDisc}% Rabatt vorhanden`)
+      ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${minDisc}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${minDisc}% vorhanden`)
       : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`);
     batchBtn.innerHTML = `🔍 Check Deals (${uncheckedDeals})`;
     batchBtn.classList.remove('tp-batch-active');
@@ -374,7 +374,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   if (threshBtn) {
     const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     threshBtn.textContent = `≥${minDisc}% ▾`;
-    threshBtn.title = `Mindest-Rabatt für Deal-Check wählen (aktuell ≥${minDisc}%)`;
+    threshBtn.title = `Check-Vorauswahl: nur Site-Rabatt ≥ ${minDisc}% wird geprüft (Site-% ≠ verifizierter Tiefstpreis)`;
     threshBtn.style.setProperty('display', isDealFeed ? 'block' : 'none', 'important');
   }
   const threshPopover = bar.querySelector('#tp-threshold-popover');
@@ -402,7 +402,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   const weightBtn = bar.querySelector('#tp-bar-weight-btn');
   if (weightBtn) {
     weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-    weightBtn.title = `Deal-Score Gewichtung wählen (aktuell: ${Math.round((1 - curWeight) * 100)}% Median / ${Math.round(curWeight * 100)}% Neuer Rekord)`;
+    weightBtn.title = `Sortier-Gewichtung für den Bestpreise-Feed (nur Ranking, aktuell: ${Math.round((1 - curWeight) * 100)}% Median / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
   }
   const weightPopover = bar.querySelector('#tp-weight-popover');
   if (weightPopover) {

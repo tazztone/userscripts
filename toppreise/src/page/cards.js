@@ -7,7 +7,7 @@
 import { SELECTORS } from './selectors.js';
 import { CONFIG } from '../state/config.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
-import { computeDealScore } from '../domain/deal-score.js';
+import { computeDealScore, getDisplayDelta } from '../domain/deal-score.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 
 export const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
@@ -193,6 +193,9 @@ export function extractCardData(card) {
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
   const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
+  // Display delta never gates on history quality: with just {tiefstpreis} +
+  // card price the badge/heat still tell the verified truth.
+  const displayDelta = getDisplayDelta(cardPrice, stats);
   const offerCount = extractOfferCount(card);
 
   return {
@@ -205,6 +208,7 @@ export function extractCardData(card) {
     diffVal,
     discountVal,
     dealScore,
+    displayDelta,
     offerCount
   };
 }

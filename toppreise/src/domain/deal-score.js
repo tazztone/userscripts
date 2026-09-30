@@ -7,6 +7,12 @@
 import { priceToCents } from './price.js';
 import { CONFIG } from '../state/config.js';
 
+// Display thresholds (documented in UI: badge titles, heatmap toggle, settings).
+// Badge % always answers "how much cheaper, vs what" — never a blended score
+// and never the unverified site Differenz once history is verified.
+export const HEAT_NEUTRAL_DEADBAND_PCT = 5;
+export const MIN_SIGNIFICANT_RECORD_PCT = 2;
+
 export function getDealState(cardPrice, tiefstpreis) {
   if (!cardPrice || !tiefstpreis || cardPrice <= 0 || tiefstpreis <= 0) return 'unknown';
   const cPrice = priceToCents(cardPrice);
@@ -60,4 +66,86 @@ export function computeDealScore(stats, cardPrice, options = {}) {
     prevLow,
     medianPrice: stats.medianPrice
   };
+}
+
+/**
+ * Display delta (deal EVENT): what the badge shows. Works with minimal stats
+ * ({tiefstpreis} + card price); no history-quality gates — those only gate
+ * the ranking score, never the displayed truth.
+ * - new-low  -> { kind:'new-low', dRecord }  (extra saving vs previous low)
+ * - at-low   -> { kind:'at-low' }            (no new saving; badge uses level)
+ * - above-low-> { kind:'above-low', markup } (premium vs all-time low)
+ */
+export function getDisplayDelta(cardPrice, stats) {
+  if (!cardPrice || !stats?.tiefstpreis || cardPrice <= 0 || stats.tiefstpreis <= 0) {
+    return { kind: 'unknown' };
+  }
+  const cPrice = priceToCents(cardPrice);
+  const cLow = priceToCents(stats.tiefstpreis);
+  // Analyzed series include the current price, so a fresh record compares
+  // EQUAL in cents — the isNewAllTimeLow flag is authoritative there.
+  if (cPrice < cLow || (cPrice === cLow && stats.isNewAllTimeLow)) {
+    const prevLow = stats.previousLow;
+    let dRecord = 0;
+    if (prevLow && prevLow > cardPrice) {
+      dRecord = Math.round(((prevLow - cardPrice) / prevLow) * 100);
+    } else if (stats.realDiscountVsPrevLow) {
+      dRecord = stats.realDiscountVsPrevLow;
+    }
+    return { kind: 'new-low', dRecord, prevLow: prevLow ?? null };
+  }
+  if (cPrice === cLow) {
+    return { kind: 'at-low', dRecord: 0, prevLow: stats.previousLow ?? null };
+  }
+  return {
+    kind: 'above-low',
+    markup: Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)
+  };
+}
+
+/** Only records with a meaningful breakthrough earn the "Rekord" badge style;
+ *  1-cent micro-dips render as plain "Tiefstpreis". */
+export function isSignificantRecord(display) {
+  return !!display && display.kind === 'new-low' && (display.dRecord || 0) >= MIN_SIGNIFICANT_RECORD_PCT;
+}
+
+/**
+ * Price LEVEL vs usual (median): what the heatmap shows. Signed percent:
+ * negative = below median (hot/red), positive = above median (cold/blue),
+ * null = no median available. Heat is ambient/continuous; the badge owns
+ * the precise event number.
+ */
+export function getPriceLevel(cardPrice, stats) {
+  const median = stats?.medianPrice;
+  if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return null;
+  return Math.round(((cardPrice - median) / median) * 100);
+}
+
+/**
+ * Single heat driver. Returns { value, provisional }:
+ * - verified + median      -> level vs median (deadband ±5% -> null/neutral)
+ * - verified, no median    -> event (record/markup, deadband) so HTML-fallback
+ *                             products still get honest color
+ * - unverified             -> site Differenz, flagged provisional (rendered
+ *                             paler so provisional color reads provisional)
+ */
+export function getHeatInput(cardPrice, stats, siteDiff) {
+  const level = getPriceLevel(cardPrice, stats);
+  if (level !== null) {
+    if (Math.abs(level) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
+    return { value: level, provisional: false };
+  }
+  if (stats?.tiefstpreis > 0 && cardPrice > 0) {
+    const d = getDisplayDelta(cardPrice, stats);
+    let v = null;
+    if (d.kind === 'new-low') v = -d.dRecord;
+    else if (d.kind === 'above-low') v = d.markup;
+    if (v === null || Math.abs(v) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
+    return { value: v, provisional: false };
+  }
+  if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
+    if (Math.abs(siteDiff) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: true };
+    return { value: siteDiff, provisional: true };
+  }
+  return { value: null, provisional: false };
 }

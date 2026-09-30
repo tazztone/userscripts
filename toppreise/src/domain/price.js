@@ -261,8 +261,12 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
   const allTimeLow = Math.min(...prices);
   const allTimeHigh = Math.max(...prices);
 
+  // Trailing-plateau walk: only points already AT (or below) the current price
+  // belong to the current regime. Strict cent comparison — the old 1% band
+  // swallowed sub-1% dips into the plateau and overstated micro-records.
+  const currCents = priceToCents(curr);
   let idx = prices.length - 1;
-  while (idx > 0 && prices[idx] <= curr * 1.01) {
+  while (idx > 0 && priceToCents(prices[idx]) <= currCents) {
     idx--;
   }
   const historicalPrices = prices.slice(0, idx + 1);
