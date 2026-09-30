@@ -99,7 +99,7 @@ export function syncUiControl(key, val) {
           const range = shadow.getElementById('tp-opacity-range');
           const label = shadow.getElementById('tp-opacity-val');
           if (range) range.value = val;
-          if (label) label.textContent = `${Math.round(val * 100)}%`;
+          if (label) label.value = Math.round(val * 100);
           break;
         }
         case 'HEATMAP_ENABLED': {
@@ -118,7 +118,7 @@ export function syncUiControl(key, val) {
           const descEl = shadow.getElementById('tp-bestpreise-weight-desc');
           const pct = Math.round((val ?? 0.5) * 100);
           if (range) range.value = pct;
-          if (valEl) valEl.textContent = `${pct}%`;
+          if (valEl) valEl.value = pct;
           if (descEl) {
             if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
             else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
@@ -139,7 +139,7 @@ export function syncUiControl(key, val) {
           break;
         }
         case 'USE_SHIPPING_PRICE': {
-          const toggle = shadow.getElementById('tp-use-shipping-toggle');
+          const toggle = shadow.getElementById('tp-shipping-toggle');
           if (toggle) toggle.checked = !!val;
           break;
         }

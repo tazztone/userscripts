@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.57
+// @version      2.18.58
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1745,7 +1745,7 @@ const SHADOW_MODAL_STYLES = `
             const range = shadow.getElementById('tp-opacity-range');
             const label = shadow.getElementById('tp-opacity-val');
             if (range) range.value = val;
-            if (label) label.textContent = `${Math.round(val * 100)}%`;
+            if (label) label.value = Math.round(val * 100);
             break;
           }
           case 'HEATMAP_ENABLED': {
@@ -1764,7 +1764,7 @@ const SHADOW_MODAL_STYLES = `
             const descEl = shadow.getElementById('tp-bestpreise-weight-desc');
             const pct = Math.round((val ?? 0.5) * 100);
             if (range) range.value = pct;
-            if (valEl) valEl.textContent = `${pct}%`;
+            if (valEl) valEl.value = pct;
             if (descEl) {
               if (pct === 100) descEl.textContent = 'Nur Rekorde (100% Rekord / 0% Median)';
               else if (pct === 0) descEl.textContent = 'Nur Marktpreis (0% Rekord / 100% Median)';
@@ -1785,7 +1785,7 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'USE_SHIPPING_PRICE': {
-            const toggle = shadow.getElementById('tp-use-shipping-toggle');
+            const toggle = shadow.getElementById('tp-shipping-toggle');
             if (toggle) toggle.checked = !!val;
             break;
           }
@@ -1934,6 +1934,13 @@ const SHADOW_MODAL_STYLES = `
     delete card._tpDealerRows;
     delete card._tpTextLower;
     delete card._tpPriceInfo;
+    if (card.dataset) {
+      delete card.dataset.tpOfferCount;
+      delete card.dataset.tpDiff;
+      delete card.dataset.tpDiscount;
+      delete card.dataset.tpProductId;
+      delete card.dataset.tpAppliedHeat;
+    }
   }
 
   function isShippingPriceActive(card = null) {
@@ -2144,7 +2151,7 @@ const SHADOW_MODAL_STYLES = `
       const cached = parseFloat(card.dataset.tpDiff);
       return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
     }
-    const badgeEl = card.querySelector('.badge-dif, .badge, [class*="badge-dif"]');
+    const badgeEl = card.querySelector('.badge-dif:not(.tp-injected-badge), .badge:not(.tp-injected-badge), [class*="badge-dif"]:not(.tp-injected-badge)');
     const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
     const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
     if (match) {
@@ -2841,10 +2848,31 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  // Sub-elements the heatmap touches (apply + removal must use the same set)
+  const HEAT_SUB_SELECTOR =
+    '.row, .col, [class*="col-"], .priceAvailabilityContainer, .price-availability, ' +
+    '.offersContainer, .offers, .priceContainer, .Plugin_Price, .productPrice, .shippingPrice, .shippingText, ' +
+    '.manufacturer-image, .product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, ' +
+    '.f_product_info, .productDescription, .productDetailsDescription, .product-details, .f_product_container, ' +
+    '.product-image, .productImage, .image_container, .image, [data-darkreader-inline-bgcolor], [data-darkreader-inline-bgimage]';
+
+  function ensureHistPriceEl(card, cardPriceEl) {
+    let el = card.querySelector('.tp-card-historical-price');
+    if (!el) {
+      el = document.createElement('div');
+      const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
+                             cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
+                             cardPriceEl?.parentElement ||
+                             card;
+      priceContainer.appendChild(el);
+    }
+    return el;
+  }
+
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal } = cd;
 
-    // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
+    // 1. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
     const effectiveDiff = isVerifiedNonBest
       ? null
       : (cd.dealScore ? -cd.dealScore.score : (CONFIG.BESTPREISE_MODE_ACTIVE ? null : (diffVal ?? null)));
@@ -2873,13 +2901,7 @@ const SHADOW_MODAL_STYLES = `
         if (card.hasAttribute('data-darkreader-inline-bgcolor')) card.removeAttribute('data-darkreader-inline-bgcolor');
         if (card.hasAttribute('data-darkreader-inline-bgimage')) card.removeAttribute('data-darkreader-inline-bgimage');
 
-        const subElements = card.querySelectorAll(
-          '.row, .col, [class*="col-"], .priceAvailabilityContainer, .price-availability, ' +
-          '.offersContainer, .offers, .priceContainer, .Plugin_Price, .productPrice, .shippingPrice, .shippingText, ' +
-          '.manufacturer-image, .product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, ' +
-          '.f_product_info, .productDescription, .productDetailsDescription, .product-details, .f_product_container, ' +
-          '.product-image, .productImage, .image_container, .image, [data-darkreader-inline-bgcolor], [data-darkreader-inline-bgimage]'
-        );
+        const subElements = card.querySelectorAll(HEAT_SUB_SELECTOR);
         for (let s = 0; s < subElements.length; s++) {
           const sub = subElements[s];
           if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
@@ -2914,6 +2936,13 @@ const SHADOW_MODAL_STYLES = `
       card.style.removeProperty('background-image');
       card.style.removeProperty('background-color');
       card.style.removeProperty('border-color');
+      // Undo the per-subelement overrides from the apply path above
+      for (const sub of card.querySelectorAll(HEAT_SUB_SELECTOR)) {
+        sub.style.removeProperty('background-color');
+        sub.style.removeProperty('background');
+        sub.style.removeProperty('--darkreader-inline-bgcolor');
+        sub.style.removeProperty('--darkreader-inline-bgimage');
+      }
     }
 
     // 2. Filters
@@ -2964,7 +2993,7 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
-    // 3.5 Real Deal & Allzeit-Tiefstpreis Check (Consolidated into Differenz Circle Badge)
+    // 4. Real Deal & Allzeit-Tiefstpreis Check (Consolidated into Differenz Circle Badge)
     let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     // Remove any legacy floating wrappers if present
     card.querySelector('.tp-real-deal-wrapper')?.remove();
@@ -3109,15 +3138,7 @@ const SHADOW_MODAL_STYLES = `
             }
           }
 
-          let histPriceEl = card.querySelector('.tp-card-historical-price');
-          if (!histPriceEl) {
-            histPriceEl = document.createElement('div');
-            const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
-                                   cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
-                                   cardPriceEl?.parentElement ||
-                                   card;
-            priceContainer.appendChild(histPriceEl);
-          }
+          let histPriceEl = ensureHistPriceEl(card, cardPriceEl);
 
           if (dealData.isNewRecord && prevLow) {
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
@@ -3266,40 +3287,20 @@ const SHADOW_MODAL_STYLES = `
           }
 
           // 4A: Historical Tiefstpreis line right below current price
+          // (pre-existing element lookup doubles as the stale-element removal path below)
           let histPriceEl = card.querySelector('.tp-card-historical-price');
           if (isNonBest) {
-            if (!histPriceEl) {
-              histPriceEl = document.createElement('div');
-              const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
-                                     cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
-                                     cardPriceEl?.parentElement ||
-                                     card;
-              priceContainer.appendChild(histPriceEl);
-            }
+            histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             histPriceEl.className = 'tp-card-historical-price tp-is-markup';
             setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)}% Aufschlag)`);
           } else if (isNewRecord && prevLow) {
-            if (!histPriceEl) {
-              histPriceEl = document.createElement('div');
-              const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
-                                     cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
-                                     cardPriceEl?.parentElement ||
-                                     card;
-              priceContainer.appendChild(histPriceEl);
-            }
+            histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
             setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
             setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`);
           } else if (!isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice) {
-            if (!histPriceEl) {
-              histPriceEl = document.createElement('div');
-              const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
-                                     cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
-                                     cardPriceEl?.parentElement ||
-                                     card;
-              priceContainer.appendChild(histPriceEl);
-            }
+            histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             const dMedian = Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100);
             const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
             histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
@@ -3333,7 +3334,7 @@ const SHADOW_MODAL_STYLES = `
       card.querySelector('.tp-card-historical-price')?.remove();
     }
 
-    // 3.6 Mini Price-Trend Sparkline
+    // 5. Mini Price-Trend Sparkline
     if (CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2) {
       let sparkContainer = card.querySelector('.tp-sparkline-container');
       if (!sparkContainer) {
@@ -3393,7 +3394,11 @@ const SHADOW_MODAL_STYLES = `
     const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
     const isRevealed = document.body.classList.contains('tp-reveal-filtered');
 
+    const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
     if (cards.length > 0 && totalHidden >= cards.length && !isRevealed) {
+      // Static notice: skip rebuild + listener re-bind when nothing changed
+      const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}`;
+      if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
       if (!emptyNotice) {
         emptyNotice = document.createElement('div');
         emptyNotice.id = 'tp-empty-state-notice';
@@ -3403,7 +3408,6 @@ const SHADOW_MODAL_STYLES = `
           listParent.insertBefore(emptyNotice, listParent.firstChild);
         }
       }
-      const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
       const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       emptyNotice.innerHTML = `
         <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Bestpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
@@ -3414,6 +3418,7 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
         </div>
       `;
+      emptyNotice.dataset.tpEmptySig = emptySig;
       emptyNotice.querySelector('#tp-empty-check-deals-btn')?.addEventListener('click', () => {
         const batchBtn = document.getElementById('tp-bar-batch-check-btn');
         if (batchBtn) batchBtn.click();
@@ -3974,14 +3979,16 @@ const SHADOW_MODAL_STYLES = `
       updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
 
       const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
-      if (checkedDur) updates.ALARM_DURATION_DAYS = checkedDur.value;
+      if (checkedDur) updates.ALARM_DURATION_DAYS = parseInt(checkedDur.value, 10) || 730;
 
       updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
       if (alarmSubmitDelayVal) {
-        updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, parseInt(alarmSubmitDelayVal.value) ?? 300);
+        const submitDelay = parseInt(alarmSubmitDelayVal.value);
+        updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, Number.isNaN(submitDelay) ? 300 : submitDelay);
       }
       if (alarmCloseDelayVal) {
-        updates.ALARM_CLOSE_DELAY_MS = Math.max(0, parseInt(alarmCloseDelayVal.value) ?? 800);
+        const closeDelay = parseInt(alarmCloseDelayVal.value);
+        updates.ALARM_CLOSE_DELAY_MS = Math.max(0, Number.isNaN(closeDelay) ? 800 : closeDelay);
       }
       updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
       updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));

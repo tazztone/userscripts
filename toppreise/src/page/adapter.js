@@ -13,6 +13,13 @@ export function clearCardCache(card) {
   delete card._tpDealerRows;
   delete card._tpTextLower;
   delete card._tpPriceInfo;
+  if (card.dataset) {
+    delete card.dataset.tpOfferCount;
+    delete card.dataset.tpDiff;
+    delete card.dataset.tpDiscount;
+    delete card.dataset.tpProductId;
+    delete card.dataset.tpAppliedHeat;
+  }
 }
 
 export function isShippingPriceActive(card = null) {

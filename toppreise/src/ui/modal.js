@@ -485,14 +485,16 @@ export function setupUI() {
     updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
 
     const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
-    if (checkedDur) updates.ALARM_DURATION_DAYS = checkedDur.value;
+    if (checkedDur) updates.ALARM_DURATION_DAYS = parseInt(checkedDur.value, 10) || 730;
 
     updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
     if (alarmSubmitDelayVal) {
-      updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, parseInt(alarmSubmitDelayVal.value) ?? 300);
+      const submitDelay = parseInt(alarmSubmitDelayVal.value);
+      updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, Number.isNaN(submitDelay) ? 300 : submitDelay);
     }
     if (alarmCloseDelayVal) {
-      updates.ALARM_CLOSE_DELAY_MS = Math.max(0, parseInt(alarmCloseDelayVal.value) ?? 800);
+      const closeDelay = parseInt(alarmCloseDelayVal.value);
+      updates.ALARM_CLOSE_DELAY_MS = Math.max(0, Number.isNaN(closeDelay) ? 800 : closeDelay);
     }
     updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
     updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));

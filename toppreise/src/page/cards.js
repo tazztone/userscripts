@@ -118,7 +118,7 @@ export function extractCardDiff(card) {
     const cached = parseFloat(card.dataset.tpDiff);
     return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
   }
-  const badgeEl = card.querySelector('.badge-dif, .badge, [class*="badge-dif"]');
+  const badgeEl = card.querySelector('.badge-dif:not(.tp-injected-badge), .badge:not(.tp-injected-badge), [class*="badge-dif"]:not(.tp-injected-badge)');
   const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
   const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
   if (match) {
