@@ -42,6 +42,10 @@ export function renderSparkline(timeSeries, width = 60, height = 18) {
   const isTrendingDown = lastPrice <= firstPrice;
   const strokeColor = isTrendingDown ? '#10b981' : '#ef4444';
 
+  const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+  titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
+  svg.appendChild(titleEl);
+
   const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   polyline.setAttribute('points', points);
   polyline.setAttribute('fill', 'none');
@@ -50,8 +54,6 @@ export function renderSparkline(timeSeries, width = 60, height = 18) {
   polyline.setAttribute('stroke-linecap', 'round');
   polyline.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(polyline);
-
-  svg.setAttribute('title', `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`);
 
   return svg;
 }

@@ -44,11 +44,14 @@ describe('Interactive SVG Sparkline Component', () => {
     assert.equal(svg.getAttribute('height'), '20');
     assert.ok(svg.classList.contains('tp-sparkline'));
 
-    const polyline = svg.children[0];
+    const titleEl = svg.children[0];
+    assert.equal(titleEl.tagName, 'title');
+    assert.ok(!svg.getAttribute('title'));
+    const polyline = svg.children[1];
     assert.ok(polyline);
     assert.equal(polyline.getAttribute('stroke'), '#10b981'); // Green for downward price
-    assert.ok(svg.getAttribute('title').includes('120.00'));
-    assert.ok(svg.getAttribute('title').includes('99.00'));
+    assert.ok(titleEl.textContent.includes('120.00'));
+    assert.ok(titleEl.textContent.includes('99.00'));
   });
 
   it('renders red stroke when price increases', () => {
@@ -58,7 +61,7 @@ describe('Interactive SVG Sparkline Component', () => {
     ];
     const svg = renderSparkline(timeSeries, 60, 20);
     assert.ok(svg);
-    const polyline = svg.children[0];
+    const polyline = svg.children[1];
     assert.equal(polyline.getAttribute('stroke'), '#ef4444'); // Red for upward price
   });
 });

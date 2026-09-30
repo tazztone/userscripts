@@ -16,7 +16,14 @@ export async function processProductDetailPage() {
   const pid = getDetailProductId();
   if (!pid) return;
 
-  const headingEl = document.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1');
+  // Ordered single queries (see getDetailLowestPrice): grouped selectors match
+  // in document order, so the bare h1 fallback must never outrank its scopes.
+  const headingSelectors = ['.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1'];
+  let headingEl = null;
+  for (const sel of headingSelectors) {
+    headingEl = document.querySelector(sel);
+    if (headingEl) break;
+  }
   if (!headingEl) return;
 
   const currentPrice = getDetailLowestPrice();

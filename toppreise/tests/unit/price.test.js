@@ -101,6 +101,46 @@ describe('Price Domain Module', () => {
       // Because price is sustained, surrounding points are not >= 60% of raw median
       assert.ok(result.cleanPoints.some(p => p[1] === 20));
     });
+
+    it('filters out transient upward spikes (> 2.5x median lasting < 48 hours)', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 10 * dayMs, 1200],
+        [now - 9 * dayMs, 1180],
+        [now - 7 * dayMs, 1150],
+        [now - 6 * dayMs, 5000],  // Glitch spike: CHF 5000 on a CHF 1150 product
+        [now - 5 * dayMs, 1150],
+        [now - 4 * dayMs, 1140],
+        [now - 3 * dayMs, 1130],
+        [now - 2 * dayMs, 1120],
+        [now - 1 * dayMs, 1110],
+        [now, 1100]
+      ];
+
+      const result = sanitizeTimeSeries(series);
+      assert.equal(result.filteredOutliers.length, 1);
+      assert.equal(result.filteredOutliers[0].price, 5000);
+      assert.equal(result.cleanPoints.length, 9);
+      assert.ok(!result.cleanPoints.some(p => p[1] === 5000));
+    });
+
+    it('does not filter sustained high price levels', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 5 * dayMs, 1200],
+        [now - 4 * dayMs, 1200],
+        [now - 3 * dayMs, 5000],
+        [now - 2 * dayMs, 5000],
+        [now - 1 * dayMs, 5000],
+        [now, 5000]
+      ];
+
+      const result = sanitizeTimeSeries(series);
+      // Sustained level shifts the median, so no spike candidates exist
+      assert.ok(result.cleanPoints.some(p => p[1] === 5000));
+    });
   });
 
   describe('analyzePriceTimeSeries', () => {

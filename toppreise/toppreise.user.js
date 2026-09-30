@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.54
+// @version      2.18.55
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1260,15 +1260,35 @@ const SHADOW_MODAL_STYLES = `
 
     for (let i = 0; i < n; i++) {
       const [ts, price] = sorted[i];
-      const isCandidateOutlier = price < 0.35 * rawMedian;
+      const isCandidateDip = price < 0.35 * rawMedian;
+      const isCandidateSpike = price > 2.5 * rawMedian;
 
-      if (!isCandidateOutlier) {
+      if (!isCandidateDip && !isCandidateSpike) {
         cleanPoints.push(sorted[i]);
         continue;
       }
 
       let isGlitch = false;
-      if (i > 0 && i < n - 1) {
+      if (isCandidateSpike) {
+        // Mirror of the dip filter: a brief spike with normal neighbours is a
+        // feed glitch; a sustained high level shifts the median and is kept.
+        const isNormal = p => p <= 1.5 * rawMedian;
+        if (i > 0 && i < n - 1) {
+          const prevPrice = sorted[i - 1][1];
+          const nextPrice = sorted[i + 1][1];
+          const nextTs = sorted[i + 1][0];
+          const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
+          if (durationHours < 48 && isNormal(prevPrice) && isNormal(nextPrice)) {
+            isGlitch = true;
+          } else if (price > 4 * rawMedian && (isNormal(prevPrice) || isNormal(nextPrice))) {
+            isGlitch = true;
+          }
+        } else if (i === 0 && n > 1) {
+          if (price > 3 * rawMedian && isNormal(sorted[1][1])) isGlitch = true;
+        } else if (i === n - 1 && n > 1) {
+          if (price > 3 * rawMedian && isNormal(sorted[n - 2][1])) isGlitch = true;
+        }
+      } else if (i > 0 && i < n - 1) {
         const prevPrice = sorted[i - 1][1];
         const nextPrice = sorted[i + 1][1];
         const nextTs = sorted[i + 1][0];
@@ -1973,8 +1993,14 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getDetailLowestPrice() {
-    const priceEl = document.querySelector('.productPrice .Plugin_Price, .product_price .Plugin_Price, .lowestPrice .Plugin_Price, .priceComparison .Plugin_Price, .tableDealerPriceList .Plugin_Price, .Plugin_Price');
-    return priceEl ? parsePrice(priceEl.textContent) : 0;
+    // Ordered single queries: a grouped selector would return the first match in
+    // document order, not priority order, so a stray early .Plugin_Price could win.
+    const selectors = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
+    for (const sel of selectors) {
+      const priceEl = document.querySelector(sel);
+      if (priceEl) return parsePrice(priceEl.textContent);
+    }
+    return 0;
   }
 
   function isProductDetailPage() {
@@ -2276,6 +2302,10 @@ const SHADOW_MODAL_STYLES = `
     const isTrendingDown = lastPrice <= firstPrice;
     const strokeColor = isTrendingDown ? '#10b981' : '#ef4444';
 
+    const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
+    svg.appendChild(titleEl);
+
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('points', points);
     polyline.setAttribute('fill', 'none');
@@ -2284,8 +2314,6 @@ const SHADOW_MODAL_STYLES = `
     polyline.setAttribute('stroke-linecap', 'round');
     polyline.setAttribute('stroke-linejoin', 'round');
     svg.appendChild(polyline);
-
-    svg.setAttribute('title', `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`);
 
     return svg;
   }
@@ -4553,7 +4581,14 @@ const SHADOW_MODAL_STYLES = `
     const pid = getDetailProductId();
     if (!pid) return;
 
-    const headingEl = document.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1');
+    // Ordered single queries (see getDetailLowestPrice): grouped selectors match
+    // in document order, so the bare h1 fallback must never outrank its scopes.
+    const headingSelectors = ['.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1'];
+    let headingEl = null;
+    for (const sel of headingSelectors) {
+      headingEl = document.querySelector(sel);
+      if (headingEl) break;
+    }
     if (!headingEl) return;
 
     const currentPrice = getDetailLowestPrice();

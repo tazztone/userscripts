@@ -70,5 +70,29 @@ describe('Page Adapter Layer', () => {
       assert.equal(getPageType(), 'deal-feed');
     });
   });
+
+  describe('getDetailLowestPrice selector priority', () => {
+    it('prefers scoped product-price selectors over a stray early generic match', () => {
+      const queried = [];
+      globalThis.document = {
+        querySelector: sel => {
+          queried.push(sel);
+          // Simulate document order winning a grouped query: the generic
+          // match appears first in the DOM, the scoped one is correct.
+          if (sel.includes(',')) return { textContent: 'CHF 999.–' };
+          if (sel === '.productPrice .Plugin_Price') return { textContent: 'CHF 899.–' };
+          return null;
+        }
+      };
+      assert.equal(getDetailLowestPrice(), 899);
+      assert.ok(queried.length >= 1);
+      assert.ok(queried.every(sel => !sel.includes(',')));
+    });
+
+    it('falls back through the selector list and returns 0 when nothing matches', () => {
+      globalThis.document = { querySelector: () => null };
+      assert.equal(getDetailLowestPrice(), 0);
+    });
+  });
 });
 

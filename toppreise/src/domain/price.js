@@ -162,15 +162,35 @@ export function sanitizeTimeSeries(points) {
 
   for (let i = 0; i < n; i++) {
     const [ts, price] = sorted[i];
-    const isCandidateOutlier = price < 0.35 * rawMedian;
+    const isCandidateDip = price < 0.35 * rawMedian;
+    const isCandidateSpike = price > 2.5 * rawMedian;
 
-    if (!isCandidateOutlier) {
+    if (!isCandidateDip && !isCandidateSpike) {
       cleanPoints.push(sorted[i]);
       continue;
     }
 
     let isGlitch = false;
-    if (i > 0 && i < n - 1) {
+    if (isCandidateSpike) {
+      // Mirror of the dip filter: a brief spike with normal neighbours is a
+      // feed glitch; a sustained high level shifts the median and is kept.
+      const isNormal = p => p <= 1.5 * rawMedian;
+      if (i > 0 && i < n - 1) {
+        const prevPrice = sorted[i - 1][1];
+        const nextPrice = sorted[i + 1][1];
+        const nextTs = sorted[i + 1][0];
+        const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
+        if (durationHours < 48 && isNormal(prevPrice) && isNormal(nextPrice)) {
+          isGlitch = true;
+        } else if (price > 4 * rawMedian && (isNormal(prevPrice) || isNormal(nextPrice))) {
+          isGlitch = true;
+        }
+      } else if (i === 0 && n > 1) {
+        if (price > 3 * rawMedian && isNormal(sorted[1][1])) isGlitch = true;
+      } else if (i === n - 1 && n > 1) {
+        if (price > 3 * rawMedian && isNormal(sorted[n - 2][1])) isGlitch = true;
+      }
+    } else if (i > 0 && i < n - 1) {
       const prevPrice = sorted[i - 1][1];
       const nextPrice = sorted[i + 1][1];
       const nextTs = sorted[i + 1][0];

@@ -62,8 +62,14 @@ export function getDetailProductId() {
 }
 
 export function getDetailLowestPrice() {
-  const priceEl = document.querySelector('.productPrice .Plugin_Price, .product_price .Plugin_Price, .lowestPrice .Plugin_Price, .priceComparison .Plugin_Price, .tableDealerPriceList .Plugin_Price, .Plugin_Price');
-  return priceEl ? parsePrice(priceEl.textContent) : 0;
+  // Ordered single queries: a grouped selector would return the first match in
+  // document order, not priority order, so a stray early .Plugin_Price could win.
+  const selectors = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
+  for (const sel of selectors) {
+    const priceEl = document.querySelector(sel);
+    if (priceEl) return parsePrice(priceEl.textContent);
+  }
+  return 0;
 }
 
 export function isProductDetailPage() {
