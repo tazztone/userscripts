@@ -720,15 +720,73 @@ export const STYLES = `
   }
   .tp-filter-main-row {
     display: flex !important;
-    align-items: center !important;
+    align-items: stretch !important;
     gap: 8px !important;
     flex-wrap: wrap !important;
   }
-  .tp-filter-badge {
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    color: #10b981 !important;
+  .tp-group {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background: rgba(15,23,42,0.35) !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-radius: 10px !important;
+    padding: 4px 8px !important;
+    min-width: 0 !important;
+  }
+  .tp-group-filter {
+    flex: 1 1 340px !important;
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+  }
+  .tp-group-view, .tp-group-deals {
+    flex: 0 1 auto !important;
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+  }
+  .tp-group-label {
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    color: #64748b !important;
+    white-space: nowrap !important;
     flex-shrink: 0 !important;
+  }
+  .tp-divider {
+    width: 1px !important;
+    align-self: stretch !important;
+    background: rgba(255,255,255,0.10) !important;
+    border-radius: 1px !important;
+    flex-shrink: 0 !important;
+    margin: 2px 0 !important;
+  }
+  .tp-btn-sub {
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    opacity: 0.65 !important;
+  }
+  .tp-mini-caption {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: #94a3b8 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-join {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-stepper-label {
+    font-weight: 700 !important;
+    color: #94a3b8 !important;
+    white-space: nowrap !important;
+  }
+  @media (max-width: 900px) {
+    .tp-btn-sub { display: none !important; }
+    .tp-divider { display: none !important; }
+    .tp-group { width: 100% !important; }
   }
   .tp-input-wrapper {
     flex: 1 1 200px !important;

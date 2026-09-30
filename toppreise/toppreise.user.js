@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.67
+// @version      2.18.68
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -743,15 +743,73 @@ const STYLES = `
   }
   .tp-filter-main-row {
     display: flex !important;
-    align-items: center !important;
+    align-items: stretch !important;
     gap: 8px !important;
     flex-wrap: wrap !important;
   }
-  .tp-filter-badge {
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    color: #10b981 !important;
+  .tp-group {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background: rgba(15,23,42,0.35) !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-radius: 10px !important;
+    padding: 4px 8px !important;
+    min-width: 0 !important;
+  }
+  .tp-group-filter {
+    flex: 1 1 340px !important;
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+  }
+  .tp-group-view, .tp-group-deals {
+    flex: 0 1 auto !important;
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+  }
+  .tp-group-label {
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    color: #64748b !important;
+    white-space: nowrap !important;
     flex-shrink: 0 !important;
+  }
+  .tp-divider {
+    width: 1px !important;
+    align-self: stretch !important;
+    background: rgba(255,255,255,0.10) !important;
+    border-radius: 1px !important;
+    flex-shrink: 0 !important;
+    margin: 2px 0 !important;
+  }
+  .tp-btn-sub {
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    opacity: 0.65 !important;
+  }
+  .tp-mini-caption {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: #94a3b8 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-join {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-stepper-label {
+    font-weight: 700 !important;
+    color: #94a3b8 !important;
+    white-space: nowrap !important;
+  }
+  @media (max-width: 900px) {
+    .tp-btn-sub { display: none !important; }
+    .tp-divider { display: none !important; }
+    .tp-group { width: 100% !important; }
   }
   .tp-input-wrapper {
     flex: 1 1 200px !important;
@@ -2026,10 +2084,14 @@ const SHADOW_MODAL_STYLES = `
               if (toggle) {
                 if (toggle.tagName === 'INPUT') {
                   toggle.checked = !!val;
+                  const title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
                   const label = toggle.closest?.('.tp-mini-switch');
-                  if (label) label.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+                  if (label) label.title = title;
                   const state = label?.querySelector('.tp-mini-state');
                   if (state) state.textContent = val ? 'ON' : 'OFF';
+                  const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+                  const caption = scope?.querySelector('.tp-mini-caption');
+                  if (caption) caption.title = title;
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -2043,10 +2105,14 @@ const SHADOW_MODAL_STYLES = `
               if (toggle) {
                 if (toggle.tagName === 'INPUT') {
                   toggle.checked = !!val;
+                  const title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
                   const label = toggle.closest?.('.tp-mini-switch');
-                  if (label) label.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+                  if (label) label.title = title;
                   const state = label?.querySelector('.tp-mini-state');
                   if (state) state.textContent = val ? 'ON' : 'OFF';
+                  const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+                  const caption = scope?.querySelector('.tp-mini-caption');
+                  if (caption) caption.title = title;
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -2060,10 +2126,14 @@ const SHADOW_MODAL_STYLES = `
               if (toggle) {
                 if (toggle.tagName === 'INPUT') {
                   toggle.checked = !!val;
+                  const title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
                   const label = toggle.closest?.('.tp-mini-switch');
-                  if (label) label.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                  if (label) label.title = title;
                   const state = label?.querySelector('.tp-mini-state');
                   if (state) state.textContent = val ? 'ON' : 'OFF';
+                  const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+                  const caption = scope?.querySelector('.tp-mini-caption');
+                  if (caption) caption.title = title;
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -4497,8 +4567,9 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.BESTPREISE_MODE_ACTIVE) bar.classList.add('tp-bestpreise-bar');
       bar.innerHTML = `
         <div class="tp-filter-main-row">
+         <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
+          <span class="tp-group-label" aria-hidden="true">Filter</span>
           <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
-            <span class="tp-filter-badge" title="Toppreise Power Filter">⚡</span>
             <span class="tp-input-label-inline">🚫 Negativ-Filter:</span>
             <div class="tp-input-field-box">
               <input type="text" id="tp-inline-negative-input" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
@@ -4510,10 +4581,30 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
           </div>
+          <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten ausblenden">
+            <span class="tp-stepper-label">Min-Angebote:</span>
+            <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
+            <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
+            <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
+            <span class="tp-mini-caption" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">Aktiv</span>
+            <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
+              <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
+              <span class="tp-mini-slider"></span>
+              <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
+            </label>
+          </div>
+         </div>
+         <span class="tp-divider" aria-hidden="true"></span>
+         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
+          <span class="tp-group-label" aria-hidden="true">Ansicht</span>
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
-            👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
+            👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
           </button>
           <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Deal, Grau = kein Rabatt. Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
+         </div>
+         <span class="tp-divider" aria-hidden="true"></span>
+         <div class="tp-group tp-group-deals" role="group" aria-label="Deals">
+          <span class="tp-group-label" aria-hidden="true">Deals</span>
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
@@ -4530,17 +4621,21 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
             </div>
           </div>
-          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
+          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;" title="Deal-Filter + Tiefstpreis-Prüfung">
+            <span class="tp-mini-caption" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}: verifizierte Nicht-Bestpreise ausblenden">Deal-Filter</span>
             <label class="tp-mini-switch" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
               <input type="checkbox" id="tp-toggle-bestpreis" ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'checked' : ''}>
               <span class="tp-mini-slider"></span>
               <span class="tp-mini-state">${CONFIG.FILTER_BESTPREIS_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
+            <span class="tp-join">
             <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
               ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
             </button>
             <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Check-Vorauswahl: Es werden nur Deals mit Site-Rabatt ≥ ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% geprüft. Site-% (Differenz, z.B. vs UVP) ≠ verifizierter Tiefstpreis — die Prüfung ersetzt ihn durch den echten Rabatt.">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
+            </span>
             <div class="tp-threshold-popover" id="tp-threshold-popover">
+              <div class="tp-threshold-hint">Nur Site-Rabatt ≥ … wird geprüft</div>
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 20 ? 'tp-selected' : ''}" data-val="20">≥ 20%</button>
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 30 ? 'tp-selected' : ''}" data-val="30">≥ 30%</button>
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 40 ? 'tp-selected' : ''}" data-val="40">≥ 40%</button>
@@ -4548,17 +4643,7 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 60 ? 'tp-selected' : ''}" data-val="60">≥ 60%</button>
             </div>
           </div>
-          <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};">
-            <span>Min:</span>
-            <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
-            <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
-            <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
-            <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
-              <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
-              <span class="tp-mini-slider"></span>
-              <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
-            </label>
-          </div>
+         </div>
         </div>
       `;
 
@@ -4736,9 +4821,13 @@ const SHADOW_MODAL_STYLES = `
         if (!input) return;
         input.checked = !!enabled;
         const label = input.closest?.('.tp-mini-switch');
-        if (label) label.title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+        const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+        if (label) label.title = title;
         const state = label?.querySelector('.tp-mini-state');
         if (state) state.textContent = enabled ? 'ON' : 'OFF';
+        const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+        const caption = scope?.querySelector('.tp-mini-caption');
+        if (caption) caption.title = title;
       };
       const bindMiniToggle = (id, key, titleBase, onMsg, offMsg) => {
         const el = bar.querySelector('#' + id);
@@ -4798,10 +4887,14 @@ const SHADOW_MODAL_STYLES = `
       const el = bar.querySelector('#' + id);
       if (!el) return;
       el.checked = !!enabled;
+      const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
       const label = el.closest?.('.tp-mini-switch');
-      if (label) label.title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+      if (label) label.title = title;
       const state = label?.querySelector('.tp-mini-state');
       if (state) state.textContent = enabled ? 'ON' : 'OFF';
+      const scope = el.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+      const caption = scope?.querySelector('.tp-mini-caption');
+      if (caption) caption.title = title;
     };
     syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
     syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');

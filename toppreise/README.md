@@ -10,13 +10,13 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.67)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.68)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.67)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.68)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
    - **🔥 Deal-Score Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird ein gewichteter Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **der Score sortiert nur** (Bestpreise-Feed). Das Badge zeigt das **Rekord-Ereignis** (`Real Deal · Rekord -X%` vs Bisher bzw. `Real Deal · Ø-Preis -Y%`), niemals den Score und nach Prüfung niemals die Site-Differenz — und **Karten- wie Badge-Farbe folgen dieser Badge-% auf einer gra→rot-Skala**: Tiefrot = grosser Deal, Grau = kein Rabatt (Aufschläge bleiben grau, `+XX%` steht im Badge). Blasse Farben = ungeprüft (Site-Rabatt).
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
@@ -57,9 +57,9 @@ Requires Violentmonkey (or a compatible userscript manager):
 10. **Negativer Textfilter (Ausschluss)**: Exclude products containing specific unwanted keywords (e.g. `SAMSUNG, Hülle, Case, Refurbished, Gebraucht`) with word-boundary precision directly via the inline top search bar (`🚫 Negativ-Filter`).
 11. **Angebote & Rabatt-Sortierung**: Filter out marketplace items with fewer than $N$ offers, plus optional client-side re-sorting by total offer count or highest discount (`% Rabatt ⬇`).
 12. **Preisalarm Auto-Filler**: Automatically configures target price (e.g. 60% of current price) and 2-year duration upon clicking the price alarm bell icon, supporting Swiss currency formatting (`CHF 1'299.–`). With Auto-Submit enabled (default), it also ticks the terms checkbox and submits the alarm form on your behalf — disable Auto-Submit in the settings if you prefer to review and submit manually.
-13. **⚡ Context-Aware Top Filter Bar**: Consolidated toolbar that automatically adapts to the page context:
-    - **Deal Feeds (`/neue-toppreise`)**: Full suite with hidden count indicator `👁️ N`, `💎 Neue Bestpreise` toggle, `🔥 Heatmap` toggle, `🔍 Check Deals (N)` batch button with threshold quick-selector `≥30% ▾`, Min-Offers stepper `[-] 0 [+]`, and per-filter toggles (`📝` Text, `🔢` Min-Angebote, `💎` Deal).
-    - **Catalog / Search Listings (`/produktsuche/...`)**: Streamlined toolbar displaying `⚡ 🚫 Negativ-Filter`, `👁️ N` reveal preview, and `[-] Min N [+]` stepper.
+13. **⚡ Context-Aware Top Filter Bar**: Consolidated toolbar grouped into three labeled sections (**FILTER** | **ANSICHT** | **DEALS**) that automatically adapts to the page context:
+    - **Deal Feeds (`/neue-toppreise`)**: Full suite with hidden count `👁️ N versteckt`, `🔥 Heatmap` toggle, `💎 Neue Bestpreise` toggle, labeled `Deal-Filter` toggle joined with the `🔍 Check Deals (N)` batch button and threshold quick-selector `≥30% ▾` (Site-Rabatt-Vorauswahl), and `Min-Angebote: [-] N [+]` stepper with `Aktiv` toggle.
+    - **Catalog / Search Listings (`/produktsuche/...`)**: Streamlined toolbar displaying `🚫 Negativ-Filter`, `👁️ N versteckt` reveal preview, and `Min-Angebote [-] N [+]` stepper.
     - **Product Detail Pages (`/preisvergleich/...-p...`)**: Filter bar is cleanly suppressed so single-product pages remain uncluttered.
 
 ---
@@ -81,7 +81,7 @@ Klicke auf das schwebende **Zahnrad-Symbol** unten rechts auf Toppreise.ch, um d
 5. **Backup & Übertragen**: Vollständiger 1-Klick JSON Export / Import zur nahtlosen Übertragung aller Einstellungen und Begriffsfilter auf andere Browser und Geräte.
 
 > [!TIP]
-> **Schnellzugriff in der Filterleiste:** Der Negativ-Textfilter (`🚫 Negativ-Filter`) und der Mindest-Angebote-Stepper (`[-] Min N [+]`) befinden sich für maximale Ergonomie direkt in der oberen Schnellfilterleiste und können dort ohne Öffnen des Einstellungsmenüs sofort bedient werden.
+> **Schnellzugriff in der Filterleiste:** Der Negativ-Textfilter (`🚫 Negativ-Filter`) und der Mindest-Angebote-Stepper (`Min-Angebote [-] N [+]`, mit `Aktiv`-Toggle) befinden sich für maximale Ergonomie direkt in der oberen Schnellfilterleiste (Gruppe **FILTER**) und können dort ohne Öffnen des Einstellungsmenüs sofort bedient werden.
 
 > [!NOTE]
 > All settings and negative terms are saved **permanently** with a 2-layer storage architecture (`GM_setValue` / `GM_getValue` with domain `localStorage` auto-healing backup) that survives userscript reinstalls.

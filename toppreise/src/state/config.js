@@ -223,10 +223,14 @@ export function syncUiControl(key, val) {
             if (toggle) {
               if (toggle.tagName === 'INPUT') {
                 toggle.checked = !!val;
+                const title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
                 const label = toggle.closest?.('.tp-mini-switch');
-                if (label) label.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+                if (label) label.title = title;
                 const state = label?.querySelector('.tp-mini-state');
                 if (state) state.textContent = val ? 'ON' : 'OFF';
+                const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+                const caption = scope?.querySelector('.tp-mini-caption');
+                if (caption) caption.title = title;
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
@@ -240,10 +244,14 @@ export function syncUiControl(key, val) {
             if (toggle) {
               if (toggle.tagName === 'INPUT') {
                 toggle.checked = !!val;
+                const title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
                 const label = toggle.closest?.('.tp-mini-switch');
-                if (label) label.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+                if (label) label.title = title;
                 const state = label?.querySelector('.tp-mini-state');
                 if (state) state.textContent = val ? 'ON' : 'OFF';
+                const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+                const caption = scope?.querySelector('.tp-mini-caption');
+                if (caption) caption.title = title;
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
@@ -257,10 +265,14 @@ export function syncUiControl(key, val) {
             if (toggle) {
               if (toggle.tagName === 'INPUT') {
                 toggle.checked = !!val;
+                const title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
                 const label = toggle.closest?.('.tp-mini-switch');
-                if (label) label.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                if (label) label.title = title;
                 const state = label?.querySelector('.tp-mini-state');
                 if (state) state.textContent = val ? 'ON' : 'OFF';
+                const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+                const caption = scope?.querySelector('.tp-mini-caption');
+                if (caption) caption.title = title;
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
