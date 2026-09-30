@@ -22,15 +22,7 @@ import {
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline } from './sparkline.js';
-import { isShippingPriceActive } from '../page/adapter.js';
-
-function triggerProcessListings() {
-  if (typeof processListings === 'function') {
-    processListings();
-  } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
-    window.ToppreiseSuite.processListings();
-  }
-}
+import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
 
 export function setHtmlIfChanged(el, newHtml) {
   if (el && el.innerHTML !== newHtml) {

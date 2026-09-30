@@ -1,11 +1,12 @@
 /**
  * Settings Modal & Shadow DOM Component
- * Manages the floating action button, multi-tab settings dialog,
+ * Manages the floating action button, single-page settings dialog,
  * dual-binding input controls, theme selection, import/export, and cache controls.
  */
 
 import { SHADOW_MODAL_STYLES } from "./styles.js";
 import { showToast } from "./toast.js";
+import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 
 export let uiShadowRoot = null;
 export function getUiShadowRoot() {
@@ -378,7 +379,7 @@ export function setupUI() {
     if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
     if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
     if (cacheStatsLabel) {
-      const count = getCachedProductCount();
+      const count = countCachedPriceStats();
       cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
     }
 

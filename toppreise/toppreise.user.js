@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.51
+// @version      2.18.52
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1484,13 +1484,13 @@ const SHADOW_MODAL_STYLES = `
   const memoryCache = new Map();
   let lastPruneTimestamp = 0;
 
-  function isCacheEntryFresh(parsed, ignoreNegative = false, options = {}) {
+  function isCacheEntryFresh(parsed, ignoreNegativeCache = false, options = {}) {
     if (!parsed) return false;
     const now = options.now || Date.now();
     const ageMs = now - (parsed.time || 0);
 
     if (parsed.unavailable) {
-      if (ignoreNegative) return false;
+      if (ignoreNegativeCache) return false;
       const negHours = options.negativeCacheHours ?? (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_CACHE_HOURS : 2);
       const negTtlMs = (negHours || 2) * 3600 * 1000;
       return ageMs < negTtlMs;
@@ -1538,12 +1538,12 @@ const SHADOW_MODAL_STYLES = `
     } catch (e) {}
   }
 
-  function getCachedPriceStats(productId, ignoreNegative = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     if (!productId) return null;
     try {
       if (memoryCache.has(productId)) {
         const memData = memoryCache.get(productId);
-        if (isCacheEntryFresh(memData, ignoreNegative)) {
+        if (isCacheEntryFresh(memData, ignoreNegativeCache)) {
           // LRU update
           memoryCache.delete(productId);
           memoryCache.set(productId, memData);
@@ -1557,7 +1557,7 @@ const SHADOW_MODAL_STYLES = `
       if (!raw) return null;
       const parsed = JSON.parse(raw);
 
-      if (isCacheEntryFresh(parsed, ignoreNegative)) {
+      if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
         memoryCache.set(productId, parsed);
         if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
           const firstKey = memoryCache.keys().next().value;
@@ -1620,8 +1620,6 @@ const SHADOW_MODAL_STYLES = `
     } catch (e) {}
     return count;
   }
-
-  const getCachedProductCount = countCachedPriceStats;
 
   // ─── MODULE: src/state/config.js ────────────────────────────────────────────
   /**
@@ -1888,8 +1886,7 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/state/store.js ─────────────────────────────────────────────
   /**
    * Runtime Session State Store
-   * Manages active scanner status, cancellation flags, filter count metrics,
-   * and event subscription listeners for reactive UI updates.
+   * Tracks active scanner status and cancellation flags for reactive UI updates.
    */
 
   const scanState = {
@@ -1901,52 +1898,12 @@ const SHADOW_MODAL_STYLES = `
     progress: { completed: 0, total: 0 }
   };
 
-  let filterCounts = {
-    neg: 0,
-    cat: 0,
-    min: 0,
-    nonBest: 0,
-    uncheckedDeals: 0,
-    bestpreiseDeals: 0,
-    bestpreiseHidden: 0
-  };
-
-  const listeners = new Set();
-
   function getScanState() {
     return { ...scanState };
   }
 
   function setScanState(patch) {
     Object.assign(scanState, patch);
-    notify('scan-state-changed', scanState);
-  }
-
-  function getFilterCounts() {
-    return { ...filterCounts };
-  }
-
-  function setFilterCounts(counts) {
-    filterCounts = { ...filterCounts, ...counts };
-    notify('filter-counts-changed', filterCounts);
-  }
-
-  function subscribe(listener) {
-    if (typeof listener === 'function') {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    }
-    return () => {};
-  }
-
-  function notify(event, data) {
-    for (const listener of listeners) {
-      try {
-        listener(event, data);
-      } catch (err) {
-        console.warn('[Toppreise-Store] Error in subscriber', err);
-      }
-    }
   }
 
   // ─── MODULE: src/page/adapter.js ────────────────────────────────────────────
@@ -2038,6 +1995,14 @@ const SHADOW_MODAL_STYLES = `
 
   function getResultContainer() {
     return document.querySelector('#Page_ListTopPriceReductionProducts, #Page_ListTop100Products, [id^="Page_List"], #Page_Browsing, .f_browsingListContainer, #Plugin_MixedBrowsingList, .standardList, #product-list');
+  }
+
+  function triggerProcessListings() {
+    if (typeof processListings === 'function') {
+      processListings();
+    } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
+      window.ToppreiseSuite.processListings();
+    }
   }
 
   // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
@@ -2849,14 +2814,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  function triggerProcessListings() {
-    if (typeof processListings === 'function') {
-      processListings();
-    } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
-      window.ToppreiseSuite.processListings();
-    }
-  }
-
   function setHtmlIfChanged(el, newHtml) {
     if (el && el.innerHTML !== newHtml) {
       el.innerHTML = newHtml;
@@ -3477,9 +3434,10 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
   /**
    * Settings Modal & Shadow DOM Component
-   * Manages the floating action button, multi-tab settings dialog,
+   * Manages the floating action button, single-page settings dialog,
    * dual-binding input controls, theme selection, import/export, and cache controls.
    */
+
 
 
 
@@ -3854,7 +3812,7 @@ const SHADOW_MODAL_STYLES = `
       if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
       if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
       if (cacheStatsLabel) {
-        const count = getCachedProductCount();
+        const count = countCachedPriceStats();
         cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
       }
 
@@ -4084,13 +4042,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  function triggerProcessListings() {
-    if (typeof processListings === 'function') {
-      processListings();
-    } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
-      window.ToppreiseSuite.processListings();
-    }
-  }
 
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');

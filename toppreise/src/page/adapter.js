@@ -89,3 +89,11 @@ export function getResultContainer() {
   return document.querySelector('#Page_ListTopPriceReductionProducts, #Page_ListTop100Products, [id^="Page_List"], #Page_Browsing, .f_browsingListContainer, #Plugin_MixedBrowsingList, .standardList, #product-list');
 }
 
+export function triggerProcessListings() {
+  if (typeof processListings === 'function') {
+    processListings();
+  } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
+    window.ToppreiseSuite.processListings();
+  }
+}
+

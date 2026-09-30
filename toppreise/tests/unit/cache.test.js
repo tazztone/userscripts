@@ -67,7 +67,7 @@ describe('Bounded Cache Module', () => {
 
       assert.equal(isCacheEntryFresh(freshNeg, false, { negativeCacheHours: 2 }), true);
       assert.equal(isCacheEntryFresh(expiredNeg, false, { negativeCacheHours: 2 }), false);
-      // ignoreNegative bypasses cache freshness for negative entries
+      // ignoreNegativeCache bypasses cache freshness for negative entries
       assert.equal(isCacheEntryFresh(freshNeg, true, { negativeCacheHours: 2 }), false);
     });
   });

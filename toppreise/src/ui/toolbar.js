@@ -14,14 +14,7 @@ import {
   isBestpreiseScanning
 } from "../scanner/scanner.js";
 import { showToast } from "./toast.js";
-
-function triggerProcessListings() {
-  if (typeof processListings === 'function') {
-    processListings();
-  } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
-    window.ToppreiseSuite.processListings();
-  }
-}
+import { triggerProcessListings } from "../page/adapter.js";
 
 export function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');

@@ -10,13 +10,13 @@ export const MAX_MEMORY_CACHE_ITEMS = 500;
 export const memoryCache = new Map();
 let lastPruneTimestamp = 0;
 
-export function isCacheEntryFresh(parsed, ignoreNegative = false, options = {}) {
+export function isCacheEntryFresh(parsed, ignoreNegativeCache = false, options = {}) {
   if (!parsed) return false;
   const now = options.now || Date.now();
   const ageMs = now - (parsed.time || 0);
 
   if (parsed.unavailable) {
-    if (ignoreNegative) return false;
+    if (ignoreNegativeCache) return false;
     const negHours = options.negativeCacheHours ?? (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_CACHE_HOURS : 2);
     const negTtlMs = (negHours || 2) * 3600 * 1000;
     return ageMs < negTtlMs;
@@ -64,12 +64,12 @@ export function prunePriceStatsCache(force = false, storage = (typeof window !==
   } catch (e) {}
 }
 
-export function getCachedPriceStats(productId, ignoreNegative = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!productId) return null;
   try {
     if (memoryCache.has(productId)) {
       const memData = memoryCache.get(productId);
-      if (isCacheEntryFresh(memData, ignoreNegative)) {
+      if (isCacheEntryFresh(memData, ignoreNegativeCache)) {
         // LRU update
         memoryCache.delete(productId);
         memoryCache.set(productId, memData);
@@ -83,7 +83,7 @@ export function getCachedPriceStats(productId, ignoreNegative = false, storage =
     if (!raw) return null;
     const parsed = JSON.parse(raw);
 
-    if (isCacheEntryFresh(parsed, ignoreNegative)) {
+    if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
       memoryCache.set(productId, parsed);
       if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
         const firstKey = memoryCache.keys().next().value;
@@ -146,5 +146,3 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
   } catch (e) {}
   return count;
 }
-
-export const getCachedProductCount = countCachedPriceStats;
