@@ -221,27 +221,51 @@ export function syncUiControl(key, val) {
           case 'FILTER_NEG_ENABLED': {
             const toggle = bar.querySelector('#tp-toggle-neg');
             if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+              if (toggle.tagName === 'INPUT') {
+                toggle.checked = !!val;
+                const label = toggle.closest?.('.tp-mini-switch');
+                if (label) label.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+                const state = label?.querySelector('.tp-mini-state');
+                if (state) state.textContent = val ? 'ON' : 'OFF';
+              } else {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+              }
             }
             break;
           }
           case 'FILTER_MIN_ENABLED': {
             const toggle = bar.querySelector('#tp-toggle-min');
             if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+              if (toggle.tagName === 'INPUT') {
+                toggle.checked = !!val;
+                const label = toggle.closest?.('.tp-mini-switch');
+                if (label) label.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+                const state = label?.querySelector('.tp-mini-state');
+                if (state) state.textContent = val ? 'ON' : 'OFF';
+              } else {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+              }
             }
             break;
           }
           case 'FILTER_BESTPREIS_ENABLED': {
             const toggle = bar.querySelector('#tp-toggle-bestpreis');
             if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+              if (toggle.tagName === 'INPUT') {
+                toggle.checked = !!val;
+                const label = toggle.closest?.('.tp-mini-switch');
+                if (label) label.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                const state = label?.querySelector('.tp-mini-state');
+                if (state) state.textContent = val ? 'ON' : 'OFF';
+              } else {
+                toggle.classList.toggle('tp-active', !!val);
+                toggle.classList.toggle('tp-filter-off', !val);
+                toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+              }
             }
             break;
           }

@@ -74,12 +74,16 @@ def test_filter_toggles_preserve_settings(page: Page):
     page.wait_for_selector('#card-low-offers.tp-min-offers-filtered', state='attached')
 
     filter_toggle = page.locator('#tp-toggle-neg')
-    assert filter_toggle.is_visible()
-    assert 'tp-active' in (filter_toggle.get_attribute('class') or '')
+    assert filter_toggle.is_checked()
+    # Co-located next to respective setting, not far-right cluster
+    assert page.evaluate("() => document.getElementById('tp-toggle-neg').closest('.tp-input-wrapper') !== null")
+    assert page.evaluate("() => document.getElementById('tp-toggle-min').closest('#tp-bar-min-offers-group') !== null")
+    assert page.evaluate("() => document.getElementById('tp-toggle-bestpreis').closest('#tp-bar-threshold-wrapper') !== null")
+    assert page.locator('#tp-suite-filter-bar .tp-filter-toggles-group').count() == 0
 
-    page.locator('#tp-toggle-neg').click()
-    page.locator('#tp-toggle-min').click()
-    page.wait_for_selector('#tp-toggle-neg.tp-filter-off')
+    page.locator('#tp-toggle-neg + .tp-mini-slider').click()
+    page.locator('#tp-toggle-min + .tp-mini-slider').click()
+    page.wait_for_function("() => document.getElementById('tp-toggle-neg').checked === false")
 
     # Verify cards are no longer filtered (all visible)
     page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
@@ -93,9 +97,9 @@ def test_filter_toggles_preserve_settings(page: Page):
     assert config['MIN_OFFERS'] == 10
 
     # Click filter toggles again to re-enable
-    page.locator('#tp-toggle-neg').click()
-    page.locator('#tp-toggle-min').click()
-    page.wait_for_selector('#tp-toggle-neg.tp-active')
+    page.locator('#tp-toggle-neg + .tp-mini-slider').click()
+    page.locator('#tp-toggle-min + .tp-mini-slider').click()
+    page.wait_for_function("() => document.getElementById('tp-toggle-neg').checked === true")
 
     # Verify cards are filtered again
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
@@ -287,7 +291,8 @@ def test_deal_features_enabled_on_category_page(page: Page):
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-bar-reveal-btn').is_visible()
-    assert page.locator('#tp-toggle-neg').is_visible()
+    assert page.locator('#tp-toggle-neg').is_checked()
+    assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
     # Category deal check and heatmap features are visible
     assert page.locator('#tp-bar-heat-btn').is_visible()

@@ -57,6 +57,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
             <input type="text" id="tp-inline-negative-input" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
             <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
           </div>
+          <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
+            <input type="checkbox" id="tp-toggle-neg" ${CONFIG.FILTER_NEG_ENABLED ? 'checked' : ''}>
+            <span class="tp-mini-slider"></span>
+            <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
+          </label>
         </div>
         <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
           👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
@@ -79,6 +84,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           </div>
         </div>
         <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
+          <label class="tp-mini-switch" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
+            <input type="checkbox" id="tp-toggle-bestpreis" ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'checked' : ''}>
+            <span class="tp-mini-slider"></span>
+            <span class="tp-mini-state">${CONFIG.FILTER_BESTPREIS_ENABLED ? 'ON' : 'OFF'}</span>
+          </label>
           <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
             ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
           </button>
@@ -96,17 +106,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
           <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
           <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
-        </div>
-        <div class="tp-filter-toggles-group" style="display: flex; gap: 4px; margin-left: auto;">
-          <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_NEG_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-neg" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
-            📝
-          </button>
-          <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_MIN_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-min" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
-            🔢
-          </button>
-          <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-bestpreis" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}">
-            💎
-          </button>
+          <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
+            <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
+            <span class="tp-mini-slider"></span>
+            <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
+          </label>
         </div>
       </div>
     `;
@@ -281,21 +285,27 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
 
     bar.querySelector('#tp-bar-min-minus').onclick = () => updateMinOffers(-1);
     bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
-    bar.querySelector('#tp-toggle-neg').onclick = () => {
-      const next = !CONFIG.FILTER_NEG_ENABLED;
-      updateConfig('FILTER_NEG_ENABLED', next);
-      showToast(next ? '📝 Negativ-Filter AN' : '📝 Negativ-Filter AUS');
+    const syncMiniToggle = (input, enabled, titleBase) => {
+      if (!input) return;
+      input.checked = !!enabled;
+      const label = input.closest?.('.tp-mini-switch');
+      if (label) label.title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+      const state = label?.querySelector('.tp-mini-state');
+      if (state) state.textContent = enabled ? 'ON' : 'OFF';
     };
-    bar.querySelector('#tp-toggle-min').onclick = () => {
-      const next = !CONFIG.FILTER_MIN_ENABLED;
-      updateConfig('FILTER_MIN_ENABLED', next);
-      showToast(next ? '🔢 Min-Angebote-Filter AN' : '🔢 Min-Angebote-Filter AUS');
+    const bindMiniToggle = (id, key, titleBase, onMsg, offMsg) => {
+      const el = bar.querySelector('#' + id);
+      if (!el) return;
+      syncMiniToggle(el, CONFIG[key], titleBase);
+      el.onchange = () => {
+        updateConfig(key, el.checked);
+        syncMiniToggle(el, el.checked, titleBase);
+        showToast(el.checked ? onMsg : offMsg);
+      };
     };
-    bar.querySelector('#tp-toggle-bestpreis').onclick = () => {
-      const next = !CONFIG.FILTER_BESTPREIS_ENABLED;
-      updateConfig('FILTER_BESTPREIS_ENABLED', next);
-      showToast(next ? '💎 Deal-Filter AN' : '💎 Deal-Filter AUS');
-    };
+    bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
+    bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
+    bindMiniToggle('tp-toggle-bestpreis', 'FILTER_BESTPREIS_ENABLED', 'Deal-Filter', '💎 Deal-Filter AN', '💎 Deal-Filter AUS');
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
     if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
       placement.container.insertBefore(bar, placement.reference);
@@ -337,24 +347,18 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     }
   }
 
-  const toggleNeg = bar.querySelector('#tp-toggle-neg');
-  if (toggleNeg) {
-    toggleNeg.classList.toggle('tp-active', CONFIG.FILTER_NEG_ENABLED);
-    toggleNeg.classList.toggle('tp-filter-off', !CONFIG.FILTER_NEG_ENABLED);
-    toggleNeg.title = `Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}`;
-  }
-  const toggleMin = bar.querySelector('#tp-toggle-min');
-  if (toggleMin) {
-    toggleMin.classList.toggle('tp-active', CONFIG.FILTER_MIN_ENABLED);
-    toggleMin.classList.toggle('tp-filter-off', !CONFIG.FILTER_MIN_ENABLED);
-    toggleMin.title = `Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}`;
-  }
-  const toggleBestpreis = bar.querySelector('#tp-toggle-bestpreis');
-  if (toggleBestpreis) {
-    toggleBestpreis.classList.toggle('tp-active', CONFIG.FILTER_BESTPREIS_ENABLED);
-    toggleBestpreis.classList.toggle('tp-filter-off', !CONFIG.FILTER_BESTPREIS_ENABLED);
-    toggleBestpreis.title = `Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}`;
-  }
+  const syncBarMiniToggle = (id, enabled, titleBase) => {
+    const el = bar.querySelector('#' + id);
+    if (!el) return;
+    el.checked = !!enabled;
+    const label = el.closest?.('.tp-mini-switch');
+    if (label) label.title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+    const state = label?.querySelector('.tp-mini-state');
+    if (state) state.textContent = enabled ? 'ON' : 'OFF';
+  };
+  syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
+  syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
+  syncBarMiniToggle('tp-toggle-bestpreis', CONFIG.FILTER_BESTPREIS_ENABLED, 'Deal-Filter');
 
   const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
   if (batchBtn && !getScanState().isBatchChecking) {

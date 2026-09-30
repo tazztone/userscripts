@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.64
+// @version      2.18.65
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -817,16 +817,62 @@ const STYLES = `
     border-color: rgba(16,185,129,0.4) !important;
     color: #34d399 !important;
   }
-  .tp-filter-toggle-btn.tp-active {
-    background: rgba(16,185,129,0.2) !important;
-    border-color: rgba(16,185,129,0.4) !important;
-    color: #34d399 !important;
+  .tp-mini-switch {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    user-select: none !important;
   }
-  .tp-filter-toggle-btn.tp-filter-off {
-    background: rgba(245,158,11,0.15) !important;
-    border-color: rgba(245,158,11,0.35) !important;
+  .tp-mini-switch input {
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+  }
+  .tp-mini-slider {
+    position: relative !important;
+    width: 32px !important;
+    height: 18px !important;
+    border-radius: 999px !important;
+    background: rgba(245,158,11,0.25) !important;
+    border: 1px solid rgba(245,158,11,0.5) !important;
+    transition: background 0.2s ease, border-color 0.2s ease !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-mini-slider:before {
+    content: "" !important;
+    position: absolute !important;
+    top: 2px !important;
+    left: 2px !important;
+    width: 12px !important;
+    height: 12px !important;
+    border-radius: 50% !important;
+    background: #fbbf24 !important;
+    transition: transform 0.2s ease, background 0.2s ease !important;
+  }
+  .tp-mini-switch input:checked + .tp-mini-slider {
+    background: rgba(16,185,129,0.4) !important;
+    border-color: rgba(16,185,129,0.6) !important;
+  }
+  .tp-mini-switch input:checked + .tp-mini-slider:before {
+    transform: translateX(14px) !important;
+    background: #fff !important;
+  }
+  .tp-mini-switch input:focus-visible + .tp-mini-slider {
+    outline: 2px solid #34d399 !important;
+    outline-offset: 2px !important;
+  }
+  .tp-mini-state {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    min-width: 22px !important;
     color: #fbbf24 !important;
   }
+  .tp-mini-switch input:checked ~ .tp-mini-state { color: #34d399 !important; }
   .tp-bar-stepper-group {
     display: flex !important;
     align-items: center !important;
@@ -1977,27 +2023,51 @@ const SHADOW_MODAL_STYLES = `
             case 'FILTER_NEG_ENABLED': {
               const toggle = bar.querySelector('#tp-toggle-neg');
               if (toggle) {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+                if (toggle.tagName === 'INPUT') {
+                  toggle.checked = !!val;
+                  const label = toggle.closest?.('.tp-mini-switch');
+                  if (label) label.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+                  const state = label?.querySelector('.tp-mini-state');
+                  if (state) state.textContent = val ? 'ON' : 'OFF';
+                } else {
+                  toggle.classList.toggle('tp-active', !!val);
+                  toggle.classList.toggle('tp-filter-off', !val);
+                  toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
+                }
               }
               break;
             }
             case 'FILTER_MIN_ENABLED': {
               const toggle = bar.querySelector('#tp-toggle-min');
               if (toggle) {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+                if (toggle.tagName === 'INPUT') {
+                  toggle.checked = !!val;
+                  const label = toggle.closest?.('.tp-mini-switch');
+                  if (label) label.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+                  const state = label?.querySelector('.tp-mini-state');
+                  if (state) state.textContent = val ? 'ON' : 'OFF';
+                } else {
+                  toggle.classList.toggle('tp-active', !!val);
+                  toggle.classList.toggle('tp-filter-off', !val);
+                  toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
+                }
               }
               break;
             }
             case 'FILTER_BESTPREIS_ENABLED': {
               const toggle = bar.querySelector('#tp-toggle-bestpreis');
               if (toggle) {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                if (toggle.tagName === 'INPUT') {
+                  toggle.checked = !!val;
+                  const label = toggle.closest?.('.tp-mini-switch');
+                  if (label) label.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                  const state = label?.querySelector('.tp-mini-state');
+                  if (state) state.textContent = val ? 'ON' : 'OFF';
+                } else {
+                  toggle.classList.toggle('tp-active', !!val);
+                  toggle.classList.toggle('tp-filter-off', !val);
+                  toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                }
               }
               break;
             }
@@ -4385,6 +4455,11 @@ const SHADOW_MODAL_STYLES = `
               <input type="text" id="tp-inline-negative-input" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
               <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
             </div>
+            <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
+              <input type="checkbox" id="tp-toggle-neg" ${CONFIG.FILTER_NEG_ENABLED ? 'checked' : ''}>
+              <span class="tp-mini-slider"></span>
+              <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
+            </label>
           </div>
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
@@ -4407,6 +4482,11 @@ const SHADOW_MODAL_STYLES = `
             </div>
           </div>
           <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;">
+            <label class="tp-mini-switch" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
+              <input type="checkbox" id="tp-toggle-bestpreis" ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'checked' : ''}>
+              <span class="tp-mini-slider"></span>
+              <span class="tp-mini-state">${CONFIG.FILTER_BESTPREIS_ENABLED ? 'ON' : 'OFF'}</span>
+            </label>
             <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
               ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
             </button>
@@ -4424,17 +4504,11 @@ const SHADOW_MODAL_STYLES = `
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
             <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
             <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
-          </div>
-          <div class="tp-filter-toggles-group" style="display: flex; gap: 4px; margin-left: auto;">
-            <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_NEG_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-neg" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
-              📝
-            </button>
-            <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_MIN_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-min" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
-              🔢
-            </button>
-            <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-bestpreis" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}">
-              💎
-            </button>
+            <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
+              <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
+              <span class="tp-mini-slider"></span>
+              <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
+            </label>
           </div>
         </div>
       `;
@@ -4609,21 +4683,27 @@ const SHADOW_MODAL_STYLES = `
 
       bar.querySelector('#tp-bar-min-minus').onclick = () => updateMinOffers(-1);
       bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
-      bar.querySelector('#tp-toggle-neg').onclick = () => {
-        const next = !CONFIG.FILTER_NEG_ENABLED;
-        updateConfig('FILTER_NEG_ENABLED', next);
-        showToast(next ? '📝 Negativ-Filter AN' : '📝 Negativ-Filter AUS');
+      const syncMiniToggle = (input, enabled, titleBase) => {
+        if (!input) return;
+        input.checked = !!enabled;
+        const label = input.closest?.('.tp-mini-switch');
+        if (label) label.title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+        const state = label?.querySelector('.tp-mini-state');
+        if (state) state.textContent = enabled ? 'ON' : 'OFF';
       };
-      bar.querySelector('#tp-toggle-min').onclick = () => {
-        const next = !CONFIG.FILTER_MIN_ENABLED;
-        updateConfig('FILTER_MIN_ENABLED', next);
-        showToast(next ? '🔢 Min-Angebote-Filter AN' : '🔢 Min-Angebote-Filter AUS');
+      const bindMiniToggle = (id, key, titleBase, onMsg, offMsg) => {
+        const el = bar.querySelector('#' + id);
+        if (!el) return;
+        syncMiniToggle(el, CONFIG[key], titleBase);
+        el.onchange = () => {
+          updateConfig(key, el.checked);
+          syncMiniToggle(el, el.checked, titleBase);
+          showToast(el.checked ? onMsg : offMsg);
+        };
       };
-      bar.querySelector('#tp-toggle-bestpreis').onclick = () => {
-        const next = !CONFIG.FILTER_BESTPREIS_ENABLED;
-        updateConfig('FILTER_BESTPREIS_ENABLED', next);
-        showToast(next ? '💎 Deal-Filter AN' : '💎 Deal-Filter AUS');
-      };
+      bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
+      bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
+      bindMiniToggle('tp-toggle-bestpreis', 'FILTER_BESTPREIS_ENABLED', 'Deal-Filter', '💎 Deal-Filter AN', '💎 Deal-Filter AUS');
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
         placement.container.insertBefore(bar, placement.reference);
@@ -4665,24 +4745,18 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
-    const toggleNeg = bar.querySelector('#tp-toggle-neg');
-    if (toggleNeg) {
-      toggleNeg.classList.toggle('tp-active', CONFIG.FILTER_NEG_ENABLED);
-      toggleNeg.classList.toggle('tp-filter-off', !CONFIG.FILTER_NEG_ENABLED);
-      toggleNeg.title = `Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}`;
-    }
-    const toggleMin = bar.querySelector('#tp-toggle-min');
-    if (toggleMin) {
-      toggleMin.classList.toggle('tp-active', CONFIG.FILTER_MIN_ENABLED);
-      toggleMin.classList.toggle('tp-filter-off', !CONFIG.FILTER_MIN_ENABLED);
-      toggleMin.title = `Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}`;
-    }
-    const toggleBestpreis = bar.querySelector('#tp-toggle-bestpreis');
-    if (toggleBestpreis) {
-      toggleBestpreis.classList.toggle('tp-active', CONFIG.FILTER_BESTPREIS_ENABLED);
-      toggleBestpreis.classList.toggle('tp-filter-off', !CONFIG.FILTER_BESTPREIS_ENABLED);
-      toggleBestpreis.title = `Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}`;
-    }
+    const syncBarMiniToggle = (id, enabled, titleBase) => {
+      const el = bar.querySelector('#' + id);
+      if (!el) return;
+      el.checked = !!enabled;
+      const label = el.closest?.('.tp-mini-switch');
+      if (label) label.title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+      const state = label?.querySelector('.tp-mini-state');
+      if (state) state.textContent = enabled ? 'ON' : 'OFF';
+    };
+    syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
+    syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
+    syncBarMiniToggle('tp-toggle-bestpreis', CONFIG.FILTER_BESTPREIS_ENABLED, 'Deal-Filter');
 
     const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
     if (batchBtn && !getScanState().isBatchChecking) {

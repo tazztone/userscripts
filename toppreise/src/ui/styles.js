@@ -794,16 +794,62 @@ export const STYLES = `
     border-color: rgba(16,185,129,0.4) !important;
     color: #34d399 !important;
   }
-  .tp-filter-toggle-btn.tp-active {
-    background: rgba(16,185,129,0.2) !important;
-    border-color: rgba(16,185,129,0.4) !important;
-    color: #34d399 !important;
+  .tp-mini-switch {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    user-select: none !important;
   }
-  .tp-filter-toggle-btn.tp-filter-off {
-    background: rgba(245,158,11,0.15) !important;
-    border-color: rgba(245,158,11,0.35) !important;
+  .tp-mini-switch input {
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+  }
+  .tp-mini-slider {
+    position: relative !important;
+    width: 32px !important;
+    height: 18px !important;
+    border-radius: 999px !important;
+    background: rgba(245,158,11,0.25) !important;
+    border: 1px solid rgba(245,158,11,0.5) !important;
+    transition: background 0.2s ease, border-color 0.2s ease !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-mini-slider:before {
+    content: "" !important;
+    position: absolute !important;
+    top: 2px !important;
+    left: 2px !important;
+    width: 12px !important;
+    height: 12px !important;
+    border-radius: 50% !important;
+    background: #fbbf24 !important;
+    transition: transform 0.2s ease, background 0.2s ease !important;
+  }
+  .tp-mini-switch input:checked + .tp-mini-slider {
+    background: rgba(16,185,129,0.4) !important;
+    border-color: rgba(16,185,129,0.6) !important;
+  }
+  .tp-mini-switch input:checked + .tp-mini-slider:before {
+    transform: translateX(14px) !important;
+    background: #fff !important;
+  }
+  .tp-mini-switch input:focus-visible + .tp-mini-slider {
+    outline: 2px solid #34d399 !important;
+    outline-offset: 2px !important;
+  }
+  .tp-mini-state {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    min-width: 22px !important;
     color: #fbbf24 !important;
   }
+  .tp-mini-switch input:checked ~ .tp-mini-state { color: #34d399 !important; }
   .tp-bar-stepper-group {
     display: flex !important;
     align-items: center !important;
