@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.60
+// @version      2.18.61
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1692,9 +1692,37 @@ const SHADOW_MODAL_STYLES = `
     DEBUG: true
   });
 
-  // Compact GM_getValue + localStorage Fallback
-  const _getValue = (k, def) => (typeof GM_getValue !== 'undefined' ? GM_getValue(k, def) : (typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('tp_suite_v2_' + k) ?? 'null') : null)) ?? def;
-  const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setValue(k, v) : (typeof localStorage !== 'undefined' ? localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)) : null));
+  // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
+  // domain backup survives script reinstalls; reads prefer GM, fall back to
+  // the backup (reinstall recovery), then def. Corrupt JSON never throws.
+  const safeJsonParse = (raw, fallback) => {
+    try {
+      const v = JSON.parse(raw ?? 'null');
+      return v ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const _getValue = (k, def) => {
+    try {
+      if (typeof GM_getValue !== 'undefined') {
+        const gv = GM_getValue(k);
+        if (gv !== undefined && gv !== null) return gv;
+      }
+    } catch { /* fall through to domain backup */ }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('tp_suite_v2_' + k);
+        if (raw !== null) return safeJsonParse(raw, def);
+      }
+    } catch { /* fall through to def */ }
+    return def;
+  };
+  const _setValue = (k, v) => {
+    try { if (typeof GM_setValue !== 'undefined') GM_setValue(k, v); } catch { /* ignore */ }
+    // ponytail: unconditional mirror, one line makes reinstall recovery real
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
+  };
 
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
