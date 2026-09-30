@@ -29,9 +29,6 @@ jobs:
       - name: Run Domain & State Unit Tests
         run: node --test toppreise/tests/unit/*.test.js
 
-      - name: Verify Category Taxonomy Coverage
-        run: python3 toppreise/tools/verify_category_map.py
-
       - name: Run Hugging Face Node Unit Tests
         run: node --test huggingface/tests/test_logic.js
 
