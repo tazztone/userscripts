@@ -4,6 +4,8 @@
  * backed by localStorage with configurable TTL and auto-pruning.
  */
 
+import { CONFIG } from '../state/config.js';
+
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
 export const MAX_MEMORY_CACHE_ITEMS = 500;
 
@@ -17,12 +19,12 @@ export function isCacheEntryFresh(parsed, ignoreNegativeCache = false, options =
 
   if (parsed.unavailable) {
     if (ignoreNegativeCache) return false;
-    const negHours = options.negativeCacheHours ?? (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_CACHE_HOURS : 2);
+    const negHours = options.negativeCacheHours ?? CONFIG.NEGATIVE_CACHE_HOURS;
     const negTtlMs = (negHours || 2) * 3600 * 1000;
     return ageMs < negTtlMs;
   }
 
-  const realHours = options.realDealCacheHours ?? (typeof CONFIG !== 'undefined' ? CONFIG.REAL_DEAL_CACHE_HOURS : 48);
+  const realHours = options.realDealCacheHours ?? CONFIG.REAL_DEAL_CACHE_HOURS;
   const ttlMs = (realHours || 48) * 3600 * 1000;
   return ageMs < ttlMs;
 }

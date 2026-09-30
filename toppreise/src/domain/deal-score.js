@@ -5,6 +5,7 @@
  */
 
 import { priceToCents } from './price.js';
+import { CONFIG } from '../state/config.js';
 
 export function getDealState(cardPrice, tiefstpreis) {
   if (!cardPrice || !tiefstpreis || cardPrice <= 0 || tiefstpreis <= 0) return 'unknown';
@@ -41,7 +42,7 @@ export function computeDealScore(stats, cardPrice, options = {}) {
     ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
     : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
-  const defaultWeight = typeof CONFIG !== 'undefined' && typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+  const defaultWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD
     : 0.50;
   const wRecord = typeof options.weightRecord === 'number' ? options.weightRecord : defaultWeight;

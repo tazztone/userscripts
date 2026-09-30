@@ -4,6 +4,8 @@
  * HTML price extraction, time-series anomaly sanitization, and rolling horizon statistics.
  */
 
+import { CONFIG } from '../state/config.js';
+
 export const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
 
 export const parsePrice = str => {
@@ -226,7 +228,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
 
   if (rawParsedPoints.length === 0) return null;
 
-  const outlierRejectionEnabled = options.outlierRejectionEnabled ?? (typeof CONFIG !== 'undefined' ? CONFIG.OUTLIER_REJECTION_ENABLED !== false : true);
+  const outlierRejectionEnabled = options.outlierRejectionEnabled ?? (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
   const sanitizeResult = outlierRejectionEnabled
     ? sanitizeTimeSeries(rawParsedPoints)
     : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
@@ -249,7 +251,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
   const sortedLifetime = [...prices].sort((a, b) => a - b);
   const lifetimeMedian = sortedLifetime[Math.floor(sortedLifetime.length / 2)];
 
-  const defaultHorizon = typeof CONFIG !== 'undefined' && typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
+  const defaultHorizon = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
     ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
     : 365;
   const horizonDays = customHorizon ?? (options.horizonDays ?? defaultHorizon);

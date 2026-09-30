@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.52
+// @version      2.18.53
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1103,6 +1103,7 @@ const SHADOW_MODAL_STYLES = `
    * HTML price extraction, time-series anomaly sanitization, and rolling horizon statistics.
    */
 
+
   const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
 
   const parsePrice = str => {
@@ -1325,7 +1326,7 @@ const SHADOW_MODAL_STYLES = `
 
     if (rawParsedPoints.length === 0) return null;
 
-    const outlierRejectionEnabled = options.outlierRejectionEnabled ?? (typeof CONFIG !== 'undefined' ? CONFIG.OUTLIER_REJECTION_ENABLED !== false : true);
+    const outlierRejectionEnabled = options.outlierRejectionEnabled ?? (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
     const sanitizeResult = outlierRejectionEnabled
       ? sanitizeTimeSeries(rawParsedPoints)
       : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
@@ -1348,7 +1349,7 @@ const SHADOW_MODAL_STYLES = `
     const sortedLifetime = [...prices].sort((a, b) => a - b);
     const lifetimeMedian = sortedLifetime[Math.floor(sortedLifetime.length / 2)];
 
-    const defaultHorizon = typeof CONFIG !== 'undefined' && typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
+    const defaultHorizon = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
       ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
       : 365;
     const horizonDays = customHorizon ?? (options.horizonDays ?? defaultHorizon);
@@ -1416,6 +1417,7 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
+
   function getDealState(cardPrice, tiefstpreis) {
     if (!cardPrice || !tiefstpreis || cardPrice <= 0 || tiefstpreis <= 0) return 'unknown';
     const cPrice = priceToCents(cardPrice);
@@ -1451,7 +1453,7 @@ const SHADOW_MODAL_STYLES = `
       ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
       : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
-    const defaultWeight = typeof CONFIG !== 'undefined' && typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+    const defaultWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
       ? CONFIG.BESTPREISE_WEIGHT_RECORD
       : 0.50;
     const wRecord = typeof options.weightRecord === 'number' ? options.weightRecord : defaultWeight;
@@ -1478,6 +1480,7 @@ const SHADOW_MODAL_STYLES = `
    * backed by localStorage with configurable TTL and auto-pruning.
    */
 
+
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
   const MAX_MEMORY_CACHE_ITEMS = 500;
 
@@ -1491,12 +1494,12 @@ const SHADOW_MODAL_STYLES = `
 
     if (parsed.unavailable) {
       if (ignoreNegativeCache) return false;
-      const negHours = options.negativeCacheHours ?? (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_CACHE_HOURS : 2);
+      const negHours = options.negativeCacheHours ?? CONFIG.NEGATIVE_CACHE_HOURS;
       const negTtlMs = (negHours || 2) * 3600 * 1000;
       return ageMs < negTtlMs;
     }
 
-    const realHours = options.realDealCacheHours ?? (typeof CONFIG !== 'undefined' ? CONFIG.REAL_DEAL_CACHE_HOURS : 48);
+    const realHours = options.realDealCacheHours ?? CONFIG.REAL_DEAL_CACHE_HOURS;
     const ttlMs = (realHours || 48) * 3600 * 1000;
     return ageMs < ttlMs;
   }
@@ -2016,6 +2019,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
   function getCardDealerRows(card) {
@@ -2185,7 +2189,7 @@ const SHADOW_MODAL_STYLES = `
     }).filter(name => name.length > 0);
   }
 
-  function parseNegativeTerms(rawTerms = (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_TERMS : '')) {
+  function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
     return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean);
   }
 
@@ -2497,7 +2501,16 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const activeFetches = new Map();
+
+  function isCardIgnored(card) {
+    if (typeof isCardIgnoredOrInvisible === 'function') return isCardIgnoredOrInvisible(card);
+    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardIgnoredOrInvisible === 'function') {
+      return window.ToppreiseSuite.isCardIgnoredOrInvisible(card);
+    }
+    return false;
+  }
 
   async function interruptibleSleep(ms, shouldCancelFn = null) {
     const step = 100;
@@ -2531,7 +2544,7 @@ const SHADOW_MODAL_STYLES = `
       clearTimeout(timeoutId);
       if (!res.ok) return null;
       const data = await res.json();
-      const shippingActive = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+      const shippingActive = isShippingPriceActive();
       if (Array.isArray(data)) {
         if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
           if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
@@ -2574,7 +2587,7 @@ const SHADOW_MODAL_STYLES = `
           if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
             const analysis = analyzePriceTimeSeries(timeSeries);
             if (analysis && analysis.tiefstpreis > 0) {
-              analysis.isShippingPrice = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+              analysis.isShippingPrice = isShippingPriceActive();
               setCachedPriceStats(productId, analysis);
               return analysis;
             }
@@ -2629,7 +2642,7 @@ const SHADOW_MODAL_STYLES = `
         const html = await resHtml.text();
         const stats = parsePriceStatsFromHtml(html);
         if (stats) {
-          stats.isShippingPrice = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+          stats.isShippingPrice = isShippingPriceActive();
           setCachedPriceStats(productId, stats);
           return stats;
         } else {
@@ -2669,7 +2682,7 @@ const SHADOW_MODAL_STYLES = `
       if (!pid) continue;
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
-      if (typeof isCardIgnoredOrInvisible === 'function' && isCardIgnoredOrInvisible(card)) continue;
+      if (isCardIgnored(card)) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
         targets.push({ pid, card, discount });
@@ -2689,7 +2702,7 @@ const SHADOW_MODAL_STYLES = `
         const item = targets[i];
         currentlyScanningPid = item.pid;
         setScanState({ currentlyScanningPid: item.pid, progress: { completed, total } });
-        if (typeof processListings === 'function') processListings();
+        triggerProcessListings();
 
         try {
           await fetchSingleProductPriceStats(
@@ -2712,7 +2725,7 @@ const SHADOW_MODAL_STYLES = `
         completed++;
         setScanState({ progress: { completed, total } });
         if (onProgress) onProgress(completed, total);
-        if (typeof processListings === 'function') processListings();
+        triggerProcessListings();
         const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
         await interruptibleSleep(delay, shouldCancelFn);
       }
@@ -2721,7 +2734,7 @@ const SHADOW_MODAL_STYLES = `
       setScanState({ currentlyScanningPid: null });
     }
 
-    if (typeof processListings === 'function') processListings();
+    triggerProcessListings();
     if (onComplete) onComplete(completed, total);
     return { completed, total };
   }
@@ -2740,7 +2753,7 @@ const SHADOW_MODAL_STYLES = `
     setScanState({ isBatchChecking: true, batchCancelRequested: false });
 
     try {
-      const isFeed = typeof isNeueToppreisePage === 'function' ? isNeueToppreisePage() : false;
+      const isFeed = isNeueToppreisePage();
       await runProductScanner({
         filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
         delayMs: () => 250 + Math.floor(Math.random() * 100),
@@ -2753,7 +2766,7 @@ const SHADOW_MODAL_STYLES = `
       isBatchChecking = false;
       batchCancelRequested = false;
       setScanState({ isBatchChecking: false, batchCancelRequested: false });
-      if (typeof processListings === 'function') processListings();
+      triggerProcessListings();
     }
   }
 
@@ -2788,7 +2801,7 @@ const SHADOW_MODAL_STYLES = `
       isBestpreiseScanning = false;
       bestpreiseScanCancel = false;
       setScanState({ isBestpreiseScanning: false, bestpreiseScanCancel: false });
-      if (typeof processListings === 'function') processListings();
+      triggerProcessListings();
     }
   }
 
@@ -4001,7 +4014,7 @@ const SHADOW_MODAL_STYLES = `
 
   function showToast(message, durationMs = 2500, actionLabel = null, onAction = null) {
     ensureSkeleton();
-    const shadow = getUiShadowRoot?.() || (typeof uiShadowRoot !== 'undefined' ? uiShadowRoot : null);
+    const shadow = getUiShadowRoot() || uiShadowRoot;
     const container = shadow?.getElementById('tp-toast-container');
     if (!container) return;
 

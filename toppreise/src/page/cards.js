@@ -5,6 +5,7 @@
  */
 
 import { SELECTORS } from './selectors.js';
+import { CONFIG } from '../state/config.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
 import { computeDealScore } from '../domain/deal-score.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
@@ -178,7 +179,7 @@ export function extractActiveStores() {
   }).filter(name => name.length > 0);
 }
 
-export function parseNegativeTerms(rawTerms = (typeof CONFIG !== 'undefined' ? CONFIG.NEGATIVE_TERMS : '')) {
+export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
   return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean);
 }
 

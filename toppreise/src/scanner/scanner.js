@@ -7,10 +7,19 @@
 import { getCachedPriceStats, setCachedPriceStats } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price.js';
 import { getProductCards, getCardProductId, extractCardDiscount } from '../page/cards.js';
+import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { setScanState } from '../state/store.js';
 
 export const activeFetches = new Map();
+
+function isCardIgnored(card) {
+  if (typeof isCardIgnoredOrInvisible === 'function') return isCardIgnoredOrInvisible(card);
+  if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.isCardIgnoredOrInvisible === 'function') {
+    return window.ToppreiseSuite.isCardIgnoredOrInvisible(card);
+  }
+  return false;
+}
 
 export async function interruptibleSleep(ms, shouldCancelFn = null) {
   const step = 100;
@@ -44,7 +53,7 @@ export async function fetchPriceTimeSeries(productId) {
     clearTimeout(timeoutId);
     if (!res.ok) return null;
     const data = await res.json();
-    const shippingActive = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+    const shippingActive = isShippingPriceActive();
     if (Array.isArray(data)) {
       if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
         if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
@@ -87,7 +96,7 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
         if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
           const analysis = analyzePriceTimeSeries(timeSeries);
           if (analysis && analysis.tiefstpreis > 0) {
-            analysis.isShippingPrice = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+            analysis.isShippingPrice = isShippingPriceActive();
             setCachedPriceStats(productId, analysis);
             return analysis;
           }
@@ -142,7 +151,7 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       const html = await resHtml.text();
       const stats = parsePriceStatsFromHtml(html);
       if (stats) {
-        stats.isShippingPrice = typeof isShippingPriceActive === 'function' ? isShippingPriceActive() : false;
+        stats.isShippingPrice = isShippingPriceActive();
         setCachedPriceStats(productId, stats);
         return stats;
       } else {
@@ -182,7 +191,7 @@ export async function runProductScanner(options = {}) {
     if (!pid) continue;
     const cached = getCachedPriceStats(pid);
     if (cached) continue;
-    if (typeof isCardIgnoredOrInvisible === 'function' && isCardIgnoredOrInvisible(card)) continue;
+    if (isCardIgnored(card)) continue;
     const discount = extractCardDiscount(card) ?? 0;
     if (filterFn({ pid, card, discount })) {
       targets.push({ pid, card, discount });
@@ -202,7 +211,7 @@ export async function runProductScanner(options = {}) {
       const item = targets[i];
       currentlyScanningPid = item.pid;
       setScanState({ currentlyScanningPid: item.pid, progress: { completed, total } });
-      if (typeof processListings === 'function') processListings();
+      triggerProcessListings();
 
       try {
         await fetchSingleProductPriceStats(
@@ -225,7 +234,7 @@ export async function runProductScanner(options = {}) {
       completed++;
       setScanState({ progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
-      if (typeof processListings === 'function') processListings();
+      triggerProcessListings();
       const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
       await interruptibleSleep(delay, shouldCancelFn);
     }
@@ -234,7 +243,7 @@ export async function runProductScanner(options = {}) {
     setScanState({ currentlyScanningPid: null });
   }
 
-  if (typeof processListings === 'function') processListings();
+  triggerProcessListings();
   if (onComplete) onComplete(completed, total);
   return { completed, total };
 }
@@ -253,7 +262,7 @@ export async function runBatchDealCheck(minDiscount = 30, onProgress = null, onC
   setScanState({ isBatchChecking: true, batchCancelRequested: false });
 
   try {
-    const isFeed = typeof isNeueToppreisePage === 'function' ? isNeueToppreisePage() : false;
+    const isFeed = isNeueToppreisePage();
     await runProductScanner({
       filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
       delayMs: () => 250 + Math.floor(Math.random() * 100),
@@ -266,7 +275,7 @@ export async function runBatchDealCheck(minDiscount = 30, onProgress = null, onC
     isBatchChecking = false;
     batchCancelRequested = false;
     setScanState({ isBatchChecking: false, batchCancelRequested: false });
-    if (typeof processListings === 'function') processListings();
+    triggerProcessListings();
   }
 }
 
@@ -301,7 +310,7 @@ export async function runBestpreiseScan(onProgress = null, onComplete = null) {
     isBestpreiseScanning = false;
     bestpreiseScanCancel = false;
     setScanState({ isBestpreiseScanning: false, bestpreiseScanCancel: false });
-    if (typeof processListings === 'function') processListings();
+    triggerProcessListings();
   }
 }
 
