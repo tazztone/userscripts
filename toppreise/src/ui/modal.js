@@ -526,11 +526,12 @@ export function setupUI() {
         updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
       }
       if (bestpreiseHorizonSelect) {
-        updates.BESTPREISE_MEDIAN_HORIZON_DAYS = parseInt(bestpreiseHorizonSelect.value, 10) || 0;
+        const rawH = parseInt(bestpreiseHorizonSelect.value, 10);
+        updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
       }
     }
-    if (cacheTtlSelect) updates.REAL_DEAL_CACHE_HOURS = parseInt(cacheTtlSelect.value, 10) || 48;
-    if (cacheNegTtlSelect) updates.NEGATIVE_CACHE_HOURS = parseInt(cacheNegTtlSelect.value, 10) || 2;
+    if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
+    if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 
     if (realDealFilterToggle) updates.REAL_DEAL_FILTER_ACTIVE = realDealFilterToggle.checked;
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));

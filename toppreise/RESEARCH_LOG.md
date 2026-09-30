@@ -1,6 +1,6 @@
 # Toppreise.ch Suite - Research & Selector Reference
 
-This document details the DOM selectors, event management, and filter logic for the unified Toppreise.ch Suite.
+> [!NOTE] **Post-§23:** §§5–6, 14 predate native-category removal. Category-engine prescriptions there are historical; §23 is authoritative. Gotcha 7 removed, numbering preserved.
 
 ## 1. Core Target Elements & Selectors
 
@@ -12,9 +12,7 @@ This document details the DOM selectors, event management, and filter logic for 
   - `tp-not-cheapest`: Filtered store sells item, but higher price.
   - `tp-no-store-offer`: Filtered store does not sell item.
   - `tp-negative-filtered`: Card hidden by negative keyword filter.
-  - `tp-category-filtered`: Card hidden by category exclusion blacklist.
   - `tp-min-offers-filtered`: Card hidden due to fewer offers than `MIN_OFFERS`.
-  - `tp-stock-filtered`: Card hidden due to failing delivery availability criteria.
 
 ### Price Alarm Automation
 - **Modal Container**: `.Plugin_NewInfoMailForm` inside `.AbstractDialog.AbstractDialog_NewInfoMailFormDialog`
@@ -158,25 +156,7 @@ This document details the DOM selectors, event management, and filter logic for 
 
 ## 6. Comprehensive Category Taxonomy & Resolution Engine (v2.8.12)
 
-### 1. Site Taxonomy Structure & URL Patterns
-`Toppreise.ch` structures its catalog under **23 primary root category slugs** (mapped into 14–17 canonical display groups such as *Spielwaren*, *Computer & Zubehör*, *Haushalt & Küche*, *Drogerie*, *HiFi & Audio*, etc.).
-
-Subcategories appear in two distinct patterns across the site:
-- **Navigation Category Links (`/produktsuche/<Root>/<Subcat>-cNNN`)**: High-level and mid-level category nodes (e.g. `Spielwaren/Bau-Konstruktionsspielzeug-c2404`).
-- **Product URL Category Paths (`/preisvergleich/<SubcatSlug>/<ProductTitle>-pNNN`)**: Leaf subcategories (e.g. `Lego-City`, `Heissluftfritteusen`, `Vollautomaten`, `USB-SpeicherSticks`, `AV-Receiver`) appear as the first path segment in product links. These leaf nodes are pagination-dependent (`?p=1..10`).
-
-### 2. Crawl Tool & Yield (`tools/generate_category_map.py`)
-- **Automated Depth & Pagination Crawler**: Crawls `/produktsuche/` pages and follows subcategory links up to depth 5, including paginated product lists (`?p=1..10`).
-- **Crawl Metrics**: 1,194 pages crawled $\rightarrow$ **669 site subcategories** $\rightarrow$ **1,360 normalized lookup keys** (handling exact titles, URL slugs, space-separated forms, and German umlaut variants `ue` $\leftrightarrow$ `ü`, `ae` $\leftrightarrow$ `ä`, `oe` $\leftrightarrow$ `ö`).
-- **Auto-Injection**: Injects `const CATEGORY_LOOKUP` into `toppreise.user.js`.
-
-### 3. 6-Layer Category Resolution Pipeline (`resolveCategoryPath`)
-1. **Layer 1: On-Card Product URL Root Slug Extraction**: Reads `/preisvergleich/<RootSlug>/...` or `/produktsuche/<RootSlug>/...` directly from card links (**100% authoritative**).
-2. **Layer 2: Site-Crawled `CATEGORY_LOOKUP`**: Matches 1,360 auto-generated lookup keys.
-3. **Layer 3: Dynamic Storage `DYNAMIC_CAT_MAP`**: Saved in `GM_setValue` / `localStorage` to learn categories at runtime as user browses.
-4. **Layer 4: Brand & Keyword Rules (`BRAND_RULES`)**: Domain regex matching for brands (*CaDA*, *Playmobil*, *Cobi*, *Schleich*, etc.).
-5. **Layer 5: Word-Prefix Token Fallback**: Right-to-left word trimming (`Lego Star Wars` $\rightarrow$ `Lego` $\rightarrow$ `Spielwaren`).
-6. **Layer 6: DOM Breadcrumbs**: Fallback to page `.breadcrumb` links.
+> [!NOTE] **Removed in §23 (2026-09-30).** Suite category engine deleted in favour of native `Plugin_IgnoredCategories`. Git history holds the 669-subcategory / 1360-key pipeline.
 
 ---
 
@@ -560,6 +540,8 @@ $$\text{Score} = \max\left(0, \text{round}\left((1 - W) \times D_{\text{median}}
 ---
 
 ## 14. Toolbar Consolidation & Master Filter Toggle (v2.18.13)
+
+> Update: master `FILTERS_ENABLED` split into `FILTER_NEG/MIN/BESTPREIS_ENABLED` per-filter toggles (`toolbar.js:100-106`).
 
 ### Consolidation of "🌟 Nur Tiefstpreise" with Eye-Emoji "👁️"
 - **Rationale**: Having both `💎 Neue Bestpreise`, `🌟 Nur Tiefstpreise`, and `👁️` on the top filter bar created duplicate showing/hiding controls and congested the toolbar. `💎 Neue Bestpreise` curates deals via Deal-Score, while `👁️ <count>` tracks all filtered items.
@@ -1059,7 +1041,7 @@ sequenceDiagram
 
 ---
 
-## 11. Category & Catalog Listing Deal Quality & Heatmap Engine (v2.18.0)
+## 24. Category & Catalog Listing Deal Quality & Heatmap Engine (v2.18.0)
 
 ### 1. Motivation & Context
 Regular category/catalog listings (`/produktsuche/...`, e.g. Monitore, Grafikkarten, SSDs) lack the native `-XX%` Differenz badges found on `/neue-toppreise`. Users browsing catalog categories could not easily assess whether current prices represent exceptional historical deals, median prices, or marked-up items without manually opening every product price chart.
@@ -1090,7 +1072,7 @@ Regular category/catalog listings (`/produktsuche/...`, e.g. Monitore, Grafikkar
 
 ---
 
-## 12. Category Listing Layout Architecture, Subcard Hierarchy & Flex Containment (v2.18.37)
+## 25. Category Listing Layout Architecture, Subcard Hierarchy & Flex Containment (v2.18.37)
 
 ### 1. Grouped Product Variant Families (`.Plugin_ProductCollItem`)
 - **Structure**: On category listing pages, series with variants (e.g. AirPods 5 with standard case vs. wireless case) are grouped inside `.Plugin_ProductCollItem` containers holding a `.Plugin_ProductCollectionRelProductsList` row of child `.Plugin_Product.f_collection` cards.
@@ -1134,4 +1116,4 @@ Regular category/catalog listings (`/produktsuche/...`, e.g. Monitore, Grafikkar
 - **Why**: The §5 comparison table's granularity claim (native ≈ 23 root categories vs suite subcategories) was contradicted by §22's own evidence — each native breadcrumb segment carries its own `data-vcat-id` and is independently clickable (3-level granularity). Server-side native exclusion supersedes the client-side duplicate.
 - **Deliberately not built**: No native-chip adapter feeding `👁️ N`. The existing `mainObserver` already re-runs `processListings()` on native AJAX grid reloads, and the native bar shows its own count. `👁️ N` counts suite filters only (reveal-button title updated to say so).
 - **Stale storage**: `EXCLUDED_CATEGORIES` / `FILTER_CAT_ENABLED` linger inert in existing users' `GM_setValue`; no migration code — the JSON import whitelist (`key in DEFAULTS`) auto-ignores them.
-- **Verification**: `build.js --check` ✅, unit 52/52 ✅, Playwright `ui_modal` 18/18, `feed_scanner` 29/29, `catalog_layout` + `price_logic` 57/57 ✅.
+- **Verification**: `node tools/build.js --check`, `node --test tests/unit/*.test.js`, Playwright `test_ui_modal` + `test_feed_scanner` + `test_catalog_layout` + `test_price_logic` ✅.
