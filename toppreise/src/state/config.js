@@ -4,7 +4,7 @@
  * active configuration object, and bidirectional UI control sync.
  */
 
-import { uiShadowRoot } from '../ui/modal.js';
+import { uiShadowRoot } from '../ui/shell.js';
 
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,

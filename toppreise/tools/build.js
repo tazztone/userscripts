@@ -50,6 +50,7 @@ export function buildBundle() {
   const sortCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'sort.js'), 'utf-8'));
   const scannerCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'scanner.js'), 'utf-8'));
   const badgesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'badges.js'), 'utf-8'));
+  const shellCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'shell.js'), 'utf-8'));
   const modalCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'modal.js'), 'utf-8'));
   const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
   const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
@@ -136,6 +137,9 @@ ${indent(scannerCode, 2)}
 
   // ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────
 ${indent(badgesCode, 2)}
+
+  // ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────
+${indent(shellCode, 2)}
 
   // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
 ${indent(modalCode, 2)}

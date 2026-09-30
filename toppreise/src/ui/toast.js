@@ -3,7 +3,7 @@
  * Renders glassmorphic notifications with optional undo actions inside Shadow DOM.
  */
 
-import { ensureSkeleton, getUiShadowRoot, uiShadowRoot } from './modal.js';
+import { ensureSkeleton, getUiShadowRoot, uiShadowRoot } from './shell.js';
 
 export function showToast(message, durationMs = 2500, actionLabel = null, onAction = null) {
   ensureSkeleton();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.53
+// @version      2.18.54
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3444,14 +3444,13 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
+  // ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────
   /**
-   * Settings Modal & Shadow DOM Component
-   * Manages the floating action button, single-page settings dialog,
-   * dual-binding input controls, theme selection, import/export, and cache controls.
+   * Shadow DOM Shell
+   * Owns the shared `#tp-root` shadow host: skeleton markup (FAB, dialog shell,
+   * toast container), styles, and the live shadow-root binding. Imported by
+   * modal, toast, and config — one-directional, no cycles.
    */
-
-
 
 
   let uiShadowRoot = null;
@@ -3491,6 +3490,16 @@ const SHADOW_MODAL_STYLES = `
     }
     return { shadow };
   }
+
+  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
+  /**
+   * Settings Modal & Shadow DOM Component
+   * Manages the floating action button, single-page settings dialog,
+   * dual-binding input controls, theme selection, import/export, and cache controls.
+   */
+
+
+
 
   function setupUI() {
     const { shadow } = ensureSkeleton();
