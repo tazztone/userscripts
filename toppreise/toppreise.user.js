@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.65
+// @version      2.18.66
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1613,24 +1613,23 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Single heat driver. Returns { value, provisional }:
-   * - verified + median      -> level vs median (deadband ±5% -> null/neutral)
-   * - verified, no median    -> event (record/markup, deadband) so HTML-fallback
-   *                             products still get honest color
-   * - unverified             -> site Differenz, flagged provisional (rendered
-   *                             paler so provisional color reads provisional)
+   * Single heat driver: the heat IS the badge number. Returns { value, provisional }:
+   * - verified new-low  -> -dRecord (record breakthrough the badge shows)
+   * - verified at-low   -> -dMedian (same Ø-% the badge shows; null -> neutral)
+   * - verified above-low-> +markup (same Aufschlag the badge shows)
+   * - unverified        -> site Differenz, flagged provisional (rendered paler)
+   * ±5% deadband -> neutral gray.
    */
   function getHeatInput(cardPrice, stats, siteDiff) {
-    const level = getPriceLevel(cardPrice, stats);
-    if (level !== null) {
-      if (Math.abs(level) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
-      return { value: level, provisional: false };
-    }
+    // Verified: the heat IS the badge number (new-low -> -dRecord, at-low ->
+    // the same -dMedian the badge shows, above-low -> +markup). Unverified:
+    // site Differenz, flagged provisional (rendered paler).
     if (stats?.tiefstpreis > 0 && cardPrice > 0) {
       const d = getDisplayDelta(cardPrice, stats);
       let v = null;
       if (d.kind === 'new-low') v = -d.dRecord;
       else if (d.kind === 'above-low') v = d.markup;
+      else v = getPriceLevel(cardPrice, stats);
       if (v === null || Math.abs(v) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
       return { value: v, provisional: false };
     }
@@ -3142,9 +3141,8 @@ const SHADOW_MODAL_STYLES = `
     const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
     const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-    // Heatmap: color = price LEVEL vs usual (Ø/Median, continuous, parity at 0).
-    // Badge % = deal EVENT (record breakthrough / markup). Never the twain:
-    // the blended ranking score drives sorting only, never color or badge text.
+    // Heatmap: color = the badge number (deal EVENT), continuous with parity at 0.
+    // The blended ranking score drives sorting only, never color or badge text.
     // Unverified site-Differenz renders paler so provisional heat reads provisional.
     const heatInfo = getHeatInput(cardPrice, stats, diffVal);
     const effectiveDiff = heatInfo.value;
@@ -3413,7 +3411,7 @@ const SHADOW_MODAL_STYLES = `
             }
           }
 
-          const colorLegend = `Farbe = Ø-Abstand (rot = günstig vs üblich)`;
+          const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
           const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
           const wMed = 1 - wRec;
           const fmtW = w => String(Math.round(w * 100) / 100);
@@ -3562,7 +3560,7 @@ const SHADOW_MODAL_STYLES = `
               detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
             }
             const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-            const colorLegend = `Farbe = Ø-Abstand (rot = günstig vs üblich)`;
+            const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
 
             setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
             if (isListView) {
@@ -3599,7 +3597,7 @@ const SHADOW_MODAL_STYLES = `
               notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
             }
             const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Ø-Abstand (blau = teuer vs üblich; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
+            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Badge-% (blau = Aufschlag; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
             const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -3642,7 +3640,7 @@ const SHADOW_MODAL_STYLES = `
             setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
             setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
           } else {
-            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); 🎨 Farbe = Abstand zum Ø-Preis.`);
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-%.`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
             } else {
@@ -3883,7 +3881,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>Rabatt-Heatmap aktivieren</label>
-              <span class="tp-switch-desc">Kartenfarbe = Abstand zum Ø-Preis (Median): Rot = günstig vs üblich, Grau = üblich (±5%), Blau = teuer vs üblich. Blass = ungeprüft. Badge-% = Rekord-Ereignis.</span>
+              <span class="tp-switch-desc">Kartenfarbe = Badge-%: Rot = Rabatt (tiefrot = gross), Grau = Nähe (±5%), Blau = Aufschlag. Blass = ungeprüft (Site-Rabatt).</span>
             </div>
             <label class="tp-switch tp-rose">
               <input type="checkbox" id="tp-heatmap-enabled-toggle">
@@ -4464,7 +4462,7 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
           </button>
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Kartenfarbe = Abstand zum Ø-Preis (Median) — Rot = günstig vs üblich, Blau = teuer vs üblich, Grau = im üblichen Bereich (±5%). Blasse Farben = ungeprüft (Site-Rabatt). Badge-% = Rekord-Ereignis (vs Bisher / Ø-Preis)." style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Kartenfarbe = Badge-% — Rot = Rabatt (tiefrot = gross), Blau = Aufschlag, Grau = Nähe (±5%). Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>

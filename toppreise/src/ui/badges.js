@@ -67,9 +67,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
   const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-  // Heatmap: color = price LEVEL vs usual (Ø/Median, continuous, parity at 0).
-  // Badge % = deal EVENT (record breakthrough / markup). Never the twain:
-  // the blended ranking score drives sorting only, never color or badge text.
+  // Heatmap: color = the badge number (deal EVENT), continuous with parity at 0.
+  // The blended ranking score drives sorting only, never color or badge text.
   // Unverified site-Differenz renders paler so provisional heat reads provisional.
   const heatInfo = getHeatInput(cardPrice, stats, diffVal);
   const effectiveDiff = heatInfo.value;
@@ -338,7 +337,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           }
         }
 
-        const colorLegend = `Farbe = Ø-Abstand (rot = günstig vs üblich)`;
+        const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
         const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
         const wMed = 1 - wRec;
         const fmtW = w => String(Math.round(w * 100) / 100);
@@ -487,7 +486,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
           }
           const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-          const colorLegend = `Farbe = Ø-Abstand (rot = günstig vs üblich)`;
+          const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
 
           setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
           if (isListView) {
@@ -524,7 +523,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
           }
           const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Ø-Abstand (blau = teuer vs üblich; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
+          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Badge-% (blau = Aufschlag; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
           const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -567,7 +566,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
           setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
         } else {
-          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); 🎨 Farbe = Abstand zum Ø-Preis.`);
+          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-%.`);
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
           } else {

@@ -130,26 +130,28 @@ describe('Deal Score Domain Module', () => {
     });
   });
 
-  describe('getPriceLevel & getHeatInput (heatmap = level vs median)', () => {
-    it('heats by median level, not by record size', () => {
-      // Tiny -8% record far below a high median is still warm (cheap vs usual),
-      // but the badge (displayDelta) stays honest at -8%.
+  describe('getPriceLevel & getHeatInput (heatmap = badge number)', () => {
+    it('heats new records by record size, not by median level', () => {
+      // GEDORE screenshot case: -8% badge must be faint warm, even though
+      // the price sits far below its median.
       const heat = getHeatInput(30.92, { tiefstpreis: 30.92, medianPrice: 60.00, previousLow: 33.79, isNewAllTimeLow: true }, -51);
       assert.equal(heat.provisional, false);
-      assert.equal(heat.value, -48); // (30.92-60)/60
+      assert.equal(heat.value, -8);
     });
 
-    it('keeps PIMAX vs TRUST levels distinct (badge carries precision)', () => {
-      const pim = getHeatInput(551.95, { tiefstpreis: 551.95, medianPrice: 1300, isNewAllTimeLow: false }, -61);
-      const tru = getHeatInput(10.37, { tiefstpreis: 10.37, medianPrice: 21.00, isNewAllTimeLow: false }, -53);
-      assert.notEqual(pim.value, tru.value);
-      assert.equal(pim.provisional, false);
+    it('heats matched lows by the same O-% the badge shows', () => {
+      const heat = getHeatInput(1100, { tiefstpreis: 1100, medianPrice: 1500 }, -35);
+      assert.deepEqual(heat, { value: -27, provisional: false });
     });
 
-    it('applies a ±5% neutral deadband around the median', () => {
-      assert.equal(getHeatInput(103, { tiefstpreis: 90, medianPrice: 100 }, 5).value, null);
-      assert.equal(getHeatInput(97, { tiefstpreis: 90, medianPrice: 100 }, -5).value, null);
-      assert.equal(getHeatInput(110, { tiefstpreis: 90, medianPrice: 100 }, 5).value, 10);
+    it('applies a ±5% neutral deadband (at-low near the median, micro-dips)', () => {
+      assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0).value, null);
+      assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 87 }, 0).value, null);
+      assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 100 }, 0).value, -10);
+    });
+
+    it('heats above-low by markup vs low (median plays no role)', () => {
+      assert.equal(getHeatInput(103, { tiefstpreis: 90, medianPrice: 100 }, 5).value, 14);
     });
 
     it('falls back to the verified event when no median exists (HTML fallback)', () => {

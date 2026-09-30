@@ -122,24 +122,23 @@ export function getPriceLevel(cardPrice, stats) {
 }
 
 /**
- * Single heat driver. Returns { value, provisional }:
- * - verified + median      -> level vs median (deadband ±5% -> null/neutral)
- * - verified, no median    -> event (record/markup, deadband) so HTML-fallback
- *                             products still get honest color
- * - unverified             -> site Differenz, flagged provisional (rendered
- *                             paler so provisional color reads provisional)
+ * Single heat driver: the heat IS the badge number. Returns { value, provisional }:
+ * - verified new-low  -> -dRecord (record breakthrough the badge shows)
+ * - verified at-low   -> -dMedian (same Ø-% the badge shows; null -> neutral)
+ * - verified above-low-> +markup (same Aufschlag the badge shows)
+ * - unverified        -> site Differenz, flagged provisional (rendered paler)
+ * ±5% deadband -> neutral gray.
  */
 export function getHeatInput(cardPrice, stats, siteDiff) {
-  const level = getPriceLevel(cardPrice, stats);
-  if (level !== null) {
-    if (Math.abs(level) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
-    return { value: level, provisional: false };
-  }
+  // Verified: the heat IS the badge number (new-low -> -dRecord, at-low ->
+  // the same -dMedian the badge shows, above-low -> +markup). Unverified:
+  // site Differenz, flagged provisional (rendered paler).
   if (stats?.tiefstpreis > 0 && cardPrice > 0) {
     const d = getDisplayDelta(cardPrice, stats);
     let v = null;
     if (d.kind === 'new-low') v = -d.dRecord;
     else if (d.kind === 'above-low') v = d.markup;
+    else v = getPriceLevel(cardPrice, stats);
     if (v === null || Math.abs(v) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
     return { value: v, provisional: false };
   }

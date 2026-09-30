@@ -66,7 +66,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
         <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
           👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
         </button>
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Kartenfarbe = Abstand zum Ø-Preis (Median) — Rot = günstig vs üblich, Blau = teuer vs üblich, Grau = im üblichen Bereich (±5%). Blasse Farben = ungeprüft (Site-Rabatt). Badge-% = Rekord-Ereignis (vs Bisher / Ø-Preis)." style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Kartenfarbe = Badge-% — Rot = Rabatt (tiefrot = gross), Blau = Aufschlag, Grau = Nähe (±5%). Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
         <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
