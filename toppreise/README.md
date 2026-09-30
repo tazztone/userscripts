@@ -10,15 +10,15 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.66)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.67)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.66)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.67)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
-   - **🔥 Deal-Score Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird ein gewichteter Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **der Score sortiert nur** (Bestpreise-Feed). Das Badge zeigt das **Rekord-Ereignis** (`Real Deal · Rekord -X%` vs Bisher bzw. `Real Deal · Ø-Preis -Y%`), niemals den Score und nach Prüfung niemals die Site-Differenz — und die **Kartenfarbe folgt exakt dieser Badge-%**: Rot = Rabatt, Blau = Aufschlag, Grau = Nähe (±5%). Blasse Farben = ungeprüft (Site-Rabatt).
+   - **🔥 Deal-Score Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird ein gewichteter Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **der Score sortiert nur** (Bestpreise-Feed). Das Badge zeigt das **Rekord-Ereignis** (`Real Deal · Rekord -X%` vs Bisher bzw. `Real Deal · Ø-Preis -Y%`), niemals den Score und nach Prüfung niemals die Site-Differenz — und **Karten- wie Badge-Farbe folgen dieser Badge-% auf einer gra→rot-Skala**: Tiefrot = grosser Deal, Grau = kein Rabatt (Aufschläge bleiben grau, `+XX%` steht im Badge). Blasse Farben = ungeprüft (Site-Rabatt).
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
    - **🛡️ Multi-Pass Preisfehler- & Ausreisser-Filter**: Erkennt und ignoriert automatisch kurzzeitige Händler-Fehllistings (z. B. ein CHF 15 Handy-Case, das versehentlich unter einem CHF 1'200 Smartphone gelistet war), sodass echte Allzeit-Tiefstpreise nicht fälschlicherweise blockiert werden.
    - **🏷️ Real Deal Badge & Sublines**: Das Kreisbadge zeigt den echten Rabatt mit Baseline (`Real Deal · Rekord -X%` bei neuem Rekord, `Real Deal · Ø-Preis -Y%` am Tiefstpreis). Die Subline unter dem Preis liefert glasklare Transparenz (`Bisher: CHF 2'399.00 (-21%)` bei neuen Rekorden bzw. `Ø-Preis (1J): CHF 2'450.00 (-28%)` bei Allzeit-Tiefstpreisen). Mini-Rekorde (< 2%) erscheinen als schlichtes `Tiefstpreis 🌟`. Der Tooltip erklärt Badge-Baseline, Ranking-Score und Farb-Bedeutung.
@@ -31,7 +31,7 @@ Requires Violentmonkey (or a compatible userscript manager):
    - **Konsolidierte Vorschau (`👁️ N`)**: Zeigt die Gesamtzahl aller durch Suite-Filter ausgeblendeten Produkte und ermöglicht per Klick eine Live-Vorschau aller gefilterten Karten mit dezentem Kontur-Highlight. (Native Kategorie-Ausschlüsse verwaltet Toppreise serverseitig in seiner eigenen Leiste.)
    - **Batch-Checker mit Live-Zähler (`🔍 Check Deals (N)`)**: Prüft auf Knopfdruck nacheinander alle Deals ab dem Schwellenwert mit Live-Fortschrittszähler und Abbruch-Option.
    - **Schwellenwert-Schnellwahl (`Site ≥30% ▾`)**: Check-Vorauswahl für den Batch-Scan (20%, 30%, 40%, 50%, 60%): Nur Deals mit mindestens so viel **Site-Rabatt** (ungeprüfte Differenz, z.B. vs UVP) werden automatisch geprüft — die Prüfung ersetzt ihn durch den echten Rabatt.
-   - **Selektive, ehrliche Heatmap**: Die Farbe folgt der Badge-% (Rekord-Rabatt bzw. Aufschlag), nicht dem Site-Rabatt. Verifizierte Aufschläge zeigen `+XX%` (Badge) und werden blau; ungeprüfte Karten sind bewusst blasser.
+   - **Selektive, ehrliche Heatmap**: Die Farbe folgt der Badge-% (Rekord-Rabatt) auf einer Grau→Rot-Skala, nicht dem Site-Rabatt. Verifizierte Aufschläge zeigen `+XX%` (Badge) und bleiben grau; ungeprüfte Karten sind bewusst blasser.
    - **Detailseiten-Badge (`/preisvergleich/...-p...`)**: Zeigt direkt auf Produktseiten neben dem Haupttitel/Hauptpreis, ob das Angebot ein Allzeit-Tiefstpreis ist.
    - **Leere-Feed-Hinweis (Empty State)**: Blendet bei komplett gefilterter Seite einen eleganten Hinweis mit Schnellaktionen ein (`[ 👁️ Ausgeblendete anzeigen ]`, `[ 💎 Bestpreise aus ]`, `[ ⚡ Filter ausschalten ]`).
    - **Konfigurierbarer Cache & 1-Klick Wipe**: Einmal geprüfte Produkte bleiben im Browser gespeichert (Dauer frei wählbar: 24h, 48h [Standard], 72h, 7 Tage, 14 Tage) und laden bei Folgebesuchen blitzschnell ohne Netzwerkabfrage. Nicht verfügbare Produkte werden zwischengespeichert (1h–24h). Im Einstellungsmenü gibt es eine Live-Anzeige der gespeicherten Einträge und einen `🗑️ Cache leeren`-Button.
@@ -42,12 +42,11 @@ Requires Violentmonkey (or a compatible userscript manager):
    - **Verfügbarkeits-Icon Baseline & Randabstand**: Garantiert, dass der grüne Lieferbarkeits-Punkt (`.Plugin_AvailabilityInformation`) vertikal zentriert bleibt und selbst bei langen historischen Preisen und Sparklines niemals am rechten Kartenrand abgeschnitten wird.
    - **Händlerfilter-Kompatibilität**: Verhindert falsches Dimmen von Kategoriemarkt-Karten ohne Händlertabellen, wenn ein spezifischer Händler im Filter ausgewählt ist.
 4. **📈 Mini Preis-Trend Sparklines**: Zeigt auf Karten mit geprüfter Preishistorie kompakte Inline-SVG-Sparklines des historischen Preisverlaufs (Grün für fallenden Trend / Allzeit-Tief 🟢, Rot für steigenden Trend 🔴) mit Hover-Skalierung und Tooltip (in den Einstellungen aktivierbar). Lädt blitzschnell in einem einzigen Request ohne zusätzliche Server-Abfragen.
-5. **🔥 Continuous Badge-Heatmap (Badge-% als Skala)**: Dynamische thermische Hintergrund-Verläufe auf allen Produktkarten anhand der angezeigten Badge-%:
-   - Grosser Rabatt (z.B. −58%): Feuriges Rubinrot 🔥
+5. **🔥 Continuous Badge-Heatmap (Grau→Rot-Skala)**: Thermische Karten- und Badge-Färbung anhand der angezeigten Badge-%:
+   - Grosser Rabatt (z.B. −58%): Tiefes Rubinrot 🔥 (Karte + Badge)
    - Kleiner Rabatt (z.B. −8%): Helles Warmbraun
-   - `±5%`: Neutrales Schiefergrau ⚖️ (kein Signal)
-   - Aufschlag (z.B. +53%): Kaltes Blau ❄️
-   - Ungeprüft (Site-Differenz): gleiche Skala, aber blasser + 🔍
+   - `±5%` und Aufschläge (z.B. +53%): Neutrales Grau ⚖️ (kein Signal; `+XX%` steht im Badge)
+   - Ungeprüft (Site-Rabatt): gleiche Skala, aber blasser + 🔍
    - 1-Klick-Toggle (`[ 🔥 Heatmap ]`) direkt in der oberen Filterleiste mit stufenloser Intensitätsregelung.
 6. **🛡️ Encapsulated Shadow DOM Settings Modal (`#tp-root`)**: Floating action button (FAB) and settings dialog are isolated inside an open Shadow Root, elevated to the browser Top Layer via native `<dialog>` (`showModal()`) to bypass host site z-index and CSS reset collisions.
 7. **⌨️ Tastatur-Shortcuts**:
@@ -76,7 +75,7 @@ The script includes embedded `@updateURL` and `@downloadURL` metadata headers. V
 Klicke auf das schwebende **Zahnrad-Symbol** unten rechts auf Toppreise.ch, um das aufgeräumte Einstellungsmenü zu öffnen (konsolidiert in 5 übersichtliche Bereiche auf einer Seite ohne störende Tabs):
 
 1. **Händler Bestpreis Highlights & Sortierung**: Modus (`'dim'`, `'hide'`, `'highlight-only'`), Preis-Toleranz (%), Deckkraft, Versandkosten-Vergleich und Sortierreihenfolge (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
-2. **Rabatt-Heatmap & Deals**: Heatmap an/aus (Farbe = Badge-%), Intensitäts-Regler (20% – 100%), Sortier-Gewichtung für den Deal-Score (nur Sortierung), Analyse-Zeithorizont (1 Jahr, 6M, 3M, Lifetime) und Check-Vorauswahl (Site-Rabatt) für den Deal-Scanner.
+2. **Rabatt-Heatmap & Deals**: Heatmap an/aus (Farbe = Rabatt-Tiefe, Grau→Rot), Intensitäts-Regler (20% – 100%), Sortier-Gewichtung für den Deal-Score (nur Sortierung), Analyse-Zeithorizont (1 Jahr, 6M, 3M, Lifetime) und Check-Vorauswahl (Site-Rabatt) für den Deal-Scanner.
 3. **Preisalarm Auto-Filler**: Zielpreis-Prozentsatz (Standard: 60%), Laufzeit (3 Monate bis 2 Jahre), Auto-Submit & konfigurierbare Schließverzögerungen.
 4. **Performance, Cache & Preiskurven**: Mini-Preiskurven (Sparklines) an/aus, Cache-Gültigkeit (24h bis 14 Tage), Negativ-Cache (1h bis 24h), Live-Eintragszähler und 1-Klick-Cache-Bereinigung (`🗑️ Cache leeren`).
 5. **Backup & Übertragen**: Vollständiger 1-Klick JSON Export / Import zur nahtlosen Übertragung aller Einstellungen und Begriffsfilter auf andere Browser und Geräte.

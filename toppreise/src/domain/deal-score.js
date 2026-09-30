@@ -122,28 +122,30 @@ export function getPriceLevel(cardPrice, stats) {
 }
 
 /**
- * Single heat driver: the heat IS the badge number. Returns { value, provisional }:
+ * Single heat driver: the heat IS the badge discount, gray -> red. Returns
+ * { value, provisional }:
  * - verified new-low  -> -dRecord (record breakthrough the badge shows)
  * - verified at-low   -> -dMedian (same Ø-% the badge shows; null -> neutral)
- * - verified above-low-> +markup (same Aufschlag the badge shows)
- * - unverified        -> site Differenz, flagged provisional (rendered paler)
+ * - verified above-low-> null (no deal, no color — the +XX% badge text
+ *                             carries the markup signal)
+ * - unverified deal   -> site Differenz, flagged provisional (rendered paler)
+ * - unverified markup -> null (neutral)
  * ±5% deadband -> neutral gray.
  */
 export function getHeatInput(cardPrice, stats, siteDiff) {
-  // Verified: the heat IS the badge number (new-low -> -dRecord, at-low ->
-  // the same -dMedian the badge shows, above-low -> +markup). Unverified:
-  // site Differenz, flagged provisional (rendered paler).
+  // Verified: the heat IS the badge discount (new-low -> -dRecord, at-low ->
+  // the same -dMedian the badge shows). Above-low -> no color.
   if (stats?.tiefstpreis > 0 && cardPrice > 0) {
     const d = getDisplayDelta(cardPrice, stats);
     let v = null;
     if (d.kind === 'new-low') v = -d.dRecord;
-    else if (d.kind === 'above-low') v = d.markup;
-    else v = getPriceLevel(cardPrice, stats);
-    if (v === null || Math.abs(v) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
+    else if (d.kind === 'at-low') v = getPriceLevel(cardPrice, stats);
+    if (v === null || v >= -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
     return { value: v, provisional: false };
   }
   if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
-    if (Math.abs(siteDiff) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: true };
+    // Unverified markup (positive) -> neutral; only real discounts heat.
+    if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: siteDiff < 0 };
     return { value: siteDiff, provisional: true };
   }
   return { value: null, provisional: false };

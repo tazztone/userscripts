@@ -143,31 +143,59 @@ export function extractCardDiscount(card) {
   return diff === null ? null : (diff === 0 ? 0 : -diff);
 }
 
-export function getHeatmapStyles(diffPercent, intensity = 1.0) {
+// Single-hue deal ramp: neutral slate (0% = no deal) -> warm amber -> deep ruby
+// (-100% = max savings). Markups render no color (neutral gray card); the
+// badge TEXT (+XX%) carries the markup signal instead.
+const HEAT_STOPS = [
+  { t: 0.00, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
+  { t: 0.50, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
+  { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
+];
+
+function heatRamp(t) {
+  const clampedT = Math.max(0, Math.min(1, t));
+  let i = HEAT_STOPS.findIndex((s, idx) => idx < HEAT_STOPS.length - 1 && clampedT >= s.t && clampedT <= HEAT_STOPS[idx + 1].t);
+  if (i < 0) i = HEAT_STOPS.length - 2;
+  const s0 = HEAT_STOPS[i], s1 = HEAT_STOPS[i + 1], factor = (clampedT - s0.t) / (s1.t - s0.t || 1);
+  const lerp = (a, b) => Math.round(a + (b - a) * factor);
+  return {
+    base: [lerp(s0.base[0], s1.base[0]), lerp(s0.base[1], s1.base[1]), lerp(s0.base[2], s1.base[2])],
+    acc: [lerp(s0.acc[0], s1.acc[0]), lerp(s0.acc[1], s1.acc[1]), lerp(s0.acc[2], s1.acc[2])],
+    borderRgb: [lerp(s0.border[0], s1.border[0]), lerp(s0.border[1], s1.border[1]), lerp(s0.border[2], s1.border[2])],
+    borderAlpha: (s0.border[3] + (s1.border[3] - s0.border[3]) * factor)
+  };
+}
+
+// 0% (or any markup) -> 0, -100% -> 1. NaN -> null.
+function heatT(diffPercent) {
   const diff = typeof diffPercent === 'number' ? diffPercent : parseFloat(diffPercent);
   if (isNaN(diff)) return null;
-  const clamped = Math.max(-100, Math.min(100, diff));
-  const t = (100 - clamped) / 200; // 0.0 (Cold, +100%) to 1.0 (Hot, -100%)
-  const stops = [
-    { t: 0.00, base: [14, 38, 74],   acc: [24, 100, 185],  border: [56, 140, 248, 0.70] },
-    { t: 0.25, base: [12, 50, 60],   acc: [16, 130, 125],  border: [20, 210, 190, 0.75] },
-    { t: 0.50, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
-    { t: 0.75, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
-    { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
-  ];
-  let i = stops.findIndex((s, idx) => idx < stops.length - 1 && t >= s.t && t <= stops[idx + 1].t);
-  if (i < 0) i = stops.length - 2;
-  const s0 = stops[i], s1 = stops[i + 1], factor = (t - s0.t) / (s1.t - s0.t || 1);
-  const lerp = (a, b) => Math.round(a + (b - a) * factor);
-  const base = [lerp(s0.base[0], s1.base[0]), lerp(s0.base[1], s1.base[1]), lerp(s0.base[2], s1.base[2])];
-  const acc = [lerp(s0.acc[0], s1.acc[0]), lerp(s0.acc[1], s1.acc[1]), lerp(s0.acc[2], s1.acc[2])];
-  const borderRgb = [lerp(s0.border[0], s1.border[0]), lerp(s0.border[1], s1.border[1]), lerp(s0.border[2], s1.border[2])];
-  const borderAlpha = (s0.border[3] + (s1.border[3] - s0.border[3]) * factor);
+  return Math.max(0, Math.min(1, -Math.min(0, Math.max(-100, diff)) / 100));
+}
+
+export function getHeatmapStyles(diffPercent, intensity = 1.0) {
+  const t = heatT(diffPercent);
+  if (t === null) return null;
+  const { base, acc, borderRgb, borderAlpha } = heatRamp(t);
   const safeInt = Math.max(0.2, Math.min(1.0, intensity));
   const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
   const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
-  const glow = (t >= 0.70 || t <= 0.15) ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
+  const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
   return { bg, border, glow };
+}
+
+// Badge reuses the card logic: solid swatch from the same ramp so the badge
+// color always matches the card heat. Neutral (t = 0) falls back to the
+// badge's class styling (caller only applies this when a deal is heating).
+export function getBadgeHeatStyle(diffPercent, provisional = false) {
+  const t = heatT(diffPercent);
+  if (t === null) return null;
+  const { acc, borderRgb, borderAlpha } = heatRamp(t);
+  const alpha = provisional ? 0.55 : 0.95;
+  return {
+    background: `rgba(${acc.join(',')},${alpha})`,
+    border: `rgba(${borderRgb.join(',')},${borderAlpha.toFixed(2)})`
+  };
 }
 
 export function extractActiveStores() {

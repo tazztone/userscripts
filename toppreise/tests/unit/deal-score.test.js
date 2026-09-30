@@ -150,13 +150,23 @@ describe('Deal Score Domain Module', () => {
       assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 100 }, 0).value, -10);
     });
 
-    it('heats above-low by markup vs low (median plays no role)', () => {
-      assert.equal(getHeatInput(103, { tiefstpreis: 90, medianPrice: 100 }, 5).value, 14);
+    it('heats nothing above-low (markup lives in the badge text, not the color)', () => {
+      assert.equal(getHeatInput(103, { tiefstpreis: 90, medianPrice: 100 }, 5).value, null);
+      assert.equal(getHeatInput(409, { tiefstpreis: 121.90, medianPrice: 400 }, 236).value, null);
     });
 
-    it('falls back to the verified event when no median exists (HTML fallback)', () => {
+    it('heats nothing for unverified markups (positive site Differenz)', () => {
+      assert.deepEqual(getHeatInput(0, {}, 53), { value: null, provisional: false });
+    });
+
+    it('heats record breakthroughs without a median (HTML fallback)', () => {
+      const heat = getHeatInput(1800, { tiefstpreis: 1800, previousLow: 2000, isNewAllTimeLow: true }, -35);
+      assert.deepEqual(heat, { value: -10, provisional: false });
+    });
+
+    it('heats nothing above-low without a median (POLK HTML fallback)', () => {
       const heat = getHeatInput(341.93, { tiefstpreis: 309.00 }, 11);
-      assert.deepEqual(heat, { value: 11, provisional: false });
+      assert.deepEqual(heat, { value: null, provisional: false });
     });
 
     it('marks unverified site diffs as provisional (rendered paler)', () => {

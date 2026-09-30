@@ -130,7 +130,7 @@ def test_discount_heatmap_rendering(page: Page):
     card_hot = page.locator('#card-cheapest')
     assert 'tp-heatmap-active' in (card_hot.get_attribute('class') or '')
 
-    # Card 2 has -10% discount -> cold thermal styling
+    # Card 2 has -10% discount -> faint warm thermal styling (same ramp, low intensity)
     card_cold = page.locator('#card-expensive')
     assert 'tp-heatmap-active' in (card_cold.get_attribute('class') or '')
 
@@ -140,6 +140,13 @@ def test_discount_heatmap_rendering(page: Page):
     assert 'linear-gradient' in hot_bg
     assert 'linear-gradient' in cold_bg
     assert hot_bg != cold_bg
+
+    # Badges reuse the card ramp: deep-deal badge is redder than the -10% badge
+    hot_badge_bg = card_hot.locator('.badge-dif').evaluate('el => el.style.getPropertyValue("background")')
+    cold_badge_bg = card_cold.locator('.badge-dif').evaluate('el => el.style.getPropertyValue("background")')
+    assert 'rgba(' in hot_badge_bg
+    assert 'rgba(' in cold_badge_bg
+    assert hot_badge_bg != cold_badge_bg
 
 
 

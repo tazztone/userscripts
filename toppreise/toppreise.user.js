@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.66
+// @version      2.18.67
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1613,28 +1613,30 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Single heat driver: the heat IS the badge number. Returns { value, provisional }:
+   * Single heat driver: the heat IS the badge discount, gray -> red. Returns
+   * { value, provisional }:
    * - verified new-low  -> -dRecord (record breakthrough the badge shows)
    * - verified at-low   -> -dMedian (same Ø-% the badge shows; null -> neutral)
-   * - verified above-low-> +markup (same Aufschlag the badge shows)
-   * - unverified        -> site Differenz, flagged provisional (rendered paler)
+   * - verified above-low-> null (no deal, no color — the +XX% badge text
+   *                             carries the markup signal)
+   * - unverified deal   -> site Differenz, flagged provisional (rendered paler)
+   * - unverified markup -> null (neutral)
    * ±5% deadband -> neutral gray.
    */
   function getHeatInput(cardPrice, stats, siteDiff) {
-    // Verified: the heat IS the badge number (new-low -> -dRecord, at-low ->
-    // the same -dMedian the badge shows, above-low -> +markup). Unverified:
-    // site Differenz, flagged provisional (rendered paler).
+    // Verified: the heat IS the badge discount (new-low -> -dRecord, at-low ->
+    // the same -dMedian the badge shows). Above-low -> no color.
     if (stats?.tiefstpreis > 0 && cardPrice > 0) {
       const d = getDisplayDelta(cardPrice, stats);
       let v = null;
       if (d.kind === 'new-low') v = -d.dRecord;
-      else if (d.kind === 'above-low') v = d.markup;
-      else v = getPriceLevel(cardPrice, stats);
-      if (v === null || Math.abs(v) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
+      else if (d.kind === 'at-low') v = getPriceLevel(cardPrice, stats);
+      if (v === null || v >= -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
       return { value: v, provisional: false };
     }
     if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
-      if (Math.abs(siteDiff) < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: true };
+      // Unverified markup (positive) -> neutral; only real discounts heat.
+      if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: siteDiff < 0 };
       return { value: siteDiff, provisional: true };
     }
     return { value: null, provisional: false };
@@ -2393,31 +2395,59 @@ const SHADOW_MODAL_STYLES = `
     return diff === null ? null : (diff === 0 ? 0 : -diff);
   }
 
-  function getHeatmapStyles(diffPercent, intensity = 1.0) {
+  // Single-hue deal ramp: neutral slate (0% = no deal) -> warm amber -> deep ruby
+  // (-100% = max savings). Markups render no color (neutral gray card); the
+  // badge TEXT (+XX%) carries the markup signal instead.
+  const HEAT_STOPS = [
+    { t: 0.00, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
+    { t: 0.50, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
+    { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
+  ];
+
+  function heatRamp(t) {
+    const clampedT = Math.max(0, Math.min(1, t));
+    let i = HEAT_STOPS.findIndex((s, idx) => idx < HEAT_STOPS.length - 1 && clampedT >= s.t && clampedT <= HEAT_STOPS[idx + 1].t);
+    if (i < 0) i = HEAT_STOPS.length - 2;
+    const s0 = HEAT_STOPS[i], s1 = HEAT_STOPS[i + 1], factor = (clampedT - s0.t) / (s1.t - s0.t || 1);
+    const lerp = (a, b) => Math.round(a + (b - a) * factor);
+    return {
+      base: [lerp(s0.base[0], s1.base[0]), lerp(s0.base[1], s1.base[1]), lerp(s0.base[2], s1.base[2])],
+      acc: [lerp(s0.acc[0], s1.acc[0]), lerp(s0.acc[1], s1.acc[1]), lerp(s0.acc[2], s1.acc[2])],
+      borderRgb: [lerp(s0.border[0], s1.border[0]), lerp(s0.border[1], s1.border[1]), lerp(s0.border[2], s1.border[2])],
+      borderAlpha: (s0.border[3] + (s1.border[3] - s0.border[3]) * factor)
+    };
+  }
+
+  // 0% (or any markup) -> 0, -100% -> 1. NaN -> null.
+  function heatT(diffPercent) {
     const diff = typeof diffPercent === 'number' ? diffPercent : parseFloat(diffPercent);
     if (isNaN(diff)) return null;
-    const clamped = Math.max(-100, Math.min(100, diff));
-    const t = (100 - clamped) / 200; // 0.0 (Cold, +100%) to 1.0 (Hot, -100%)
-    const stops = [
-      { t: 0.00, base: [14, 38, 74],   acc: [24, 100, 185],  border: [56, 140, 248, 0.70] },
-      { t: 0.25, base: [12, 50, 60],   acc: [16, 130, 125],  border: [20, 210, 190, 0.75] },
-      { t: 0.50, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
-      { t: 0.75, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
-      { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
-    ];
-    let i = stops.findIndex((s, idx) => idx < stops.length - 1 && t >= s.t && t <= stops[idx + 1].t);
-    if (i < 0) i = stops.length - 2;
-    const s0 = stops[i], s1 = stops[i + 1], factor = (t - s0.t) / (s1.t - s0.t || 1);
-    const lerp = (a, b) => Math.round(a + (b - a) * factor);
-    const base = [lerp(s0.base[0], s1.base[0]), lerp(s0.base[1], s1.base[1]), lerp(s0.base[2], s1.base[2])];
-    const acc = [lerp(s0.acc[0], s1.acc[0]), lerp(s0.acc[1], s1.acc[1]), lerp(s0.acc[2], s1.acc[2])];
-    const borderRgb = [lerp(s0.border[0], s1.border[0]), lerp(s0.border[1], s1.border[1]), lerp(s0.border[2], s1.border[2])];
-    const borderAlpha = (s0.border[3] + (s1.border[3] - s0.border[3]) * factor);
+    return Math.max(0, Math.min(1, -Math.min(0, Math.max(-100, diff)) / 100));
+  }
+
+  function getHeatmapStyles(diffPercent, intensity = 1.0) {
+    const t = heatT(diffPercent);
+    if (t === null) return null;
+    const { base, acc, borderRgb, borderAlpha } = heatRamp(t);
     const safeInt = Math.max(0.2, Math.min(1.0, intensity));
     const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
     const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
-    const glow = (t >= 0.70 || t <= 0.15) ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
+    const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
     return { bg, border, glow };
+  }
+
+  // Badge reuses the card logic: solid swatch from the same ramp so the badge
+  // color always matches the card heat. Neutral (t = 0) falls back to the
+  // badge's class styling (caller only applies this when a deal is heating).
+  function getBadgeHeatStyle(diffPercent, provisional = false) {
+    const t = heatT(diffPercent);
+    if (t === null) return null;
+    const { acc, borderRgb, borderAlpha } = heatRamp(t);
+    const alpha = provisional ? 0.55 : 0.95;
+    return {
+      background: `rgba(${acc.join(',')},${alpha})`,
+      border: `rgba(${borderRgb.join(',')},${borderAlpha.toFixed(2)})`
+    };
   }
 
   function extractActiveStores() {
@@ -3141,9 +3171,10 @@ const SHADOW_MODAL_STYLES = `
     const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
     const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-    // Heatmap: color = the badge number (deal EVENT), continuous with parity at 0.
+    // Heatmap: gray (no deal) -> red (max savings), single hue. The badge reuses
+    // the card logic (getBadgeHeatStyle) so badge color always matches card heat.
     // The blended ranking score drives sorting only, never color or badge text.
-    // Unverified site-Differenz renders paler so provisional heat reads provisional.
+    // Unverified site discounts render paler so provisional heat reads provisional.
     const heatInfo = getHeatInput(cardPrice, stats, diffVal);
     const effectiveDiff = heatInfo.value;
     const heatProvisional = heatInfo.provisional;
@@ -3192,6 +3223,17 @@ const SHADOW_MODAL_STYLES = `
         }
 
         card.classList.add('tp-heatmap-active');
+
+        // Badge follows the card heat: same ramp, solid swatch.
+        const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+        if (heatBadgeEl) {
+          const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional);
+          heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
+          heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
+          heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
+          heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+          heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
+        }
       }
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
       delete card.dataset.tpAppliedHeat;
@@ -3210,6 +3252,15 @@ const SHADOW_MODAL_STYLES = `
       card.style.removeProperty('background-image');
       card.style.removeProperty('background-color');
       card.style.removeProperty('border-color');
+      // Undo the badge heat coupling from the apply path above
+      const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+      if (heatBadgeEl) {
+        heatBadgeEl.style.removeProperty('background');
+        heatBadgeEl.style.removeProperty('border-color');
+        heatBadgeEl.style.removeProperty('color');
+        heatBadgeEl.style.removeProperty('box-shadow');
+        heatBadgeEl.style.removeProperty('--darkreader-inline-bgcolor');
+      }
       // Undo the per-subelement overrides from the apply path above
       for (const sub of card.querySelectorAll(HEAT_SUB_SELECTOR)) {
         sub.style.removeProperty('background-color');
@@ -3411,7 +3462,7 @@ const SHADOW_MODAL_STYLES = `
             }
           }
 
-          const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
+          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
           const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
           const wMed = 1 - wRec;
           const fmtW = w => String(Math.round(w * 100) / 100);
@@ -3560,7 +3611,7 @@ const SHADOW_MODAL_STYLES = `
               detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
             }
             const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-            const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
+            const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
 
             setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
             if (isListView) {
@@ -3597,7 +3648,7 @@ const SHADOW_MODAL_STYLES = `
               notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
             }
             const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Badge-% (blau = Aufschlag; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
+            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
             const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -3640,7 +3691,7 @@ const SHADOW_MODAL_STYLES = `
             setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
             setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
           } else {
-            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-%.`);
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
             } else {
@@ -3881,7 +3932,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>Rabatt-Heatmap aktivieren</label>
-              <span class="tp-switch-desc">Kartenfarbe = Badge-%: Rot = Rabatt (tiefrot = gross), Grau = Nähe (±5%), Blau = Aufschlag. Blass = ungeprüft (Site-Rabatt).</span>
+              <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Deal, Grau = kein Rabatt. Blass = ungeprüft (Site-Rabatt).</span>
             </div>
             <label class="tp-switch tp-rose">
               <input type="checkbox" id="tp-heatmap-enabled-toggle">
@@ -4462,7 +4513,7 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
           </button>
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Kartenfarbe = Badge-% — Rot = Rabatt (tiefrot = gross), Blau = Aufschlag, Grau = Nähe (±5%). Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Deal, Grau = kein Rabatt. Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>

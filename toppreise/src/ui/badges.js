@@ -7,6 +7,7 @@
 
 import { CONFIG, updateConfig, updateConfigs } from '../state/config.js';
 import {
+  getBadgeHeatStyle,
   getHeatmapStyles,
   getCardDealerRows,
   extractCardDiscount,
@@ -67,9 +68,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
   const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-  // Heatmap: color = the badge number (deal EVENT), continuous with parity at 0.
+  // Heatmap: gray (no deal) -> red (max savings), single hue. The badge reuses
+  // the card logic (getBadgeHeatStyle) so badge color always matches card heat.
   // The blended ranking score drives sorting only, never color or badge text.
-  // Unverified site-Differenz renders paler so provisional heat reads provisional.
+  // Unverified site discounts render paler so provisional heat reads provisional.
   const heatInfo = getHeatInput(cardPrice, stats, diffVal);
   const effectiveDiff = heatInfo.value;
   const heatProvisional = heatInfo.provisional;
@@ -118,6 +120,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       }
 
       card.classList.add('tp-heatmap-active');
+
+      // Badge follows the card heat: same ramp, solid swatch.
+      const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+      if (heatBadgeEl) {
+        const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional);
+        heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
+        heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
+        heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
+        heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+        heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
+      }
     }
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
     delete card.dataset.tpAppliedHeat;
@@ -136,6 +149,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     card.style.removeProperty('background-image');
     card.style.removeProperty('background-color');
     card.style.removeProperty('border-color');
+    // Undo the badge heat coupling from the apply path above
+    const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+    if (heatBadgeEl) {
+      heatBadgeEl.style.removeProperty('background');
+      heatBadgeEl.style.removeProperty('border-color');
+      heatBadgeEl.style.removeProperty('color');
+      heatBadgeEl.style.removeProperty('box-shadow');
+      heatBadgeEl.style.removeProperty('--darkreader-inline-bgcolor');
+    }
     // Undo the per-subelement overrides from the apply path above
     for (const sub of card.querySelectorAll(HEAT_SUB_SELECTOR)) {
       sub.style.removeProperty('background-color');
@@ -337,7 +359,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           }
         }
 
-        const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
+        const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
         const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
         const wMed = 1 - wRec;
         const fmtW = w => String(Math.round(w * 100) / 100);
@@ -486,7 +508,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
           }
           const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-          const colorLegend = `Farbe = Badge-% (rot = Rabatt, blau = Aufschlag)`;
+          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
 
           setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
           if (isListView) {
@@ -523,7 +545,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
           }
           const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Badge-% (blau = Aufschlag; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
+          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
           const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -566,7 +588,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
           setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
         } else {
-          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-%.`);
+          setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
           } else {

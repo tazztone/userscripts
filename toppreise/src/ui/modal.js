@@ -67,7 +67,7 @@ export function setupUI() {
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>Rabatt-Heatmap aktivieren</label>
-            <span class="tp-switch-desc">Kartenfarbe = Badge-%: Rot = Rabatt (tiefrot = gross), Grau = Nähe (±5%), Blau = Aufschlag. Blass = ungeprüft (Site-Rabatt).</span>
+            <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Deal, Grau = kein Rabatt. Blass = ungeprüft (Site-Rabatt).</span>
           </div>
           <label class="tp-switch tp-rose">
             <input type="checkbox" id="tp-heatmap-enabled-toggle">

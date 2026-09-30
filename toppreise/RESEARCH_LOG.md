@@ -209,10 +209,13 @@ interpolated; card gets `.tp-heatmap-active` +
 | 0.75 / −50% | flame orange | `[75,42,12]` → `[215,85,18]` |
 | 1.00 / −100% | volcanic ruby | `[98,14,32]` → `[238,25,65]` |
 
-Feed heat comes from `getHeatInput()` = the badge number (`deal-score.js`):
-new-low → −D_record, at-low → the same −D_median the badge shows, above-low →
-+markup (±5% deadband → neutral gray). Unverified site Differenz renders at
-0.55× intensity so provisional heat reads provisional. Hover: stable shadow only — no infinite
+Feed heat comes from `getHeatInput()` = the badge discount (`deal-score.js`):
+new-low → −D_record, at-low → the same −D_median the badge shows; above-low
+and unverified markups → neutral gray (±5% deadband → neutral). The ramp is
+single-hue gray → red (`cards.js`); the badge reuses it via
+`getBadgeHeatStyle()` (solid swatch), so badge color always matches card
+heat. Unverified site discounts render at 0.55× intensity so provisional
+heat reads provisional. Hover: stable shadow only — no infinite
 pulse keyframes, no `scale()`, no `brightness()` (all caused jitter/reflow).
 
 ### Badge / subline states
