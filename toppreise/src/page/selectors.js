@@ -12,7 +12,6 @@ export const SELECTORS = Object.freeze({
     productLinks: 'a[href*="/preisvergleich/"]',
     dealerRows: '.Plugin_DealerRelProdPriceInfo',
     diffBadge: '.badge-dif, .badge, [class*="badge-dif"]',
-    categoryChip: '.subCategory, .productCategory, .categoryLink, [class*="Category"], [data-category]',
     availabilityIcon: '.Plugin_AvailabilityInformation'
   }),
   price: Object.freeze({

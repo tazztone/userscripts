@@ -1,14 +1,15 @@
 /**
  * Page & Card Extraction Layer
  * Manages card discovery, ID extraction, DOM query memoization,
- * discount extraction, category resolution, and heatmap styling.
+ * discount extraction and heatmap styling.
  */
 
 import { SELECTORS } from './selectors.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
 import { computeDealScore } from '../domain/deal-score.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
-import { normalizeName, resolveCategoryGroup } from '../domain/category.js';
+
+export const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
 export function getCardDealerRows(card) {
   if (!card._tpDealerRows) {
@@ -66,52 +67,10 @@ export function getProductCards() {
   return Array.from(gridCards);
 }
 
-export function formatCategorySlug(slug) {
-  if (!slug) return '';
-  const clean = decodeURIComponent(slug).replace(/-/g, ' ').trim();
-  if (!clean || clean.length < 2 || (clean.toLowerCase().startsWith('p') && !isNaN(clean.slice(1)))) return '';
-  return clean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}
-
 export function getCardHrefs(card) {
   if (!card) return [];
   const elements = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
   return Array.from(new Set(elements.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
-}
-
-export function extractCardCategory(card) {
-  if (!card) return '';
-  if (card.dataset?.tpCategory) return card.dataset.tpCategory;
-
-  let extracted = '';
-  for (const href of getCardHrefs(card)) {
-    const match = href.match(/\/(?:preisvergleich|produktsuche)\/(.+?)(?:\/[^\/]+-p\d+|-c\d+)/i);
-    if (match && match[1]) {
-      const segments = match[1].split('/').filter(Boolean);
-      const subCat = segments[segments.length - 1];
-      const formatted = formatCategorySlug(subCat);
-      if (formatted) { extracted = formatted; break; }
-    }
-  }
-
-  if (!extracted && card.querySelector) {
-    const catEl = card.querySelector(SELECTORS.cards.categoryChip);
-    if (catEl) {
-      const text = (catEl.getAttribute('data-category') || catEl.textContent).trim().replace(/\(\d+\)/g, '').trim();
-      if (text && text.length > 1 && !text.includes('CHF') && !text.includes('Angebot') && !text.includes('%')) extracted = text;
-    }
-  }
-
-  if (!extracted) {
-    const activeBreadcrumb = document.querySelector(SELECTORS.layout.breadcrumbs);
-    if (activeBreadcrumb) {
-      const text = activeBreadcrumb.textContent.trim().replace(/\(\d+\)/g, '').trim();
-      if (text && text.length > 1 && !['home', 'toppreise', 'neue toppreise', 'startseite'].includes(text.toLowerCase())) extracted = text;
-    }
-  }
-
-  if (extracted && card.dataset) card.dataset.tpCategory = extracted;
-  return extracted;
 }
 
 export function extractOfferCount(card) {
@@ -233,8 +192,6 @@ export function extractCardData(card) {
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
   const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
-  const catName = extractCardCategory(card);
-  const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);
   const offerCount = extractOfferCount(card);
 
   return {
@@ -247,8 +204,6 @@ export function extractCardData(card) {
     diffVal,
     discountVal,
     dealScore,
-    catName,
-    rootGroup,
     offerCount
   };
 }

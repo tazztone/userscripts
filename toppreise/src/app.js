@@ -8,12 +8,7 @@ import {
 import { computeDealScore } from './domain/deal-score.js';
 import { memoryCache } from './scanner/cache.js';
 import {
-  resolveCategoryGroup,
-  isPathExcluded
-} from './domain/category.js';
-import {
   getProductCards,
-  extractCardCategory,
   extractOfferCount,
   matchesNegativeTerms,
   parseNegativeTerms,
@@ -53,8 +48,8 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.49
-// @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
+// @version      2.18.50
+// @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
 // @updateURL    https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js
@@ -83,11 +78,10 @@ import { processProductDetailPage } from './features/product-detail.js';
   let isModifyingDOM = false;
   let mainObserver = null;
 
-  function applyCardFilters(cd, termsList, excludedCats, minOffers, pageHasOffers) {
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
     const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
-    const isCatExcluded = CONFIG.FILTER_CAT_ENABLED ? !!(cd.catName && isPathExcluded(cd.catName, cd.rootGroup, excludedCats)) : false;
     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-    return { isNeg, isCatExcluded, isLowOffers };
+    return { isNeg, isLowOffers };
   }
 
   function isCardIgnoredOrInvisible(card, filters = null) {
@@ -95,22 +89,18 @@ import { processProductDetailPage } from './features/product-detail.js';
     const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
     if (!isRevealed) {
       if (filters) {
-        if (filters.isNeg || filters.isCatExcluded || filters.isLowOffers) return true;
+        if (filters.isNeg || filters.isLowOffers) return true;
       } else {
         if (card.classList?.contains('tp-negative-filtered') ||
-            card.classList?.contains('tp-category-filtered') ||
             card.classList?.contains('tp-min-offers-filtered') ||
             card.classList?.contains('tp-non-bestpreis-filtered') ||
             card.classList?.contains('tp-bestpreise-hidden')) {
           return true;
         }
         const termsList = parseNegativeTerms();
-        const excludedCats = CONFIG.EXCLUDED_CATEGORIES || [];
-        const catName = extractCardCategory(card);
-        const rootGroup = resolveCategoryGroup(catName, card);
         const offerCount = extractOfferCount(card);
-        const f = applyCardFilters({ card, catName, rootGroup, offerCount }, termsList, excludedCats, CONFIG.MIN_OFFERS, true);
-        if (f.isNeg || f.isCatExcluded || f.isLowOffers) return true;
+        const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, true);
+        if (f.isNeg || f.isLowOffers) return true;
       }
     }
     const tab = card.closest?.('.f_tab');
@@ -145,20 +135,18 @@ import { processProductDetailPage } from './features/product-detail.js';
       // --- Extract ---
       const activeStores = extractActiveStores();
       const termsList = parseNegativeTerms();
-      const excludedCats = CONFIG.EXCLUDED_CATEGORIES || [];
       const isNeueFeed = isNeueToppreisePage();
       const minDealDiscount = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, cat: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 };
+      const counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, excludedCats, CONFIG.MIN_OFFERS, pageHasOffers);
-        const isStandardFiltered = cd.filters.isNeg || cd.filters.isCatExcluded || cd.filters.isLowOffers;
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+        const isStandardFiltered = cd.filters.isNeg || cd.filters.isLowOffers;
         if (cd.filters.isNeg) counts.neg++;
-        if (cd.filters.isCatExcluded) counts.cat++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
           if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
@@ -226,7 +214,6 @@ import { processProductDetailPage } from './features/product-detail.js';
             node.classList?.contains('tp-badge-score-breakdown') ||
             node.classList?.contains('tp-sparkline-container') ||
             node.classList?.contains('tp-best-price-badge') ||
-            node.classList?.contains('tp-card-quick-block') ||
             node.classList?.contains('tp-empty-state-notice')) {
           return false;
         }

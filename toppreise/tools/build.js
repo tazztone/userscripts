@@ -39,7 +39,6 @@ function indent(code, spaces = 2) {
 export function buildBundle() {
   const stylesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'styles.js'), 'utf-8'));
   const selectorsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'selectors.js'), 'utf-8'));
-  const categoryCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'category.js'), 'utf-8'));
   const priceCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'price.js'), 'utf-8'));
   const dealScoreCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'deal-score.js'), 'utf-8'));
   const cacheCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'cache.js'), 'utf-8'));
@@ -104,9 +103,6 @@ ${stylesCode}
 
   // ─── MODULE: src/page/selectors.js ──────────────────────────────────────────
 ${indent(selectorsCode, 2)}
-
-  // ─── MODULE: src/domain/category.js ─────────────────────────────────────────
-${indent(categoryCode, 2)}
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
 ${indent(priceCode, 2)}

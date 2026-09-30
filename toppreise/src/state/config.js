@@ -8,7 +8,6 @@ import { uiShadowRoot } from '../ui/modal.js';
 
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
-  FILTER_CAT_ENABLED: true,
   FILTER_MIN_ENABLED: true,
   FILTER_BESTPREIS_ENABLED: true,
   MODE: 'dim',
@@ -27,7 +26,6 @@ export const DEFAULTS = Object.freeze({
   OUTLIER_REJECTION_ENABLED: true,
   ENABLE_SPARKLINES: true,
   NEGATIVE_TERMS: '',
-  EXCLUDED_CATEGORIES: [],
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -46,7 +44,6 @@ export const _setValue = (k, v) => (typeof GM_setValue !== 'undefined' ? GM_setV
 
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
-  FILTER_CAT_ENABLED: _getValue('FILTER_CAT_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_CAT_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
   FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
   MODE: _getValue('MODE', DEFAULTS.MODE),
@@ -61,7 +58,6 @@ export const CONFIG = {
   BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
-  EXCLUDED_CATEGORIES: _getValue('EXCLUDED_CATEGORIES', DEFAULTS.EXCLUDED_CATEGORIES),
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
   SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
   ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -193,15 +189,6 @@ export function syncUiControl(key, val) {
             }
             break;
           }
-          case 'FILTER_CAT_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-cat');
-            if (toggle) {
-              toggle.classList.toggle('tp-active', !!val);
-              toggle.classList.toggle('tp-filter-off', !val);
-              toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
-            }
-            break;
-          }
           case 'FILTER_MIN_ENABLED': {
             const toggle = bar.querySelector('#tp-toggle-min');
             if (toggle) {
@@ -231,14 +218,6 @@ export function syncUiControl(key, val) {
             bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
               btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
             });
-            break;
-          }
-          case 'EXCLUDED_CATEGORIES': {
-            const catsCount = bar.querySelector('#tp-bar-cats-count');
-            const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
-            const count = (val || []).length;
-            if (catsCount) catsCount.textContent = count;
-            if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
             break;
           }
         }

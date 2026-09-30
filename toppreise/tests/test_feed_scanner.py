@@ -425,13 +425,10 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # Count should immediately drop from 3 to 2 because card-negative is now an ignored invisible product
     assert 'Check Deals (2)' in (batch_btn.text_content() or '')
 
-    # 2. Exclude category for card-cat-excluded (-50%)
-    page.evaluate("""() => {
-        const curr = window.ToppreiseSuite.CONFIG.EXCLUDED_CATEGORIES || [];
-        window.ToppreiseSuite.saveConfigKey('EXCLUDED_CATEGORIES', [...curr, 'Smartphones']);
-        window.ToppreiseSuite.processListings();
-    }""")
-    page.wait_for_selector('#card-cat-excluded.tp-category-filtered', state='attached')
+    # 2. Filter out card-cat-excluded (-50%) with a second negative keyword
+    page.fill('#tp-inline-negative-input', 'Silikon, iPhone')
+    page.dispatch_event('#tp-inline-negative-input', 'input')
+    page.wait_for_selector('#card-cat-excluded.tp-negative-filtered', state='attached')
 
     # Count drops to 1 (only card-cheapest -67% remains visible)
     assert 'Check Deals (1)' in (batch_btn.text_content() or '')
@@ -460,7 +457,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # Verify only card-cheapest (797571) was requested
     assert '797571' in requested_pids
     assert '797573' not in requested_pids  # card-negative (Silikon) must NOT be checked
-    assert '797574' not in requested_pids  # card-cat-excluded (Kabel) must NOT be checked
+    assert '797574' not in requested_pids  # card-cat-excluded (iPhone) must NOT be checked
 
     # Now unchecked deals is 0! Button should show Check Deals (0)
     page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').textContent.includes('Check Deals (0)')")

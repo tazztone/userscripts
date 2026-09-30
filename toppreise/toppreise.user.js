@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.49
-// @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, filters categories, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
+// @version      2.18.50
+// @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
 // @updateURL    https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js
@@ -110,10 +110,10 @@ const STYLES = `
     --darkreader-inline-bgcolor: transparent !important;
     --darkreader-inline-bgimage: none !important;
   }
-  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
-  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
+  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-sparkline-container),
+  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-sparkline-container),
   .tp-heatmap-active p,
-  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-card-quick-block *):not(.tp-sparkline-container *) {
+  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-sparkline-container *) {
     background: transparent !important;
     background-color: transparent !important;
     --darkreader-inline-bgcolor: transparent !important;
@@ -167,21 +167,18 @@ const STYLES = `
   }
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-not-cheapest,
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-no-store-offer,
-  .tp-negative-filtered, .tp-category-filtered, .tp-min-offers-filtered, .tp-non-bestpreis-filtered, .tp-bestpreise-hidden,
+  .tp-negative-filtered, .tp-min-offers-filtered, .tp-non-bestpreis-filtered, .tp-bestpreise-hidden,
   [class*="col-"]:has(> .tp-negative-filtered),
-  [class*="col-"]:has(> .tp-category-filtered),
   [class*="col-"]:has(> .tp-min-offers-filtered),
   [class*="col-"]:has(> .tp-non-bestpreis-filtered),
   [class*="col-"]:has(> .tp-bestpreise-hidden) {
     display: none !important;
   }
   body.tp-reveal-filtered .tp-negative-filtered,
-  body.tp-reveal-filtered .tp-category-filtered,
   body.tp-reveal-filtered .tp-min-offers-filtered,
   body.tp-reveal-filtered .tp-non-bestpreis-filtered,
   body.tp-reveal-filtered .tp-bestpreise-hidden,
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-negative-filtered),
-  body.tp-reveal-filtered [class*="col-"]:has(> .tp-category-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-min-offers-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-non-bestpreis-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-bestpreise-hidden) {
@@ -717,36 +714,6 @@ const STYLES = `
     color: #ffffff !important;
     box-shadow: 0 2px 10px rgba(225, 29, 72, 0.45) !important;
   }
-  .tp-card-quick-block {
-    position: absolute !important;
-    bottom: 6px !important;
-    left: 8px !important;
-    background: rgba(15,23,42,0.92) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(244,63,94,0.5) !important;
-    color: #fda4af !important;
-    font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    padding: 2px 7px !important;
-    border-radius: 6px !important;
-    cursor: pointer !important;
-    opacity: 0 !important;
-    transition: all 0.2s ease !important;
-    z-index: 9999 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    max-width: 160px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
-  }
-  .Plugin_Product:hover .tp-card-quick-block,
-  .mixedBrowsingListProduct:hover .tp-card-quick-block { opacity: 1 !important; }
-  .tp-card-quick-block:hover {
-    background: #e11d48 !important;
-    color: #fff !important;
-  }
   #tp-suite-filter-bar {
     margin: 8px auto 12px !important;
     width: 100% !important;
@@ -873,46 +840,6 @@ const STYLES = `
     padding: 0 !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
-  .tp-blocked-cats-row {
-    border-top: 1px solid rgba(255,255,255,0.08) !important;
-    padding-top: 6px !important;
-    align-items: center !important;
-    gap: 6px !important;
-    flex-wrap: wrap !important;
-    max-height: 140px !important;
-    overflow-y: auto !important;
-  }
-  .tp-blocked-cats-row.tp-collapsed {
-    display: none !important;
-  }
-  .tp-blocked-cats-row.tp-expanded {
-    display: flex !important;
-  }
-  .tp-blocked-cats-label {
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    color: #f43f5e !important;
-  }
-  .tp-blocked-chip {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 5px !important;
-    padding: 2px 8px !important;
-    border-radius: 10px !important;
-    font: 600 11px inherit !important;
-    background: rgba(239,68,68,0.18) !important;
-    border: 1px solid rgba(239,68,68,0.4) !important;
-    color: #fca5a5 !important;
-  }
-  .tp-blocked-chip-remove { cursor: pointer !important; font-weight: 700 !important; }
-  .tp-blocked-clear-all {
-    font-size: 10px !important;
-    color: #94a3b8 !important;
-    background: transparent !important;
-    border: none !important;
-    text-decoration: underline !important;
-    cursor: pointer !important;
-  }
 `;
 
 const SHADOW_MODAL_STYLES = `
@@ -1141,7 +1068,6 @@ const SHADOW_MODAL_STYLES = `
       productLinks: 'a[href*="/preisvergleich/"]',
       dealerRows: '.Plugin_DealerRelProdPriceInfo',
       diffBadge: '.badge-dif, .badge, [class*="badge-dif"]',
-      categoryChip: '.subCategory, .productCategory, .categoryLink, [class*="Category"], [data-category]',
       availabilityIcon: '.Plugin_AvailabilityInformation'
     }),
     price: Object.freeze({
@@ -1169,88 +1095,6 @@ const SHADOW_MODAL_STYLES = `
       activeStoreFilters: '.filters .f_remove_filter[data-target-type="df"]'
     })
   });
-
-  // ─── MODULE: src/domain/category.js ─────────────────────────────────────────
-  /**
-   * Category & Taxonomy Domain Layer
-   * Manages category group mapping, emojis, brand rules, root slug normalization,
-   * and category exclusion checks.
-   */
-
-  const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-
-  const ROOT_SLUG_MAP = Object.freeze({
-    'computer-zubehoer': 'Computer & Zubehör', 'videogames': 'Videogames', 'tv-video': 'TV & Video',
-    'foto-video': 'Foto & Video', 'foto': 'Foto & Video', 'smartphones-mobiltelefone': 'Smartphones & Mobiltelefone',
-    'hifi-audio': 'HiFi & Audio', 'haushalt-kueche': 'Haushalt & Küche', 'drogerie': 'Drogerie',
-    'sport-freizeit': 'Sport & Freizeit', 'spielwaren': 'Spielwaren', 'buerobedarf-schreibwaren': 'Bürobedarf & Schreibwaren',
-    'haus-garten': 'Garten & Baumarkt', 'garten-baumarkt': 'Garten & Baumarkt', 'werkzeuge-werkstatt': 'Garten & Baumarkt',
-    'auto-motorrad': 'Auto & Motorrad', 'filme': 'Filme', 'uhren': 'Uhren', 'buecher-medien': 'Bücher & Medien',
-    'kleidung-mode': 'Kleidung & Mode', 'bekleidung-schuhe': 'Kleidung & Mode'
-  });
-
-  const GROUP_EMOJIS = Object.freeze({
-    'Filme': '🎬', 'Spielwaren': '🧸', 'Computer & Zubehör': '💻', 'Videogames': '🎮', 'HiFi & Audio': '🎧',
-    'TV & Video': '📺', 'Smartphones & Mobiltelefone': '📱', 'Drogerie': '🧴', 'Sport & Freizeit': '⚽',
-    'Haushalt & Küche': '☕', 'Auto & Motorrad': '🚗', 'Uhren': '⌚', 'Foto & Video': '📷', 'Bücher & Medien': '📚',
-    'Kleidung & Mode': '👕', 'Garten & Baumarkt': '🪴', 'Sonstiges': '📦'
-  });
-
-  const getGroupEmoji = g => GROUP_EMOJIS[g] || '📦';
-  const normalizeRootSlug = s => s ? ROOT_SLUG_MAP[s.split('-c')[0].toLowerCase().trim()] || null : null;
-
-  function extractCategoryDisplay(key) {
-    if (!key) return { label: '', group: '' };
-    if (key.startsWith('GROUP:')) return { label: key.slice(6), group: key.slice(6) };
-    if (key.startsWith('PATH:')) {
-      const parts = key.slice(5).split('/');
-      return { label: parts.slice(1).join('/') || parts[0] || '', group: parts[0] || '' };
-    }
-    return { label: key, group: '' };
-  }
-
-  const BRAND_RULES = Object.freeze([
-    { regex: /\b(game|games|spiel|spiele|nintendo|switch|playstation|ps[3-5]|xbox|pc spiele|konsole|konsolen|gamepad|controller|lenkrad|vr headset|amiibo|simulationen|rennspiel|actionspiele|tabletop spiele)\b/i, group: 'Videogames' },
-    { regex: /\b(lego[s]?|playmobil|cobi|cada|mega construx|fischertechnik|ravensburger|schleich|barbie|hot wheels|action figuren|funko|nerf|spielwaren|spielzeug|puppe[n]?|plue?sch|autorennbahn|rc modelle|multicopter|puzzles|gesellschaftsspiele|familienspiele|kartenspiele|experimentierkaesten|bau konstruktionsspielzeug|outdoor spielzeug|spielzeugroboter)\b/i, group: 'Spielwaren' },
-    { regex: /\b(reifen|pneus|sommerreifen|winterreifen|allwetterreifen|felgen|dachbox(?:en)?|dachtrae?ger|kindersitz(?:e)?|autozubehoer|car hifi|car video|motorradhelm|dashcam)\b/i, group: 'Auto & Motorrad' },
-    { regex: /\b(fritteuse[n]?|heissluftfritteuse[n]?|vollautomat(?:en)?|kaffee|espressomaschine[n]?|kaffeemue?hle|kue?chengera?e?te?|haushaltsgera?e?te?|staubsauger|saugroboter|wischroboter|fensterreinigungsroboter|mikrowelle[n]?|backofen|herd|kue?hlschrank|gefrierschrank|geschirrspue?ler|waschmaschine[n]?|wae?schetrockner|mixer|blender|wasserkocher|toaster|thermoskanne|abfallsystem|raumduft|dampfgarer|slowcooker|saftpresse|entsafter|geschirr|besteck|glae?ser|toe?pfe?|pfanne[n]?|kochgeschirr|spirituosen|wein|whisky|gin|rum|vodka|saug und wischroboter|klimageraete|senseo maschinen|sonstige kuechengeraete)\b/i, group: 'Haushalt & Küche' },
-    { regex: /\b(haarglae?tter|glae?tteisen|bartschneider|haarschneider|haar bartschneider|rasierer|elektrorasierer|epilierer|haartrockner|foe?hn|zahnbue?rste[n]?|elektrozahnbue?rste[n]?|parfu?e?m|due?fte?|eau de|duschpflege|duschgel|shampoo|seife|geschenkset[s]?|hautpflege|koe?rperpflege|kosmetik|make-up|makeup|sonnenschutz|kontaktlinsen|hygiene)\b/i, group: 'Drogerie' },
-    { regex: /\b(smartphone[s]?|mobiltelefon[e]?|handy[s]?|iphone|galaxy|pixel|smartring[e]?|smartwatch(es)?|activity tracker|hue?lle[n]?|cover|oberschalen cover|schutzfolie|panzerglas|ladekabel|powerbank[s]?|magsafe|funktelefon|festnetz)\b/i, group: 'Smartphones & Mobiltelefone' },
-    { regex: /\b(kopfhoe?rer|in-ear|earbuds|lautsprecher|bluetooth lautsprecher|soundbar|plattenspieler|receiver|av receiver|home cinema av receiver|verstae?rker|hifi|radio|cd player|dac|subwoofer|mikrofon|musikinstrument|gitarre|piano|keyboard)\b/i, group: 'HiFi & Audio' },
-    { regex: /\b(tv|fernseher|tv geraete|beamer|projektor|home cinema|heimkino|blu-ray player|dvd player|actioncam|actionkamera|camcorder|media player|streaming stick|chromecast|apple tv)\b/i, group: 'TV & Video' },
-    { regex: /\b(kamera[s]?|digitalkamera|spiegellose|dslr|objektiv[e]?|stativ[e]?|blitz|fotostudio|drohne|sofortbildkamera)\b/i, group: 'Foto & Video' },
-    { regex: /\b(dvd|blu-ray|blu ray|4k ultra hd|film[e]?|kino|serie|tv serien|western|abenteuer|action|krimi|drama|komoe?die|thriller|horror|anime|dokumentation)\b/i, group: 'Filme' },
-    { regex: /\b(crosstrainer|laufband|laufbae?nder|ergometer|rudergera?e?t|fitness|krafttraining|fitness krafttraining|hantel[n]?|matten|velo[s]?|fahrrad|ebike|e-bike|velohelm|skihelme|skibrille|skihelm|koffer|rucksack|taschenmesser|fernglas|camping|zelt|schlafsack|tretroller|scooter|inline skates|gps|gps navigations geraete|navigation|navigations|activity tracker smartwatches)\b/i, group: 'Sport & Freizeit' },
-    { regex: /\b(rasenmae?her|rasenroboter|grill|gasgrill|elektrogrill|holzkohlegrill|bohrmaschine|akkuschrauber|sae?ge|schleifer|schwingschleifer|schalter|taster|steckdose|lampe[n]?|leuchtmittel|led|smart home|gartenmoe?bel|hochdruckreiniger|werkzeug[e]?)\b/i, group: 'Garten & Baumarkt' },
-    { regex: /\b(uhr[en]?|armbanduhr|damenuhr|herrenuhr|chronograph|automatikuhr|wanduhr|wecker)\b/i, group: 'Uhren' },
-    { regex: /\b(kleidung|bekleidung|jacke[n]?|hose[n]?|t-shirt|pullover|hemd|kleid|schuhe|sneaker|stiefel|tasche[n]?|handtasche|rucksack|sonnenbrille[n]?|schmuck|ring|kette)\b/i, group: 'Kleidung & Mode' },
-    { regex: /\b(buch|bue?cher|roman|taschenbuch|sachbuch|hoe?rbuch|comic|manga|zeitschrift)\b/i, group: 'Bücher & Medien' },
-    { regex: /\b(usb|speicherstick[s]?|ssd|hdds?|solid state|festplatte[n]?|grafikkarte[n]?|notebook[s]?|laptop[s]?|tablet[s]?|ebook|monitore|monitor|drucker|scanner|nas|mainboard[s]?|prozessor[en]?|cpu|gpu|pc gehaeuse|netzteil[e]?|ladegera?e?t[e]?|ladegeraete netzadapter|kabel|hub|dockingstation|tastatur[en]?|maus|mae?use|mausmatte|webcam[s]?|headset|aktenvernichter|papierschredder|arbeitsspeicher|ram|netzwerk|wlan|router|switch|server|western digital|externe solid state drives ssd|usb speichersticks)\b/i, group: 'Computer & Zubehör' }
-  ]);
-
-  function resolveCategoryGroup(categoryName, card = null, cardHrefsGetter = null) {
-    if (card && cardHrefsGetter) {
-      for (const href of cardHrefsGetter(card)) {
-        const match = href.match(/\/(?:preisvergleich|produktsuche)\/([^\/]+)\//i);
-        if (match && match[1]) {
-          for (const seg of match[1].split('/').filter(Boolean)) {
-            const canonical = normalizeRootSlug(seg);
-            if (canonical) return canonical;
-            const normSeg = seg.toLowerCase().replace(/-/g, ' ');
-            for (const rule of BRAND_RULES) if (rule.regex.test(normSeg)) return rule.group;
-          }
-        }
-      }
-    }
-    if (categoryName) {
-      const norm = categoryName.toLowerCase();
-      for (const rule of BRAND_RULES) if (rule.regex.test(norm)) return rule.group;
-    }
-    return 'Sonstiges';
-  }
-
-  const isPathExcluded = (catName, rootGroup, excludedCats = []) =>
-    excludedCats.includes(`GROUP:${rootGroup}`) || (catName && (excludedCats.includes(catName) || excludedCats.includes(`PATH:${rootGroup}/${catName}`)));
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
   /**
@@ -1789,7 +1633,6 @@ const SHADOW_MODAL_STYLES = `
 
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: true,
-    FILTER_CAT_ENABLED: true,
     FILTER_MIN_ENABLED: true,
     FILTER_BESTPREIS_ENABLED: true,
     MODE: 'dim',
@@ -1808,7 +1651,6 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_REJECTION_ENABLED: true,
     ENABLE_SPARKLINES: true,
     NEGATIVE_TERMS: '',
-    EXCLUDED_CATEGORIES: [],
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -1827,7 +1669,6 @@ const SHADOW_MODAL_STYLES = `
 
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
-    FILTER_CAT_ENABLED: _getValue('FILTER_CAT_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_CAT_ENABLED)),
     FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
     FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
     MODE: _getValue('MODE', DEFAULTS.MODE),
@@ -1842,7 +1683,6 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
-    EXCLUDED_CATEGORIES: _getValue('EXCLUDED_CATEGORIES', DEFAULTS.EXCLUDED_CATEGORIES),
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
     SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
     ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -1974,15 +1814,6 @@ const SHADOW_MODAL_STYLES = `
               }
               break;
             }
-            case 'FILTER_CAT_ENABLED': {
-              const toggle = bar.querySelector('#tp-toggle-cat');
-              if (toggle) {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Kategorien-Filter ${val ? 'AN' : 'AUS'}`;
-              }
-              break;
-            }
             case 'FILTER_MIN_ENABLED': {
               const toggle = bar.querySelector('#tp-toggle-min');
               if (toggle) {
@@ -2012,14 +1843,6 @@ const SHADOW_MODAL_STYLES = `
               bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
                 btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
               });
-              break;
-            }
-            case 'EXCLUDED_CATEGORIES': {
-              const catsCount = bar.querySelector('#tp-bar-cats-count');
-              const catsToggle = bar.querySelector('#tp-bar-cats-toggle');
-              const count = (val || []).length;
-              if (catsCount) catsCount.textContent = count;
-              if (catsToggle) catsToggle.style.display = count > 0 ? 'flex' : 'none';
               break;
             }
           }
@@ -2221,13 +2044,14 @@ const SHADOW_MODAL_STYLES = `
   /**
    * Page & Card Extraction Layer
    * Manages card discovery, ID extraction, DOM query memoization,
-   * discount extraction, category resolution, and heatmap styling.
+   * discount extraction and heatmap styling.
    */
 
 
 
 
 
+  const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
   function getCardDealerRows(card) {
     if (!card._tpDealerRows) {
@@ -2285,52 +2109,10 @@ const SHADOW_MODAL_STYLES = `
     return Array.from(gridCards);
   }
 
-  function formatCategorySlug(slug) {
-    if (!slug) return '';
-    const clean = decodeURIComponent(slug).replace(/-/g, ' ').trim();
-    if (!clean || clean.length < 2 || (clean.toLowerCase().startsWith('p') && !isNaN(clean.slice(1)))) return '';
-    return clean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  }
-
   function getCardHrefs(card) {
     if (!card) return [];
     const elements = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
     return Array.from(new Set(elements.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
-  }
-
-  function extractCardCategory(card) {
-    if (!card) return '';
-    if (card.dataset?.tpCategory) return card.dataset.tpCategory;
-
-    let extracted = '';
-    for (const href of getCardHrefs(card)) {
-      const match = href.match(/\/(?:preisvergleich|produktsuche)\/(.+?)(?:\/[^\/]+-p\d+|-c\d+)/i);
-      if (match && match[1]) {
-        const segments = match[1].split('/').filter(Boolean);
-        const subCat = segments[segments.length - 1];
-        const formatted = formatCategorySlug(subCat);
-        if (formatted) { extracted = formatted; break; }
-      }
-    }
-
-    if (!extracted && card.querySelector) {
-      const catEl = card.querySelector(SELECTORS.cards.categoryChip);
-      if (catEl) {
-        const text = (catEl.getAttribute('data-category') || catEl.textContent).trim().replace(/\(\d+\)/g, '').trim();
-        if (text && text.length > 1 && !text.includes('CHF') && !text.includes('Angebot') && !text.includes('%')) extracted = text;
-      }
-    }
-
-    if (!extracted) {
-      const activeBreadcrumb = document.querySelector(SELECTORS.layout.breadcrumbs);
-      if (activeBreadcrumb) {
-        const text = activeBreadcrumb.textContent.trim().replace(/\(\d+\)/g, '').trim();
-        if (text && text.length > 1 && !['home', 'toppreise', 'neue toppreise', 'startseite'].includes(text.toLowerCase())) extracted = text;
-      }
-    }
-
-    if (extracted && card.dataset) card.dataset.tpCategory = extracted;
-    return extracted;
   }
 
   function extractOfferCount(card) {
@@ -2452,8 +2234,6 @@ const SHADOW_MODAL_STYLES = `
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
     const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
-    const catName = extractCardCategory(card);
-    const rootGroup = resolveCategoryGroup(catName, card, getCardHrefs);
     const offerCount = extractOfferCount(card);
 
     return {
@@ -2466,8 +2246,6 @@ const SHADOW_MODAL_STYLES = `
       diffVal,
       discountVal,
       dealScore,
-      catName,
-      rootGroup,
       offerCount
     };
   }
@@ -3057,7 +2835,7 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────
   /**
    * Visual Badges & Card Decorator Component
-   * Manages card thermal heatmaps, quick-block buttons, deal badges (Allzeit-Tiefstpreis,
+   * Manages card thermal heatmaps, deal badges (Allzeit-Tiefstpreis,
    * Neuer Rekord, Differenz loupe, markup alert), score breakdown pills,
    * mini sparklines, and empty-state messaging.
    */
@@ -3070,11 +2848,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
-  let isBlockedCatsOpen = false;
-  function setBlockedCatsOpen(open) {
-    isBlockedCatsOpen = open;
-  }
 
   function triggerProcessListings() {
     if (typeof processListings === 'function') {
@@ -3103,7 +2876,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-    const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal, catName, rootGroup } = cd;
+    const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal } = cd;
 
     // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
     const effectiveDiff = isVerifiedNonBest
@@ -3144,7 +2917,7 @@ const SHADOW_MODAL_STYLES = `
         for (let s = 0; s < subElements.length; s++) {
           const sub = subElements[s];
           if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
-              sub.classList.contains('tp-best-price-badge') || sub.classList.contains('tp-card-quick-block') ||
+              sub.classList.contains('tp-best-price-badge') ||
               sub.classList.contains('tp-sparkline-container') || sub.tagName === 'BUTTON') {
             continue;
           }
@@ -3177,41 +2950,8 @@ const SHADOW_MODAL_STYLES = `
       card.style.removeProperty('border-color');
     }
 
-    // 1. Category extraction & Quick-block
-    if (isNeueFeed) {
-      if (catName && !card.querySelector('.tp-card-quick-block')) {
-        const quickBlockBtn = document.createElement('button');
-        quickBlockBtn.type = 'button';
-        quickBlockBtn.className = 'tp-card-quick-block';
-        quickBlockBtn.title = `Kategorie "${catName}" (${rootGroup}) ausblenden`;
-        quickBlockBtn.textContent = '🚫 ';
-        const catSpan = document.createElement('span');
-        catSpan.textContent = catName;
-        quickBlockBtn.appendChild(catSpan);
-        quickBlockBtn.onclick = e => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          const curr = CONFIG.EXCLUDED_CATEGORIES || [];
-          const key = `PATH:${rootGroup}/${catName}`;
-          if (!curr.includes(key) && !curr.includes(catName)) {
-            isBlockedCatsOpen = true;
-            updateConfig('EXCLUDED_CATEGORIES', [...curr, key]);
-            showToast(`Kategorie "${catName}" ausgeblendet`, 4000, 'Rückgängig', () => {
-              updateConfig('EXCLUDED_CATEGORIES', (CONFIG.EXCLUDED_CATEGORIES || []).filter(c => c !== key && c !== catName));
-              showToast(`Kategorie "${catName}" wieder eingeblendet`);
-            });
-          }
-        };
-        card.appendChild(quickBlockBtn);
-      }
-    } else {
-      card.querySelector('.tp-card-quick-block')?.remove();
-    }
-
     // 2. Filters
     card.classList.toggle('tp-negative-filtered', filters.isNeg);
-    card.classList.toggle('tp-category-filtered', filters.isCatExcluded);
     card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
 
     // 3. Best Price Highlighting
@@ -3684,7 +3424,7 @@ const SHADOW_MODAL_STYLES = `
       return;
     }
 
-    const totalHidden = (counts.neg || 0) + (counts.cat || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
+    const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
     const isRevealed = document.body.classList.contains('tp-reveal-filtered');
 
     if (cards.length > 0 && totalHidden >= cards.length && !isRevealed) {
@@ -3724,7 +3464,6 @@ const SHADOW_MODAL_STYLES = `
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
         updateConfigs({
           FILTER_NEG_ENABLED: false,
-          FILTER_CAT_ENABLED: false,
           FILTER_MIN_ENABLED: false,
           FILTER_BESTPREIS_ENABLED: false
         });
@@ -4338,9 +4077,8 @@ const SHADOW_MODAL_STYLES = `
   /**
    * Suite Filter Toolbar Component
    * Manages the inline/floating contextual filter bar, quick filters,
-   * deal thresholds, chips, category filters, and scan progress.
+   * deal thresholds, and scan progress.
    */
-
 
 
 
@@ -4363,14 +4101,13 @@ const SHADOW_MODAL_STYLES = `
     return { container: document.body, reference: document.body.firstElementChild };
   }
 
-  function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
+  function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
     const placement = getSuiteBarPlacement();
     if (!placement?.container) return;
 
     let bar = document.getElementById('tp-suite-filter-bar');
-    const excluded = CONFIG.EXCLUDED_CATEGORIES || [];
     const isRevealed = document.body.classList.contains('tp-reveal-filtered');
-    const totalHidden = (counts.neg || 0) + (counts.cat || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
+    const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
     const uncheckedDeals = counts.uncheckedDeals || 0;
     const bestpreiseDeals = counts.bestpreiseDeals || 0;
 
@@ -4388,7 +4125,7 @@ const SHADOW_MODAL_STYLES = `
               <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
             </div>
           </div>
-          <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Ausgeblendete Produkte anzeigen/verbergen">
+          <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
           </button>
           <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Rabatt-Heatmap ein-/ausschalten" style="display: flex;">🔥 Heatmap</button>
@@ -4420,9 +4157,6 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 60 ? 'tp-selected' : ''}" data-val="60">≥ 60%</button>
             </div>
           </div>
-          <button class="tp-bar-btn ${isBlockedCatsOpen ? 'tp-active' : ''}" id="tp-bar-cats-toggle" style="display: ${excluded.length > 0 ? 'flex' : 'none'};" title="Ausgeblendete Kategorien anzeigen/verbergen">
-            🚫 <span id="tp-bar-cats-count">${excluded.length}</span> ${isBlockedCatsOpen ? '▴' : '▾'}
-          </button>
           <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};">
             <span>Min:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -4433,9 +4167,6 @@ const SHADOW_MODAL_STYLES = `
             <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_NEG_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-neg" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
               📝
             </button>
-            <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_CAT_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-cat" title="Kategorien-Filter ${CONFIG.FILTER_CAT_ENABLED ? 'AN' : 'AUS'}">
-              🚫
-            </button>
             <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_MIN_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-min" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
               🔢
             </button>
@@ -4443,11 +4174,6 @@ const SHADOW_MODAL_STYLES = `
               💎
             </button>
           </div>
-        </div>
-        <div id="tp-blocked-cats-container" class="tp-blocked-cats-row" style="display: ${excluded.length > 0 && isBlockedCatsOpen ? 'flex' : 'none'};">
-          <span class="tp-blocked-cats-label">🚫 Ausgeblendet (${excluded.length}):</span>
-          <div id="tp-blocked-chips-list" style="display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center;"></div>
-          <button class="tp-blocked-clear-all" id="tp-blocked-clear-all-btn">Alle freigeben</button>
         </div>
       `;
 
@@ -4612,11 +4338,6 @@ const SHADOW_MODAL_STYLES = `
         });
       }
 
-      bar.querySelector('#tp-bar-cats-toggle').onclick = () => {
-        isBlockedCatsOpen = !isBlockedCatsOpen;
-        processListings();
-      };
-
       const updateMinOffers = delta => {
         const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
         if (next !== CONFIG.MIN_OFFERS) {
@@ -4631,11 +4352,6 @@ const SHADOW_MODAL_STYLES = `
         updateConfig('FILTER_NEG_ENABLED', next);
         showToast(next ? '📝 Negativ-Filter AN' : '📝 Negativ-Filter AUS');
       };
-      bar.querySelector('#tp-toggle-cat').onclick = () => {
-        const next = !CONFIG.FILTER_CAT_ENABLED;
-        updateConfig('FILTER_CAT_ENABLED', next);
-        showToast(next ? '🚫 Kategorien-Filter AN' : '🚫 Kategorien-Filter AUS');
-      };
       bar.querySelector('#tp-toggle-min').onclick = () => {
         const next = !CONFIG.FILTER_MIN_ENABLED;
         updateConfig('FILTER_MIN_ENABLED', next);
@@ -4645,14 +4361,6 @@ const SHADOW_MODAL_STYLES = `
         const next = !CONFIG.FILTER_BESTPREIS_ENABLED;
         updateConfig('FILTER_BESTPREIS_ENABLED', next);
         showToast(next ? '💎 Deal-Filter AN' : '💎 Deal-Filter AUS');
-      };
-      bar.querySelector('#tp-blocked-clear-all-btn').onclick = () => {
-        const prevCats = [...(CONFIG.EXCLUDED_CATEGORIES || [])];
-        updateConfig('EXCLUDED_CATEGORIES', []);
-        showToast('Alle blockierten Kategorien freigegeben', 5000, 'Rückgängig', () => {
-          updateConfig('EXCLUDED_CATEGORIES', prevCats);
-          showToast('Blockierte Kategorien wiederhergestellt');
-        });
       };
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
@@ -4700,12 +4408,6 @@ const SHADOW_MODAL_STYLES = `
       toggleNeg.classList.toggle('tp-active', CONFIG.FILTER_NEG_ENABLED);
       toggleNeg.classList.toggle('tp-filter-off', !CONFIG.FILTER_NEG_ENABLED);
       toggleNeg.title = `Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}`;
-    }
-    const toggleCat = bar.querySelector('#tp-toggle-cat');
-    if (toggleCat) {
-      toggleCat.classList.toggle('tp-active', CONFIG.FILTER_CAT_ENABLED);
-      toggleCat.classList.toggle('tp-filter-off', !CONFIG.FILTER_CAT_ENABLED);
-      toggleCat.title = `Kategorien-Filter ${CONFIG.FILTER_CAT_ENABLED ? 'AN' : 'AUS'}`;
     }
     const toggleMin = bar.querySelector('#tp-toggle-min');
     if (toggleMin) {
@@ -4781,55 +4483,10 @@ const SHADOW_MODAL_STYLES = `
       weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
 
-    const catsToggleBtn = bar.querySelector('#tp-bar-cats-toggle');
-    if (catsToggleBtn) {
-      catsToggleBtn.style.display = excluded.length > 0 ? 'flex' : 'none';
-      catsToggleBtn.classList.toggle('tp-active', isBlockedCatsOpen);
-      catsToggleBtn.innerHTML = `🚫 <span id="tp-bar-cats-count">${excluded.length}</span> ${isBlockedCatsOpen ? '▴' : '▾'}`;
-    }
-
     const minGroup = bar.querySelector('#tp-bar-min-offers-group');
     if (minGroup) minGroup.style.display = pageHasOffers ? 'flex' : 'none';
     const minVal = bar.querySelector('#tp-bar-min-val');
     if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
-
-    const blockedContainer = bar.querySelector('#tp-blocked-cats-container');
-    const chipsList = bar.querySelector('#tp-blocked-chips-list');
-    if (blockedContainer && chipsList) {
-      const showDrawer = excluded.length > 0 && isBlockedCatsOpen;
-      blockedContainer.classList.toggle('tp-expanded', showDrawer);
-      blockedContainer.classList.toggle('tp-collapsed', !showDrawer);
-      blockedContainer.style.setProperty('display', showDrawer ? 'flex' : 'none', 'important');
-
-      if (excluded.length > 0) {
-        chipsList.replaceChildren();
-        const labelEl = blockedContainer.querySelector('.tp-blocked-cats-label');
-        if (labelEl) labelEl.textContent = `🚫 Ausgeblendet (${excluded.length}):`;
-
-        excluded.forEach(key => {
-          const info = extractCategoryDisplay(key);
-          const chip = document.createElement('span');
-          chip.className = 'tp-blocked-chip';
-          chip.textContent = `${getGroupEmoji(info.group)} `;
-          const chipLabel = document.createElement('span');
-          chipLabel.textContent = info.label;
-          const chipRemove = document.createElement('span');
-          chipRemove.className = 'tp-blocked-chip-remove';
-          chipRemove.title = 'Wieder einblenden';
-          chipRemove.textContent = '✕';
-          chip.append(chipLabel, ' ', chipRemove);
-          chip.querySelector('.tp-blocked-chip-remove').onclick = e => {
-            e.stopPropagation();
-            saveConfigKey('EXCLUDED_CATEGORIES', (CONFIG.EXCLUDED_CATEGORIES || []).filter(c => c !== key));
-            processListings();
-            showToast(`Kategorie "${info.label}" wieder eingeblendet`);
-          };
-          chipsList.appendChild(chip);
-        });
-      } else {
-        chipsList.replaceChildren();
-      }
-    }
   }
 
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
@@ -4979,11 +4636,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let isModifyingDOM = false;
   let mainObserver = null;
 
-  function applyCardFilters(cd, termsList, excludedCats, minOffers, pageHasOffers) {
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
     const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
-    const isCatExcluded = CONFIG.FILTER_CAT_ENABLED ? !!(cd.catName && isPathExcluded(cd.catName, cd.rootGroup, excludedCats)) : false;
     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-    return { isNeg, isCatExcluded, isLowOffers };
+    return { isNeg, isLowOffers };
   }
 
   function isCardIgnoredOrInvisible(card, filters = null) {
@@ -4991,22 +4647,18 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
     if (!isRevealed) {
       if (filters) {
-        if (filters.isNeg || filters.isCatExcluded || filters.isLowOffers) return true;
+        if (filters.isNeg || filters.isLowOffers) return true;
       } else {
         if (card.classList?.contains('tp-negative-filtered') ||
-            card.classList?.contains('tp-category-filtered') ||
             card.classList?.contains('tp-min-offers-filtered') ||
             card.classList?.contains('tp-non-bestpreis-filtered') ||
             card.classList?.contains('tp-bestpreise-hidden')) {
           return true;
         }
         const termsList = parseNegativeTerms();
-        const excludedCats = CONFIG.EXCLUDED_CATEGORIES || [];
-        const catName = extractCardCategory(card);
-        const rootGroup = resolveCategoryGroup(catName, card);
         const offerCount = extractOfferCount(card);
-        const f = applyCardFilters({ card, catName, rootGroup, offerCount }, termsList, excludedCats, CONFIG.MIN_OFFERS, true);
-        if (f.isNeg || f.isCatExcluded || f.isLowOffers) return true;
+        const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, true);
+        if (f.isNeg || f.isLowOffers) return true;
       }
     }
     const tab = card.closest?.('.f_tab');
@@ -5041,20 +4693,18 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // --- Extract ---
       const activeStores = extractActiveStores();
       const termsList = parseNegativeTerms();
-      const excludedCats = CONFIG.EXCLUDED_CATEGORIES || [];
       const isNeueFeed = isNeueToppreisePage();
       const minDealDiscount = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, cat: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 };
+      const counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, excludedCats, CONFIG.MIN_OFFERS, pageHasOffers);
-        const isStandardFiltered = cd.filters.isNeg || cd.filters.isCatExcluded || cd.filters.isLowOffers;
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+        const isStandardFiltered = cd.filters.isNeg || cd.filters.isLowOffers;
         if (cd.filters.isNeg) counts.neg++;
-        if (cd.filters.isCatExcluded) counts.cat++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
           if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardIgnoredOrInvisible(cd.card, cd.filters)) {
@@ -5122,7 +4772,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
             node.classList?.contains('tp-badge-score-breakdown') ||
             node.classList?.contains('tp-sparkline-container') ||
             node.classList?.contains('tp-best-price-badge') ||
-            node.classList?.contains('tp-card-quick-block') ||
             node.classList?.contains('tp-empty-state-notice')) {
           return false;
         }

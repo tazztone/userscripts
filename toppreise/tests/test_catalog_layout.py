@@ -37,7 +37,7 @@ def test_min_offers_filter(page: Page):
 
 
 
-def test_suite_filter_bar_and_category_pill_styles(page: Page):
+def test_suite_filter_bar_styles(page: Page):
     # Verify filter bar is injected and styled
     filter_bar = page.locator('#tp-suite-filter-bar')
     page.wait_for_selector('#tp-suite-filter-bar')
@@ -57,23 +57,18 @@ def test_sort_by_offers(page: Page):
     page.click('#tp-root >> label[for="tp-sort-desc"]')
     page.click('#tp-root >> #tp-btn-save')
 
-    # The card with 20 offers (card-cat-excluded) should now be first
+    # The card with 20 offers should now be first
     cards = page.locator('#product-list .Plugin_Product')
     first_card_id = cards.first.get_attribute('id')
     assert first_card_id == 'card-cat-excluded'
 
 
 
-def test_master_filter_toggle_and_category_preservation(page: Page):
-    # Add negative term, min offers filter, and blocked category
+def test_filter_toggles_preserve_settings(page: Page):
+    # Add negative term and min offers filter
     page.fill('#tp-inline-negative-input', 'Case')
     page.dispatch_event('#tp-inline-negative-input', 'input')
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 10)")
-
-    page.evaluate("""() => {
-        window.ToppreiseSuite.saveConfigKey('EXCLUDED_CATEGORIES', ['PATH:Hardware/Grafikkarten']);
-        window.ToppreiseSuite.processListings();
-    }""")
 
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     page.wait_for_selector('#card-low-offers.tp-min-offers-filtered', state='attached')
@@ -84,7 +79,6 @@ def test_master_filter_toggle_and_category_preservation(page: Page):
 
     page.locator('#tp-toggle-neg').click()
     page.locator('#tp-toggle-min').click()
-    page.locator('#tp-toggle-cat').click()
     page.wait_for_selector('#tp-toggle-neg.tp-filter-off')
 
     # Verify cards are no longer filtered (all visible)
@@ -97,33 +91,15 @@ def test_master_filter_toggle_and_category_preservation(page: Page):
     config = page.evaluate("() => window.ToppreiseSuite.CONFIG")
     assert config['NEGATIVE_TERMS'] == 'Case'
     assert config['MIN_OFFERS'] == 10
-    assert config['EXCLUDED_CATEGORIES'] == ['PATH:Hardware/Grafikkarten']
 
-    # Click Master Filter Toggle again to re-enable (Filter: AN)
+    # Click filter toggles again to re-enable
     page.locator('#tp-toggle-neg').click()
     page.locator('#tp-toggle-min').click()
-    page.locator('#tp-toggle-cat').click()
     page.wait_for_selector('#tp-toggle-neg.tp-active')
 
     # Verify cards are filtered again
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     page.wait_for_selector('#card-low-offers.tp-min-offers-filtered', state='attached')
-
-
-
-def test_quick_block_hidden_on_non_neue_toppreise_pages(page: Page):
-    # Simulate navigation to a normal search / category page
-    page.evaluate("""() => {
-        document.body.classList.remove('Page_ListTopPriceReductionProducts');
-        document.body.removeAttribute('data-current_url');
-        // Trigger re-process
-        window.ToppreiseSuite.processListings();
-    }""")
-    page.wait_for_timeout(50)
-
-    # Verify quick-block buttons are removed / absent on regular pages
-    quick_blocks = page.locator('.tp-card-quick-block')
-    assert quick_blocks.count() == 0
 
 
 
@@ -1432,7 +1408,6 @@ def test_badge_and_card_no_pulsing_animations_or_scale_transforms(page: Page):
                 for (const rule of sheet.cssRules) {
                     if (rule.selectorText && rule.selectorText.includes(':hover') && (
                         rule.selectorText.includes('tp-deal-badge-interactive') ||
-                        rule.selectorText.includes('tp-card-quick-block') ||
                         rule.selectorText.includes('tp-sparkline')
                     )) {
                         if (rule.style.transform && rule.style.transform.includes('scale')) {
@@ -1452,7 +1427,7 @@ def test_badge_and_card_no_pulsing_animations_or_scale_transforms(page: Page):
 def test_card_elements_and_sparkline_visibility_unclipped(page: Page):
     """
     Validates that product card components (image, title, price, subline, and sparkline)
-    remain completely visible and unclipped without overlapping quick block buttons.
+    remain completely visible and unclipped without overlapping badges.
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1731,12 +1706,6 @@ def test_card_layout_nested_rows_preserves_vertical_stacking_and_prices(page: Pa
         const grid = document.querySelector('.standardList') || document.body;
         grid.appendChild(card);
 
-        // Inject quick block pill
-        const pill = document.createElement('button');
-        pill.className = 'tp-card-quick-block';
-        pill.innerHTML = '🚫 <span>Kopfhörer</span>';
-        card.appendChild(pill);
-
         // Compute layout geometry
         const outerRow = card.children[0];
         const innerRow = card.querySelector('.col > .row');
@@ -1746,7 +1715,6 @@ def test_card_layout_nested_rows_preserves_vertical_stacking_and_prices(page: Pa
         const cardRect = card.getBoundingClientRect();
         const nameRect = nameEl.getBoundingClientRect();
         const priceRect = priceEl.getBoundingClientRect();
-        const pillBottom = window.getComputedStyle(pill).bottom;
 
         const outerWrap = window.getComputedStyle(outerRow).flexWrap;
         const innerDir = window.getComputedStyle(innerRow).flexDirection;
@@ -1759,8 +1727,7 @@ def test_card_layout_nested_rows_preserves_vertical_stacking_and_prices(page: Pa
             innerDir,
             priceIsBelowName: priceRect.top >= nameRect.bottom - 2,
             priceIsInsideCard: priceRect.right <= cardRect.right + 2,
-            priceIsVisible: priceRect.height > 0 && priceRect.width > 0,
-            pillBottom
+            priceIsVisible: priceRect.height > 0 && priceRect.width > 0
         };
     }""")
 
@@ -1769,21 +1736,20 @@ def test_card_layout_nested_rows_preserves_vertical_stacking_and_prices(page: Pa
     assert res['priceIsBelowName'] is True
     assert res['priceIsInsideCard'] is True
     assert res['priceIsVisible'] is True
-    assert res['pillBottom'] == '6px'
 
 
 
 
 def test_native_category_management_coexistence(page: Page):
     # Verifies that native category management elements (sidebar, Plugin_IgnoredCategories,
-    # card .hideCategoryTrigger) coexist seamlessly with Toppreise Suite controls.
+    # card .hideCategoryTrigger) coexist with Toppreise Suite controls (the suite no longer
+    # injects its own per-card block button; the card corner belongs to the native trigger).
     res = page.evaluate("""() => {
         const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
         const nativeBar = document.querySelector('.Plugin_IgnoredCategories');
         const suiteBar = document.getElementById('tp-suite-filter-bar');
         const card = document.getElementById('card-cheapest');
         const nativeTrigger = card ? card.querySelector('.hideCategoryTrigger') : null;
-        const quickBlock = card ? card.querySelector('.tp-card-quick-block') : null;
         const badge = card ? card.querySelector('.badge-dif') : null;
 
         return {
@@ -1791,12 +1757,10 @@ def test_native_category_management_coexistence(page: Page):
             nativeBarExists: !!nativeBar,
             suiteBarExists: !!suiteBar,
             nativeTriggerExists: !!nativeTrigger,
-            quickBlockExists: !!quickBlock,
+            suiteBlockAbsent: !card?.querySelector('.tp-card-quick-block'),
             badgeExists: !!badge,
             nativeTriggerTop: nativeTrigger ? window.getComputedStyle(nativeTrigger).top : '',
-            nativeTriggerRight: nativeTrigger ? window.getComputedStyle(nativeTrigger).right : '',
-            quickBlockBottom: quickBlock ? window.getComputedStyle(quickBlock).bottom : '',
-            quickBlockLeft: quickBlock ? window.getComputedStyle(quickBlock).left : ''
+            nativeTriggerRight: nativeTrigger ? window.getComputedStyle(nativeTrigger).right : ''
         };
     }""")
 
@@ -1804,12 +1768,10 @@ def test_native_category_management_coexistence(page: Page):
     assert res['nativeBarExists'] is True
     assert res['suiteBarExists'] is True
     assert res['nativeTriggerExists'] is True
-    assert res['quickBlockExists'] is True
+    assert res['suiteBlockAbsent'] is True
     assert res['badgeExists'] is True
     assert res['nativeTriggerTop'] == '0px'
     assert res['nativeTriggerRight'] == '0px'
-    assert res['quickBlockBottom'] == '6px'
-    assert res['quickBlockLeft'] == '8px'
 
 
 

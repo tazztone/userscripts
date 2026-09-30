@@ -1,11 +1,10 @@
 /**
  * Suite Filter Toolbar Component
  * Manages the inline/floating contextual filter bar, quick filters,
- * deal thresholds, chips, category filters, and scan progress.
+ * deal thresholds, and scan progress.
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { getGroupEmoji, extractCategoryDisplay } from "../domain/category.js";
 import { showToast } from "./toast.js";
 
 export function getSuiteBarPlacement() {
@@ -27,14 +26,13 @@ export function getSuiteBarPlacement() {
   return { container: document.body, reference: document.body.firstElementChild };
 }
 
-export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
   let bar = document.getElementById('tp-suite-filter-bar');
-  const excluded = CONFIG.EXCLUDED_CATEGORIES || [];
   const isRevealed = document.body.classList.contains('tp-reveal-filtered');
-  const totalHidden = (counts.neg || 0) + (counts.cat || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
+  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
   const uncheckedDeals = counts.uncheckedDeals || 0;
   const bestpreiseDeals = counts.bestpreiseDeals || 0;
 
@@ -52,7 +50,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
             <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
           </div>
         </div>
-        <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Ausgeblendete Produkte anzeigen/verbergen">
+        <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
           👁️ <span id="tp-bar-reveal-count">${totalHidden}</span>
         </button>
         <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Rabatt-Heatmap ein-/ausschalten" style="display: flex;">🔥 Heatmap</button>
@@ -84,9 +82,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
             <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 60 ? 'tp-selected' : ''}" data-val="60">≥ 60%</button>
           </div>
         </div>
-        <button class="tp-bar-btn ${isBlockedCatsOpen ? 'tp-active' : ''}" id="tp-bar-cats-toggle" style="display: ${excluded.length > 0 ? 'flex' : 'none'};" title="Ausgeblendete Kategorien anzeigen/verbergen">
-          🚫 <span id="tp-bar-cats-count">${excluded.length}</span> ${isBlockedCatsOpen ? '▴' : '▾'}
-        </button>
         <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};">
           <span>Min:</span>
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -97,9 +92,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
           <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_NEG_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-neg" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
             📝
           </button>
-          <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_CAT_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-cat" title="Kategorien-Filter ${CONFIG.FILTER_CAT_ENABLED ? 'AN' : 'AUS'}">
-            🚫
-          </button>
           <button class="tp-bar-btn tp-filter-toggle-btn ${CONFIG.FILTER_MIN_ENABLED ? 'tp-active' : 'tp-filter-off'}" id="tp-toggle-min" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
             🔢
           </button>
@@ -107,11 +99,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
             💎
           </button>
         </div>
-      </div>
-      <div id="tp-blocked-cats-container" class="tp-blocked-cats-row" style="display: ${excluded.length > 0 && isBlockedCatsOpen ? 'flex' : 'none'};">
-        <span class="tp-blocked-cats-label">🚫 Ausgeblendet (${excluded.length}):</span>
-        <div id="tp-blocked-chips-list" style="display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center;"></div>
-        <button class="tp-blocked-clear-all" id="tp-blocked-clear-all-btn">Alle freigeben</button>
       </div>
     `;
 
@@ -276,11 +263,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
       });
     }
 
-    bar.querySelector('#tp-bar-cats-toggle').onclick = () => {
-      isBlockedCatsOpen = !isBlockedCatsOpen;
-      processListings();
-    };
-
     const updateMinOffers = delta => {
       const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
       if (next !== CONFIG.MIN_OFFERS) {
@@ -295,11 +277,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
       updateConfig('FILTER_NEG_ENABLED', next);
       showToast(next ? '📝 Negativ-Filter AN' : '📝 Negativ-Filter AUS');
     };
-    bar.querySelector('#tp-toggle-cat').onclick = () => {
-      const next = !CONFIG.FILTER_CAT_ENABLED;
-      updateConfig('FILTER_CAT_ENABLED', next);
-      showToast(next ? '🚫 Kategorien-Filter AN' : '🚫 Kategorien-Filter AUS');
-    };
     bar.querySelector('#tp-toggle-min').onclick = () => {
       const next = !CONFIG.FILTER_MIN_ENABLED;
       updateConfig('FILTER_MIN_ENABLED', next);
@@ -309,14 +286,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
       const next = !CONFIG.FILTER_BESTPREIS_ENABLED;
       updateConfig('FILTER_BESTPREIS_ENABLED', next);
       showToast(next ? '💎 Deal-Filter AN' : '💎 Deal-Filter AUS');
-    };
-    bar.querySelector('#tp-blocked-clear-all-btn').onclick = () => {
-      const prevCats = [...(CONFIG.EXCLUDED_CATEGORIES || [])];
-      updateConfig('EXCLUDED_CATEGORIES', []);
-      showToast('Alle blockierten Kategorien freigegeben', 5000, 'Rückgängig', () => {
-        updateConfig('EXCLUDED_CATEGORIES', prevCats);
-        showToast('Blockierte Kategorien wiederhergestellt');
-      });
     };
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
     if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
@@ -364,12 +333,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
     toggleNeg.classList.toggle('tp-active', CONFIG.FILTER_NEG_ENABLED);
     toggleNeg.classList.toggle('tp-filter-off', !CONFIG.FILTER_NEG_ENABLED);
     toggleNeg.title = `Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}`;
-  }
-  const toggleCat = bar.querySelector('#tp-toggle-cat');
-  if (toggleCat) {
-    toggleCat.classList.toggle('tp-active', CONFIG.FILTER_CAT_ENABLED);
-    toggleCat.classList.toggle('tp-filter-off', !CONFIG.FILTER_CAT_ENABLED);
-    toggleCat.title = `Kategorien-Filter ${CONFIG.FILTER_CAT_ENABLED ? 'AN' : 'AUS'}`;
   }
   const toggleMin = bar.querySelector('#tp-toggle-min');
   if (toggleMin) {
@@ -445,53 +408,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, cat: 0, min: 0, nonBest:
     weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
 
-  const catsToggleBtn = bar.querySelector('#tp-bar-cats-toggle');
-  if (catsToggleBtn) {
-    catsToggleBtn.style.display = excluded.length > 0 ? 'flex' : 'none';
-    catsToggleBtn.classList.toggle('tp-active', isBlockedCatsOpen);
-    catsToggleBtn.innerHTML = `🚫 <span id="tp-bar-cats-count">${excluded.length}</span> ${isBlockedCatsOpen ? '▴' : '▾'}`;
-  }
-
   const minGroup = bar.querySelector('#tp-bar-min-offers-group');
   if (minGroup) minGroup.style.display = pageHasOffers ? 'flex' : 'none';
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
-
-  const blockedContainer = bar.querySelector('#tp-blocked-cats-container');
-  const chipsList = bar.querySelector('#tp-blocked-chips-list');
-  if (blockedContainer && chipsList) {
-    const showDrawer = excluded.length > 0 && isBlockedCatsOpen;
-    blockedContainer.classList.toggle('tp-expanded', showDrawer);
-    blockedContainer.classList.toggle('tp-collapsed', !showDrawer);
-    blockedContainer.style.setProperty('display', showDrawer ? 'flex' : 'none', 'important');
-
-    if (excluded.length > 0) {
-      chipsList.replaceChildren();
-      const labelEl = blockedContainer.querySelector('.tp-blocked-cats-label');
-      if (labelEl) labelEl.textContent = `🚫 Ausgeblendet (${excluded.length}):`;
-
-      excluded.forEach(key => {
-        const info = extractCategoryDisplay(key);
-        const chip = document.createElement('span');
-        chip.className = 'tp-blocked-chip';
-        chip.textContent = `${getGroupEmoji(info.group)} `;
-        const chipLabel = document.createElement('span');
-        chipLabel.textContent = info.label;
-        const chipRemove = document.createElement('span');
-        chipRemove.className = 'tp-blocked-chip-remove';
-        chipRemove.title = 'Wieder einblenden';
-        chipRemove.textContent = '✕';
-        chip.append(chipLabel, ' ', chipRemove);
-        chip.querySelector('.tp-blocked-chip-remove').onclick = e => {
-          e.stopPropagation();
-          saveConfigKey('EXCLUDED_CATEGORIES', (CONFIG.EXCLUDED_CATEGORIES || []).filter(c => c !== key));
-          processListings();
-          showToast(`Kategorie "${info.label}" wieder eingeblendet`);
-        };
-        chipsList.appendChild(chip);
-      });
-    } else {
-      chipsList.replaceChildren();
-    }
-  }
 }

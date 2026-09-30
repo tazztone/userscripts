@@ -1,6 +1,6 @@
 /**
  * Visual Badges & Card Decorator Component
- * Manages card thermal heatmaps, quick-block buttons, deal badges (Allzeit-Tiefstpreis,
+ * Manages card thermal heatmaps, deal badges (Allzeit-Tiefstpreis,
  * Neuer Rekord, Differenz loupe, markup alert), score breakdown pills,
  * mini sparklines, and empty-state messaging.
  */
@@ -23,11 +23,6 @@ import { getCachedPriceStats } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline } from './sparkline.js';
 import { isShippingPriceActive } from '../page/adapter.js';
-
-export let isBlockedCatsOpen = false;
-export function setBlockedCatsOpen(open) {
-  isBlockedCatsOpen = open;
-}
 
 function triggerProcessListings() {
   if (typeof processListings === 'function') {
@@ -56,7 +51,7 @@ export function setTitleIfChanged(el, newTitle) {
 }
 
 export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-  const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal, catName, rootGroup } = cd;
+  const { card, pid, cardPriceEl, cardPrice, stats, isVerifiedNonBest, diffVal, discountVal } = cd;
 
   // 0. Continuous Heatmap (driven by Deal-Score when verified; otherwise by relative price diff)
   const effectiveDiff = isVerifiedNonBest
@@ -97,7 +92,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       for (let s = 0; s < subElements.length; s++) {
         const sub = subElements[s];
         if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
-            sub.classList.contains('tp-best-price-badge') || sub.classList.contains('tp-card-quick-block') ||
+            sub.classList.contains('tp-best-price-badge') ||
             sub.classList.contains('tp-sparkline-container') || sub.tagName === 'BUTTON') {
           continue;
         }
@@ -130,41 +125,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     card.style.removeProperty('border-color');
   }
 
-  // 1. Category extraction & Quick-block
-  if (isNeueFeed) {
-    if (catName && !card.querySelector('.tp-card-quick-block')) {
-      const quickBlockBtn = document.createElement('button');
-      quickBlockBtn.type = 'button';
-      quickBlockBtn.className = 'tp-card-quick-block';
-      quickBlockBtn.title = `Kategorie "${catName}" (${rootGroup}) ausblenden`;
-      quickBlockBtn.textContent = '🚫 ';
-      const catSpan = document.createElement('span');
-      catSpan.textContent = catName;
-      quickBlockBtn.appendChild(catSpan);
-      quickBlockBtn.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        const curr = CONFIG.EXCLUDED_CATEGORIES || [];
-        const key = `PATH:${rootGroup}/${catName}`;
-        if (!curr.includes(key) && !curr.includes(catName)) {
-          isBlockedCatsOpen = true;
-          updateConfig('EXCLUDED_CATEGORIES', [...curr, key]);
-          showToast(`Kategorie "${catName}" ausgeblendet`, 4000, 'Rückgängig', () => {
-            updateConfig('EXCLUDED_CATEGORIES', (CONFIG.EXCLUDED_CATEGORIES || []).filter(c => c !== key && c !== catName));
-            showToast(`Kategorie "${catName}" wieder eingeblendet`);
-          });
-        }
-      };
-      card.appendChild(quickBlockBtn);
-    }
-  } else {
-    card.querySelector('.tp-card-quick-block')?.remove();
-  }
-
   // 2. Filters
   card.classList.toggle('tp-negative-filtered', filters.isNeg);
-  card.classList.toggle('tp-category-filtered', filters.isCatExcluded);
   card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
 
   // 3. Best Price Highlighting
@@ -637,7 +599,7 @@ export function renderEmptyState(cards, counts) {
     return;
   }
 
-  const totalHidden = (counts.neg || 0) + (counts.cat || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
+  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
   const isRevealed = document.body.classList.contains('tp-reveal-filtered');
 
   if (cards.length > 0 && totalHidden >= cards.length && !isRevealed) {
@@ -677,7 +639,6 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfigs({
         FILTER_NEG_ENABLED: false,
-        FILTER_CAT_ENABLED: false,
         FILTER_MIN_ENABLED: false,
         FILTER_BESTPREIS_ENABLED: false
       });

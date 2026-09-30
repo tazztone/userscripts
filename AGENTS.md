@@ -9,7 +9,6 @@
   ```bash
   node toppreise/tools/build.js --check
   node --test toppreise/tests/unit/*.test.js
-  python3 toppreise/tools/verify_category_map.py
   ```
 
 - **Targeted Userscript Playwright Tests:**

@@ -108,9 +108,6 @@ def check_toppreise_quality_gates(toppreise_dir):
         unit_test_files = sorted(glob.glob(os.path.join(unit_test_dir, '*.test.js')))
         subprocess.run(['node', '--test'] + unit_test_files, cwd=toppreise_dir, check=True)
 
-        # 4. Fast category taxonomy gate (~30ms)
-        subprocess.run(['python3', 'tools/verify_category_map.py'], cwd=toppreise_dir, check=True)
-
         print("✅ [pre-commit] All Toppreise quality gates passed successfully!")
     except subprocess.CalledProcessError as e:
         print(f"❌ [pre-commit] Quality gate failed (exit code {e.returncode})")

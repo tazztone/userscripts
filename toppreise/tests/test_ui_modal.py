@@ -19,44 +19,6 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
 
 
 
-def test_card_quick_block_button_and_toast_undo(page: Page):
-    # Verify quick-block button is injected on cards
-    page.wait_for_selector('#card-cheapest .tp-card-quick-block')
-    btn = page.locator('#card-cheapest .tp-card-quick-block')
-    assert btn.is_visible()
-    assert 'Grafikkarten' in (btn.text_content() or '')
-
-    # Click quick-block on cheapest card
-    btn.click()
-
-    # Card should be category filtered (display: none -> attached)
-    page.wait_for_selector('#card-cheapest.tp-category-filtered', state='attached')
-    assert 'tp-category-filtered' in (page.locator('#card-cheapest').get_attribute('class') or '')
-
-    # Blocked chip row should appear on top filter bar
-    page.wait_for_selector('#tp-suite-filter-bar .tp-blocked-chip')
-    chip = page.locator('#tp-suite-filter-bar .tp-blocked-chip').first
-    assert chip.is_visible()
-    assert 'Grafikkarten' in (chip.text_content() or '')
-
-    # Toast should appear inside Shadow DOM with undo button
-    toast = page.locator('#tp-root >> .tp-toast')
-    page.wait_for_selector('#tp-root >> .tp-toast', state='visible')
-    assert toast.is_visible()
-    assert 'Grafikkarten' in (toast.text_content() or '')
-
-    undo_btn = page.locator('#tp-root >> .tp-toast-undo')
-    assert undo_btn.is_visible()
-
-    # Click undo
-    undo_btn.click()
-
-    # Card should no longer be filtered (becomes visible again)
-    page.wait_for_selector('#card-cheapest:not(.tp-category-filtered)', state='visible')
-    assert 'tp-category-filtered' not in (page.locator('#card-cheapest').get_attribute('class') or '')
-
-
-
 def test_modal_mode_and_settings_in_shadow_dom(page: Page):
     # Open settings modal
     page.click('#tp-root >> #tp-settings-fab')
@@ -70,65 +32,6 @@ def test_modal_mode_and_settings_in_shadow_dom(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     has_mode_hide = page.evaluate("() => document.body.classList.contains('tp-mode-hide')")
     assert has_mode_hide is True
-
-
-
-def test_category_drawer_clear_all_with_undo(page: Page):
-    # Block a category
-    page.evaluate("""() => {
-        window.ToppreiseSuite.saveConfigKey('EXCLUDED_CATEGORIES', ['PATH:Hardware/Grafikkarten']);
-        window.ToppreiseSuite.processListings();
-    }""")
-    page.wait_for_selector('#tp-bar-cats-toggle', state='visible')
-
-    # Open category drawer
-    page.click('#tp-bar-cats-toggle')
-    page.wait_for_selector('#tp-blocked-clear-all-btn', state='visible')
-
-    # Click "Alle freigeben"
-    page.click('#tp-blocked-clear-all-btn')
-    page.wait_for_timeout(200)
-
-    # Verify categories are cleared
-    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.EXCLUDED_CATEGORIES") == []
-
-    # Toast with "Rückgängig" action should appear
-    undo_btn = page.locator('#tp-root >> .tp-toast-undo')
-    page.wait_for_selector('#tp-root >> .tp-toast-undo', state='visible')
-    assert 'Rückgängig' in (undo_btn.text_content() or '')
-
-    # Click "Rückgängig"
-    undo_btn.click()
-    page.wait_for_timeout(200)
-
-    # Verify categories are restored
-    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.EXCLUDED_CATEGORIES") == ['PATH:Hardware/Grafikkarten']
-
-
-
-def test_blocked_categories_collapse_and_expand(page: Page):
-    # Quick block cheapest card to add category
-    page.wait_for_selector('#card-cheapest .tp-card-quick-block')
-    page.click('#card-cheapest .tp-card-quick-block')
-
-    # Drawer should be visible (auto-expanded on block action)
-    drawer = page.locator('#tp-blocked-cats-container')
-    page.wait_for_selector('#tp-blocked-cats-container', state='visible')
-    assert drawer.is_visible()
-
-    # Click toggle button in top bar to collapse
-    toggle_btn = page.locator('#tp-bar-cats-toggle')
-    assert toggle_btn.is_visible()
-    toggle_btn.click()
-
-    # Drawer should now be hidden
-    page.wait_for_selector('#tp-blocked-cats-container', state='hidden')
-    assert not drawer.is_visible()
-
-    # Click toggle button again to expand
-    toggle_btn.click()
-    page.wait_for_selector('#tp-blocked-cats-container', state='visible')
-    assert drawer.is_visible()
 
 
 

@@ -1126,3 +1126,11 @@ Regular category/catalog listings (`/produktsuche/...`, e.g. Monitore, Grafikkar
 
 
 
+
+## 23. Removal of Suite Category-Filtering in Favour of Native `Plugin_IgnoredCategories` (2026-09-30)
+
+- **Decision**: Deleted the suite's client-side category engine (`src/domain/category.js`: `ROOT_SLUG_MAP`, `GROUP_EMOJIS`, `BRAND_RULES`, `resolveCategoryGroup`, `isPathExcluded`), the per-card quick-block button, the blocked-category chip drawer, and both taxonomy tools (`generate_category_map.py` — already dead code, its `CATEGORY_LOOKUP` injection target existed nowhere — and `verify_category_map.py`).
+- **Why**: The §5 comparison table's granularity claim (native ≈ 23 root categories vs suite subcategories) was contradicted by §22's own evidence — each native breadcrumb segment carries its own `data-vcat-id` and is independently clickable (3-level granularity). Server-side native exclusion supersedes the client-side duplicate.
+- **Deliberately not built**: No native-chip adapter feeding `👁️ N`. The existing `mainObserver` already re-runs `processListings()` on native AJAX grid reloads, and the native bar shows its own count. `👁️ N` counts suite filters only (reveal-button title updated to say so).
+- **Stale storage**: `EXCLUDED_CATEGORIES` / `FILTER_CAT_ENABLED` linger inert in existing users' `GM_setValue`; no migration code — the JSON import whitelist (`key in DEFAULTS`) auto-ignores them.
+- **Verification**: `build.js --check` ✅, unit 52/52 ✅, Playwright `ui_modal` 18/18, `feed_scanner` 29/29, `catalog_layout` + `price_logic` 57/57 ✅.

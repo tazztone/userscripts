@@ -87,10 +87,10 @@ export const STYLES = `
     --darkreader-inline-bgcolor: transparent !important;
     --darkreader-inline-bgimage: none !important;
   }
-  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
-  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-card-quick-block):not(.tp-sparkline-container),
+  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-sparkline-container),
+  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-sparkline-container),
   .tp-heatmap-active p,
-  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-card-quick-block *):not(.tp-sparkline-container *) {
+  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-sparkline-container *) {
     background: transparent !important;
     background-color: transparent !important;
     --darkreader-inline-bgcolor: transparent !important;
@@ -144,21 +144,18 @@ export const STYLES = `
   }
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-not-cheapest,
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-no-store-offer,
-  .tp-negative-filtered, .tp-category-filtered, .tp-min-offers-filtered, .tp-non-bestpreis-filtered, .tp-bestpreise-hidden,
+  .tp-negative-filtered, .tp-min-offers-filtered, .tp-non-bestpreis-filtered, .tp-bestpreise-hidden,
   [class*="col-"]:has(> .tp-negative-filtered),
-  [class*="col-"]:has(> .tp-category-filtered),
   [class*="col-"]:has(> .tp-min-offers-filtered),
   [class*="col-"]:has(> .tp-non-bestpreis-filtered),
   [class*="col-"]:has(> .tp-bestpreise-hidden) {
     display: none !important;
   }
   body.tp-reveal-filtered .tp-negative-filtered,
-  body.tp-reveal-filtered .tp-category-filtered,
   body.tp-reveal-filtered .tp-min-offers-filtered,
   body.tp-reveal-filtered .tp-non-bestpreis-filtered,
   body.tp-reveal-filtered .tp-bestpreise-hidden,
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-negative-filtered),
-  body.tp-reveal-filtered [class*="col-"]:has(> .tp-category-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-min-offers-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-non-bestpreis-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-bestpreise-hidden) {
@@ -694,36 +691,6 @@ export const STYLES = `
     color: #ffffff !important;
     box-shadow: 0 2px 10px rgba(225, 29, 72, 0.45) !important;
   }
-  .tp-card-quick-block {
-    position: absolute !important;
-    bottom: 6px !important;
-    left: 8px !important;
-    background: rgba(15,23,42,0.92) !important;
-    backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(244,63,94,0.5) !important;
-    color: #fda4af !important;
-    font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    padding: 2px 7px !important;
-    border-radius: 6px !important;
-    cursor: pointer !important;
-    opacity: 0 !important;
-    transition: all 0.2s ease !important;
-    z-index: 9999 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    max-width: 160px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
-  }
-  .Plugin_Product:hover .tp-card-quick-block,
-  .mixedBrowsingListProduct:hover .tp-card-quick-block { opacity: 1 !important; }
-  .tp-card-quick-block:hover {
-    background: #e11d48 !important;
-    color: #fff !important;
-  }
   #tp-suite-filter-bar {
     margin: 8px auto 12px !important;
     width: 100% !important;
@@ -850,46 +817,6 @@ export const STYLES = `
     padding: 0 !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
-  .tp-blocked-cats-row {
-    border-top: 1px solid rgba(255,255,255,0.08) !important;
-    padding-top: 6px !important;
-    align-items: center !important;
-    gap: 6px !important;
-    flex-wrap: wrap !important;
-    max-height: 140px !important;
-    overflow-y: auto !important;
-  }
-  .tp-blocked-cats-row.tp-collapsed {
-    display: none !important;
-  }
-  .tp-blocked-cats-row.tp-expanded {
-    display: flex !important;
-  }
-  .tp-blocked-cats-label {
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    color: #f43f5e !important;
-  }
-  .tp-blocked-chip {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 5px !important;
-    padding: 2px 8px !important;
-    border-radius: 10px !important;
-    font: 600 11px inherit !important;
-    background: rgba(239,68,68,0.18) !important;
-    border: 1px solid rgba(239,68,68,0.4) !important;
-    color: #fca5a5 !important;
-  }
-  .tp-blocked-chip-remove { cursor: pointer !important; font-weight: 700 !important; }
-  .tp-blocked-clear-all {
-    font-size: 10px !important;
-    color: #94a3b8 !important;
-    background: transparent !important;
-    border: none !important;
-    text-decoration: underline !important;
-    cursor: pointer !important;
-  }
 `;
 
 export const SHADOW_MODAL_STYLES = `

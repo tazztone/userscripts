@@ -23,7 +23,7 @@ Every userscript resides in its own subdirectory:
 
 | Userscript | Description | Direct Install |
 | :--- | :--- | :---: |
-| [**Toppreise Suite**](./toppreise) | Best price highlighting, discount heatmap, negative text filter, hierarchical category exclusion, and price alarm automation. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js) |
+| [**Toppreise Suite**](./toppreise) | Best price highlighting, discount heatmap, negative text filter, and price alarm automation. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js) |
 | [**Perplexity Enhancements**](./perplexity) | Keeps preferred model active, auto-approves action cards, and enables GitHub connector. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/perplexity/perplexity-enhancements.user.js) |
 | [**Hugging Face Heart & Filter**](./huggingface) | Filter models/datasets by last modified date, auto-unheart/heart toggle, non-blocking toasts. | [⚡ **Install**](https://raw.githubusercontent.com/tazztone/userscripts/main/huggingface/huggingface-heart.user.js) |
 | [**Fastlog Watcher**](./fastlog-watcher) | Real-time event and log stream monitor. | *(In development)* |
