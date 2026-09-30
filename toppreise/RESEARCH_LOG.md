@@ -1034,6 +1034,7 @@ sequenceDiagram
 ### 5. Architectural Coexistence & Synergy with Toppreise Suite
 
 #### Comparison: Native Exclusion vs. Suite Filtering
+> [!NOTE] **Superseded 2026-09-30 (see §23):** the suite-side column below no longer exists — category filtering was removed in favour of native exclusions. The granularity row was additionally refuted by §22's own evidence (per-level `data-vcat-id` clicks).
 | Capability | Native Ignored Categories (`Toppreise.ch`) | Toppreise Suite Userscript (`toppreise.user.js`) |
 | :--- | :--- | :--- |
 | **Execution Layer** | Server-side database query | Client-side DOM filtering (instant, 0ms) |

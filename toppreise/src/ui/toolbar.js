@@ -5,7 +5,23 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
+import { CONFIG, updateConfig } from "../state/config.js";
+import {
+  runBatchDealCheck,
+  cancelBatchDealCheck,
+  cancelBestpreiseScan,
+  isBatchChecking,
+  isBestpreiseScanning
+} from "../scanner/scanner.js";
 import { showToast } from "./toast.js";
+
+function triggerProcessListings() {
+  if (typeof processListings === 'function') {
+    processListings();
+  } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
+    window.ToppreiseSuite.processListings();
+  }
+}
 
 export function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');
@@ -128,7 +144,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
 
     bar.querySelector('#tp-bar-reveal-btn').onclick = () => {
       document.body.classList.toggle('tp-reveal-filtered');
-      processListings();
+      triggerProcessListings();
     };
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
@@ -179,12 +195,12 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
                 batchBtn.innerHTML = `✅ ${completed}/${total} geprüft`;
                 setTimeout(() => {
                   if (batchBtn && !isBatchChecking) {
-                    processListings();
+                    triggerProcessListings();
                   }
                 }, 3000);
                 showToast(`${completed} Deal-Tiefstpreise verifiziert`);
               } else {
-                processListings();
+                triggerProcessListings();
                 showToast('Keine ungeprüften Deals vorhanden');
               }
             }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.50
+// @version      2.18.51
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4082,6 +4082,16 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
+  function triggerProcessListings() {
+    if (typeof processListings === 'function') {
+      processListings();
+    } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
+      window.ToppreiseSuite.processListings();
+    }
+  }
+
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
     const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -4203,7 +4213,7 @@ const SHADOW_MODAL_STYLES = `
 
       bar.querySelector('#tp-bar-reveal-btn').onclick = () => {
         document.body.classList.toggle('tp-reveal-filtered');
-        processListings();
+        triggerProcessListings();
       };
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
@@ -4254,12 +4264,12 @@ const SHADOW_MODAL_STYLES = `
                   batchBtn.innerHTML = `✅ ${completed}/${total} geprüft`;
                   setTimeout(() => {
                     if (batchBtn && !isBatchChecking) {
-                      processListings();
+                      triggerProcessListings();
                     }
                   }, 3000);
                   showToast(`${completed} Deal-Tiefstpreise verifiziert`);
                 } else {
-                  processListings();
+                  triggerProcessListings();
                   showToast('Keine ungeprüften Deals vorhanden');
                 }
               }

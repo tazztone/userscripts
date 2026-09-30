@@ -60,7 +60,7 @@ def test_sort_by_offers(page: Page):
     # The card with 20 offers should now be first
     cards = page.locator('#product-list .Plugin_Product')
     first_card_id = cards.first.get_attribute('id')
-    assert first_card_id == 'card-cat-excluded'
+    assert first_card_id == 'card-iphone'
 
 
 
@@ -195,7 +195,7 @@ def test_sort_by_discount(page: Page):
     first_id = cards.nth(0).get_attribute('id')
     second_id = cards.nth(1).get_attribute('id')
     assert first_id == 'card-cheapest'  # 67%
-    assert second_id == 'card-cat-excluded'  # 50%
+    assert second_id == 'card-iphone'  # 50%
 
 
 
@@ -220,7 +220,7 @@ def test_empty_state_notice_and_actions(page: Page):
     page.click('#tp-bar-reveal-btn')
     page.wait_for_selector('#tp-empty-state-notice')
 
-    # Clicking "⚡ Filter ausschalten" turns off master filter safely and restores cards
+    # Clicking "⚡ Filter ausschalten" disables all suite filter toggles safely and restores cards
     page.click('#tp-empty-toggle-filters-btn')
     assert not page.locator('#tp-empty-state-notice').is_visible()
     assert page.locator('#card-cheapest').is_visible()
@@ -1159,7 +1159,7 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
 
     # Remaining 4 cards (Card 1 Deal + Cards 3, 4, 5 Unscanned) are visible
     visible_cards = page.evaluate("() => Array.from(document.querySelectorAll('.Plugin_Product')).filter(c => c.offsetParent !== null).map(c => c.id)")
-    assert visible_cards == ['card-cheapest', 'card-competing-reference', 'card-negative', 'card-cat-excluded', 'card-low-offers']
+    assert visible_cards == ['card-cheapest', 'card-competing-reference', 'card-negative', 'card-iphone', 'card-low-offers']
     assert len(visible_cards) == 5
 
     # 4. Seed Card 3 as another verified Non-Deal
@@ -1177,7 +1177,7 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
     }""")
 
     visible_cards_after = page.evaluate("() => Array.from(document.querySelectorAll('.Plugin_Product')).filter(c => c.offsetParent !== null).map(c => c.id)")
-    assert visible_cards_after == ['card-cheapest', 'card-competing-reference', 'card-cat-excluded', 'card-low-offers']
+    assert visible_cards_after == ['card-cheapest', 'card-competing-reference', 'card-iphone', 'card-low-offers']
     assert len(visible_cards_after) == 4
 
 

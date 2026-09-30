@@ -399,7 +399,7 @@ def test_real_deal_batch_check_button_counter_and_run(page: Page):
     # 2. Clicking batch button runs the batch check for remaining cards
     batch_btn.click()
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low')
-    page.wait_for_selector('#card-cat-excluded .badge-dif.tp-deal-not-low')
+    page.wait_for_selector('#card-iphone .badge-dif.tp-deal-not-low')
 
     # Wait for batch run to complete (tp-batch-active removed)
     page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
@@ -425,10 +425,10 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # Count should immediately drop from 3 to 2 because card-negative is now an ignored invisible product
     assert 'Check Deals (2)' in (batch_btn.text_content() or '')
 
-    # 2. Filter out card-cat-excluded (-50%) with a second negative keyword
+    # 2. Filter out card-iphone (-50%) with a second negative keyword
     page.fill('#tp-inline-negative-input', 'Silikon, iPhone')
     page.dispatch_event('#tp-inline-negative-input', 'input')
-    page.wait_for_selector('#card-cat-excluded.tp-negative-filtered', state='attached')
+    page.wait_for_selector('#card-iphone.tp-negative-filtered', state='attached')
 
     # Count drops to 1 (only card-cheapest -67% remains visible)
     assert 'Check Deals (1)' in (batch_btn.text_content() or '')
@@ -457,7 +457,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # Verify only card-cheapest (797571) was requested
     assert '797571' in requested_pids
     assert '797573' not in requested_pids  # card-negative (Silikon) must NOT be checked
-    assert '797574' not in requested_pids  # card-cat-excluded (iPhone) must NOT be checked
+    assert '797574' not in requested_pids  # card-iphone (iPhone) must NOT be checked
 
     # Now unchecked deals is 0! Button should show Check Deals (0)
     page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').textContent.includes('Check Deals (0)')")
@@ -475,7 +475,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
     page.click('#tp-bar-reveal-btn')
     page.wait_for_selector('body.tp-reveal-filtered')
-    # Both card-negative and card-cat-excluded are now visible (revealed)
+    # Both card-negative and card-iphone are now visible (revealed)
     assert 'Check Deals (2)' in (batch_btn.text_content() or '')
 
 
