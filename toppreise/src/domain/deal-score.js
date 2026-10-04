@@ -39,6 +39,8 @@ export function computeDealScore(stats, cardPrice, options = {}) {
   if (!isAtLow) return null; // Auto-hide non-bestpreise
 
   const isNewRecord = !!stats.isNewAllTimeLow;
+  // Defensive fallback chain: series stats always carry a median; only
+  // exotic hand-built stats fall through to the mean (or 0 = unscorable).
   const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
     ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
     : (stats.realDiscountVsMedian || stats.realDiscountVsAvg || 0);
@@ -86,16 +88,21 @@ export function getDisplayDelta(cardPrice, stats) {
   // EQUAL in cents — the isNewAllTimeLow flag is authoritative there.
   if (cPrice < cLow || (cPrice === cLow && stats.isNewAllTimeLow)) {
     const prevLow = stats.previousLow;
+    // dRecordRaw drives the significance decision; the rounded dRecord is
+    // display only — a true 1.96% dip must not flip the 2% gate by rounding.
     let dRecord = 0;
+    let dRecordRaw = 0;
     if (prevLow && prevLow > cardPrice) {
-      dRecord = Math.round(((prevLow - cardPrice) / prevLow) * 100);
+      dRecordRaw = ((prevLow - cardPrice) / prevLow) * 100;
+      dRecord = Math.round(dRecordRaw);
     } else if (stats.realDiscountVsPrevLow) {
       dRecord = stats.realDiscountVsPrevLow;
+      dRecordRaw = stats.realDiscountVsPrevLow;
     }
-    return { kind: 'new-low', dRecord, prevLow: prevLow ?? null };
+    return { kind: 'new-low', dRecord, dRecordRaw, prevLow: prevLow ?? null };
   }
   if (cPrice === cLow) {
-    return { kind: 'at-low', dRecord: 0, prevLow: stats.previousLow ?? null };
+    return { kind: 'at-low', dRecord: 0, dRecordRaw: 0, prevLow: stats.previousLow ?? null };
   }
   return {
     kind: 'above-low',
@@ -104,9 +111,11 @@ export function getDisplayDelta(cardPrice, stats) {
 }
 
 /** Only records with a meaningful breakthrough earn the "Rekord" badge style;
- *  1-cent micro-dips render as plain "Tiefstpreis". */
+ *  1-cent micro-dips render as plain "Tiefstpreis". Decided on the raw value
+ *  (inclusive 2.0 boundary), never the rounded display number. */
 export function isSignificantRecord(display) {
-  return !!display && display.kind === 'new-low' && (display.dRecord || 0) >= MIN_SIGNIFICANT_RECORD_PCT;
+  return !!display && display.kind === 'new-low'
+    && (typeof display.dRecordRaw === 'number' ? display.dRecordRaw : (display.dRecord || 0)) >= MIN_SIGNIFICANT_RECORD_PCT;
 }
 
 /**
@@ -174,7 +183,14 @@ export function getHeatInput(cardPrice, stats, siteDiff, options = {}) {
     const weight = typeof options.weightRecord === 'number' ? options.weightRecord
       : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
     const levelPct = getLevelPct(cardPrice, stats);
+    // Raw counterparts for the deadband decision below — the badge keeps
+    // showing rounded integers, but the ±5% gate must not flip on rounding.
+    const levelRaw = (stats && stats.medianPrice > 0 && cardPrice > 0 && stats.medianPrice > cardPrice)
+      ? ((stats.medianPrice - cardPrice) / stats.medianPrice) * 100 : 0;
+    const recordRaw = (display && typeof display.dRecordRaw === 'number')
+      ? display.dRecordRaw : (display.dRecord || 0);
     let pct = 0;
+    let raw = 0;
     let kind = 'none';
     if (mode === 'bestpreise') {
       const dealScore = ('dealScore' in options) ? options.dealScore
@@ -184,17 +200,17 @@ export function getHeatInput(cardPrice, stats, siteDiff, options = {}) {
       if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
       const showRecord = !!dealScore.isNewRecord && isSignificantRecord(display);
       const medianHeadline = weight < 0.5 && levelPct > 0;
-      if (showRecord && !medianHeadline) { pct = display.dRecord; kind = 'rekord'; }
-      else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+      if (showRecord && !medianHeadline) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
+      else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
     } else {
       const showRecord = isSignificantRecord(display);
-      if (showRecord) { pct = display.dRecord; kind = 'rekord'; }
-      else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+      if (showRecord) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
+      else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
     }
     if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
     // ±5% deadband (documented noise guard): a tiny verified % shows in the
-    // badge text but stays gray on the card.
-    if (pct < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false, pct, kind };
+    // badge text but stays gray on the card — decided on the raw value.
+    if (!(raw >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind };
     return { value: -pct, provisional: false, pct, kind };
   }
   if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {

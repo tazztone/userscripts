@@ -1278,10 +1278,10 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 
 
 
-def test_deal_score_weight_preset_dropdown_in_filter_bar(page: Page):
+def test_deal_score_weight_slider_in_filter_bar(page: Page):
     """
-    Validates that the Deal-Score weighting preset dropdown appears in the filter bar
-    when Tiefstpreise mode is active, and clicking options updates score weighting instantly.
+    Validates that the Deal-Score weighting slider appears in the filter bar
+    when Tiefstpreise mode is active, and dragging it updates score weighting.
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1292,35 +1292,33 @@ def test_deal_score_weight_preset_dropdown_in_filter_bar(page: Page):
     weight_wrapper = page.locator('#tp-bar-weight-wrapper')
     assert weight_wrapper.is_visible()
 
-    weight_btn = page.locator('#tp-bar-weight-btn')
-    assert '50/50' in weight_btn.inner_text()
-
-    # Open weight popover
-    weight_btn.click()
-    popover = page.locator('#tp-weight-popover')
-    assert popover.is_visible()
+    weight_label = page.locator('#tp-bar-weight-label')
+    assert '50/50' in weight_label.inner_text()
     # Plain-language hint: order + color emphasis, badge keeps both numbers
-    assert 'Farb-Emphase' in (popover.inner_text() or '')
-    assert 'Rekord-Jagd' in (popover.inner_text() or '')
+    assert 'Farb-Emphase' in (weight_label.get_attribute('title') or '')
 
-    # Select 100% Rekord
-    page.locator('#tp-weight-popover button[data-weight="1.00"]').click()
-    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD === 1.0")
-    assert '100% Rek' in page.locator('#tp-bar-weight-btn').inner_text()
+    weight_range = page.locator('#tp-bar-weight-range')
+    # Continuous slider with 5 rast steps (the old presets)
+    assert weight_range.get_attribute('step') == '5'
+    assert len(page.locator('#tp-bar-weight-ticks option').all()) == 5
 
-    # Select 100% Median
-    popover = page.locator('#tp-weight-popover')
+    def set_weight(pct):
+        page.evaluate(f"""() => {{
+            const r = document.querySelector('#tp-bar-weight-range');
+            r.value = '{pct}';
+            r.dispatchEvent(new Event('input', {{bubbles: true}}));
+            r.dispatchEvent(new Event('change', {{bubbles: true}}));
+        }}""")
 
-    # Reopen popover properly using the DOM event
-    page.evaluate("document.querySelector('#tp-bar-weight-btn').click()")
-    popover.wait_for(state="visible")
+    # Slide to 100% Rekord
+    set_weight(100)
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD === 1.0")
+    assert '100% Rek' in weight_label.inner_text()
 
-    # Click 100% Median using evaluate to bypass pointer event intercept by absolute position layout issues
-    btn = page.locator('#tp-weight-popover button[data-weight="0.00"]')
-    btn.wait_for(state="visible")
-    page.evaluate("document.querySelector('#tp-weight-popover button[data-weight=\"0.00\"]').click()")
-    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD === 0.0")
-    assert '100% Med' in page.locator('#tp-bar-weight-btn').inner_text()
+    # Slide to 100% Median
+    set_weight(0)
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD === 0.0")
+    assert '100% Med' in weight_label.inner_text()
 
 
 

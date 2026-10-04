@@ -538,63 +538,18 @@ export const STYLES = `
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
+    gap: 6px !important;
   }
-  .tp-threshold-btn {
-    background: rgba(15, 23, 42, 0.6) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-left: none !important;
-    color: #94a3b8 !important;
-    padding: 5px 8px !important;
-    border-radius: 0 8px 8px 0 !important;
+  .tp-weight-label {
+    color: #c4b5fd !important;
     font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    cursor: pointer !important;
-    transition: all 0.15s ease !important;
-  }
-  .tp-threshold-btn:hover, .tp-threshold-btn.tp-open {
-    color: #f8fafc !important;
-    background: rgba(30, 41, 59, 0.9) !important;
-  }
-  .tp-threshold-popover {
-    position: absolute !important;
-    top: calc(100% + 4px) !important;
-    left: 0 !important;
-    background: rgba(15, 23, 42, 0.96) !important;
-    backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 8px !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-    padding: 4px !important;
-    display: none;
-    flex-direction: column !important;
-    gap: 2px !important;
-    z-index: 100000 !important;
-    min-width: 84px !important;
-  }
-  .tp-threshold-popover.tp-show { display: flex !important; }
-  .tp-threshold-hint {
-    color: #94a3b8 !important;
-    padding: 5px 10px 3px !important;
-    font: 500 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    white-space: nowrap !important;
     cursor: default !important;
   }
-  .tp-threshold-option {
-    background: transparent !important;
-    border: none !important;
-    color: #cbd5e1 !important;
-    padding: 5px 10px !important;
-    font: 600 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    border-radius: 5px !important;
+  #tp-bar-weight-range {
+    width: 92px !important;
+    accent-color: #a855f7 !important;
     cursor: pointer !important;
-    text-align: left !important;
-    transition: all 0.15s ease !important;
-  }
-  .tp-threshold-option:hover {
-    background: rgba(59, 130, 246, 0.25) !important;
-    color: #60a5fa !important;
-  }
-  .tp-threshold-option.tp-selected {
-    background: #3b82f6 !important;
-    color: #ffffff !important;
   }
   .tp-empty-state-notice {
     display: flex !important;

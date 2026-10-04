@@ -5,7 +5,7 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { CONFIG, updateConfig } from "../state/config.js";
+import { CONFIG, updateConfig, weightShortText, weightTitleText } from "../state/config.js";
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
@@ -93,18 +93,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
         <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
-        <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase: Rekord- oder Ø-Rabatt — Badge zeigt stets beide Zahlen)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
-            ⚖️ 50/50 ▾
-          </button>
-          <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
-            <div class="tp-threshold-hint">Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.</div>
-            <button class="tp-threshold-option" data-weight="0.50" title="Rekord-Rabatt und Ø-Ersparnis zählen je zur Hälfte">⚖️ Ausgewogen (je 50%)</button>
-            <button class="tp-threshold-option" data-weight="1.00" title="Frisch gefallene Preise stehen zuerst, egal wie gross die Ø-Ersparnis ist">🔥 Rekord-Jagd (frische Tiefs zuerst)</button>
-            <button class="tp-threshold-option" data-weight="0.70" title="Neue Tiefs stehen weiter oben (70% Rekord / 30% Ø-Preis)">📈 Rekord-lastig (70/30)</button>
-            <button class="tp-threshold-option" data-weight="0.30" title="Grösste Ersparnis vs üblich steht weiter oben (30% Rekord / 70% Ø-Preis)">📉 Ø-lastig (30/70)</button>
-            <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
-          </div>
+        <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.">
+          <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
+          <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
+          <datalist id="tp-bar-weight-ticks">
+            <option value="0" label="Ø"></option>
+            <option value="30"></option>
+            <option value="50"></option>
+            <option value="70"></option>
+            <option value="100" label="Rek"></option>
+          </datalist>
         </div>
        </div>
       </div>
@@ -155,38 +153,33 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     }
 
 
-    const weightBtn = bar.querySelector('#tp-bar-weight-btn');
-    const weightPopover = bar.querySelector('#tp-weight-popover');
-
-    if (weightBtn && weightPopover) {
-      weightBtn.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const isOpen = weightPopover.classList.toggle('tp-show');
-        weightBtn.classList.toggle('tp-open', isOpen);
+    // Weight slider: live label on drag, debounced config write (each write
+    // re-sorts the feed), immediate flush + toast on release.
+    const weightRange = bar.querySelector('#tp-bar-weight-range');
+    const weightLabel = bar.querySelector('#tp-bar-weight-label');
+    const readWeight = () => Math.max(0, Math.min(1, (parseInt(weightRange.value, 10) || 0) / 100));
+    const paintWeightLabel = () => {
+      if (!weightLabel) return;
+      const w = readWeight();
+      weightLabel.textContent = `⚖️ ${weightShortText(w)}`;
+      weightLabel.title = weightTitleText(w);
+    };
+    if (weightRange) {
+      paintWeightLabel();
+      weightRange.oninput = () => {
+        paintWeightLabel();
+        clearTimeout(window._tpWeightDeb);
+        window._tpWeightDeb = setTimeout(() => {
+          updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
+        }, 150);
       };
-
-      weightPopover.querySelectorAll('.tp-threshold-option').forEach(opt => {
-        opt.onclick = e => {
-          e.preventDefault();
-          e.stopPropagation();
-          const w = parseFloat(opt.dataset.weight);
-          if (!isNaN(w)) {
-            weightPopover.classList.remove('tp-show');
-            weightBtn.classList.remove('tp-open');
-            updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-            showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
-          }
-        };
-      });
-    }
-
-    if (!window._tpDocClickBound) {
-      window._tpDocClickBound = true;
-      document.addEventListener('click', () => {
-        document.getElementById('tp-weight-popover')?.classList.remove('tp-show');
-        document.getElementById('tp-bar-weight-btn')?.classList.remove('tp-open');
-      });
+      weightRange.onchange = () => {
+        clearTimeout(window._tpWeightDeb);
+        const w = readWeight();
+        paintWeightLabel();
+        updateConfig('BESTPREISE_WEIGHT_RECORD', w);
+        showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
+      };
     }
 
     const updateMinOffers = delta => {
@@ -288,31 +281,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
-  const threshWrapper = bar.querySelector('#tp-bar-threshold-wrapper');
-  if (threshWrapper) {
-    threshWrapper.style.setProperty('display', 'inline-flex', 'important');
-  }
-
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-  let curWeightShort = '50/50';
-  if (Math.abs(curWeight - 1.0) < 0.05) curWeightShort = '100% Rek';
-  else if (Math.abs(curWeight - 0.70) < 0.05) curWeightShort = '70/30';
-  else if (Math.abs(curWeight - 0.50) < 0.05) curWeightShort = '50/50';
-  else if (Math.abs(curWeight - 0.30) < 0.05) curWeightShort = '30/70';
-  else if (Math.abs(curWeight - 0.0) < 0.05) curWeightShort = '100% Med';
-  else curWeightShort = `${Math.round(curWeight * 100)}% Rek`;
-
-  const weightBtn = bar.querySelector('#tp-bar-weight-btn');
-  if (weightBtn) {
-    weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-    weightBtn.title = `Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — Badge zeigt stets beide Zahlen)`;
+  const weightRange = bar.querySelector('#tp-bar-weight-range');
+  // Skip while dragging: the input handler owns the label mid-drag.
+  if (weightRange && document.activeElement !== weightRange) {
+    weightRange.value = Math.round(curWeight * 100);
   }
-  const weightPopover = bar.querySelector('#tp-weight-popover');
-  if (weightPopover) {
-    weightPopover.querySelectorAll('.tp-threshold-option').forEach(opt => {
-      const w = parseFloat(opt.dataset.weight);
-      opt.classList.toggle('tp-selected', Math.abs(w - curWeight) < 0.05);
-    });
+  const weightLabel = bar.querySelector('#tp-bar-weight-label');
+  if (weightLabel) {
+    weightLabel.textContent = `⚖️ ${weightShortText(curWeight)}`;
+    weightLabel.title = weightTitleText(curWeight);
   }
   const weightWrapper = bar.querySelector('#tp-bar-weight-wrapper');
   if (weightWrapper) {

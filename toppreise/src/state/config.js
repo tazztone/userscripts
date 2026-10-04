@@ -19,19 +19,35 @@ export function weightDescText(weightRecord) {
   return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
 }
 
+// Compact toolbar readout for the same weight (shared by toolbar + bar sync
+// so both always print the same short label).
+export function weightShortText(weightRecord) {
+  const w = weightRecord ?? 0.50;
+  if (Math.abs(w - 1.00) < 0.05) return '100% Rek';
+  if (Math.abs(w - 0.70) < 0.05) return '70/30';
+  if (Math.abs(w - 0.50) < 0.05) return '50/50';
+  if (Math.abs(w - 0.30) < 0.05) return '30/70';
+  if (Math.abs(w - 0.00) < 0.05) return '100% Med';
+  return `${Math.round(w * 100)}% Rek`;
+}
+
+// Tooltip for the toolbar weight slider: current mix + what it steers.
+export function weightTitleText(weightRecord) {
+  const w = weightRecord ?? 0.50;
+  const pctRec = Math.round(w * 100);
+  return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt Rekord & Ø.`;
+}
+
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
-  // Legacy: strictness lives in BESTPREISE_MODE_ACTIVE now (single control).
-  // Key stays so stored settings survive updates; no UI writes it anymore.
-  FILTER_BESTPREIS_ENABLED: true,
   MODE: 'dim',
   MARGIN_PERCENT: 0.0,
   DIM_OPACITY: 0.25,
   USE_SHIPPING_PRICE: true,
   HEATMAP_ENABLED: true,
   HEATMAP_INTENSITY: 1.0,
-  // Legacy: superseded by BESTPREISE_MODE_ACTIVE (see FILTER_BESTPREIS_ENABLED).
+  // Legacy: superseded by BESTPREISE_MODE_ACTIVE.
   REAL_DEAL_FILTER_ACTIVE: false,
   REAL_DEAL_MIN_DISCOUNT: 30,
   REAL_DEAL_CACHE_HOURS: 48,
@@ -89,7 +105,6 @@ export const _setValue = (k, v) => {
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
-  FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
   MODE: _getValue('MODE', DEFAULTS.MODE),
   MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
   DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
@@ -165,6 +180,16 @@ export function syncUiControl(key, val) {
           if (valEl) valEl.value = pct;
           if (descEl) {
             descEl.textContent = weightDescText(val);
+          }
+          // Toolbar slider mirrors the modal control (skip while dragging).
+          if (typeof document !== 'undefined') {
+            const barRange = document.getElementById('tp-bar-weight-range');
+            if (barRange && document.activeElement !== barRange) barRange.value = pct;
+            const barLabel = document.getElementById('tp-bar-weight-label');
+            if (barLabel) {
+              barLabel.textContent = `⚖️ ${weightShortText(val)}`;
+              barLabel.title = weightTitleText(val);
+            }
           }
           break;
         }
@@ -260,27 +285,6 @@ export function syncUiControl(key, val) {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
                 toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-              }
-            }
-            break;
-          }
-          case 'FILTER_BESTPREIS_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-bestpreis');
-            if (toggle) {
-              if (toggle.tagName === 'INPUT') {
-                toggle.checked = !!val;
-                const title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
-                const label = toggle.closest?.('.tp-mini-switch');
-                if (label) label.title = title;
-                const state = label?.querySelector('.tp-mini-state');
-                if (state) state.textContent = val ? 'ON' : 'OFF';
-                const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-                const caption = scope?.querySelector('.tp-mini-caption');
-                if (caption) caption.title = title;
-              } else {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
               }
             }
             break;

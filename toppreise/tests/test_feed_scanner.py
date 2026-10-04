@@ -1146,7 +1146,7 @@ def test_rolling_median_time_horizon(page: Page):
 
     # 180d window should only consider points in the last 180 days (around ~780 median)
     assert res['stats180d']['medianPrice'] <= 850
-    # Lifetime window includes early launch prices (median = 1700)
+    # Lifetime window includes early launch prices (median = 1600)
     assert res['statsLifetime']['medianPrice'] >= 1500
 
 
@@ -1319,7 +1319,12 @@ def test_weight_switch_moves_headline_and_heat(page: Page):
     assert 'Rekord' in (badge.text_content() or '')
 
     # Switch to 100% Ø-emphasis: headline + heat move to the Ø-%
-    page.evaluate("document.querySelector('#tp-weight-popover button[data-weight=\"0.00\"]').click()")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-weight-range');
+        r.value = '0';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-25%')")
     assert 'Ø-Preis' in (badge.text_content() or '')
     # ... while the breakdown pill keeps both numbers (nothing buried)
@@ -1331,6 +1336,11 @@ def test_weight_switch_moves_headline_and_heat(page: Page):
     assert page.evaluate("() => document.querySelector('#card-cheapest .badge-dif').style.background !== ''")
 
     # Back to 100% Rekord-emphasis: record headline returns
-    page.evaluate("document.querySelector('#tp-weight-popover button[data-weight=\"1.00\"]').click()")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-weight-range');
+        r.value = '100';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-18%')")
     assert 'Rekord' in (badge.text_content() or '')

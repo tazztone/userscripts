@@ -300,6 +300,9 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
     }
   }
 
+  // Chart sampling is daily & uniform (verified live: 607–3825 pts per
+  // product, max gap 1.0d) — equal-weight median == time-weighted median,
+  // so no duration weighting is needed.
   const sortedWindow = [...windowPrices].sort((a, b) => a - b);
   const medianPrice = medianOf(sortedWindow);
   const avgPrice = windowPrices.reduce((a, b) => a + b, 0) / windowPrices.length;

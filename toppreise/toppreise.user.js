@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.77
+// @version      2.18.78
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -561,63 +561,18 @@ const STYLES = `
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
+    gap: 6px !important;
   }
-  .tp-threshold-btn {
-    background: rgba(15, 23, 42, 0.6) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-left: none !important;
-    color: #94a3b8 !important;
-    padding: 5px 8px !important;
-    border-radius: 0 8px 8px 0 !important;
+  .tp-weight-label {
+    color: #c4b5fd !important;
     font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    cursor: pointer !important;
-    transition: all 0.15s ease !important;
-  }
-  .tp-threshold-btn:hover, .tp-threshold-btn.tp-open {
-    color: #f8fafc !important;
-    background: rgba(30, 41, 59, 0.9) !important;
-  }
-  .tp-threshold-popover {
-    position: absolute !important;
-    top: calc(100% + 4px) !important;
-    left: 0 !important;
-    background: rgba(15, 23, 42, 0.96) !important;
-    backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 8px !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-    padding: 4px !important;
-    display: none;
-    flex-direction: column !important;
-    gap: 2px !important;
-    z-index: 100000 !important;
-    min-width: 84px !important;
-  }
-  .tp-threshold-popover.tp-show { display: flex !important; }
-  .tp-threshold-hint {
-    color: #94a3b8 !important;
-    padding: 5px 10px 3px !important;
-    font: 500 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    white-space: nowrap !important;
     cursor: default !important;
   }
-  .tp-threshold-option {
-    background: transparent !important;
-    border: none !important;
-    color: #cbd5e1 !important;
-    padding: 5px 10px !important;
-    font: 600 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    border-radius: 5px !important;
+  #tp-bar-weight-range {
+    width: 92px !important;
+    accent-color: #a855f7 !important;
     cursor: pointer !important;
-    text-align: left !important;
-    transition: all 0.15s ease !important;
-  }
-  .tp-threshold-option:hover {
-    background: rgba(59, 130, 246, 0.25) !important;
-    color: #60a5fa !important;
-  }
-  .tp-threshold-option.tp-selected {
-    background: #3b82f6 !important;
-    color: #ffffff !important;
   }
   .tp-empty-state-notice {
     display: flex !important;
@@ -1602,6 +1557,9 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
+    // Chart sampling is daily & uniform (verified live: 607–3825 pts per
+    // product, max gap 1.0d) — equal-weight median == time-weighted median,
+    // so no duration weighting is needed.
     const sortedWindow = [...windowPrices].sort((a, b) => a - b);
     const medianPrice = medianOf(sortedWindow);
     const avgPrice = windowPrices.reduce((a, b) => a + b, 0) / windowPrices.length;
@@ -1689,6 +1647,8 @@ const SHADOW_MODAL_STYLES = `
     if (!isAtLow) return null; // Auto-hide non-bestpreise
 
     const isNewRecord = !!stats.isNewAllTimeLow;
+    // Defensive fallback chain: series stats always carry a median; only
+    // exotic hand-built stats fall through to the mean (or 0 = unscorable).
     const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
       ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
       : (stats.realDiscountVsMedian || stats.realDiscountVsAvg || 0);
@@ -1736,16 +1696,21 @@ const SHADOW_MODAL_STYLES = `
     // EQUAL in cents — the isNewAllTimeLow flag is authoritative there.
     if (cPrice < cLow || (cPrice === cLow && stats.isNewAllTimeLow)) {
       const prevLow = stats.previousLow;
+      // dRecordRaw drives the significance decision; the rounded dRecord is
+      // display only — a true 1.96% dip must not flip the 2% gate by rounding.
       let dRecord = 0;
+      let dRecordRaw = 0;
       if (prevLow && prevLow > cardPrice) {
-        dRecord = Math.round(((prevLow - cardPrice) / prevLow) * 100);
+        dRecordRaw = ((prevLow - cardPrice) / prevLow) * 100;
+        dRecord = Math.round(dRecordRaw);
       } else if (stats.realDiscountVsPrevLow) {
         dRecord = stats.realDiscountVsPrevLow;
+        dRecordRaw = stats.realDiscountVsPrevLow;
       }
-      return { kind: 'new-low', dRecord, prevLow: prevLow ?? null };
+      return { kind: 'new-low', dRecord, dRecordRaw, prevLow: prevLow ?? null };
     }
     if (cPrice === cLow) {
-      return { kind: 'at-low', dRecord: 0, prevLow: stats.previousLow ?? null };
+      return { kind: 'at-low', dRecord: 0, dRecordRaw: 0, prevLow: stats.previousLow ?? null };
     }
     return {
       kind: 'above-low',
@@ -1754,9 +1719,11 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /** Only records with a meaningful breakthrough earn the "Rekord" badge style;
-   *  1-cent micro-dips render as plain "Tiefstpreis". */
+   *  1-cent micro-dips render as plain "Tiefstpreis". Decided on the raw value
+   *  (inclusive 2.0 boundary), never the rounded display number. */
   function isSignificantRecord(display) {
-    return !!display && display.kind === 'new-low' && (display.dRecord || 0) >= MIN_SIGNIFICANT_RECORD_PCT;
+    return !!display && display.kind === 'new-low'
+      && (typeof display.dRecordRaw === 'number' ? display.dRecordRaw : (display.dRecord || 0)) >= MIN_SIGNIFICANT_RECORD_PCT;
   }
 
   /**
@@ -1824,7 +1791,14 @@ const SHADOW_MODAL_STYLES = `
       const weight = typeof options.weightRecord === 'number' ? options.weightRecord
         : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
       const levelPct = getLevelPct(cardPrice, stats);
+      // Raw counterparts for the deadband decision below — the badge keeps
+      // showing rounded integers, but the ±5% gate must not flip on rounding.
+      const levelRaw = (stats && stats.medianPrice > 0 && cardPrice > 0 && stats.medianPrice > cardPrice)
+        ? ((stats.medianPrice - cardPrice) / stats.medianPrice) * 100 : 0;
+      const recordRaw = (display && typeof display.dRecordRaw === 'number')
+        ? display.dRecordRaw : (display.dRecord || 0);
       let pct = 0;
+      let raw = 0;
       let kind = 'none';
       if (mode === 'bestpreise') {
         const dealScore = ('dealScore' in options) ? options.dealScore
@@ -1834,17 +1808,17 @@ const SHADOW_MODAL_STYLES = `
         if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
         const showRecord = !!dealScore.isNewRecord && isSignificantRecord(display);
         const medianHeadline = weight < 0.5 && levelPct > 0;
-        if (showRecord && !medianHeadline) { pct = display.dRecord; kind = 'rekord'; }
-        else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+        if (showRecord && !medianHeadline) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
+        else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
       } else {
         const showRecord = isSignificantRecord(display);
-        if (showRecord) { pct = display.dRecord; kind = 'rekord'; }
-        else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+        if (showRecord) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
+        else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
       }
       if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
       // ±5% deadband (documented noise guard): a tiny verified % shows in the
-      // badge text but stays gray on the card.
-      if (pct < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false, pct, kind };
+      // badge text but stays gray on the card — decided on the raw value.
+      if (!(raw >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind };
       return { value: -pct, provisional: false, pct, kind };
     }
     if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
@@ -2046,19 +2020,35 @@ const SHADOW_MODAL_STYLES = `
     return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
   }
 
+  // Compact toolbar readout for the same weight (shared by toolbar + bar sync
+  // so both always print the same short label).
+  function weightShortText(weightRecord) {
+    const w = weightRecord ?? 0.50;
+    if (Math.abs(w - 1.00) < 0.05) return '100% Rek';
+    if (Math.abs(w - 0.70) < 0.05) return '70/30';
+    if (Math.abs(w - 0.50) < 0.05) return '50/50';
+    if (Math.abs(w - 0.30) < 0.05) return '30/70';
+    if (Math.abs(w - 0.00) < 0.05) return '100% Med';
+    return `${Math.round(w * 100)}% Rek`;
+  }
+
+  // Tooltip for the toolbar weight slider: current mix + what it steers.
+  function weightTitleText(weightRecord) {
+    const w = weightRecord ?? 0.50;
+    const pctRec = Math.round(w * 100);
+    return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt Rekord & Ø.`;
+  }
+
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: true,
     FILTER_MIN_ENABLED: true,
-    // Legacy: strictness lives in BESTPREISE_MODE_ACTIVE now (single control).
-    // Key stays so stored settings survive updates; no UI writes it anymore.
-    FILTER_BESTPREIS_ENABLED: true,
     MODE: 'dim',
     MARGIN_PERCENT: 0.0,
     DIM_OPACITY: 0.25,
     USE_SHIPPING_PRICE: true,
     HEATMAP_ENABLED: true,
     HEATMAP_INTENSITY: 1.0,
-    // Legacy: superseded by BESTPREISE_MODE_ACTIVE (see FILTER_BESTPREIS_ENABLED).
+    // Legacy: superseded by BESTPREISE_MODE_ACTIVE.
     REAL_DEAL_FILTER_ACTIVE: false,
     REAL_DEAL_MIN_DISCOUNT: 30,
     REAL_DEAL_CACHE_HOURS: 48,
@@ -2116,7 +2106,6 @@ const SHADOW_MODAL_STYLES = `
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
     FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
-    FILTER_BESTPREIS_ENABLED: _getValue('FILTER_BESTPREIS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_BESTPREIS_ENABLED)),
     MODE: _getValue('MODE', DEFAULTS.MODE),
     MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
     DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
@@ -2192,6 +2181,16 @@ const SHADOW_MODAL_STYLES = `
             if (valEl) valEl.value = pct;
             if (descEl) {
               descEl.textContent = weightDescText(val);
+            }
+            // Toolbar slider mirrors the modal control (skip while dragging).
+            if (typeof document !== 'undefined') {
+              const barRange = document.getElementById('tp-bar-weight-range');
+              if (barRange && document.activeElement !== barRange) barRange.value = pct;
+              const barLabel = document.getElementById('tp-bar-weight-label');
+              if (barLabel) {
+                barLabel.textContent = `⚖️ ${weightShortText(val)}`;
+                barLabel.title = weightTitleText(val);
+              }
             }
             break;
           }
@@ -2287,27 +2286,6 @@ const SHADOW_MODAL_STYLES = `
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
                   toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-                }
-              }
-              break;
-            }
-            case 'FILTER_BESTPREIS_ENABLED': {
-              const toggle = bar.querySelector('#tp-toggle-bestpreis');
-              if (toggle) {
-                if (toggle.tagName === 'INPUT') {
-                  toggle.checked = !!val;
-                  const title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
-                  const label = toggle.closest?.('.tp-mini-switch');
-                  if (label) label.title = title;
-                  const state = label?.querySelector('.tp-mini-state');
-                  if (state) state.textContent = val ? 'ON' : 'OFF';
-                  const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-                  const caption = scope?.querySelector('.tp-mini-caption');
-                  if (caption) caption.title = title;
-                } else {
-                  toggle.classList.toggle('tp-active', !!val);
-                  toggle.classList.toggle('tp-filter-off', !val);
-                  toggle.title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
                 }
               }
               break;
@@ -4851,18 +4829,16 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
-          <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-            <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase: Rekord- oder Ø-Rabatt — Badge zeigt stets beide Zahlen)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
-              ⚖️ 50/50 ▾
-            </button>
-            <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
-              <div class="tp-threshold-hint">Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.</div>
-              <button class="tp-threshold-option" data-weight="0.50" title="Rekord-Rabatt und Ø-Ersparnis zählen je zur Hälfte">⚖️ Ausgewogen (je 50%)</button>
-              <button class="tp-threshold-option" data-weight="1.00" title="Frisch gefallene Preise stehen zuerst, egal wie gross die Ø-Ersparnis ist">🔥 Rekord-Jagd (frische Tiefs zuerst)</button>
-              <button class="tp-threshold-option" data-weight="0.70" title="Neue Tiefs stehen weiter oben (70% Rekord / 30% Ø-Preis)">📈 Rekord-lastig (70/30)</button>
-              <button class="tp-threshold-option" data-weight="0.30" title="Grösste Ersparnis vs üblich steht weiter oben (30% Rekord / 70% Ø-Preis)">📉 Ø-lastig (30/70)</button>
-              <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
-            </div>
+          <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.">
+            <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
+            <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
+            <datalist id="tp-bar-weight-ticks">
+              <option value="0" label="Ø"></option>
+              <option value="30"></option>
+              <option value="50"></option>
+              <option value="70"></option>
+              <option value="100" label="Rek"></option>
+            </datalist>
           </div>
          </div>
         </div>
@@ -4913,38 +4889,33 @@ const SHADOW_MODAL_STYLES = `
       }
 
 
-      const weightBtn = bar.querySelector('#tp-bar-weight-btn');
-      const weightPopover = bar.querySelector('#tp-weight-popover');
-
-      if (weightBtn && weightPopover) {
-        weightBtn.onclick = e => {
-          e.preventDefault();
-          e.stopPropagation();
-          const isOpen = weightPopover.classList.toggle('tp-show');
-          weightBtn.classList.toggle('tp-open', isOpen);
+      // Weight slider: live label on drag, debounced config write (each write
+      // re-sorts the feed), immediate flush + toast on release.
+      const weightRange = bar.querySelector('#tp-bar-weight-range');
+      const weightLabel = bar.querySelector('#tp-bar-weight-label');
+      const readWeight = () => Math.max(0, Math.min(1, (parseInt(weightRange.value, 10) || 0) / 100));
+      const paintWeightLabel = () => {
+        if (!weightLabel) return;
+        const w = readWeight();
+        weightLabel.textContent = `⚖️ ${weightShortText(w)}`;
+        weightLabel.title = weightTitleText(w);
+      };
+      if (weightRange) {
+        paintWeightLabel();
+        weightRange.oninput = () => {
+          paintWeightLabel();
+          clearTimeout(window._tpWeightDeb);
+          window._tpWeightDeb = setTimeout(() => {
+            updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
+          }, 150);
         };
-
-        weightPopover.querySelectorAll('.tp-threshold-option').forEach(opt => {
-          opt.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            const w = parseFloat(opt.dataset.weight);
-            if (!isNaN(w)) {
-              weightPopover.classList.remove('tp-show');
-              weightBtn.classList.remove('tp-open');
-              updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-              showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
-            }
-          };
-        });
-      }
-
-      if (!window._tpDocClickBound) {
-        window._tpDocClickBound = true;
-        document.addEventListener('click', () => {
-          document.getElementById('tp-weight-popover')?.classList.remove('tp-show');
-          document.getElementById('tp-bar-weight-btn')?.classList.remove('tp-open');
-        });
+        weightRange.onchange = () => {
+          clearTimeout(window._tpWeightDeb);
+          const w = readWeight();
+          paintWeightLabel();
+          updateConfig('BESTPREISE_WEIGHT_RECORD', w);
+          showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
+        };
       }
 
       const updateMinOffers = delta => {
@@ -5046,31 +5017,16 @@ const SHADOW_MODAL_STYLES = `
     syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
     // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
-    const threshWrapper = bar.querySelector('#tp-bar-threshold-wrapper');
-    if (threshWrapper) {
-      threshWrapper.style.setProperty('display', 'inline-flex', 'important');
-    }
-
     const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-    let curWeightShort = '50/50';
-    if (Math.abs(curWeight - 1.0) < 0.05) curWeightShort = '100% Rek';
-    else if (Math.abs(curWeight - 0.70) < 0.05) curWeightShort = '70/30';
-    else if (Math.abs(curWeight - 0.50) < 0.05) curWeightShort = '50/50';
-    else if (Math.abs(curWeight - 0.30) < 0.05) curWeightShort = '30/70';
-    else if (Math.abs(curWeight - 0.0) < 0.05) curWeightShort = '100% Med';
-    else curWeightShort = `${Math.round(curWeight * 100)}% Rek`;
-
-    const weightBtn = bar.querySelector('#tp-bar-weight-btn');
-    if (weightBtn) {
-      weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-      weightBtn.title = `Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — Badge zeigt stets beide Zahlen)`;
+    const weightRange = bar.querySelector('#tp-bar-weight-range');
+    // Skip while dragging: the input handler owns the label mid-drag.
+    if (weightRange && document.activeElement !== weightRange) {
+      weightRange.value = Math.round(curWeight * 100);
     }
-    const weightPopover = bar.querySelector('#tp-weight-popover');
-    if (weightPopover) {
-      weightPopover.querySelectorAll('.tp-threshold-option').forEach(opt => {
-        const w = parseFloat(opt.dataset.weight);
-        opt.classList.toggle('tp-selected', Math.abs(w - curWeight) < 0.05);
-      });
+    const weightLabel = bar.querySelector('#tp-bar-weight-label');
+    if (weightLabel) {
+      weightLabel.textContent = `⚖️ ${weightShortText(curWeight)}`;
+      weightLabel.title = weightTitleText(curWeight);
     }
     const weightWrapper = bar.querySelector('#tp-bar-weight-wrapper');
     if (weightWrapper) {

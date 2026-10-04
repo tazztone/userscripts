@@ -271,4 +271,33 @@ describe('Deal Score Domain Module', () => {
       assert.equal(medianHorizonLabel({ horizonDays: 365 }), '1J');
     });
   });
+
+  describe('raw-value thresholds (no rounding flips)', () => {
+    it('treats a 1.96% record as insignificant though it displays as 2%', () => {
+      // (51 - 50) / 51 = 1.9608% -> dRecord 2, but raw < 2.0
+      const d = getDisplayDelta(50.00, { tiefstpreis: 50.00, previousLow: 51.00, isNewAllTimeLow: true });
+      assert.equal(d.kind, 'new-low');
+      assert.equal(d.dRecord, 2);
+      assert.equal(isSignificantRecord(d), false);
+    });
+
+    it('treats an exact 2.0% record as significant (inclusive boundary)', () => {
+      const d = getDisplayDelta(49.00, { tiefstpreis: 49.00, previousLow: 50.00, isNewAllTimeLow: true });
+      assert.equal(d.dRecord, 2);
+      assert.equal(isSignificantRecord(d), true);
+    });
+
+    it('keeps a 4.9%-raw Ø discount in the badge text but gray on the card', () => {
+      // (200 - 190.2) / 200 = 4.9% -> pct 5, but raw < 5 deadband
+      const heat = getHeatInput(190.20, { tiefstpreis: 190.20, medianPrice: 200 }, 0, { mode: 'browse' });
+      assert.deepEqual(heat, { value: null, provisional: false, pct: 5, kind: 'median' });
+    });
+
+    it('keeps a 4.9%-raw record breakthrough in the badge text but gray on the card', () => {
+      // (200 - 190.2) / 200 = 4.9% -> dRecord 5, significant but below heat deadband
+      const stats = { tiefstpreis: 190.20, medianPrice: 400, previousLow: 200, isNewAllTimeLow: true };
+      const heat = getHeatInput(190.20, stats, 0, { mode: 'browse' });
+      assert.deepEqual(heat, { value: null, provisional: false, pct: 5, kind: 'rekord' });
+    });
+  });
 });
