@@ -7,7 +7,8 @@
  * deals — drowns at the far right as just another small button. This
  * floating pill (bottom-left, thumb-reachable, above page content but clear
  * of the bottom-right settings FAB) carries that single action with live
- * progress, threshold selection, and session dismiss + undo.
+ * progress, threshold selection, and session collapse (minimizable, never
+ * fully closable — the primary action must stay one click away).
  *
  * Architecture: create-once + sync. The node is built and bound exactly
  * once (listeners never re-attached); every render only updates textContent
@@ -28,7 +29,7 @@ import { triggerProcessListings } from "../page/adapter.js";
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 export const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
 
-let dismissedForSession = false;
+let collapsedForSession = false;
 let lastCounts = { uncheckedDeals: 0 };
 let lastIsDealFeed = false;
 
@@ -48,8 +49,8 @@ export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, 
   return { mode: 'done', mainLabel: '✅ Alle geprüft', subLabel: '' };
 }
 
-export function isFloatingCtaDismissed() {
-  return dismissedForSession;
+export function isFloatingCtaCollapsed() {
+  return collapsedForSession;
 }
 
 export function hideFloatingCTA() {
@@ -71,7 +72,7 @@ function setTextIfChanged(el, text) {
 /**
  * Entry point for starting (or cancelling) a batch check from any UI surface:
  * the CTA main button, the empty-state notice, or tests. DOM-free enough to
- * call when the pill itself is hidden (e.g. dismissed for the session).
+ * call when the pill itself is hidden (e.g. auto-hidden when done).
  */
 export function startBatchCheck() {
   const { isBatchChecking } = getScanState();
@@ -87,6 +88,8 @@ export function startBatchCheck() {
     return;
   }
   const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+  // Progress + cancel live in the expanded form — a check always expands.
+  setCollapsed(false);
   runBatchDealCheck(
     minDisc,
     () => syncFloatingCTA(),
@@ -101,17 +104,28 @@ export function startBatchCheck() {
   syncFloatingCTA();
 }
 
+function setCollapsed(collapsed) {
+  collapsedForSession = !!collapsed;
+  if (typeof document === 'undefined') return;
+  if (collapsedForSession) {
+    document.getElementById(FLOATING_CTA_ID)
+      ?.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
+  }
+  syncFloatingCTA();
+}
+
 function onMainClick() {
+  // The collapsed pill is an expand affordance, never a check trigger:
+  // the primary action must stay deliberate, not accidental.
+  if (collapsedForSession) {
+    setCollapsed(false);
+    return;
+  }
   startBatchCheck();
 }
 
-function onDismiss() {
-  dismissedForSession = true;
-  hideFloatingCTA();
-  showToast('Check-Deals-Button ausgeblendet', 4000, 'Rückgängig', () => {
-    dismissedForSession = false;
-    renderFloatingCTA(lastCounts, lastIsDealFeed);
-  });
+function onCollapseToggle() {
+  setCollapsed(!collapsedForSession);
 }
 
 function ensureCta() {
@@ -128,12 +142,13 @@ function ensureCta() {
     <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
       <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
       <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+      <span id="tp-floating-check-count">🔍</span>
     </button>
     <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
     <div id="tp-floating-threshold-popover" role="menu">
       <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
     </div>
-    <button type="button" id="tp-floating-cta-dismiss" title="Ausblenden (bis Seiten-Reload)">✕</button>
+    <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
   `;
   const popover = el.querySelector('#tp-floating-threshold-popover');
   for (const val of THRESHOLD_OPTIONS) {
@@ -155,7 +170,7 @@ function ensureCta() {
   }
 
   el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
-  el.querySelector('#tp-floating-cta-dismiss').onclick = onDismiss;
+  el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
 
   const threshBtn = el.querySelector('#tp-floating-threshold-btn');
   threshBtn.onclick = e => {
@@ -196,6 +211,18 @@ export function syncFloatingCTA() {
   setTextIfChanged(subEl, subLabel);
   subEl.style.display = subLabel ? 'block' : 'none';
   el.classList.toggle('tp-scanning', mode === 'scanning');
+  // Collapsed form: compact count instead of labels, flipped chevron.
+  // The count keeps working as a progress signal mid-scan.
+  el.classList.toggle('tp-collapsed', collapsedForSession);
+  const completed = state.progress?.completed || 0;
+  const total = state.progress?.total || 0;
+  setTextIfChanged(
+    el.querySelector('#tp-floating-check-count'),
+    mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : `🔍 ${unchecked}`
+  );
+  const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
+  setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
+  collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
 
   const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
   const threshBtn = el.querySelector('#tp-floating-threshold-btn');
@@ -217,17 +244,14 @@ export function syncFloatingCTA() {
 }
 
 /**
- * Create-once, then sync. Hides itself when dismissed for the session or
- * when there is nothing left to check (and no scan is running).
+ * Create-once, then sync. Auto-hides only when there is nothing left to
+ * check (and no scan is running) — otherwise the pill is always present,
+ * expanded or collapsed. Collapse state is sticky within the session.
  */
 export function renderFloatingCTA(counts = {}, isDealFeed = false) {
   if (typeof document === 'undefined') return;
   lastCounts = counts || { uncheckedDeals: 0 };
   lastIsDealFeed = !!isDealFeed;
-  if (dismissedForSession) {
-    hideFloatingCTA();
-    return;
-  }
   const { isBatchChecking } = getScanState();
   if (!isBatchChecking && (lastCounts.uncheckedDeals || 0) <= 0) {
     hideFloatingCTA();

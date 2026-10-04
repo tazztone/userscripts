@@ -988,22 +988,28 @@ export const STYLES = `
   }
   #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
   #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: #10b981 !important; color: #fff !important; }
-  #tp-floating-cta-dismiss {
-    position: absolute !important;
-    top: -8px !important;
-    right: -8px !important;
-    width: 20px !important;
-    height: 20px !important;
-    border-radius: 50% !important;
-    background: rgba(30,41,59,0.95) !important;
-    border: 1px solid rgba(255,255,255,0.2) !important;
+  #tp-floating-cta-collapse {
+    background: rgba(51,65,85,0.7) !important;
+    border: none !important;
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 0 10px 10px 0 !important;
     color: #94a3b8 !important;
-    font-size: 10px !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
     cursor: pointer !important;
-    padding: 0 !important;
-    line-height: 1 !important;
+    line-height: 1.2 !important;
   }
-  #tp-floating-cta-dismiss:hover { color: #f43f5e !important; border-color: #f43f5e !important; }
+  #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  /* Collapsed form: compact count pill — the action stays one click away. */
+  #tp-floating-check-count { display: none !important; font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-cta.tp-collapsed { border-radius: 999px !important; padding: 4px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 999px !important; border: none !important; margin-left: 2px !important; }
   @media (max-width: 600px) {
     #tp-floating-check-sub { display: none !important; }
     #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }

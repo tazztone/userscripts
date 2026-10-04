@@ -722,7 +722,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.dataset.tpEmptySig = emptySig;
     emptyNotice.querySelector('#tp-empty-check-deals-btn')?.addEventListener('click', () => {
       // Toolbar batch button removed: the floating CTA owns this action now.
-      // startBatchCheck works even when the pill is dismissed for the session.
+      // startBatchCheck works even when the pill is collapsed or auto-hidden.
       startBatchCheck();
     });
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {

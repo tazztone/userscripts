@@ -43,15 +43,28 @@ def test_floating_cta_runs_batch_check_and_hides_when_done(page: Page):
     assert not page.locator('#tp-floating-check-cta').is_visible()
 
 
-def test_floating_cta_dismiss_with_undo(page: Page):
+def test_floating_cta_collapses_but_never_closes(page: Page):
     cta = page.locator('#tp-floating-check-cta')
     assert cta.is_visible()
 
-    page.click('#tp-floating-cta-dismiss')
-    assert not cta.is_visible()
+    # No dismiss affordance anymore — only collapse
+    assert page.locator('#tp-floating-cta-dismiss').count() == 0
+    collapse = page.locator('#tp-floating-cta-collapse')
 
-    # Undo toast restores it within the same session
-    toast = page.locator('#tp-root >> .tp-toast').last
-    assert 'ausgeblendet' in (toast.text_content() or '')
-    page.click('#tp-root >> .tp-toast-undo')
+    # Collapse: pill shrinks to a 🔍 N count, threshold tucks away
+    collapse.click()
+    assert 'tp-collapsed' in (cta.get_attribute('class') or '')
     assert cta.is_visible()
+    assert page.locator('#tp-floating-check-count').text_content() == '🔍 3'
+    assert not page.locator('#tp-floating-threshold-btn').is_visible()
+
+    # Clicking the collapsed pill expands instead of checking
+    page.locator('#tp-floating-check-btn').click()
+    assert 'tp-collapsed' not in (cta.get_attribute('class') or '')
+    assert '3 Tiefstpreise prüfen' in (cta.text_content() or '')
+
+    # The chevron toggles both ways
+    collapse.click()
+    assert 'tp-collapsed' in (cta.get_attribute('class') or '')
+    collapse.click()
+    assert 'tp-collapsed' not in (cta.get_attribute('class') or '')
