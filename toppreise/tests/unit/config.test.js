@@ -48,7 +48,7 @@ describe('weightDescText (worked example moves with the slider)', () => {
   it('shows Score 18 at 50/50 for the demo Rek -10% + O -25%', () => {
     const text = weightDescText(0.50);
     assert.ok(text.includes('Score 18'));
-    assert.ok(text.includes('nur Sortierung'));
+    assert.ok(text.includes('Farb-Emphase'));
   });
 
   it('moves the demo score with the weight (pure Rekord / pure O)', () => {

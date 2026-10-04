@@ -947,7 +947,7 @@ def test_real_deal_record_low_with_previous_low_subline(page: Page):
     # Verify record-low subline is displayed
     page.wait_for_selector('#card-cheapest .tp-card-historical-price.tp-is-record-low')
     subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
-    assert 'Bisher: CHF 2200.00 (-18%)' in (subline.text_content() or '')
+    assert 'Bisher: CHF 2200.00' in (subline.text_content() or '')
 
     # Verify sparkline is rendered immediately from POST response
     sparkline = page.locator('#card-cheapest .tp-sparkline')
@@ -1290,3 +1290,47 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
     assert '797574' in requested_pids
 
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 0)")
+
+
+def test_weight_switch_moves_headline_and_heat(page: Page):
+    """Headline emphasis follows the sort weight: under Ø-emphasis the ribbon
+    leads with the Ø-% (heat follows it, so number and color still agree);
+    under Rekord-emphasis with the record-%. The Rek/Ø split stays visible
+    in the breakdown pill — no event truth is buried."""
+    # Record card with divergent numbers: Rekord -18% vs Ø -25%
+    page.evaluate("""() => {
+        const full = {
+            tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 2400,
+            previousLow: 2200, isNewAllTimeLow: true, realDiscountVsPrevLow: 18,
+            dataPointCount: 10, time: Date.now()
+        };
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    badge = page.locator('#card-cheapest .badge-dif')
+    breakdown = page.locator('#card-cheapest .tp-badge-score-breakdown')
+
+    # Default 50/50: record headline (-18%) with record heat applied
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
+    assert '-18%' in (badge.text_content() or '')
+    assert 'Rekord' in (badge.text_content() or '')
+
+    # Switch to 100% Ø-emphasis: headline + heat move to the Ø-%
+    page.evaluate("document.querySelector('#tp-weight-popover button[data-weight=\"0.00\"]').click()")
+    page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-25%')")
+    assert 'Ø-Preis' in (badge.text_content() or '')
+    # ... while the breakdown pill keeps both numbers (nothing buried)
+    assert 'Rek: -18%' in (breakdown.text_content() or '')
+    assert 'Ø: -25%' in (breakdown.text_content() or '')
+    # Score == Ø here, so it is not printed a third time
+    assert 'Score:' not in (breakdown.text_content() or '')
+    # Heat recolor is applied (ribbon carries an inline heat background)
+    assert page.evaluate("() => document.querySelector('#card-cheapest .badge-dif').style.background !== ''")
+
+    # Back to 100% Rekord-emphasis: record headline returns
+    page.evaluate("document.querySelector('#tp-weight-popover button[data-weight=\"1.00\"]').click()")
+    page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-18%')")
+    assert 'Rekord' in (badge.text_content() or '')

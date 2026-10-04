@@ -95,11 +95,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
         <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
+          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase: Rekord- oder Ø-Rabatt — Badge zeigt stets beide Zahlen)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
             ⚖️ 50/50 ▾
           </button>
           <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
-            <div class="tp-threshold-hint">Nur Feed-Reihenfolge — Farben & Badge-% bleiben gleich.</div>
+            <div class="tp-threshold-hint">Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.</div>
             <button class="tp-threshold-option" data-weight="0.50" title="Rekord-Rabatt und Ø-Ersparnis zählen je zur Hälfte">⚖️ Ausgewogen (je 50%)</button>
             <button class="tp-threshold-option" data-weight="1.00" title="Frisch gefallene Preise stehen zuerst, egal wie gross die Ø-Ersparnis ist">🔥 Rekord-Jagd (frische Tiefs zuerst)</button>
             <button class="tp-threshold-option" data-weight="0.70" title="Neue Tiefs stehen weiter oben (70% Rekord / 30% Ø-Preis)">📈 Rekord-lastig (70/30)</button>
@@ -306,7 +306,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   const weightBtn = bar.querySelector('#tp-bar-weight-btn');
   if (weightBtn) {
     weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-    weightBtn.title = `Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
+    weightBtn.title = `Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — Badge zeigt stets beide Zahlen)`;
   }
   const weightPopover = bar.querySelector('#tp-weight-popover');
   if (weightPopover) {

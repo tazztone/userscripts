@@ -626,7 +626,7 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 1: New Record -> Gold halo, "Real Deal -18% (Rekord)", and subline
+    # Card 1: New Record -> "Tiefstpreis -18% (Rekord)" headline and subline
     # (badge-% = record discount vs Bisher, NOT the blended score -22%)
     card1_badge = page.locator('#card-cheapest .badge-dif')
     assert 'tp-deal-new-record' in (card1_badge.get_attribute('class') or '')
@@ -635,9 +635,9 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     assert 'Rekord' in (card1_badge.text_content() or '')
 
     card1_subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
-    assert 'Bisher: CHF 2200.00 (-18%)' in (card1_subline.text_content() or '')
+    assert 'Bisher: CHF 2200.00' in (card1_subline.text_content() or '')
 
-    # Card 2: Matching Low -> Emerald halo, "Real Deal -27% (Ø-Preis)", and median subline
+    # Card 2: Matching Low -> "Tiefstpreis -27% (Ø-Preis)" headline and median subline
     # (badge-% = median discount, NOT the blended score -14%)
     card2_badge = page.locator('#card-expensive .badge-dif')
     assert 'tp-deal-alltime-low' in (card2_badge.get_attribute('class') or '')
@@ -645,7 +645,7 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     assert '-27%' in (card2_badge.text_content() or '')
 
     card2_subline = page.locator('#card-expensive .tp-card-historical-price.tp-is-at-low')
-    assert 'CHF 1500.00 (-27%)' in (card2_subline.text_content() or '')
+    assert 'CHF 1500.00' in (card2_subline.text_content() or '')
 
     # Card 3: Scanned Non-Tiefstpreis -> Hidden in Tiefstpreise mode
     assert 'tp-bestpreise-hidden' in (page.locator('#card-negative').get_attribute('class') or '')
@@ -1299,8 +1299,8 @@ def test_deal_score_weight_preset_dropdown_in_filter_bar(page: Page):
     weight_btn.click()
     popover = page.locator('#tp-weight-popover')
     assert popover.is_visible()
-    # Plain-language hint clarifies the control sorts only
-    assert 'Nur Feed-Reihenfolge' in (popover.inner_text() or '')
+    # Plain-language hint: order + color emphasis, badge keeps both numbers
+    assert 'Farb-Emphase' in (popover.inner_text() or '')
     assert 'Rekord-Jagd' in (popover.inner_text() or '')
 
     # Select 100% Rekord

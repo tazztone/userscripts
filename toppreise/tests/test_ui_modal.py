@@ -325,7 +325,7 @@ def test_bestpreise_settings_weight_slider(page: Page):
     desc = page.locator('#tp-root >> #tp-bestpreise-weight-desc')
     desc_text = desc.text_content() or ''
     assert '70% Rekord / 30% Ø-Preis' in desc_text
-    assert 'nur Sortierung' in desc_text
+    assert 'Farb-Emphase' in desc_text
     # Worked example moves with the slider: 0.7*10 + 0.3*25 = 15
     assert 'Score 15' in desc_text
 

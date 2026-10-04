@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.73
+// @version      2.18.74
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1958,7 +1958,8 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
-  // One vocabulary everywhere: the Tiefstpreis-Score only ever sorts the Tiefstpreise feed.
+  // One vocabulary everywhere: the Tiefstpreis-Score sorts the Tiefstpreise feed
+  // and sets its headline emphasis (Rekord vs Ø) — badge numbers always show both.
   // The worked example uses fixed demo numbers so dragging the slider visibly
   // moves the result (Rek −10%, Ø −25%).
   function weightDescText(weightRecord) {
@@ -1967,7 +1968,7 @@ const SHADOW_MODAL_STYLES = `
     const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
       : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
       : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
-    return `${base} (nur Sortierung) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
+    return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
   }
 
   const DEFAULTS = Object.freeze({
@@ -3342,7 +3343,17 @@ const SHADOW_MODAL_STYLES = `
     // The blended ranking score drives sorting only, never color or badge text.
     // Unverified site discounts render paler so provisional heat reads provisional.
     const heatInfo = getHeatInput(cardPrice, stats, diffVal);
-    const effectiveDiff = heatInfo.value;
+    let effectiveDiff = heatInfo.value;
+    // Headline emphasis follows the sort weight: below 50% Rekord the mode
+    // ranks by Ø-Ersparnis, so record-event heat redirects to the Ø-level
+    // (the badge headline moves with it — ribbon number always matches its
+    // color). At-low heat already is Ø; provisional (unverified) never redirects.
+    const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+      ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
+    if (emphasizeMedian && !heatInfo.provisional) {
+      const lvl = getPriceLevel(cardPrice, stats);
+      if (lvl !== null && lvl < 0) effectiveDiff = lvl;
+    }
     const heatProvisional = heatInfo.provisional;
     const heatIntensity = heatProvisional
       ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
@@ -3595,7 +3606,9 @@ const SHADOW_MODAL_STYLES = `
         if (dealData) {
           // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
           // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
-          // sortiert nur (siehe Tooltip) und treibt keine Farben an.
+          // sortiert; die Gewichtung setzt zusätzlich die Emphase: Unter 50%
+          // Rekord führt das Badge den Ø-Rabatt (Farbe folgt mit — Zahl und
+          // Farbe stimmen immer überein, Rek/Ø stehen beide in der Pille).
           card.classList.remove('tp-bestpreise-hidden', 'tp-non-bestpreis-filtered');
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
@@ -3616,9 +3629,12 @@ const SHADOW_MODAL_STYLES = `
           const levelPct = (medianVal && medianVal > cardPrice)
             ? Math.round(((medianVal - cardPrice) / medianVal) * 100)
             : 0;
-          // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt.
-          const badgePct = showRecord ? displayDelta.dRecord : levelPct;
-          const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+          // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt — ausser im
+          // Ø-Emphase-Modus (Gewicht < 50% Rekord): dort führt der Ø-Rabatt,
+          // weil danach sortiert wird. levelPct > 0 heisst Median > Preis.
+          const medianHeadline = emphasizeMedian && levelPct > 0;
+          const badgePct = (showRecord && !medianHeadline) ? displayDelta.dRecord : levelPct;
+          const badgeKind = (showRecord && !medianHeadline) ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
           if (isListView) {
             if (badgePct > 0) {
@@ -3640,8 +3656,10 @@ const SHADOW_MODAL_STYLES = `
           const fmtW = w => String(Math.round(w * 100) / 100);
           const scoreFormula = `Tiefstpreis-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
           const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-          if (showRecord) {
+          if (showRecord && !medianHeadline) {
             setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'}\nBadge = Rekord-Rabatt · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
+          } else if (showRecord) {
+            setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)}) — Ø-Emphase: Badge = Ø-Rabatt -${badgePct}% (Rekord -${displayDelta.dRecord}% steht in der Pille) · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
           } else {
             setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge = Ø-Rabatt -${badgePct}% (Ø ${horizonLabel}${medianVal ? ` CHF ${medianVal.toFixed(2)}` : ''}, kein neuer Rekord) · ${colorLegend}` : `Kein neuer Rekord · ${colorLegend}`}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
           }
@@ -3657,7 +3675,13 @@ const SHADOW_MODAL_STYLES = `
               breakdownEl.className = 'tp-badge-score-breakdown';
               card.appendChild(breakdownEl);
             }
-            const scoreTail = ` → <span class="tp-score-result">Score: ${dealData.score}</span>`;
+            // The Score result only prints when it says something new: under
+            // Ø-Emphase Score == Ø by construction (same number thrice). The
+            // formula itself stays documented in the badge tooltip.
+            const shownInputs = (dealData.isNewRecord && dealData.dRecord > 0)
+              ? [dealData.dRecord, dealData.dMedian] : [dealData.dMedian];
+            const scoreTail = shownInputs.includes(dealData.score)
+              ? '' : ` → <span class="tp-score-result">Score: ${dealData.score}</span>`;
             if (dealData.isNewRecord && dealData.dRecord > 0) {
               setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>${scoreTail}`);
             } else {
@@ -3669,11 +3693,11 @@ const SHADOW_MODAL_STYLES = `
 
           if (dealData.isNewRecord && prevLow) {
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)`);
+            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)${outlierText}`);
           } else if (medianVal && medianVal > cardPrice) {
             histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}${outlierText}`);
           } else {
             histPriceEl.remove();
@@ -3866,14 +3890,14 @@ const SHADOW_MODAL_STYLES = `
           } else if (isNewRecord && prevLow) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
+            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`);
           } else if (!isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             const dMedian = Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100);
             const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
             histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (-${dMedian}%)`);
+            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}`);
           } else if (histPriceEl) {
             histPriceEl.remove();
@@ -4155,12 +4179,12 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-            <label>Tiefstpreis-Score Gewichtung: Tiefstpreis-Sortierung (nur Sortierung)</label>
+            <label>Tiefstpreis-Score Gewichtung: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
               <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
             </div>
-            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (nur Sortierung) · z.B. Rek −10% + Ø −25% → Score 18</span>
+            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -4729,11 +4753,11 @@ const SHADOW_MODAL_STYLES = `
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
           <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-            <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
+            <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase: Rekord- oder Ø-Rabatt — Badge zeigt stets beide Zahlen)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
               ⚖️ 50/50 ▾
             </button>
             <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
-              <div class="tp-threshold-hint">Nur Feed-Reihenfolge — Farben & Badge-% bleiben gleich.</div>
+              <div class="tp-threshold-hint">Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.</div>
               <button class="tp-threshold-option" data-weight="0.50" title="Rekord-Rabatt und Ø-Ersparnis zählen je zur Hälfte">⚖️ Ausgewogen (je 50%)</button>
               <button class="tp-threshold-option" data-weight="1.00" title="Frisch gefallene Preise stehen zuerst, egal wie gross die Ø-Ersparnis ist">🔥 Rekord-Jagd (frische Tiefs zuerst)</button>
               <button class="tp-threshold-option" data-weight="0.70" title="Neue Tiefs stehen weiter oben (70% Rekord / 30% Ø-Preis)">📈 Rekord-lastig (70/30)</button>
@@ -4940,7 +4964,7 @@ const SHADOW_MODAL_STYLES = `
     const weightBtn = bar.querySelector('#tp-bar-weight-btn');
     if (weightBtn) {
       weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-      weightBtn.title = `Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
+      weightBtn.title = `Gewichtung für den Tiefstpreise-Feed (Reihenfolge + Farb-Emphase, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — Badge zeigt stets beide Zahlen)`;
     }
     const weightPopover = bar.querySelector('#tp-weight-popover');
     if (weightPopover) {

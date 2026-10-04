@@ -14,7 +14,7 @@ import {
   getCardProductId
 } from '../page/cards.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
-import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord } from '../domain/deal-score.js';
+import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, getPriceLevel, isSignificantRecord } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
@@ -74,7 +74,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // The blended ranking score drives sorting only, never color or badge text.
   // Unverified site discounts render paler so provisional heat reads provisional.
   const heatInfo = getHeatInput(cardPrice, stats, diffVal);
-  const effectiveDiff = heatInfo.value;
+  let effectiveDiff = heatInfo.value;
+  // Headline emphasis follows the sort weight: below 50% Rekord the mode
+  // ranks by Ø-Ersparnis, so record-event heat redirects to the Ø-level
+  // (the badge headline moves with it — ribbon number always matches its
+  // color). At-low heat already is Ø; provisional (unverified) never redirects.
+  const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+    ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
+  if (emphasizeMedian && !heatInfo.provisional) {
+    const lvl = getPriceLevel(cardPrice, stats);
+    if (lvl !== null && lvl < 0) effectiveDiff = lvl;
+  }
   const heatProvisional = heatInfo.provisional;
   const heatIntensity = heatProvisional
     ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
@@ -327,7 +337,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       if (dealData) {
         // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
         // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
-        // sortiert nur (siehe Tooltip) und treibt keine Farben an.
+        // sortiert; die Gewichtung setzt zusätzlich die Emphase: Unter 50%
+        // Rekord führt das Badge den Ø-Rabatt (Farbe folgt mit — Zahl und
+        // Farbe stimmen immer überein, Rek/Ø stehen beide in der Pille).
         card.classList.remove('tp-bestpreise-hidden', 'tp-non-bestpreis-filtered');
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
@@ -348,9 +360,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         const levelPct = (medianVal && medianVal > cardPrice)
           ? Math.round(((medianVal - cardPrice) / medianVal) * 100)
           : 0;
-        // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt.
-        const badgePct = showRecord ? displayDelta.dRecord : levelPct;
-        const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+        // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt — ausser im
+        // Ø-Emphase-Modus (Gewicht < 50% Rekord): dort führt der Ø-Rabatt,
+        // weil danach sortiert wird. levelPct > 0 heisst Median > Preis.
+        const medianHeadline = emphasizeMedian && levelPct > 0;
+        const badgePct = (showRecord && !medianHeadline) ? displayDelta.dRecord : levelPct;
+        const badgeKind = (showRecord && !medianHeadline) ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
         if (isListView) {
           if (badgePct > 0) {
@@ -372,8 +387,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         const fmtW = w => String(Math.round(w * 100) / 100);
         const scoreFormula = `Tiefstpreis-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
         const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-        if (showRecord) {
+        if (showRecord && !medianHeadline) {
           setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'}\nBadge = Rekord-Rabatt · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
+        } else if (showRecord) {
+          setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)}) — Ø-Emphase: Badge = Ø-Rabatt -${badgePct}% (Rekord -${displayDelta.dRecord}% steht in der Pille) · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
         } else {
           setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge = Ø-Rabatt -${badgePct}% (Ø ${horizonLabel}${medianVal ? ` CHF ${medianVal.toFixed(2)}` : ''}, kein neuer Rekord) · ${colorLegend}` : `Kein neuer Rekord · ${colorLegend}`}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
         }
@@ -389,7 +406,13 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             breakdownEl.className = 'tp-badge-score-breakdown';
             card.appendChild(breakdownEl);
           }
-          const scoreTail = ` → <span class="tp-score-result">Score: ${dealData.score}</span>`;
+          // The Score result only prints when it says something new: under
+          // Ø-Emphase Score == Ø by construction (same number thrice). The
+          // formula itself stays documented in the badge tooltip.
+          const shownInputs = (dealData.isNewRecord && dealData.dRecord > 0)
+            ? [dealData.dRecord, dealData.dMedian] : [dealData.dMedian];
+          const scoreTail = shownInputs.includes(dealData.score)
+            ? '' : ` → <span class="tp-score-result">Score: ${dealData.score}</span>`;
           if (dealData.isNewRecord && dealData.dRecord > 0) {
             setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>${scoreTail}`);
           } else {
@@ -401,11 +424,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
 
         if (dealData.isNewRecord && prevLow) {
           histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-          setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)`);
+          setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)}`);
           setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)${outlierText}`);
         } else if (medianVal && medianVal > cardPrice) {
           histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-          setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+          setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)}`);
           setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}${outlierText}`);
         } else {
           histPriceEl.remove();
@@ -598,14 +621,14 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         } else if (isNewRecord && prevLow) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);
           histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-          setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
+          setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)}`);
           setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`);
         } else if (!isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);
           const dMedian = Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100);
           const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
           histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-          setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (-${dMedian}%)`);
+          setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}`);
           setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}`);
         } else if (histPriceEl) {
           histPriceEl.remove();

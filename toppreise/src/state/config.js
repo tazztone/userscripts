@@ -6,7 +6,8 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 
-// One vocabulary everywhere: the Tiefstpreis-Score only ever sorts the Tiefstpreise feed.
+// One vocabulary everywhere: the Tiefstpreis-Score sorts the Tiefstpreise feed
+// and sets its headline emphasis (Rekord vs Ø) — badge numbers always show both.
 // The worked example uses fixed demo numbers so dragging the slider visibly
 // moves the result (Rek −10%, Ø −25%).
 export function weightDescText(weightRecord) {
@@ -15,7 +16,7 @@ export function weightDescText(weightRecord) {
   const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
     : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
     : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
-  return `${base} (nur Sortierung) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
+  return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
 }
 
 export const DEFAULTS = Object.freeze({
