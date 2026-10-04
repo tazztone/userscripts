@@ -122,5 +122,15 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
     it('renders provisional deals paler', () => {
       assert.notEqual(getBadgeHeatStyle(-58, true).background, getBadgeHeatStyle(-58, false).background);
     });
+
+    it('scales with intensity exactly like the card (default unchanged)', () => {
+      assert.deepEqual(getBadgeHeatStyle(-58), getBadgeHeatStyle(-58, false, 1.0));
+      assert.deepEqual(getBadgeHeatStyle(-58, true), getBadgeHeatStyle(-58, true, 1.0));
+      const full = getBadgeHeatStyle(-58, false, 1.0);
+      const faint = getBadgeHeatStyle(-58, false, 0.5);
+      assert.notEqual(full.background, faint.background);
+      // Provisional ratio survives intensity scaling: ungeprüft stays paler.
+      assert.notEqual(getBadgeHeatStyle(-58, true, 0.5).background, getBadgeHeatStyle(-58, false, 0.5).background);
+    });
   });
 });

@@ -86,7 +86,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
         <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
           👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
         </button>
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
        <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">

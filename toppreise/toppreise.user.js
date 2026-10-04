@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.74
+// @version      2.18.75
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1742,10 +1742,9 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Price LEVEL vs usual (median): what the heatmap shows. Signed percent:
-   * negative = below median (hot/red), positive = above median (cold/blue),
-   * null = no median available. Heat is ambient/continuous; the badge owns
-   * the precise event number.
+   * Price LEVEL vs usual (median). Signed percent: negative = below median
+   * (hot/red), positive = above median, null = no median available.
+   * Sorting helper (discount-desc); the badge/heat headline uses getLevelPct.
    */
   function getPriceLevel(cardPrice, stats) {
     const median = stats?.medianPrice;
@@ -1754,33 +1753,77 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Single heat driver: the heat IS the badge discount, gray -> red. Returns
-   * { value, provisional }:
-   * - verified new-low  -> -dRecord (record breakthrough the badge shows)
-   * - verified at-low   -> -dMedian (same Ø-% the badge shows; null -> neutral)
-   * - verified above-low-> null (no deal, no color — the +XX% badge text
-   *                             carries the markup signal)
-   * - unverified deal   -> site Differenz, flagged provisional (rendered paler)
-   * - unverified markup -> null (neutral)
-   * ±5% deadband -> neutral gray.
+   * Ø discount vs median, positive = below median (deal), 0 = at/above median
+   * or no median. The exact formula the badge headline uses — shared by the
+   * heat driver so both always consume the same number (ADR-0002).
    */
-  function getHeatInput(cardPrice, stats, siteDiff) {
-    // Verified: the heat IS the badge discount (new-low -> -dRecord, at-low ->
-    // the same -dMedian the badge shows). Above-low -> no color.
-    if (stats?.tiefstpreis > 0 && cardPrice > 0) {
-      const d = getDisplayDelta(cardPrice, stats);
-      let v = null;
-      if (d.kind === 'new-low') v = -d.dRecord;
-      else if (d.kind === 'at-low') v = getPriceLevel(cardPrice, stats);
-      if (v === null || v >= -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
-      return { value: v, provisional: false };
+  function getLevelPct(cardPrice, stats) {
+    const median = stats?.medianPrice;
+    if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return 0;
+    if (median <= cardPrice) return 0;
+    return Math.round(((median - cardPrice) / median) * 100);
+  }
+
+  /**
+   * Single heat driver (ADR-0002: color always = badge-% heat, text = kind).
+   * One computation feeds BOTH the card heat and the badge headline, so the
+   * ribbon number always matches its color. Returns
+   * { value, provisional, pct, kind }:
+   * - verified deal   -> headline % the badge shows (Rekord vs Ø per mode +
+   *                      weight, ADR-0003), null inside the ±5% deadband
+   * - verified markup -> null (no deal, no color — the +XX% badge text
+   *                      carries the markup signal)
+   * - verified but unqualified in Tiefstpreise mode (thin/flat history, the
+   *                      badge shows a plain star with no %) -> null
+   * - unverified deal -> site Differenz, flagged provisional (rendered paler)
+   * - unverified markup / unknown -> null (neutral)
+   * Callers may pass { display, dealScore, mode, weightRecord } so the heat
+   * reuses the exact inputs of the badge branch (no parallel formulas).
+   */
+  function getHeatInput(cardPrice, stats, siteDiff, options = {}) {
+    const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
+    if (verified) {
+      const display = options.display || getDisplayDelta(cardPrice, stats);
+      if (display.kind !== 'new-low' && display.kind !== 'at-low') {
+        return { value: null, provisional: false, pct: 0, kind: 'markup' };
+      }
+      const mode = options.mode
+        || (CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse');
+      const weight = typeof options.weightRecord === 'number' ? options.weightRecord
+        : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
+      const levelPct = getLevelPct(cardPrice, stats);
+      let pct = 0;
+      let kind = 'none';
+      if (mode === 'bestpreise') {
+        const dealScore = ('dealScore' in options) ? options.dealScore
+          : computeDealScore(stats, cardPrice);
+        // Unqualified history: the badge shows a plain star with no % — heat
+        // stays neutral to match instead of heating an unshown number.
+        if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
+        const showRecord = !!dealScore.isNewRecord && isSignificantRecord(display);
+        const medianHeadline = weight < 0.5 && levelPct > 0;
+        if (showRecord && !medianHeadline) { pct = display.dRecord; kind = 'rekord'; }
+        else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+      } else {
+        const showRecord = isSignificantRecord(display);
+        if (showRecord) { pct = display.dRecord; kind = 'rekord'; }
+        else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+      }
+      if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
+      // ±5% deadband (documented noise guard): a tiny verified % shows in the
+      // badge text but stays gray on the card.
+      if (pct < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false, pct, kind };
+      return { value: -pct, provisional: false, pct, kind };
     }
     if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
       // Unverified markup (positive) -> neutral; only real discounts heat.
-      if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: siteDiff < 0 };
-      return { value: siteDiff, provisional: true };
+      if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) {
+        const pct = siteDiff < 0 ? -siteDiff : 0;
+        return { value: null, provisional: siteDiff < 0, pct, kind: siteDiff < 0 ? 'unverified' : 'unknown' };
+      }
+      return { value: siteDiff, provisional: true, pct: -siteDiff, kind: 'unverified' };
     }
-    return { value: null, provisional: false };
+    return { value: null, provisional: false, pct: 0, kind: 'unknown' };
   }
 
   // ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────
@@ -2537,7 +2580,10 @@ const SHADOW_MODAL_STYLES = `
       return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
     }
     const badgeEl = card.querySelector('.badge-dif:not(.tp-injected-badge), .badge:not(.tp-injected-badge), [class*="badge-dif"]:not(.tp-injected-badge)');
-    const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
+    // Never parse our own injected badge text as the site Differenz: when only
+    // our badge exists there is no unverified site number to read.
+    const text = badgeEl ? badgeEl.textContent
+      : (card.querySelector?.('.tp-injected-badge') ? '' : (card.textContent || ''));
     const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
     if (match) {
       let val = parseFloat(match[1].replace(',', '.'));
@@ -2603,16 +2649,18 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // Badge reuses the card logic: solid swatch from the same ramp so the badge
-  // color always matches the card heat. Neutral (t = 0) falls back to the
-  // badge's class styling (caller only applies this when a deal is heating).
-  function getBadgeHeatStyle(diffPercent, provisional = false) {
+  // color always matches the card heat. Intensity scales the badge exactly like
+  // the card (same hue); the provisional ratio stays, so ungeprüft always reads
+  // paler. At full intensity the output is identical to the legacy fixed alphas.
+  function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
     const t = heatT(diffPercent);
     if (t === null) return null;
     const { acc, borderRgb, borderAlpha } = heatRamp(t);
-    const alpha = provisional ? 0.55 : 0.95;
+    const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+    const alpha = (provisional ? 0.55 : 0.95) * safeInt;
     return {
-      background: `rgba(${acc.join(',')},${alpha})`,
-      border: `rgba(${borderRgb.join(',')},${borderAlpha.toFixed(2)})`
+      background: `rgba(${acc.join(',')},${alpha.toFixed(2)})`,
+      border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`
     };
   }
 
@@ -3338,22 +3386,27 @@ const SHADOW_MODAL_STYLES = `
     const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
     const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-    // Heatmap: gray (no deal) -> red (max savings), single hue. The badge reuses
-    // the card logic (getBadgeHeatStyle) so badge color always matches card heat.
-    // The blended ranking score drives sorting only, never color or badge text.
+    // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0002: color
+    // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
+    // BOTH the card heat here and the badge headline below, so the ribbon
+    // number always matches its color. The ranking score sorts only.
     // Unverified site discounts render paler so provisional heat reads provisional.
-    const heatInfo = getHeatInput(cardPrice, stats, diffVal);
-    let effectiveDiff = heatInfo.value;
-    // Headline emphasis follows the sort weight: below 50% Rekord the mode
-    // ranks by Ø-Ersparnis, so record-event heat redirects to the Ø-level
-    // (the badge headline moves with it — ribbon number always matches its
-    // color). At-low heat already is Ø; provisional (unverified) never redirects.
+    // emphasizeMedian stays: the badge headline (not the heat) follows it.
     const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
       ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
-    if (emphasizeMedian && !heatInfo.provisional) {
-      const lvl = getPriceLevel(cardPrice, stats);
-      if (lvl !== null && lvl < 0) effectiveDiff = lvl;
+    const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
+    const heatOpts = {
+      display: displayDelta,
+      mode: heatMode,
+      weightRecord: (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+        ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50)
+    };
+    if (heatMode === 'bestpreise') {
+      heatOpts.dealScore = (stats && cardPrice > 0)
+        ? (cd.dealScore || computeDealScore(stats, cardPrice)) : null;
     }
+    const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatOpts);
+    const effectiveDiff = heatInfo.value;
     const heatProvisional = heatInfo.provisional;
     const heatIntensity = heatProvisional
       ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
@@ -3400,17 +3453,19 @@ const SHADOW_MODAL_STYLES = `
         }
 
         card.classList.add('tp-heatmap-active');
-
-        // Badge follows the card heat: same ramp, solid swatch.
-        const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-        if (heatBadgeEl) {
-          const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional);
-          heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
-          heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
-          heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
-          heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
-          heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
-        }
+      }
+      // Badge follows the card heat: same ramp, solid swatch. Synced on every
+      // render (not only on heatKey change) so re-rendered badge nodes can't
+      // desync from the card. Raw intensity passes through — the style helper
+      // owns the provisional ratio (no double 0.55 with heatIntensity above).
+      const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+      if (heatBadgeEl) {
+        const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional, CONFIG.HEATMAP_INTENSITY);
+        heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
+        heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
+        heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
+        heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+        heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
       }
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
       // Tripwire: heat stripped while the badge still claims a verified % means
@@ -3626,15 +3681,13 @@ const SHADOW_MODAL_STYLES = `
           const medianVal = stats?.medianPrice;
           const horizonLabel = stats?.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : 'Lifetime';
           const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-          const levelPct = (medianVal && medianVal > cardPrice)
-            ? Math.round(((medianVal - cardPrice) / medianVal) * 100)
-            : 0;
-          // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt — ausser im
-          // Ø-Emphase-Modus (Gewicht < 50% Rekord): dort führt der Ø-Rabatt,
-          // weil danach sortiert wird. levelPct > 0 heisst Median > Preis.
+          const levelPct = getLevelPct(cardPrice, stats);
+          // Single source (ADR-0002): the headline % is the heat input computed
+          // above — ribbon number always matches its color. medianHeadline and
+          // showRecord stay for classes + tooltips.
           const medianHeadline = emphasizeMedian && levelPct > 0;
-          const badgePct = (showRecord && !medianHeadline) ? displayDelta.dRecord : levelPct;
-          const badgeKind = (showRecord && !medianHeadline) ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+          const badgePct = heatInfo.pct;
+          const badgeKind = heatInfo.kind === 'rekord' ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
           if (isListView) {
             if (badgePct > 0) {
@@ -3812,11 +3865,10 @@ const SHADOW_MODAL_STYLES = `
             badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
             const showRecord = isSignificantRecord(displayDelta);
-            const levelPct = (stats.medianPrice && stats.medianPrice > cardPrice)
-              ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
-              : 0;
-            const badgePct = showRecord ? displayDelta.dRecord : levelPct;
-            const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+            const levelPct = getLevelPct(cardPrice, stats);
+            // Single source (ADR-0002): headline % is the heat input above.
+            const badgePct = heatInfo.pct;
+            const badgeKind = heatInfo.kind === 'rekord' ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
             const detailParts = [];
             if (isNewRecord && prevLow) {
@@ -4744,7 +4796,7 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
           </button>
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
          <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">

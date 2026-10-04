@@ -119,7 +119,10 @@ export function extractCardDiff(card) {
     return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
   }
   const badgeEl = card.querySelector('.badge-dif:not(.tp-injected-badge), .badge:not(.tp-injected-badge), [class*="badge-dif"]:not(.tp-injected-badge)');
-  const text = badgeEl ? badgeEl.textContent : (card.textContent || '');
+  // Never parse our own injected badge text as the site Differenz: when only
+  // our badge exists there is no unverified site number to read.
+  const text = badgeEl ? badgeEl.textContent
+    : (card.querySelector?.('.tp-injected-badge') ? '' : (card.textContent || ''));
   const match = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
   if (match) {
     let val = parseFloat(match[1].replace(',', '.'));
@@ -185,16 +188,18 @@ export function getHeatmapStyles(diffPercent, intensity = 1.0) {
 }
 
 // Badge reuses the card logic: solid swatch from the same ramp so the badge
-// color always matches the card heat. Neutral (t = 0) falls back to the
-// badge's class styling (caller only applies this when a deal is heating).
-export function getBadgeHeatStyle(diffPercent, provisional = false) {
+// color always matches the card heat. Intensity scales the badge exactly like
+// the card (same hue); the provisional ratio stays, so ungeprüft always reads
+// paler. At full intensity the output is identical to the legacy fixed alphas.
+export function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
   const t = heatT(diffPercent);
   if (t === null) return null;
   const { acc, borderRgb, borderAlpha } = heatRamp(t);
-  const alpha = provisional ? 0.55 : 0.95;
+  const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+  const alpha = (provisional ? 0.55 : 0.95) * safeInt;
   return {
-    background: `rgba(${acc.join(',')},${alpha})`,
-    border: `rgba(${borderRgb.join(',')},${borderAlpha.toFixed(2)})`
+    background: `rgba(${acc.join(',')},${alpha.toFixed(2)})`,
+    border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`
   };
 }
 

@@ -110,10 +110,9 @@ export function isSignificantRecord(display) {
 }
 
 /**
- * Price LEVEL vs usual (median): what the heatmap shows. Signed percent:
- * negative = below median (hot/red), positive = above median (cold/blue),
- * null = no median available. Heat is ambient/continuous; the badge owns
- * the precise event number.
+ * Price LEVEL vs usual (median). Signed percent: negative = below median
+ * (hot/red), positive = above median, null = no median available.
+ * Sorting helper (discount-desc); the badge/heat headline uses getLevelPct.
  */
 export function getPriceLevel(cardPrice, stats) {
   const median = stats?.medianPrice;
@@ -122,31 +121,75 @@ export function getPriceLevel(cardPrice, stats) {
 }
 
 /**
- * Single heat driver: the heat IS the badge discount, gray -> red. Returns
- * { value, provisional }:
- * - verified new-low  -> -dRecord (record breakthrough the badge shows)
- * - verified at-low   -> -dMedian (same Ø-% the badge shows; null -> neutral)
- * - verified above-low-> null (no deal, no color — the +XX% badge text
- *                             carries the markup signal)
- * - unverified deal   -> site Differenz, flagged provisional (rendered paler)
- * - unverified markup -> null (neutral)
- * ±5% deadband -> neutral gray.
+ * Ø discount vs median, positive = below median (deal), 0 = at/above median
+ * or no median. The exact formula the badge headline uses — shared by the
+ * heat driver so both always consume the same number (ADR-0002).
  */
-export function getHeatInput(cardPrice, stats, siteDiff) {
-  // Verified: the heat IS the badge discount (new-low -> -dRecord, at-low ->
-  // the same -dMedian the badge shows). Above-low -> no color.
-  if (stats?.tiefstpreis > 0 && cardPrice > 0) {
-    const d = getDisplayDelta(cardPrice, stats);
-    let v = null;
-    if (d.kind === 'new-low') v = -d.dRecord;
-    else if (d.kind === 'at-low') v = getPriceLevel(cardPrice, stats);
-    if (v === null || v >= -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false };
-    return { value: v, provisional: false };
+export function getLevelPct(cardPrice, stats) {
+  const median = stats?.medianPrice;
+  if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return 0;
+  if (median <= cardPrice) return 0;
+  return Math.round(((median - cardPrice) / median) * 100);
+}
+
+/**
+ * Single heat driver (ADR-0002: color always = badge-% heat, text = kind).
+ * One computation feeds BOTH the card heat and the badge headline, so the
+ * ribbon number always matches its color. Returns
+ * { value, provisional, pct, kind }:
+ * - verified deal   -> headline % the badge shows (Rekord vs Ø per mode +
+ *                      weight, ADR-0003), null inside the ±5% deadband
+ * - verified markup -> null (no deal, no color — the +XX% badge text
+ *                      carries the markup signal)
+ * - verified but unqualified in Tiefstpreise mode (thin/flat history, the
+ *                      badge shows a plain star with no %) -> null
+ * - unverified deal -> site Differenz, flagged provisional (rendered paler)
+ * - unverified markup / unknown -> null (neutral)
+ * Callers may pass { display, dealScore, mode, weightRecord } so the heat
+ * reuses the exact inputs of the badge branch (no parallel formulas).
+ */
+export function getHeatInput(cardPrice, stats, siteDiff, options = {}) {
+  const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
+  if (verified) {
+    const display = options.display || getDisplayDelta(cardPrice, stats);
+    if (display.kind !== 'new-low' && display.kind !== 'at-low') {
+      return { value: null, provisional: false, pct: 0, kind: 'markup' };
+    }
+    const mode = options.mode
+      || (CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse');
+    const weight = typeof options.weightRecord === 'number' ? options.weightRecord
+      : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
+    const levelPct = getLevelPct(cardPrice, stats);
+    let pct = 0;
+    let kind = 'none';
+    if (mode === 'bestpreise') {
+      const dealScore = ('dealScore' in options) ? options.dealScore
+        : computeDealScore(stats, cardPrice);
+      // Unqualified history: the badge shows a plain star with no % — heat
+      // stays neutral to match instead of heating an unshown number.
+      if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
+      const showRecord = !!dealScore.isNewRecord && isSignificantRecord(display);
+      const medianHeadline = weight < 0.5 && levelPct > 0;
+      if (showRecord && !medianHeadline) { pct = display.dRecord; kind = 'rekord'; }
+      else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+    } else {
+      const showRecord = isSignificantRecord(display);
+      if (showRecord) { pct = display.dRecord; kind = 'rekord'; }
+      else if (levelPct > 0) { pct = levelPct; kind = 'median'; }
+    }
+    if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
+    // ±5% deadband (documented noise guard): a tiny verified % shows in the
+    // badge text but stays gray on the card.
+    if (pct < HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: false, pct, kind };
+    return { value: -pct, provisional: false, pct, kind };
   }
   if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
     // Unverified markup (positive) -> neutral; only real discounts heat.
-    if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) return { value: null, provisional: siteDiff < 0 };
-    return { value: siteDiff, provisional: true };
+    if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) {
+      const pct = siteDiff < 0 ? -siteDiff : 0;
+      return { value: null, provisional: siteDiff < 0, pct, kind: siteDiff < 0 ? 'unverified' : 'unknown' };
+    }
+    return { value: siteDiff, provisional: true, pct: -siteDiff, kind: 'unverified' };
   }
-  return { value: null, provisional: false };
+  return { value: null, provisional: false, pct: 0, kind: 'unknown' };
 }

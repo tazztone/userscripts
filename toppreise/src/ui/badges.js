@@ -14,7 +14,7 @@ import {
   getCardProductId
 } from '../page/cards.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
-import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, getPriceLevel, isSignificantRecord } from '../domain/deal-score.js';
+import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
@@ -69,22 +69,27 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
   const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
 
-  // Heatmap: gray (no deal) -> red (max savings), single hue. The badge reuses
-  // the card logic (getBadgeHeatStyle) so badge color always matches card heat.
-  // The blended ranking score drives sorting only, never color or badge text.
+  // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0002: color
+  // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
+  // BOTH the card heat here and the badge headline below, so the ribbon
+  // number always matches its color. The ranking score sorts only.
   // Unverified site discounts render paler so provisional heat reads provisional.
-  const heatInfo = getHeatInput(cardPrice, stats, diffVal);
-  let effectiveDiff = heatInfo.value;
-  // Headline emphasis follows the sort weight: below 50% Rekord the mode
-  // ranks by Ø-Ersparnis, so record-event heat redirects to the Ø-level
-  // (the badge headline moves with it — ribbon number always matches its
-  // color). At-low heat already is Ø; provisional (unverified) never redirects.
+  // emphasizeMedian stays: the badge headline (not the heat) follows it.
   const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
-  if (emphasizeMedian && !heatInfo.provisional) {
-    const lvl = getPriceLevel(cardPrice, stats);
-    if (lvl !== null && lvl < 0) effectiveDiff = lvl;
+  const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
+  const heatOpts = {
+    display: displayDelta,
+    mode: heatMode,
+    weightRecord: (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+      ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50)
+  };
+  if (heatMode === 'bestpreise') {
+    heatOpts.dealScore = (stats && cardPrice > 0)
+      ? (cd.dealScore || computeDealScore(stats, cardPrice)) : null;
   }
+  const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatOpts);
+  const effectiveDiff = heatInfo.value;
   const heatProvisional = heatInfo.provisional;
   const heatIntensity = heatProvisional
     ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
@@ -131,17 +136,19 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       }
 
       card.classList.add('tp-heatmap-active');
-
-      // Badge follows the card heat: same ramp, solid swatch.
-      const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-      if (heatBadgeEl) {
-        const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional);
-        heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
-        heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
-        heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
-        heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
-        heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
-      }
+    }
+    // Badge follows the card heat: same ramp, solid swatch. Synced on every
+    // render (not only on heatKey change) so re-rendered badge nodes can't
+    // desync from the card. Raw intensity passes through — the style helper
+    // owns the provisional ratio (no double 0.55 with heatIntensity above).
+    const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+    if (heatBadgeEl) {
+      const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional, CONFIG.HEATMAP_INTENSITY);
+      heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
+      heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
+      heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
+      heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+      heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
     }
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
     // Tripwire: heat stripped while the badge still claims a verified % means
@@ -357,15 +364,13 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         const medianVal = stats?.medianPrice;
         const horizonLabel = stats?.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : 'Lifetime';
         const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-        const levelPct = (medianVal && medianVal > cardPrice)
-          ? Math.round(((medianVal - cardPrice) / medianVal) * 100)
-          : 0;
-        // Badge-%: Rekord-Rabatt bei neuem Rekord, sonst Ø-Rabatt — ausser im
-        // Ø-Emphase-Modus (Gewicht < 50% Rekord): dort führt der Ø-Rabatt,
-        // weil danach sortiert wird. levelPct > 0 heisst Median > Preis.
+        const levelPct = getLevelPct(cardPrice, stats);
+        // Single source (ADR-0002): the headline % is the heat input computed
+        // above — ribbon number always matches its color. medianHeadline and
+        // showRecord stay for classes + tooltips.
         const medianHeadline = emphasizeMedian && levelPct > 0;
-        const badgePct = (showRecord && !medianHeadline) ? displayDelta.dRecord : levelPct;
-        const badgeKind = (showRecord && !medianHeadline) ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+        const badgePct = heatInfo.pct;
+        const badgeKind = heatInfo.kind === 'rekord' ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
         if (isListView) {
           if (badgePct > 0) {
@@ -543,11 +548,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
           const showRecord = isSignificantRecord(displayDelta);
-          const levelPct = (stats.medianPrice && stats.medianPrice > cardPrice)
-            ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
-            : 0;
-          const badgePct = showRecord ? displayDelta.dRecord : levelPct;
-          const badgeKind = showRecord ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+          const levelPct = getLevelPct(cardPrice, stats);
+          // Single source (ADR-0002): headline % is the heat input above.
+          const badgePct = heatInfo.pct;
+          const badgeKind = heatInfo.kind === 'rekord' ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
           const detailParts = [];
           if (isNewRecord && prevLow) {

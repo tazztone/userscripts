@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDealState, computeDealScore, getDisplayDelta, getPriceLevel, getHeatInput, isSignificantRecord } from '../../src/domain/deal-score.js';
+import { getDealState, computeDealScore, getDisplayDelta, getPriceLevel, getLevelPct, getHeatInput, isSignificantRecord } from '../../src/domain/deal-score.js';
 
 describe('Deal Score Domain Module', () => {
   describe('getDealState', () => {
@@ -141,7 +141,7 @@ describe('Deal Score Domain Module', () => {
 
     it('heats matched lows by the same O-% the badge shows', () => {
       const heat = getHeatInput(1100, { tiefstpreis: 1100, medianPrice: 1500 }, -35);
-      assert.deepEqual(heat, { value: -27, provisional: false });
+      assert.deepEqual(heat, { value: -27, provisional: false, pct: 27, kind: 'median' });
     });
 
     it('applies a ±5% neutral deadband (at-low near the median, micro-dips)', () => {
@@ -156,23 +156,100 @@ describe('Deal Score Domain Module', () => {
     });
 
     it('heats nothing for unverified markups (positive site Differenz)', () => {
-      assert.deepEqual(getHeatInput(0, {}, 53), { value: null, provisional: false });
+      assert.deepEqual(getHeatInput(0, {}, 53), { value: null, provisional: false, pct: 0, kind: 'unknown' });
     });
 
     it('heats record breakthroughs without a median (HTML fallback)', () => {
       const heat = getHeatInput(1800, { tiefstpreis: 1800, previousLow: 2000, isNewAllTimeLow: true }, -35);
-      assert.deepEqual(heat, { value: -10, provisional: false });
+      assert.deepEqual(heat, { value: -10, provisional: false, pct: 10, kind: 'rekord' });
     });
 
     it('heats nothing above-low without a median (POLK HTML fallback)', () => {
       const heat = getHeatInput(341.93, { tiefstpreis: 309.00 }, 11);
-      assert.deepEqual(heat, { value: null, provisional: false });
+      assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'markup' });
     });
 
     it('marks unverified site diffs as provisional (rendered paler)', () => {
       const heat = getHeatInput(100, null, -51);
-      assert.deepEqual(heat, { value: -51, provisional: true });
+      assert.deepEqual(heat, { value: -51, provisional: true, pct: 51, kind: 'unverified' });
       assert.equal(getHeatInput(100, null, 2).value, null); // deadband
+    });
+  });
+
+  describe('getLevelPct (shared badge/heat headline number)', () => {
+    it('reports the Ø discount as a positive percent', () => {
+      assert.equal(getLevelPct(49, { medianPrice: 100 }), 51);
+      assert.equal(getLevelPct(1100, { medianPrice: 1500 }), 27);
+    });
+
+    it('returns 0 at/above median or without data', () => {
+      assert.equal(getLevelPct(100, { medianPrice: 100 }), 0);
+      assert.equal(getLevelPct(110, { medianPrice: 100 }), 0);
+      assert.equal(getLevelPct(90, {}), 0);
+      assert.equal(getLevelPct(0, { medianPrice: 100 }), 0);
+    });
+  });
+
+  describe('getHeatInput headline parity (ADR-0002: color = badge-%)', () => {
+    // Screenshot case (DJI vs KEZZEL): a 1-cent micro-record far below the
+    // median. The badge headlines Ø -51%, so the heat must be -51 — not the
+    // ≈0 record breakthrough (which used to render the card gray).
+    const microStats = {
+      tiefstpreis: 23.56,
+      medianPrice: 48.56,
+      previousLow: 23.57,
+      isNewAllTimeLow: true,
+      hoechstpreis: 60,
+      dataPointCount: 10,
+      timeSeries: new Array(10).fill([0, 48])
+    };
+
+    it('heats micro-records by the headlined Ø-% (Tiefstpreise mode)', () => {
+      const heat = getHeatInput(23.56, microStats, -51, { mode: 'bestpreise', weightRecord: 0.50 });
+      assert.equal(heat.pct, 51);
+      assert.equal(heat.kind, 'median');
+      assert.equal(heat.value, -51);
+      assert.equal(heat.provisional, false);
+    });
+
+    it('heats micro-records by the headlined Ø-% (browse mode)', () => {
+      const heat = getHeatInput(23.56, microStats, -51, { mode: 'browse', weightRecord: 0.50 });
+      assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'median' });
+    });
+
+    it('stays neutral when Tiefstpreise mode cannot qualify the history', () => {
+      // Thin history: the badge shows a plain star with no % — heat matches.
+      const heat = getHeatInput(23.56, microStats, -51,
+        { mode: 'bestpreise', weightRecord: 0.50, dealScore: null });
+      assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
+    });
+
+    it('ignores the sort weight outside the feed (browse headlines record)', () => {
+      const stats = { tiefstpreis: 90, medianPrice: 150, previousLow: 120, isNewAllTimeLow: true };
+      const display = getDisplayDelta(90, stats); // new-low, dRecord 25
+      for (const weightRecord of [0.30, 0.50, 0.80]) {
+        const heat = getHeatInput(90, stats, -40, { mode: 'browse', weightRecord, display });
+        assert.deepEqual(heat, { value: -25, provisional: false, pct: 25, kind: 'rekord' });
+      }
+    });
+
+    it('follows the weight inside the feed (record vs Ø emphasis)', () => {
+      const stats = { tiefstpreis: 90, medianPrice: 150, previousLow: 120, isNewAllTimeLow: true };
+      const display = getDisplayDelta(90, stats); // new-low, dRecord 25, Ø 40
+      const dealScore = { isNewRecord: true };
+      const balanced = getHeatInput(90, stats, -40,
+        { mode: 'bestpreise', weightRecord: 0.50, display, dealScore });
+      assert.deepEqual(balanced, { value: -25, provisional: false, pct: 25, kind: 'rekord' });
+      const medianHeavy = getHeatInput(90, stats, -40,
+        { mode: 'bestpreise', weightRecord: 0.30, display, dealScore });
+      assert.deepEqual(medianHeavy, { value: -40, provisional: false, pct: 40, kind: 'median' });
+    });
+
+    it('keeps tiny verified % in the badge text but gray on the card (±5% guard)', () => {
+      const heat = getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0, { mode: 'browse' });
+      assert.equal(heat.pct, 3);
+      assert.equal(heat.kind, 'median');
+      assert.equal(heat.value, null);
     });
   });
 });
