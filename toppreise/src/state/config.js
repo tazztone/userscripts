@@ -265,7 +265,7 @@ export function syncUiControl(key, val) {
             if (toggle) {
               if (toggle.tagName === 'INPUT') {
                 toggle.checked = !!val;
-                const title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                const title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
                 const label = toggle.closest?.('.tp-mini-switch');
                 if (label) label.title = title;
                 const state = label?.querySelector('.tp-mini-state');
@@ -276,7 +276,7 @@ export function syncUiControl(key, val) {
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                toggle.title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
               }
             }
             break;
@@ -287,9 +287,10 @@ export function syncUiControl(key, val) {
             break;
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
-            const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
-            if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
-            bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
+            // Threshold lives only in the floating CTA (toolbar copy removed).
+            const floatingThresh = document.getElementById('tp-floating-threshold-btn');
+            if (floatingThresh) floatingThresh.textContent = `≥${val}% ▾`;
+            document.querySelectorAll('#tp-floating-threshold-popover .tp-floating-option').forEach(btn => {
               btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
             });
             break;

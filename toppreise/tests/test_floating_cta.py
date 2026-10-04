@@ -18,8 +18,8 @@ def test_floating_cta_threshold_syncs_with_toolbar(page: Page):
     page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="40"]')
     assert '≥40%' in (thresh_btn.text_content() or '')
 
-    # Toolbar mirror follows through the shared config dispatcher
-    assert '≥40%' in (page.locator('#tp-bar-threshold-btn').text_content() or '')
+    # Shared config dispatcher persists the choice
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 40
 
 
 def test_floating_cta_runs_batch_check_and_hides_when_done(page: Page):

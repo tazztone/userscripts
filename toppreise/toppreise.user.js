@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.69
+// @version      2.18.70
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2238,7 +2238,7 @@ const SHADOW_MODAL_STYLES = `
               if (toggle) {
                 if (toggle.tagName === 'INPUT') {
                   toggle.checked = !!val;
-                  const title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                  const title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
                   const label = toggle.closest?.('.tp-mini-switch');
                   if (label) label.title = title;
                   const state = label?.querySelector('.tp-mini-state');
@@ -2249,7 +2249,7 @@ const SHADOW_MODAL_STYLES = `
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
-                  toggle.title = `Deal-Filter ${val ? 'AN' : 'AUS'}`;
+                  toggle.title = `Nur Tiefstpreise ${val ? 'AN' : 'AUS'}`;
                 }
               }
               break;
@@ -2260,9 +2260,10 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'REAL_DEAL_MIN_DISCOUNT': {
-              const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
-              if (threshBtn) threshBtn.textContent = `≥${val}% ▾`;
-              bar.querySelectorAll('#tp-threshold-popover .tp-threshold-option').forEach(btn => {
+              // Threshold lives only in the floating CTA (toolbar copy removed).
+              const floatingThresh = document.getElementById('tp-floating-threshold-btn');
+              if (floatingThresh) floatingThresh.textContent = `≥${val}% ▾`;
+              document.querySelectorAll('#tp-floating-threshold-popover .tp-floating-option').forEach(btn => {
                 btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
               });
               break;
@@ -3310,6 +3311,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function setHtmlIfChanged(el, newHtml) {
     if (el && el.innerHTML !== newHtml) {
       el.innerHTML = newHtml;
@@ -3967,14 +3969,15 @@ const SHADOW_MODAL_STYLES = `
         <div class="tp-empty-state-actions">
           ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Deals mit Site-Rabatt ≥ ${minDisc}% (Site-% ≠ verifizierter Tiefstpreis)">🔍 Deals prüfen (Site ≥${minDisc}%)</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
-          ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Bestpreise-Modus ausschalten</button>' : ''}
+          ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
         </div>
       `;
       emptyNotice.dataset.tpEmptySig = emptySig;
       emptyNotice.querySelector('#tp-empty-check-deals-btn')?.addEventListener('click', () => {
-        const batchBtn = document.getElementById('tp-bar-batch-check-btn');
-        if (batchBtn) batchBtn.click();
+        // Toolbar batch button removed: the floating CTA owns this action now.
+        // startBatchCheck works even when the pill is dismissed for the session.
+        startBatchCheck();
       });
       emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
         document.body.classList.toggle('tp-reveal-filtered');
@@ -3983,7 +3986,7 @@ const SHADOW_MODAL_STYLES = `
       emptyNotice.querySelector('#tp-empty-disable-bestpreise-btn')?.addEventListener('click', () => {
         cancelBestpreiseScan();
         updateConfig('BESTPREISE_MODE_ACTIVE', false);
-        showToast('Bestpreise-Modus deaktiviert');
+        showToast('Tiefstpreise-Modus deaktiviert');
       });
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
         updateConfigs({
@@ -4130,7 +4133,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label>💎 Neue Bestpreise Modus</label>
+              <label>💎 Neue Tiefstpreise Modus</label>
               <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
             </div>
             <label class="tp-switch tp-purple">
@@ -4670,7 +4673,6 @@ const SHADOW_MODAL_STYLES = `
     let bar = document.getElementById('tp-suite-filter-bar');
     const isRevealed = document.body.classList.contains('tp-reveal-filtered');
     const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
-    const uncheckedDeals = counts.uncheckedDeals || 0;
     const bestpreiseDeals = counts.bestpreiseDeals || 0;
 
     if (!bar) {
@@ -4717,8 +4719,8 @@ const SHADOW_MODAL_STYLES = `
          <span class="tp-divider" aria-hidden="true"></span>
          <div class="tp-group tp-group-deals" role="group" aria-label="Deals">
           <span class="tp-group-label" aria-hidden="true">Deals</span>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Bestpreise Modus: Verifizierte Bestpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
-            💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
+            💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
           <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
             <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
@@ -4733,27 +4735,13 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
             </div>
           </div>
-          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;" title="Deal-Filter + Tiefstpreis-Prüfung">
-            <span class="tp-mini-caption" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}: verifizierte Nicht-Bestpreise ausblenden">Deal-Filter</span>
-            <label class="tp-mini-switch" title="Deal-Filter ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
+          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;" title="Nur Tiefstpreise: verifizierte Nicht-Tiefstpreise ausblenden">
+            <span class="tp-mini-caption" title="Nur Tiefstpreise ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}: verifizierte Nicht-Tiefstpreise ausblenden">Nur Tiefstpreise</span>
+            <label class="tp-mini-switch" title="Nur Tiefstpreise ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
               <input type="checkbox" id="tp-toggle-bestpreis" ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'checked' : ''}>
               <span class="tp-mini-slider"></span>
               <span class="tp-mini-state">${CONFIG.FILTER_BESTPREIS_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
-            <span class="tp-join">
-            <button class="tp-bar-btn ${getScanState().isBatchChecking ? 'tp-batch-active' : ''}" id="tp-bar-batch-check-btn" data-unchecked-count="${uncheckedDeals}" title="${isDealFeed ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% vorhanden`) : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`)}" style="${isDealFeed ? 'border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; border-right: none !important;' : 'border-radius: 8px !important;'}">
-              ${getScanState().isBatchChecking ? '⏳ Prüfen...' : `🔍 Check Deals (${uncheckedDeals})`}
-            </button>
-            <button class="tp-threshold-btn" id="tp-bar-threshold-btn" style="display: ${isDealFeed ? 'block' : 'none'};" title="Check-Vorauswahl: Es werden nur Deals mit Site-Rabatt ≥ ${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% geprüft. Site-% (Differenz, z.B. vs UVP) ≠ verifizierter Tiefstpreis — die Prüfung ersetzt ihn durch den echten Rabatt.">≥${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}% ▾</button>
-            </span>
-            <div class="tp-threshold-popover" id="tp-threshold-popover">
-              <div class="tp-threshold-hint">Nur Site-Rabatt ≥ … wird geprüft</div>
-              <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 20 ? 'tp-selected' : ''}" data-val="20">≥ 20%</button>
-              <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 30 ? 'tp-selected' : ''}" data-val="30">≥ 30%</button>
-              <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 40 ? 'tp-selected' : ''}" data-val="40">≥ 40%</button>
-              <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 50 ? 'tp-selected' : ''}" data-val="50">≥ 50%</button>
-              <button class="tp-threshold-option ${(CONFIG.REAL_DEAL_MIN_DISCOUNT || 30) === 60 ? 'tp-selected' : ''}" data-val="60">≥ 60%</button>
-            </div>
           </div>
          </div>
         </div>
@@ -4799,98 +4787,18 @@ const SHADOW_MODAL_STYLES = `
           const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
           cancelBestpreiseScan();
           updateConfig('BESTPREISE_MODE_ACTIVE', next);
-          showToast(next ? '💎 Neue Bestpreise-Modus aktiviert' : 'Bestpreise-Modus deaktiviert');
+          showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
         };
       }
 
 
-      const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
-      if (batchBtn) {
-        batchBtn.onclick = () => {
-          if (getScanState().isBatchChecking) {
-            cancelBatchDealCheck();
-            const curCount = parseInt(batchBtn.dataset.uncheckedCount || '0', 10);
-            batchBtn.innerHTML = `🔍 Check Deals (${curCount})`;
-            batchBtn.classList.remove('tp-batch-active');
-            showToast('Batch-Prüfung abgebrochen');
-            return;
-          }
-          const curCount = parseInt(batchBtn.dataset.uncheckedCount || '0', 10);
-          if (curCount === 0) {
-            showToast('Keine ungeprüften Deals vorhanden');
-            return;
-          }
-          batchBtn.classList.add('tp-batch-active');
-          batchBtn.innerHTML = '⏳ Starte...';
-          runBatchDealCheck(
-            CONFIG.REAL_DEAL_MIN_DISCOUNT || 30,
-            (curr, total) => {
-              if (batchBtn) {
-                batchBtn.innerHTML = `⏳ Prüfe (${curr}/${total}) <span title="Abbrechen" style="font-weight:700;margin-left:4px;">✕</span>`;
-              }
-            },
-            (completed, total) => {
-              if (batchBtn) {
-                batchBtn.classList.remove('tp-batch-active');
-                if (total > 0) {
-                  batchBtn.innerHTML = `✅ ${completed}/${total} geprüft`;
-                  setTimeout(() => {
-                    if (batchBtn && !getScanState().isBatchChecking) {
-                      triggerProcessListings();
-                    }
-                  }, 3000);
-                  showToast(`${completed} Deal-Tiefstpreise verifiziert`);
-                } else {
-                  triggerProcessListings();
-                  showToast('Keine ungeprüften Deals vorhanden');
-                }
-              }
-            },
-            statusText => {
-              if (batchBtn) {
-                batchBtn.innerHTML = `${statusText} <span title="Abbrechen" style="font-weight:700;margin-left:4px;">✕</span>`;
-              }
-            }
-          );
-        };
-      }
-
-      const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
-      const threshPopover = bar.querySelector('#tp-threshold-popover');
       const weightBtn = bar.querySelector('#tp-bar-weight-btn');
       const weightPopover = bar.querySelector('#tp-weight-popover');
-
-      if (threshBtn && threshPopover) {
-        threshBtn.onclick = e => {
-          e.preventDefault();
-          e.stopPropagation();
-          weightPopover?.classList.remove('tp-show');
-          weightBtn?.classList.remove('tp-open');
-          const isOpen = threshPopover.classList.toggle('tp-show');
-          threshBtn.classList.toggle('tp-open', isOpen);
-        };
-
-        threshPopover.querySelectorAll('.tp-threshold-option').forEach(opt => {
-          opt.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            const val = parseInt(opt.dataset.val, 10);
-            if (!isNaN(val)) {
-              threshPopover.classList.remove('tp-show');
-              threshBtn.classList.remove('tp-open');
-              updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
-              showToast(`Check-Vorauswahl: nur Deals mit Site-Rabatt ≥ ${val}% werden geprüft`);
-            }
-          };
-        });
-      }
 
       if (weightBtn && weightPopover) {
         weightBtn.onclick = e => {
           e.preventDefault();
           e.stopPropagation();
-          threshPopover?.classList.remove('tp-show');
-          threshBtn?.classList.remove('tp-open');
           const isOpen = weightPopover.classList.toggle('tp-show');
           weightBtn.classList.toggle('tp-open', isOpen);
         };
@@ -4913,8 +4821,6 @@ const SHADOW_MODAL_STYLES = `
       if (!window._tpDocClickBound) {
         window._tpDocClickBound = true;
         document.addEventListener('click', () => {
-          document.getElementById('tp-threshold-popover')?.classList.remove('tp-show');
-          document.getElementById('tp-bar-threshold-btn')?.classList.remove('tp-open');
           document.getElementById('tp-weight-popover')?.classList.remove('tp-show');
           document.getElementById('tp-bar-weight-btn')?.classList.remove('tp-open');
         });
@@ -4953,7 +4859,7 @@ const SHADOW_MODAL_STYLES = `
       };
       bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
       bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
-      bindMiniToggle('tp-toggle-bestpreis', 'FILTER_BESTPREIS_ENABLED', 'Deal-Filter', '💎 Deal-Filter AN', '💎 Deal-Filter AUS');
+      bindMiniToggle('tp-toggle-bestpreis', 'FILTER_BESTPREIS_ENABLED', 'Nur Tiefstpreise', '💎 Nur Tiefstpreise AN', '💎 Nur Tiefstpreise AUS');
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
         placement.container.insertBefore(bar, placement.reference);
@@ -4989,9 +4895,9 @@ const SHADOW_MODAL_STYLES = `
       if (getScanState().isBestpreiseScanning) {
         // Leave dynamic text during scan
       } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-        bestpreiseBtn.innerHTML = `💎 Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals} Deals)</span>`;
+        bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals} Deals)</span>`;
       } else {
-        bestpreiseBtn.innerHTML = `💎 Neue Bestpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
+        bestpreiseBtn.innerHTML = `💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
       }
     }
 
@@ -5010,37 +4916,7 @@ const SHADOW_MODAL_STYLES = `
     };
     syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
     syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
-    syncBarMiniToggle('tp-toggle-bestpreis', CONFIG.FILTER_BESTPREIS_ENABLED, 'Deal-Filter');
-
-    const batchBtn = bar.querySelector('#tp-bar-batch-check-btn');
-    if (batchBtn && !getScanState().isBatchChecking) {
-      batchBtn.dataset.uncheckedCount = String(uncheckedDeals);
-      batchBtn.classList.remove('tp-disabled');
-      const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      batchBtn.title = isDealFeed
-        ? (uncheckedDeals > 0 ? `Check-Vorauswahl: Tiefstpreise für ${uncheckedDeals} Deals mit Site-Rabatt ab ${minDisc}% prüfen (Site-% ≠ verifizierter Tiefstpreis)` : `Keine ungeprüften Deals mit Site-Rabatt ab ${minDisc}% vorhanden`)
-        : (uncheckedDeals > 0 ? `Tiefstpreise für ${uncheckedDeals} Produkte prüfen` : `Alle sichtbaren Produkte bereits geprüft`);
-      batchBtn.innerHTML = `🔍 Check Deals (${uncheckedDeals})`;
-      batchBtn.classList.remove('tp-batch-active');
-      batchBtn.style.setProperty('border-top-right-radius', isDealFeed ? '0' : '8px', 'important');
-      batchBtn.style.setProperty('border-bottom-right-radius', isDealFeed ? '0' : '8px', 'important');
-      batchBtn.style.setProperty('border-right', isDealFeed ? 'none' : '1px solid rgba(255,255,255,0.15)', 'important');
-    }
-
-    const threshBtn = bar.querySelector('#tp-bar-threshold-btn');
-    if (threshBtn) {
-      const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      threshBtn.textContent = `≥${minDisc}% ▾`;
-      threshBtn.title = `Check-Vorauswahl: nur Site-Rabatt ≥ ${minDisc}% wird geprüft (Site-% ≠ verifizierter Tiefstpreis)`;
-      threshBtn.style.setProperty('display', isDealFeed ? 'block' : 'none', 'important');
-    }
-    const threshPopover = bar.querySelector('#tp-threshold-popover');
-    if (threshPopover) {
-      const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      threshPopover.querySelectorAll('.tp-threshold-option').forEach(opt => {
-        opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
-      });
-    }
+    syncBarMiniToggle('tp-toggle-bestpreis', CONFIG.FILTER_BESTPREIS_ENABLED, 'Nur Tiefstpreise');
 
     const threshWrapper = bar.querySelector('#tp-bar-threshold-wrapper');
     if (threshWrapper) {
@@ -5134,14 +5010,24 @@ const SHADOW_MODAL_STYLES = `
     if (typeof document === 'undefined') return;
     // Stylesheet pins display:flex !important (host-site override convention),
     // so hiding must go through the .tp-hidden class, not an inline style.
-    document.getElementById(FLOATING_CTA_ID)?.classList.add('tp-hidden');
+    // The scanning marker is cleared too: hidden implies nothing to show, and
+    // syncFloatingCTA re-applies it whenever a scan is actually running.
+    const el = document.getElementById(FLOATING_CTA_ID);
+    if (!el) return;
+    el.classList.add('tp-hidden');
+    el.classList.remove('tp-scanning');
   }
 
   function setTextIfChanged(el, text) {
     if (el && el.textContent !== text) el.textContent = text;
   }
 
-  function onMainClick() {
+  /**
+   * Entry point for starting (or cancelling) a batch check from any UI surface:
+   * the CTA main button, the empty-state notice, or tests. DOM-free enough to
+   * call when the pill itself is hidden (e.g. dismissed for the session).
+   */
+  function startBatchCheck() {
     const { isBatchChecking } = getScanState();
     if (isBatchChecking) {
       cancelBatchDealCheck();
@@ -5167,6 +5053,10 @@ const SHADOW_MODAL_STYLES = `
       () => syncFloatingCTA()
     );
     syncFloatingCTA();
+  }
+
+  function onMainClick() {
+    startBatchCheck();
   }
 
   function onDismiss() {
@@ -5263,6 +5153,14 @@ const SHADOW_MODAL_STYLES = `
 
     const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     const threshBtn = el.querySelector('#tp-floating-threshold-btn');
+    // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
+    // on catalog pages only the check action itself is offered.
+    if (lastIsDealFeed) {
+      threshBtn.style.display = '';
+    } else {
+      threshBtn.style.display = 'none';
+      el.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
+    }
     setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
     threshBtn.title = lastIsDealFeed
       ? `Nur Deals mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
@@ -5635,6 +5533,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       sanitizeTimeSeries,
       renderFloatingCTA,
       hideFloatingCTA,
+      startBatchCheck,
       runBestpreiseScan,
       cancelBestpreiseScan,
       runBatchDealCheck,

@@ -83,7 +83,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label>💎 Neue Bestpreise Modus</label>
+            <label>💎 Neue Tiefstpreise Modus</label>
             <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
           </div>
           <label class="tp-switch tp-purple">

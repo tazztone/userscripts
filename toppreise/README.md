@@ -10,13 +10,13 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.69)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.70)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.69)**:
+1. **💎 Neue Bestpreise: Kuratierter Bestpreis-Feed mit Continuous Deal-Score & Statistischem Filter (v2.18.70)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Bestpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Bestpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Deal-Qualität.
    - **🔥 Deal-Score Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird ein gewichteter Deal-Score aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **der Score sortiert nur** (Bestpreise-Feed). Das Badge zeigt das **Rekord-Ereignis** (`Real Deal · Rekord -X%` vs Bisher bzw. `Real Deal · Ø-Preis -Y%`), niemals den Score und nach Prüfung niemals die Site-Differenz — und **Karten- wie Badge-Farbe folgen dieser Badge-% auf einer gra→rot-Skala**: Tiefrot = grosser Deal, Grau = kein Rabatt (Aufschläge bleiben grau, `+XX%` steht im Badge). Blasse Farben = ungeprüft (Site-Rabatt).
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).

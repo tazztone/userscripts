@@ -240,26 +240,26 @@ def test_empty_state_notice_and_actions(page: Page):
 
 
 def test_real_deal_threshold_quick_selector(page: Page):
-    thresh_btn = page.locator('#tp-bar-threshold-btn')
-    popover = page.locator('#tp-threshold-popover')
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
+    thresh_btn = page.locator('#tp-floating-threshold-btn')
+    popover = page.locator('#tp-floating-threshold-popover')
+    cta_main = page.locator('#tp-floating-check-main')
 
     assert thresh_btn.is_visible()
     assert '≥30%' in (thresh_btn.text_content() or '')
     # Initially at 30%, 3 cards qualify (-67%, -35%, -50%)
-    assert 'Check Deals (3)' in (batch_btn.text_content() or '')
+    assert '3 Deals prüfen' in (cta_main.text_content() or '')
 
     # Open popover
     thresh_btn.click()
     assert 'tp-show' in (popover.get_attribute('class') or '')
 
     # Select >= 50%
-    page.click('#tp-threshold-popover button[data-val="50"]')
+    page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="50"]')
     assert 'tp-show' not in (popover.get_attribute('class') or '')
     assert '≥50%' in (thresh_btn.text_content() or '')
 
     # At 50%, only 2 cards qualify (-67%, -50%) -> count updates live to (2)
-    assert 'Check Deals (2)' in (batch_btn.text_content() or '')
+    assert '2 Deals prüfen' in (cta_main.text_content() or '')
 
 
 
@@ -303,11 +303,11 @@ def test_deal_features_enabled_on_category_page(page: Page):
 
     # Category deal check and heatmap features are visible
     assert page.locator('#tp-bar-heat-btn').is_visible()
-    assert page.locator('#tp-bar-batch-check-btn').is_visible()
+    assert page.locator('#tp-floating-check-cta').is_visible()
 
-    # Claimed discount threshold dropdown and Neue Bestpreise feed toggle remain hidden
+    # Claimed discount threshold dropdown and Neue Tiefstpreise feed toggle remain hidden
     assert not page.locator('#tp-bar-bestpreise-btn').is_visible()
-    assert not page.locator('#tp-bar-threshold-btn').is_visible()
+    assert not page.locator('#tp-floating-threshold-btn').is_visible()
 
 
 
@@ -555,7 +555,7 @@ def test_bestpreise_filter_bar_toggle_and_state(page: Page):
     # Verify button exists in filter bar
     btn = page.locator('#tp-suite-filter-bar #tp-bar-bestpreise-btn')
     assert btn.is_visible()
-    assert '💎 Neue Bestpreise' in (btn.text_content() or '')
+    assert '💎 Neue Tiefstpreise' in (btn.text_content() or '')
 
     # Toggle Bestpreise mode ON
     btn.click()
@@ -566,9 +566,9 @@ def test_bestpreise_filter_bar_toggle_and_state(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE") is True
 
 
-    # On-demand Check Deals button remains enabled and clickable
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
-    assert 'tp-disabled' not in (batch_btn.get_attribute('class') or '')
+    # Floating check CTA remains visible and interactive in Bestpreise mode
+    cta = page.locator('#tp-floating-check-cta')
+    assert cta.is_visible()
 
     # Toggle Bestpreise mode OFF
     btn.click()

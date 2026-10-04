@@ -56,14 +56,24 @@ export function hideFloatingCTA() {
   if (typeof document === 'undefined') return;
   // Stylesheet pins display:flex !important (host-site override convention),
   // so hiding must go through the .tp-hidden class, not an inline style.
-  document.getElementById(FLOATING_CTA_ID)?.classList.add('tp-hidden');
+  // The scanning marker is cleared too: hidden implies nothing to show, and
+  // syncFloatingCTA re-applies it whenever a scan is actually running.
+  const el = document.getElementById(FLOATING_CTA_ID);
+  if (!el) return;
+  el.classList.add('tp-hidden');
+  el.classList.remove('tp-scanning');
 }
 
 function setTextIfChanged(el, text) {
   if (el && el.textContent !== text) el.textContent = text;
 }
 
-function onMainClick() {
+/**
+ * Entry point for starting (or cancelling) a batch check from any UI surface:
+ * the CTA main button, the empty-state notice, or tests. DOM-free enough to
+ * call when the pill itself is hidden (e.g. dismissed for the session).
+ */
+export function startBatchCheck() {
   const { isBatchChecking } = getScanState();
   if (isBatchChecking) {
     cancelBatchDealCheck();
@@ -89,6 +99,10 @@ function onMainClick() {
     () => syncFloatingCTA()
   );
   syncFloatingCTA();
+}
+
+function onMainClick() {
+  startBatchCheck();
 }
 
 function onDismiss() {
@@ -185,6 +199,14 @@ export function syncFloatingCTA() {
 
   const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
   const threshBtn = el.querySelector('#tp-floating-threshold-btn');
+  // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
+  // on catalog pages only the check action itself is offered.
+  if (lastIsDealFeed) {
+    threshBtn.style.display = '';
+  } else {
+    threshBtn.style.display = 'none';
+    el.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
+  }
   setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
   threshBtn.title = lastIsDealFeed
     ? `Nur Deals mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`

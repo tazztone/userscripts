@@ -19,6 +19,7 @@ import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
 } from '../scanner/scanner.js';
+import { startBatchCheck } from './floating-cta.js';
 import { getScanState } from '../state/store.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { showToast } from './toast.js';
@@ -682,14 +683,15 @@ export function renderEmptyState(cards, counts) {
       <div class="tp-empty-state-actions">
         ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Deals mit Site-Rabatt ≥ ${minDisc}% (Site-% ≠ verifizierter Tiefstpreis)">🔍 Deals prüfen (Site ≥${minDisc}%)</button>` : ''}
         <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
-        ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Bestpreise-Modus ausschalten</button>' : ''}
+        ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
       </div>
     `;
     emptyNotice.dataset.tpEmptySig = emptySig;
     emptyNotice.querySelector('#tp-empty-check-deals-btn')?.addEventListener('click', () => {
-      const batchBtn = document.getElementById('tp-bar-batch-check-btn');
-      if (batchBtn) batchBtn.click();
+      // Toolbar batch button removed: the floating CTA owns this action now.
+      // startBatchCheck works even when the pill is dismissed for the session.
+      startBatchCheck();
     });
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
       document.body.classList.toggle('tp-reveal-filtered');
@@ -698,7 +700,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-disable-bestpreise-btn')?.addEventListener('click', () => {
       cancelBestpreiseScan();
       updateConfig('BESTPREISE_MODE_ACTIVE', false);
-      showToast('Bestpreise-Modus deaktiviert');
+      showToast('Tiefstpreise-Modus deaktiviert');
     });
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfigs({

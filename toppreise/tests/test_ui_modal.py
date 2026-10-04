@@ -451,7 +451,7 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
         window.ToppreiseSuite.updateConfig('MIN_OFFERS', 5);
         window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 25);
         const barMinVal = document.getElementById('tp-bar-min-val')?.textContent;
-        const barThreshBtn = document.getElementById('tp-bar-threshold-btn')?.textContent;
+        const barThreshBtn = document.getElementById('tp-floating-threshold-btn')?.textContent;
         const modalThreshVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-real-deal-min-val')?.value;
         return {
             minConfig: window.ToppreiseSuite.CONFIG.MIN_OFFERS,

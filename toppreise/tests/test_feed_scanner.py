@@ -382,11 +382,12 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
 
 
 def test_real_deal_batch_check_button_counter_and_run(page: Page):
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
-    assert batch_btn.is_visible()
+    cta = page.locator('#tp-floating-check-cta')
+    cta_main = page.locator('#tp-floating-check-main')
+    assert cta.is_visible()
 
     # In mock_toppreise.html, 3 cards have >= 30% discount (-67%, -35%, -50%)
-    assert 'Check Deals (3)' in (batch_btn.text_content() or '')
+    assert '3 Deals prüfen' in (cta_main.text_content() or '')
 
     # Mock routes
     def handle_pricechart(route):
@@ -402,36 +403,34 @@ def test_real_deal_batch_check_button_counter_and_run(page: Page):
     # 1. Checking one card individually reduces the batch count from (3) to (2)
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-not-low')
-    assert 'Check Deals (2)' in (batch_btn.text_content() or '')
+    assert '2 Deals prüfen' in (cta_main.text_content() or '')
 
-    # 2. Clicking batch button runs the batch check for remaining cards
-    batch_btn.click()
+    # 2. Clicking the floating CTA runs the batch check for remaining cards
+    page.click('#tp-floating-check-btn')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low')
     page.wait_for_selector('#card-iphone .badge-dif.tp-deal-not-low')
 
-    # Wait for batch run to complete (tp-batch-active removed)
-    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
-
-    # Once finished, remaining unchecked deals should be 0 or show completion status
-    btn_text = batch_btn.text_content() or ''
-    assert 'Check Deals (0)' in btn_text or 'geprüft' in btn_text
+    # Once finished, nothing is left to check and the CTA hides itself
+    page.wait_for_selector('#tp-floating-check-cta', state='hidden')
+    assert not cta.is_visible()
 
 
 
 def test_check_deals_skips_ignored_invisible_products(page: Page):
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
-    assert batch_btn.is_visible()
+    cta = page.locator('#tp-floating-check-cta')
+    cta_main = page.locator('#tp-floating-check-main')
+    assert cta.is_visible()
 
     # In mock_toppreise.html without filters, 3 cards qualify (-67%, -35%, -50%)
     # card-competing-reference has Aufschlag +26%, so it is not counted
-    assert 'Check Deals (3)' in (batch_btn.text_content() or '')
+    assert '3 Deals prüfen' in (cta_main.text_content() or '')
 
     # 1. Filter out card-negative (-35%) using negative keyword
     page.fill('#tp-inline-negative-input', 'Silikon')
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
 
     # Count should immediately drop from 3 to 2 because card-negative is now an ignored invisible product
-    assert 'Check Deals (2)' in (batch_btn.text_content() or '')
+    assert '2 Deals prüfen' in (cta_main.text_content() or '')
 
     # 2. Filter out card-iphone (-50%) with a second negative keyword
     page.fill('#tp-inline-negative-input', 'Silikon, iPhone')
@@ -439,7 +438,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     page.wait_for_selector('#card-iphone.tp-negative-filtered', state='attached')
 
     # Count drops to 1 (only card-cheapest -67% remains visible)
-    assert 'Check Deals (1)' in (batch_btn.text_content() or '')
+    assert '1 Deal prüfen' in (cta_main.text_content() or '')
 
     # Track network requests for pricechart
     requested_pids = []
@@ -457,34 +456,32 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
         )
     page.route('**/plugins/product/pricechart*', handle_pricechart)
 
-    # 3. Click batch button -> should only scan card-cheapest (pid 797571), NOT the ignored cards
-    batch_btn.click()
+    # 3. Click floating CTA -> should only scan card-cheapest (pid 797571), NOT the ignored cards
+    page.click('#tp-floating-check-btn')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-not-low')
-    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
+    page.wait_for_selector('#tp-floating-check-cta', state='hidden')
 
     # Verify only card-cheapest (797571) was requested
     assert '797571' in requested_pids
     assert '797573' not in requested_pids  # card-negative (Silikon) must NOT be checked
     assert '797574' not in requested_pids  # card-iphone (iPhone) must NOT be checked
 
-    # Now unchecked deals is 0! Button should show Check Deals (0)
-    page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').textContent.includes('Check Deals (0)')")
-    btn_text = batch_btn.text_content() or ''
-    assert 'Check Deals (0)' in btn_text
+    # Now unchecked deals is 0, so the CTA hides itself (nothing left to trigger)
+    assert not cta.is_visible()
 
-    # 4. Clicking Check Deals (0) when 0 visible deals are left must show toast and NOT hang in ⏳ Starte...
-    batch_btn.click()
+    # 4. Triggering a check with 0 visible deals left must toast and terminate cleanly (no hang)
+    page.evaluate("() => window.ToppreiseSuite.startBatchCheck()")
     page.wait_for_selector('#tp-root >> .tp-toast', state='visible')
     toast = page.locator('#tp-root >> .tp-toast').last
     assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
-    assert '⏳ Starte...' not in (batch_btn.text_content() or '')
-    assert 'Check Deals (0)' in (batch_btn.text_content() or '')
+    assert not cta.is_visible()
 
     # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
     page.click('#tp-bar-reveal-btn')
     page.wait_for_selector('body.tp-reveal-filtered')
     # Both card-negative and card-iphone are now visible (revealed)
-    assert 'Check Deals (2)' in (batch_btn.text_content() or '')
+    assert cta.is_visible()
+    assert '2 Deals prüfen' in (cta_main.text_content() or '')
 
 
 
@@ -757,13 +754,13 @@ def test_category_page_batch_check_scans_visible_cards(page: Page):
     }''')
     page.wait_for_timeout(200)
 
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
-    assert batch_btn.is_visible()
-    initial_text = batch_btn.inner_text()
-    assert 'Check Deals' in initial_text
+    cta = page.locator('#tp-floating-check-cta')
+    assert cta.is_visible()
+    initial_text = page.locator('#tp-floating-check-main').inner_text()
+    assert 'Deals prüfen' in initial_text
 
-    # Click batch check button
-    batch_btn.click()
+    # Click floating CTA check button
+    page.click('#tp-floating-check-btn')
     page.wait_for_timeout(1000)
 
     # After scan finishes, cards are verified
@@ -1157,13 +1154,12 @@ def test_check_deals_active_in_bestpreise_mode(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Check Deals button should NOT be disabled
-    batch_btn = page.locator('#tp-suite-filter-bar #tp-bar-batch-check-btn')
-    assert batch_btn.is_visible()
-    assert 'tp-disabled' not in (batch_btn.get_attribute('class') or '')
+    # Floating check CTA should be visible (replaces the old toolbar button)
+    cta = page.locator('#tp-floating-check-cta')
+    assert cta.is_visible()
 
-    # Threshold button should be visible and interactive
-    thresh_btn = page.locator('#tp-suite-filter-bar #tp-bar-threshold-btn')
+    # Threshold button should be visible and interactive on the deal feed
+    thresh_btn = page.locator('#tp-floating-threshold-btn')
     assert thresh_btn.is_visible()
 
 
@@ -1202,8 +1198,8 @@ def test_scanner_cancellation_during_batch_check(page: Page):
 def test_batch_check_button_click_when_deals_populated_after_initial_bar_render(page: Page):
     # Regression test for stale closure bug where initial bar creation with 0 deals
     # prevented subsequent batch clicks from running even after deals were discovered.
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
-    assert batch_btn.is_visible()
+    cta = page.locator('#tp-floating-check-cta')
+    assert cta.is_visible()
 
     res = page.evaluate("""() => {
         // 1. Force bar recreation with 0 unchecked deals to emulate initial render state
@@ -1216,23 +1212,21 @@ def test_batch_check_button_click_when_deals_populated_after_initial_bar_render(
         // 3. Process listings -> renders bar and populates count
         window.ToppreiseSuite.processListings();
 
-        const btn = document.getElementById('tp-bar-batch-check-btn');
+        const main = document.querySelector('#tp-floating-check-main');
         return {
-            btnText: btn ? btn.textContent : '',
-            datasetCount: btn ? btn.dataset.uncheckedCount : null
+            mainText: main ? main.textContent : ''
         };
     }""")
 
-    assert 'Check Deals (3)' in res['btnText']
-    assert res['datasetCount'] == '3'
+    assert '3 Deals prüfen' in res['mainText']
 
-    # Clicking batch button should immediately start the scan (tp-batch-active), NOT bail out
-    batch_btn.click()
-    page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
+    # Clicking the CTA should immediately start the scan (tp-scanning), NOT bail out
+    page.click('#tp-floating-check-btn')
+    page.wait_for_function("() => document.querySelector('#tp-floating-check-cta').classList.contains('tp-scanning')")
     
     # Cleanly cancel scan to finish test
     page.evaluate("() => window.ToppreiseSuite.cancelBatchDealCheck()")
-    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')")
+    page.wait_for_function("() => !document.querySelector('#tp-floating-check-cta').classList.contains('tp-scanning')")
 
 
 
@@ -1260,10 +1254,10 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
         window.ToppreiseSuite.updateConfig('MIN_OFFERS', 2);
     }""")
 
-    batch_btn = page.locator('#tp-bar-batch-check-btn')
+    cta_main = page.locator('#tp-floating-check-main')
     # Counter sees 3 unchecked deals (-67%, -35%, -50%) despite Min=2:
     # offer-less feed => pageHasOffers False => no low-offers filtering
-    page.wait_for_function("() => document.querySelector('#tp-bar-batch-check-btn').textContent.includes('Check Deals (3)')")
+    page.wait_for_function("() => document.querySelector('#tp-floating-check-main').textContent.includes('3 Deals prüfen')")
 
     # The exact predicate the scanner uses (no-arg recompute) must agree
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-cheapest'))") is False
@@ -1283,8 +1277,8 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
         )
     page.route('**/plugins/product/pricechart*', handle_pricechart)
 
-    batch_btn.click()
-    page.wait_for_function("() => !document.querySelector('#tp-bar-batch-check-btn').classList.contains('tp-batch-active')", timeout=30000)
+    page.click('#tp-floating-check-btn')
+    page.wait_for_function("() => !document.querySelector('#tp-floating-check-cta').classList.contains('tp-scanning')", timeout=30000)
 
     # Scanner must have checked the 3 deals, not toasted "Keine ungeprüften"
     assert '797571' in requested_pids
