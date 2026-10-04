@@ -5,7 +5,7 @@ def test_floating_cta_visible_with_unchecked_deals(page: Page):
     cta = page.locator('#tp-floating-check-cta')
     assert cta.is_visible()
     # Mock page ships 3 deals with site discount >= 30% (-67%, -35%, -50%)
-    assert '3 Deals prüfen' in (cta.text_content() or '')
+    assert '3 Tiefstpreise prüfen' in (cta.text_content() or '')
     assert 'Echte Tiefstpreise verifizieren' in (cta.text_content() or '')
 
 
