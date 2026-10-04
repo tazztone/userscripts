@@ -197,25 +197,26 @@ network); `🔍 Check Deals` / `≥30%` stay active to stream-threshold-scan int
 
 ### Heatmap (`getHeatmapStyles(diff, intensity)` in `page/cards.js`)
 
-Continuous −100% (hot) … +100% (cold), `t = (100−clamped)/200`, piecewise
-interpolated; card gets `.tp-heatmap-active` +
-`--tp-heat-bg/--tp-heat-border/--tp-heat-glow`:
+Single-hue gray → red (no cold side; markups clamp to neutral slate),
+`t = -min(0, max(-100, diff)) / 100`, piecewise interpolated; card gets
+`.tp-heatmap-active` + `--tp-heat-bg/--tp-heat-border/--tp-heat-glow`:
 
 | t / discount | feel | base → accent |
 |---|---|---|
-| 0.00 / +100% | cobalt/ice blue | `[14,38,74]` → `[24,100,185]` |
-| 0.25 / +50% | cyan/teal | `[12,50,60]` → `[16,130,125]` |
-| 0.50 / 0% | neutral slate | `[24,32,44]` → `[45,58,76]` |
-| 0.75 / −50% | flame orange | `[75,42,12]` → `[215,85,18]` |
+| 0.00 / 0% (or any markup) | neutral slate | `[24,32,44]` → `[45,58,76]` |
+| 0.50 / −50% | flame orange | `[75,42,12]` → `[215,85,18]` |
 | 1.00 / −100% | volcanic ruby | `[98,14,32]` → `[238,25,65]` |
 
-Feed heat comes from `getHeatInput()` = the badge discount (`deal-score.js`):
-new-low → −D_record, at-low → the same −D_median the badge shows; above-low
-and unverified markups → neutral gray (±5% deadband → neutral). The ramp is
-single-hue gray → red (`cards.js`); the badge reuses it via
-`getBadgeHeatStyle()` (solid swatch), so badge color always matches card
-heat. Unverified site discounts render at 0.55× intensity so provisional
-heat reads provisional. Hover: stable shadow only — no infinite
+Feed heat comes from `getHeatInput()` = the headlined badge % (`deal-score.js`):
+the Rekord headline (−D_record) at ≥50% Rekord weight, the Ø headline
+(−D_median) below it or at-low — always the number the ribbon prints
+(ADR-0002/ADR-0004). Verified markups, unqualified histories (plain-star
+badges) and anything inside the ±5% deadband → neutral gray. The badge reuses
+the ramp via `getBadgeHeatStyle()` (solid swatch, intensity-scaled like the
+card), so badge color always matches card heat; it resyncs on every render,
+not only on heat-key change. Unverified site discounts render at 0.55×
+intensity so provisional heat reads provisional. Hover: stable shadow only —
+no infinite
 pulse keyframes, no `scale()`, no `brightness()` (all caused jitter/reflow).
 
 ### Badge / subline states
