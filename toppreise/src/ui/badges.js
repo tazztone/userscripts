@@ -172,7 +172,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   card.classList.toggle('tp-negative-filtered', filters.isNeg);
   card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
 
-  // 3. Best Price Highlighting
+  // 3. Toppreis Highlighting (filtered store holds the cheapest offer)
   const dealerRows = activeStores.length > 0 ? getCardDealerRows(card) : [];
   if (activeStores.length === 0 || (!isNeueFeed && dealerRows.length === 0)) {
     card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
@@ -201,7 +201,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         if (!card.querySelector('.tp-best-price-badge')) {
           const badge = document.createElement('div');
           badge.className = 'tp-best-price-badge';
-          badge.textContent = 'Best Price';
+          badge.textContent = 'Toppreis';
           card.appendChild(badge);
         }
       } else {
@@ -216,7 +216,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
   }
 
-  // 4. Real Deal & Allzeit-Tiefstpreis Check (Consolidated into Differenz Circle Badge)
+  // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
   let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
   // Remove any legacy floating wrappers if present
   card.querySelector('.tp-real-deal-wrapper')?.remove();
@@ -319,7 +319,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       const dealData = cd.dealScore || computeDealScore(stats, cardPrice);
       if (dealData) {
-        // Qualified Bestpreis Deal! Badge-% = echter Rabatt (Rekord vs Bisher
+        // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
         // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
         // sortiert nur (siehe Tooltip) und treibt keine Farben an.
         card.classList.remove('tp-bestpreise-hidden', 'tp-non-bestpreis-filtered');
@@ -348,23 +348,23 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
 
         if (isListView) {
           if (badgePct > 0) {
-            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
+            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}% (${badgeKind})</p>`);
           } else {
             setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
           }
         } else {
           if (badgePct > 0) {
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal · ${badgeKind}</div><p>-${badgePct}%</p>`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · ${badgeKind}</div><p>-${badgePct}%</p>`);
           } else {
             setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
           }
         }
 
-        const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
+        const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
         const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
         const wMed = 1 - wRec;
         const fmtW = w => String(Math.round(w * 100) / 100);
-        const scoreFormula = `Deal-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
+        const scoreFormula = `Tiefstpreis-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
         const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
         if (showRecord) {
           setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'}\nBadge = Rekord-Rabatt · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
@@ -430,7 +430,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         } else {
           badgeDifEl.classList.remove('tp-deal-loading');
           if (rawDiscount !== null && !isNaN(rawDiscount)) {
-            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
+            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
             } else {
@@ -439,9 +439,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           } else {
             setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis).`);
             if (isListView) {
-              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
+              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
             } else {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfen</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
             }
           }
         }
@@ -506,21 +506,21 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             detailParts.push(`-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)}`);
           }
           if (sitePctText) {
-            detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
+            detailParts.push(`Differenz: ${sitePctText} (ungeprüft, z.B. UVP)`);
           }
           const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
+          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
 
           setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
           if (isListView) {
             if (badgePct > 0) {
-              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
+              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}% (${badgeKind})</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
             }
           } else {
             if (badgePct > 0) {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal · ${badgeKind}</div><p>-${badgePct}%</p>`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · ${badgeKind}</div><p>-${badgePct}%</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
             }
@@ -540,7 +540,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
 
           const notLowParts = [];
           if (sitePctText) {
-            notLowParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
+            notLowParts.push(`Differenz: ${sitePctText} (ungeprüft, z.B. UVP)`);
           }
           if (hasSignificantPeak) {
             notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
@@ -586,14 +586,14 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
         if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
+          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
           setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
         } else {
           setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
           if (isListView) {
-            setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
+            setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
           } else {
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfen</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
           }
         }
       }
@@ -679,9 +679,9 @@ export function renderEmptyState(cards, counts) {
     }
     const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     emptyNotice.innerHTML = `
-      <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Bestpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
+      <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
       <div class="tp-empty-state-actions">
-        ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Deals mit Site-Rabatt ≥ ${minDisc}% (Site-% ≠ verifizierter Tiefstpreis)">🔍 Deals prüfen (Site ≥${minDisc}%)</button>` : ''}
+        ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
         <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
         ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>

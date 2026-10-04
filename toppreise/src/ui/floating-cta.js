@@ -42,8 +42,8 @@ export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, 
     return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
   }
   if (unchecked > 0) {
-    const plural = unchecked === 1 ? 'Deal' : 'Deals';
-    return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${plural} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
+    const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
+    return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
   }
   return { mode: 'done', mainLabel: '✅ Alle geprüft', subLabel: '' };
 }
@@ -91,7 +91,7 @@ export function startBatchCheck() {
     minDisc,
     () => syncFloatingCTA(),
     (completed, total) => {
-      if (total > 0) showToast(`${completed} Deal-Tiefstpreise verifiziert`);
+      if (total > 0) showToast(`${completed} Tiefstpreise verifiziert`);
       else showToast('Keine ungeprüften Deals vorhanden');
       // Recompute counts → auto-hides the CTA when nothing is left.
       triggerProcessListings();
@@ -126,12 +126,12 @@ function ensureCta() {
   el.setAttribute('aria-label', 'Tiefstpreise prüfen');
   el.innerHTML = `
     <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
-      <span id="tp-floating-check-main">🔍 Deals prüfen</span>
+      <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
       <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
     </button>
-    <button type="button" id="tp-floating-threshold-btn" title="Nur Deals ab diesem Toppreise-Rabatt prüfen">≥30% ▾</button>
+    <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
     <div id="tp-floating-threshold-popover" role="menu">
-      <div class="tp-floating-hint">Nur Toppreise-Rabatt ≥ … wird geprüft</div>
+      <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
     </div>
     <button type="button" id="tp-floating-cta-dismiss" title="Ausblenden (bis Seiten-Reload)">✕</button>
   `;
@@ -148,7 +148,7 @@ function ensureCta() {
       e.stopPropagation();
       popover.classList.remove('tp-show');
       updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
-      showToast(`Nur Deals ab ${val}% Toppreise-Rabatt werden geprüft`);
+      showToast(`Nur Differenzen ab ${val}% werden geprüft`);
       syncFloatingCTA();
     };
     popover.appendChild(opt);
@@ -209,8 +209,8 @@ export function syncFloatingCTA() {
   }
   setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
   threshBtn.title = lastIsDealFeed
-    ? `Nur Deals mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
-    : `Nur Produkte mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft`;
+    ? `Nur Differenzen ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
+    : `Nur Produkte mit Differenz ≥ ${minDisc}% werden geprüft`;
   el.querySelectorAll('.tp-floating-option').forEach(opt => {
     opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
   });

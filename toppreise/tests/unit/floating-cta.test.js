@@ -7,13 +7,13 @@ import {
 } from '../../src/ui/floating-cta.js';
 
 describe('Floating CTA label state machine (pure, no DOM)', () => {
-  it('idle state counts unchecked deals with singular/plural', () => {
+  it('idle state counts unchecked Tiefstpreise with singular/plural', () => {
     assert.deepEqual(ctaStateFor({ unchecked: 11 }), {
       mode: 'idle',
-      mainLabel: '🔍 11 Deals prüfen',
+      mainLabel: '🔍 11 Tiefstpreise prüfen',
       subLabel: 'Echte Tiefstpreise verifizieren'
     });
-    assert.equal(ctaStateFor({ unchecked: 1 }).mainLabel, '🔍 1 Deal prüfen');
+    assert.equal(ctaStateFor({ unchecked: 1 }).mainLabel, '🔍 1 Tiefstpreis prüfen');
   });
 
   it('scanning state shows live progress and cancel hint', () => {

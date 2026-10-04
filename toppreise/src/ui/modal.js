@@ -17,7 +17,7 @@ export function setupUI() {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = `
       <div id="tp-section-unified-suite">
-        <div class="tp-section-header">1. Händler Bestpreis Highlights & Sortierung</div>
+        <div class="tp-section-header">1. Händler Toppreis Highlights & Sortierung</div>
         <div class="tp-settings-group">
           <label>Filter Modus</label>
           <div class="tp-segmented-control">
@@ -67,7 +67,7 @@ export function setupUI() {
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>Rabatt-Heatmap aktivieren</label>
-            <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Deal, Grau = kein Rabatt. Blass = ungeprüft (Site-Rabatt).</span>
+            <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blass = ungeprüft (Differenz).</span>
           </div>
           <label class="tp-switch tp-rose">
             <input type="checkbox" id="tp-heatmap-enabled-toggle">
@@ -84,7 +84,7 @@ export function setupUI() {
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>💎 Neue Tiefstpreise Modus</label>
-            <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
+            <span class="tp-switch-desc">Auto-Scan + Tiefstpreis-Score Ranking auf der Feed-Seite</span>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -92,7 +92,7 @@ export function setupUI() {
           </label>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-          <label>Deal-Score Gewichtung: Bestpreise-Sortierung (nur Sortierung)</label>
+          <label>Tiefstpreis-Score Gewichtung: Tiefstpreis-Sortierung (nur Sortierung)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
@@ -112,7 +112,7 @@ export function setupUI() {
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>Nur echte Tiefstpreise filtern</label>
-            <span class="tp-switch-desc">Verifizierte Nicht-Bestpreise im Feed ausblenden</span>
+            <span class="tp-switch-desc">Verifizierte Nicht-Tiefstpreise im Feed ausblenden</span>
           </div>
           <label class="tp-switch">
             <input type="checkbox" id="tp-real-deal-filter-toggle">
@@ -120,12 +120,12 @@ export function setupUI() {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label>Check-Vorauswahl: Mindest-Site-Rabatt für Batch-Check (%)</label>
+          <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
             <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
           </div>
-          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Deals mit mindestens so viel Site-Rabatt (Differenz, ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt ihn durch den echten Rabatt.</span>
+          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
         </div>
         <div class="tp-section-header" style="color: #3b82f6;">3. Preisalarm Auto-Filler</div>
         <div class="tp-settings-group tp-switch-container">

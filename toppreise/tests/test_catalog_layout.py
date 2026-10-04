@@ -247,7 +247,7 @@ def test_real_deal_threshold_quick_selector(page: Page):
     assert thresh_btn.is_visible()
     assert '≥30%' in (thresh_btn.text_content() or '')
     # Initially at 30%, 3 cards qualify (-67%, -35%, -50%)
-    assert '3 Deals prüfen' in (cta_main.text_content() or '')
+    assert '3 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
     # Open popover
     thresh_btn.click()
@@ -259,7 +259,7 @@ def test_real_deal_threshold_quick_selector(page: Page):
     assert '≥50%' in (thresh_btn.text_content() or '')
 
     # At 50%, only 2 cards qualify (-67%, -50%) -> count updates live to (2)
-    assert '2 Deals prüfen' in (cta_main.text_content() or '')
+    assert '2 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
 
 
@@ -325,9 +325,9 @@ def test_category_page_injects_interactive_deal_badges(page: Page):
     # Verify interactive deal badges are injected on cards
     badges = page.locator('.badge-dif.tp-deal-badge-interactive')
     assert badges.count() > 0
-    # Unscanned badges display Deal loupe
+    # Unscanned badges display Prüfen loupe
     first_badge = badges.first
-    assert '🔍' in first_badge.inner_text() or 'Deal' in first_badge.inner_text()
+    assert '🔍' in first_badge.inner_text() or 'Prüfen' in first_badge.inner_text()
 
 
 
@@ -368,10 +368,10 @@ def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
     pills = page.locator('#Page_Browsing .badge-dif.tp-deal-pill')
     assert pills.count() >= 3 # AirPods Pro 3 + 2 AirPods 5 variants
 
-    # 4. Verify unscanned pills display clean "Deal" with single magnifying glass (no duplicate loupe artifact)
+    # 4. Verify unscanned pills display clean "Prüfen" with single magnifying glass (no duplicate loupe artifact)
     first_pill = pills.first
     pill_text = first_pill.inner_text()
-    assert 'Deal' in pill_text
+    assert 'Prüfen' in pill_text
     assert '🔍' in pill_text
     assert first_pill.locator('.tp-badge-loupe-icon').count() == 0
 
@@ -557,7 +557,7 @@ def test_bestpreise_filter_bar_toggle_and_state(page: Page):
     assert btn.is_visible()
     assert '💎 Neue Tiefstpreise' in (btn.text_content() or '')
 
-    # Toggle Bestpreise mode ON
+    # Toggle Tiefstpreise mode ON
     btn.click()
 
     # Verify bar accent class and active button state
@@ -566,11 +566,11 @@ def test_bestpreise_filter_bar_toggle_and_state(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE") is True
 
 
-    # Floating check CTA remains visible and interactive in Bestpreise mode
+    # Floating check CTA remains visible and interactive in Tiefstpreise mode
     cta = page.locator('#tp-floating-check-cta')
     assert cta.is_visible()
 
-    # Toggle Bestpreise mode OFF
+    # Toggle Tiefstpreise mode OFF
     btn.click()
     assert 'tp-bestpreise-bar' not in (page.locator('#tp-suite-filter-bar').get_attribute('class') or '')
     assert 'tp-bestpreise-active' not in (btn.get_attribute('class') or '')
@@ -581,7 +581,7 @@ def test_bestpreise_filter_bar_toggle_and_state(page: Page):
 def test_bestpreise_card_heatmap_and_badge(page: Page):
     # Card 1 (797571, price 1800): New record (median 2400 -> dMed 25%, prevLow 2200 -> dRec 18%) -> Score = 22%
     # Card 2 (797572, price 1100): Matching low (median 1500 -> dMed 27%, dRec 0%) -> Score = 14%
-    # Card 3 (797573, price 15): Non-Bestpreis (tiefstpreis 10) -> Excluded
+    # Card 3 (797573, price 15): Non-Tiefstpreis (tiefstpreis 10) -> Excluded
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
             tiefstpreis: 1800,
@@ -621,7 +621,7 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     # (badge-% = record discount vs Bisher, NOT the blended score -22%)
     card1_badge = page.locator('#card-cheapest .badge-dif')
     assert 'tp-deal-new-record' in (card1_badge.get_attribute('class') or '')
-    assert 'Real Deal' in (card1_badge.text_content() or '')
+    assert 'Tiefstpreis' in (card1_badge.text_content() or '')
     assert '-18%' in (card1_badge.text_content() or '')
     assert 'Rekord' in (card1_badge.text_content() or '')
 
@@ -632,21 +632,21 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     # (badge-% = median discount, NOT the blended score -14%)
     card2_badge = page.locator('#card-expensive .badge-dif')
     assert 'tp-deal-alltime-low' in (card2_badge.get_attribute('class') or '')
-    assert 'Real Deal' in (card2_badge.text_content() or '')
+    assert 'Tiefstpreis' in (card2_badge.text_content() or '')
     assert '-27%' in (card2_badge.text_content() or '')
 
     card2_subline = page.locator('#card-expensive .tp-card-historical-price.tp-is-at-low')
     assert 'CHF 1500.00 (-27%)' in (card2_subline.text_content() or '')
 
-    # Card 3: Scanned Non-Bestpreis -> Hidden in Bestpreise mode
+    # Card 3: Scanned Non-Tiefstpreis -> Hidden in Tiefstpreise mode
     assert 'tp-bestpreise-hidden' in (page.locator('#card-negative').get_attribute('class') or '')
 
-    # Unscanned card: Stays visible with interactive loupe in Bestpreise mode (Streaming UI)
+    # Unscanned card: Stays visible with interactive loupe in Tiefstpreise mode (Streaming UI)
     assert 'tp-bestpreise-hidden' not in (page.locator('#card-low-offers').get_attribute('class') or '')
     uncached_badge = page.locator('#card-low-offers .badge-dif')
     assert 'tp-deal-loading' not in (uncached_badge.get_attribute('class') or '')
 
-    # Toggle Bestpreise mode OFF -> verified badges keep truthful event-% (no longer site Differenz)
+    # Toggle Tiefstpreise mode OFF -> verified badges keep truthful event-% (no longer site Differenz)
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false;
         window.ToppreiseSuite.processListings();
@@ -662,7 +662,7 @@ def test_bestpreise_sorting_by_continuous_score(page: Page):
     # Card 1 (797571): Score = 22%
     # Card 2 (797572): Score = 35% (huge median discount)
     # Card 3 (797573): Score = 28%
-    # In Bestpreise mode, sort order must be: Card 2 (35%) -> Card 3 (28%) -> Card 1 (22%)
+    # In Tiefstpreise mode, sort order must be: Card 2 (35%) -> Card 3 (28%) -> Card 1 (22%)
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
             tiefstpreis: 1800,
@@ -779,7 +779,7 @@ def test_realistic_page_layout_sidebar_and_tabs_preserved_in_bestpreise_mode(pag
     assert page.locator('#timeframe-filter').is_visible()
     assert page.locator('#main-content').is_visible()
 
-    # Toggle Bestpreise mode ON
+    # Toggle Tiefstpreise mode ON
     page.click('#tp-suite-filter-bar #tp-bar-bestpreise-btn')
 
     # Sidebar, tabs, and layout rows MUST remain 100% visible
@@ -788,7 +788,7 @@ def test_realistic_page_layout_sidebar_and_tabs_preserved_in_bestpreise_mode(pag
     assert page.locator('#timeframe-filter').is_visible()
     assert page.locator('#main-content').is_visible()
 
-    # Toggle Bestpreise mode OFF
+    # Toggle Tiefstpreise mode OFF
     page.click('#tp-suite-filter-bar #tp-bar-bestpreise-btn')
     assert page.locator('#sidebar-categories').is_visible()
     assert page.locator('#feed-tabs').is_visible()
@@ -997,7 +997,7 @@ def test_bestpreise_cross_row_sorting_and_natural_order_restoration(page: Page):
     assert page.locator('#sidebar-categories').is_visible()
     assert page.locator('#feed-tabs').is_visible()
 
-    # 4. Turn off Bestpreise mode and verify clean natural order restoration across all 3 rows
+    # 4. Turn off Tiefstpreise mode and verify clean natural order restoration across all 3 rows
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false;
         window.ToppreiseSuite.processListings();
@@ -1029,7 +1029,7 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # When Bestpreise mode is toggled on with uncached items, cards MUST NOT be hidden with tp-bestpreise-hidden
+    # When Tiefstpreise mode is toggled on with uncached items, cards MUST NOT be hidden with tp-bestpreise-hidden
     hidden_count = page.evaluate("""() => {
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
         return cards.filter(c => c.classList.contains('tp-bestpreise-hidden')).length;
@@ -1064,7 +1064,7 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
 def test_bestpreise_mode_all_cards_remain_visible_when_uncached(page: Page):
     """
     Visibility Invariant Test 1:
-    When Bestpreise mode is enabled with zero cache, 100% of cards on the page
+    When Tiefstpreise mode is enabled with zero cache, 100% of cards on the page
     MUST remain computed-visible (offsetParent !== null, display !== 'none', and no ancestor hidden).
     """
     page.evaluate("""() => {
@@ -1272,7 +1272,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 def test_deal_score_weight_preset_dropdown_in_filter_bar(page: Page):
     """
     Validates that the Deal-Score weighting preset dropdown appears in the filter bar
-    when Bestpreise mode is active, and clicking options updates score weighting instantly.
+    when Tiefstpreise mode is active, and clicking options updates score weighting instantly.
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1345,10 +1345,10 @@ def test_dual_score_breakdown_pill_rendering(page: Page):
     # Badge circle shows the truthful event-% (Rekord -10%), not the blended score
     badge = card.locator('.badge-dif')
     assert badge.is_visible()
-    assert 'Real Deal' in badge.inner_text()
+    assert 'Tiefstpreis' in badge.inner_text()
     assert '-10%' in badge.inner_text()
     assert 'Rekord' in badge.inner_text()
-    assert 'Deal-Score' in (badge.get_attribute('title') or '')
+    assert 'Tiefstpreis-Score' in (badge.get_attribute('title') or '')
 
     # Dual-score breakdown pill renders inputs + result (teaches the formula)
     breakdown = card.locator('.tp-badge-score-breakdown')

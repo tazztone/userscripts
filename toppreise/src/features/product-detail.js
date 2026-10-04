@@ -1,6 +1,6 @@
 /**
  * Product Detail Page Feature
- * Injects Real Deal & Allzeit-Tiefstpreis status badge and peak context
+ * Injects Tiefstpreis status badge and peak context
  * into the main product detail heading.
  */
 

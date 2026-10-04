@@ -80,7 +80,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
         <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
           👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
         </button>
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Deal, Grau = kein Rabatt. Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
        <div class="tp-group tp-group-deals" role="group" aria-label="Deals">
@@ -89,7 +89,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
         <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
+          <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
             ⚖️ 50/50 ▾
           </button>
           <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
@@ -301,7 +301,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   const weightBtn = bar.querySelector('#tp-bar-weight-btn');
   if (weightBtn) {
     weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-    weightBtn.title = `Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
+    weightBtn.title = `Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
   }
   const weightPopover = bar.querySelector('#tp-weight-popover');
   if (weightPopover) {

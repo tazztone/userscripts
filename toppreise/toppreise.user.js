@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.70
+// @version      2.18.71
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1716,7 +1716,7 @@ const SHADOW_MODAL_STYLES = `
     const wMedian = 1 - wRecord;
     const score = Math.max(0, Math.round(wMedian * dMedian + wRecord * dRecord));
 
-    // A Real Deal must deliver genuine real savings (Score > 0%)
+    // Ein Tiefstpreis muss echte Ersparnis liefern (Score > 0%)
     if (score <= 0) return null;
 
     return {
@@ -1979,7 +1979,7 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
-  // One vocabulary everywhere: the Deal-Score only ever sorts the Bestpreise feed.
+  // One vocabulary everywhere: the Tiefstpreis-Score only ever sorts the Tiefstpreise feed.
   // The worked example uses fixed demo numbers so dragging the slider visibly
   // moves the result (Rek −10%, Ø −25%).
   function weightDescText(weightRecord) {
@@ -1988,7 +1988,7 @@ const SHADOW_MODAL_STYLES = `
     const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
       : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
       : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
-    return `${base} (nur Sortierung) · z.B. Rek −10% + Ø −25% → Score ${score}`;
+    return `${base} (nur Sortierung) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
   }
 
   const DEFAULTS = Object.freeze({
@@ -3458,7 +3458,7 @@ const SHADOW_MODAL_STYLES = `
     card.classList.toggle('tp-negative-filtered', filters.isNeg);
     card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
 
-    // 3. Best Price Highlighting
+    // 3. Toppreis Highlighting (filtered store holds the cheapest offer)
     const dealerRows = activeStores.length > 0 ? getCardDealerRows(card) : [];
     if (activeStores.length === 0 || (!isNeueFeed && dealerRows.length === 0)) {
       card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
@@ -3487,7 +3487,7 @@ const SHADOW_MODAL_STYLES = `
           if (!card.querySelector('.tp-best-price-badge')) {
             const badge = document.createElement('div');
             badge.className = 'tp-best-price-badge';
-            badge.textContent = 'Best Price';
+            badge.textContent = 'Toppreis';
             card.appendChild(badge);
           }
         } else {
@@ -3502,7 +3502,7 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
-    // 4. Real Deal & Allzeit-Tiefstpreis Check (Consolidated into Differenz Circle Badge)
+    // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
     let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     // Remove any legacy floating wrappers if present
     card.querySelector('.tp-real-deal-wrapper')?.remove();
@@ -3605,7 +3605,7 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.BESTPREISE_MODE_ACTIVE) {
         const dealData = cd.dealScore || computeDealScore(stats, cardPrice);
         if (dealData) {
-          // Qualified Bestpreis Deal! Badge-% = echter Rabatt (Rekord vs Bisher
+          // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
           // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
           // sortiert nur (siehe Tooltip) und treibt keine Farben an.
           card.classList.remove('tp-bestpreise-hidden', 'tp-non-bestpreis-filtered');
@@ -3634,23 +3634,23 @@ const SHADOW_MODAL_STYLES = `
 
           if (isListView) {
             if (badgePct > 0) {
-              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
+              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}% (${badgeKind})</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
             }
           } else {
             if (badgePct > 0) {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal · ${badgeKind}</div><p>-${badgePct}%</p>`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · ${badgeKind}</div><p>-${badgePct}%</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
             }
           }
 
-          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
+          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
           const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
           const wMed = 1 - wRec;
           const fmtW = w => String(Math.round(w * 100) / 100);
-          const scoreFormula = `Deal-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
+          const scoreFormula = `Tiefstpreis-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
           const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
           if (showRecord) {
             setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'}\nBadge = Rekord-Rabatt · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
@@ -3716,7 +3716,7 @@ const SHADOW_MODAL_STYLES = `
           } else {
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
-              setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
+              setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
               } else {
@@ -3725,9 +3725,9 @@ const SHADOW_MODAL_STYLES = `
             } else {
               setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis).`);
               if (isListView) {
-                setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
+                setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
               } else {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfen</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
               }
             }
           }
@@ -3792,21 +3792,21 @@ const SHADOW_MODAL_STYLES = `
               detailParts.push(`-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)}`);
             }
             if (sitePctText) {
-              detailParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
+              detailParts.push(`Differenz: ${sitePctText} (ungeprüft, z.B. UVP)`);
             }
             const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-            const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Deal, grau = kein Rabatt)`;
+            const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
 
             setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
             if (isListView) {
               if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Real Deal -${badgePct}% (${badgeKind})</p>`);
+                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}% (${badgeKind})</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
               }
             } else {
               if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Real Deal · ${badgeKind}</div><p>-${badgePct}%</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · ${badgeKind}</div><p>-${badgePct}%</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
               }
@@ -3826,7 +3826,7 @@ const SHADOW_MODAL_STYLES = `
 
             const notLowParts = [];
             if (sitePctText) {
-              notLowParts.push(`Site: ${sitePctText} (ungeprüft, z.B. UVP)`);
+              notLowParts.push(`Differenz: ${sitePctText} (ungeprüft, z.B. UVP)`);
             }
             if (hasSignificantPeak) {
               notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
@@ -3872,14 +3872,14 @@ const SHADOW_MODAL_STYLES = `
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
           if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist der Site-Rabatt (z.B. vs UVP), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
+            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
             setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
           } else {
             setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
             if (isListView) {
-              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Deal</p>`);
+              setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
             } else {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Deal</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Prüfen</div><p style="font-size: 15px; margin: 0; line-height: 1.1;">🔍</p>`);
             }
           }
         }
@@ -3965,9 +3965,9 @@ const SHADOW_MODAL_STYLES = `
       }
       const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       emptyNotice.innerHTML = `
-        <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Bestpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
+        <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
         <div class="tp-empty-state-actions">
-          ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Deals mit Site-Rabatt ≥ ${minDisc}% (Site-% ≠ verifizierter Tiefstpreis)">🔍 Deals prüfen (Site ≥${minDisc}%)</button>` : ''}
+          ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
           ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
@@ -4067,7 +4067,7 @@ const SHADOW_MODAL_STYLES = `
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
-          <div class="tp-section-header">1. Händler Bestpreis Highlights & Sortierung</div>
+          <div class="tp-section-header">1. Händler Toppreis Highlights & Sortierung</div>
           <div class="tp-settings-group">
             <label>Filter Modus</label>
             <div class="tp-segmented-control">
@@ -4117,7 +4117,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>Rabatt-Heatmap aktivieren</label>
-              <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Deal, Grau = kein Rabatt. Blass = ungeprüft (Site-Rabatt).</span>
+              <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blass = ungeprüft (Differenz).</span>
             </div>
             <label class="tp-switch tp-rose">
               <input type="checkbox" id="tp-heatmap-enabled-toggle">
@@ -4134,7 +4134,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>💎 Neue Tiefstpreise Modus</label>
-              <span class="tp-switch-desc">Auto-Scan + Deal-Score Ranking auf der Deal-Feed-Seite</span>
+              <span class="tp-switch-desc">Auto-Scan + Tiefstpreis-Score Ranking auf der Feed-Seite</span>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -4142,7 +4142,7 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-            <label>Deal-Score Gewichtung: Bestpreise-Sortierung (nur Sortierung)</label>
+            <label>Tiefstpreis-Score Gewichtung: Tiefstpreis-Sortierung (nur Sortierung)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
               <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
@@ -4162,7 +4162,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>Nur echte Tiefstpreise filtern</label>
-              <span class="tp-switch-desc">Verifizierte Nicht-Bestpreise im Feed ausblenden</span>
+              <span class="tp-switch-desc">Verifizierte Nicht-Tiefstpreise im Feed ausblenden</span>
             </div>
             <label class="tp-switch">
               <input type="checkbox" id="tp-real-deal-filter-toggle">
@@ -4170,12 +4170,12 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group">
-            <label>Check-Vorauswahl: Mindest-Site-Rabatt für Batch-Check (%)</label>
+            <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
             <div class="tp-range-container">
               <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
               <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
             </div>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Deals mit mindestens so viel Site-Rabatt (Differenz, ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt ihn durch den echten Rabatt.</span>
+            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
           </div>
           <div class="tp-section-header" style="color: #3b82f6;">3. Preisalarm Auto-Filler</div>
           <div class="tp-settings-group tp-switch-container">
@@ -4714,7 +4714,7 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
           </button>
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Deal, Grau = kein Rabatt. Blasse Farben = ungeprüft (Site-Rabatt)." style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
          <div class="tp-group tp-group-deals" role="group" aria-label="Deals">
@@ -4723,7 +4723,7 @@ const SHADOW_MODAL_STYLES = `
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
           <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};">
-            <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
+            <button class="tp-threshold-btn" id="tp-bar-weight-btn" title="Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung — ändert keine Farben und keine Badge-Prozente)" style="border-left: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 8px !important;">
               ⚖️ 50/50 ▾
             </button>
             <div class="tp-threshold-popover" id="tp-weight-popover" style="min-width: 210px;">
@@ -4935,7 +4935,7 @@ const SHADOW_MODAL_STYLES = `
     const weightBtn = bar.querySelector('#tp-bar-weight-btn');
     if (weightBtn) {
       weightBtn.textContent = `⚖️ ${curWeightShort} ▾`;
-      weightBtn.title = `Sortier-Gewichtung für den Bestpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
+      weightBtn.title = `Sortier-Gewichtung für den Tiefstpreise-Feed (nur Sortierung, aktuell: ${Math.round((1 - curWeight) * 100)}% Ø-Preis / ${Math.round(curWeight * 100)}% Rekord — ändert keine Farben/Prozente)`;
     }
     const weightPopover = bar.querySelector('#tp-weight-popover');
     if (weightPopover) {
@@ -4996,8 +4996,8 @@ const SHADOW_MODAL_STYLES = `
       return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
     }
     if (unchecked > 0) {
-      const plural = unchecked === 1 ? 'Deal' : 'Deals';
-      return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${plural} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
+      const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
+      return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
     }
     return { mode: 'done', mainLabel: '✅ Alle geprüft', subLabel: '' };
   }
@@ -5045,7 +5045,7 @@ const SHADOW_MODAL_STYLES = `
       minDisc,
       () => syncFloatingCTA(),
       (completed, total) => {
-        if (total > 0) showToast(`${completed} Deal-Tiefstpreise verifiziert`);
+        if (total > 0) showToast(`${completed} Tiefstpreise verifiziert`);
         else showToast('Keine ungeprüften Deals vorhanden');
         // Recompute counts → auto-hides the CTA when nothing is left.
         triggerProcessListings();
@@ -5080,12 +5080,12 @@ const SHADOW_MODAL_STYLES = `
     el.setAttribute('aria-label', 'Tiefstpreise prüfen');
     el.innerHTML = `
       <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
-        <span id="tp-floating-check-main">🔍 Deals prüfen</span>
+        <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
         <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
       </button>
-      <button type="button" id="tp-floating-threshold-btn" title="Nur Deals ab diesem Toppreise-Rabatt prüfen">≥30% ▾</button>
+      <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
       <div id="tp-floating-threshold-popover" role="menu">
-        <div class="tp-floating-hint">Nur Toppreise-Rabatt ≥ … wird geprüft</div>
+        <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
       </div>
       <button type="button" id="tp-floating-cta-dismiss" title="Ausblenden (bis Seiten-Reload)">✕</button>
     `;
@@ -5102,7 +5102,7 @@ const SHADOW_MODAL_STYLES = `
         e.stopPropagation();
         popover.classList.remove('tp-show');
         updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
-        showToast(`Nur Deals ab ${val}% Toppreise-Rabatt werden geprüft`);
+        showToast(`Nur Differenzen ab ${val}% werden geprüft`);
         syncFloatingCTA();
       };
       popover.appendChild(opt);
@@ -5163,8 +5163,8 @@ const SHADOW_MODAL_STYLES = `
     }
     setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
     threshBtn.title = lastIsDealFeed
-      ? `Nur Deals mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
-      : `Nur Produkte mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft`;
+      ? `Nur Differenzen ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
+      : `Nur Produkte mit Differenz ≥ ${minDisc}% werden geprüft`;
     el.querySelectorAll('.tp-floating-option').forEach(opt => {
       opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
     });
@@ -5257,7 +5257,7 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
   /**
    * Product Detail Page Feature
-   * Injects Real Deal & Allzeit-Tiefstpreis status badge and peak context
+   * Injects Tiefstpreis status badge and peak context
    * into the main product detail heading.
    */
 

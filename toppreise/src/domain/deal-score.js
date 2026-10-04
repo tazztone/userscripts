@@ -55,7 +55,7 @@ export function computeDealScore(stats, cardPrice, options = {}) {
   const wMedian = 1 - wRecord;
   const score = Math.max(0, Math.round(wMedian * dMedian + wRecord * dRecord));
 
-  // A Real Deal must deliver genuine real savings (Score > 0%)
+  // Ein Tiefstpreis muss echte Ersparnis liefern (Score > 0%)
   if (score <= 0) return null;
 
   return {
