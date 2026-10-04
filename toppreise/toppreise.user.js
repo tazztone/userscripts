@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.75
+// @version      2.18.76
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -415,10 +415,17 @@ const STYLES = `
   }
   .tp-card-historical-price.tp-is-record-low {
     color: #34d399 !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
+    background: rgba(52, 211, 153, 0.12) !important;
+    border: 1px solid rgba(52, 211, 153, 0.35) !important;
+    border-radius: 4px !important;
+    padding: 1px 5px !important;
   }
   .tp-card-historical-price.tp-is-at-low {
     color: #10b981 !important;
+  }
+  .tp-card-historical-price.tp-with-prev {
+    font-weight: 700 !important;
   }
   .tp-card-historical-price.tp-is-markup {
     color: #fbbf24 !important;
@@ -3742,16 +3749,26 @@ const SHADOW_MODAL_STYLES = `
             }
           }
 
+          // Bisher-line: the previous low is the single most decision-relevant
+          // number on the card — always shown when known & distinct from the
+          // current price, never dropped in favour of the Ø line.
+          const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
+          const showMedianLine = !!(medianVal && medianVal > cardPrice);
           let histPriceEl = ensureHistPriceEl(card, cardPriceEl);
 
-          if (dealData.isNewRecord && prevLow) {
-            histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)}`);
-            setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)${outlierText}`);
-          } else if (medianVal && medianVal > cardPrice) {
-            histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)}`);
-            setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}${outlierText}`);
+          if (showPrevLow || showMedianLine) {
+            const parts = [];
+            if (showPrevLow) parts.push(`Bisher: CHF ${prevLow.toFixed(2)}`);
+            if (showMedianLine) parts.push(`Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)}`);
+            if (dealData.isNewRecord && showPrevLow) {
+              histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
+              setTextIfChanged(histPriceEl, parts.join(' · '));
+              setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)} (-${dealData.dRecord}%)${showMedianLine ? ` · ${dealData.dMedian}% unter dem ${horizonLabel}-Median (CHF ${medianVal.toFixed(2)})` : ''}${outlierText}`);
+            } else {
+              histPriceEl.className = 'tp-card-historical-price tp-is-at-low' + (showPrevLow ? ' tp-with-prev' : '');
+              setTextIfChanged(histPriceEl, parts.join(' · '));
+              setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}.` : ''}${outlierText}`);
+            }
           } else {
             histPriceEl.remove();
           }
@@ -3933,24 +3950,30 @@ const SHADOW_MODAL_STYLES = `
 
           // 4A: Historical Tiefstpreis line right below current price
           // (pre-existing element lookup doubles as the stale-element removal path below)
+          // The previous low is always shown when known & distinct — never
+          // dropped in favour of the Ø line.
+          const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
+          const showMedianLine = !isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice;
+          const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
           let histPriceEl = card.querySelector('.tp-card-historical-price');
           if (isNonBest) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             histPriceEl.className = 'tp-card-historical-price tp-is-markup';
             setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)}% Aufschlag)`);
-          } else if (isNewRecord && prevLow) {
+          } else if (showPrevLow || showMedianLine) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
-            histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-            setTextIfChanged(histPriceEl, `Bisher: CHF ${prevLow.toFixed(2)}`);
-            setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}`);
-          } else if (!isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice) {
-            histPriceEl = ensureHistPriceEl(card, cardPriceEl);
-            const dMedian = Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100);
-            const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
-            histPriceEl.className = 'tp-card-historical-price tp-is-at-low';
-            setTextIfChanged(histPriceEl, `Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}`);
-            setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis! Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}`);
+            const parts = [];
+            if (showPrevLow) parts.push(`Bisher: CHF ${prevLow.toFixed(2)}`);
+            if (showMedianLine) parts.push(`Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}`);
+            histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
+            setTextIfChanged(histPriceEl, parts.join(' · '));
+            if (isNewRecord && showPrevLow) {
+              setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)${showMedianLine ? ` · Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}` : ''}`);
+            } else {
+              const dMedian = showMedianLine ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100) : 0;
+              setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`);
+            }
           } else if (histPriceEl) {
             histPriceEl.remove();
           }
