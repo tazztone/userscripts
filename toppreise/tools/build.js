@@ -54,6 +54,7 @@ export function buildBundle() {
   const modalCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'modal.js'), 'utf-8'));
   const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
   const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
+  const floatingCtaCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'floating-cta.js'), 'utf-8'));
   const priceAlarmCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'price-alarm.js'), 'utf-8'));
   const productDetailCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'product-detail.js'), 'utf-8'));
   const rawAppCode = fs.readFileSync(path.join(SRC_DIR, 'app.js'), 'utf-8');
@@ -149,6 +150,9 @@ ${indent(toastCode, 2)}
 
   // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
 ${indent(toolbarCode, 2)}
+
+  // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
+${indent(floatingCtaCode, 2)}
 
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
 ${indent(priceAlarmCode, 2)}

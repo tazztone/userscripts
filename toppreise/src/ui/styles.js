@@ -931,6 +931,118 @@ export const STYLES = `
     padding: 0 !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
+  /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
+  #tp-floating-check-cta {
+    position: fixed !important;
+    left: 16px !important;
+    bottom: 16px !important;
+    z-index: 99990 !important;
+    display: flex !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    background: rgba(15, 23, 42, 0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(16, 185, 129, 0.55) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.25) !important;
+    padding: 6px !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
+  }
+  #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
+  #tp-floating-check-cta.tp-hidden { display: none !important; }
+  @keyframes tp-floating-pulse {
+    0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.18) !important; }
+    50% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(16,185,129,0.4) !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #tp-floating-check-cta { animation: none !important; }
+  }
+  #tp-floating-check-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    border: none !important;
+    border-radius: 10px 0 0 10px !important;
+    color: #fff !important;
+    padding: 8px 14px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 1px !important;
+    line-height: 1.2 !important;
+  }
+  #tp-floating-check-btn:hover { filter: brightness(1.12) !important; }
+  #tp-floating-check-main { font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-sub { font-size: 10px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
+  #tp-floating-threshold-btn {
+    background: rgba(51,65,85,0.7) !important;
+    border: none !important;
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 0 10px 10px 0 !important;
+    color: #cbd5e1 !important;
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+  #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-threshold-popover {
+    position: absolute !important;
+    bottom: calc(100% + 6px) !important;
+    right: 0 !important;
+    background: rgba(15, 23, 42, 0.97) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+    padding: 4px !important;
+    display: none;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 220px !important;
+  }
+  #tp-floating-threshold-popover.tp-show { display: flex !important; }
+  #tp-floating-threshold-popover .tp-floating-hint {
+    color: #94a3b8 !important;
+    padding: 5px 10px 3px !important;
+    font-size: 10.5px !important;
+    font-weight: 500 !important;
+    cursor: default !important;
+  }
+  #tp-floating-threshold-popover .tp-floating-option {
+    background: transparent !important;
+    border: none !important;
+    color: #cbd5e1 !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    text-align: left !important;
+  }
+  #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: #10b981 !important; color: #fff !important; }
+  #tp-floating-cta-dismiss {
+    position: absolute !important;
+    top: -8px !important;
+    right: -8px !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background: rgba(30,41,59,0.95) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: #94a3b8 !important;
+    font-size: 10px !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+  #tp-floating-cta-dismiss:hover { color: #f43f5e !important; border-color: #f43f5e !important; }
+  @media (max-width: 600px) {
+    #tp-floating-check-sub { display: none !important; }
+    #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
+  }
 `;
 
 export const SHADOW_MODAL_STYLES = `

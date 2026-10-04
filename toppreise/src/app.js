@@ -30,6 +30,7 @@ import {
   renderEmptyState
 } from './ui/badges.js';
 import { renderSuiteFilterBar } from './ui/toolbar.js';
+import { renderFloatingCTA, hideFloatingCTA } from './ui/floating-cta.js';
 import { setupUI } from './ui/modal.js';
 import { uiShadowRoot } from './ui/shell.js';
 import {
@@ -51,7 +52,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.68
+// @version      2.18.69
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -85,6 +86,7 @@ import { processProductDetailPage } from './features/product-detail.js';
     if (isProductDetailPage()) {
       const staleBar = document.getElementById('tp-suite-filter-bar');
       if (staleBar) staleBar.remove();
+      hideFloatingCTA();
       return;
     }
     isModifyingDOM = true;
@@ -94,6 +96,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       if (cards.length === 0) {
         const staleBar = document.getElementById('tp-suite-filter-bar');
         if (staleBar) staleBar.remove();
+        hideFloatingCTA();
         return;
       }
 
@@ -141,9 +144,10 @@ import { processProductDetailPage } from './features/product-detail.js';
       // --- Sort ---
       applySorting(cards, pageHasOffers);
 
-      // --- Empty state & filter bar ---
+      // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed);
+      renderFloatingCTA(counts, isNeueFeed);
     } finally {
       isModifyingDOM = false;
       if (mainObserver) {
@@ -162,9 +166,10 @@ import { processProductDetailPage } from './features/product-detail.js';
       const target = m.target;
       if (!target) return false;
 
-      // Ignore mutations inside our own root UI or filter bar
+      // Ignore mutations inside our own root UI, filter bar, or floating CTA
       if (target.id === 'tp-root' || target.closest?.('#tp-root')) return false;
       if (target.id === 'tp-suite-filter-bar' || target.closest?.('#tp-suite-filter-bar')) return false;
+      if (target.id === 'tp-floating-check-cta' || target.closest?.('#tp-floating-check-cta')) return false;
 
       // Ignore mutations inside document.head (DarkReader dynamic styles, font loading, etc.)
       if (target === document.head || target.closest?.('head')) return false;
@@ -174,7 +179,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 
       const checkNode = node => {
         if (!node || node.nodeType !== 1) return false;
-        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice') return false;
+        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
         if (node.classList?.contains('tp-card-subline-row') ||
             node.classList?.contains('tp-badge-score-breakdown') ||
             node.classList?.contains('tp-sparkline-container') ||
@@ -262,6 +267,8 @@ import { processProductDetailPage } from './features/product-detail.js';
       getPriceLevel,
       analyzePriceTimeSeries,
       sanitizeTimeSeries,
+      renderFloatingCTA,
+      hideFloatingCTA,
       runBestpreiseScan,
       cancelBestpreiseScan,
       runBatchDealCheck,

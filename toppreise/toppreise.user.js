@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.68
+// @version      2.18.69
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -954,6 +954,118 @@ const STYLES = `
     padding: 0 !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
+  /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
+  #tp-floating-check-cta {
+    position: fixed !important;
+    left: 16px !important;
+    bottom: 16px !important;
+    z-index: 99990 !important;
+    display: flex !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    background: rgba(15, 23, 42, 0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(16, 185, 129, 0.55) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.25) !important;
+    padding: 6px !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
+  }
+  #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
+  #tp-floating-check-cta.tp-hidden { display: none !important; }
+  @keyframes tp-floating-pulse {
+    0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.18) !important; }
+    50% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(16,185,129,0.4) !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #tp-floating-check-cta { animation: none !important; }
+  }
+  #tp-floating-check-btn {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    border: none !important;
+    border-radius: 10px 0 0 10px !important;
+    color: #fff !important;
+    padding: 8px 14px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 1px !important;
+    line-height: 1.2 !important;
+  }
+  #tp-floating-check-btn:hover { filter: brightness(1.12) !important; }
+  #tp-floating-check-main { font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-sub { font-size: 10px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
+  #tp-floating-threshold-btn {
+    background: rgba(51,65,85,0.7) !important;
+    border: none !important;
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 0 10px 10px 0 !important;
+    color: #cbd5e1 !important;
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+  #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-threshold-popover {
+    position: absolute !important;
+    bottom: calc(100% + 6px) !important;
+    right: 0 !important;
+    background: rgba(15, 23, 42, 0.97) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+    padding: 4px !important;
+    display: none;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 220px !important;
+  }
+  #tp-floating-threshold-popover.tp-show { display: flex !important; }
+  #tp-floating-threshold-popover .tp-floating-hint {
+    color: #94a3b8 !important;
+    padding: 5px 10px 3px !important;
+    font-size: 10.5px !important;
+    font-weight: 500 !important;
+    cursor: default !important;
+  }
+  #tp-floating-threshold-popover .tp-floating-option {
+    background: transparent !important;
+    border: none !important;
+    color: #cbd5e1 !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    text-align: left !important;
+  }
+  #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: #10b981 !important; color: #fff !important; }
+  #tp-floating-cta-dismiss {
+    position: absolute !important;
+    top: -8px !important;
+    right: -8px !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background: rgba(30,41,59,0.95) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: #94a3b8 !important;
+    font-size: 10px !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+  #tp-floating-cta-dismiss:hover { color: #f43f5e !important; border-color: #f43f5e !important; }
+  @media (max-width: 600px) {
+    #tp-floating-check-sub { display: none !important; }
+    #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
+  }
 `;
 
 const SHADOW_MODAL_STYLES = `
@@ -4967,6 +5079,220 @@ const SHADOW_MODAL_STYLES = `
     if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
   }
 
+  // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
+  /**
+   * Floating Check-Deals CTA Component
+   * Primary one-click entry point for Tiefstpreis verification.
+   *
+   * Why this exists: the toolbar packs ~8 controls into one row (FILTER |
+   * ANSICHT | DEALS) and the highest-value action — verifying N unchecked
+   * deals — drowns at the far right as just another small button. This
+   * floating pill (bottom-left, thumb-reachable, above page content but clear
+   * of the bottom-right settings FAB) carries that single action with live
+   * progress, threshold selection, and session dismiss + undo.
+   *
+   * Architecture: create-once + sync. The node is built and bound exactly
+   * once (listeners never re-attached); every render only updates textContent
+   * / classes when changed, so focus and in-flight scan callbacks survive
+   * re-renders. Pure label logic lives in ctaStateFor() for unit testing
+   * without a DOM.
+   */
+
+
+
+
+
+
+  const FLOATING_CTA_ID = 'tp-floating-check-cta';
+  const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
+
+  let dismissedForSession = false;
+  let lastCounts = { uncheckedDeals: 0 };
+  let lastIsDealFeed = false;
+
+  /**
+   * Pure label state machine (no DOM): idle → scanning → done.
+   * Unit-tested in tests/unit/floating-cta.test.js.
+   */
+  function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, total = 0 } = {}) {
+    if (isScanning) {
+      const progress = total > 0 ? ` (${completed}/${total})` : '';
+      return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
+    }
+    if (unchecked > 0) {
+      const plural = unchecked === 1 ? 'Deal' : 'Deals';
+      return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${plural} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
+    }
+    return { mode: 'done', mainLabel: '✅ Alle geprüft', subLabel: '' };
+  }
+
+  function isFloatingCtaDismissed() {
+    return dismissedForSession;
+  }
+
+  function hideFloatingCTA() {
+    if (typeof document === 'undefined') return;
+    // Stylesheet pins display:flex !important (host-site override convention),
+    // so hiding must go through the .tp-hidden class, not an inline style.
+    document.getElementById(FLOATING_CTA_ID)?.classList.add('tp-hidden');
+  }
+
+  function setTextIfChanged(el, text) {
+    if (el && el.textContent !== text) el.textContent = text;
+  }
+
+  function onMainClick() {
+    const { isBatchChecking } = getScanState();
+    if (isBatchChecking) {
+      cancelBatchDealCheck();
+      showToast('Batch-Prüfung abgebrochen');
+      syncFloatingCTA();
+      return;
+    }
+    const unchecked = lastCounts.uncheckedDeals || 0;
+    if (unchecked <= 0) {
+      showToast('Keine ungeprüften Deals vorhanden');
+      return;
+    }
+    const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+    runBatchDealCheck(
+      minDisc,
+      () => syncFloatingCTA(),
+      (completed, total) => {
+        if (total > 0) showToast(`${completed} Deal-Tiefstpreise verifiziert`);
+        else showToast('Keine ungeprüften Deals vorhanden');
+        // Recompute counts → auto-hides the CTA when nothing is left.
+        triggerProcessListings();
+      },
+      () => syncFloatingCTA()
+    );
+    syncFloatingCTA();
+  }
+
+  function onDismiss() {
+    dismissedForSession = true;
+    hideFloatingCTA();
+    showToast('Check-Deals-Button ausgeblendet', 4000, 'Rückgängig', () => {
+      dismissedForSession = false;
+      renderFloatingCTA(lastCounts, lastIsDealFeed);
+    });
+  }
+
+  function ensureCta() {
+    let el = document.getElementById(FLOATING_CTA_ID);
+    if (el) {
+      el.classList.remove('tp-hidden');
+      return el;
+    }
+    el = document.createElement('div');
+    el.id = FLOATING_CTA_ID;
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', 'Tiefstpreise prüfen');
+    el.innerHTML = `
+      <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
+        <span id="tp-floating-check-main">🔍 Deals prüfen</span>
+        <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+      </button>
+      <button type="button" id="tp-floating-threshold-btn" title="Nur Deals ab diesem Toppreise-Rabatt prüfen">≥30% ▾</button>
+      <div id="tp-floating-threshold-popover" role="menu">
+        <div class="tp-floating-hint">Nur Toppreise-Rabatt ≥ … wird geprüft</div>
+      </div>
+      <button type="button" id="tp-floating-cta-dismiss" title="Ausblenden (bis Seiten-Reload)">✕</button>
+    `;
+    const popover = el.querySelector('#tp-floating-threshold-popover');
+    for (const val of THRESHOLD_OPTIONS) {
+      const opt = document.createElement('button');
+      opt.type = 'button';
+      opt.className = 'tp-floating-option';
+      opt.dataset.val = String(val);
+      opt.setAttribute('role', 'menuitem');
+      opt.textContent = `≥ ${val}%`;
+      opt.onclick = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        popover.classList.remove('tp-show');
+        updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
+        showToast(`Nur Deals ab ${val}% Toppreise-Rabatt werden geprüft`);
+        syncFloatingCTA();
+      };
+      popover.appendChild(opt);
+    }
+
+    el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
+    el.querySelector('#tp-floating-cta-dismiss').onclick = onDismiss;
+
+    const threshBtn = el.querySelector('#tp-floating-threshold-btn');
+    threshBtn.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      popover.classList.toggle('tp-show');
+    };
+
+    if (!window._tpFloatingCtaDocBound) {
+      window._tpFloatingCtaDocBound = true;
+      document.addEventListener('click', e => {
+        const cta = document.getElementById(FLOATING_CTA_ID);
+        if (cta && !cta.contains(e.target)) {
+          cta.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
+        }
+      });
+    }
+
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function syncFloatingCTA() {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(FLOATING_CTA_ID);
+    if (!el) return;
+    const state = getScanState();
+    const unchecked = lastCounts.uncheckedDeals || 0;
+    const { mainLabel, subLabel, mode } = ctaStateFor({
+      unchecked,
+      isScanning: state.isBatchChecking,
+      completed: state.progress?.completed || 0,
+      total: state.progress?.total || 0
+    });
+
+    setTextIfChanged(el.querySelector('#tp-floating-check-main'), mainLabel);
+    const subEl = el.querySelector('#tp-floating-check-sub');
+    setTextIfChanged(subEl, subLabel);
+    subEl.style.display = subLabel ? 'block' : 'none';
+    el.classList.toggle('tp-scanning', mode === 'scanning');
+
+    const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+    const threshBtn = el.querySelector('#tp-floating-threshold-btn');
+    setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
+    threshBtn.title = lastIsDealFeed
+      ? `Nur Deals mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
+      : `Nur Produkte mit Toppreise-Rabatt ≥ ${minDisc}% werden geprüft`;
+    el.querySelectorAll('.tp-floating-option').forEach(opt => {
+      opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
+    });
+  }
+
+  /**
+   * Create-once, then sync. Hides itself when dismissed for the session or
+   * when there is nothing left to check (and no scan is running).
+   */
+  function renderFloatingCTA(counts = {}, isDealFeed = false) {
+    if (typeof document === 'undefined') return;
+    lastCounts = counts || { uncheckedDeals: 0 };
+    lastIsDealFeed = !!isDealFeed;
+    if (dismissedForSession) {
+      hideFloatingCTA();
+      return;
+    }
+    const { isBatchChecking } = getScanState();
+    if (!isBatchChecking && (lastCounts.uncheckedDeals || 0) <= 0) {
+      hideFloatingCTA();
+      return;
+    }
+    ensureCta();
+    syncFloatingCTA();
+  }
+
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
   /**
    * Price Alarm Automation Feature
@@ -5126,6 +5452,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     if (isProductDetailPage()) {
       const staleBar = document.getElementById('tp-suite-filter-bar');
       if (staleBar) staleBar.remove();
+      hideFloatingCTA();
       return;
     }
     isModifyingDOM = true;
@@ -5135,6 +5462,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       if (cards.length === 0) {
         const staleBar = document.getElementById('tp-suite-filter-bar');
         if (staleBar) staleBar.remove();
+        hideFloatingCTA();
         return;
       }
 
@@ -5182,9 +5510,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // --- Sort ---
       applySorting(cards, pageHasOffers);
 
-      // --- Empty state & filter bar ---
+      // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed);
+      renderFloatingCTA(counts, isNeueFeed);
     } finally {
       isModifyingDOM = false;
       if (mainObserver) {
@@ -5203,9 +5532,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const target = m.target;
       if (!target) return false;
 
-      // Ignore mutations inside our own root UI or filter bar
+      // Ignore mutations inside our own root UI, filter bar, or floating CTA
       if (target.id === 'tp-root' || target.closest?.('#tp-root')) return false;
       if (target.id === 'tp-suite-filter-bar' || target.closest?.('#tp-suite-filter-bar')) return false;
+      if (target.id === 'tp-floating-check-cta' || target.closest?.('#tp-floating-check-cta')) return false;
 
       // Ignore mutations inside document.head (DarkReader dynamic styles, font loading, etc.)
       if (target === document.head || target.closest?.('head')) return false;
@@ -5215,7 +5545,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
       const checkNode = node => {
         if (!node || node.nodeType !== 1) return false;
-        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice') return false;
+        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
         if (node.classList?.contains('tp-card-subline-row') ||
             node.classList?.contains('tp-badge-score-breakdown') ||
             node.classList?.contains('tp-sparkline-container') ||
@@ -5303,6 +5633,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       getPriceLevel,
       analyzePriceTimeSeries,
       sanitizeTimeSeries,
+      renderFloatingCTA,
+      hideFloatingCTA,
       runBestpreiseScan,
       cancelBestpreiseScan,
       runBatchDealCheck,
