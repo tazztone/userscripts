@@ -170,7 +170,7 @@ describe('Price Domain Module', () => {
       assert.equal(analysis.isNewAllTimeLow, true);
       assert.equal(analysis.previousLow, 750);
       assert.equal(analysis.medianPrice, 780); // 1-year window median
-      assert.ok(analysis.medianPriceLifetime > analysis.medianPrice); // Lifetime is higher
+      assert.equal(analysis.medianFallback, false); // 5 window points, no fallback
       assert.equal(analysis.realDiscountVsPrevLow, 7); // (750 - 699) / 750 = 6.8% -> 7%
     });
 
@@ -189,6 +189,52 @@ describe('Price Domain Module', () => {
       assert.ok(analysis);
       assert.equal(analysis.previousLow, 100.00);
       assert.equal(analysis.realDiscountVsPrevLow, 1); // honest micro-dip, badge renders "Tiefstpreis"
+    });
+
+    it('averages the two middle values for even point counts (no upper-median bias)', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 30 * dayMs, 100],
+        [now - 20 * dayMs, 200],
+        [now - 10 * dayMs, 300],
+        [now, 400]
+      ];
+      const analysis = analyzePriceTimeSeries(series, 400, 0, { outlierRejectionEnabled: false });
+      assert.ok(analysis);
+      assert.equal(analysis.medianPrice, 250); // (200 + 300) / 2, not 300
+      assert.equal(analysis.medianFallback, false);
+    });
+
+    it('flags lifetime fallback when fewer than 3 points sit inside the horizon', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 700 * dayMs, 2000],
+        [now - 600 * dayMs, 1900],
+        [now - 10 * dayMs, 800],
+        [now, 750]
+      ];
+      const analysis = analyzePriceTimeSeries(series, 750, 365, { outlierRejectionEnabled: false });
+      assert.ok(analysis);
+      assert.equal(analysis.medianFallback, true);
+      // Fallback median spans the full history: [750, 800, 1900, 2000] -> (800 + 1900) / 2
+      assert.equal(analysis.medianPrice, 1350);
+    });
+
+    it('uses the window median without fallback flag once 3+ points qualify', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 700 * dayMs, 2000],
+        [now - 10 * dayMs, 800],
+        [now - 5 * dayMs, 780],
+        [now, 750]
+      ];
+      const analysis = analyzePriceTimeSeries(series, 750, 365, { outlierRejectionEnabled: false });
+      assert.ok(analysis);
+      assert.equal(analysis.medianFallback, false);
+      assert.equal(analysis.medianPrice, 780); // [750, 780, 800] window median
     });
   });
 

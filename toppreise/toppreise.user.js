@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.76
+// @version      2.18.77
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1310,6 +1310,15 @@ const SHADOW_MODAL_STYLES = `
 
   const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
 
+  // True median: odd n takes the middle, even n averages the two middle
+  // values (no upper-median bias from floor(n/2) indexing).
+  const medianOf = sorted => {
+    const n = sorted.length;
+    if (n === 0) return 0;
+    const mid = n >> 1;
+    return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+
   const parsePrice = str => {
     if (!str) return 0;
     let clean = str.replace(/[.–\-]\s*$/g, '.00');
@@ -1574,25 +1583,27 @@ const SHADOW_MODAL_STYLES = `
     const historicalPrices = prices.slice(0, idx + 1);
     const previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
 
-    const sortedLifetime = [...prices].sort((a, b) => a - b);
-    const lifetimeMedian = sortedLifetime[Math.floor(sortedLifetime.length / 2)];
-
     const defaultHorizon = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
       ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
       : 365;
     const horizonDays = customHorizon ?? (options.horizonDays ?? defaultHorizon);
+    // Thin windows (< 3 points) fall back to the full history — flagged via
+    // medianFallback so labels stay honest ("Lifetime", never "1J").
     let windowPrices = prices;
+    let medianFallback = false;
     if (horizonDays > 0) {
       const now = Date.now();
       const cutoffTime = now - horizonDays * 86400 * 1000;
       const windowPoints = points.filter(p => p[0] >= cutoffTime);
       if (windowPoints.length >= 3) {
         windowPrices = windowPoints.map(p => p[1]);
+      } else {
+        medianFallback = true;
       }
     }
 
     const sortedWindow = [...windowPrices].sort((a, b) => a - b);
-    const medianPrice = sortedWindow[Math.floor(sortedWindow.length / 2)];
+    const medianPrice = medianOf(sortedWindow);
     const avgPrice = windowPrices.reduce((a, b) => a + b, 0) / windowPrices.length;
 
     const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
@@ -1622,7 +1633,7 @@ const SHADOW_MODAL_STYLES = `
       previousLow: previousLow > 0 ? previousLow : null,
       avgPrice: Math.round(avgPrice * 100) / 100,
       medianPrice: Math.round(medianPrice * 100) / 100,
-      medianPriceLifetime: Math.round(lifetimeMedian * 100) / 100,
+      medianFallback,
       horizonDays,
       filteredOutliers,
       isNewAllTimeLow,
@@ -1769,6 +1780,20 @@ const SHADOW_MODAL_STYLES = `
     if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return 0;
     if (median <= cardPrice) return 0;
     return Math.round(((median - cardPrice) / median) * 100);
+  }
+
+  /**
+   * Honest horizon label for the Ø line. The window label (1J / 180T / …) is
+   * only shown when the median really comes from that window — lifetime
+   * fallbacks (thin history) and the lifetime setting both read "Lifetime".
+   * Legacy cache entries predate medianFallback and keep the old window label
+   * until they refresh.
+   */
+  function medianHorizonLabel(stats) {
+    if (stats && stats.horizonDays > 0 && !stats.medianFallback) {
+      return stats.horizonDays >= 365 ? '1J' : `${stats.horizonDays}T`;
+    }
+    return 'Lifetime';
   }
 
   /**
@@ -3686,7 +3711,7 @@ const SHADOW_MODAL_STYLES = `
 
           const prevLow = stats?.previousLow;
           const medianVal = stats?.medianPrice;
-          const horizonLabel = stats?.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : 'Lifetime';
+          const horizonLabel = medianHorizonLabel(stats);
           const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
           const levelPct = getLevelPct(cardPrice, stats);
           // Single source (ADR-0002): the headline % is the heat input computed
@@ -3892,7 +3917,7 @@ const SHADOW_MODAL_STYLES = `
               detailParts.push(`Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
             }
             if (stats.avgPrice && stats.avgPrice > cardPrice) {
-              detailParts.push(`Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}`);
+              detailParts.push(`Durchschnitt: CHF ${stats.avgPrice.toFixed(2)}`);
             }
             if (hasSignificantPeak) {
               const peakDropPct = Math.round(((stats.hoechstpreis - cardPrice) / stats.hoechstpreis) * 100);
@@ -3954,7 +3979,7 @@ const SHADOW_MODAL_STYLES = `
           // dropped in favour of the Ø line.
           const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
           const showMedianLine = !isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice;
-          const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
+          const horizonLabel = medianHorizonLabel(stats);
           let histPriceEl = card.querySelector('.tp-card-historical-price');
           if (isNonBest) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
@@ -4823,7 +4848,6 @@ const SHADOW_MODAL_STYLES = `
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
          <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
-          <span class="tp-group-label" aria-hidden="true">Tiefstpreise</span>
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>

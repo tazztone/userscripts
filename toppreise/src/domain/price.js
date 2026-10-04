@@ -8,6 +8,15 @@ import { CONFIG } from '../state/config.js';
 
 export const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
 
+// True median: odd n takes the middle, even n averages the two middle
+// values (no upper-median bias from floor(n/2) indexing).
+const medianOf = sorted => {
+  const n = sorted.length;
+  if (n === 0) return 0;
+  const mid = n >> 1;
+  return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
 export const parsePrice = str => {
   if (!str) return 0;
   let clean = str.replace(/[.–\-]\s*$/g, '.00');
@@ -272,25 +281,27 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
   const historicalPrices = prices.slice(0, idx + 1);
   const previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
 
-  const sortedLifetime = [...prices].sort((a, b) => a - b);
-  const lifetimeMedian = sortedLifetime[Math.floor(sortedLifetime.length / 2)];
-
   const defaultHorizon = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
     ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
     : 365;
   const horizonDays = customHorizon ?? (options.horizonDays ?? defaultHorizon);
+  // Thin windows (< 3 points) fall back to the full history — flagged via
+  // medianFallback so labels stay honest ("Lifetime", never "1J").
   let windowPrices = prices;
+  let medianFallback = false;
   if (horizonDays > 0) {
     const now = Date.now();
     const cutoffTime = now - horizonDays * 86400 * 1000;
     const windowPoints = points.filter(p => p[0] >= cutoffTime);
     if (windowPoints.length >= 3) {
       windowPrices = windowPoints.map(p => p[1]);
+    } else {
+      medianFallback = true;
     }
   }
 
   const sortedWindow = [...windowPrices].sort((a, b) => a - b);
-  const medianPrice = sortedWindow[Math.floor(sortedWindow.length / 2)];
+  const medianPrice = medianOf(sortedWindow);
   const avgPrice = windowPrices.reduce((a, b) => a + b, 0) / windowPrices.length;
 
   const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
@@ -320,7 +331,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
     previousLow: previousLow > 0 ? previousLow : null,
     avgPrice: Math.round(avgPrice * 100) / 100,
     medianPrice: Math.round(medianPrice * 100) / 100,
-    medianPriceLifetime: Math.round(lifetimeMedian * 100) / 100,
+    medianFallback,
     horizonDays,
     filteredOutliers,
     isNewAllTimeLow,

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDealState, computeDealScore, getDisplayDelta, getPriceLevel, getLevelPct, getHeatInput, isSignificantRecord } from '../../src/domain/deal-score.js';
+import { getDealState, computeDealScore, getDisplayDelta, getPriceLevel, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../../src/domain/deal-score.js';
 
 describe('Deal Score Domain Module', () => {
   describe('getDealState', () => {
@@ -250,6 +250,25 @@ describe('Deal Score Domain Module', () => {
       assert.equal(heat.pct, 3);
       assert.equal(heat.kind, 'median');
       assert.equal(heat.value, null);
+    });
+  });
+
+  describe('medianHorizonLabel (honest Ø horizon)', () => {
+    it('labels the configured window when the median really comes from it', () => {
+      assert.equal(medianHorizonLabel({ horizonDays: 365, medianFallback: false }), '1J');
+      assert.equal(medianHorizonLabel({ horizonDays: 180, medianFallback: false }), '180T');
+      assert.equal(medianHorizonLabel({ horizonDays: 90, medianFallback: false }), '90T');
+    });
+
+    it('reads Lifetime on lifetime fallback, lifetime setting, or missing horizon', () => {
+      assert.equal(medianHorizonLabel({ horizonDays: 365, medianFallback: true }), 'Lifetime');
+      assert.equal(medianHorizonLabel({ horizonDays: 0, medianFallback: false }), 'Lifetime');
+      assert.equal(medianHorizonLabel({}), 'Lifetime');
+      assert.equal(medianHorizonLabel(null), 'Lifetime');
+    });
+
+    it('keeps the old window label for legacy cache entries without the flag', () => {
+      assert.equal(medianHorizonLabel({ horizonDays: 365 }), '1J');
     });
   });
 });

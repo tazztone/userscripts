@@ -90,7 +90,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
        <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
-        <span class="tp-group-label" aria-hidden="true">Tiefstpreise</span>
         <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>

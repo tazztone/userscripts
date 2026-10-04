@@ -14,7 +14,7 @@ import {
   getCardProductId
 } from '../page/cards.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
-import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord } from '../domain/deal-score.js';
+import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
@@ -362,7 +362,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
 
         const prevLow = stats?.previousLow;
         const medianVal = stats?.medianPrice;
-        const horizonLabel = stats?.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : 'Lifetime';
+        const horizonLabel = medianHorizonLabel(stats);
         const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
         const levelPct = getLevelPct(cardPrice, stats);
         // Single source (ADR-0002): the headline % is the heat input computed
@@ -568,7 +568,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             detailParts.push(`Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
           }
           if (stats.avgPrice && stats.avgPrice > cardPrice) {
-            detailParts.push(`Ø-Preis: CHF ${stats.avgPrice.toFixed(2)}`);
+            detailParts.push(`Durchschnitt: CHF ${stats.avgPrice.toFixed(2)}`);
           }
           if (hasSignificantPeak) {
             const peakDropPct = Math.round(((stats.hoechstpreis - cardPrice) / stats.hoechstpreis) * 100);
@@ -630,7 +630,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // dropped in favour of the Ø line.
         const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
         const showMedianLine = !isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice;
-        const horizonLabel = stats.horizonDays && stats.horizonDays > 0 ? `${stats.horizonDays >= 365 ? '1J' : stats.horizonDays + 'T'}` : '1J';
+        const horizonLabel = medianHorizonLabel(stats);
         let histPriceEl = card.querySelector('.tp-card-historical-price');
         if (isNonBest) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);

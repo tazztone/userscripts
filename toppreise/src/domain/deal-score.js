@@ -133,6 +133,20 @@ export function getLevelPct(cardPrice, stats) {
 }
 
 /**
+ * Honest horizon label for the Ø line. The window label (1J / 180T / …) is
+ * only shown when the median really comes from that window — lifetime
+ * fallbacks (thin history) and the lifetime setting both read "Lifetime".
+ * Legacy cache entries predate medianFallback and keep the old window label
+ * until they refresh.
+ */
+export function medianHorizonLabel(stats) {
+  if (stats && stats.horizonDays > 0 && !stats.medianFallback) {
+    return stats.horizonDays >= 365 ? '1J' : `${stats.horizonDays}T`;
+  }
+  return 'Lifetime';
+}
+
+/**
  * Single heat driver (ADR-0002: color always = badge-% heat, text = kind).
  * One computation feeds BOTH the card heat and the badge headline, so the
  * ribbon number always matches its color. Returns
