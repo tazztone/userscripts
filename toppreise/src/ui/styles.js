@@ -877,6 +877,9 @@ export const STYLES = `
     animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
   }
   #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
+  #tp-floating-check-cta.tp-empty { animation: none !important; border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn { background: linear-gradient(135deg, #475569 0%, #334155 100%) !important; color: #cbd5e1 !important; }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover { filter: brightness(1.08) !important; }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
     0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.18) !important; }

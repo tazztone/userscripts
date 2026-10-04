@@ -8,7 +8,9 @@
  * floating pill (bottom-left, thumb-reachable, above page content but clear
  * of the bottom-right settings FAB) carries that single action with live
  * progress, threshold selection, and session collapse (minimizable, never
- * fully closable — the primary action must stay one click away).
+ * fully closable — the primary action must stay one click away). The pill
+ * never auto-hides on empty: with 0 deals left it stays visible in dimmed
+ * form (grey instead of green) so users always find it in the same spot.
  *
  * Architecture: create-once + sync. The node is built and bound exactly
  * once (listeners never re-attached); every render only updates textContent
@@ -34,7 +36,9 @@ let lastCounts = { uncheckedDeals: 0 };
 let lastIsDealFeed = false;
 
 /**
- * Pure label state machine (no DOM): idle → scanning → done.
+ * Pure label state machine (no DOM): idle → scanning → done (empty).
+ * The done state keeps the action name with a 0 count so the CTA never
+ * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
  * Unit-tested in tests/unit/floating-cta.test.js.
  */
 export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, total = 0 } = {}) {
@@ -46,7 +50,7 @@ export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, 
     const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
     return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
   }
-  return { mode: 'done', mainLabel: '✅ Alle geprüft', subLabel: '' };
+  return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle Deals verifiziert' };
 }
 
 export function isFloatingCtaCollapsed() {
@@ -71,8 +75,8 @@ function setTextIfChanged(el, text) {
 
 /**
  * Entry point for starting (or cancelling) a batch check from any UI surface:
- * the CTA main button, the empty-state notice, or tests. DOM-free enough to
- * call when the pill itself is hidden (e.g. auto-hidden when done).
+ * the CTA main button, the empty-state notice, or tests. Clicking the dimmed
+ * empty CTA toasts instead of scanning (unchecked <= 0 guard below).
  */
 export function startBatchCheck() {
   const { isBatchChecking } = getScanState();
@@ -96,7 +100,7 @@ export function startBatchCheck() {
     (completed, total) => {
       if (total > 0) showToast(`${completed} Tiefstpreise verifiziert`);
       else showToast('Keine ungeprüften Deals vorhanden');
-      // Recompute counts → auto-hides the CTA when nothing is left.
+      // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
     },
     () => syncFloatingCTA()
@@ -211,6 +215,9 @@ export function syncFloatingCTA() {
   setTextIfChanged(subEl, subLabel);
   subEl.style.display = subLabel ? 'block' : 'none';
   el.classList.toggle('tp-scanning', mode === 'scanning');
+  // Empty (0 deals) stays visible but dimmed via .tp-empty (grey instead of
+  // green) — the CTA must never disappear, only de-emphasize.
+  el.classList.toggle('tp-empty', mode === 'done');
   // Collapsed form: compact count instead of labels, flipped chevron.
   // The count keeps working as a progress signal mid-scan.
   el.classList.toggle('tp-collapsed', collapsedForSession);
@@ -244,19 +251,15 @@ export function syncFloatingCTA() {
 }
 
 /**
- * Create-once, then sync. Auto-hides only when there is nothing left to
- * check (and no scan is running) — otherwise the pill is always present,
- * expanded or collapsed. Collapse state is sticky within the session.
+ * Create-once, then sync. The pill always stays visible on listing pages —
+ * with 0 deals left it renders dimmed (see .tp-empty), never hidden.
+ * hideFloatingCTA is reserved for non-list contexts (product detail,
+ * zero cards). Collapse state is sticky within the session.
  */
 export function renderFloatingCTA(counts = {}, isDealFeed = false) {
   if (typeof document === 'undefined') return;
   lastCounts = counts || { uncheckedDeals: 0 };
   lastIsDealFeed = !!isDealFeed;
-  const { isBatchChecking } = getScanState();
-  if (!isBatchChecking && (lastCounts.uncheckedDeals || 0) <= 0) {
-    hideFloatingCTA();
-    return;
-  }
   ensureCta();
   syncFloatingCTA();
 }

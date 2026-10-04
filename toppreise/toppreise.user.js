@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.78
+// @version      2.18.79
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -900,6 +900,9 @@ const STYLES = `
     animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
   }
   #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
+  #tp-floating-check-cta.tp-empty { animation: none !important; border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn { background: linear-gradient(135deg, #475569 0%, #334155 100%) !important; color: #cbd5e1 !important; }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover { filter: brightness(1.08) !important; }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
     0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.18) !important; }
@@ -5050,7 +5053,9 @@ const SHADOW_MODAL_STYLES = `
    * floating pill (bottom-left, thumb-reachable, above page content but clear
    * of the bottom-right settings FAB) carries that single action with live
    * progress, threshold selection, and session collapse (minimizable, never
-   * fully closable — the primary action must stay one click away).
+   * fully closable — the primary action must stay one click away). The pill
+   * never auto-hides on empty: with 0 deals left it stays visible in dimmed
+   * form (grey instead of green) so users always find it in the same spot.
    *
    * Architecture: create-once + sync. The node is built and bound exactly
    * once (listeners never re-attached); every render only updates textContent
@@ -5072,7 +5077,9 @@ const SHADOW_MODAL_STYLES = `
   let lastIsDealFeed = false;
 
   /**
-   * Pure label state machine (no DOM): idle → scanning → done.
+   * Pure label state machine (no DOM): idle → scanning → done (empty).
+   * The done state keeps the action name with a 0 count so the CTA never
+   * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
    * Unit-tested in tests/unit/floating-cta.test.js.
    */
   function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, total = 0 } = {}) {
@@ -5084,7 +5091,7 @@ const SHADOW_MODAL_STYLES = `
       const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
       return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
     }
-    return { mode: 'done', mainLabel: '✅ Alle geprüft', subLabel: '' };
+    return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle Deals verifiziert' };
   }
 
   function isFloatingCtaCollapsed() {
@@ -5109,8 +5116,8 @@ const SHADOW_MODAL_STYLES = `
 
   /**
    * Entry point for starting (or cancelling) a batch check from any UI surface:
-   * the CTA main button, the empty-state notice, or tests. DOM-free enough to
-   * call when the pill itself is hidden (e.g. auto-hidden when done).
+   * the CTA main button, the empty-state notice, or tests. Clicking the dimmed
+   * empty CTA toasts instead of scanning (unchecked <= 0 guard below).
    */
   function startBatchCheck() {
     const { isBatchChecking } = getScanState();
@@ -5134,7 +5141,7 @@ const SHADOW_MODAL_STYLES = `
       (completed, total) => {
         if (total > 0) showToast(`${completed} Tiefstpreise verifiziert`);
         else showToast('Keine ungeprüften Deals vorhanden');
-        // Recompute counts → auto-hides the CTA when nothing is left.
+        // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
       },
       () => syncFloatingCTA()
@@ -5249,6 +5256,9 @@ const SHADOW_MODAL_STYLES = `
     setTextIfChanged(subEl, subLabel);
     subEl.style.display = subLabel ? 'block' : 'none';
     el.classList.toggle('tp-scanning', mode === 'scanning');
+    // Empty (0 deals) stays visible but dimmed via .tp-empty (grey instead of
+    // green) — the CTA must never disappear, only de-emphasize.
+    el.classList.toggle('tp-empty', mode === 'done');
     // Collapsed form: compact count instead of labels, flipped chevron.
     // The count keeps working as a progress signal mid-scan.
     el.classList.toggle('tp-collapsed', collapsedForSession);
@@ -5282,19 +5292,15 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Create-once, then sync. Auto-hides only when there is nothing left to
-   * check (and no scan is running) — otherwise the pill is always present,
-   * expanded or collapsed. Collapse state is sticky within the session.
+   * Create-once, then sync. The pill always stays visible on listing pages —
+   * with 0 deals left it renders dimmed (see .tp-empty), never hidden.
+   * hideFloatingCTA is reserved for non-list contexts (product detail,
+   * zero cards). Collapse state is sticky within the session.
    */
   function renderFloatingCTA(counts = {}, isDealFeed = false) {
     if (typeof document === 'undefined') return;
     lastCounts = counts || { uncheckedDeals: 0 };
     lastIsDealFeed = !!isDealFeed;
-    const { isBatchChecking } = getScanState();
-    if (!isBatchChecking && (lastCounts.uncheckedDeals || 0) <= 0) {
-      hideFloatingCTA();
-      return;
-    }
     ensureCta();
     syncFloatingCTA();
   }

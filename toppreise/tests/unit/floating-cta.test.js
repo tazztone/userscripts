@@ -28,11 +28,11 @@ describe('Floating CTA label state machine (pure, no DOM)', () => {
     assert.equal(ctaStateFor({ isScanning: true }).mainLabel, '⏳ Prüfe');
   });
 
-  it('done state renders when nothing is left to check', () => {
+  it('done state keeps the CTA visible with a dimmed 0 count', () => {
     assert.deepEqual(ctaStateFor({ unchecked: 0 }), {
       mode: 'done',
-      mainLabel: '✅ Alle geprüft',
-      subLabel: ''
+      mainLabel: '🔍 0 Tiefstpreise prüfen',
+      subLabel: 'Alle Deals verifiziert'
     });
   });
 

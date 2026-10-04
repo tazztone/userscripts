@@ -414,9 +414,10 @@ def test_real_deal_batch_check_button_counter_and_run(page: Page):
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low')
     page.wait_for_selector('#card-iphone .badge-dif.tp-deal-not-low')
 
-    # Once finished, nothing is left to check and the CTA hides itself
-    page.wait_for_selector('#tp-floating-check-cta', state='hidden')
-    assert not cta.is_visible()
+    # Once finished, nothing is left to check and the CTA stays visible dimmed (never hides)
+    page.wait_for_selector('#tp-floating-check-cta.tp-empty')
+    assert cta.is_visible()
+    assert '0 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
 
 
@@ -463,22 +464,23 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # 3. Click floating CTA -> should only scan card-cheapest (pid 797571), NOT the ignored cards
     page.click('#tp-floating-check-btn')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-not-low')
-    page.wait_for_selector('#tp-floating-check-cta', state='hidden')
+    page.wait_for_selector('#tp-floating-check-cta.tp-empty')
 
     # Verify only card-cheapest (797571) was requested
     assert '797571' in requested_pids
     assert '797573' not in requested_pids  # card-negative (Silikon) must NOT be checked
     assert '797574' not in requested_pids  # card-iphone (iPhone) must NOT be checked
 
-    # Now unchecked deals is 0, so the CTA hides itself (nothing left to trigger)
-    assert not cta.is_visible()
+    # Now unchecked deals is 0, so the CTA stays visible dimmed (never hides)
+    assert cta.is_visible()
+    assert '0 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
     # 4. Triggering a check with 0 visible deals left must toast and terminate cleanly (no hang)
     page.evaluate("() => window.ToppreiseSuite.startBatchCheck()")
     page.wait_for_selector('#tp-root >> .tp-toast', state='visible')
     toast = page.locator('#tp-root >> .tp-toast').last
     assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
-    assert not cta.is_visible()
+    assert cta.is_visible()
 
     # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
     page.click('#tp-bar-reveal-btn')

@@ -22,7 +22,7 @@ def test_floating_cta_threshold_syncs_with_toolbar(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 40
 
 
-def test_floating_cta_runs_batch_check_and_hides_when_done(page: Page):
+def test_floating_cta_runs_batch_check_and_stays_visible_dimmed_when_done(page: Page):
     def handle_pricechart(route):
         route.fulfill(
             status=200,
@@ -38,9 +38,11 @@ def test_floating_cta_runs_batch_check_and_hides_when_done(page: Page):
     page.wait_for_selector('#tp-floating-check-cta.tp-scanning')
     assert 'Abbrechen' in (page.locator('#tp-floating-check-cta').text_content() or '')
 
-    # Completes and auto-hides once nothing is left to check
-    page.wait_for_selector('#tp-floating-check-cta', state='hidden')
-    assert not page.locator('#tp-floating-check-cta').is_visible()
+    # Completes and stays visible in dimmed empty form (never auto-hides)
+    page.wait_for_selector('#tp-floating-check-cta.tp-empty')
+    cta = page.locator('#tp-floating-check-cta')
+    assert cta.is_visible()
+    assert '0 Tiefstpreise prüfen' in (page.locator('#tp-floating-check-main').text_content() or '')
 
 
 def test_floating_cta_collapses_but_never_closes(page: Page):
