@@ -78,12 +78,17 @@ def test_filter_toggles_preserve_settings(page: Page):
     # Co-located next to respective setting, not far-right cluster
     assert page.evaluate("() => document.getElementById('tp-toggle-neg').closest('.tp-input-wrapper') !== null")
     assert page.evaluate("() => document.getElementById('tp-toggle-min').closest('#tp-bar-min-offers-group') !== null")
-    assert page.evaluate("() => document.getElementById('tp-toggle-bestpreis').closest('#tp-bar-threshold-wrapper') !== null")
+    # No separate strictness toggle anymore: strictness lives in the Tiefstpreise mode.
+    assert page.evaluate("() => document.getElementById('tp-toggle-bestpreis') === null")
     assert page.locator('#tp-suite-filter-bar .tp-filter-toggles-group').count() == 0
 
     page.locator('#tp-toggle-neg + .tp-mini-slider').click()
     page.locator('#tp-toggle-min + .tp-mini-slider').click()
     page.wait_for_function("() => document.getElementById('tp-toggle-neg').checked === false")
+
+    # OFF dims the corresponding tool gray (toggles themselves stay bright)
+    assert 'tp-tool-dim' in (page.locator('.tp-input-field-box').get_attribute('class') or '')
+    assert 'tp-tool-dim' in (page.locator('#tp-bar-min-minus').get_attribute('class') or '')
 
     # Verify cards are no longer filtered (all visible)
     page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
@@ -100,6 +105,10 @@ def test_filter_toggles_preserve_settings(page: Page):
     page.locator('#tp-toggle-neg + .tp-mini-slider').click()
     page.locator('#tp-toggle-min + .tp-mini-slider').click()
     page.wait_for_function("() => document.getElementById('tp-toggle-neg').checked === true")
+
+    # Re-enabled tools lose the dimming
+    assert 'tp-tool-dim' not in (page.locator('.tp-input-field-box').get_attribute('class') or '')
+    assert 'tp-tool-dim' not in (page.locator('#tp-bar-min-minus').get_attribute('class') or '')
 
     # Verify cards are filtered again
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')

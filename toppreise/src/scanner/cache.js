@@ -99,6 +99,14 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
 
 export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!productId) return;
+  // Upgrade-only: never replace median-bearing stats with median-less
+  // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
+  // only) must not regress a full analysis — the badge would keep its old %
+  // while the heat goes neutral. Unavailable-markers keep current semantics.
+  if (!isUnavailable && stats && !stats.medianPrice && memoryCache.has(productId)) {
+    const prev = memoryCache.get(productId);
+    if (prev && !prev.unavailable && prev.medianPrice) return;
+  }
   const payload = isUnavailable
     ? { unavailable: true, time: Date.now() }
     : { ...stats, time: Date.now() };

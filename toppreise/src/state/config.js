@@ -21,6 +21,8 @@ export function weightDescText(weightRecord) {
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
+  // Legacy: strictness lives in BESTPREISE_MODE_ACTIVE now (single control).
+  // Key stays so stored settings survive updates; no UI writes it anymore.
   FILTER_BESTPREIS_ENABLED: true,
   MODE: 'dim',
   MARGIN_PERCENT: 0.0,
@@ -28,6 +30,7 @@ export const DEFAULTS = Object.freeze({
   USE_SHIPPING_PRICE: true,
   HEATMAP_ENABLED: true,
   HEATMAP_INTENSITY: 1.0,
+  // Legacy: superseded by BESTPREISE_MODE_ACTIVE (see FILTER_BESTPREIS_ENABLED).
   REAL_DEAL_FILTER_ACTIVE: false,
   REAL_DEAL_MIN_DISCOUNT: 30,
   REAL_DEAL_CACHE_HOURS: 48,

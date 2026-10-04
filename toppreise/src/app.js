@@ -52,7 +52,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.71
+// @version      2.18.72
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -125,13 +125,13 @@ import { processProductDetailPage } from './features/product-detail.js';
             counts.uncheckedDeals++;
           }
         }
-        if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && cd.isVerifiedNonBest && CONFIG.REAL_DEAL_FILTER_ACTIVE) {
-          counts.nonBest++;
-        }
+        // nonBest is retired with the removed strictness toggles: outside the
+        // mode nothing hides as non-best (truthful Aufschlag badge instead),
+        // inside the mode it counts as bestpreiseHidden below. Never double-count.
         cd.dealScore = computeDealScore(cd.stats, cd.cardPrice);
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
-        } else if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && CONFIG.BESTPREISE_MODE_ACTIVE && cd.stats && !isStandardFiltered) {
+        } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
           counts.bestpreiseHidden++;
         }
       }

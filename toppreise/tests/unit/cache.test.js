@@ -82,4 +82,29 @@ describe('Bounded Cache Module', () => {
       assert.equal(memoryCache.size, 0);
     });
   });
+
+  describe('upgrade-only stats writes', () => {
+    it('never replaces median-bearing stats with median-less fallback stats', () => {
+      setCachedPriceStats('p1', { tiefstpreis: 100, medianPrice: 150 }, false, null);
+      // A refresh landing on the HTML fallback (tiefstpreis only) must not regress.
+      setCachedPriceStats('p1', { tiefstpreis: 90 }, false, null);
+      const kept = getCachedPriceStats('p1', false, null);
+      assert.equal(kept.tiefstpreis, 100);
+      assert.equal(kept.medianPrice, 150);
+    });
+
+    it('accepts fallback stats when nothing cached, and upgrades afterwards', () => {
+      setCachedPriceStats('p2', { tiefstpreis: 90 }, false, null);
+      assert.equal(getCachedPriceStats('p2', false, null).tiefstpreis, 90);
+      setCachedPriceStats('p2', { tiefstpreis: 90, medianPrice: 150 }, false, null);
+      assert.equal(getCachedPriceStats('p2', false, null).medianPrice, 150);
+    });
+
+    it('unavailable markers keep current semantics (still overwrite)', () => {
+      setCachedPriceStats('p3', { tiefstpreis: 100, medianPrice: 150 }, false, null);
+      setCachedPriceStats('p3', null, true, null);
+      const marked = getCachedPriceStats('p3', false, null);
+      assert.equal(marked.unavailable, true);
+    });
+  });
 });

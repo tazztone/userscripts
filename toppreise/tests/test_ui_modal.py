@@ -83,27 +83,28 @@ def test_price_alarm_settings_configurable_delays(page: Page):
 
 
 
-def test_real_deal_settings_modal_controls(page: Page):
+def test_pruef_vorauswahl_threshold_persists(page: Page):
+    # Strictness lives in the Tiefstpreise mode now: no separate filter toggle
+    # in the modal anymore, but the Prüf-Vorauswahl threshold must persist.
     # Open settings dialog
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
-    # Verify Section 6 controls exist
-    real_deal_toggle = page.locator('#tp-root >> #tp-real-deal-filter-toggle')
+    # Removed strictness toggle stays gone
+    assert page.locator('#tp-root >> #tp-real-deal-filter-toggle').count() == 0
+
+    # Threshold still exists with default 30
     min_discount_input = page.locator('#tp-root >> #tp-real-deal-min-val')
-    assert not real_deal_toggle.is_checked()
     assert min_discount_input.input_value() == '30'
 
-    # Toggle filter on and set threshold to 40
-    page.click('#tp-root >> #tp-real-deal-filter-toggle + .tp-slider')
+    # Set threshold to 40 and save
     min_discount_input.fill('40')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
-    # Re-open dialog and verify settings persisted
+    # Re-open dialog and verify the threshold persisted
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    assert page.locator('#tp-root >> #tp-real-deal-filter-toggle').is_checked()
     assert page.locator('#tp-root >> #tp-real-deal-min-val').input_value() == '40'
     page.click('#tp-root >> #tp-btn-close')
 

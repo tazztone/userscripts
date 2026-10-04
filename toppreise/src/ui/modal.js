@@ -109,16 +109,6 @@ export function setupUI() {
           </select>
           <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
         </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Nur echte Tiefstpreise filtern</label>
-            <span class="tp-switch-desc">Verifizierte Nicht-Tiefstpreise im Feed ausblenden</span>
-          </div>
-          <label class="tp-switch">
-            <input type="checkbox" id="tp-real-deal-filter-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
         <div class="tp-settings-group">
           <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
           <div class="tp-range-container">
@@ -254,7 +244,6 @@ export function setupUI() {
   const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
   const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
   const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
-  const realDealFilterToggle = shadow.getElementById('tp-real-deal-filter-toggle');
   const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
   const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
   const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
@@ -347,7 +336,6 @@ export function setupUI() {
       cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
     }
 
-    if (realDealFilterToggle) realDealFilterToggle.checked = CONFIG.REAL_DEAL_FILTER_ACTIVE === true;
     if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
@@ -534,7 +522,6 @@ export function setupUI() {
     if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
     if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 
-    if (realDealFilterToggle) updates.REAL_DEAL_FILTER_ACTIVE = realDealFilterToggle.checked;
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
 

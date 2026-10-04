@@ -134,6 +134,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       }
     }
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
+    // Tripwire: heat stripped while the badge still claims a verified % means
+    // a stats regression slipped through — enable DEBUG to catch it live.
+    if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+      console.warn('[Toppreise Suite] heat removed with verified badge present',
+        { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
+    }
     delete card.dataset.tpAppliedHeat;
     card.classList.remove('tp-heatmap-active');
     card.style.removeProperty('--tp-heat-bg');
@@ -405,8 +411,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           histPriceEl.remove();
         }
       } else if (stats) {
-        // Verified NON-Deal (has stats but score <= 0 or not at low) -> HIDE IT if filters enabled!
-        if (CONFIG.FILTER_BESTPREIS_ENABLED !== false) {
+        // Verified NON-Deal (stats but no qualifying score — e.g. minimal
+        // fallback stats without median, or above-low). Strictness lives in
+        // the mode now. The badge is ALWAYS repainted from the current stats
+        // — never preserved — so a stats regression can't strand a stale
+        // verified-% badge on a card whose heat is gone.
+        if (CONFIG.BESTPREISE_MODE_ACTIVE === true) {
           card.classList.add('tp-bestpreise-hidden');
         } else {
           card.classList.remove('tp-bestpreise-hidden');
@@ -414,6 +424,29 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
         card.querySelector('.tp-card-historical-price')?.remove();
         card.querySelector('.tp-badge-score-breakdown')?.remove();
+        const ddNow = getDisplayDelta(cardPrice, stats);
+        if (ddNow.kind === 'above-low') {
+          badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
+          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${ddNow.markup}% Aufschlag)\nFarbe = Rabatt-Tiefe (grau = kein Rabatt)\n[Klicken zum Aktualisieren]`);
+          const fakeNow = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
+          if (isListView) {
+            setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${ddNow.markup}%</p>`);
+          } else {
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${ddNow.markup}%</p>${fakeNow}`);
+          }
+        } else if (ddNow.kind === 'at-low' || ddNow.kind === 'new-low') {
+          // At-low without median (or unscored record): plain Tiefstpreis,
+          // no % claimed — the heat stays neutral gray to match.
+          badgeDifEl.classList.add('tp-deal-badge-interactive');
+          badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup');
+          setTitleIfChanged(badgeDifEl, `🌟 Tiefstpreis (CHF ${cardPrice.toFixed(2)}) — ohne Median kein %-Wert, daher grau statt farbig.\n[Klicken zum Aktualisieren]`);
+          if (isListView) {
+            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+          } else {
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+          }
+        }
+        // 'unknown' (no usable price): loupe state stays — nothing truthful to claim.
       } else {
         // Unscanned card (!stats) -> KEEP VISIBLE with interactive loupe / loading spinner!
         card.classList.remove('tp-bestpreise-hidden');
@@ -472,11 +505,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         const prevLow = stats.previousLow;
         const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
 
-        if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && isNonBest && CONFIG.REAL_DEAL_FILTER_ACTIVE) {
-          card.classList.add('tp-non-bestpreis-filtered');
-        } else {
-          card.classList.remove('tp-non-bestpreis-filtered');
-        }
+        // Strictness lives in the mode now: outside it, verified non-deals
+        // stay visible with a truthful Aufschlag badge. Always drop the
+        // legacy hiding class (mode hiding uses tp-bestpreise-hidden).
+        card.classList.remove('tp-non-bestpreis-filtered');
 
         const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
 
@@ -705,8 +737,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfigs({
         FILTER_NEG_ENABLED: false,
-        FILTER_MIN_ENABLED: false,
-        FILTER_BESTPREIS_ENABLED: false
+        FILTER_MIN_ENABLED: false
       });
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });

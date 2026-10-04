@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.71
+// @version      2.18.72
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -291,24 +291,10 @@ const STYLES = `
   .badge.badge-dif.tp-deal-pill .tp-badge-loupe-icon {
     display: none !important;
   }
-  .badge.badge-dif.tp-deal-pill.tp-deal-alltime-low {
-    background: rgba(6, 78, 59, 0.92) !important;
-    border: 1.5px solid #10b981 !important;
-    color: #6ee7b7 !important;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4) !important;
-  }
-  .badge.badge-dif.tp-deal-pill.tp-deal-not-low {
-    background: rgba(120, 53, 15, 0.92) !important;
-    border: 1.5px solid #f59e0b !important;
-    color: #fde68a !important;
-    box-shadow: 0 0 8px rgba(245, 158, 11, 0.35) !important;
-  }
-  .badge.badge-dif.tp-deal-pill.tp-is-severe-markup {
-    background: rgba(136, 19, 55, 0.92) !important;
-    border: 1.5px solid #f43f5e !important;
-    color: #fecdd3 !important;
-    box-shadow: 0 0 8px rgba(244, 63, 94, 0.35) !important;
-  }
+  /* Single color language: color always = badge-% heat (applied inline by the
+     heat block), text always = kind. The event-kind classes below stay in the
+     DOM as logic hooks but must not paint — otherwise a -3% at-low glows the
+     same green as a -60% one and depth stops being readable. */
   .badge.badge-dif.tp-deal-pill.tp-deal-loading {
     background: rgba(30, 41, 59, 0.9) !important;
     border-color: #38bdf8 !important;
@@ -371,36 +357,9 @@ const STYLES = `
     cursor: wait !important;
     opacity: 0.85 !important;
   }
-  /* 3A: Verified New Record Low: Radiant Solid Golden Diamond Halo */
-  .badge.badge-dif.tp-deal-new-record,
-  .badge-dif.tp-deal-new-record {
-    background: linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%) !important;
-    border: 1.5px solid #fbbf24 !important;
-    box-shadow: 0 0 0 2px #f59e0b, 0 0 14px rgba(245, 158, 11, 0.6) !important;
-    color: #ffffff !important;
-  }
-  /* 3B: Verified All-Time Low: Emerald Halo */
-  .badge.badge-dif.tp-deal-alltime-low,
-  .badge-dif.tp-deal-alltime-low {
-    background: linear-gradient(135deg, #064e3b 0%, #047857 100%) !important;
-    border: 1.5px solid #10b981 !important;
-    box-shadow: 0 0 0 2px #10b981, 0 0 12px rgba(16, 185, 129, 0.5) !important;
-    color: #ffffff !important;
-  }
-  /* 2A: Verified Non-Tiefstpreis: Amber Alert Morph with Shrunken Strikethrough */
-  .badge.badge-dif.tp-deal-not-low,
-  .badge-dif.tp-deal-not-low {
-    background: linear-gradient(135deg, #78350f 0%, #b45309 100%) !important;
-    border: 1.5px solid #f59e0b !important;
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.45) !important;
-    color: #ffffff !important;
-  }
-  .badge.badge-dif.tp-deal-not-low.tp-is-severe-markup,
-  .badge-dif.tp-deal-not-low.tp-is-severe-markup {
-    background: linear-gradient(135deg, #881337 0%, #be123c 100%) !important;
-    border-color: #f43f5e !important;
-    box-shadow: 0 0 14px rgba(244, 63, 94, 0.55) !important;
-  }
+  /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
+     no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
+     markups stay neutral gray with the +XX% text carrying the signal. */
   .badge.badge-dif.tp-deal-not-low p.tp-markup-val {
     font-size: 13px !important;
     font-weight: 800 !important;
@@ -896,8 +855,8 @@ const STYLES = `
     width: 32px !important;
     height: 18px !important;
     border-radius: 999px !important;
-    background: rgba(245,158,11,0.25) !important;
-    border: 1px solid rgba(245,158,11,0.5) !important;
+    background: rgba(100,116,139,0.35) !important;
+    border: 1px solid rgba(100,116,139,0.55) !important;
     transition: background 0.2s ease, border-color 0.2s ease !important;
     flex-shrink: 0 !important;
   }
@@ -909,7 +868,7 @@ const STYLES = `
     width: 12px !important;
     height: 12px !important;
     border-radius: 50% !important;
-    background: #fbbf24 !important;
+    background: #94a3b8 !important;
     transition: transform 0.2s ease, background 0.2s ease !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider {
@@ -928,9 +887,15 @@ const STYLES = `
     font-size: 10px !important;
     font-weight: 700 !important;
     min-width: 22px !important;
-    color: #fbbf24 !important;
+    color: #64748b !important;
   }
   .tp-mini-switch input:checked ~ .tp-mini-state { color: #34d399 !important; }
+  /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
+  .tp-tool-dim {
+    opacity: 0.45 !important;
+    filter: saturate(0.4) !important;
+    transition: opacity 0.2s ease !important;
+  }
   .tp-bar-stepper-group {
     display: flex !important;
     align-items: center !important;
@@ -1913,6 +1878,14 @@ const SHADOW_MODAL_STYLES = `
 
   function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     if (!productId) return;
+    // Upgrade-only: never replace median-bearing stats with median-less
+    // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
+    // only) must not regress a full analysis — the badge would keep its old %
+    // while the heat goes neutral. Unavailable-markers keep current semantics.
+    if (!isUnavailable && stats && !stats.medianPrice && memoryCache.has(productId)) {
+      const prev = memoryCache.get(productId);
+      if (prev && !prev.unavailable && prev.medianPrice) return;
+    }
     const payload = isUnavailable
       ? { unavailable: true, time: Date.now() }
       : { ...stats, time: Date.now() };
@@ -1994,6 +1967,8 @@ const SHADOW_MODAL_STYLES = `
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: true,
     FILTER_MIN_ENABLED: true,
+    // Legacy: strictness lives in BESTPREISE_MODE_ACTIVE now (single control).
+    // Key stays so stored settings survive updates; no UI writes it anymore.
     FILTER_BESTPREIS_ENABLED: true,
     MODE: 'dim',
     MARGIN_PERCENT: 0.0,
@@ -2001,6 +1976,7 @@ const SHADOW_MODAL_STYLES = `
     USE_SHIPPING_PRICE: true,
     HEATMAP_ENABLED: true,
     HEATMAP_INTENSITY: 1.0,
+    // Legacy: superseded by BESTPREISE_MODE_ACTIVE (see FILTER_BESTPREIS_ENABLED).
     REAL_DEAL_FILTER_ACTIVE: false,
     REAL_DEAL_MIN_DISCOUNT: 30,
     REAL_DEAL_CACHE_HOURS: 48,
@@ -3420,6 +3396,12 @@ const SHADOW_MODAL_STYLES = `
         }
       }
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
+      // Tripwire: heat stripped while the badge still claims a verified % means
+      // a stats regression slipped through — enable DEBUG to catch it live.
+      if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+        console.warn('[Toppreise Suite] heat removed with verified badge present',
+          { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
+      }
       delete card.dataset.tpAppliedHeat;
       card.classList.remove('tp-heatmap-active');
       card.style.removeProperty('--tp-heat-bg');
@@ -3691,8 +3673,12 @@ const SHADOW_MODAL_STYLES = `
             histPriceEl.remove();
           }
         } else if (stats) {
-          // Verified NON-Deal (has stats but score <= 0 or not at low) -> HIDE IT if filters enabled!
-          if (CONFIG.FILTER_BESTPREIS_ENABLED !== false) {
+          // Verified NON-Deal (stats but no qualifying score — e.g. minimal
+          // fallback stats without median, or above-low). Strictness lives in
+          // the mode now. The badge is ALWAYS repainted from the current stats
+          // — never preserved — so a stats regression can't strand a stale
+          // verified-% badge on a card whose heat is gone.
+          if (CONFIG.BESTPREISE_MODE_ACTIVE === true) {
             card.classList.add('tp-bestpreise-hidden');
           } else {
             card.classList.remove('tp-bestpreise-hidden');
@@ -3700,6 +3686,29 @@ const SHADOW_MODAL_STYLES = `
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
           card.querySelector('.tp-card-historical-price')?.remove();
           card.querySelector('.tp-badge-score-breakdown')?.remove();
+          const ddNow = getDisplayDelta(cardPrice, stats);
+          if (ddNow.kind === 'above-low') {
+            badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
+            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${ddNow.markup}% Aufschlag)\nFarbe = Rabatt-Tiefe (grau = kein Rabatt)\n[Klicken zum Aktualisieren]`);
+            const fakeNow = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
+            if (isListView) {
+              setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${ddNow.markup}%</p>`);
+            } else {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${ddNow.markup}%</p>${fakeNow}`);
+            }
+          } else if (ddNow.kind === 'at-low' || ddNow.kind === 'new-low') {
+            // At-low without median (or unscored record): plain Tiefstpreis,
+            // no % claimed — the heat stays neutral gray to match.
+            badgeDifEl.classList.add('tp-deal-badge-interactive');
+            badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup');
+            setTitleIfChanged(badgeDifEl, `🌟 Tiefstpreis (CHF ${cardPrice.toFixed(2)}) — ohne Median kein %-Wert, daher grau statt farbig.\n[Klicken zum Aktualisieren]`);
+            if (isListView) {
+              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+            } else {
+              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+            }
+          }
+          // 'unknown' (no usable price): loupe state stays — nothing truthful to claim.
         } else {
           // Unscanned card (!stats) -> KEEP VISIBLE with interactive loupe / loading spinner!
           card.classList.remove('tp-bestpreise-hidden');
@@ -3758,11 +3767,10 @@ const SHADOW_MODAL_STYLES = `
           const prevLow = stats.previousLow;
           const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
 
-          if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && isNonBest && CONFIG.REAL_DEAL_FILTER_ACTIVE) {
-            card.classList.add('tp-non-bestpreis-filtered');
-          } else {
-            card.classList.remove('tp-non-bestpreis-filtered');
-          }
+          // Strictness lives in the mode now: outside it, verified non-deals
+          // stay visible with a truthful Aufschlag badge. Always drop the
+          // legacy hiding class (mode hiding uses tp-bestpreise-hidden).
+          card.classList.remove('tp-non-bestpreis-filtered');
 
           const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
 
@@ -3991,8 +3999,7 @@ const SHADOW_MODAL_STYLES = `
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
         updateConfigs({
           FILTER_NEG_ENABLED: false,
-          FILTER_MIN_ENABLED: false,
-          FILTER_BESTPREIS_ENABLED: false
+          FILTER_MIN_ENABLED: false
         });
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
@@ -4159,16 +4166,6 @@ const SHADOW_MODAL_STYLES = `
             </select>
             <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
           </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Nur echte Tiefstpreise filtern</label>
-              <span class="tp-switch-desc">Verifizierte Nicht-Tiefstpreise im Feed ausblenden</span>
-            </div>
-            <label class="tp-switch">
-              <input type="checkbox" id="tp-real-deal-filter-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
           <div class="tp-settings-group">
             <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
             <div class="tp-range-container">
@@ -4304,7 +4301,6 @@ const SHADOW_MODAL_STYLES = `
     const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
     const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
     const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
-    const realDealFilterToggle = shadow.getElementById('tp-real-deal-filter-toggle');
     const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
     const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
     const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
@@ -4397,7 +4393,6 @@ const SHADOW_MODAL_STYLES = `
         cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
       }
 
-      if (realDealFilterToggle) realDealFilterToggle.checked = CONFIG.REAL_DEAL_FILTER_ACTIVE === true;
       if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
@@ -4584,7 +4579,6 @@ const SHADOW_MODAL_STYLES = `
       if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
       if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 
-      if (realDealFilterToggle) updates.REAL_DEAL_FILTER_ACTIVE = realDealFilterToggle.checked;
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
 
@@ -4666,6 +4660,12 @@ const SHADOW_MODAL_STYLES = `
     return { container: document.body, reference: document.body.firstElementChild };
   }
 
+  // Tools dimmed when their mini-toggle is OFF (the toggle itself stays bright).
+  const DIM_TARGETS_BY_TOGGLE = {
+    'tp-toggle-neg': ['.tp-input-field-box'],
+    'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
+  };
+
   function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
     const placement = getSuiteBarPlacement();
     if (!placement?.container) return;
@@ -4717,8 +4717,8 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
-         <div class="tp-group tp-group-deals" role="group" aria-label="Deals">
-          <span class="tp-group-label" aria-hidden="true">Deals</span>
+         <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
+          <span class="tp-group-label" aria-hidden="true">Tiefstpreise</span>
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
@@ -4734,14 +4734,6 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-threshold-option" data-weight="0.30" title="Grösste Ersparnis vs üblich steht weiter oben (30% Rekord / 70% Ø-Preis)">📉 Ø-lastig (30/70)</button>
               <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
             </div>
-          </div>
-          <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;" title="Nur Tiefstpreise: verifizierte Nicht-Tiefstpreise ausblenden">
-            <span class="tp-mini-caption" title="Nur Tiefstpreise ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}: verifizierte Nicht-Tiefstpreise ausblenden">Nur Tiefstpreise</span>
-            <label class="tp-mini-switch" title="Nur Tiefstpreise ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
-              <input type="checkbox" id="tp-toggle-bestpreis" ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'checked' : ''}>
-              <span class="tp-mini-slider"></span>
-              <span class="tp-mini-state">${CONFIG.FILTER_BESTPREIS_ENABLED ? 'ON' : 'OFF'}</span>
-            </label>
           </div>
          </div>
         </div>
@@ -4846,6 +4838,9 @@ const SHADOW_MODAL_STYLES = `
         const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
         const caption = scope?.querySelector('.tp-mini-caption');
         if (caption) caption.title = title;
+        for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
+          scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
+        }
       };
       const bindMiniToggle = (id, key, titleBase, onMsg, offMsg) => {
         const el = bar.querySelector('#' + id);
@@ -4859,7 +4854,6 @@ const SHADOW_MODAL_STYLES = `
       };
       bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
       bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
-      bindMiniToggle('tp-toggle-bestpreis', 'FILTER_BESTPREIS_ENABLED', 'Nur Tiefstpreise', '💎 Nur Tiefstpreise AN', '💎 Nur Tiefstpreise AUS');
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
         placement.container.insertBefore(bar, placement.reference);
@@ -4895,7 +4889,7 @@ const SHADOW_MODAL_STYLES = `
       if (getScanState().isBestpreiseScanning) {
         // Leave dynamic text during scan
       } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-        bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals} Deals)</span>`;
+        bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
       } else {
         bestpreiseBtn.innerHTML = `💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
       }
@@ -4913,10 +4907,15 @@ const SHADOW_MODAL_STYLES = `
       const scope = el.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
       const caption = scope?.querySelector('.tp-mini-caption');
       if (caption) caption.title = title;
+      // OFF dims the tool the toggle belongs to (input/stepper stay editable).
+      const dimTargets = DIM_TARGETS_BY_TOGGLE[id] || [];
+      for (const sel of dimTargets) {
+        scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
+      }
     };
     syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
     syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
-    syncBarMiniToggle('tp-toggle-bestpreis', CONFIG.FILTER_BESTPREIS_ENABLED, 'Nur Tiefstpreise');
+    // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
     const threshWrapper = bar.querySelector('#tp-bar-threshold-wrapper');
     if (threshWrapper) {
@@ -5389,13 +5388,13 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
             counts.uncheckedDeals++;
           }
         }
-        if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && cd.isVerifiedNonBest && CONFIG.REAL_DEAL_FILTER_ACTIVE) {
-          counts.nonBest++;
-        }
+        // nonBest is retired with the removed strictness toggles: outside the
+        // mode nothing hides as non-best (truthful Aufschlag badge instead),
+        // inside the mode it counts as bestpreiseHidden below. Never double-count.
         cd.dealScore = computeDealScore(cd.stats, cd.cardPrice);
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
-        } else if (CONFIG.FILTER_BESTPREIS_ENABLED !== false && CONFIG.BESTPREISE_MODE_ACTIVE && cd.stats && !isStandardFiltered) {
+        } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
           counts.bestpreiseHidden++;
         }
       }

@@ -2,20 +2,18 @@ from playwright.sync_api import Page, expect
 
 
 
-def test_competing_reference_price_resolves_to_green_low(page: Page):
+def test_competing_reference_price_resolves_to_verified_low(page: Page):
     """
     Validates that the userscript extracts the canonical price (CHF 37.95) correctly
-    and ignores competing reference prices (CHF 47.82), resolving to a green
-    'Allzeit-Tiefstpreis' state instead of an amber 'Aufschlag' state.
+    and ignores competing reference prices (CHF 47.82), resolving to a verified
+    'Allzeit-Tiefstpreis' state instead of a markup 'Aufschlag' state.
+    (Single color language: color = badge-% heat, text = kind.)
     """
     # Wait for initial render
     page.wait_for_selector('.badge-dif')
 
     card = page.locator('#card-competing-reference')
     badge = card.locator('.badge-dif')
-
-    # Enable Real Deal Filter if necessary
-    page.evaluate("() => { window.ToppreiseSuite.CONFIG.REAL_DEAL_FILTER_ACTIVE = true; }")
 
     # It starts as unchecked
     assert badge.is_visible()
@@ -74,8 +72,7 @@ def test_exact_cent_boundary_badge_states(page: Page):
     """
 
     # We will test this by evaluating the renderCardEffects logic or directly checking DOM after mocking
-    # Disable REAL_DEAL_FILTER_ACTIVE so the card stays in the DOM and we can inspect its badge properties
-    page.evaluate("() => { window.ToppreiseSuite.CONFIG.REAL_DEAL_FILTER_ACTIVE = false; }")
+    # Mode stays OFF (default) so the card stays in the DOM and we can inspect its badge properties
 
     cases = [
         # currentPrice, expected_state (Allzeit-Tiefstpreis string), expected_class, not_expected_class
@@ -198,7 +195,7 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-badge-interactive')
     page.click('#card-negative .badge-dif')
 
-    # Verify badge transforms into amber Non-Bestpreis warning with markup % and struck-through fake discount
+    # Verify badge transforms into a neutral Non-Tiefstpreis state with markup % and struck-through fake discount
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-not-low')
     badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
     assert '+50%' in (badge3.text_content() or '')
@@ -211,41 +208,48 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
 
 
 
-def test_real_deal_filter_non_bestpreis_toggle(page: Page):
-    # Mock routes
-    def handle_pricechart(route):
-        url = route.request.url
-        if 'p_pc_pid=797571' in url:
-            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>')
-        elif 'p_pc_pid=797573' in url:
-            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">10.00</div></div>')
-        else:
-            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">999.00</div></div>')
-
-    page.route('**/plugins/product/pricechart*', handle_pricechart)
-
-    # Check both cards
-    page.wait_for_selector('#card-cheapest .badge-dif')
-    page.click('#card-cheapest .badge-dif')
-    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
-
-    page.wait_for_selector('#card-negative .badge-dif')
-    page.click('#card-negative .badge-dif')
-    page.wait_for_selector('#card-negative .badge-dif.tp-deal-not-low')
-
-    # Enable REAL_DEAL_FILTER_ACTIVE
+def test_mode_hides_non_bestpreis(page: Page):
+    """Strictness lives in the Tiefstpreise mode: enabling it hides verified
+    non-deals (.tp-bestpreise-hidden) while qualifying Tiefstpreise stay
+    visible — no separate strictness toggle needed."""
+    # Seed stats directly: card 1 (797571) qualifies with full stats,
+    # card 3 (797573) has minimal above-low stats (tiefstpreis 10 < price 15).
     page.evaluate("""() => {
-        window.ToppreiseSuite.saveConfigKey('REAL_DEAL_FILTER_ACTIVE', true);
+        const full = {
+            tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 2400,
+            previousLow: 2200, isNewAllTimeLow: true, realDiscountVsPrevLow: 18,
+            dataPointCount: 10, time: Date.now()
+        };
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        const minimal = { tiefstpreis: 10, time: Date.now() };
+        localStorage.setItem('tp_hist_v1_797573', JSON.stringify(minimal));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', minimal);
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 3 (non-bestpreis) should be hidden with .tp-non-bestpreis-filtered
-    page.wait_for_selector('#card-negative.tp-non-bestpreis-filtered', state='attached')
-    assert 'tp-non-bestpreis-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
+    # Outside the mode both cards stay visible with truthful badges
+    assert page.locator('#card-cheapest').is_visible()
+    assert page.locator('#card-negative').is_visible()
+
+    # Enable Tiefstpreise mode
+    page.evaluate("""() => {
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    # Card 3 (non-bestpreis) is hidden with .tp-bestpreise-hidden, but its
+    # badge is still repainted truthfully (no stale verified % survives).
+    page.wait_for_selector('#card-negative.tp-bestpreise-hidden', state='attached')
+    badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
+    assert '+50%' in (badge3.text_content() or '')
     assert not page.locator('#card-negative').is_visible()
 
-    # Card 1 (all-time low) should still be visible
+    # Card 1 (qualifying Tiefstpreis) stays visible with record badge + heat
+    # (single color language: color = badge-% heat, text = kind).
     assert page.locator('#card-cheapest').is_visible()
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
+    assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Click reveal button (👁️) and verify card-negative is shown with outline preview
     page.click('#tp-bar-reveal-btn')

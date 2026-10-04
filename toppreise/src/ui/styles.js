@@ -268,24 +268,10 @@ export const STYLES = `
   .badge.badge-dif.tp-deal-pill .tp-badge-loupe-icon {
     display: none !important;
   }
-  .badge.badge-dif.tp-deal-pill.tp-deal-alltime-low {
-    background: rgba(6, 78, 59, 0.92) !important;
-    border: 1.5px solid #10b981 !important;
-    color: #6ee7b7 !important;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4) !important;
-  }
-  .badge.badge-dif.tp-deal-pill.tp-deal-not-low {
-    background: rgba(120, 53, 15, 0.92) !important;
-    border: 1.5px solid #f59e0b !important;
-    color: #fde68a !important;
-    box-shadow: 0 0 8px rgba(245, 158, 11, 0.35) !important;
-  }
-  .badge.badge-dif.tp-deal-pill.tp-is-severe-markup {
-    background: rgba(136, 19, 55, 0.92) !important;
-    border: 1.5px solid #f43f5e !important;
-    color: #fecdd3 !important;
-    box-shadow: 0 0 8px rgba(244, 63, 94, 0.35) !important;
-  }
+  /* Single color language: color always = badge-% heat (applied inline by the
+     heat block), text always = kind. The event-kind classes below stay in the
+     DOM as logic hooks but must not paint — otherwise a -3% at-low glows the
+     same green as a -60% one and depth stops being readable. */
   .badge.badge-dif.tp-deal-pill.tp-deal-loading {
     background: rgba(30, 41, 59, 0.9) !important;
     border-color: #38bdf8 !important;
@@ -348,36 +334,9 @@ export const STYLES = `
     cursor: wait !important;
     opacity: 0.85 !important;
   }
-  /* 3A: Verified New Record Low: Radiant Solid Golden Diamond Halo */
-  .badge.badge-dif.tp-deal-new-record,
-  .badge-dif.tp-deal-new-record {
-    background: linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%) !important;
-    border: 1.5px solid #fbbf24 !important;
-    box-shadow: 0 0 0 2px #f59e0b, 0 0 14px rgba(245, 158, 11, 0.6) !important;
-    color: #ffffff !important;
-  }
-  /* 3B: Verified All-Time Low: Emerald Halo */
-  .badge.badge-dif.tp-deal-alltime-low,
-  .badge-dif.tp-deal-alltime-low {
-    background: linear-gradient(135deg, #064e3b 0%, #047857 100%) !important;
-    border: 1.5px solid #10b981 !important;
-    box-shadow: 0 0 0 2px #10b981, 0 0 12px rgba(16, 185, 129, 0.5) !important;
-    color: #ffffff !important;
-  }
-  /* 2A: Verified Non-Tiefstpreis: Amber Alert Morph with Shrunken Strikethrough */
-  .badge.badge-dif.tp-deal-not-low,
-  .badge-dif.tp-deal-not-low {
-    background: linear-gradient(135deg, #78350f 0%, #b45309 100%) !important;
-    border: 1.5px solid #f59e0b !important;
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.45) !important;
-    color: #ffffff !important;
-  }
-  .badge.badge-dif.tp-deal-not-low.tp-is-severe-markup,
-  .badge-dif.tp-deal-not-low.tp-is-severe-markup {
-    background: linear-gradient(135deg, #881337 0%, #be123c 100%) !important;
-    border-color: #f43f5e !important;
-    box-shadow: 0 0 14px rgba(244, 63, 94, 0.55) !important;
-  }
+  /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
+     no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
+     markups stay neutral gray with the +XX% text carrying the signal. */
   .badge.badge-dif.tp-deal-not-low p.tp-markup-val {
     font-size: 13px !important;
     font-weight: 800 !important;
@@ -873,8 +832,8 @@ export const STYLES = `
     width: 32px !important;
     height: 18px !important;
     border-radius: 999px !important;
-    background: rgba(245,158,11,0.25) !important;
-    border: 1px solid rgba(245,158,11,0.5) !important;
+    background: rgba(100,116,139,0.35) !important;
+    border: 1px solid rgba(100,116,139,0.55) !important;
     transition: background 0.2s ease, border-color 0.2s ease !important;
     flex-shrink: 0 !important;
   }
@@ -886,7 +845,7 @@ export const STYLES = `
     width: 12px !important;
     height: 12px !important;
     border-radius: 50% !important;
-    background: #fbbf24 !important;
+    background: #94a3b8 !important;
     transition: transform 0.2s ease, background 0.2s ease !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider {
@@ -905,9 +864,15 @@ export const STYLES = `
     font-size: 10px !important;
     font-weight: 700 !important;
     min-width: 22px !important;
-    color: #fbbf24 !important;
+    color: #64748b !important;
   }
   .tp-mini-switch input:checked ~ .tp-mini-state { color: #34d399 !important; }
+  /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
+  .tp-tool-dim {
+    opacity: 0.45 !important;
+    filter: saturate(0.4) !important;
+    transition: opacity 0.2s ease !important;
+  }
   .tp-bar-stepper-group {
     display: flex !important;
     align-items: center !important;

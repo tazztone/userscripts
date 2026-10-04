@@ -32,6 +32,12 @@ export function getSuiteBarPlacement() {
   return { container: document.body, reference: document.body.firstElementChild };
 }
 
+// Tools dimmed when their mini-toggle is OFF (the toggle itself stays bright).
+const DIM_TARGETS_BY_TOGGLE = {
+  'tp-toggle-neg': ['.tp-input-field-box'],
+  'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
+};
+
 export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
@@ -83,8 +89,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
         <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe = Rabatt-Tiefe — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
-       <div class="tp-group tp-group-deals" role="group" aria-label="Deals">
-        <span class="tp-group-label" aria-hidden="true">Deals</span>
+       <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
+        <span class="tp-group-label" aria-hidden="true">Tiefstpreise</span>
         <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
@@ -100,14 +106,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
             <button class="tp-threshold-option" data-weight="0.30" title="Grösste Ersparnis vs üblich steht weiter oben (30% Rekord / 70% Ø-Preis)">📉 Ø-lastig (30/70)</button>
             <button class="tp-threshold-option" data-weight="0.00" title="Grösste Ersparnis gegenüber dem üblichen Preis steht zuerst">💎 Ø-Schnäppchen (grösstes Ø-Minus zuerst)</button>
           </div>
-        </div>
-        <div class="tp-threshold-wrapper" id="tp-bar-threshold-wrapper" style="display: inline-flex;" title="Nur Tiefstpreise: verifizierte Nicht-Tiefstpreise ausblenden">
-          <span class="tp-mini-caption" title="Nur Tiefstpreise ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}: verifizierte Nicht-Tiefstpreise ausblenden">Nur Tiefstpreise</span>
-          <label class="tp-mini-switch" title="Nur Tiefstpreise ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'AN' : 'AUS'}" style="margin-right: 6px;">
-            <input type="checkbox" id="tp-toggle-bestpreis" ${CONFIG.FILTER_BESTPREIS_ENABLED ? 'checked' : ''}>
-            <span class="tp-mini-slider"></span>
-            <span class="tp-mini-state">${CONFIG.FILTER_BESTPREIS_ENABLED ? 'ON' : 'OFF'}</span>
-          </label>
         </div>
        </div>
       </div>
@@ -212,6 +210,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
       const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
       const caption = scope?.querySelector('.tp-mini-caption');
       if (caption) caption.title = title;
+      for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
+        scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
+      }
     };
     const bindMiniToggle = (id, key, titleBase, onMsg, offMsg) => {
       const el = bar.querySelector('#' + id);
@@ -225,7 +226,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     };
     bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
     bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
-    bindMiniToggle('tp-toggle-bestpreis', 'FILTER_BESTPREIS_ENABLED', 'Nur Tiefstpreise', '💎 Nur Tiefstpreise AN', '💎 Nur Tiefstpreise AUS');
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
     if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
       placement.container.insertBefore(bar, placement.reference);
@@ -261,7 +261,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     if (getScanState().isBestpreiseScanning) {
       // Leave dynamic text during scan
     } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-      bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals} Deals)</span>`;
+      bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
     } else {
       bestpreiseBtn.innerHTML = `💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
     }
@@ -279,10 +279,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     const scope = el.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
     const caption = scope?.querySelector('.tp-mini-caption');
     if (caption) caption.title = title;
+    // OFF dims the tool the toggle belongs to (input/stepper stay editable).
+    const dimTargets = DIM_TARGETS_BY_TOGGLE[id] || [];
+    for (const sel of dimTargets) {
+      scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
+    }
   };
   syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
   syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
-  syncBarMiniToggle('tp-toggle-bestpreis', CONFIG.FILTER_BESTPREIS_ENABLED, 'Nur Tiefstpreise');
+  // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
   const threshWrapper = bar.querySelector('#tp-bar-threshold-wrapper');
   if (threshWrapper) {
