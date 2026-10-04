@@ -6,6 +6,10 @@
 > `src/page/selectors.js`, `src/page/cards.js`, `src/page/sort.js`,
 > `mock_toppreise.html`. This log keeps only what code doesn't say: live DOM
 > contracts, formulas, and placement/observer rules.
+>
+> **Update (2026-10-04):** median honesty (true even-n median, `medianFallback`
+> + honest horizon labels, raw 2%/5% thresholds), toolbar weight slider
+> replaces the preset popover, legacy `FILTER_BESTPREIS_ENABLED` removed.
 
 ## 1. Live DOM reference
 
@@ -108,9 +112,9 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
   default; corrupt JSON never throws. Survives script uninstall/reinstall.
 - **Config dispatcher:** all mutations via `updateConfig(key, val)` /
   `updateConfigs(entries)` → `syncUiControl` (shadow modal + toolbar) + body
-  classes + `processListings()`. Per-filter toggles
-  `FILTER_NEG_ENABLED / FILTER_MIN_ENABLED / FILTER_BESTPREIS_ENABLED`
-  (`toolbar.js`); `⚡ Filter AN/AUS` bypasses non-destructively (blacklists
+  classes + `processListings()`. Per-filter toggles `FILTER_NEG_ENABLED / FILTER_MIN_ENABLED` (`toolbar.js`;
+  legacy `FILTER_BESTPREIS_ENABLED` removed 2026-10-04 — strictness lives in
+  `BESTPREISE_MODE_ACTIVE`); `⚡ Filter AN/AUS` bypasses non-destructively (blacklists
   preserved; clearing lives only in drawer *"Alle freigeben"* + 5s Undo toast).
   `👁️ N` is the unified filtered-count preview. Weight `0` is valid —
   use `isNaN(raw) ? 50 : raw`, never `parseInt(…) || 50`.
@@ -123,7 +127,8 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
    (`application/x-www-form-urlencoded`, `X-Requested-With: XMLHttpRequest`):
    `pcspagdpi={pid}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de` →
    `[[[ts, price_product]…], [[ts, price_shipping]…]]`. One ~50ms call yields
-   series + all aggregates. Origin fallback required for `file://` tests:
+   series + all aggregates. Live 2026-10-04: bare curl → 403 (bot protection);
+   browser UA (`Firefox/132.0`) + `Origin`/`Referer` → 200. Origin fallback required for `file://` tests:
    `location.origin.startsWith('http') ? location.origin : 'https://www.toppreise.ch'`.
 2. `GET /plugins/product/pricechart?p_pc_pid={pid}` (same XHR header) →
    pre-rendered dialog HTML; read aggregates after
@@ -140,8 +145,10 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
   `isNewAllTimeLow` flag (series include the current price). Trailing-plateau
   walk is strict-cent too (no tolerance band — a 1% band used to swallow
   sub-1% dips and overstate micro-records). Record breakthrough:
-  `D_record = (P_prev_low − P_curr)/P_prev_low × 100` → subline
-  `Bisher: CHF XX.XX (-YY%)`. Markup: `(Curr − Tiefst)/Tiefst × 100`.
+  `D_record = (P_prev_low − P_curr)/P_prev_low × 100` (raw decides the ≥2%
+  gate, rounded % displays). Subline always shows `Bisher: CHF XX.XX` when
+  known & ≥1¢ below current, combined with the Ø part when available.
+  Markup: `(Curr − Tiefst)/Tiefst × 100`.
 - Real discount vs high: `(Höchst − Curr)/Höchst × 100`;
   inflation gap vs low: `(Curr − Tiefst)/Tiefst × 100`.
 - Feed `-XX%` is only the immediate drop vs previous/baseline — frequently a
@@ -155,8 +162,15 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
   from clean points only; count exposed as `filteredOutliers`
   (`ℹ️ N Ausreisser ignoriert`).
 - Median horizon `BESTPREISE_MEDIAN_HORIZON_DAYS`: `365` default | `180` |
-  `90` | `0` = lifetime; fallback to lifetime median if window has <3 points.
-  Subline shows window: `Ø-Preis (1J): CHF 460.00 (-12%)`.
+  `90` | `0` = lifetime; fallback to lifetime median if window has <3 points,
+  flagged via `medianFallback`. True median (even-n averages the middle two,
+  no upper bias). Labels via `medianHorizonLabel`: window label only when the
+  median really comes from that window, else `Lifetime` (legacy cache without
+  the flag keeps the old label until refresh). Sampling is strictly daily &
+  uniform (live-verified 2026-10-04: 607–3825 pts/product, max gap 1.0d) —
+  equal-weight == time-weighted, no duration weighting.
+  Subline combines: `Bisher: CHF … · Ø-Preis (1J): CHF 460.00` (fallback reads
+  `Lifetime`).
 
 ### Deal-Score (`deal-score.js`)
 
@@ -164,14 +178,17 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
 Score = max(0, round((1−W)·D_median + W·D_record))
 D_median  = (P_median − P_curr)/P_median × 100      (everyday savings)
 D_record  = (P_prev_low − P_curr)/P_prev_low × 100  (0 if matching record)
-W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar presets 50/50, 100% Rekord, 70/30, 30/70, 100% Median)
+W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar slider 0–100 step 5
+            with rast ticks at the old presets, labels via `weightShortText` /
+            `weightTitleText`; drag debounced 150ms, flush + toast on release;
+            modal control two-way synced, skipped mid-drag)
 ```
 
 Gate: at/below low, ≥2% lifetime variance, ≥5 points, Score > 0 —
 else `null` (hidden via `.tp-bestpreise-hidden`). The score **ranks only**
 (feed sort, ⚖️ weight slider); it drives no color and no badge text. Badge
 shows the event: `Real Deal · Rekord −D_record%` for significant new records
-(≥2%, else plain `Tiefstpreis 🌟`), `Real Deal · Ø-Preis −D_median%` at a
+(raw ≥ 2.0% decides, rounded % displays; else plain `Tiefstpreis 🌟`), `Real Deal · Ø-Preis −D_median%` at a
 matched low — never the score, never the site Differenz once verified.
 Sub-pill `Rek: −X% · Ø: −Y%`; tooltip carries the ranking score + color
 legend. Gold halo = significant new record, emerald = at low; tooltip breaks
@@ -211,7 +228,8 @@ Feed heat comes from `getHeatInput()` = the headlined badge % (`deal-score.js`):
 the Rekord headline (−D_record) at ≥50% Rekord weight, the Ø headline
 (−D_median) below it or at-low — always the number the ribbon prints
 (ADR-0002/ADR-0004). Verified markups, unqualified histories (plain-star
-badges) and anything inside the ±5% deadband → neutral gray. The badge reuses
+badges) and anything with a raw value inside the ±5% deadband → neutral gray
+(the ribbon still prints the rounded %). The badge reuses
 the ramp via `getBadgeHeatStyle()` (solid swatch, intensity-scaled like the
 card), so badge color always matches card heat; it resyncs on every render,
 not only on heat-key change. Unverified site discounts render at 0.55×
@@ -224,9 +242,11 @@ pulse keyframes, no `scale()`, no `brightness()` (all caused jitter/reflow).
 - Unchecked: native `-XX%` + `🔍` loupe, hover-scale only.
 - Loading: in-place `⏳` pulse.
 - Verified low: badge shows the real event (`Real Deal · Rekord −X%` /
-  `Real Deal · Ø-Preis −Y%`, site-% evicted to tooltip) + emerald halo; new
-  record adds `Bisher: CHF XX.XX (-YY%)`, matching low adds
-  `Ø-Preis: CHF XX.XX (-YY%)`.
+  `Real Deal · Ø-Preis −Y%`, site-% evicted to tooltip) + emerald halo; the
+  subline always carries `Bisher: CHF XX.XX` when previousLow is known &
+  distinct (record and matched low alike), plus the Ø part when available —
+  record line is bold + emerald pill (`tp-is-record-low`), matched-low with
+  Bisher adds `tp-with-prev`. Markup cards show `Tiefstpreis: CHF XX.XX`.
 - Fake deal: amber gradient `+XX%` + struck `<s>-YY%</s>` +
   `Tiefstpreis: CHF XX.XX` under price.
 
@@ -284,7 +304,8 @@ Inner row must stay `column` or prices clip off-screen via card
   images, and loop the observer (the old ~200ms flicker).
 - **Perf:** `textContent`, never `innerText` (forced reflow ×96 cards);
   memoize dealer rows/text/price per card; single `document.click` listener
-  (`window._tpDocClickBound`); null-check dual inputs before binding
+  (floating CTA's `window._tpFloatingCtaDocBound` — the toolbar popover one
+  died with the popover); null-check dual inputs before binding
   (range+number); flexbox inline labels, never absolute emoji icons in inputs;
   fixed overlays get `pointer-events:none` + `auto` only on controls; card
   buttons need `preventDefault+stopPropagation+stopImmediatePropagation`
