@@ -1130,6 +1130,8 @@ export const SHADOW_MODAL_STYLES = `
   .tp-switch.tp-rose input:checked + .tp-slider { background-color: #f43f5e; }
   .tp-switch.tp-purple input:checked + .tp-slider { background-color: #8b5cf6; }
   .tp-switch input:checked + .tp-slider:before { transform: translateX(20px); background-color: #fff; }
+  .tp-advanced-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+  #tp-settings-sections.tp-hide-advanced .tp-advanced-setting { display: none !important; }
   .tp-modal-actions {
     display: flex;
     justify-content: flex-end;

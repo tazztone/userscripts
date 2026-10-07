@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.79
+// @version      2.18.80
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1153,6 +1153,8 @@ const SHADOW_MODAL_STYLES = `
   .tp-switch.tp-rose input:checked + .tp-slider { background-color: #f43f5e; }
   .tp-switch.tp-purple input:checked + .tp-slider { background-color: #8b5cf6; }
   .tp-switch input:checked + .tp-slider:before { transform: translateX(20px); background-color: #fff; }
+  .tp-advanced-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+  #tp-settings-sections.tp-hide-advanced .tp-advanced-setting { display: none !important; }
   .tp-modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -2071,6 +2073,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_SUBMIT_DELAY_MS: 300,
     ALARM_CLOSE_DELAY_MS: 800,
     OBSERVER_DEBOUNCE_MS: 200,
+    SHOW_ADVANCED: false,
     DEBUG: true
   });
 
@@ -2130,6 +2133,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
     ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
     OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
+    SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
     DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
   };
 
@@ -2217,6 +2221,12 @@ const SHADOW_MODAL_STYLES = `
           case 'ENABLE_SPARKLINES': {
             const toggle = shadow.getElementById('tp-sparklines-toggle');
             if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'SHOW_ADVANCED': {
+            const toggle = shadow.getElementById('tp-advanced-toggle');
+            if (toggle) toggle.checked = !!val;
+            shadow.getElementById('tp-settings-sections')?.classList.toggle('tp-hide-advanced', !val);
             break;
           }
         }
@@ -4185,6 +4195,10 @@ const SHADOW_MODAL_STYLES = `
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
+        <div class="tp-advanced-toggle-row tp-switch-container">
+          <div class="tp-switch-label"><label>⚙️ Erweiterte Einstellungen</label><span class="tp-switch-desc">Feintuning, Cache-Dauern & Verzögerungen ein-/ausblenden</span></div>
+          <label class="tp-switch tp-purple"><input type="checkbox" id="tp-advanced-toggle"><span class="tp-slider"></span></label>
+        </div>
           <div class="tp-section-header">1. Händler Toppreis Highlights & Sortierung</div>
           <div class="tp-settings-group">
             <label>Filter Modus</label>
@@ -4195,20 +4209,6 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-mode-dim">Dimmen</label>
               <input type="radio" id="tp-mode-hide" name="tp-mode" value="hide">
               <label for="tp-mode-hide">Verbergen</label>
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label>Preis-Toleranz (%)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
-              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
-            </div>
-          </div>
-          <div class="tp-settings-group" id="tp-dim-opacity-group">
-            <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
-              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
             </div>
           </div>
           <div class="tp-settings-group tp-switch-container">
@@ -4231,6 +4231,20 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-sort-discount">% Rabatt ⬇</label>
             </div>
           </div>
+          <div class="tp-settings-group tp-advanced-setting">
+            <label>Preis-Toleranz (%)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
+              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
+            </div>
+          </div>
+          <div class="tp-settings-group tp-advanced-setting" id="tp-dim-opacity-group">
+            <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
+              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
+            </div>
+          </div>
           <div class="tp-section-header" style="color: #f43f5e;">2. Rabatt-Heatmap & Deals</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
@@ -4242,13 +4256,6 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group">
-            <label>Heatmap-Intensität (%)</label>
-            <div class="tp-range-container tp-rose">
-              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
-              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
-            </div>
-          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label>💎 Neue Tiefstpreise Modus</label>
@@ -4259,7 +4266,14 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
+          <div class="tp-settings-group tp-advanced-setting">
+            <label>Heatmap-Intensität (%)</label>
+            <div class="tp-range-container tp-rose">
+              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
+              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
+            </div>
+          </div>
+          <div class="tp-settings-group tp-advanced-setting" id="tp-bestpreise-weight-group" style="display: none;">
             <label>Tiefstpreis-Score Gewichtung: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
@@ -4267,7 +4281,7 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
+          <div class="tp-settings-group tp-advanced-setting" id="tp-bestpreise-horizon-group" style="display: none;">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
             <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
               <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
@@ -4277,7 +4291,7 @@ const SHADOW_MODAL_STYLES = `
             </select>
             <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
           </div>
-          <div class="tp-settings-group">
+          <div class="tp-settings-group tp-advanced-setting">
             <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
             <div class="tp-range-container">
               <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
@@ -4312,7 +4326,7 @@ const SHADOW_MODAL_STYLES = `
               <input type="radio" id="tp-dur-730" name="tp-alarm-duration" value="730"><label for="tp-dur-730">2 Jahre</label>
             </div>
           </div>
-          <div class="tp-settings-group tp-switch-container">
+          <div class="tp-settings-group tp-switch-container tp-advanced-setting">
             <div class="tp-switch-label">
               <label>Automatisch Absenden & Schließen</label>
               <span class="tp-switch-desc">Formular direkt einreichen und Dialog schließen</span>
@@ -4322,7 +4336,7 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group" id="tp-alarm-delays-group">
+          <div class="tp-settings-group tp-advanced-setting" id="tp-alarm-delays-group">
             <label>Submit-Verzögerung (ms)</label>
             <div class="tp-range-container tp-blue">
               <input type="range" id="tp-alarm-submit-delay-range" min="0" max="2000" step="50" value="300">
@@ -4345,7 +4359,11 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group">
+          <div class="tp-settings-group" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
+            <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
+            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
+          </div>
+          <div class="tp-settings-group tp-advanced-setting">
             <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
             <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
               <option value="24">24 Stunden (1 Tag)</option>
@@ -4356,7 +4374,7 @@ const SHADOW_MODAL_STYLES = `
             </select>
             <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
           </div>
-          <div class="tp-settings-group">
+          <div class="tp-settings-group tp-advanced-setting">
             <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
             <select id="tp-cache-neg-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
               <option value="1">1 Stunde</option>
@@ -4366,10 +4384,6 @@ const SHADOW_MODAL_STYLES = `
               <option value="24">24 Stunden</option>
             </select>
             <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
-          </div>
-          <div class="tp-settings-group" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
-            <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
-            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
           </div>
           <div class="tp-section-header" style="color: #6366f1;">5. Backup & Übertragen</div>
           <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
@@ -4430,12 +4444,17 @@ const SHADOW_MODAL_STYLES = `
     const dur180 = shadow.getElementById('tp-dur-180');
     const dur365 = shadow.getElementById('tp-dur-365');
     const dur730 = shadow.getElementById('tp-dur-730');
+    const advancedToggle = shadow.getElementById('tp-advanced-toggle');
+    const sectionsHolder = shadow.getElementById('tp-settings-sections');
+    const applyAdvancedVisibility = (show) => { sectionsHolder?.classList.toggle('tp-hide-advanced', !show); };
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
 
     function syncFieldsFromConfig() {
+      if (advancedToggle) advancedToggle.checked = CONFIG.SHOW_ADVANCED === true;
+      applyAdvancedVisibility(CONFIG.SHOW_ADVANCED === true);
       if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
       else if (CONFIG.MODE === 'hide') modeHide.checked = true;
       else modeDim.checked = true;
@@ -4552,6 +4571,7 @@ const SHADOW_MODAL_STYLES = `
         alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
       }
     });
+    advancedToggle?.addEventListener('change', () => { saveConfigKey('SHOW_ADVANCED', advancedToggle.checked); applyAdvancedVisibility(advancedToggle.checked); });
 
     cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -4692,6 +4712,7 @@ const SHADOW_MODAL_STYLES = `
 
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
+      updates.SHOW_ADVANCED = !!advancedToggle?.checked;
 
       updateConfigs(updates);
       if (shippingChanged) clearPriceStatsCache();

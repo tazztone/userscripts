@@ -67,6 +67,7 @@ export const DEFAULTS = Object.freeze({
   ALARM_SUBMIT_DELAY_MS: 300,
   ALARM_CLOSE_DELAY_MS: 800,
   OBSERVER_DEBOUNCE_MS: 200,
+  SHOW_ADVANCED: false,
   DEBUG: true
 });
 
@@ -126,6 +127,7 @@ export const CONFIG = {
   ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
   ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
   OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
+  SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
   DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
 };
 
@@ -213,6 +215,12 @@ export function syncUiControl(key, val) {
         case 'ENABLE_SPARKLINES': {
           const toggle = shadow.getElementById('tp-sparklines-toggle');
           if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'SHOW_ADVANCED': {
+          const toggle = shadow.getElementById('tp-advanced-toggle');
+          if (toggle) toggle.checked = !!val;
+          shadow.getElementById('tp-settings-sections')?.classList.toggle('tp-hide-advanced', !val);
           break;
         }
       }
