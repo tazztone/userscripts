@@ -149,6 +149,7 @@ function ensureCta() {
       <span id="tp-floating-check-count">🔍</span>
     </button>
     <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
+    <button type="button" id="tp-floating-hide-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)">👁️ Nur geprüfte</button>
     <div id="tp-floating-threshold-popover" role="menu">
       <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
     </div>
@@ -181,6 +182,13 @@ function ensureCta() {
     e.preventDefault();
     e.stopPropagation();
     popover.classList.toggle('tp-show');
+  };
+  el.querySelector('#tp-floating-hide-unchecked-btn').onclick = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
+    updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+    showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
   };
 
   if (!window._tpFloatingCtaDocBound) {
@@ -248,6 +256,12 @@ export function syncFloatingCTA() {
   el.querySelectorAll('.tp-floating-option').forEach(opt => {
     opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
   });
+  const hideBtn = el.querySelector('#tp-floating-hide-unchecked-btn');
+  if (hideBtn) {
+    hideBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+    setTextIfChanged(hideBtn, CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✅ Nur geprüfte' : '👁️ Nur geprüfte');
+    hideBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+  }
 }
 
 /**

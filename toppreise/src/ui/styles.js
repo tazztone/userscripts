@@ -334,6 +334,28 @@ export const STYLES = `
     cursor: wait !important;
     opacity: 0.85 !important;
   }
+  /* Geprüft vs ungeprüft: unchecked ribbons read striped-gray + dashed at a
+     glance, verified ribbons stay solid heat. Always on, no heat dependency. */
+  .badge.badge-dif.tp-is-unverified,
+  .badge-dif.tp-is-unverified {
+    background: repeating-linear-gradient(135deg, #475569 0 6px, #334155 6px 12px) !important;
+    border: 1.5px dashed #94a3b8 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+  }
+  .badge.badge-dif.tp-is-verified,
+  .badge-dif.tp-is-verified {
+    border-style: solid !important;
+    border-width: 1.5px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
+  }
+  .Plugin_Product.tp-is-unverified,
+  a.Plugin_Product.tp-is-unverified,
+  .mixedBrowsingListProduct.tp-is-unverified {
+    filter: saturate(0.55) brightness(0.97) !important;
+    border-style: dashed !important;
+  }
+
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
      markups stay neutral gray with the +XX% text carrying the signal. */
@@ -917,6 +939,19 @@ export const STYLES = `
     white-space: nowrap !important;
   }
   #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-hide-unchecked-btn {
+    background: rgba(51,65,85,0.7) !important;
+    border: none !important;
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
+    color: #cbd5e1 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 6px 10px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+  #tp-floating-hide-unchecked-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-hide-unchecked-btn.tp-active { background: #10b981 !important; color: #fff !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 6px) !important;
@@ -972,7 +1007,8 @@ export const STYLES = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-hide-unchecked-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 999px !important; border: none !important; margin-left: 2px !important; }
   @media (max-width: 600px) {

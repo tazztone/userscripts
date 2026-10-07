@@ -166,7 +166,7 @@ export function medianHorizonLabel(stats) {
  *                      carries the markup signal)
  * - verified but unqualified in Tiefstpreise mode (thin/flat history, the
  *                      badge shows a plain star with no %) -> null
- * - unverified deal -> site Differenz, flagged provisional (rendered paler)
+ * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
  * - unverified markup / unknown -> null (neutral)
  * Callers may pass { display, dealScore, mode, weightRecord } so the heat
  * reuses the exact inputs of the badge branch (no parallel formulas).

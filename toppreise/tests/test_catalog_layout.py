@@ -136,12 +136,29 @@ def test_filter_bar_mounting_safety_and_interaction(page: Page):
 
 
 def test_discount_heatmap_rendering(page: Page):
-    # Card 1 has -67% discount -> hot thermal styling
+    # Unchecked cards never heat: striped-gray ribbons, no thermal styling
+    assert 'tp-heatmap-active' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-is-unverified' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-is-unverified' in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
+
+    # Seed verified deals: card 1 deep (-50% vs median), card 2 shallow (-10%)
+    page.evaluate("""() => {
+        const now = Date.now();
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: now }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({ tiefstpreis: 1100, hoechstpreis: 1800, medianPrice: 1222, time: now }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    # Card 1 has a verified -50% deal -> hot thermal styling
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     card_hot = page.locator('#card-cheapest')
     assert 'tp-heatmap-active' in (card_hot.get_attribute('class') or '')
+    assert 'tp-is-verified' in (card_hot.get_attribute('class') or '')
+    assert 'tp-is-verified' in (card_hot.locator('.badge-dif').get_attribute('class') or '')
 
-    # Card 2 has -10% discount -> faint warm thermal styling (same ramp, low intensity)
+    # Card 2 has a verified -10% deal -> faint warm thermal styling (same ramp, low intensity)
     card_cold = page.locator('#card-expensive')
     assert 'tp-heatmap-active' in (card_cold.get_attribute('class') or '')
 
@@ -162,9 +179,14 @@ def test_discount_heatmap_rendering(page: Page):
 
 
 def test_discount_heatmap_toolbar_toggle(page: Page):
+    # Seed a verified deal so the card heats (unchecked cards never heat)
+    page.evaluate("""() => {
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     heat_btn = page.locator('#tp-bar-heat-btn')
-    page.wait_for_selector('#tp-bar-heat-btn')
-    assert heat_btn.is_visible()
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
 
     # Click to toggle heatmap OFF
@@ -173,6 +195,8 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
     assert 'tp-active' not in (heat_btn.get_attribute('class') or '')
     assert 'tp-heatmap-active' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    # Verified class survives without heat: state signal is heat-independent
+    assert 'tp-is-verified' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Click to toggle heatmap back ON
     heat_btn.click()
@@ -184,6 +208,13 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
 
 def test_discount_heatmap_settings_modal_controls(page: Page):
+    # Seed a verified deal so the card heats (unchecked cards never heat)
+    page.evaluate("""() => {
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     # Open settings modal
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
@@ -345,10 +376,42 @@ def test_category_page_injects_interactive_deal_badges(page: Page):
 
 
 def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
-    # Verify card with verified deal receives thermal heatmap
+    # Seed a verified deal: only verified cards receive thermal heatmap
+    page.evaluate("""() => {
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     card = page.locator('#card-cheapest')
     has_heat = card.evaluate("el => el.classList.contains('tp-heatmap-active') || el.style.getPropertyValue('--tp-heat-bg') !== ''")
     assert has_heat
+
+def test_hide_unchecked_toggle_filters_unverified(page: Page):
+    # Seed card 1 as a verified deal; the rest stay unchecked
+    page.evaluate("""() => {
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest.tp-is-verified')
+    assert 'tp-is-unverified' in (page.locator('#card-negative').get_attribute('class') or '')
+
+    # Toggle faces exist wherever the verify CTA shows
+    assert page.locator('#tp-floating-hide-unchecked-btn').is_visible()
+    assert page.locator('#tp-bar-hide-unchecked-btn').is_visible()
+
+    # Toggle ON hides unchecked cards, verified card stays visible
+    page.click('#tp-floating-hide-unchecked-btn')
+    page.wait_for_selector('#card-negative.tp-bestpreise-hidden', state='attached')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
+    assert 'tp-bestpreise-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+
+    # Toggle OFF via toolbar brings unchecked cards back
+    page.click('#tp-bar-hide-unchecked-btn')
+    page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-bestpreise-hidden')")
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
+
 
 
 

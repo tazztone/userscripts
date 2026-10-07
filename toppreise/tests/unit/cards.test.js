@@ -119,7 +119,7 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       assert.notEqual(getBadgeHeatStyle(-58).background, getBadgeHeatStyle(-8).background);
     });
 
-    it('renders provisional deals paler', () => {
+    it('returns a paler swatch for provisional input', () => {
       assert.notEqual(getBadgeHeatStyle(-58, true).background, getBadgeHeatStyle(-58, false).background);
     });
 
@@ -129,7 +129,7 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       const full = getBadgeHeatStyle(-58, false, 1.0);
       const faint = getBadgeHeatStyle(-58, false, 0.5);
       assert.notEqual(full.background, faint.background);
-      // Provisional ratio survives intensity scaling: ungeprüft stays paler.
+      // Provisional ratio survives intensity scaling.
       assert.notEqual(getBadgeHeatStyle(-58, true, 0.5).background, getBadgeHeatStyle(-58, false, 0.5).background);
     });
   });

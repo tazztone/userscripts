@@ -53,6 +53,7 @@ export const DEFAULTS = Object.freeze({
   REAL_DEAL_CACHE_HOURS: 48,
   NEGATIVE_CACHE_HOURS: 2,
   BESTPREISE_MODE_ACTIVE: false,
+  BESTPREISE_HIDE_UNCHECKED: false,
   BESTPREISE_WEIGHT_RECORD: 0.50,
   BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
   OUTLIER_REJECTION_ENABLED: true,
@@ -115,6 +116,7 @@ export const CONFIG = {
   REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
   REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
   BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
+  BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
   BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
@@ -170,6 +172,11 @@ export function syncUiControl(key, val) {
         }
         case 'BESTPREISE_MODE_ACTIVE': {
           const toggle = shadow.getElementById('tp-bestpreise-mode-toggle');
+          if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'BESTPREISE_HIDE_UNCHECKED': {
+          const toggle = shadow.getElementById('tp-hide-unchecked-toggle');
           if (toggle) toggle.checked = !!val;
           break;
         }
@@ -253,6 +260,11 @@ export function syncUiControl(key, val) {
             const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
             if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
             bar.classList.toggle('tp-bestpreise-bar', val === true);
+            break;
+          }
+          case 'BESTPREISE_HIDE_UNCHECKED': {
+            const hideBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
+            if (hideBtn) hideBtn.classList.toggle('tp-active', val === true);
             break;
           }
           case 'FILTER_NEG_ENABLED': {

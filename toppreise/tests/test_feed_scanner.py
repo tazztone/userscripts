@@ -349,12 +349,16 @@ def test_real_deal_dom_memoization_and_cache_pruning(page: Page):
 
 
 def test_real_deal_neutral_heatmap_on_markup(page: Page):
-    # Both card 1 (all-time low) and card 3 (non-bestpreis) initially have heatmap
-    # (unverified site-Differenz, rendered paler)
+    # Unchecked cards never heat: striped-gray tp-is-unverified ribbons instead
+    # of the old pale site-Differenz warmth. Card 1 (-67%) and card 3 (-35%).
     card1 = page.locator('#card-cheapest')
     card3 = page.locator('#card-negative')
-    assert 'tp-heatmap-active' in (card1.get_attribute('class') or '')
-    assert 'tp-heatmap-active' in (card3.get_attribute('class') or '')
+    assert 'tp-heatmap-active' not in (card1.get_attribute('class') or '')
+    assert 'tp-heatmap-active' not in (card3.get_attribute('class') or '')
+    assert 'tp-is-unverified' in (card1.get_attribute('class') or '')
+    assert 'tp-is-unverified' in (card3.get_attribute('class') or '')
+    assert 'tp-is-unverified' in (card1.locator('.badge-dif').get_attribute('class') or '')
+    assert 'tp-is-unverified' in (card3.locator('.badge-dif').get_attribute('class') or '')
 
     # Mock routes
     def handle_pricechart(route):
@@ -368,12 +372,14 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
 
     page.route('**/plugins/product/pricechart*', handle_pricechart)
 
-    # Check card 1 (verified all-time low, no median) -> heatmap goes neutral:
-    # the old warmth was the fake -67% site Differenz; the emerald badge now
-    # carries the "Tiefstpreis" signal instead.
+    # Check card 1 (verified all-time low, no median) -> stays neutral: the
+    # striped-gray Differenz ribbon becomes a verified Tiefstpreis badge, and
+    # without a median there is no % to heat by.
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     assert 'tp-heatmap-active' not in (card1.get_attribute('class') or '')
+    assert 'tp-is-verified' in (card1.get_attribute('class') or '')
+    assert 'tp-is-verified' in (card1.locator('.badge-dif').get_attribute('class') or '')
 
     # Check card 3 (non-bestpreis, 15 CHF vs 10 CHF low, no median) -> NO heatmap:
     # a verified +50% markup stays neutral gray (no deal, no color); the +50%
@@ -382,6 +388,8 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-not-low')
     assert 'tp-heatmap-active' not in (card3.get_attribute('class') or '')
     assert card3.locator('.badge-dif').evaluate('el => el.style.getPropertyValue("background")') == ''
+    assert 'tp-is-verified' in (card3.get_attribute('class') or '')
+    assert 'tp-is-verified' in (card3.locator('.badge-dif').get_attribute('class') or '')
 
 
 

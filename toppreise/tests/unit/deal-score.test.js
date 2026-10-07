@@ -169,7 +169,7 @@ describe('Deal Score Domain Module', () => {
       assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'markup' });
     });
 
-    it('marks unverified site diffs as provisional (rendered paler)', () => {
+    it('marks unverified site diffs as provisional (striped-gray, never heated)', () => {
       const heat = getHeatInput(100, null, -51);
       assert.deepEqual(heat, { value: -51, provisional: true, pct: 51, kind: 'unverified' });
       assert.equal(getHeatInput(100, null, 2).value, null); // deadband

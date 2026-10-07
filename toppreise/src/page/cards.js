@@ -188,9 +188,10 @@ export function getHeatmapStyles(diffPercent, intensity = 1.0) {
 }
 
 // Badge reuses the card logic: solid swatch from the same ramp so the badge
-// color always matches the card heat. Intensity scales the badge exactly like
-// the card (same hue); the provisional ratio stays, so ungeprüft always reads
-// paler. At full intensity the output is identical to the legacy fixed alphas.
+// color always matches the card heat. The provisional flag still yields paler
+// output, but callers now skip heat for unverified cards (tp-is-unverified
+// paints them striped-gray instead). At full intensity verified output is
+// identical to the legacy fixed alphas.
 export function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
   const t = heatT(diffPercent);
   if (t === null) return null;

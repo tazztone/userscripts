@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.83
+// @version      2.18.84
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -357,6 +357,28 @@ const STYLES = `
     cursor: wait !important;
     opacity: 0.85 !important;
   }
+  /* Geprüft vs ungeprüft: unchecked ribbons read striped-gray + dashed at a
+     glance, verified ribbons stay solid heat. Always on, no heat dependency. */
+  .badge.badge-dif.tp-is-unverified,
+  .badge-dif.tp-is-unverified {
+    background: repeating-linear-gradient(135deg, #475569 0 6px, #334155 6px 12px) !important;
+    border: 1.5px dashed #94a3b8 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+  }
+  .badge.badge-dif.tp-is-verified,
+  .badge-dif.tp-is-verified {
+    border-style: solid !important;
+    border-width: 1.5px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
+  }
+  .Plugin_Product.tp-is-unverified,
+  a.Plugin_Product.tp-is-unverified,
+  .mixedBrowsingListProduct.tp-is-unverified {
+    filter: saturate(0.55) brightness(0.97) !important;
+    border-style: dashed !important;
+  }
+
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
      markups stay neutral gray with the +XX% text carrying the signal. */
@@ -940,6 +962,19 @@ const STYLES = `
     white-space: nowrap !important;
   }
   #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-hide-unchecked-btn {
+    background: rgba(51,65,85,0.7) !important;
+    border: none !important;
+    border-left: 1px solid rgba(255,255,255,0.12) !important;
+    color: #cbd5e1 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 6px 10px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+  }
+  #tp-floating-hide-unchecked-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-hide-unchecked-btn.tp-active { background: #10b981 !important; color: #fff !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 6px) !important;
@@ -995,7 +1030,8 @@ const STYLES = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-hide-unchecked-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 999px !important; border: none !important; margin-left: 2px !important; }
   @media (max-width: 600px) {
@@ -1775,7 +1811,7 @@ const SHADOW_MODAL_STYLES = `
    *                      carries the markup signal)
    * - verified but unqualified in Tiefstpreise mode (thin/flat history, the
    *                      badge shows a plain star with no %) -> null
-   * - unverified deal -> site Differenz, flagged provisional (rendered paler)
+   * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
    * - unverified markup / unknown -> null (neutral)
    * Callers may pass { display, dealScore, mode, weightRecord } so the heat
    * reuses the exact inputs of the badge branch (no parallel formulas).
@@ -2055,6 +2091,7 @@ const SHADOW_MODAL_STYLES = `
     REAL_DEAL_CACHE_HOURS: 48,
     NEGATIVE_CACHE_HOURS: 2,
     BESTPREISE_MODE_ACTIVE: false,
+    BESTPREISE_HIDE_UNCHECKED: false,
     BESTPREISE_WEIGHT_RECORD: 0.50,
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
@@ -2117,6 +2154,7 @@ const SHADOW_MODAL_STYLES = `
     REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
     REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
     BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
+    BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
     BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
@@ -2172,6 +2210,11 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'BESTPREISE_MODE_ACTIVE': {
             const toggle = shadow.getElementById('tp-bestpreise-mode-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_HIDE_UNCHECKED': {
+            const toggle = shadow.getElementById('tp-hide-unchecked-toggle');
             if (toggle) toggle.checked = !!val;
             break;
           }
@@ -2255,6 +2298,11 @@ const SHADOW_MODAL_STYLES = `
               const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
               if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
               bar.classList.toggle('tp-bestpreise-bar', val === true);
+              break;
+            }
+            case 'BESTPREISE_HIDE_UNCHECKED': {
+              const hideBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
+              if (hideBtn) hideBtn.classList.toggle('tp-active', val === true);
               break;
             }
             case 'FILTER_NEG_ENABLED': {
@@ -2668,9 +2716,10 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // Badge reuses the card logic: solid swatch from the same ramp so the badge
-  // color always matches the card heat. Intensity scales the badge exactly like
-  // the card (same hue); the provisional ratio stays, so ungeprüft always reads
-  // paler. At full intensity the output is identical to the legacy fixed alphas.
+  // color always matches the card heat. The provisional flag still yields paler
+  // output, but callers now skip heat for unverified cards (tp-is-unverified
+  // paints them striped-gray instead). At full intensity verified output is
+  // identical to the legacy fixed alphas.
   function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
     const t = heatT(diffPercent);
     if (t === null) return null;
@@ -3409,8 +3458,8 @@ const SHADOW_MODAL_STYLES = `
     // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
     // BOTH the card heat here and the badge headline below, so the ribbon
     // number always matches its color. The ranking score sorts only.
-    // Unverified site discounts render paler so provisional heat reads provisional.
-    // emphasizeMedian stays: the badge headline (not the heat) follows it.
+    // Unverified site discounts never heat: they read striped-gray via
+    // tp-is-unverified (step 1b/6 below), verified cards heat as before.
     const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
       ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
@@ -3427,11 +3476,12 @@ const SHADOW_MODAL_STYLES = `
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatOpts);
     const effectiveDiff = heatInfo.value;
     const heatProvisional = heatInfo.provisional;
-    const heatIntensity = heatProvisional
-      ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
-      : CONFIG.HEATMAP_INTENSITY;
+    const heatIntensity = CONFIG.HEATMAP_INTENSITY;
 
-    if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+    // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
+    // site Differenzen stay neutral — the tp-is-unverified class below paints
+    // them gray-striped instead, so the state scans without comparing saturation.
+    if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const heatKey = `${effectiveDiff}_${heatProvisional ? 'prov' : 'ver'}_${heatIntensity.toFixed(2)}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
@@ -3475,8 +3525,8 @@ const SHADOW_MODAL_STYLES = `
       }
       // Badge follows the card heat: same ramp, solid swatch. Synced on every
       // render (not only on heatKey change) so re-rendered badge nodes can't
-      // desync from the card. Raw intensity passes through — the style helper
-      // owns the provisional ratio (no double 0.55 with heatIntensity above).
+      // desync from the card. Provisional input never reaches this path (see
+      // the !heatProvisional gate above) — unverified ribbons are class-painted.
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
       if (heatBadgeEl) {
         const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional, CONFIG.HEATMAP_INTENSITY);
@@ -3525,6 +3575,17 @@ const SHADOW_MODAL_STYLES = `
         sub.style.removeProperty('--darkreader-inline-bgcolor');
         sub.style.removeProperty('--darkreader-inline-bgimage');
       }
+    }
+    // 1b. Geprüft vs ungeprüft card cue (always on, independent of Heatmap):
+    // no stats = never checked. Loading cards get neither class.
+    if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
+      card.classList.remove('tp-is-unverified', 'tp-is-verified');
+    } else if (!stats) {
+      card.classList.add('tp-is-unverified');
+      card.classList.remove('tp-is-verified');
+    } else {
+      card.classList.add('tp-is-verified');
+      card.classList.remove('tp-is-unverified');
     }
 
     // 2. Filters
@@ -3822,10 +3883,11 @@ const SHADOW_MODAL_STYLES = `
           }
           // 'unknown' (no usable price): loupe state stays — nothing truthful to claim.
         } else {
-          // Unscanned card (!stats) -> KEEP VISIBLE with interactive loupe / loading spinner!
+          // Unscanned card (!stats) -> loupe / loading spinner. Hidden only
+          // when "Nur Geprüfte" is on; otherwise kept visible for checking.
           card.classList.remove('tp-bestpreise-hidden');
+          if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
-          card.querySelector('.tp-badge-score-breakdown')?.remove();
 
           if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
             badgeDifEl.classList.add('tp-deal-loading');
@@ -3951,7 +4013,7 @@ const SHADOW_MODAL_STYLES = `
               notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
             }
             const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
+            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt)\n[Klicken zum Aktualisieren]`);
             const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -3992,12 +4054,12 @@ const SHADOW_MODAL_STYLES = `
         } else {
           // 1A: Unchecked State (Subtle Mini Loupe + Hover Scale + Tooltip)
           card.classList.remove('tp-non-bestpreis-filtered');
-          card.querySelector('.tp-card-historical-price')?.remove();
+          if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
 
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
           if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
+            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft.`);
             setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
           } else {
             setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
@@ -4060,6 +4122,20 @@ const SHADOW_MODAL_STYLES = `
         subRow.remove();
       }
     }
+    // 6. Badge geprüft/ungeprüft cue (always on): striped-gray ribbon when
+    // unchecked, solid heat ribbon when verified. Loading badge gets neither.
+    const badgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+    if (badgeEl) {
+      if (badgeEl.classList.contains('tp-deal-loading')) {
+        badgeEl.classList.remove('tp-is-unverified', 'tp-is-verified');
+      } else if (!stats) {
+        badgeEl.classList.add('tp-is-unverified');
+        badgeEl.classList.remove('tp-is-verified');
+      } else {
+        badgeEl.classList.add('tp-is-verified');
+        badgeEl.classList.remove('tp-is-unverified');
+      }
+    }
   }
 
   function renderEmptyState(cards, counts) {
@@ -4077,7 +4153,7 @@ const SHADOW_MODAL_STYLES = `
     const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
     if (cards.length > 0 && totalHidden >= cards.length && !isRevealed) {
       // Static notice: skip rebuild + listener re-bind when nothing changed
-      const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}`;
+      const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}`;
       if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
       if (!emptyNotice) {
         emptyNotice = document.createElement('div');
@@ -4093,17 +4169,25 @@ const SHADOW_MODAL_STYLES = `
         <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
         <div class="tp-empty-state-actions">
           ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
+          ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="Ungeprüfte Deals aus-/einblenden">👁️ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
           ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
         </div>
       `;
+
       emptyNotice.dataset.tpEmptySig = emptySig;
       emptyNotice.querySelector('#tp-empty-check-deals-btn')?.addEventListener('click', () => {
         // Toolbar batch button removed: the floating CTA owns this action now.
         // startBatchCheck works even when the pill is collapsed or auto-hidden.
         startBatchCheck();
       });
+      emptyNotice.querySelector('#tp-empty-hide-unchecked-btn')?.addEventListener('click', () => {
+        const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
+        updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+        showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+      });
+
       emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
         document.body.classList.toggle('tp-reveal-filtered');
         triggerProcessListings();
@@ -4229,6 +4313,15 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-bestpreise-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Blendet alle noch ungeprüften Angebote aus (grau gestreifte Ribbons). Nur geprüfte Tiefstpreise bleiben sichtbar.">Nur geprüfte anzeigen</label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-hide-unchecked-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
@@ -4424,6 +4517,7 @@ const SHADOW_MODAL_STYLES = `
     const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
     const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
     const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
+    const hideUncheckedToggle = shadow.getElementById('tp-hide-unchecked-toggle');
     const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
     const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
     const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
@@ -4497,6 +4591,7 @@ const SHADOW_MODAL_STYLES = `
       heatmapIntensityVal.value = heatIntensityPct;
 
       if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
+      if (hideUncheckedToggle) hideUncheckedToggle.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
       if (bestpreiseWeightGroup) {
         bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
       }
@@ -4704,6 +4799,7 @@ const SHADOW_MODAL_STYLES = `
           updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
         }
       }
+      if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
       if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
       if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 
@@ -4843,13 +4939,14 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
             👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
           </button>
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blasse Farben = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
          <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-hide-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)" style="display: flex;">👁️ Nur geprüfte</button>
           <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.">
             <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
             <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
@@ -4906,6 +5003,14 @@ const SHADOW_MODAL_STYLES = `
           cancelBestpreiseScan();
           updateConfig('BESTPREISE_MODE_ACTIVE', next);
           showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
+        };
+      }
+      const hideUncheckedBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
+      if (hideUncheckedBtn) {
+        hideUncheckedBtn.onclick = () => {
+          const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
+          updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+          showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
         };
       }
 
@@ -5208,6 +5313,7 @@ const SHADOW_MODAL_STYLES = `
         <span id="tp-floating-check-count">🔍</span>
       </button>
       <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
+      <button type="button" id="tp-floating-hide-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)">👁️ Nur geprüfte</button>
       <div id="tp-floating-threshold-popover" role="menu">
         <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
       </div>
@@ -5240,6 +5346,13 @@ const SHADOW_MODAL_STYLES = `
       e.preventDefault();
       e.stopPropagation();
       popover.classList.toggle('tp-show');
+    };
+    el.querySelector('#tp-floating-hide-unchecked-btn').onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
+      updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+      showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
     };
 
     if (!window._tpFloatingCtaDocBound) {
@@ -5307,6 +5420,12 @@ const SHADOW_MODAL_STYLES = `
     el.querySelectorAll('.tp-floating-option').forEach(opt => {
       opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
     });
+    const hideBtn = el.querySelector('#tp-floating-hide-unchecked-btn');
+    if (hideBtn) {
+      hideBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+      setTextIfChanged(hideBtn, CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✅ Nur geprüfte' : '👁️ Nur geprüfte');
+      hideBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+    }
   }
 
   /**
@@ -5528,6 +5647,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
         } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
+          counts.bestpreiseHidden++;
+        } else if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats && !isStandardFiltered) {
+          // "Nur Geprüfte" hides never-checked cards via tp-bestpreise-hidden —
+          // count them so empty-state + reveal counts stay truthful.
           counts.bestpreiseHidden++;
         }
       }

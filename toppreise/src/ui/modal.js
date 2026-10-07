@@ -60,6 +60,15 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
+            <label title="Blendet alle noch ungeprüften Angebote aus (grau gestreifte Ribbons). Nur geprüfte Tiefstpreise bleiben sichtbar.">Nur geprüfte anzeigen</label>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-hide-unchecked-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
             <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
           </div>
           <label class="tp-switch tp-blue">
@@ -250,6 +259,7 @@ export function setupUI() {
   const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
   const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
   const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
+  const hideUncheckedToggle = shadow.getElementById('tp-hide-unchecked-toggle');
   const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
   const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
   const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
@@ -323,6 +333,7 @@ export function setupUI() {
     heatmapIntensityVal.value = heatIntensityPct;
 
     if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
+    if (hideUncheckedToggle) hideUncheckedToggle.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
     if (bestpreiseWeightGroup) {
       bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
     }
@@ -530,6 +541,7 @@ export function setupUI() {
         updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
       }
     }
+    if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
     if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
     if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 

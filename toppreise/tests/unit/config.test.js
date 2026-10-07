@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightDescText } from '../../src/state/config.js';
+import { _getValue, _setValue, weightDescText, DEFAULTS } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -42,6 +42,14 @@ describe('Config dual-layer storage', () => {
     lsStore['tp_suite_v2_NEGATIVE_TERMS'] = JSON.stringify('lego,playmobil');
     assert.equal(_getValue('NEGATIVE_TERMS', ''), 'lego,playmobil');
   });
+
+  it('hide-unchecked defaults to false and round-trips through both layers', () => {
+    assert.equal(DEFAULTS.BESTPREISE_HIDE_UNCHECKED, false);
+    assert.equal(_getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED), false);
+    _setValue('BESTPREISE_HIDE_UNCHECKED', true);
+    assert.equal(_getValue('BESTPREISE_HIDE_UNCHECKED', false), true);
+  });
+
 });
 
 describe('weightDescText (worked example moves with the slider)', () => {

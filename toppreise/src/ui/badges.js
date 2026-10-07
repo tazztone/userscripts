@@ -73,8 +73,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
   // BOTH the card heat here and the badge headline below, so the ribbon
   // number always matches its color. The ranking score sorts only.
-  // Unverified site discounts render paler so provisional heat reads provisional.
-  // emphasizeMedian stays: the badge headline (not the heat) follows it.
+  // Unverified site discounts never heat: they read striped-gray via
+  // tp-is-unverified (step 1b/6 below), verified cards heat as before.
   const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
@@ -91,11 +91,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatOpts);
   const effectiveDiff = heatInfo.value;
   const heatProvisional = heatInfo.provisional;
-  const heatIntensity = heatProvisional
-    ? Math.max(0.2, Math.min(1.0, CONFIG.HEATMAP_INTENSITY * 0.55))
-    : CONFIG.HEATMAP_INTENSITY;
+  const heatIntensity = CONFIG.HEATMAP_INTENSITY;
 
-  if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+  // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
+  // site Differenzen stay neutral — the tp-is-unverified class below paints
+  // them gray-striped instead, so the state scans without comparing saturation.
+  if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
     const heatKey = `${effectiveDiff}_${heatProvisional ? 'prov' : 'ver'}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
@@ -139,8 +140,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
     // render (not only on heatKey change) so re-rendered badge nodes can't
-    // desync from the card. Raw intensity passes through — the style helper
-    // owns the provisional ratio (no double 0.55 with heatIntensity above).
+    // desync from the card. Provisional input never reaches this path (see
+    // the !heatProvisional gate above) — unverified ribbons are class-painted.
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     if (heatBadgeEl) {
       const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional, CONFIG.HEATMAP_INTENSITY);
@@ -189,6 +190,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       sub.style.removeProperty('--darkreader-inline-bgcolor');
       sub.style.removeProperty('--darkreader-inline-bgimage');
     }
+  }
+  // 1b. Geprüft vs ungeprüft card cue (always on, independent of Heatmap):
+  // no stats = never checked. Loading cards get neither class.
+  if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
+    card.classList.remove('tp-is-unverified', 'tp-is-verified');
+  } else if (!stats) {
+    card.classList.add('tp-is-unverified');
+    card.classList.remove('tp-is-verified');
+  } else {
+    card.classList.add('tp-is-verified');
+    card.classList.remove('tp-is-unverified');
   }
 
   // 2. Filters
@@ -486,10 +498,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
         // 'unknown' (no usable price): loupe state stays — nothing truthful to claim.
       } else {
-        // Unscanned card (!stats) -> KEEP VISIBLE with interactive loupe / loading spinner!
+        // Unscanned card (!stats) -> loupe / loading spinner. Hidden only
+        // when "Nur Geprüfte" is on; otherwise kept visible for checking.
         card.classList.remove('tp-bestpreise-hidden');
+        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
-        card.querySelector('.tp-badge-score-breakdown')?.remove();
 
         if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
@@ -615,7 +628,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
           }
           const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt; blass = ungeprüft)\n[Klicken zum Aktualisieren]`);
+          setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt)\n[Klicken zum Aktualisieren]`);
           const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -656,12 +669,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       } else {
         // 1A: Unchecked State (Subtle Mini Loupe + Hover Scale + Tooltip)
         card.classList.remove('tp-non-bestpreis-filtered');
-        card.querySelector('.tp-card-historical-price')?.remove();
+        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
 
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
         if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Blasse Farbe = ungeprüft.`);
+          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft.`);
           setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
         } else {
           setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
@@ -724,6 +737,20 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       subRow.remove();
     }
   }
+  // 6. Badge geprüft/ungeprüft cue (always on): striped-gray ribbon when
+  // unchecked, solid heat ribbon when verified. Loading badge gets neither.
+  const badgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+  if (badgeEl) {
+    if (badgeEl.classList.contains('tp-deal-loading')) {
+      badgeEl.classList.remove('tp-is-unverified', 'tp-is-verified');
+    } else if (!stats) {
+      badgeEl.classList.add('tp-is-unverified');
+      badgeEl.classList.remove('tp-is-verified');
+    } else {
+      badgeEl.classList.add('tp-is-verified');
+      badgeEl.classList.remove('tp-is-unverified');
+    }
+  }
 }
 
 export function renderEmptyState(cards, counts) {
@@ -741,7 +768,7 @@ export function renderEmptyState(cards, counts) {
   const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
   if (cards.length > 0 && totalHidden >= cards.length && !isRevealed) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}`;
+    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -757,17 +784,25 @@ export function renderEmptyState(cards, counts) {
       <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
       <div class="tp-empty-state-actions">
         ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
+        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="Ungeprüfte Deals aus-/einblenden">👁️ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
         <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
         ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
       </div>
     `;
+
     emptyNotice.dataset.tpEmptySig = emptySig;
     emptyNotice.querySelector('#tp-empty-check-deals-btn')?.addEventListener('click', () => {
       // Toolbar batch button removed: the floating CTA owns this action now.
       // startBatchCheck works even when the pill is collapsed or auto-hidden.
       startBatchCheck();
     });
+    emptyNotice.querySelector('#tp-empty-hide-unchecked-btn')?.addEventListener('click', () => {
+      const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
+      updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+      showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+    });
+
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
       document.body.classList.toggle('tp-reveal-filtered');
       triggerProcessListings();

@@ -36,10 +36,15 @@ def test_modal_mode_and_settings_in_shadow_dom(page: Page):
 
 
 def test_darkreader_dynamic_mode_compatibility(page: Page):
+    # Seed a verified deal so the card heats (unchecked cards never heat)
+    page.evaluate("""() => {
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        window.ToppreiseSuite.processListings();
+    }""")
     # Simulate DarkReader stamping data attributes and check that userscript maintains gradient
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     card = page.locator('#card-cheapest')
-
     # Check that darkreader CSS variables are properly populated with gradient and transparent bg
     dr_bgimage = card.evaluate("el => el.style.getPropertyValue('--darkreader-inline-bgimage')")
     dr_bgcolor = card.evaluate("el => el.style.getPropertyValue('--darkreader-inline-bgcolor')")
@@ -496,12 +501,12 @@ def test_advanced_settings_toggle_hides_fine_tuning(page: Page):
     assert page.locator('#tp-root >> #tp-btn-save').is_visible()
 
     # Basic view stays minimal: exactly the everyday groups, no headers, no descriptions
-    assert page.locator('#tp-root >> #tp-basic-settings > .tp-settings-group').count() == 7
+    assert page.locator('#tp-root >> #tp-basic-settings > .tp-settings-group').count() == 8
     assert not page.locator('#tp-root >> #tp-advanced-panel').is_visible()
     assert page.locator('#tp-root >> .tp-section-header').count() == 0
     assert page.locator('#tp-root >> #tp-basic-settings .tp-switch-desc').count() == 0
     # Every basic control explains itself via hover tooltip (no layout cost)
-    assert page.locator('#tp-root >> #tp-basic-settings label[title]').count() == 6
+    assert page.locator('#tp-root >> #tp-basic-settings label[title]').count() == 7
     assert page.locator('#tp-root >> #tp-basic-settings button[title]').count() == 2
 
     # Reveal via the visible slider (styled switch input itself is zero-opacity)
