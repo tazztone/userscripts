@@ -1039,16 +1039,11 @@ export const SHADOW_MODAL_STYLES = `
   }
   .tp-settings-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: #94a3b8; }
-  .tp-section-header {
-    margin: 14px 0 10px;
-    color: #10b981;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding-bottom: 4px;
-  }
+  #tp-basic-settings { display: flex; flex-direction: column; gap: 8px; }
+  #tp-basic-settings .tp-settings-group { margin-bottom: 10px; }
+  #tp-advanced-panel { background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .tp-advanced-panel-header { color: #a78bfa; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .tp-advanced-subheader { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
   .tp-segmented-control {
     display: flex;
     background: rgba(15,23,42,0.6);
@@ -1131,7 +1126,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-switch.tp-purple input:checked + .tp-slider { background-color: #8b5cf6; }
   .tp-switch input:checked + .tp-slider:before { transform: translateX(20px); background-color: #fff; }
   .tp-advanced-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
-  #tp-settings-sections.tp-hide-advanced .tp-advanced-setting { display: none !important; }
+  #tp-settings-sections.tp-hide-advanced #tp-advanced-panel { display: none !important; }
   .tp-modal-actions {
     display: flex;
     justify-content: flex-end;

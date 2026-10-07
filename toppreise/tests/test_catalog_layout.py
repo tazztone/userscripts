@@ -54,6 +54,8 @@ def test_suite_filter_bar_styles(page: Page):
 def test_sort_by_offers(page: Page):
     # Open settings and enable sort by offers desc
     page.click('#tp-root >> #tp-settings-fab')
+    # Sortierung lives in the advanced panel: reveal it first
+    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
     page.click('#tp-root >> label[for="tp-sort-desc"]')
     page.click('#tp-root >> #tp-btn-save')
 
@@ -207,6 +209,8 @@ def test_discount_heatmap_settings_modal_controls(page: Page):
 def test_sort_by_discount(page: Page):
     # Open settings and enable sort by discount descending
     page.click('#tp-root >> #tp-settings-fab')
+    # Sortierung lives in the advanced panel: reveal it first
+    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
     page.click('#tp-root >> label[for="tp-sort-discount"]')
     page.click('#tp-root >> #tp-btn-save')
 

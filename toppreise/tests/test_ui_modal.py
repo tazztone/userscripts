@@ -291,6 +291,8 @@ def test_config_import_ignores_unknown_and_debug_keys(page: Page):
 def test_sparklines_settings_toggle(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    # Sparklines live in the advanced panel: reveal it first
+    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
 
     toggle = page.locator('#tp-root >> #tp-sparklines-toggle')
     assert toggle.is_checked()
@@ -493,9 +495,17 @@ def test_advanced_settings_toggle_hides_fine_tuning(page: Page):
     assert page.locator('#tp-root >> label[for="tp-mode-dim"]').is_visible()
     assert page.locator('#tp-root >> #tp-btn-save').is_visible()
 
+    # Basic view stays minimal: exactly the everyday groups, no headers, no descriptions
+    assert page.locator('#tp-root >> #tp-basic-settings > .tp-settings-group').count() == 7
+    assert not page.locator('#tp-root >> #tp-advanced-panel').is_visible()
+    assert page.locator('#tp-root >> .tp-section-header').count() == 0
+    assert page.locator('#tp-root >> #tp-basic-settings .tp-switch-desc').count() == 0
+
     # Reveal via the visible slider (styled switch input itself is zero-opacity)
     page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
     assert page.locator('#tp-root >> #tp-advanced-toggle').is_checked()
+    assert page.locator('#tp-root >> #tp-advanced-panel').is_visible()
+    assert 'feintuning' in page.locator('#tp-root >> .tp-advanced-panel-header').inner_text().lower()
     assert page.locator('#tp-root >> #tp-margin-range').is_visible()
     assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.SHOW_ADVANCED") is True

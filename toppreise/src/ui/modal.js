@@ -21,9 +21,9 @@ export function setupUI() {
         <div class="tp-switch-label"><label>⚙️ Erweiterte Einstellungen</label><span class="tp-switch-desc">Feintuning, Cache-Dauern & Verzögerungen ein-/ausblenden</span></div>
         <label class="tp-switch tp-purple"><input type="checkbox" id="tp-advanced-toggle"><span class="tp-slider"></span></label>
       </div>
-        <div class="tp-section-header">1. Händler Toppreis Highlights & Sortierung</div>
+      <div id="tp-basic-settings">
         <div class="tp-settings-group">
-          <label>Filter Modus</label>
+          <label>Anzeige</label>
           <div class="tp-segmented-control">
             <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
             <label for="tp-mode-highlight-only">Highlight</label>
@@ -34,12 +34,55 @@ export function setupUI() {
           </div>
         </div>
         <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label"><label>inkl. Versandkosten vergleichen</label></div>
+          <div class="tp-switch-label"><label>inkl. Versand</label></div>
           <label class="tp-switch">
             <input type="checkbox" id="tp-shipping-toggle">
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label>Heatmap</label>
+          </div>
+          <label class="tp-switch tp-rose">
+            <input type="checkbox" id="tp-heatmap-enabled-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label>Tiefstpreise</label>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-bestpreise-mode-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label>Preisalarm</label>
+          </div>
+          <label class="tp-switch tp-blue">
+            <input type="checkbox" id="tp-alarm-enabled-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group">
+          <label>Zielpreis</label>
+          <div class="tp-range-container tp-blue">
+            <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
+            <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
+          </div>
+        </div>
+        <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
+          <button type="button" id="tp-export-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
+          <button type="button" id="tp-import-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
+          <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
+        </div>
+      </div>
+      <div id="tp-advanced-panel">
+        <div class="tp-advanced-panel-header">⚙️ Feintuning</div>
+        <div class="tp-advanced-subheader">Anzeige & Sortierung</div>
         <div class="tp-settings-group">
           <label>Sortierung nach Angeboten / Rabatt</label>
           <div class="tp-segmented-control">
@@ -53,49 +96,29 @@ export function setupUI() {
             <label for="tp-sort-discount">% Rabatt ⬇</label>
           </div>
         </div>
-        <div class="tp-settings-group tp-advanced-setting">
+        <div class="tp-settings-group">
           <label>Preis-Toleranz (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
             <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
           </div>
         </div>
-        <div class="tp-settings-group tp-advanced-setting" id="tp-dim-opacity-group">
+        <div class="tp-settings-group" id="tp-dim-opacity-group">
           <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
             <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
           </div>
         </div>
-        <div class="tp-section-header" style="color: #f43f5e;">2. Rabatt-Heatmap & Deals</div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Rabatt-Heatmap aktivieren</label>
-            <span class="tp-switch-desc">Karten- und Badge-Farbe = Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Blass = ungeprüft (Differenz).</span>
-          </div>
-          <label class="tp-switch tp-rose">
-            <input type="checkbox" id="tp-heatmap-enabled-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>💎 Neue Tiefstpreise Modus</label>
-            <span class="tp-switch-desc">Auto-Scan + Tiefstpreis-Score Ranking auf der Feed-Seite</span>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-bestpreise-mode-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group tp-advanced-setting">
+        <div class="tp-advanced-subheader">Heatmap & Deals</div>
+        <div class="tp-settings-group">
           <label>Heatmap-Intensität (%)</label>
           <div class="tp-range-container tp-rose">
             <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
             <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
           </div>
         </div>
-        <div class="tp-settings-group tp-advanced-setting" id="tp-bestpreise-weight-group" style="display: none;">
+        <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
           <label>Tiefstpreis-Score Gewichtung: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
@@ -103,7 +126,7 @@ export function setupUI() {
           </div>
           <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
         </div>
-        <div class="tp-settings-group tp-advanced-setting" id="tp-bestpreise-horizon-group" style="display: none;">
+        <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
           <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
             <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
@@ -113,7 +136,7 @@ export function setupUI() {
           </select>
           <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
         </div>
-        <div class="tp-settings-group tp-advanced-setting">
+        <div class="tp-settings-group">
           <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
@@ -121,24 +144,7 @@ export function setupUI() {
           </div>
           <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
         </div>
-        <div class="tp-section-header" style="color: #3b82f6;">3. Preisalarm Auto-Filler</div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Preisalarm Auto-Fill aktivieren</label>
-            <span class="tp-switch-desc">Beim Klick auf die Glocke Formular automatisch ausfüllen</span>
-          </div>
-          <label class="tp-switch tp-blue">
-            <input type="checkbox" id="tp-alarm-enabled-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group">
-          <label>Zielpreis (% vom aktuellen Preis)</label>
-          <div class="tp-range-container tp-blue">
-            <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
-            <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
-          </div>
-        </div>
+        <div class="tp-advanced-subheader">Preisalarm</div>
         <div class="tp-settings-group">
           <label>Laufzeit Dauer</label>
           <div class="tp-segmented-control tp-segmented-control-blue">
@@ -148,7 +154,7 @@ export function setupUI() {
             <input type="radio" id="tp-dur-730" name="tp-alarm-duration" value="730"><label for="tp-dur-730">2 Jahre</label>
           </div>
         </div>
-        <div class="tp-settings-group tp-switch-container tp-advanced-setting">
+        <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>Automatisch Absenden & Schließen</label>
             <span class="tp-switch-desc">Formular direkt einreichen und Dialog schließen</span>
@@ -158,7 +164,7 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
-        <div class="tp-settings-group tp-advanced-setting" id="tp-alarm-delays-group">
+        <div class="tp-settings-group" id="tp-alarm-delays-group">
           <label>Submit-Verzögerung (ms)</label>
           <div class="tp-range-container tp-blue">
             <input type="range" id="tp-alarm-submit-delay-range" min="0" max="2000" step="50" value="300">
@@ -170,7 +176,7 @@ export function setupUI() {
             <input type="number" id="tp-alarm-close-delay-val" min="0" max="10000" step="50" value="800">
           </div>
         </div>
-        <div class="tp-section-header" style="color: #06b6d4;">4. Performance, Cache & Preiskurven</div>
+        <div class="tp-advanced-subheader">Darstellung & Cache</div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label>Mini-Preiskurven (Sparklines) anzeigen</label>
@@ -185,7 +191,7 @@ export function setupUI() {
           <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
         </div>
-        <div class="tp-settings-group tp-advanced-setting">
+        <div class="tp-settings-group">
           <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
           <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
             <option value="24">24 Stunden (1 Tag)</option>
@@ -196,7 +202,7 @@ export function setupUI() {
           </select>
           <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
         </div>
-        <div class="tp-settings-group tp-advanced-setting">
+        <div class="tp-settings-group">
           <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
           <select id="tp-cache-neg-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
             <option value="1">1 Stunde</option>
@@ -207,12 +213,7 @@ export function setupUI() {
           </select>
           <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
         </div>
-        <div class="tp-section-header" style="color: #6366f1;">5. Backup & Übertragen</div>
-        <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
-          <button type="button" id="tp-export-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
-          <button type="button" id="tp-import-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
-          <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
-        </div>
+      </div>
       </div>
     `;
     section = tempDiv.firstElementChild;
