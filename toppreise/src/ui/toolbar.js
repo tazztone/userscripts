@@ -61,13 +61,15 @@ function bindBestpreiseBtn(btn) {
   };
 }
 
-function ensureBestpreisePlacement(isDealFeed) {
+function ensureDealControlsPlacement(isDealFeed) {
   const tf = document.querySelector('#timeframe-filter') || document.querySelector('.Plugin_TimePeriod');
+  const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
   let btn = document.getElementById('tp-bar-bestpreise-btn');
+  let weight = document.getElementById('tp-bar-weight-wrapper');
   if (!isDealFeed || !tf) {
-    if (btn) {
-      const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
-      if (home && btn.parentElement !== home) home.prepend(btn);
+    if (home) {
+      if (btn && btn.parentElement !== home) home.prepend(btn);
+      if (weight && weight.parentElement !== home) home.append(weight);
     }
     return;
   }
@@ -79,7 +81,56 @@ function ensureBestpreisePlacement(isDealFeed) {
     btn.title = 'Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren';
     bindBestpreiseBtn(btn);
   }
+  if (!weight) weight = buildWeightWrapper();
   if (btn.parentElement !== tf) tf.prepend(btn);
+  if (weight.parentElement !== tf || weight.previousElementSibling !== btn) btn.after(weight);
+}
+
+function bindWeightControls(wrapper) {
+  const weightRange = wrapper.querySelector('#tp-bar-weight-range');
+  const weightLabel = wrapper.querySelector('#tp-bar-weight-label');
+  if (!weightRange) return;
+  const readWeight = () => Math.max(0, Math.min(1, (parseInt(weightRange.value, 10) || 0) / 100));
+  const paintWeightLabel = () => {
+    if (!weightLabel) return;
+    const w = readWeight();
+    weightLabel.textContent = `⚖️ ${weightText(w, 'short')}`;
+    weightLabel.title = weightText(w, 'title');
+  };
+  paintWeightLabel();
+  weightRange.oninput = () => {
+    paintWeightLabel();
+    clearTimeout(window._tpWeightDeb);
+    window._tpWeightDeb = setTimeout(() => {
+      updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
+    }, 150);
+  };
+  weightRange.onchange = () => {
+    clearTimeout(window._tpWeightDeb);
+    const w = readWeight();
+    paintWeightLabel();
+    updateConfig('BESTPREISE_WEIGHT_RECORD', w);
+    showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
+  };
+}
+
+function buildWeightWrapper() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tp-threshold-wrapper';
+  wrapper.id = 'tp-bar-weight-wrapper';
+  wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.';
+  wrapper.innerHTML = `
+    <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
+    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
+    <datalist id="tp-bar-weight-ticks">
+      <option value="0" label="Ø"></option>
+      <option value="30"></option>
+      <option value="50"></option>
+      <option value="70"></option>
+      <option value="100" label="Rek"></option>
+    </datalist>`;
+  bindWeightControls(wrapper);
+  return wrapper;
 }
 
 
@@ -202,32 +253,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
 
     // Weight slider: live label on drag, debounced config write (each write
     // re-sorts the feed), immediate flush + toast on release.
-    const weightRange = bar.querySelector('#tp-bar-weight-range');
-    const weightLabel = bar.querySelector('#tp-bar-weight-label');
-    const readWeight = () => Math.max(0, Math.min(1, (parseInt(weightRange.value, 10) || 0) / 100));
-    const paintWeightLabel = () => {
-      if (!weightLabel) return;
-      const w = readWeight();
-      weightLabel.textContent = `⚖️ ${weightText(w, 'short')}`;
-      weightLabel.title = weightText(w, 'title');
-    };
-    if (weightRange) {
-      paintWeightLabel();
-      weightRange.oninput = () => {
-        paintWeightLabel();
-        clearTimeout(window._tpWeightDeb);
-        window._tpWeightDeb = setTimeout(() => {
-          updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-        }, 150);
-      };
-      weightRange.onchange = () => {
-        clearTimeout(window._tpWeightDeb);
-        const w = readWeight();
-        paintWeightLabel();
-        updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-        showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
-      };
-    }
+    const weightWrapperInit = bar.querySelector('#tp-bar-weight-wrapper');
+    if (weightWrapperInit) bindWeightControls(weightWrapperInit);
 
     const updateMinOffers = delta => {
       const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
@@ -278,6 +305,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     heatBtn.style.setProperty('display', 'flex', 'important');
   }
 
+  // Place first so the state sync below also covers nodes recreated after a native AJAX wipe.
+  ensureDealControlsPlacement(isDealFeed);
+
   const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
@@ -296,17 +326,17 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-  const weightRange = bar.querySelector('#tp-bar-weight-range');
+  const weightRange = document.getElementById('tp-bar-weight-range');
   // Skip while dragging: the input handler owns the label mid-drag.
   if (weightRange && document.activeElement !== weightRange) {
     weightRange.value = Math.round(curWeight * 100);
   }
-  const weightLabel = bar.querySelector('#tp-bar-weight-label');
+  const weightLabel = document.getElementById('tp-bar-weight-label');
   if (weightLabel) {
     weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
     weightLabel.title = weightText(curWeight, 'title');
   }
-  const weightWrapper = bar.querySelector('#tp-bar-weight-wrapper');
+  const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
   if (weightWrapper) {
     weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
@@ -315,6 +345,4 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (minGroup) minGroup.style.display = pageHasOffers ? 'flex' : 'none';
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
-
-  ensureBestpreisePlacement(isDealFeed);
 }

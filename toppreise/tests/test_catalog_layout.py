@@ -1347,7 +1347,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 
 def test_deal_score_weight_slider_in_filter_bar(page: Page):
     """
-    Validates that the Deal-Score weighting slider appears in the filter bar
+    Validates that the Deal-Score weighting slider appears in the Zeitraum row
     when Tiefstpreise mode is active, and dragging it updates score weighting.
     """
     page.evaluate("""() => {
@@ -1358,6 +1358,8 @@ def test_deal_score_weight_slider_in_filter_bar(page: Page):
 
     weight_wrapper = page.locator('#tp-bar-weight-wrapper')
     assert weight_wrapper.is_visible()
+    assert weight_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
+    assert weight_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-bestpreise-btn'")
 
     weight_label = page.locator('#tp-bar-weight-label')
     assert '50/50' in weight_label.inner_text()
