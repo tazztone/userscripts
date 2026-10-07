@@ -23,7 +23,7 @@ export function setupUI() {
       </div>
       <div id="tp-basic-settings">
         <div class="tp-settings-group">
-          <label>Anzeige</label>
+          <label title="So werden gefilterte Angebote dargestellt: farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
           <div class="tp-segmented-control">
             <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
             <label for="tp-mode-highlight-only">Highlight</label>
@@ -34,7 +34,7 @@ export function setupUI() {
           </div>
         </div>
         <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label"><label>inkl. Versand</label></div>
+          <div class="tp-switch-label"><label title="Versandkosten in den Preisvergleich einrechnen.">inkl. Versand</label></div>
           <label class="tp-switch">
             <input type="checkbox" id="tp-shipping-toggle">
             <span class="tp-slider"></span>
@@ -42,7 +42,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label>Heatmap</label>
+            <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Rot = hoher Rabatt, Grau = kein Rabatt.">Heatmap</label>
           </div>
           <label class="tp-switch tp-rose">
             <input type="checkbox" id="tp-heatmap-enabled-toggle">
@@ -51,7 +51,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label>Tiefstpreise</label>
+            <label title="Erkennt neue Tiefstpreise und rankt sie auf der Feed-Seite.">Tiefstpreise</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -60,7 +60,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label>Preisalarm</label>
+            <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm</label>
           </div>
           <label class="tp-switch tp-blue">
             <input type="checkbox" id="tp-alarm-enabled-toggle">
@@ -68,15 +68,15 @@ export function setupUI() {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label>Zielpreis</label>
+          <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Zielpreis</label>
           <div class="tp-range-container tp-blue">
             <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
             <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
           </div>
         </div>
         <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
-          <button type="button" id="tp-export-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
-          <button type="button" id="tp-import-config-btn" class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
+          <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
+          <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
           <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
         </div>
       </div>

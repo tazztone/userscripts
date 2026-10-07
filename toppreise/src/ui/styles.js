@@ -1041,6 +1041,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: #94a3b8; }
   #tp-basic-settings { display: flex; flex-direction: column; gap: 8px; }
   #tp-basic-settings .tp-settings-group { margin-bottom: 10px; }
+  #tp-basic-settings label[title], #tp-basic-settings button[title] { cursor: help; }
   #tp-advanced-panel { background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   .tp-advanced-panel-header { color: #a78bfa; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
   .tp-advanced-subheader { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }

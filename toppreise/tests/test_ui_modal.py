@@ -500,6 +500,9 @@ def test_advanced_settings_toggle_hides_fine_tuning(page: Page):
     assert not page.locator('#tp-root >> #tp-advanced-panel').is_visible()
     assert page.locator('#tp-root >> .tp-section-header').count() == 0
     assert page.locator('#tp-root >> #tp-basic-settings .tp-switch-desc').count() == 0
+    # Every basic control explains itself via hover tooltip (no layout cost)
+    assert page.locator('#tp-root >> #tp-basic-settings label[title]').count() == 6
+    assert page.locator('#tp-root >> #tp-basic-settings button[title]').count() == 2
 
     # Reveal via the visible slider (styled switch input itself is zero-opacity)
     page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
