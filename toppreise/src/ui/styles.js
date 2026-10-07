@@ -1199,15 +1199,5 @@ export const SHADOW_MODAL_STYLES = `
     transition: opacity 0.3s ease, transform 0.3s ease;
   }
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
-  .tp-toast-undo {
-    background: rgba(56,189,248,0.18);
-    border: 1px solid rgba(56,189,248,0.5);
-    color: #38bdf8;
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-  }
 `;
 

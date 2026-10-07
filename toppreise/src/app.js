@@ -2,7 +2,6 @@ import { STYLES } from './ui/styles.js';
 import {
   parsePrice,
   priceToCents,
-  sanitizeTimeSeries,
   analyzePriceTimeSeries
 } from './domain/price.js';
 import { computeDealScore } from './domain/deal-score.js';
@@ -51,7 +50,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.86
+// @version      2.18.87
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*

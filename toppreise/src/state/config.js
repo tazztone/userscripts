@@ -329,3 +329,12 @@ export function updateConfig(key, val, options = {}) {
   }
 }
 
+export function updateConfigs(entries, options = {}) {
+  for (const [k, v] of Object.entries(entries)) {
+    updateConfig(k, v, { ...options, skipRender: true });
+  }
+  if (!options.skipRender && typeof processListings === 'function') {
+    processListings();
+  }
+}
+

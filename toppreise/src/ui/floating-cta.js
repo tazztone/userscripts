@@ -26,6 +26,7 @@ import {
   cancelBatchDealCheck
 } from "../scanner/scanner.js";
 import { setTextIfChanged } from "./badges.js";
+import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';

@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfig, updateBodyClasses, weightText } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 
 export function setupUI() {
@@ -515,7 +515,7 @@ export function setupUI() {
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     updates.SHOW_ADVANCED = !!advancedToggle?.checked;
 
-    for (const [k, v] of Object.entries(updates)) updateConfig(k, v);
+    updateConfigs(updates);
     if (shippingChanged) clearPriceStatsCache();
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();

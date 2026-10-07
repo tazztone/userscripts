@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.86
+// @version      2.18.87
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1222,16 +1222,6 @@ const SHADOW_MODAL_STYLES = `
     transition: opacity 0.3s ease, transform 0.3s ease;
   }
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
-  .tp-toast-undo {
-    background: rgba(56,189,248,0.18);
-    border: 1px solid rgba(56,189,248,0.5);
-    color: #38bdf8;
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-  }
 `;
 
 (() => {
@@ -2275,6 +2265,15 @@ const SHADOW_MODAL_STYLES = `
     }
     if (key === 'MODE' || key === 'DIM_OPACITY') {
       updateBodyClasses();
+    }
+    if (!options.skipRender && typeof processListings === 'function') {
+      processListings();
+    }
+  }
+
+  function updateConfigs(entries, options = {}) {
+    for (const [k, v] of Object.entries(entries)) {
+      updateConfig(k, v, { ...options, skipRender: true });
     }
     if (!options.skipRender && typeof processListings === 'function') {
       processListings();
@@ -4580,7 +4579,7 @@ const SHADOW_MODAL_STYLES = `
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       updates.SHOW_ADVANCED = !!advancedToggle?.checked;
 
-      for (const [k, v] of Object.entries(updates)) updateConfig(k, v);
+      updateConfigs(updates);
       if (shippingChanged) clearPriceStatsCache();
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
@@ -4928,6 +4927,7 @@ const SHADOW_MODAL_STYLES = `
    * re-renders. Pure label logic lives in ctaStateFor() for unit testing
    * without a DOM.
    */
+
 
 
 

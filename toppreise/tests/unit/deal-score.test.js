@@ -299,14 +299,14 @@ describe('Deal Score Domain Module', () => {
 
     it('keeps a 4.9%-raw Ø discount in the badge text but gray on the card', () => {
       // (200 - 190.2) / 200 = 4.9% -> pct 5, but raw < 5 deadband
-      const heat = getHeatInput(190.20, { tiefstpreis: 190.20, medianPrice: 200 }, 0, { mode: 'browse' });
+      const heat = getHeatInput(190.20, { tiefstpreis: 190.20, medianPrice: 200 }, 0, 'browse');
       assert.deepEqual(heat, { value: null, provisional: false, pct: 5, kind: 'median' });
     });
 
     it('keeps a 4.9%-raw record breakthrough in the badge text but gray on the card', () => {
       // (200 - 190.2) / 200 = 4.9% -> dRecord 5, significant but below heat deadband
       const stats = { tiefstpreis: 190.20, medianPrice: 400, previousLow: 200, isNewAllTimeLow: true };
-      const heat = getHeatInput(190.20, stats, 0, { mode: 'browse' });
+      const heat = getHeatInput(190.20, stats, 0, 'browse');
       assert.deepEqual(heat, { value: null, provisional: false, pct: 5, kind: 'rekord' });
     });
   });
