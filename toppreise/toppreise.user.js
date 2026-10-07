@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.82
+// @version      2.18.83
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4225,7 +4225,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Erkennt neue Tiefstpreise und rankt sie auf der Feed-Seite.">Tiefstpreise</label>
+              <label title="sortiert die geprüften Angebote auf neue-toppreise nach dem neu errechneten Rabatt und versteckt ungeprüfte und schlechte deals.">Tiefstpreise Modus</label>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -4234,7 +4234,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm</label>
+              <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
             </div>
             <label class="tp-switch tp-blue">
               <input type="checkbox" id="tp-alarm-enabled-toggle">
@@ -4242,7 +4242,7 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group">
-            <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Zielpreis</label>
+            <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
             <div class="tp-range-container tp-blue">
               <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
               <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
