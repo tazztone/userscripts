@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.84
+// @version      2.18.85
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3482,7 +3482,7 @@ const SHADOW_MODAL_STYLES = `
     // site Differenzen stay neutral — the tp-is-unverified class below paints
     // them gray-striped instead, so the state scans without comparing saturation.
     if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-      const heatKey = `${effectiveDiff}_${heatProvisional ? 'prov' : 'ver'}_${heatIntensity.toFixed(2)}`;
+      const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
         const heatStyles = getHeatmapStyles(effectiveDiff, heatIntensity);
@@ -4309,7 +4309,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="sortiert die geprüften Angebote auf neue-toppreise nach dem neu errechneten Rabatt und versteckt ungeprüfte und schlechte deals.">Tiefstpreise Modus</label>
+              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals. Ungeprüfte blendet der Schalter Nur geprüfte aus.">Tiefstpreise Modus</label>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-bestpreise-mode-toggle">

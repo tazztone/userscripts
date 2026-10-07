@@ -97,7 +97,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // site Differenzen stay neutral — the tp-is-unverified class below paints
   // them gray-striped instead, so the state scans without comparing saturation.
   if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-    const heatKey = `${effectiveDiff}_${heatProvisional ? 'prov' : 'ver'}_${heatIntensity.toFixed(2)}`;
+    const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
       const heatStyles = getHeatmapStyles(effectiveDiff, heatIntensity);
