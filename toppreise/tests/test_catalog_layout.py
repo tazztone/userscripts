@@ -268,11 +268,11 @@ def test_empty_state_notice_and_actions(page: Page):
 
     # Clicking "👁️ Ausgeblendete anzeigen" reveals previews
     page.click('#tp-empty-reveal-btn')
-    assert 'tp-reveal-filtered' in (page.locator('body').get_attribute('class') or '')
+    assert 'tp-reveal-neg' in (page.locator('body').get_attribute('class') or '')
     assert not page.locator('#tp-empty-state-notice').is_visible()
 
     # Toggle reveal off again -> notice comes back
-    page.click('#tp-bar-reveal-btn')
+    page.click('#tp-bar-reveal-neg')
     page.wait_for_selector('#tp-empty-state-notice')
 
     # Clicking "⚡ Filter ausschalten" disables all suite filter toggles safely and restores cards
@@ -341,7 +341,8 @@ def test_deal_features_enabled_on_category_page(page: Page):
 
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
-    assert page.locator('#tp-bar-reveal-btn').is_visible()
+    for _btn in ['#tp-bar-reveal-neg', '#tp-bar-reveal-min', '#tp-bar-reveal-baddeals', '#tp-bar-reveal-unchecked']:
+        assert not page.locator(_btn).is_visible()
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
@@ -403,13 +404,13 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
 
     # Toggle ON hides unchecked cards, verified card stays visible
     page.click('#tp-floating-hide-unchecked-btn')
-    page.wait_for_selector('#card-negative.tp-bestpreise-hidden', state='attached')
+    page.wait_for_selector('#card-negative.tp-unchecked-hidden', state='attached')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
-    assert 'tp-bestpreise-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-unchecked-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Toggle OFF via toolbar brings unchecked cards back
     page.click('#tp-bar-hide-unchecked-btn')
-    page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-bestpreise-hidden')")
+    page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-unchecked-hidden')")
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
 
@@ -715,10 +716,10 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     assert 'CHF 1500.00' in (card2_subline.text_content() or '')
 
     # Card 3: Scanned Non-Tiefstpreis -> Hidden in Tiefstpreise mode
-    assert 'tp-bestpreise-hidden' in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-baddeal-hidden' in (page.locator('#card-negative').get_attribute('class') or '')
 
     # Unscanned card: Stays visible with interactive loupe in Tiefstpreise mode (Streaming UI)
-    assert 'tp-bestpreise-hidden' not in (page.locator('#card-low-offers').get_attribute('class') or '')
+    assert 'tp-baddeal-hidden' not in (page.locator('#card-low-offers').get_attribute('class') or '')
     uncached_badge = page.locator('#card-low-offers .badge-dif')
     assert 'tp-deal-loading' not in (uncached_badge.get_attribute('class') or '')
 
@@ -727,7 +728,8 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false;
         window.ToppreiseSuite.processListings();
     }""")
-    assert 'tp-bestpreise-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-baddeal-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-unchecked-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-deal-new-record' not in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
     assert '-18%' in (page.locator('#card-cheapest .badge-dif').text_content() or '')
 
@@ -927,7 +929,7 @@ def test_bestpreise_mode_visible_deal_count_and_no_false_empty_state(page: Page)
     # 1. Exactly 15 qualifying deal cards must be visible
     visible_deals_count = page.evaluate("""() => {
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
-        return cards.filter(c => !c.classList.contains('tp-bestpreise-hidden') && !c.classList.contains('tp-negative-filtered')).length;
+        return cards.filter(c => !c.classList.contains('tp-baddeal-hidden') && !c.classList.contains('tp-unchecked-hidden') && !c.classList.contains('tp-negative-filtered') && !c.classList.contains('tp-min-offers-filtered')).length;
     }""")
     assert visible_deals_count == 15
 
@@ -1105,10 +1107,10 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # When Tiefstpreise mode is toggled on with uncached items, cards MUST NOT be hidden with tp-bestpreise-hidden
+    # When Tiefstpreise mode is toggled on with uncached items, cards MUST NOT carry tp-baddeal-hidden/tp-unchecked-hidden
     hidden_count = page.evaluate("""() => {
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
-        return cards.filter(c => c.classList.contains('tp-bestpreise-hidden')).length;
+        return cards.filter(c => c.classList.contains('tp-baddeal-hidden') || c.classList.contains('tp-unchecked-hidden')).length;
     }""")
     assert hidden_count == 0
 
@@ -1167,7 +1169,7 @@ def test_bestpreise_mode_all_cards_remain_visible_when_uncached(page: Page):
                 id: c.id,
                 hasOffsetParent: c.offsetParent !== null,
                 computedDisplay: window.getComputedStyle(c).display,
-                hasBestpreiseHiddenClass: c.classList.contains('tp-bestpreise-hidden'),
+                hasHiddenClass: c.classList.contains('tp-baddeal-hidden') || c.classList.contains('tp-unchecked-hidden'),
                 hiddenAncestor
             };
         });
@@ -1177,7 +1179,7 @@ def test_bestpreise_mode_all_cards_remain_visible_when_uncached(page: Page):
     for cv in card_visibilities:
         assert cv['hasOffsetParent'] is True, f"Card {cv['id']} has null offsetParent (invisible)"
         assert cv['computedDisplay'] != 'none', f"Card {cv['id']} has display: none"
-        assert cv['hasBestpreiseHiddenClass'] is False, f"Card {cv['id']} has tp-bestpreise-hidden"
+        assert cv['hasHiddenClass'] is False, f"Card {cv['id']} carries a suite hide class"
         assert cv['hiddenAncestor'] is None, f"Card {cv['id']} has hidden ancestor: {cv['hiddenAncestor']}"
 
     # 2. Assert #product-list container itself is visible
@@ -1278,8 +1280,8 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     Visibility Invariant Test 3: Column Wrapper Fidelity
     Verifies that when cards are nested inside <div class="col-*"> wrappers:
     1. getCardSortableUnit() targets the column wrapper.
-    2. Hiding a card with .tp-bestpreise-hidden collapses the parent .col-* container via CSS.
-    3. Revealing with .tp-reveal-filtered displays both card and column wrapper.
+    2. Hiding a card with .tp-baddeal-hidden collapses the parent .col-* container via CSS.
+    3. Revealing with .tp-reveal-baddeals displays both card and column wrapper.
     """
     page.evaluate("""() => {
         const list = document.getElementById('product-list');
@@ -1336,7 +1338,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 
     # Toggle reveal filtered -> wrapper-col-2 and wrap-card-2 are both displayed with dashed border
     page.evaluate("""() => {
-        document.body.classList.add('tp-reveal-filtered');
+        document.body.classList.add('tp-reveal-baddeals');
         window.ToppreiseSuite.processListings();
     }""")
 

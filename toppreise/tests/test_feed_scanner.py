@@ -210,7 +210,7 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
 
 def test_mode_hides_non_bestpreis(page: Page):
     """Strictness lives in the Tiefstpreise mode: enabling it hides verified
-    non-deals (.tp-bestpreise-hidden) while qualifying Tiefstpreise stay
+    non-deals (.tp-baddeal-hidden) while qualifying Tiefstpreise stay
     visible — no separate strictness toggle needed."""
     # Seed stats directly: card 1 (797571) qualifies with full stats,
     # card 3 (797573) has minimal above-low stats (tiefstpreis 10 < price 15).
@@ -238,9 +238,9 @@ def test_mode_hides_non_bestpreis(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 3 (non-bestpreis) is hidden with .tp-bestpreise-hidden, but its
+    # Card 3 (non-bestpreis) is hidden with .tp-baddeal-hidden, but its
     # badge is still repainted truthfully (no stale verified % survives).
-    page.wait_for_selector('#card-negative.tp-bestpreise-hidden', state='attached')
+    page.wait_for_selector('#card-negative.tp-baddeal-hidden', state='attached')
     badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
     assert '+50%' in (badge3.text_content() or '')
     assert not page.locator('#card-negative').is_visible()
@@ -252,9 +252,9 @@ def test_mode_hides_non_bestpreis(page: Page):
     assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Click reveal button (👁️) and verify card-negative is shown with outline preview
-    page.click('#tp-bar-reveal-btn')
+    page.click('#tp-bar-reveal-baddeals')
     assert page.locator('#card-negative').is_visible()
-    assert 'tp-reveal-filtered' in (page.locator('body').get_attribute('class') or '')
+    assert 'tp-reveal-baddeals' in (page.locator('body').get_attribute('class') or '')
 
 
 
@@ -491,8 +491,8 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert cta.is_visible()
 
     # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
-    page.click('#tp-bar-reveal-btn')
-    page.wait_for_selector('body.tp-reveal-filtered')
+    page.click('#tp-bar-reveal-neg')
+    page.wait_for_selector('body.tp-reveal-neg')
     # Both card-negative and card-iphone are now visible (revealed)
     assert cta.is_visible()
     assert '2 Tiefstpreise prüfen' in (cta_main.text_content() or '')
@@ -1184,7 +1184,7 @@ def test_unscanned_cards_no_stuck_loading_badge(page: Page):
     # In Bestpreise mode, reveal filtered cards
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        document.body.classList.add('tp-reveal-filtered');
+        document.body.classList.add('tp-reveal-baddeals');
         window.ToppreiseSuite.processListings();
     }""")
 

@@ -249,25 +249,28 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
 
 export function isCardFilteredOut(card, filters = null) {
   if (!card) return true;
-  const isRevealed = document.body?.classList.contains('tp-reveal-filtered');
-  if (!isRevealed) {
-    if (filters) {
-      if (filters.isNeg || filters.isLowOffers) return true;
-    } else {
-      if (card.classList?.contains('tp-negative-filtered') ||
-          card.classList?.contains('tp-min-offers-filtered') ||
-          card.classList?.contains('tp-bestpreise-hidden')) {
-        return true;
-      }
-      // ponytail: no page context here; callers with a card list must pass
-      // explicit filters built with the real pageHasOffers (feed cards have
-      // no offer counts, so assuming true wrongly filters the whole feed).
-      const termsList = parseNegativeTerms();
-      const offerCount = extractOfferCount(card);
-      const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
-      const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
-      if (f.isNeg || f.isLowOffers) return true;
+  const bodyCls = document.body?.classList;
+  const revealNeg = bodyCls?.contains('tp-reveal-neg') === true;
+  const revealMin = bodyCls?.contains('tp-reveal-min') === true;
+  const revealBad = bodyCls?.contains('tp-reveal-baddeals') === true;
+  const revealUnchecked = bodyCls?.contains('tp-reveal-unchecked') === true;
+  if (filters) {
+    if ((filters.isNeg && !revealNeg) || (filters.isLowOffers && !revealMin)) return true;
+  } else {
+    if ((card.classList?.contains('tp-negative-filtered') && !revealNeg) ||
+        (card.classList?.contains('tp-min-offers-filtered') && !revealMin) ||
+        (card.classList?.contains('tp-baddeal-hidden') && !revealBad) ||
+        (card.classList?.contains('tp-unchecked-hidden') && !revealUnchecked)) {
+      return true;
     }
+    // ponytail: no page context here; callers with a card list must pass
+    // explicit filters built with the real pageHasOffers (feed cards have
+    // no offer counts, so assuming true wrongly filters the whole feed).
+    const termsList = parseNegativeTerms();
+    const offerCount = extractOfferCount(card);
+    const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+    const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+    if ((f.isNeg && !revealNeg) || (f.isLowOffers && !revealMin)) return true;
   }
   const tab = card.closest?.('.f_tab');
   if (tab && !tab.classList.contains('selected')) return true;

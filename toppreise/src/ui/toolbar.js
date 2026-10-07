@@ -134,14 +134,20 @@ function buildWeightWrapper() {
 }
 
 
-export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 }, pageHasOffers = false, isDealFeed = false) {
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
   let bar = document.getElementById('tp-suite-filter-bar');
-  const isRevealed = document.body.classList.contains('tp-reveal-filtered');
-  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.bestpreiseHidden || 0);
   const bestpreiseDeals = counts.bestpreiseDeals || 0;
+  const revealNeg = document.body.classList.contains('tp-reveal-neg');
+  const revealMin = document.body.classList.contains('tp-reveal-min');
+  const revealBad = document.body.classList.contains('tp-reveal-baddeals');
+  const revealUnchecked = document.body.classList.contains('tp-reveal-unchecked');
+  const negHidden = counts.neg || 0;
+  const minHidden = counts.min || 0;
+  const badHidden = counts.badDeals || 0;
+  const uncheckedHiddenCount = counts.uncheckedHidden || 0;
 
   if (!bar) {
     bar = document.createElement('div');
@@ -179,9 +185,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
        <span class="tp-divider" aria-hidden="true"></span>
        <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
         <span class="tp-group-label" aria-hidden="true">Ansicht</span>
-        <button class="tp-bar-btn ${isRevealed ? 'tp-active' : ''}" id="tp-bar-reveal-btn" title="Durch Suite-Filter ausgeblendete Produkte anzeigen/verbergen (native Kategorie-Ausschlüsse bleiben aktiv)">
-          👁️ <span id="tp-bar-reveal-count">${totalHidden}</span> <span class="tp-btn-sub">versteckt</span>
-        </button>
+        <button class="tp-bar-btn ${revealNeg ? 'tp-active' : ''}" id="tp-bar-reveal-neg" title="Durch Negativ-Filter ausgeblendete Produkte (${negHidden}) anzeigen — klicken zum Ein-/Ausblenden">Gefilterte (${negHidden})</button>
+        <button class="tp-bar-btn ${revealMin ? 'tp-active' : ''}" id="tp-bar-reveal-min" title="Produkte mit zu wenigen Angeboten (${minHidden}) anzeigen — klicken zum Ein-/Ausblenden">Wenig Angebote (${minHidden})</button>
+        <button class="tp-bar-btn ${revealBad ? 'tp-active' : ''}" id="tp-bar-reveal-baddeals" title="Verifizierte Nicht-Deals mit Aufschlag (${badHidden}) anzeigen — klicken zum Ein-/Ausblenden">Schlechte Deals (${badHidden})</button>
+        <button class="tp-bar-btn ${revealUnchecked ? 'tp-active' : ''}" id="tp-bar-reveal-unchecked" title="Noch ungeprüfte Deals (${uncheckedHiddenCount}) anzeigen — klicken zum Ein-/Ausblenden">Ungeprüfte (${uncheckedHiddenCount})</button>
         <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
@@ -229,10 +236,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       updateConfig('NEGATIVE_TERMS', '');
     };
 
-    bar.querySelector('#tp-bar-reveal-btn').onclick = () => {
-      document.body.classList.toggle('tp-reveal-filtered');
-      triggerProcessListings();
+    const bindReveal = (id, flag) => {
+      bar.querySelector('#' + id).onclick = () => {
+        document.body.classList.toggle(flag);
+        triggerProcessListings();
+      };
     };
+    bindReveal('tp-bar-reveal-neg', 'tp-reveal-neg');
+    bindReveal('tp-bar-reveal-min', 'tp-reveal-min');
+    bindReveal('tp-bar-reveal-baddeals', 'tp-reveal-baddeals');
+    bindReveal('tp-bar-reveal-unchecked', 'tp-reveal-unchecked');
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
       const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -295,9 +308,18 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     if (clearBtn) clearBtn.style.display = CONFIG.NEGATIVE_TERMS ? 'block' : 'none';
   }
 
-  bar.querySelector('#tp-bar-reveal-btn')?.classList.toggle('tp-active', isRevealed);
-  const revealCount = bar.querySelector('#tp-bar-reveal-count');
-  if (revealCount) revealCount.textContent = totalHidden > 0 ? `${totalHidden}` : '0';
+  const syncRevealBtn = (id, label, count, flag, titleBase) => {
+    const b = bar.querySelector('#' + id);
+    if (!b) return;
+    b.style.setProperty('display', count > 0 ? 'flex' : 'none', 'important');
+    b.classList.toggle('tp-active', document.body.classList.contains(flag));
+    b.textContent = `${label} (${count})`;
+    b.title = `${titleBase} (${count}) anzeigen — klicken zum Ein-/Ausblenden`;
+  };
+  syncRevealBtn('tp-bar-reveal-neg', 'Gefilterte', negHidden, 'tp-reveal-neg', 'Durch Negativ-Filter ausgeblendete Produkte');
+  syncRevealBtn('tp-bar-reveal-min', 'Wenig Angebote', minHidden, 'tp-reveal-min', 'Produkte mit zu wenigen Angeboten');
+  syncRevealBtn('tp-bar-reveal-baddeals', 'Schlechte Deals', badHidden, 'tp-reveal-baddeals', 'Verifizierte Nicht-Deals mit Aufschlag');
+  syncRevealBtn('tp-bar-reveal-unchecked', 'Ungeprüfte', uncheckedHiddenCount, 'tp-reveal-unchecked', 'Noch ungeprüfte Deals');
 
   const heatBtn = bar.querySelector('#tp-bar-heat-btn');
   if (heatBtn) {

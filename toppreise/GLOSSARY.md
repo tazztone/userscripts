@@ -18,3 +18,7 @@ _Avoid_: Site-Rabatt, Site-%
 **Prüfen**:
 Eine Differenz anhand der Preishistorie verifizieren und dadurch in einen Tiefstpreis (oder Aufschlag) auflösen.
 _Avoid_: Check Deals, checken
+
+**Schlechter Deal**:
+Geprüfter Preis, der kein Tiefstpreis ist (Aufschlag gegenüber dem historischen Tief); im Tiefstpreise-Modus ausgeblendet.
+_Avoid_: Non-Deal

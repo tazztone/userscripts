@@ -349,7 +349,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // sortiert; die Gewichtung setzt zusätzlich die Emphase: Unter 50%
         // Rekord führt das Badge den Ø-Rabatt (Farbe folgt mit — Zahl und
         // Farbe stimmen immer überein, Rek/Ø stehen beide in der Pille).
-        card.classList.remove('tp-bestpreise-hidden');
+        card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
@@ -457,9 +457,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // — never preserved — so a stats regression can't strand a stale
         // verified-% badge on a card whose heat is gone.
         if (CONFIG.BESTPREISE_MODE_ACTIVE === true) {
-          card.classList.add('tp-bestpreise-hidden');
+          card.classList.add('tp-baddeal-hidden');
         } else {
-          card.classList.remove('tp-bestpreise-hidden');
+          card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
         }
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
         card.querySelector('.tp-card-historical-price')?.remove();
@@ -490,8 +490,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       } else {
         // Unscanned card (!stats) -> loupe / loading spinner. Hidden only
         // when "Nur Geprüfte" is on; otherwise kept visible for checking.
-        card.classList.remove('tp-bestpreise-hidden');
-        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
+        card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
+        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
         if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
@@ -522,7 +522,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         card.querySelector('.tp-card-historical-price')?.remove();
       }
     } else {
-      card.classList.remove('tp-bestpreise-hidden');
+      card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
       badgeDifEl.classList.remove('tp-deal-new-record');
       card.querySelector('.tp-badge-score-breakdown')?.remove();
 
@@ -653,7 +653,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
       } else {
         // 1A: Unchecked State (Subtle Mini Loupe + Hover Scale + Tooltip)
-        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
+        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
 
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
@@ -671,7 +671,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       }
     }
   } else {
-    card.classList.remove('tp-bestpreise-hidden');
+    card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
     card.querySelector('.tp-card-historical-price')?.remove();
   }
 
@@ -746,13 +746,18 @@ export function renderEmptyState(cards, counts) {
     return;
   }
 
-  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.bestpreiseHidden || 0);
-  const isRevealed = document.body.classList.contains('tp-reveal-filtered');
+  const bodyCls = document.body.classList;
+  const revealNeg = bodyCls.contains('tp-reveal-neg');
+  const revealMin = bodyCls.contains('tp-reveal-min');
+  const revealBad = bodyCls.contains('tp-reveal-baddeals');
+  const revealUnchecked = bodyCls.contains('tp-reveal-unchecked');
+  // Effective hidden count: each cause counts only while its own reveal flag is off.
+  const totalHidden = (revealNeg ? 0 : (counts.neg || 0)) + (revealMin ? 0 : (counts.min || 0)) + (revealBad ? 0 : (counts.badDeals || 0)) + (revealUnchecked ? 0 : (counts.uncheckedHidden || 0));
 
   const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
-  if (cards.length > 0 && totalHidden >= cards.length && !isRevealed) {
+  if (cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}`;
+    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}:${revealNeg}:${revealMin}:${revealBad}:${revealUnchecked}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -788,7 +793,10 @@ export function renderEmptyState(cards, counts) {
     });
 
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
-      document.body.classList.toggle('tp-reveal-filtered');
+      const cls = document.body.classList;
+      const flags = ['tp-reveal-neg', 'tp-reveal-min', 'tp-reveal-baddeals', 'tp-reveal-unchecked'];
+      if (flags.every(f => cls.contains(f))) flags.forEach(f => cls.remove(f));
+      else flags.forEach(f => cls.add(f));
       triggerProcessListings();
     });
     emptyNotice.querySelector('#tp-empty-disable-bestpreise-btn')?.addEventListener('click', () => {

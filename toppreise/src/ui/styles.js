@@ -144,18 +144,21 @@ export const STYLES = `
   }
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-not-cheapest,
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-no-store-offer,
-  .tp-negative-filtered, .tp-min-offers-filtered, .tp-bestpreise-hidden,
+  .tp-negative-filtered, .tp-min-offers-filtered, .tp-baddeal-hidden, .tp-unchecked-hidden,
   [class*="col-"]:has(> .tp-negative-filtered),
   [class*="col-"]:has(> .tp-min-offers-filtered),
-  [class*="col-"]:has(> .tp-bestpreise-hidden) {
+  [class*="col-"]:has(> .tp-baddeal-hidden),
+  [class*="col-"]:has(> .tp-unchecked-hidden) {
     display: none !important;
   }
-  body.tp-reveal-filtered .tp-negative-filtered,
-  body.tp-reveal-filtered .tp-min-offers-filtered,
-  body.tp-reveal-filtered .tp-bestpreise-hidden,
-  body.tp-reveal-filtered [class*="col-"]:has(> .tp-negative-filtered),
-  body.tp-reveal-filtered [class*="col-"]:has(> .tp-min-offers-filtered),
-  body.tp-reveal-filtered [class*="col-"]:has(> .tp-bestpreise-hidden) {
+  body.tp-reveal-neg .tp-negative-filtered,
+  body.tp-reveal-neg [class*="col-"]:has(> .tp-negative-filtered),
+  body.tp-reveal-min .tp-min-offers-filtered,
+  body.tp-reveal-min [class*="col-"]:has(> .tp-min-offers-filtered),
+  body.tp-reveal-baddeals .tp-baddeal-hidden,
+  body.tp-reveal-baddeals [class*="col-"]:has(> .tp-baddeal-hidden),
+  body.tp-reveal-unchecked .tp-unchecked-hidden,
+  body.tp-reveal-unchecked [class*="col-"]:has(> .tp-unchecked-hidden) {
     display: block !important;
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
