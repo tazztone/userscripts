@@ -628,10 +628,10 @@ def test_negative_terms_multi_delimiter_support(page: Page):
 
 
 def test_bestpreise_filter_bar_toggle_and_state(page: Page):
-    # Verify button exists in filter bar
-    btn = page.locator('#tp-suite-filter-bar #tp-bar-bestpreise-btn')
+    # Button lives in the native Zeitraum row (moved out of the suite bar)
+    btn = page.locator('#tp-bar-bestpreise-btn')
     assert btn.is_visible()
-    assert '💎 Neue Tiefstpreise' in (btn.text_content() or '')
+    assert btn.evaluate("e => e.closest('#timeframe-filter') !== null")
 
     # Toggle Tiefstpreise mode ON
     btn.click()
@@ -856,7 +856,7 @@ def test_realistic_page_layout_sidebar_and_tabs_preserved_in_bestpreise_mode(pag
     assert page.locator('#main-content').is_visible()
 
     # Toggle Tiefstpreise mode ON
-    page.click('#tp-suite-filter-bar #tp-bar-bestpreise-btn')
+    page.click('#tp-bar-bestpreise-btn')
 
     # Sidebar, tabs, and layout rows MUST remain 100% visible
     assert page.locator('#sidebar-categories').is_visible()
@@ -865,7 +865,7 @@ def test_realistic_page_layout_sidebar_and_tabs_preserved_in_bestpreise_mode(pag
     assert page.locator('#main-content').is_visible()
 
     # Toggle Tiefstpreise mode OFF
-    page.click('#tp-suite-filter-bar #tp-bar-bestpreise-btn')
+    page.click('#tp-bar-bestpreise-btn')
     assert page.locator('#sidebar-categories').is_visible()
     assert page.locator('#feed-tabs').is_visible()
 

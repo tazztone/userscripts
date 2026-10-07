@@ -52,6 +52,35 @@ function syncMiniToggle(input, enabled, titleBase) {
     scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
   }
 }
+function bindBestpreiseBtn(btn) {
+  btn.onclick = () => {
+    const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
+    cancelBestpreiseScan();
+    updateConfig('BESTPREISE_MODE_ACTIVE', next);
+    showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
+  };
+}
+
+function ensureBestpreisePlacement(isDealFeed) {
+  const tf = document.querySelector('#timeframe-filter') || document.querySelector('.Plugin_TimePeriod');
+  let btn = document.getElementById('tp-bar-bestpreise-btn');
+  if (!isDealFeed || !tf) {
+    if (btn) {
+      const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
+      if (home && btn.parentElement !== home) home.prepend(btn);
+    }
+    return;
+  }
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'tp-bar-bestpreise-btn';
+    btn.type = 'button';
+    btn.className = 'tp-bar-btn';
+    btn.title = 'Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren';
+    bindBestpreiseBtn(btn);
+  }
+  if (btn.parentElement !== tf) tf.prepend(btn);
+}
 
 
 export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 }, pageHasOffers = false, isDealFeed = false) {
@@ -160,14 +189,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     };
 
     const bestpreiseToggleBtn = bar.querySelector('#tp-bar-bestpreise-btn');
-    if (bestpreiseToggleBtn) {
-      bestpreiseToggleBtn.onclick = () => {
-        const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
-        cancelBestpreiseScan();
-        updateConfig('BESTPREISE_MODE_ACTIVE', next);
-        showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
-      };
-    }
+    if (bestpreiseToggleBtn) bindBestpreiseBtn(bestpreiseToggleBtn);
     const hideUncheckedBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
     if (hideUncheckedBtn) {
       hideUncheckedBtn.onclick = () => {
@@ -256,7 +278,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     heatBtn.style.setProperty('display', 'flex', 'important');
   }
 
-  const bestpreiseBtn = bar.querySelector('#tp-bar-bestpreise-btn');
+  const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
     bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
@@ -293,4 +315,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (minGroup) minGroup.style.display = pageHasOffers ? 'flex' : 'none';
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
+
+  ensureBestpreisePlacement(isDealFeed);
 }

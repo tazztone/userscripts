@@ -540,6 +540,10 @@ export const STYLES = `
     border-color: rgba(139, 92, 246, 0.45) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(139, 92, 246, 0.2) !important;
   }
+  #timeframe-filter #tp-bar-bestpreise-btn {
+    margin-right: auto !important;
+    flex-shrink: 0 !important;
+  }
   .tp-bar-btn.tp-disabled {
     opacity: 0.45 !important;
     cursor: not-allowed !important;
