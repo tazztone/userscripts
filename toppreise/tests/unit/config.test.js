@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightDescText, DEFAULTS } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, DEFAULTS } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -52,15 +52,15 @@ describe('Config dual-layer storage', () => {
 
 });
 
-describe('weightDescText (worked example moves with the slider)', () => {
+describe('weightText desc (worked example moves with the slider)', () => {
   it('shows Score 18 at 50/50 for the demo Rek -10% + O -25%', () => {
-    const text = weightDescText(0.50);
+    const text = weightText(0.50, 'desc');
     assert.ok(text.includes('Score 18'));
     assert.ok(text.includes('Farb-Emphase'));
   });
 
   it('moves the demo score with the weight (pure Rekord / pure O)', () => {
-    assert.ok(weightDescText(1.00).includes('Score 10'));
-    assert.ok(weightDescText(0.00).includes('Score 25'));
+    assert.ok(weightText(1.00, 'desc').includes('Score 10'));
+    assert.ok(weightText(0.00, 'desc').includes('Score 25'));
   });
 });

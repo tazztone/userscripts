@@ -6,7 +6,6 @@
 
 import { CONFIG } from '../state/config.js';
 import { parsePrice } from '../domain/price.js';
-import { getProductCards } from './cards.js';
 
 export function clearCardCache(card) {
   if (!card) return;
@@ -88,19 +87,6 @@ export function isProductDetailPage() {
          (!!document.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle') && !!getDetailProductId());
 }
 
-export function getPageType() {
-  if (isProductDetailPage()) return 'detail';
-  if (isNeueToppreisePage()) return 'deal-feed';
-  return 'list';
-}
-
-export function getListingCards() {
-  return getProductCards();
-}
-
-export function getResultContainer() {
-  return document.querySelector('#Page_ListTopPriceReductionProducts, #Page_ListTop100Products, [id^="Page_List"], #Page_Browsing, .f_browsingListContainer, #Plugin_MixedBrowsingList, .standardList, #product-list');
-}
 
 export function triggerProcessListings() {
   if (typeof processListings === 'function') {

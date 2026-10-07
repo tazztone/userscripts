@@ -4,18 +4,9 @@
  * with color-coded trend indicators and interactive tooltips.
  */
 
-import { parsePrice } from '../domain/price.js';
-
-export function renderSparkline(timeSeries, width = 60, height = 18) {
+export function renderSparkline(timeSeries, width, height) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
-  const prices = timeSeries.map(p => {
-    if (Array.isArray(p)) return typeof p[1] === 'number' ? p[1] : parsePrice(String(p[1]));
-    if (typeof p === 'number') return p;
-    if (p && typeof p.price === 'number') return p.price;
-    if (p && p.price) return parsePrice(String(p.price));
-    if (p && p.y) return typeof p.y === 'number' ? p.y : parsePrice(String(p.y));
-    return 0;
-  }).filter(p => p > 0);
+  const prices = timeSeries.map(p => Array.isArray(p) ? +p[1] : 0).filter(p => p > 0);
 
   if (prices.length < 2) return null;
 

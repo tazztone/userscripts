@@ -10,32 +10,27 @@ export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
 export const MAX_MEMORY_CACHE_ITEMS = 500;
 
 export const memoryCache = new Map();
-let lastPruneTimestamp = 0;
 
-export function isCacheEntryFresh(parsed, ignoreNegativeCache = false, options = {}) {
+export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
   if (!parsed) return false;
-  const now = options.now || Date.now();
-  const ageMs = now - (parsed.time || 0);
+  const ageMs = Date.now() - (parsed.time || 0);
 
   if (parsed.unavailable) {
     if (ignoreNegativeCache) return false;
-    const negHours = options.negativeCacheHours ?? CONFIG.NEGATIVE_CACHE_HOURS;
+    const negHours = CONFIG.NEGATIVE_CACHE_HOURS;
     const negTtlMs = (negHours || 2) * 3600 * 1000;
     return ageMs < negTtlMs;
   }
 
-  const realHours = options.realDealCacheHours ?? CONFIG.REAL_DEAL_CACHE_HOURS;
+  const realHours = CONFIG.REAL_DEAL_CACHE_HOURS;
   const ttlMs = (realHours || 48) * 3600 * 1000;
   return ageMs < ttlMs;
 }
 
-export function prunePriceStatsCache(force = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!storage) return;
-  const now = Date.now();
-  if (!force && now - lastPruneTimestamp < 10 * 60 * 1000) return;
-  lastPruneTimestamp = now;
-
   try {
+    const now = Date.now();
     const maxAgeMs = 14 * 24 * 3600 * 1000;
     const entries = [];
     const keysToRemove = [];
@@ -66,6 +61,12 @@ export function prunePriceStatsCache(force = false, storage = (typeof window !==
   } catch (e) {}
 }
 
+function evictIfFull() {
+  if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
+    memoryCache.delete(memoryCache.keys().next().value);
+  }
+}
+
 export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!productId) return null;
   try {
@@ -87,10 +88,7 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
 
     if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
       memoryCache.set(productId, parsed);
-      if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
-        const firstKey = memoryCache.keys().next().value;
-        memoryCache.delete(firstKey);
-      }
+      evictIfFull();
       return parsed;
     }
   } catch (e) {}
@@ -112,13 +110,10 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
     : { ...stats, time: Date.now() };
 
   memoryCache.set(productId, payload);
-  if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
-    const firstKey = memoryCache.keys().next().value;
-    memoryCache.delete(firstKey);
-  }
+  evictIfFull();
 
   try {
-    prunePriceStatsCache(false, storage);
+    prunePriceStatsCache(storage);
     storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload));
   } catch (e) {}
 }
@@ -138,13 +133,6 @@ export function countCachedPriceStats(storage = (typeof window !== 'undefined' ?
   return count;
 }
 
-export function clearCachedPriceStats(productId, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
-  if (!productId) return;
-  memoryCache.delete(productId);
-  try {
-    storage?.removeItem(STATS_CACHE_PREFIX + productId);
-  } catch (e) {}
-}
 
 export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   memoryCache.clear();

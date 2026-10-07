@@ -6,13 +6,11 @@
 
 import { getDetailProductId, getDetailLowestPrice } from '../page/adapter.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
-import { getDealState } from '../domain/deal-score.js';
+import { getDisplayDelta } from '../domain/deal-score.js';
 import { activeFetches, fetchSingleProductPriceStats } from '../scanner/scanner.js';
 
-let isProcessingDetail = false;
 
 export async function processProductDetailPage() {
-  if (isProcessingDetail) return;
   const pid = getDetailProductId();
   if (!pid) return;
 
@@ -39,8 +37,8 @@ export async function processProductDetailPage() {
       headingEl.appendChild(badge);
     }
 
-    const state = getDealState(currentPrice, stats.tiefstpreis);
-    const isAllTimeLow = (state === 'new-low' || state === 'at-low');
+    const displayKind = getDisplayDelta(currentPrice, stats).kind;
+    const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
     const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
 
     if (isAllTimeLow) {
@@ -61,12 +59,7 @@ export async function processProductDetailPage() {
       badge.textContent = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
     }
   } else if (!activeFetches.has(pid)) {
-    isProcessingDetail = true;
-    try {
-      await fetchSingleProductPriceStats(pid);
-    } finally {
-      isProcessingDetail = false;
-    }
+    await fetchSingleProductPriceStats(pid);
     const fetchedStats = getCachedPriceStats(pid);
     if (fetchedStats && !fetchedStats.unavailable && fetchedStats.tiefstpreis > 0) {
       processProductDetailPage();

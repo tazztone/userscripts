@@ -44,8 +44,6 @@ export function processPriceAlarmModal() {
   }
 
   if (CONFIG.ALARM_AUTO_SUBMIT) {
-    const submitDelay = Math.max(0, CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300);
-    const closeDelay = Math.max(0, CONFIG.ALARM_CLOSE_DELAY_MS ?? 800);
     setTimeout(() => {
       const submitBtn = modalContainer.querySelector('input.f_submitbtn');
       if (submitBtn) {
@@ -55,9 +53,9 @@ export function processPriceAlarmModal() {
           const closeBtn = modalContainer.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
-        }, closeDelay);
+        }, 800);
       }
-    }, submitDelay);
+    }, 300);
   }
 }
 

@@ -5,7 +5,7 @@ import {
   sanitizeTimeSeries,
   analyzePriceTimeSeries
 } from './domain/price.js';
-import { computeDealScore, getDisplayDelta, getHeatInput, getPriceLevel } from './domain/deal-score.js';
+import { computeDealScore } from './domain/deal-score.js';
 import { memoryCache } from './scanner/cache.js';
 import {
   getProductCards,
@@ -37,7 +37,6 @@ import {
   CONFIG,
   saveConfigKey,
   updateConfig,
-  updateConfigs,
   updateBodyClasses
 } from './state/config.js';
 import {
@@ -52,7 +51,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.85
+// @version      2.18.86
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -108,7 +107,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 };
+      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
@@ -146,7 +145,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       }
 
       // --- Sort ---
-      applySorting(cards, pageHasOffers);
+      applySorting(cards, pageHasOffers, cardDataList);
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
@@ -263,27 +262,16 @@ import { processProductDetailPage } from './features/product-detail.js';
     window.ToppreiseSuite = {
       processListings,
       processProductDetailPage,
-      processPriceAlarmModal,
-      applySorting,
-      computeDealScore,
-      getDisplayDelta,
-      getHeatInput,
-      getPriceLevel,
-      analyzePriceTimeSeries,
-      sanitizeTimeSeries,
-      renderFloatingCTA,
-      hideFloatingCTA,
+      updateConfig,
+      saveConfigKey,
       startBatchCheck,
-      runBestpreiseScan,
-      cancelBestpreiseScan,
       runBatchDealCheck,
       cancelBatchDealCheck,
-      isCardFilteredOut,
-      saveConfigKey,
-      updateConfig,
-      updateConfigs,
       getCardDealerRows,
+      isCardFilteredOut,
       clearCardCache,
+      computeDealScore,
+      analyzePriceTimeSeries,
       parsePrice,
       isShippingPriceActive,
       CONFIG,

@@ -8,6 +8,7 @@ import {
   setCachedPriceStats,
   clearPriceStatsCache
 } from '../../src/scanner/cache.js';
+import { CONFIG } from '../../src/state/config.js';
 
 describe('Bounded Cache Module', () => {
   beforeEach(() => {
@@ -52,23 +53,35 @@ describe('Bounded Cache Module', () => {
 
   describe('isCacheEntryFresh', () => {
     it('enforces regular cache TTL (default 48h)', () => {
-      const now = Date.now();
-      const freshEntry = { tiefstpreis: 100, time: now - 40 * 3600 * 1000 };
-      const expiredEntry = { tiefstpreis: 100, time: now - 50 * 3600 * 1000 };
+      const prev = CONFIG.REAL_DEAL_CACHE_HOURS;
+      CONFIG.REAL_DEAL_CACHE_HOURS = 48;
+      try {
+        const now = Date.now();
+        const freshEntry = { tiefstpreis: 100, time: now - 40 * 3600 * 1000 };
+        const expiredEntry = { tiefstpreis: 100, time: now - 50 * 3600 * 1000 };
 
-      assert.equal(isCacheEntryFresh(freshEntry, false, { realDealCacheHours: 48 }), true);
-      assert.equal(isCacheEntryFresh(expiredEntry, false, { realDealCacheHours: 48 }), false);
+        assert.equal(isCacheEntryFresh(freshEntry), true);
+        assert.equal(isCacheEntryFresh(expiredEntry), false);
+      } finally {
+        CONFIG.REAL_DEAL_CACHE_HOURS = prev;
+      }
     });
 
     it('enforces negative cache TTL (default 2h)', () => {
-      const now = Date.now();
-      const freshNeg = { unavailable: true, time: now - 1 * 3600 * 1000 };
-      const expiredNeg = { unavailable: true, time: now - 3 * 3600 * 1000 };
+      const prev = CONFIG.NEGATIVE_CACHE_HOURS;
+      CONFIG.NEGATIVE_CACHE_HOURS = 2;
+      try {
+        const now = Date.now();
+        const freshNeg = { unavailable: true, time: now - 1 * 3600 * 1000 };
+        const expiredNeg = { unavailable: true, time: now - 3 * 3600 * 1000 };
 
-      assert.equal(isCacheEntryFresh(freshNeg, false, { negativeCacheHours: 2 }), true);
-      assert.equal(isCacheEntryFresh(expiredNeg, false, { negativeCacheHours: 2 }), false);
-      // ignoreNegativeCache bypasses cache freshness for negative entries
-      assert.equal(isCacheEntryFresh(freshNeg, true, { negativeCacheHours: 2 }), false);
+        assert.equal(isCacheEntryFresh(freshNeg), true);
+        assert.equal(isCacheEntryFresh(expiredNeg), false);
+        // ignoreNegativeCache bypasses cache freshness for negative entries
+        assert.equal(isCacheEntryFresh(freshNeg, true), false);
+      } finally {
+        CONFIG.NEGATIVE_CACHE_HOURS = prev;
+      }
     });
   });
 

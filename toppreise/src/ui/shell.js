@@ -8,9 +8,6 @@
 import { SHADOW_MODAL_STYLES } from "./styles.js";
 
 export let uiShadowRoot = null;
-export function getUiShadowRoot() {
-  return uiShadowRoot;
-}
 
 export function ensureSkeleton() {
   let host = document.getElementById('tp-root');

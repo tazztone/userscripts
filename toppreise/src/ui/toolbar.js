@@ -5,15 +5,15 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { CONFIG, updateConfig, weightShortText, weightTitleText } from "../state/config.js";
+import { CONFIG, updateConfig, weightText } from "../state/config.js";
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
-import { getScanState } from "../state/store.js";
+import { scanState } from "../state/store.js";
 import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 
-export function getSuiteBarPlacement() {
+function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');
   const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
   const targets = ['#Page_ListTopPriceReductionProducts', '#Page_ListTop100Products', '[id^="Page_List"]', '#Page_Browsing', '.f_browsingListContainer', '#Plugin_MixedBrowsingList', '.standardList', '#product-list'];
@@ -37,14 +37,30 @@ const DIM_TARGETS_BY_TOGGLE = {
   'tp-toggle-neg': ['.tp-input-field-box'],
   'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
 };
+function syncMiniToggle(input, enabled, titleBase) {
+  if (!input) return;
+  input.checked = !!enabled;
+  const label = input.closest?.('.tp-mini-switch');
+  const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+  if (label) label.title = title;
+  const state = label?.querySelector('.tp-mini-state');
+  if (state) state.textContent = enabled ? 'ON' : 'OFF';
+  const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+  const caption = scope?.querySelector('.tp-mini-caption');
+  if (caption) caption.title = title;
+  for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
+    scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
+  }
+}
 
-export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, uncheckedDeals: 0, bestpreiseDeals: 0 }, pageHasOffers = false, isDealFeed = false) {
+
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
   let bar = document.getElementById('tp-suite-filter-bar');
   const isRevealed = document.body.classList.contains('tp-reveal-filtered');
-  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
+  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.bestpreiseHidden || 0);
   const bestpreiseDeals = counts.bestpreiseDeals || 0;
 
   if (!bar) {
@@ -170,8 +186,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     const paintWeightLabel = () => {
       if (!weightLabel) return;
       const w = readWeight();
-      weightLabel.textContent = `⚖️ ${weightShortText(w)}`;
-      weightLabel.title = weightTitleText(w);
+      weightLabel.textContent = `⚖️ ${weightText(w, 'short')}`;
+      weightLabel.title = weightText(w, 'title');
     };
     if (weightRange) {
       paintWeightLabel();
@@ -200,21 +216,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
 
     bar.querySelector('#tp-bar-min-minus').onclick = () => updateMinOffers(-1);
     bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
-    const syncMiniToggle = (input, enabled, titleBase) => {
-      if (!input) return;
-      input.checked = !!enabled;
-      const label = input.closest?.('.tp-mini-switch');
-      const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
-      if (label) label.title = title;
-      const state = label?.querySelector('.tp-mini-state');
-      if (state) state.textContent = enabled ? 'ON' : 'OFF';
-      const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-      const caption = scope?.querySelector('.tp-mini-caption');
-      if (caption) caption.title = title;
-      for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
-        scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
-      }
-    };
     const bindMiniToggle = (id, key, titleBase, onMsg, offMsg) => {
       const el = bar.querySelector('#' + id);
       if (!el) return;
@@ -259,7 +260,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
     bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-    if (getScanState().isBestpreiseScanning) {
+    if (scanState.isBestpreiseScanning) {
       // Leave dynamic text during scan
     } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
@@ -268,26 +269,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
     }
   }
 
-  const syncBarMiniToggle = (id, enabled, titleBase) => {
-    const el = bar.querySelector('#' + id);
-    if (!el) return;
-    el.checked = !!enabled;
-    const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
-    const label = el.closest?.('.tp-mini-switch');
-    if (label) label.title = title;
-    const state = label?.querySelector('.tp-mini-state');
-    if (state) state.textContent = enabled ? 'ON' : 'OFF';
-    const scope = el.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-    const caption = scope?.querySelector('.tp-mini-caption');
-    if (caption) caption.title = title;
-    // OFF dims the tool the toggle belongs to (input/stepper stay editable).
-    const dimTargets = DIM_TARGETS_BY_TOGGLE[id] || [];
-    for (const sel of dimTargets) {
-      scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
-    }
-  };
-  syncBarMiniToggle('tp-toggle-neg', CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
-  syncBarMiniToggle('tp-toggle-min', CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
+  syncMiniToggle(bar.querySelector('#tp-toggle-neg'), CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
+  syncMiniToggle(bar.querySelector('#tp-toggle-min'), CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
@@ -298,8 +281,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, nonBest: 0, unch
   }
   const weightLabel = bar.querySelector('#tp-bar-weight-label');
   if (weightLabel) {
-    weightLabel.textContent = `⚖️ ${weightShortText(curWeight)}`;
-    weightLabel.title = weightTitleText(curWeight);
+    weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
+    weightLabel.title = weightText(curWeight, 'title');
   }
   const weightWrapper = bar.querySelector('#tp-bar-weight-wrapper');
   if (weightWrapper) {

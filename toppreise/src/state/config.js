@@ -10,32 +10,26 @@ import { uiShadowRoot } from '../ui/shell.js';
 // and sets its headline emphasis (Rekord vs Ø) — badge numbers always show both.
 // The worked example uses fixed demo numbers so dragging the slider visibly
 // moves the result (Rek −10%, Ø −25%).
-export function weightDescText(weightRecord) {
-  const pct = Math.round((weightRecord ?? 0.5) * 100);
+export function weightText(weightRecord, style) {
+  const w = weightRecord ?? 0.50;
+  if (style === 'short') {
+    if (Math.abs(w - 1.00) < 0.05) return '100% Rek';
+    if (Math.abs(w - 0.70) < 0.05) return '70/30';
+    if (Math.abs(w - 0.50) < 0.05) return '50/50';
+    if (Math.abs(w - 0.30) < 0.05) return '30/70';
+    if (Math.abs(w - 0.00) < 0.05) return '100% Med';
+    return `${Math.round(w * 100)}% Rek`;
+  }
+  if (style === 'title') {
+    const pctRec = Math.round(w * 100);
+    return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt Rekord & Ø.`;
+  }
+  const pct = Math.round(w * 100);
   const score = Math.round(((100 - pct) * 25 + pct * 10) / 100);
   const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
     : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
     : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
   return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
-}
-
-// Compact toolbar readout for the same weight (shared by toolbar + bar sync
-// so both always print the same short label).
-export function weightShortText(weightRecord) {
-  const w = weightRecord ?? 0.50;
-  if (Math.abs(w - 1.00) < 0.05) return '100% Rek';
-  if (Math.abs(w - 0.70) < 0.05) return '70/30';
-  if (Math.abs(w - 0.50) < 0.05) return '50/50';
-  if (Math.abs(w - 0.30) < 0.05) return '30/70';
-  if (Math.abs(w - 0.00) < 0.05) return '100% Med';
-  return `${Math.round(w * 100)}% Rek`;
-}
-
-// Tooltip for the toolbar weight slider: current mix + what it steers.
-export function weightTitleText(weightRecord) {
-  const w = weightRecord ?? 0.50;
-  const pctRec = Math.round(w * 100);
-  return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt Rekord & Ø.`;
 }
 
 export const DEFAULTS = Object.freeze({
@@ -47,8 +41,6 @@ export const DEFAULTS = Object.freeze({
   USE_SHIPPING_PRICE: true,
   HEATMAP_ENABLED: true,
   HEATMAP_INTENSITY: 1.0,
-  // Legacy: superseded by BESTPREISE_MODE_ACTIVE.
-  REAL_DEAL_FILTER_ACTIVE: false,
   REAL_DEAL_MIN_DISCOUNT: 30,
   REAL_DEAL_CACHE_HOURS: 48,
   NEGATIVE_CACHE_HOURS: 2,
@@ -65,8 +57,6 @@ export const DEFAULTS = Object.freeze({
   ALARM_TARGET_PERCENT: 0.60,
   ALARM_DURATION_DAYS: '730',
   ALARM_AUTO_SUBMIT: true,
-  ALARM_SUBMIT_DELAY_MS: 300,
-  ALARM_CLOSE_DELAY_MS: 800,
   OBSERVER_DEBOUNCE_MS: 200,
   SHOW_ADVANCED: false,
   DEBUG: true
@@ -113,11 +103,14 @@ export const CONFIG = {
   USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
   HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
   HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-  REAL_DEAL_FILTER_ACTIVE: _getValue('REAL_DEAL_FILTER_ACTIVE', DEFAULTS.REAL_DEAL_FILTER_ACTIVE),
   REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
+  REAL_DEAL_CACHE_HOURS: parseInt(_getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
+  NEGATIVE_CACHE_HOURS: parseInt(_getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
   BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
   BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
   BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+  BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
+  OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
@@ -126,8 +119,6 @@ export const CONFIG = {
   ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
   ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
   ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
-  ALARM_SUBMIT_DELAY_MS: parseInt(_getValue('ALARM_SUBMIT_DELAY_MS', DEFAULTS.ALARM_SUBMIT_DELAY_MS)),
-  ALARM_CLOSE_DELAY_MS: parseInt(_getValue('ALARM_CLOSE_DELAY_MS', DEFAULTS.ALARM_CLOSE_DELAY_MS)),
   OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
   SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
   DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
@@ -138,7 +129,6 @@ export const saveConfigKey = (key, val) => {
   _setValue(key, val);
 };
 
-export const CONFIG_BODY_KEYS = new Set(['MODE', 'DIM_OPACITY']);
 
 export function updateBodyClasses() {
   if (typeof document === 'undefined' || !document.body) return;
@@ -188,7 +178,7 @@ export function syncUiControl(key, val) {
           if (range) range.value = pct;
           if (valEl) valEl.value = pct;
           if (descEl) {
-            descEl.textContent = weightDescText(val);
+            descEl.textContent = weightText(val, 'desc');
           }
           // Toolbar slider mirrors the modal control (skip while dragging).
           if (typeof document !== 'undefined') {
@@ -196,8 +186,8 @@ export function syncUiControl(key, val) {
             if (barRange && document.activeElement !== barRange) barRange.value = pct;
             const barLabel = document.getElementById('tp-bar-weight-label');
             if (barLabel) {
-              barLabel.textContent = `⚖️ ${weightShortText(val)}`;
-              barLabel.title = weightTitleText(val);
+              barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
+              barLabel.title = weightText(val, 'title');
             }
           }
           break;
@@ -207,11 +197,6 @@ export function syncUiControl(key, val) {
           const valEl = shadow.getElementById('tp-real-deal-min-val');
           if (range) range.value = val;
           if (valEl) valEl.value = val;
-          break;
-        }
-        case 'REAL_DEAL_FILTER_ACTIVE': {
-          const toggle = shadow.getElementById('tp-real-deal-filter-toggle');
-          if (toggle) toggle.checked = !!val;
           break;
         }
         case 'USE_SHIPPING_PRICE': {
@@ -336,7 +321,7 @@ export function updateConfig(key, val, options = {}) {
   if (!options.skipUiSync) {
     syncUiControl(key, val);
   }
-  if (CONFIG_BODY_KEYS.has(key)) {
+  if (key === 'MODE' || key === 'DIM_OPACITY') {
     updateBodyClasses();
   }
   if (!options.skipRender && typeof processListings === 'function') {
@@ -344,11 +329,3 @@ export function updateConfig(key, val, options = {}) {
   }
 }
 
-export function updateConfigs(entries, options = {}) {
-  for (const [k, v] of Object.entries(entries)) {
-    updateConfig(k, v, { ...options, skipRender: true });
-  }
-  if (!options.skipRender && typeof processListings === 'function') {
-    processListings();
-  }
-}

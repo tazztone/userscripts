@@ -68,11 +68,6 @@ export function getProductCards() {
   return Array.from(gridCards);
 }
 
-export function getCardHrefs(card) {
-  if (!card) return [];
-  const elements = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
-  return Array.from(new Set(elements.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
-}
 
 export function extractOfferCount(card) {
   if (card.dataset?.tpOfferCount) return parseInt(card.dataset.tpOfferCount, 10);
@@ -86,7 +81,8 @@ export function getCardProductId(card) {
   if (card.dataset?.entityId) return card.dataset.entityId;
   if (card.dataset?.tpProductId) return card.dataset.tpProductId;
 
-  const hrefs = getCardHrefs(card);
+  const linkEls = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
+  const hrefs = Array.from(new Set(linkEls.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
   for (const href of hrefs) {
     const match = href.match(/-p(\d+)/);
     if (match && match[1]) {
@@ -129,14 +125,12 @@ export function extractCardDiff(card) {
     if (!isNaN(val)) {
       if (card.dataset) {
         card.dataset.tpDiff = val;
-        card.dataset.tpDiscount = val ? -val : 0;
       }
       return val;
     }
   }
   if (card.dataset) {
     card.dataset.tpDiff = '';
-    card.dataset.tpDiscount = '';
   }
   return null;
 }
@@ -262,7 +256,6 @@ export function isCardFilteredOut(card, filters = null) {
     } else {
       if (card.classList?.contains('tp-negative-filtered') ||
           card.classList?.contains('tp-min-offers-filtered') ||
-          card.classList?.contains('tp-non-bestpreis-filtered') ||
           card.classList?.contains('tp-bestpreise-hidden')) {
         return true;
       }

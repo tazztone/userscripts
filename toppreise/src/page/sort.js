@@ -11,9 +11,9 @@ import {
   extractCardDiscount,
   extractOfferCount
 } from './cards.js';
-import { computeDealScore, getPriceLevel } from '../domain/deal-score.js';
+import { computeDealScore, getLevelPct } from '../domain/deal-score.js';
 
-export function applySorting(cards, pageHasOffers) {
+export function applySorting(cards, pageHasOffers, cardDataList = null) {
   if (!cards || cards.length <= 1) return;
 
   const isCustomSortActive = CONFIG.BESTPREISE_MODE_ACTIVE ||
@@ -55,9 +55,11 @@ export function applySorting(cards, pageHasOffers) {
   if (isCustomSortActive) {
     let sortedEntries = [];
 
+    const byCard = cardDataList ? new Map(cardDataList.map(cd => [cd.card, cd])) : null;
+    const cdFor = c => byCard?.get(c) || extractCardData(c);
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       const scored = cards.map(c => {
-        const cd = extractCardData(c);
+        const cd = cdFor(c);
         const dealData = computeDealScore(cd.stats, cd.cardPrice);
         let score = -100;
         if (dealData) {
@@ -77,8 +79,8 @@ export function applySorting(cards, pageHasOffers) {
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
       const scored = cards.map(c => {
-        const cd = extractCardData(c);
-        const level = getPriceLevel(cd.cardPrice, cd.stats);
+        const cd = cdFor(c);
+        const level = getLevelPct(cd.cardPrice, cd.stats, true);
         return {
           card: c,
           item: getCardSortableUnit(c),

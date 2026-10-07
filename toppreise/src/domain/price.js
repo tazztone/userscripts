@@ -5,6 +5,7 @@
  */
 
 import { CONFIG } from '../state/config.js';
+import { isShippingPriceActive } from '../page/adapter.js';
 
 export const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
 
@@ -43,7 +44,7 @@ export const parsePrice = str => {
   return parseFloat(clean) || 0;
 };
 
-export function extractCanonicalPrice(card, options = {}) {
+export function extractCanonicalPrice(card) {
   if (!card) return { price: 0, el: null };
 
   if (!card._tpPriceInfo) {
@@ -65,14 +66,7 @@ export function extractCanonicalPrice(card, options = {}) {
 
   const { mainPriceInfo, mainShipping, mainProduct, fallbackShipping, fallbackProduct } = card._tpPriceInfo;
 
-  let useShipping = true;
-  if (typeof options.useShipping === 'boolean') {
-    useShipping = options.useShipping;
-  } else if (typeof options.isShippingActive === 'function') {
-    useShipping = options.isShippingActive(card);
-  } else if (typeof isShippingPriceActive === 'function') {
-    useShipping = isShippingPriceActive(card);
-  }
+  const useShipping = isShippingPriceActive(card);
 
   let priceEl = null;
   if (mainPriceInfo) {
@@ -171,55 +165,28 @@ export function sanitizeTimeSeries(points) {
 
   for (let i = 0; i < n; i++) {
     const [ts, price] = sorted[i];
-    const isCandidateDip = price < 0.35 * rawMedian;
-    const isCandidateSpike = price > 2.5 * rawMedian;
-
-    if (!isCandidateDip && !isCandidateSpike) {
+    // Symmetric glitch band: a point >60% off the median is a feed glitch
+    // iff it is brief (<48h) with normal neighbours on both sides; a
+    // sustained level shifts the regime and is kept. Edges need only the
+    // single adjacent neighbour (no duration context).
+    const dev = Math.abs(price - rawMedian) / rawMedian;
+    if (dev <= 0.6) {
       cleanPoints.push(sorted[i]);
       continue;
     }
 
+    const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= 0.6;
     let isGlitch = false;
-    if (isCandidateSpike) {
-      // Mirror of the dip filter: a brief spike with normal neighbours is a
-      // feed glitch; a sustained high level shifts the median and is kept.
-      const isNormal = p => p <= 1.5 * rawMedian;
-      if (i > 0 && i < n - 1) {
-        const prevPrice = sorted[i - 1][1];
-        const nextPrice = sorted[i + 1][1];
-        const nextTs = sorted[i + 1][0];
-        const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
-        if (durationHours < 48 && isNormal(prevPrice) && isNormal(nextPrice)) {
-          isGlitch = true;
-        } else if (price > 4 * rawMedian && (isNormal(prevPrice) || isNormal(nextPrice))) {
-          isGlitch = true;
-        }
-      } else if (i === 0 && n > 1) {
-        if (price > 3 * rawMedian && isNormal(sorted[1][1])) isGlitch = true;
-      } else if (i === n - 1 && n > 1) {
-        if (price > 3 * rawMedian && isNormal(sorted[n - 2][1])) isGlitch = true;
-      }
-    } else if (i > 0 && i < n - 1) {
-      const prevPrice = sorted[i - 1][1];
-      const nextPrice = sorted[i + 1][1];
+    if (i > 0 && i < n - 1) {
       const nextTs = sorted[i + 1][0];
       const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
-
-      if (durationHours < 48 && prevPrice >= 0.60 * rawMedian && nextPrice >= 0.60 * rawMedian) {
-        isGlitch = true;
-      } else if (price < 0.20 * rawMedian && (prevPrice >= 0.70 * rawMedian || nextPrice >= 0.70 * rawMedian)) {
+      if (durationHours < 48 && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
         isGlitch = true;
       }
     } else if (i === 0 && n > 1) {
-      const nextPrice = sorted[1][1];
-      if (price < 0.25 * rawMedian && nextPrice >= 0.70 * rawMedian) {
-        isGlitch = true;
-      }
+      if (isNormal(sorted[1][1])) isGlitch = true;
     } else if (i === n - 1 && n > 1) {
-      const prevPrice = sorted[n - 2][1];
-      if (price < 0.25 * rawMedian && prevPrice >= 0.70 * rawMedian) {
-        isGlitch = true;
-      }
+      if (isNormal(sorted[n - 2][1])) isGlitch = true;
     }
 
     if (isGlitch) {
@@ -235,7 +202,7 @@ export function sanitizeTimeSeries(points) {
   };
 }
 
-export function analyzePriceTimeSeries(series, currentPrice = null, customHorizon = null, options = {}) {
+export function analyzePriceTimeSeries(series, currentPrice = null) {
   if (!series || !Array.isArray(series) || series.length === 0) return null;
 
   let rawPoints = series;
@@ -257,7 +224,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
 
   if (rawParsedPoints.length === 0) return null;
 
-  const outlierRejectionEnabled = options.outlierRejectionEnabled ?? (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
+  const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
   const sanitizeResult = outlierRejectionEnabled
     ? sanitizeTimeSeries(rawParsedPoints)
     : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
@@ -281,10 +248,9 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
   const historicalPrices = prices.slice(0, idx + 1);
   const previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
 
-  const defaultHorizon = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
+  const horizonDays = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
     ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
     : 365;
-  const horizonDays = customHorizon ?? (options.horizonDays ?? defaultHorizon);
   // Thin windows (< 3 points) fall back to the full history — flagged via
   // medianFallback so labels stay honest ("Lifetime", never "1J").
   let windowPrices = prices;
@@ -305,7 +271,6 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
   // so no duration weighting is needed.
   const sortedWindow = [...windowPrices].sort((a, b) => a - b);
   const medianPrice = medianOf(sortedWindow);
-  const avgPrice = windowPrices.reduce((a, b) => a + b, 0) / windowPrices.length;
 
   const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
   const isAtAllTimeLow = priceToCents(curr) <= priceToCents(allTimeLow);
@@ -315,9 +280,6 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
     ? Math.round(((previousLow - curr) / previousLow) * 100)
     : 0;
 
-  const realDiscountVsAvg = (avgPrice > curr)
-    ? Math.round(((avgPrice - curr) / avgPrice) * 100)
-    : 0;
 
   const markupVsLow = (allTimeLow > 0 && isNonBest)
     ? Math.round(((curr - allTimeLow) / allTimeLow) * 100)
@@ -332,7 +294,6 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
     hoechstpreis: allTimeHigh,
     aktuellerToppreis: curr,
     previousLow: previousLow > 0 ? previousLow : null,
-    avgPrice: Math.round(avgPrice * 100) / 100,
     medianPrice: Math.round(medianPrice * 100) / 100,
     medianFallback,
     horizonDays,
@@ -342,7 +303,6 @@ export function analyzePriceTimeSeries(series, currentPrice = null, customHorizo
     isNonBest,
     realDiscountVsPrevLow,
     realDiscountVsMedian,
-    realDiscountVsAvg,
     markupVsLow,
     dataPointCount: points.length,
     timeSeries: points

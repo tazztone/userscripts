@@ -5,7 +5,7 @@
  * mini sparklines, and empty-state messaging.
  */
 
-import { CONFIG, updateConfig, updateConfigs } from '../state/config.js';
+import { CONFIG, updateConfig } from '../state/config.js';
 import {
   getBadgeHeatStyle,
   getHeatmapStyles,
@@ -14,19 +14,19 @@ import {
   getCardProductId
 } from '../page/cards.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
-import { getDealState, computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
+import { computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
 } from '../scanner/scanner.js';
 import { startBatchCheck } from './floating-cta.js';
-import { getScanState } from '../state/store.js';
+import { scanState } from '../state/store.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
 
-export function setHtmlIfChanged(el, newHtml) {
+function setHtmlIfChanged(el, newHtml) {
   if (el && el.innerHTML !== newHtml) {
     el.innerHTML = newHtml;
   }
@@ -38,7 +38,7 @@ export function setTextIfChanged(el, newText) {
   }
 }
 
-export function setTitleIfChanged(el, newTitle) {
+function setTitleIfChanged(el, newTitle) {
   if (el && el.title !== newTitle) {
     el.title = newTitle;
   }
@@ -78,17 +78,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
-  const heatOpts = {
-    display: displayDelta,
-    mode: heatMode,
-    weightRecord: (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
-      ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50)
-  };
-  if (heatMode === 'bestpreise') {
-    heatOpts.dealScore = (stats && cardPrice > 0)
-      ? (cd.dealScore || computeDealScore(stats, cardPrice)) : null;
-  }
-  const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatOpts);
+  const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode);
   const effectiveDiff = heatInfo.value;
   const heatProvisional = heatInfo.provisional;
   const heatIntensity = CONFIG.HEATMAP_INTENSITY;
@@ -193,7 +183,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   }
   // 1b. Geprüft vs ungeprüft card cue (always on, independent of Heatmap):
   // no stats = never checked. Loading cards get neither class.
-  if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
+  if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
     card.classList.remove('tp-is-unverified', 'tp-is-verified');
   } else if (!stats) {
     card.classList.add('tp-is-unverified');
@@ -359,7 +349,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // sortiert; die Gewichtung setzt zusätzlich die Emphase: Unter 50%
         // Rekord führt das Badge den Ø-Rabatt (Farbe folgt mit — Zahl und
         // Farbe stimmen immer überein, Rek/Ø stehen beide in der Pille).
-        card.classList.remove('tp-bestpreise-hidden', 'tp-non-bestpreis-filtered');
+        card.classList.remove('tp-bestpreise-hidden');
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
@@ -504,7 +494,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
-        if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
+        if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -536,7 +526,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       badgeDifEl.classList.remove('tp-deal-new-record');
       card.querySelector('.tp-badge-score-breakdown')?.remove();
 
-      if (getScanState().currentlyScanningPid && getScanState().currentlyScanningPid === pid) {
+      if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
         badgeDifEl.classList.add('tp-deal-loading');
         if (isListView) {
           setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -547,19 +537,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         badgeDifEl.classList.remove('tp-deal-loading');
       }
 
-      const state = getDealState(cardPrice, stats?.tiefstpreis);
+      const displayKind = getDisplayDelta(cardPrice, stats).kind;
 
-      if (state !== 'unknown') {
-        const isAllTimeLow = (state === 'new-low' || state === 'at-low');
-        const isNonBest = (state === 'above-low');
-        const isNewRecord = (state === 'new-low') || !!(stats.isNewAllTimeLow || (isAllTimeLow && stats.previousLow && priceToCents(stats.previousLow) > priceToCents(cardPrice)));
+      if (displayKind !== 'unknown') {
+        const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
+        const isNonBest = (displayKind === 'above-low');
+        const isNewRecord = (displayKind === 'new-low') || !!(stats.isNewAllTimeLow || (isAllTimeLow && stats.previousLow && priceToCents(stats.previousLow) > priceToCents(cardPrice)));
         const prevLow = stats.previousLow;
         const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
 
         // Strictness lives in the mode now: outside it, verified non-deals
-        // stay visible with a truthful Aufschlag badge. Always drop the
-        // legacy hiding class (mode hiding uses tp-bestpreise-hidden).
-        card.classList.remove('tp-non-bestpreis-filtered');
+        // stay visible with a truthful Aufschlag badge.
 
         const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
 
@@ -579,9 +567,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const detailParts = [];
           if (isNewRecord && prevLow) {
             detailParts.push(`Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
-          }
-          if (stats.avgPrice && stats.avgPrice > cardPrice) {
-            detailParts.push(`Durchschnitt: CHF ${stats.avgPrice.toFixed(2)}`);
           }
           if (hasSignificantPeak) {
             const peakDropPct = Math.round(((stats.hoechstpreis - cardPrice) / stats.hoechstpreis) * 100);
@@ -668,7 +653,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
       } else {
         // 1A: Unchecked State (Subtle Mini Loupe + Hover Scale + Tooltip)
-        card.classList.remove('tp-non-bestpreis-filtered');
         if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-bestpreise-hidden');
 
         badgeDifEl.classList.add('tp-deal-badge-interactive');
@@ -687,7 +671,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       }
     }
   } else {
-    card.classList.remove('tp-non-bestpreis-filtered', 'tp-bestpreise-hidden');
+    card.classList.remove('tp-bestpreise-hidden');
     card.querySelector('.tp-card-historical-price')?.remove();
   }
 
@@ -762,7 +746,7 @@ export function renderEmptyState(cards, counts) {
     return;
   }
 
-  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.nonBest || 0) + (counts.bestpreiseHidden || 0);
+  const totalHidden = (counts.neg || 0) + (counts.min || 0) + (counts.bestpreiseHidden || 0);
   const isRevealed = document.body.classList.contains('tp-reveal-filtered');
 
   const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
@@ -813,10 +797,8 @@ export function renderEmptyState(cards, counts) {
       showToast('Tiefstpreise-Modus deaktiviert');
     });
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-      updateConfigs({
-        FILTER_NEG_ENABLED: false,
-        FILTER_MIN_ENABLED: false
-      });
+      updateConfig('FILTER_NEG_ENABLED', false);
+      updateConfig('FILTER_MIN_ENABLED', false);
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

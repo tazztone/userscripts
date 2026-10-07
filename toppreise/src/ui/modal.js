@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightDescText } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfig, updateBodyClasses, weightText } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 
 export function setupUI() {
@@ -173,18 +173,6 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
-        <div class="tp-settings-group" id="tp-alarm-delays-group">
-          <label>Submit-Verzögerung (ms)</label>
-          <div class="tp-range-container tp-blue">
-            <input type="range" id="tp-alarm-submit-delay-range" min="0" max="2000" step="50" value="300">
-            <input type="number" id="tp-alarm-submit-delay-val" min="0" max="5000" step="50" value="300">
-          </div>
-          <label style="margin-top: 8px;">Schließ-Verzögerung nach Submit (ms)</label>
-          <div class="tp-range-container tp-blue">
-            <input type="range" id="tp-alarm-close-delay-range" min="0" max="3000" step="50" value="800">
-            <input type="number" id="tp-alarm-close-delay-val" min="0" max="10000" step="50" value="800">
-          </div>
-        </div>
         <div class="tp-advanced-subheader">Darstellung & Cache</div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
@@ -250,11 +238,6 @@ export function setupUI() {
   const alarmTargetRange = shadow.getElementById('tp-alarm-target-range');
   const alarmTargetVal = shadow.getElementById('tp-alarm-target-val');
   const alarmAutoSubmitToggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
-  const alarmSubmitDelayRange = shadow.getElementById('tp-alarm-submit-delay-range');
-  const alarmSubmitDelayVal = shadow.getElementById('tp-alarm-submit-delay-val');
-  const alarmCloseDelayRange = shadow.getElementById('tp-alarm-close-delay-range');
-  const alarmCloseDelayVal = shadow.getElementById('tp-alarm-close-delay-val');
-  const alarmDelaysGroup = shadow.getElementById('tp-alarm-delays-group');
   const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
   const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
   const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
@@ -315,17 +298,6 @@ export function setupUI() {
     else dur730.checked = true;
 
     alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
-    if (alarmSubmitDelayRange && alarmSubmitDelayVal) {
-      alarmSubmitDelayRange.value = CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300;
-      alarmSubmitDelayVal.value = CONFIG.ALARM_SUBMIT_DELAY_MS ?? 300;
-    }
-    if (alarmCloseDelayRange && alarmCloseDelayVal) {
-      alarmCloseDelayRange.value = CONFIG.ALARM_CLOSE_DELAY_MS ?? 800;
-      alarmCloseDelayVal.value = CONFIG.ALARM_CLOSE_DELAY_MS ?? 800;
-    }
-    if (alarmDelaysGroup) {
-      alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
-    }
 
     heatmapEnabledToggle.checked = CONFIG.HEATMAP_ENABLED !== false;
     const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
@@ -347,7 +319,7 @@ export function setupUI() {
     if (bestpreiseWeightRange) bestpreiseWeightRange.value = weightPct;
     if (bestpreiseWeightVal) bestpreiseWeightVal.value = weightPct;
     if (bestpreiseWeightDesc) {
-      bestpreiseWeightDesc.textContent = weightDescText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50));
+      bestpreiseWeightDesc.textContent = weightText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50), 'desc');
     }
 
     if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
@@ -362,34 +334,41 @@ export function setupUI() {
     if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
   }
 
-  const bindDual = (rangeEl, numEl, scale = 1, onInput = null) => {
+  const bindDual = (rangeEl, numEl, onInput = null) => {
     if (!rangeEl || !numEl) return;
     rangeEl.addEventListener('input', e => {
-      numEl.value = Math.round(parseFloat(e.target.value) * scale);
+      numEl.value = e.target.value;
       onInput?.(parseFloat(e.target.value));
     });
     numEl.addEventListener('input', e => {
-      const val = (parseFloat(e.target.value) || 0) / scale;
-      rangeEl.value = val;
-      onInput?.(val);
+      rangeEl.value = e.target.value;
+      onInput?.(parseFloat(e.target.value));
     });
   };
 
-  bindDual(marginRange, marginVal, 1);
-  bindDual(opacityRange, opacityVal, 100, val => document.documentElement.style.setProperty('--tp-dim-opacity', val));
-  bindDual(alarmTargetRange, alarmTargetVal, 1);
-  bindDual(alarmSubmitDelayRange, alarmSubmitDelayVal, 1);
-  bindDual(alarmCloseDelayRange, alarmCloseDelayVal, 1);
-  bindDual(heatmapIntensityRange, heatmapIntensityVal, 1);
-  bindDual(realDealMinRange, realDealMinVal, 1);
+  bindDual(marginRange, marginVal);
+  if (opacityRange && opacityVal) {
+    opacityRange.addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      opacityVal.value = Math.round(v * 100);
+      document.documentElement.style.setProperty('--tp-dim-opacity', v);
+    });
+    opacityVal.addEventListener('input', e => {
+      const v = (parseFloat(e.target.value) || 0) / 100;
+      opacityRange.value = v;
+      document.documentElement.style.setProperty('--tp-dim-opacity', v);
+    });
+  }
+  bindDual(alarmTargetRange, alarmTargetVal);
+  bindDual(heatmapIntensityRange, heatmapIntensityVal);
+  bindDual(realDealMinRange, realDealMinVal);
 
   const updateWeightDesc = (val) => {
-    const pct = Math.round(val);
     if (bestpreiseWeightDesc) {
-      bestpreiseWeightDesc.textContent = weightDescText(val / 100);
+      bestpreiseWeightDesc.textContent = weightText(val / 100, 'desc');
     }
   };
-  bindDual(bestpreiseWeightRange, bestpreiseWeightVal, 1, updateWeightDesc);
+  bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
 
   bestpreiseModeToggle?.addEventListener('change', () => {
     if (bestpreiseWeightGroup) {
@@ -400,11 +379,6 @@ export function setupUI() {
     }
   });
 
-  alarmAutoSubmitToggle?.addEventListener('change', () => {
-    if (alarmDelaysGroup) {
-      alarmDelaysGroup.style.display = alarmAutoSubmitToggle.checked ? 'block' : 'none';
-    }
-  });
   advancedToggle?.addEventListener('change', () => { saveConfigKey('SHOW_ADVANCED', advancedToggle.checked); applyAdvancedVisibility(advancedToggle.checked); });
 
   cacheClearBtn?.addEventListener('click', () => {
@@ -518,14 +492,6 @@ export function setupUI() {
     if (checkedDur) updates.ALARM_DURATION_DAYS = parseInt(checkedDur.value, 10) || 730;
 
     updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
-    if (alarmSubmitDelayVal) {
-      const submitDelay = parseInt(alarmSubmitDelayVal.value);
-      updates.ALARM_SUBMIT_DELAY_MS = Math.max(0, Number.isNaN(submitDelay) ? 300 : submitDelay);
-    }
-    if (alarmCloseDelayVal) {
-      const closeDelay = parseInt(alarmCloseDelayVal.value);
-      updates.ALARM_CLOSE_DELAY_MS = Math.max(0, Number.isNaN(closeDelay) ? 800 : closeDelay);
-    }
     updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
     updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));
 
@@ -549,7 +515,7 @@ export function setupUI() {
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     updates.SHOW_ADVANCED = !!advancedToggle?.checked;
 
-    updateConfigs(updates);
+    for (const [k, v] of Object.entries(updates)) updateConfig(k, v);
     if (shippingChanged) clearPriceStatsCache();
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();

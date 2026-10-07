@@ -3,7 +3,7 @@
  * Tracks active scanner status and cancellation flags for reactive UI updates.
  */
 
-const scanState = {
+export const scanState = {
   isBatchChecking: false,
   batchCancelRequested: false,
   isBestpreiseScanning: false,
@@ -11,11 +11,3 @@ const scanState = {
   currentlyScanningPid: null,
   progress: { completed: 0, total: 0 }
 };
-
-export function getScanState() {
-  return { ...scanState };
-}
-
-export function setScanState(patch) {
-  Object.assign(scanState, patch);
-}

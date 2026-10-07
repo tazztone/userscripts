@@ -1148,8 +1148,10 @@ def test_rolling_median_time_horizon(page: Page):
             [now, 699]
         ];
 
-        const stats180d = window.ToppreiseSuite.analyzePriceTimeSeries(series, 699, 180);
-        const statsLifetime = window.ToppreiseSuite.analyzePriceTimeSeries(series, 699, 0);
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 180;
+        const stats180d = window.ToppreiseSuite.analyzePriceTimeSeries(series, 699);
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
+        const statsLifetime = window.ToppreiseSuite.analyzePriceTimeSeries(series, 699);
 
         return { stats180d, statsLifetime };
     }""")

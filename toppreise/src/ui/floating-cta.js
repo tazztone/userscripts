@@ -20,12 +20,12 @@
  */
 
 import { CONFIG, updateConfig } from "../state/config.js";
-import { getScanState } from "../state/store.js";
+import { scanState } from "../state/store.js";
 import {
   runBatchDealCheck,
   cancelBatchDealCheck
 } from "../scanner/scanner.js";
-import { showToast } from "./toast.js";
+import { setTextIfChanged } from "./badges.js";
 import { triggerProcessListings } from "../page/adapter.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
@@ -53,9 +53,6 @@ export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, 
   return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle Deals verifiziert' };
 }
 
-export function isFloatingCtaCollapsed() {
-  return collapsedForSession;
-}
 
 export function hideFloatingCTA() {
   if (typeof document === 'undefined') return;
@@ -69,17 +66,13 @@ export function hideFloatingCTA() {
   el.classList.remove('tp-scanning');
 }
 
-function setTextIfChanged(el, text) {
-  if (el && el.textContent !== text) el.textContent = text;
-}
-
 /**
  * Entry point for starting (or cancelling) a batch check from any UI surface:
  * the CTA main button, the empty-state notice, or tests. Clicking the dimmed
  * empty CTA toasts instead of scanning (unchecked <= 0 guard below).
  */
 export function startBatchCheck() {
-  const { isBatchChecking } = getScanState();
+  const { isBatchChecking } = scanState;
   if (isBatchChecking) {
     cancelBatchDealCheck();
     showToast('Batch-Prüfung abgebrochen');
@@ -102,8 +95,7 @@ export function startBatchCheck() {
       else showToast('Keine ungeprüften Deals vorhanden');
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
-    },
-    () => syncFloatingCTA()
+    }
   );
   syncFloatingCTA();
 }
@@ -205,11 +197,11 @@ function ensureCta() {
   return el;
 }
 
-export function syncFloatingCTA() {
+function syncFloatingCTA() {
   if (typeof document === 'undefined') return;
   const el = document.getElementById(FLOATING_CTA_ID);
   if (!el) return;
-  const state = getScanState();
+  const state = scanState;
   const unchecked = lastCounts.uncheckedDeals || 0;
   const { mainLabel, subLabel, mode } = ctaStateFor({
     unchecked,

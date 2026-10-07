@@ -144,20 +144,17 @@ export const STYLES = `
   }
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-not-cheapest,
   .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-no-store-offer,
-  .tp-negative-filtered, .tp-min-offers-filtered, .tp-non-bestpreis-filtered, .tp-bestpreise-hidden,
+  .tp-negative-filtered, .tp-min-offers-filtered, .tp-bestpreise-hidden,
   [class*="col-"]:has(> .tp-negative-filtered),
   [class*="col-"]:has(> .tp-min-offers-filtered),
-  [class*="col-"]:has(> .tp-non-bestpreis-filtered),
   [class*="col-"]:has(> .tp-bestpreise-hidden) {
     display: none !important;
   }
   body.tp-reveal-filtered .tp-negative-filtered,
   body.tp-reveal-filtered .tp-min-offers-filtered,
-  body.tp-reveal-filtered .tp-non-bestpreis-filtered,
   body.tp-reveal-filtered .tp-bestpreise-hidden,
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-negative-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-min-offers-filtered),
-  body.tp-reveal-filtered [class*="col-"]:has(> .tp-non-bestpreis-filtered),
   body.tp-reveal-filtered [class*="col-"]:has(> .tp-bestpreise-hidden) {
     display: block !important;
     opacity: var(--tp-dim-opacity, 0.25) !important;
@@ -166,15 +163,6 @@ export const STYLES = `
     outline-offset: -2px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
-  .tp-real-deal-wrapper {
-    margin-top: 4px !important;
-    display: inline-flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: 3px !important;
-    z-index: 25 !important;
-    pointer-events: auto !important;
-  }
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
   .badge.badge-dif.tp-injected-badge,
   .badge-dif.tp-injected-badge {

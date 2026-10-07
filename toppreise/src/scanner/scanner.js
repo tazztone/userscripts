@@ -4,12 +4,12 @@
  * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
  */
 
-import { getCachedPriceStats, setCachedPriceStats, clearCachedPriceStats } from './cache.js';
+import { getCachedPriceStats, setCachedPriceStats, memoryCache, STATS_CACHE_PREFIX } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price.js';
 import { getProductCards, getCardProductId, extractCardDiscount, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
-import { getScanState, setScanState } from '../state/store.js';
+import { scanState } from '../state/store.js';
 
 export const activeFetches = new Map();
 
@@ -66,12 +66,12 @@ export async function fetchPriceTimeSeries(productId) {
   }
 }
 
-export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, onThrottle = null, shouldCancelFn = null) {
+export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null) {
   if (!productId) return null;
   // Refresh bypass: evict any cached entry (positive or negative) so the
   // manual "Aktualisieren" click always hits the network. Without this,
   // forceFresh only skipped negative entries and served stale positives.
-  if (forceFresh) clearCachedPriceStats(productId);
+  if (forceFresh) { memoryCache.delete(productId); try { if (typeof localStorage !== 'undefined') localStorage.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} }
   const cached = getCachedPriceStats(productId, forceFresh);
   if (cached) {
     if (cached.unavailable) return null;
@@ -122,9 +122,6 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
             const retryAfterHeader = resHtml.headers?.get('Retry-After');
             const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
             const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
-            if (onThrottle) {
-              onThrottle({ productId, attempt, backoffMs, status: resHtml.status });
-            }
             if (attempt < retries) {
               await interruptibleSleep(backoffMs, shouldCancelFn);
             }
@@ -169,12 +166,10 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
 export async function runProductScanner(options = {}) {
   const {
     filterFn = () => true,
-    sortFn = null,
-    delayMs = 200,
+    sortByDiscount = false,
     shouldCancelFn = () => false,
     onProgress = null,
-    onComplete = null,
-    onStatus = null
+    onComplete = null
   } = options;
 
   const cards = getProductCards();
@@ -197,8 +192,8 @@ export async function runProductScanner(options = {}) {
     }
   }
 
-  if (sortFn) {
-    targets.sort(sortFn);
+  if (sortByDiscount) {
+    targets.sort((a, b) => b.discount - a.discount);
   }
 
   const total = targets.length;
@@ -208,35 +203,23 @@ export async function runProductScanner(options = {}) {
     for (let i = 0; i < targets.length; i++) {
       if (shouldCancelFn()) break;
       const item = targets[i];
-      setScanState({ currentlyScanningPid: item.pid, progress: { completed, total } });
+      Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
       triggerProcessListings();
 
       try {
-        await fetchSingleProductPriceStats(
-          item.pid,
-          2,
-          false,
-          throttleInfo => {
-            const secs = Math.ceil(throttleInfo.backoffMs / 1000);
-            if (onStatus) {
-              onStatus(`⏳ Rate-Limit (${secs}s Pause)...`);
-            }
-          },
-          shouldCancelFn
-        );
+        await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn);
       } finally {
-        setScanState({ currentlyScanningPid: null });
+        Object.assign(scanState, { currentlyScanningPid: null });
       }
 
       completed++;
-      setScanState({ progress: { completed, total } });
+      Object.assign(scanState, { progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
       triggerProcessListings();
-      const delay = typeof delayMs === 'function' ? delayMs() : delayMs;
-      await interruptibleSleep(delay, shouldCancelFn);
+      await interruptibleSleep(250, shouldCancelFn);
     }
   } finally {
-    setScanState({ currentlyScanningPid: null });
+    Object.assign(scanState, { currentlyScanningPid: null });
   }
 
   triggerProcessListings();
@@ -244,55 +227,45 @@ export async function runProductScanner(options = {}) {
   return { completed, total };
 }
 
-export async function runBatchDealCheck(minDiscount = 30, onProgress = null, onComplete = null, onStatus = null) {
-  if (getScanState().isBatchChecking) {
-    setScanState({ batchCancelRequested: true });
+async function runScan(mode, { minDiscount = 30, onProgress = null, onComplete = null } = {}) {
+  const isBatch = mode === 'batch';
+  if (isBatch ? scanState.isBatchChecking : scanState.isBestpreiseScanning) {
+    Object.assign(scanState, isBatch ? { batchCancelRequested: true } : { bestpreiseScanCancel: true });
     return;
   }
-  setScanState({ isBatchChecking: true, batchCancelRequested: false });
+  Object.assign(scanState, isBatch
+    ? { isBatchChecking: true, batchCancelRequested: false }
+    : { isBestpreiseScanning: true, bestpreiseScanCancel: false });
 
   try {
-    const isFeed = isNeueToppreisePage();
+    const isFeed = isBatch && isNeueToppreisePage();
     await runProductScanner({
-      filterFn: item => isFeed ? (item.discount >= minDiscount) : true,
-      delayMs: () => 250 + Math.floor(Math.random() * 100),
-      shouldCancelFn: () => getScanState().batchCancelRequested,
-      onProgress,
-      onComplete,
-      onStatus
-    });
-  } finally {
-    setScanState({ isBatchChecking: false, batchCancelRequested: false });
-    triggerProcessListings();
-  }
-}
-
-export function cancelBatchDealCheck() {
-  setScanState({ batchCancelRequested: true });
-}
-
-export async function runBestpreiseScan(onProgress = null, onComplete = null) {
-  if (getScanState().isBestpreiseScanning) {
-    setScanState({ bestpreiseScanCancel: true });
-    return;
-  }
-  setScanState({ isBestpreiseScanning: true, bestpreiseScanCancel: false });
-
-  try {
-    await runProductScanner({
-      filterFn: () => true,
-      sortFn: (a, b) => b.discount - a.discount,
-      delayMs: 200,
-      shouldCancelFn: () => getScanState().bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE,
+      filterFn: isBatch ? (item => isFeed ? (item.discount >= minDiscount) : true) : (() => true),
+      sortByDiscount: !isBatch,
+      shouldCancelFn: isBatch
+        ? (() => scanState.batchCancelRequested)
+        : (() => scanState.bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE),
       onProgress,
       onComplete
     });
   } finally {
-    setScanState({ isBestpreiseScanning: false, bestpreiseScanCancel: false });
+    Object.assign(scanState, isBatch
+      ? { isBatchChecking: false, batchCancelRequested: false }
+      : { isBestpreiseScanning: false, bestpreiseScanCancel: false });
     triggerProcessListings();
   }
 }
 
+export const runBatchDealCheck = (minDiscount = 30, onProgress = null, onComplete = null) =>
+  runScan('batch', { minDiscount, onProgress, onComplete });
+
+export function cancelBatchDealCheck() {
+  Object.assign(scanState, { batchCancelRequested: true });
+}
+
+export const runBestpreiseScan = (onProgress = null, onComplete = null) =>
+  runScan('bestpreise', { onProgress, onComplete });
+
 export function cancelBestpreiseScan() {
-  setScanState({ bestpreiseScanCancel: true });
+  Object.assign(scanState, { bestpreiseScanCancel: true });
 }

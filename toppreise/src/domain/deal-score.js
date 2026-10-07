@@ -13,16 +13,8 @@ import { CONFIG } from '../state/config.js';
 export const HEAT_NEUTRAL_DEADBAND_PCT = 5;
 export const MIN_SIGNIFICANT_RECORD_PCT = 2;
 
-export function getDealState(cardPrice, tiefstpreis) {
-  if (!cardPrice || !tiefstpreis || cardPrice <= 0 || tiefstpreis <= 0) return 'unknown';
-  const cPrice = priceToCents(cardPrice);
-  const cTiefstpreis = priceToCents(tiefstpreis);
-  if (cPrice < cTiefstpreis) return 'new-low';
-  if (cPrice === cTiefstpreis) return 'at-low';
-  return 'above-low';
-}
 
-export function computeDealScore(stats, cardPrice, options = {}) {
+export function computeDealScore(stats, cardPrice) {
   if (!stats || stats.unavailable || !stats.tiefstpreis || stats.tiefstpreis <= 0) return null;
   if (!cardPrice || cardPrice <= 0) return null;
 
@@ -43,17 +35,16 @@ export function computeDealScore(stats, cardPrice, options = {}) {
   // exotic hand-built stats fall through to the mean (or 0 = unscorable).
   const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
     ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
-    : (stats.realDiscountVsMedian || stats.realDiscountVsAvg || 0);
+    : (stats.realDiscountVsMedian || 0);
 
   const prevLow = stats.previousLow;
   const dRecord = (isNewRecord && prevLow && prevLow > cardPrice)
     ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
     : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
-  const defaultWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
+  const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD
     : 0.50;
-  const wRecord = typeof options.weightRecord === 'number' ? options.weightRecord : defaultWeight;
   const wMedian = 1 - wRecord;
   const score = Math.max(0, Math.round(wMedian * dMedian + wRecord * dRecord));
 
@@ -119,24 +110,16 @@ export function isSignificantRecord(display) {
 }
 
 /**
- * Price LEVEL vs usual (median). Signed percent: negative = below median
- * (hot/red), positive = above median, null = no median available.
- * Sorting helper (discount-desc); the badge/heat headline uses getLevelPct.
- */
-export function getPriceLevel(cardPrice, stats) {
-  const median = stats?.medianPrice;
-  if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return null;
-  return Math.round(((cardPrice - median) / median) * 100);
-}
-
-/**
  * Ø discount vs median, positive = below median (deal), 0 = at/above median
  * or no median. The exact formula the badge headline uses — shared by the
  * heat driver so both always consume the same number (ADR-0002).
+ * With signed=true returns the signed level vs median (negative = below
+ * median, positive = above, null = no median) for discount-desc sorting.
  */
-export function getLevelPct(cardPrice, stats) {
+export function getLevelPct(cardPrice, stats, signed = false) {
   const median = stats?.medianPrice;
-  if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return 0;
+  if (!cardPrice || !median || cardPrice <= 0 || median <= 0) return signed ? null : 0;
+  if (signed) return Math.round(((cardPrice - median) / median) * 100);
   if (median <= cardPrice) return 0;
   return Math.round(((median - cardPrice) / median) * 100);
 }
@@ -168,20 +151,19 @@ export function medianHorizonLabel(stats) {
  *                      badge shows a plain star with no %) -> null
  * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
  * - unverified markup / unknown -> null (neutral)
- * Callers may pass { display, dealScore, mode, weightRecord } so the heat
- * reuses the exact inputs of the badge branch (no parallel formulas).
+ * Callers pass the mode positionally so the heat reuses the exact mode of the
+ * badge branch (no parallel formulas).
  */
-export function getHeatInput(cardPrice, stats, siteDiff, options = {}) {
+export function getHeatInput(cardPrice, stats, siteDiff, mode) {
   const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
   if (verified) {
-    const display = options.display || getDisplayDelta(cardPrice, stats);
+    const display = getDisplayDelta(cardPrice, stats);
     if (display.kind !== 'new-low' && display.kind !== 'at-low') {
       return { value: null, provisional: false, pct: 0, kind: 'markup' };
     }
-    const mode = options.mode
+    const heatMode = mode
       || (CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse');
-    const weight = typeof options.weightRecord === 'number' ? options.weightRecord
-      : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
+    const weight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
     const levelPct = getLevelPct(cardPrice, stats);
     // Raw counterparts for the deadband decision below — the badge keeps
     // showing rounded integers, but the ±5% gate must not flip on rounding.
@@ -189,24 +171,20 @@ export function getHeatInput(cardPrice, stats, siteDiff, options = {}) {
       ? ((stats.medianPrice - cardPrice) / stats.medianPrice) * 100 : 0;
     const recordRaw = (display && typeof display.dRecordRaw === 'number')
       ? display.dRecordRaw : (display.dRecord || 0);
-    let pct = 0;
-    let raw = 0;
-    let kind = 'none';
-    if (mode === 'bestpreise') {
-      const dealScore = ('dealScore' in options) ? options.dealScore
-        : computeDealScore(stats, cardPrice);
+    let showRecord = isSignificantRecord(display);
+    if (heatMode === 'bestpreise') {
+      const dealScore = computeDealScore(stats, cardPrice);
       // Unqualified history: the badge shows a plain star with no % — heat
       // stays neutral to match instead of heating an unshown number.
       if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
-      const showRecord = !!dealScore.isNewRecord && isSignificantRecord(display);
       const medianHeadline = weight < 0.5 && levelPct > 0;
-      if (showRecord && !medianHeadline) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
-      else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
-    } else {
-      const showRecord = isSignificantRecord(display);
-      if (showRecord) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
-      else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
+      showRecord = !!dealScore.isNewRecord && showRecord && !medianHeadline;
     }
+    let pct = 0;
+    let raw = 0;
+    let kind = 'none';
+    if (showRecord) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
+    else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
     if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
     // ±5% deadband (documented noise guard): a tiny verified % shows in the
     // badge text but stays gray on the card — decided on the raw value.

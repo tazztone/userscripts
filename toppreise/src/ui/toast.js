@@ -1,13 +1,12 @@
 /**
  * Toast Notification Component
- * Renders glassmorphic notifications with optional undo actions inside Shadow DOM.
+ * Renders glassmorphic notifications inside Shadow DOM.
  */
 
-import { ensureSkeleton, getUiShadowRoot, uiShadowRoot } from './shell.js';
+import { ensureSkeleton } from './shell.js';
 
-export function showToast(message, durationMs = 2500, actionLabel = null, onAction = null) {
-  ensureSkeleton();
-  const shadow = getUiShadowRoot() || uiShadowRoot;
+export function showToast(message) {
+  const { shadow } = ensureSkeleton();
   const container = shadow?.getElementById('tp-toast-container');
   if (!container) return;
 
@@ -17,22 +16,9 @@ export function showToast(message, durationMs = 2500, actionLabel = null, onActi
   textSpan.textContent = message;
   toast.appendChild(textSpan);
 
-  if (actionLabel && typeof onAction === 'function') {
-    const actionBtn = document.createElement('button');
-    actionBtn.type = 'button';
-    actionBtn.className = 'tp-toast-undo';
-    actionBtn.textContent = actionLabel;
-    actionBtn.onclick = e => {
-      e.stopPropagation();
-      toast.remove();
-      onAction();
-    };
-    toast.appendChild(actionBtn);
-  }
-
   container.appendChild(toast);
   setTimeout(() => {
     toast.classList.add('fade-out');
     setTimeout(() => toast.remove(), 400);
-  }, durationMs);
+  }, 2500);
 }

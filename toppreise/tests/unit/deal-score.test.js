@@ -1,31 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDealState, computeDealScore, getDisplayDelta, getPriceLevel, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../../src/domain/deal-score.js';
+import { computeDealScore, getDisplayDelta, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../../src/domain/deal-score.js';
+import { CONFIG } from '../../src/state/config.js';
 
 describe('Deal Score Domain Module', () => {
-  describe('getDealState', () => {
-    it('returns "unknown" for missing or non-positive inputs', () => {
-      assert.equal(getDealState(null, 100), 'unknown');
-      assert.equal(getDealState(100, null), 'unknown');
-      assert.equal(getDealState(0, 100), 'unknown');
-      assert.equal(getDealState(-10, 100), 'unknown');
-    });
-
-    it('classifies new all-time low correctly', () => {
-      assert.equal(getDealState(99.95, 100.00), 'new-low');
-      assert.equal(getDealState(50, 100), 'new-low');
-    });
-
-    it('classifies at all-time low with integer cent precision', () => {
-      assert.equal(getDealState(100.00, 100.00), 'at-low');
-      assert.equal(getDealState(19.99, 19.99), 'at-low');
-    });
-
-    it('classifies above all-time low', () => {
-      assert.equal(getDealState(100.05, 100.00), 'above-low');
-      assert.equal(getDealState(150, 100), 'above-low');
-    });
-  });
 
   describe('computeDealScore', () => {
     const validStats = {
@@ -57,19 +35,31 @@ describe('Deal Score Domain Module', () => {
       // prevLow = 120 -> dRecord = (120 - 90)/120 = 25%
       // medianPrice = 150 -> dMedian = (150 - 90)/150 = 40%
       // With weight 50/50: score = 0.5 * 40 + 0.5 * 25 = 32.5 -> 33
-      const result = computeDealScore(validStats, 90, { weightRecord: 0.50 });
-      assert.ok(result);
-      assert.equal(result.dRecord, 25);
-      assert.equal(result.dMedian, 40);
-      assert.equal(result.score, 33);
-      assert.equal(result.isNewRecord, true);
+      const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+      try {
+        const result = computeDealScore(validStats, 90);
+        assert.ok(result);
+        assert.equal(result.dRecord, 25);
+        assert.equal(result.dMedian, 40);
+        assert.equal(result.score, 33);
+        assert.equal(result.isNewRecord, true);
+      } finally {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+      }
     });
 
     it('adjusts score with custom record weight slider', () => {
       // Weight 0.80 record: 0.2 * 40 + 0.8 * 25 = 8 + 20 = 28
-      const result = computeDealScore(validStats, 90, { weightRecord: 0.80 });
-      assert.ok(result);
-      assert.equal(result.score, 28);
+      const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      CONFIG.BESTPREISE_WEIGHT_RECORD = 0.80;
+      try {
+        const result = computeDealScore(validStats, 90);
+        assert.ok(result);
+        assert.equal(result.score, 28);
+      } finally {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+      }
     });
 
     it('returns null if calculated deal score is 0%', () => {
@@ -130,7 +120,7 @@ describe('Deal Score Domain Module', () => {
     });
   });
 
-  describe('getPriceLevel & getHeatInput (heatmap = badge number)', () => {
+  describe('getLevelPct signed & getHeatInput (heatmap = badge number)', () => {
     it('heats new records by record size, not by median level', () => {
       // GEDORE screenshot case: -8% badge must be faint warm, even though
       // the price sits far below its median.
@@ -188,6 +178,12 @@ describe('Deal Score Domain Module', () => {
       assert.equal(getLevelPct(90, {}), 0);
       assert.equal(getLevelPct(0, { medianPrice: 100 }), 0);
     });
+
+    it('returns the signed level vs median when signed=true (sort helper)', () => {
+      assert.equal(getLevelPct(49, { medianPrice: 100 }, true), -51);
+      assert.equal(getLevelPct(110, { medianPrice: 100 }, true), 10);
+      assert.equal(getLevelPct(90, {}, true), null);
+    });
   });
 
   describe('getHeatInput headline parity (ADR-0002: color = badge-%)', () => {
@@ -205,48 +201,62 @@ describe('Deal Score Domain Module', () => {
     };
 
     it('heats micro-records by the headlined Ø-% (Tiefstpreise mode)', () => {
-      const heat = getHeatInput(23.56, microStats, -51, { mode: 'bestpreise', weightRecord: 0.50 });
-      assert.equal(heat.pct, 51);
-      assert.equal(heat.kind, 'median');
-      assert.equal(heat.value, -51);
-      assert.equal(heat.provisional, false);
+      const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+      try {
+        const heat = getHeatInput(23.56, microStats, -51, 'bestpreise');
+        assert.equal(heat.pct, 51);
+        assert.equal(heat.kind, 'median');
+        assert.equal(heat.value, -51);
+        assert.equal(heat.provisional, false);
+      } finally {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+      }
     });
 
     it('heats micro-records by the headlined Ø-% (browse mode)', () => {
-      const heat = getHeatInput(23.56, microStats, -51, { mode: 'browse', weightRecord: 0.50 });
+      const heat = getHeatInput(23.56, microStats, -51, 'browse');
       assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'median' });
     });
 
     it('stays neutral when Tiefstpreise mode cannot qualify the history', () => {
       // Thin history: the badge shows a plain star with no % — heat matches.
-      const heat = getHeatInput(23.56, microStats, -51,
-        { mode: 'bestpreise', weightRecord: 0.50, dealScore: null });
+      const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
+      const heat = getHeatInput(23.56, thinStats, -51, 'bestpreise');
       assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
     });
 
     it('ignores the sort weight outside the feed (browse headlines record)', () => {
       const stats = { tiefstpreis: 90, medianPrice: 150, previousLow: 120, isNewAllTimeLow: true };
-      const display = getDisplayDelta(90, stats); // new-low, dRecord 25
       for (const weightRecord of [0.30, 0.50, 0.80]) {
-        const heat = getHeatInput(90, stats, -40, { mode: 'browse', weightRecord, display });
-        assert.deepEqual(heat, { value: -25, provisional: false, pct: 25, kind: 'rekord' });
+        const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+        CONFIG.BESTPREISE_WEIGHT_RECORD = weightRecord;
+        try {
+          const heat = getHeatInput(90, stats, -40, 'browse');
+          assert.deepEqual(heat, { value: -25, provisional: false, pct: 25, kind: 'rekord' });
+        } finally {
+          CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+        }
       }
     });
 
     it('follows the weight inside the feed (record vs Ø emphasis)', () => {
       const stats = { tiefstpreis: 90, medianPrice: 150, previousLow: 120, isNewAllTimeLow: true };
-      const display = getDisplayDelta(90, stats); // new-low, dRecord 25, Ø 40
-      const dealScore = { isNewRecord: true };
-      const balanced = getHeatInput(90, stats, -40,
-        { mode: 'bestpreise', weightRecord: 0.50, display, dealScore });
-      assert.deepEqual(balanced, { value: -25, provisional: false, pct: 25, kind: 'rekord' });
-      const medianHeavy = getHeatInput(90, stats, -40,
-        { mode: 'bestpreise', weightRecord: 0.30, display, dealScore });
-      assert.deepEqual(medianHeavy, { value: -40, provisional: false, pct: 40, kind: 'median' });
+      const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      try {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+        const balanced = getHeatInput(90, stats, -40, 'bestpreise');
+        assert.deepEqual(balanced, { value: -25, provisional: false, pct: 25, kind: 'rekord' });
+        CONFIG.BESTPREISE_WEIGHT_RECORD = 0.30;
+        const medianHeavy = getHeatInput(90, stats, -40, 'bestpreise');
+        assert.deepEqual(medianHeavy, { value: -40, provisional: false, pct: 40, kind: 'median' });
+      } finally {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+      }
     });
 
     it('keeps tiny verified % in the badge text but gray on the card (±5% guard)', () => {
-      const heat = getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0, { mode: 'browse' });
+      const heat = getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0, 'browse');
       assert.equal(heat.pct, 3);
       assert.equal(heat.kind, 'median');
       assert.equal(heat.value, null);

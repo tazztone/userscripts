@@ -5,7 +5,6 @@ import {
   isShippingPriceActive,
   isNeueToppreisePage,
   isProductDetailPage,
-  getPageType,
   getDetailProductId,
   getDetailLowestPrice
 } from '../../src/page/adapter.js';
@@ -57,21 +56,21 @@ describe('Page Adapter Layer', () => {
       globalThis.location = { href: 'https://www.toppreise.ch/katalog' };
     });
 
-    it('identifies standard listing pages as list type', () => {
-      assert.equal(getPageType(), 'list');
+    it('identifies standard listing pages via predicates', () => {
+      assert.equal(isProductDetailPage(), false);
     });
 
     it('identifies product detail URL as detail page', () => {
       globalThis.location = { href: 'https://www.toppreise.ch/preisvergleich/Smartphones/APPLE-iPhone-16-Pro-p789012' };
       assert.equal(isProductDetailPage(), true);
-      assert.equal(getPageType(), 'detail');
+      assert.equal(isNeueToppreisePage(), false);
       assert.equal(getDetailProductId(), '789012');
     });
 
     it('identifies Neue Toppreise feed pages correctly', () => {
       globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
       assert.equal(isNeueToppreisePage(), true);
-      assert.equal(getPageType(), 'deal-feed');
+      assert.equal(isProductDetailPage(), false);
     });
   });
 

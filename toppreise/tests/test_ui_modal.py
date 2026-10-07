@@ -58,35 +58,6 @@ def test_darkreader_dynamic_mode_compatibility(page: Page):
 
 
 
-def test_price_alarm_settings_configurable_delays(page: Page):
-    # Open settings dialog
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Fine-tuning controls hide behind the advanced toggle: reveal them first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
-
-    # Default delay values should be 300 and 800
-    submit_delay_input = page.locator('#tp-root >> #tp-alarm-submit-delay-val')
-    close_delay_input = page.locator('#tp-root >> #tp-alarm-close-delay-val')
-    assert submit_delay_input.input_value() == '300'
-    assert close_delay_input.input_value() == '800'
-
-    # Update delay values
-    submit_delay_input.fill('500')
-    close_delay_input.fill('1200')
-    page.click('#tp-root >> #tp-btn-save')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-
-    # Re-open dialog and verify updated delay values persisted
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    assert page.locator('#tp-root >> #tp-alarm-submit-delay-val').input_value() == '500'
-    assert page.locator('#tp-root >> #tp-alarm-close-delay-val').input_value() == '1200'
-
-    # Toggle off auto-submit and verify delays group hides
-    page.click('#tp-root >> #tp-alarm-autosubmit-toggle + .tp-slider')
-    assert not page.locator('#tp-root >> #tp-alarm-delays-group').is_visible()
-    page.click('#tp-root >> #tp-btn-close')
 
 
 

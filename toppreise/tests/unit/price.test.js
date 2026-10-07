@@ -8,6 +8,7 @@ import {
   sanitizeTimeSeries,
   analyzePriceTimeSeries
 } from '../../src/domain/price.js';
+import { CONFIG } from '../../src/state/config.js';
 
 describe('Price Domain Module', () => {
   describe('parsePrice', () => {
@@ -164,7 +165,17 @@ describe('Price Domain Module', () => {
         [now, 699]
       ];
 
-      const analysis = analyzePriceTimeSeries(series, 699, 365, { outlierRejectionEnabled: true });
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 365;
+      CONFIG.OUTLIER_REJECTION_ENABLED = true;
+      let analysis;
+      try {
+        analysis = analyzePriceTimeSeries(series, 699);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+      }
       assert.ok(analysis);
       assert.equal(analysis.tiefstpreis, 699);
       assert.equal(analysis.isNewAllTimeLow, true);
@@ -185,7 +196,17 @@ describe('Price Domain Module', () => {
         [now - 10 * dayMs, 100.00],
         [now, 99.50]
       ];
-      const analysis = analyzePriceTimeSeries(series, 99.50, 0, { outlierRejectionEnabled: false });
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      let analysis;
+      try {
+        analysis = analyzePriceTimeSeries(series, 99.50);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+      }
       assert.ok(analysis);
       assert.equal(analysis.previousLow, 100.00);
       assert.equal(analysis.realDiscountVsPrevLow, 1); // honest micro-dip, badge renders "Tiefstpreis"
@@ -200,7 +221,17 @@ describe('Price Domain Module', () => {
         [now - 10 * dayMs, 300],
         [now, 400]
       ];
-      const analysis = analyzePriceTimeSeries(series, 400, 0, { outlierRejectionEnabled: false });
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      let analysis;
+      try {
+        analysis = analyzePriceTimeSeries(series, 400);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+      }
       assert.ok(analysis);
       assert.equal(analysis.medianPrice, 250); // (200 + 300) / 2, not 300
       assert.equal(analysis.medianFallback, false);
@@ -215,7 +246,17 @@ describe('Price Domain Module', () => {
         [now - 10 * dayMs, 800],
         [now, 750]
       ];
-      const analysis = analyzePriceTimeSeries(series, 750, 365, { outlierRejectionEnabled: false });
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 365;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      let analysis;
+      try {
+        analysis = analyzePriceTimeSeries(series, 750);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+      }
       assert.ok(analysis);
       assert.equal(analysis.medianFallback, true);
       // Fallback median spans the full history: [750, 800, 1900, 2000] -> (800 + 1900) / 2
@@ -231,10 +272,20 @@ describe('Price Domain Module', () => {
         [now - 5 * dayMs, 780],
         [now, 750]
       ];
-      const analysis = analyzePriceTimeSeries(series, 750, 365, { outlierRejectionEnabled: false });
-      assert.ok(analysis);
-      assert.equal(analysis.medianFallback, false);
-      assert.equal(analysis.medianPrice, 780); // [750, 780, 800] window median
+      const prevHorizon2 = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier2 = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 365;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      let analysis2;
+      try {
+        analysis2 = analyzePriceTimeSeries(series, 750);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon2;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier2;
+      }
+      assert.ok(analysis2);
+      assert.equal(analysis2.medianFallback, false);
+      assert.equal(analysis2.medianPrice, 780); // [750, 780, 800] window median
     });
   });
 
@@ -278,13 +329,18 @@ describe('Price Domain Module', () => {
         }
       };
 
-      const withShipping = extractCanonicalPrice(mockCard, { useShipping: true });
-      assert.equal(withShipping.price, 45.00);
+      const prev = CONFIG.USE_SHIPPING_PRICE;
+      try {
+        CONFIG.USE_SHIPPING_PRICE = true;
+        assert.equal(extractCanonicalPrice(mockCard).price, 45.00);
 
-      // Memoized container reset for product mode
-      delete mockCard._tpPriceInfo;
-      const withoutShipping = extractCanonicalPrice(mockCard, { useShipping: false });
-      assert.equal(withoutShipping.price, 39.00);
+        // Memoized container reset for product mode
+        delete mockCard._tpPriceInfo;
+        CONFIG.USE_SHIPPING_PRICE = false;
+        assert.equal(extractCanonicalPrice(mockCard).price, 39.00);
+      } finally {
+        CONFIG.USE_SHIPPING_PRICE = prev;
+      }
     });
   });
 });
