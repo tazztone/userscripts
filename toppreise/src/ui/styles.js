@@ -623,6 +623,10 @@ export const STYLES = `
     font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     white-space: nowrap !important;
     cursor: default !important;
+    display: inline-block !important;
+    min-width: 11ch !important; /* widest text: "⚖️ 100% Med" — keeps the slider still while dragging */
+    text-align: center !important;
+    font-variant-numeric: tabular-nums !important;
   }
   #tp-bar-weight-range {
     width: 92px !important;
