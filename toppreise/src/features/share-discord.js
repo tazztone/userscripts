@@ -82,19 +82,21 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob) {
   });
 }
 
-// Ein Wert pro Zeile (scannbar): Link zuerst (unantastbar), dann Titel,
-// Preis, Händler, Verlauf. Der Titel schrumpft bei Bedarf.
+// Ein Wert pro Zeile (scannbar, Zahlen fett): Link zuerst (unantastbar), dann
+// Titel, Preis, Händler, Verlauf. Der Titel schrumpft bei Bedarf.
+const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
 export function formatDealMessage({ title, url, priceText, badgeText, dealer, offerCount, spark, prevLowText, medianText }) {
   const link = (url || '').trim();
   let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-  const priceLine = [priceText, badgeText].filter(Boolean).join(' · ');
+  const cleanBadge = (badgeText || '').replace(/\s+/g, ' ').trim().replace(/\s*(-\d[\d.,]*\s*%)\s*$/, ' $1');
+  const priceLine = [priceText, cleanBadge].filter(Boolean).join(' · ');
   const rest = [
-    priceLine ? `💰 ${priceLine}` : '',
-    dealer ? `🏬 Händler: ${dealer}` : '',
-    offerCount ? `🛒 Angebote: ${offerCount}` : '',
+    priceLine ? `💰 ${boldNumbers(priceLine)}` : '',
+    dealer ? `🏬 Händler: **${dealer}**` : '',
+    offerCount ? `🛒 Angebote: **${offerCount}**` : '',
     spark ? `📊 ${spark}` : '',
-    prevLowText ? `📉 ${prevLowText}` : '',
-    medianText ? `📈 ${medianText}` : ''
+    prevLowText ? `📉 ${boldNumbers(prevLowText)}` : '',
+    medianText ? `📈 ${boldNumbers(medianText)}` : ''
   ].filter(Boolean).join('\n');
   const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
   cleanTitle = cleanTitle.slice(0, maxTitle);
@@ -121,8 +123,33 @@ export function extractDealer(card) {
   return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
 }
 
+// Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
+// und fehlen im Fetch-HTML, `offers` steht dagegen schon in der Rohseite.
+export function parseJsonLdOffer(json) {
+  const roots = Array.isArray(json) ? json : [json];
+  for (const root of roots) {
+    const items = Array.isArray(root?.['@graph']) ? root['@graph'] : [root];
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
+      const types = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];
+      if (!types.includes('Product')) continue;
+      const list = Array.isArray(item.offers) ? item.offers : (item.offers ? [item.offers] : null);
+      if (!list) continue;
+      if (list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' && !Array.isArray(list[0].offers)) continue;
+      let best = null;
+      for (const o of list) {
+        const price = +o?.price;
+        if (!Number.isFinite(price)) continue; // fehlendes price: Angebot überspringen
+        if (!best || price < best.price) best = { price, dealer: typeof o.seller === 'object' ? (o.seller?.name || '') : (o.seller || '') };
+      }
+      if (best) return { dealer: best.dealer, offers: list.length };
+    }
+  }
+  return { dealer: '', offers: 0 };
+}
+
 // Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
-// same-origin, kein CORS-Problem). Erste Zeile = günstigstes Angebot.
+// same-origin, kein CORS-Problem). Erste Zeile = günstigstes Angebot, sonst JSON-LD.
 export async function fetchProductInfo(productUrl, timeoutMs = 10000) {
   const out = { dealer: '', offers: 0 };
   try {
@@ -133,11 +160,21 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000) {
     const res = await fetch(productUrl, { signal: ctrl?.signal });
     clearTimeout(timer);
     if (!res.ok) return out;
-    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
     const titles = Array.from(doc.querySelectorAll(`${SELECTORS.cards.dealerRows} .title`));
     // ponytail: first row is the cheapest offer on Toppreise listings
     out.dealer = titles[0]?.textContent?.replace(/\s+/g, ' ').trim() || '';
     out.offers = titles.length;
+    if (out.dealer || out.offers) return out;
+    const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+    for (const s of scripts) {
+      try {
+        const found = parseJsonLdOffer(JSON.parse(s.textContent));
+        if (found.dealer || found.offers) return found;
+      } catch { /* Block einzeln ignorieren */ }
+    }
+    console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: titles.length, jsonLdBlocks: scripts.length });
   } catch { /* Händler unbekannt: Zeile entfällt */ }
   return out;
 }

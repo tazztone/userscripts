@@ -6,6 +6,7 @@ import {
   sparklineText,
   extractShareData,
   extractDealer,
+  parseJsonLdOffer,
   fetchProductInfo,
   renderSparklinePng,
   postDealToDiscord,
@@ -66,13 +67,18 @@ describe('formatDealMessage', () => {
     assert.deepEqual(msg.split('\n'), [
       PRODUCT_URL,
       '🔥 **HyperX Pulsefire Fuse**',
-      '💰 CHF 31.90 · Tiefstpreis -41% (Ø-Preis)',
-      '🏬 Händler: Digitec',
-      '🛒 Angebote: 3',
+      '💰 **CHF 31.90** · Tiefstpreis **-41%** (Ø-Preis)',
+      '🏬 Händler: **Digitec**',
+      '🛒 Angebote: **3**',
       '📊 █▁▁',
-      '📉 Bisher: CHF 44.95',
-      '📈 Ø-Preis (1J): CHF 54.05'
+      '📉 Bisher: **CHF 44.95**',
+      '📈 Ø-Preis (1J): **CHF 54.05**'
     ]);
+  });
+
+  it('separates glued badge percentages (Ø-Preis-41%)', () => {
+    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', badgeText: 'Tiefstpreis · Ø-Preis-41%', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
+    assert.ok(msg.includes('💰 **CHF 16.95** · Tiefstpreis · Ø-Preis **-41%**'));
   });
 
   it('omits empty rows and never truncates the link', () => {
@@ -138,6 +144,68 @@ describe('fetchProductInfo', () => {
     globalThis.fetch = async () => ({ ok: false, status: 404 });
     globalThis.DOMParser = class { parseFromString() { throw new Error('unreachable'); } };
     assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0 });
+  });
+});
+describe('parseJsonLdOffer', () => {
+  const product = offers => ({ '@context': 'https://schema.org', '@type': 'Product', name: 'x', offers });
+
+  it('picks the cheapest offer seller + count', () => {
+    assert.deepEqual(parseJsonLdOffer(product([
+      { '@type': 'Offer', price: 44.95, seller: { name: 'Brack' } },
+      { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
+    ])), { dealer: 'Digitec', offers: 2 });
+  });
+
+  it('finds products inside @graph and wraps single offers', () => {
+    assert.deepEqual(
+      parseJsonLdOffer({ '@graph': [{ '@type': 'WebSite' }, product({ '@type': 'Offer', price: 10, seller: 'Galaxus' })] }),
+      { dealer: 'Galaxus', offers: 1 });
+  });
+
+  it('ignores AggregateOffer without item list, garbage and priceless offers', () => {
+    assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', lowPrice: 5, offerCount: 3 })), { dealer: '', offers: 0 });
+    assert.deepEqual(parseJsonLdOffer({ '@type': 'Product' }), { dealer: '', offers: 0 });
+    assert.deepEqual(parseJsonLdOffer(null), { dealer: '', offers: 0 });
+    assert.deepEqual(parseJsonLdOffer([{ '@type': 'Offer', seller: { name: 'x' } }]), { dealer: '', offers: 0 });
+  });
+});
+
+describe('fetchProductInfo JSON-LD fallback', () => {
+  afterEach(() => {
+    delete globalThis.fetch;
+    delete globalThis.DOMParser;
+  });
+
+  const docStub = ({ rows = [], scripts = [] }) => ({
+    querySelectorAll: sel => (sel.startsWith('script') ? scripts : rows)
+  });
+
+  it('uses JSON-LD when dealer rows are absent (AJAX-rendered)', async () => {
+    const ld = { '@type': 'Product', offers: [
+      { price: 44.95, seller: { name: 'Brack' } },
+      { price: 31.90, seller: { name: 'Digitec' } }
+    ] };
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>-x' });
+    globalThis.DOMParser = class { parseFromString() { return docStub({ scripts: [{ textContent: JSON.stringify(ld) }] }); } };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2 });
+  });
+
+  it('prefers DOM rows over JSON-LD', async () => {
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>' });
+    globalThis.DOMParser = class {
+      parseFromString() { return docStub({ rows: [{ textContent: ' STEG ' }], scripts: [{ textContent: '{"@type":"Product","offers":[]}' }] }); }
+    };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'STEG', offers: 1 });
+  });
+
+  it('survives corrupt JSON-LD without throwing', async () => {
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>' });
+    globalThis.DOMParser = class { parseFromString() { return docStub({ scripts: [{ textContent: 'kein json{{' }] }); } };
+    const debug = console.debug;
+    console.debug = () => {};
+    try {
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0 });
+    } finally { console.debug = debug; }
   });
 });
 
