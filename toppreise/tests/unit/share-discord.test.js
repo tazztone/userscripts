@@ -57,32 +57,35 @@ describe('formatDealMessage', () => {
       title: 'HyperX Pulsefire Fuse',
       url: PRODUCT_URL,
       priceText: 'CHF 31.90',
-      badgeText: 'Tiefstpreis -41% (Ø-Preis)',
       dealer: 'Digitec',
       offerCount: 3,
       spark: '█▁▁',
       prevLowText: 'Bisher: CHF 44.95',
-      medianText: 'Ø-Preis (1J): CHF 54.05'
+      prevLowPct: 29,
+      medianText: 'Ø-Preis (1J): CHF 54.05',
+      medianPct: 41
     });
     assert.deepEqual(msg.split('\n'), [
       PRODUCT_URL,
       '🔥 **HyperX Pulsefire Fuse**',
-      '💰 **CHF 31.90** · Tiefstpreis **-41%** (Ø-Preis)',
+      '💰 **CHF 31.90**',
       '🏬 Händler: **Digitec**',
       '🛒 Angebote: **3**',
       '📊 █▁▁',
-      '📉 Bisher: **CHF 44.95**',
-      '📈 Ø-Preis (1J): **CHF 54.05**'
+      '📉 Bisher: **CHF 44.95** **-29%**',
+      '📈 Ø-Preis (1J): **CHF 54.05** **-41%**'
     ]);
   });
 
-  it('separates glued badge percentages (Ø-Preis-41%)', () => {
-    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', badgeText: 'Tiefstpreis · Ø-Preis-41%', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
-    assert.ok(msg.includes('💰 **CHF 16.95** · Tiefstpreis · Ø-Preis **-41%**'));
+  it('omits percentages at/above reference and empty rows, never truncates the link', () => {
+    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: '', offerCount: 0, spark: '', prevLowText: 'Bisher: CHF 10.00', prevLowPct: 0, medianText: '', medianPct: 0 });
+    assert.ok(msg.includes('💰 **CHF 16.95**'));
+    assert.ok(msg.includes('📉 Bisher: **CHF 10.00**'));
+    assert.ok(!msg.includes('%'));
   });
 
   it('omits empty rows and never truncates the link', () => {
-    const msg = formatDealMessage({ title: 'x'.repeat(500), url: PRODUCT_URL, priceText: '', badgeText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
+    const msg = formatDealMessage({ title: 'x'.repeat(500), url: PRODUCT_URL, priceText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
     assert.ok(msg.startsWith(PRODUCT_URL + '\n🔥'));
     assert.ok(msg.length <= 2000);
     assert.equal(msg.split('\n').length, 2);

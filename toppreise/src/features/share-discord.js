@@ -83,20 +83,20 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob) {
 }
 
 // Ein Wert pro Zeile (scannbar, Zahlen fett): Link zuerst (unantastbar), dann
-// Titel, Preis, Händler, Verlauf. Der Titel schrumpft bei Bedarf.
+// Titel, Preis, Händler, Verlauf. Rabatte stehen je Referenzzeile (Bisher /
+// Ø-Preis), nicht gebündelt in der Preiszeile.
 const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
-export function formatDealMessage({ title, url, priceText, badgeText, dealer, offerCount, spark, prevLowText, medianText }) {
+const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
+export function formatDealMessage({ title, url, priceText, dealer, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct }) {
   const link = (url || '').trim();
   let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-  const cleanBadge = (badgeText || '').replace(/\s+/g, ' ').trim().replace(/\s*(-\d[\d.,]*\s*%)\s*$/, ' $1');
-  const priceLine = [priceText, cleanBadge].filter(Boolean).join(' · ');
   const rest = [
-    priceLine ? `💰 ${boldNumbers(priceLine)}` : '',
+    priceText ? `💰 ${boldNumbers(priceText)}` : '',
     dealer ? `🏬 Händler: **${dealer}**` : '',
     offerCount ? `🛒 Angebote: **${offerCount}**` : '',
     spark ? `📊 ${spark}` : '',
-    prevLowText ? `📉 ${boldNumbers(prevLowText)}` : '',
-    medianText ? `📈 ${boldNumbers(medianText)}` : ''
+    prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
+    medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
   ].filter(Boolean).join('\n');
   const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
   cleanTitle = cleanTitle.slice(0, maxTitle);

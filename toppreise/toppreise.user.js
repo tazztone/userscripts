@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.101
+// @version      2.18.102
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4178,7 +4178,6 @@ const SHADOW_MODAL_STYLES = `
           try {
             const { title, url } = extractShareData(card);
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
-            const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
             const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
             const medianVal = stats?.medianPrice;
             let dealer = extractDealer(card);
@@ -4188,12 +4187,16 @@ const SHADOW_MODAL_STYLES = `
               if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
             }
             const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
+            const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
+            const medianShown = medianVal && medianVal > cardPrice;
             const content = formatDealMessage({
-              title, url, priceText, badgeText,
+              title, url, priceText,
               dealer, offerCount: offers,
               spark: png ? '' : sparklineText(stats?.timeSeries),
-              prevLowText: (prevLow && priceToCents(prevLow) > priceToCents(cardPrice)) ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
-              medianText: (medianVal && medianVal > cardPrice) ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : ''
+              prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+              prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
+              medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
+              medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
             });
             let shared = false;
             if (png) {
@@ -5656,20 +5659,20 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // Ein Wert pro Zeile (scannbar, Zahlen fett): Link zuerst (unantastbar), dann
-  // Titel, Preis, Händler, Verlauf. Der Titel schrumpft bei Bedarf.
+  // Titel, Preis, Händler, Verlauf. Rabatte stehen je Referenzzeile (Bisher /
+  // Ø-Preis), nicht gebündelt in der Preiszeile.
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
-  function formatDealMessage({ title, url, priceText, badgeText, dealer, offerCount, spark, prevLowText, medianText }) {
+  const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
+  function formatDealMessage({ title, url, priceText, dealer, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct }) {
     const link = (url || '').trim();
     let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-    const cleanBadge = (badgeText || '').replace(/\s+/g, ' ').trim().replace(/\s*(-\d[\d.,]*\s*%)\s*$/, ' $1');
-    const priceLine = [priceText, cleanBadge].filter(Boolean).join(' · ');
     const rest = [
-      priceLine ? `💰 ${boldNumbers(priceLine)}` : '',
+      priceText ? `💰 ${boldNumbers(priceText)}` : '',
       dealer ? `🏬 Händler: **${dealer}**` : '',
       offerCount ? `🛒 Angebote: **${offerCount}**` : '',
       spark ? `📊 ${spark}` : '',
-      prevLowText ? `📉 ${boldNumbers(prevLowText)}` : '',
-      medianText ? `📈 ${boldNumbers(medianText)}` : ''
+      prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
+      medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
     ].filter(Boolean).join('\n');
     const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
     cleanTitle = cleanTitle.slice(0, maxTitle);

@@ -796,7 +796,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         try {
           const { title, url } = extractShareData(card);
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
-          const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
           const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
           const medianVal = stats?.medianPrice;
           let dealer = extractDealer(card);
@@ -806,12 +805,16 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
           }
           const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
+          const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
+          const medianShown = medianVal && medianVal > cardPrice;
           const content = formatDealMessage({
-            title, url, priceText, badgeText,
+            title, url, priceText,
             dealer, offerCount: offers,
             spark: png ? '' : sparklineText(stats?.timeSeries),
-            prevLowText: (prevLow && priceToCents(prevLow) > priceToCents(cardPrice)) ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
-            medianText: (medianVal && medianVal > cardPrice) ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : ''
+            prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+            prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
+            medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
+            medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
           });
           let shared = false;
           if (png) {
