@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.108
+// @version      2.18.109
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2769,8 +2769,12 @@ const SHADOW_MODAL_STYLES = `
     return { isNeg, isLowOffers };
   }
 
-  function isCardFilteredOut(card, filters = null) {
+  function isCardFilteredOut(card, filters = null, opts = null) {
     if (!card) return true;
+    // "Nur geprüfte" is display-only: scans + counters opt in to still see
+    // unchecked-hidden cards, so the toggle can't starve verification.
+    const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
+      && card.classList?.contains('tp-unchecked-hidden') === true;
     const bodyCls = document.body?.classList;
     const revealNeg = bodyCls?.contains('tp-reveal-neg') === true;
     const revealMin = bodyCls?.contains('tp-reveal-min') === true;
@@ -2782,7 +2786,7 @@ const SHADOW_MODAL_STYLES = `
       if ((card.classList?.contains('tp-negative-filtered') && !revealNeg) ||
           (card.classList?.contains('tp-min-offers-filtered') && !revealMin) ||
           (card.classList?.contains('tp-baddeal-hidden') && !revealBad) ||
-          (card.classList?.contains('tp-unchecked-hidden') && !revealUnchecked)) {
+          (card.classList?.contains('tp-unchecked-hidden') && !revealUnchecked && !includeHiddenUnchecked)) {
         return true;
       }
       // ponytail: no page context here; callers with a card list must pass
@@ -2797,11 +2801,13 @@ const SHADOW_MODAL_STYLES = `
     const tab = card.closest?.('.f_tab');
     if (tab && !tab.classList.contains('selected')) return true;
 
-    if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
-    if (typeof card.checkVisibility === 'function') {
-      if (!card.checkVisibility()) return true;
-    } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
-      return true;
+    if (!includeHiddenUnchecked) {
+      if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
+      if (typeof card.checkVisibility === 'function') {
+        if (!card.checkVisibility()) return true;
+      } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+        return true;
+      }
     }
     return false;
   }
@@ -3267,7 +3273,7 @@ const SHADOW_MODAL_STYLES = `
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
       const offerCount = extractOfferCount(card);
-      if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers))) continue;
+      if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers), { includeHiddenUnchecked: true })) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
         targets.push({ pid, card, discount });
@@ -5905,11 +5911,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters)) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { includeHiddenUnchecked: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters)) {
+          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { includeHiddenUnchecked: true })) {
             counts.uncheckedDeals++;
           }
         }

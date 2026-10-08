@@ -415,6 +415,10 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     page.wait_for_selector('#card-negative.tp-unchecked-hidden', state='attached')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
     assert 'tp-unchecked-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    # Hiding is display-only: hidden candidates still count for verification
+    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'))") is True
+    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { includeHiddenUnchecked: true })") is False
+    assert 'prüfen' in (page.locator('#tp-floating-check-main').text_content() or '').lower()
 
     # Toggle OFF the same way brings unchecked cards back
     page.click('.tp-floating-filter-row')

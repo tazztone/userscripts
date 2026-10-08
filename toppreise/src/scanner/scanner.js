@@ -185,7 +185,7 @@ export async function runProductScanner(options = {}) {
     const cached = getCachedPriceStats(pid);
     if (cached) continue;
     const offerCount = extractOfferCount(card);
-    if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers))) continue;
+    if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers), { includeHiddenUnchecked: true })) continue;
     const discount = extractCardDiscount(card) ?? 0;
     if (filterFn({ pid, card, discount })) {
       targets.push({ pid, card, discount });

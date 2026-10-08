@@ -247,8 +247,12 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   return { isNeg, isLowOffers };
 }
 
-export function isCardFilteredOut(card, filters = null) {
+export function isCardFilteredOut(card, filters = null, opts = null) {
   if (!card) return true;
+  // "Nur geprüfte" is display-only: scans + counters opt in to still see
+  // unchecked-hidden cards, so the toggle can't starve verification.
+  const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
+    && card.classList?.contains('tp-unchecked-hidden') === true;
   const bodyCls = document.body?.classList;
   const revealNeg = bodyCls?.contains('tp-reveal-neg') === true;
   const revealMin = bodyCls?.contains('tp-reveal-min') === true;
@@ -260,7 +264,7 @@ export function isCardFilteredOut(card, filters = null) {
     if ((card.classList?.contains('tp-negative-filtered') && !revealNeg) ||
         (card.classList?.contains('tp-min-offers-filtered') && !revealMin) ||
         (card.classList?.contains('tp-baddeal-hidden') && !revealBad) ||
-        (card.classList?.contains('tp-unchecked-hidden') && !revealUnchecked)) {
+        (card.classList?.contains('tp-unchecked-hidden') && !revealUnchecked && !includeHiddenUnchecked)) {
       return true;
     }
     // ponytail: no page context here; callers with a card list must pass
@@ -275,11 +279,13 @@ export function isCardFilteredOut(card, filters = null) {
   const tab = card.closest?.('.f_tab');
   if (tab && !tab.classList.contains('selected')) return true;
 
-  if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
-  if (typeof card.checkVisibility === 'function') {
-    if (!card.checkVisibility()) return true;
-  } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
-    return true;
+  if (!includeHiddenUnchecked) {
+    if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
+    if (typeof card.checkVisibility === 'function') {
+      if (!card.checkVisibility()) return true;
+    } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+      return true;
+    }
   }
   return false;
 }
