@@ -68,7 +68,7 @@ def test_pruef_vorauswahl_threshold_persists(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     # Prüf-Vorauswahl is a fine-tuning control: reveal advanced first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
 
     # Removed strictness toggle stays gone
     assert page.locator('#tp-root >> #tp-real-deal-filter-toggle').count() == 0
@@ -268,7 +268,7 @@ def test_sparklines_settings_toggle(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     # Sparklines live in the advanced panel: reveal it first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
 
     toggle = page.locator('#tp-root >> #tp-sparklines-toggle')
     assert toggle.is_checked()
@@ -290,7 +290,7 @@ def test_bestpreise_settings_weight_slider(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     # Weight slider is a fine-tuning control: reveal advanced first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
 
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
     assert not toggle.is_checked()
@@ -327,7 +327,7 @@ def test_bestpreise_settings_horizon_selection_persistence(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     # Horizon select is a fine-tuning control: reveal advanced first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
 
     # Toggle Bestpreise on if not active
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
@@ -361,7 +361,7 @@ def test_cache_settings_and_clear_button(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     # Cache TTL selects are fine-tuning controls: reveal advanced first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
 
     # Verify cache count label displays 2 items
     stats_label = page.locator('#tp-root >> #tp-cache-stats-label')
@@ -460,12 +460,12 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
-def test_advanced_settings_toggle_hides_fine_tuning(page: Page):
+def test_advanced_settings_details_hide_fine_tuning(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
-    # Collapsed by default: view toggle off, fine-tuning hidden, everyday controls usable
-    assert not page.locator('#tp-root >> #tp-advanced-toggle').is_checked()
+    # Collapsed by default: native disclosure closed, fine-tuning hidden, everyday controls usable
+    assert page.locator('#tp-root >> #tp-advanced-details').evaluate('el => el.open') is False
     assert not page.locator('#tp-root >> #tp-margin-range').is_visible()
     assert not page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
     assert page.locator('#tp-root >> label[for="tp-mode-dim"]').is_visible()
@@ -477,22 +477,22 @@ def test_advanced_settings_toggle_hides_fine_tuning(page: Page):
     assert page.locator('#tp-root >> .tp-section-header').count() == 0
     assert page.locator('#tp-root >> #tp-basic-settings button[title]').count() == 2
 
-    # Reveal via the visible slider (styled switch input itself is zero-opacity)
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
-    assert page.locator('#tp-root >> #tp-advanced-toggle').is_checked()
+    # Reveal via the native disclosure summary
+    page.click('#tp-root >> #tp-advanced-details > summary')
+    assert page.locator('#tp-root >> #tp-advanced-details').evaluate('el => el.open') is True
     assert page.locator('#tp-root >> #tp-advanced-panel').is_visible()
-    assert 'feintuning' in page.locator('#tp-root >> .tp-advanced-panel-header').inner_text().lower()
+    assert 'feintuning' in page.locator('#tp-root >> #tp-advanced-details > summary').inner_text().lower()
     assert page.locator('#tp-root >> #tp-margin-range').is_visible()
     assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.SHOW_ADVANCED") is True
 
-    # Save persists the view choice; reopening shows the toggle still on
+    # Save persists the view choice; reopening shows the disclosure still open
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.evaluate("() => localStorage.getItem('tp_suite_v2_SHOW_ADVANCED')") == 'true'
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    assert page.locator('#tp-root >> #tp-advanced-toggle').is_checked()
+    assert page.locator('#tp-root >> #tp-advanced-details').evaluate('el => el.open') is True
     assert page.locator('#tp-root >> #tp-margin-range').is_visible()
     page.click('#tp-root >> #tp-btn-close')
 

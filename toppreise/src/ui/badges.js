@@ -65,6 +65,39 @@ function ensureHistPriceEl(card, cardPriceEl) {
   }
   return el;
 }
+// Single-product verify flow, shared by the badge click and its keyboard twin,
+// the adjacent .tp-loupe button. Reads price at click time and re-verifies it
+// after fetch so a stale or swapped card never paints another product's stats.
+const loupeBtnByBadge = new WeakMap();
+async function runSingleDealCheck(card, badgeDifEl) {
+  if (badgeDifEl.classList.contains('tp-deal-loading')) return;
+  const currentPid = getCardProductId(card);
+  if (!currentPid) return;
+  loupeBtnByBadge.get(badgeDifEl)?.remove();
+  badgeDifEl.classList.add('tp-deal-loading');
+  badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
+  const requestTimePrice = extractCanonicalPrice(card).price;
+  const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true);
+  const currentTimePrice = extractCanonicalPrice(card).price;
+  if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
+    badgeDifEl.classList.remove('tp-deal-loading');
+    triggerProcessListings();
+    return;
+  }
+  badgeDifEl.classList.remove('tp-deal-loading');
+  if (fetchedStats) {
+    triggerProcessListings();
+  } else {
+    badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
+    badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
+    badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
+    setTimeout(() => {
+      if (badgeDifEl && !getCachedPriceStats(currentPid)) {
+        triggerProcessListings();
+      }
+    }, 2500);
+  }
+}
 
 export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
@@ -300,45 +333,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       ? (rawDiscount >= 0 ? `-${rawDiscount}%` : `+${-rawDiscount}%`)
       : '';
 
-    // Bind single click handler on badge
+    // Bind single click handler on badge (mouse path; keyboard users get the
+    // adjacent .tp-loupe button running the same runSingleDealCheck flow).
     if (!badgeDifEl.dataset.tpDealBound) {
       badgeDifEl.dataset.tpDealBound = 'true';
-      badgeDifEl.addEventListener('click', async e => {
+      badgeDifEl.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        if (badgeDifEl.classList.contains('tp-deal-loading')) return;
-        const currentPid = getCardProductId(card);
-        if (!currentPid) return;
-
-        badgeDifEl.classList.add('tp-deal-loading');
-        badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-        const requestTimePrice = extractCanonicalPrice(card).price;
-        const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true);
-
-        // Re-verify the card's price hasn't changed underneath us (e.g. dynamic sorting/reactivity)
-        const currentTimePrice = extractCanonicalPrice(card).price;
-
-        if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
-          // Price changed or is missing during fetch, fetch might be stale or product swapped
-          badgeDifEl.classList.remove('tp-deal-loading');
-          triggerProcessListings();
-          return;
-        }
-
-        badgeDifEl.classList.remove('tp-deal-loading');
-        if (fetchedStats) {
-          triggerProcessListings();
-        } else {
-          badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
-          badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
-          badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
-          setTimeout(() => {
-            if (badgeDifEl && !getCachedPriceStats(currentPid)) {
-              triggerProcessListings();
-            }
-          }, 2500);
-        }
+        runSingleDealCheck(card, badgeDifEl);
       });
     }
 
@@ -505,14 +508,14 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         } else {
           badgeDifEl.classList.remove('tp-deal-loading');
           if (rawDiscount !== null && !isNaN(rawDiscount)) {
-            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
+            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
             }
           } else {
-            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis).`);
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis). Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
             } else {
@@ -671,9 +674,37 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
       }
     }
+    // Loupe button: keyboard-operable twin of the badge click. The badge keeps
+    // its content and mouse click untouched; the button runs the same
+    // runSingleDealCheck flow. Shown only for unscanned cards (loupe states),
+    // never inside the badge. Reused across renders so focus survives.
+    const showLoupe = !!pid && !stats && !badgeDifEl.classList.contains('tp-deal-loading');
+    let loupeBtn = loupeBtnByBadge.get(badgeDifEl);
+    if (showLoupe) {
+      if (!loupeBtn?.isConnected || loupeBtn.previousElementSibling !== badgeDifEl) {
+        loupeBtn?.remove();
+        loupeBtn = document.createElement('button');
+        loupeBtn.type = 'button';
+        loupeBtn.className = 'tp-loupe';
+        loupeBtn.setAttribute('aria-label', 'Differenz prüfen');
+        loupeBtn.textContent = '🔍';
+        loupeBtn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          runSingleDealCheck(card, badgeDifEl);
+        });
+        loupeBtnByBadge.set(badgeDifEl, loupeBtn);
+        badgeDifEl.insertAdjacentElement('afterend', loupeBtn);
+      }
+      loupeBtn.style.display = '';
+    } else {
+      loupeBtn?.remove();
+      loupeBtnByBadge.delete(badgeDifEl);
+    }
   } else {
     card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
     card.querySelector('.tp-card-historical-price')?.remove();
+    card.querySelectorAll('button.tp-loupe').forEach(b => b.remove());
   }
 
   // 5. Mini Price-Trend Sparkline

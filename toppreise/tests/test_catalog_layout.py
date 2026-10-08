@@ -55,7 +55,7 @@ def test_sort_by_offers(page: Page):
     # Open settings and enable sort by offers desc
     page.click('#tp-root >> #tp-settings-fab')
     # Sortierung lives in the advanced panel: reveal it first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
     page.click('#tp-root >> label[for="tp-sort-desc"]')
     page.click('#tp-root >> #tp-btn-save')
 
@@ -208,7 +208,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
 def test_suite_filter_bar_grouping(page: Page):
     assert page.evaluate("() => document.getElementById('tp-bar-reveal-baddeals').closest('.tp-group').classList.contains('tp-group-filter')")
-    assert page.evaluate("() => document.getElementById('tp-bar-hide-unchecked-btn').closest('.tp-group').classList.contains('tp-group-filter')")
+    assert page.evaluate("() => document.getElementById('tp-bar-reveal-menu').closest('.tp-group').classList.contains('tp-group-filter')")
     assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
 
 
@@ -247,7 +247,7 @@ def test_sort_by_discount(page: Page):
     # Open settings and enable sort by discount descending
     page.click('#tp-root >> #tp-settings-fab')
     # Sortierung lives in the advanced panel: reveal it first
-    page.click('#tp-root >> .tp-advanced-toggle-row .tp-slider')
+    page.click('#tp-root >> #tp-advanced-details > summary')
     page.click('#tp-root >> label[for="tp-sort-discount"]')
     page.click('#tp-root >> #tp-btn-save')
 
@@ -277,7 +277,8 @@ def test_empty_state_notice_and_actions(page: Page):
     assert 'tp-reveal-neg' in (page.locator('body').get_attribute('class') or '')
     assert not page.locator('#tp-empty-state-notice').is_visible()
 
-    # Toggle reveal off again -> notice comes back
+    # Toggle reveal off again -> notice comes back (reveal lives in the overflow menu)
+    page.click('#tp-bar-reveal-menu')
     page.click('#tp-bar-reveal-neg')
     page.wait_for_selector('#tp-empty-state-notice')
 
@@ -403,19 +404,20 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     }""")
     page.wait_for_selector('#card-cheapest.tp-is-verified')
     assert 'tp-is-unverified' in (page.locator('#card-negative').get_attribute('class') or '')
+    # Toggle faces: contextual checkbox in the CTA threshold popover + settings toggle (persisted pref)
+    page.click('#tp-root >> #tp-settings-fab')
+    assert page.locator('#tp-root >> #tp-hide-unchecked-toggle').is_checked() is False
+    page.click('#tp-root >> #tp-btn-close')
 
-    # Toggle faces exist wherever the verify CTA shows
-    assert page.locator('#tp-floating-hide-unchecked-btn').is_visible()
-    assert page.locator('#tp-bar-hide-unchecked-btn').is_visible()
-
-    # Toggle ON hides unchecked cards, verified card stays visible
-    page.click('#tp-floating-hide-unchecked-btn')
+    # Toggle ON via the popover checkbox hides unchecked cards, verified card stays visible
+    page.click('#tp-floating-threshold-btn')
+    page.click('.tp-floating-filter-row')
     page.wait_for_selector('#card-negative.tp-unchecked-hidden', state='attached')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
     assert 'tp-unchecked-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
-    # Toggle OFF via toolbar brings unchecked cards back
-    page.click('#tp-bar-hide-unchecked-btn')
+    # Toggle OFF the same way brings unchecked cards back
+    page.click('.tp-floating-filter-row')
     page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-unchecked-hidden')")
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.97
+// @version      2.18.98
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -374,6 +374,31 @@ const STYLES = `
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8)) !important;
     pointer-events: none !important;
   }
+  /* Loupe check button: keyboard twin of the badge click. Corner badges are
+     absolute overlays, so the button overlays too (same offset parent as the
+     badge: directly below its 50px box) — never a new layout row. Inline
+     deal pills get an inline button joining the pill row instead. */
+  button.tp-loupe {
+    position: absolute !important;
+    top: 64px !important;
+    right: 10px !important;
+    z-index: 31 !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    padding: 2px 4px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    background: rgba(51,65,85,0.85) !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+  }
+  .tp-deal-pill + button.tp-loupe {
+    position: static !important;
+    margin-left: 8px !important;
+  }
+  button.tp-loupe:hover { background: #334155 !important; }
+  button.tp-loupe:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
   .badge.badge-dif.tp-deal-loading,
   .badge-dif.tp-deal-loading {
     cursor: wait !important;
@@ -846,11 +871,31 @@ const STYLES = `
     flex-shrink: 0 !important;
   }
   .tp-bar-btn:hover { background: #334155 !important; color: #fff !important; }
+  .tp-bar-btn:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
     background: rgba(16,185,129,0.2) !important;
     border-color: rgba(16,185,129,0.4) !important;
     color: #34d399 !important;
   }
+  .tp-reveal-menu-wrapper { position: relative !important; }
+  #tp-bar-reveal-popover {
+    position: absolute !important;
+    top: calc(100% + 6px) !important;
+    left: 0 !important;
+    background: rgba(15, 23, 42, 0.97) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+    padding: 4px !important;
+    display: none;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 220px !important;
+    z-index: 50 !important;
+  }
+  #tp-bar-reveal-popover.tp-show { display: flex !important; }
+  #tp-bar-reveal-popover .tp-bar-btn { justify-content: flex-start !important; width: 100% !important; }
+  #tp-bar-reveal-popover .tp-reveal-hint { color: #94a3b8 !important; padding: 5px 10px 3px !important; font-size: 11px !important; }
   .tp-mini-switch {
     position: relative !important;
     display: inline-flex !important;
@@ -925,8 +970,8 @@ const STYLES = `
     color: #94a3b8 !important;
   }
   .tp-stepper-btn {
-    width: 20px !important;
-    height: 20px !important;
+    width: 24px !important;
+    height: 24px !important;
     border-radius: 50% !important;
     background: rgba(255,255,255,0.1) !important;
     border: 1px solid rgba(255,255,255,0.15) !important;
@@ -936,6 +981,7 @@ const STYLES = `
     padding: 0 !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
+  .tp-stepper-btn:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;
@@ -965,6 +1011,11 @@ const STYLES = `
   }
   @media (prefers-reduced-motion: reduce) {
     #tp-floating-check-cta { animation: none !important; }
+    .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
+  }
+  @media (prefers-contrast: more) {
+    .badge-dif, .tp-deal-pill { color: #fff !important; border-width: 2px !important; }
+    .tp-tool-dim { opacity: 0.75 !important; }
   }
   #tp-floating-check-btn {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
@@ -995,19 +1046,21 @@ const STYLES = `
     white-space: nowrap !important;
   }
   #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
-  #tp-floating-hide-unchecked-btn {
-    background: rgba(51,65,85,0.7) !important;
-    border: none !important;
-    border-left: 1px solid rgba(255,255,255,0.12) !important;
+  #tp-floating-threshold-popover .tp-floating-filter-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
     color: #cbd5e1 !important;
     font-size: 11px !important;
     font-weight: 700 !important;
     padding: 6px 10px !important;
     cursor: pointer !important;
     white-space: nowrap !important;
+    border-radius: 6px !important;
   }
-  #tp-floating-hide-unchecked-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
-  #tp-floating-hide-unchecked-btn.tp-active { background: #10b981 !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-filter-row:hover { background: rgba(51,65,85,1) !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-filter-row.tp-active { background: rgba(16,185,129,0.25) !important; color: #34d399 !important; }
+  #tp-floating-threshold-popover .tp-floating-filter-row input { accent-color: #10b981 !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 6px) !important;
@@ -1057,14 +1110,16 @@ const STYLES = `
     line-height: 1.2 !important;
   }
   #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
+  #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
+  #tp-floating-threshold-popover .tp-floating-filter-row:focus-within { outline: 2px solid #34d399 !important; outline-offset: -2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
   #tp-floating-check-count { display: none !important; font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-cta.tp-collapsed { border-radius: 999px !important; padding: 4px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-hide-unchecked-btn { display: none !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 999px !important; border: none !important; margin-left: 2px !important; }
   @media (max-width: 600px) {
@@ -1079,8 +1134,8 @@ const SHADOW_MODAL_STYLES = `
     position: fixed;
     bottom: 14px;
     right: 14px;
-    width: 50px;
-    height: 50px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: rgba(30,41,59,0.85);
     backdrop-filter: blur(10px);
@@ -1092,11 +1147,18 @@ const SHADOW_MODAL_STYLES = `
     align-items: center;
     justify-content: center;
     color: #f1f5f9;
+    opacity: 0.5;
     transition: all 0.3s ease;
   }
   #tp-settings-fab:hover {
     background: rgba(16,185,129,0.9);
-    transform: scale(1.1);
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  #tp-settings-fab:focus-visible {
+    opacity: 1;
+    outline: 2px solid #34d399;
+    outline-offset: 2px;
   }
   #tp-settings-fab svg { width: 24px; height: 24px; }
   dialog#tp-settings-dialog {
@@ -1135,7 +1197,18 @@ const SHADOW_MODAL_STYLES = `
   #tp-basic-settings .tp-settings-group { margin-bottom: 10px; }
   #tp-basic-settings label[title], #tp-basic-settings button[title] { cursor: help; }
   #tp-advanced-panel { background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-  .tp-advanced-panel-header { color: #a78bfa; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  #tp-advanced-details { margin-top: 4px; }
+  #tp-advanced-details > summary { display: flex; align-items: center; gap: 8px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #tp-advanced-details > summary:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+  .tp-field-dark { width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 4px; box-sizing: border-box; }
+  select.tp-field-dark { font-size: 13px; }
+  .tp-field-hint { display: block; margin-top: 4px; font-size: 11px; opacity: 0.85; }
+  .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
+  .tp-btn-row .tp-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #tp-import-config-file { display: none; }
+  .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+  .tp-cache-row #tp-cache-stats-label { font-size: 12px; opacity: 0.85; }
+  .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: 12px; }
   .tp-advanced-subheader { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
   .tp-segmented-control {
     display: flex;
@@ -1218,8 +1291,6 @@ const SHADOW_MODAL_STYLES = `
   .tp-switch.tp-rose input:checked + .tp-slider { background-color: #f43f5e; }
   .tp-switch.tp-purple input:checked + .tp-slider { background-color: #8b5cf6; }
   .tp-switch input:checked + .tp-slider:before { transform: translateX(20px); background-color: #fff; }
-  .tp-advanced-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
-  #tp-settings-sections.tp-hide-advanced #tp-advanced-panel { display: none !important; }
   .tp-modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -1267,6 +1338,16 @@ const SHADOW_MODAL_STYLES = `
     transition: opacity 0.3s ease, transform 0.3s ease;
   }
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
+  .tp-btn:focus-visible, .tp-field-dark:focus-visible,
+  .tp-switch input:focus-visible + .tp-slider,
+  .tp-segmented-control input:focus-visible + label { outline: 2px solid #a78bfa !important; outline-offset: 2px !important; }
+  @media (prefers-reduced-motion: reduce) {
+    #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
+  }
+  @media (prefers-contrast: more) {
+    .tp-switch-desc, .tp-advanced-subheader, .tp-cache-row #tp-cache-stats-label { opacity: 1 !important; }
+    .tp-field-dark { border-width: 2px !important; }
+  }
 `;
 
 (() => {
@@ -2205,9 +2286,8 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'SHOW_ADVANCED': {
-            const toggle = shadow.getElementById('tp-advanced-toggle');
-            if (toggle) toggle.checked = !!val;
-            shadow.getElementById('tp-settings-sections')?.classList.toggle('tp-hide-advanced', !val);
+            const details = shadow.getElementById('tp-advanced-details');
+            if (details) details.open = !!val;
             break;
           }
         }
@@ -2240,11 +2320,6 @@ const SHADOW_MODAL_STYLES = `
               const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
               if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
               bar.classList.toggle('tp-bestpreise-bar', val === true);
-              break;
-            }
-            case 'BESTPREISE_HIDE_UNCHECKED': {
-              const hideBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
-              if (hideBtn) hideBtn.classList.toggle('tp-active', val === true);
               break;
             }
             case 'FILTER_NEG_ENABLED': {
@@ -3333,6 +3408,39 @@ const SHADOW_MODAL_STYLES = `
     }
     return el;
   }
+  // Single-product verify flow, shared by the badge click and its keyboard twin,
+  // the adjacent .tp-loupe button. Reads price at click time and re-verifies it
+  // after fetch so a stale or swapped card never paints another product's stats.
+  const loupeBtnByBadge = new WeakMap();
+  async function runSingleDealCheck(card, badgeDifEl) {
+    if (badgeDifEl.classList.contains('tp-deal-loading')) return;
+    const currentPid = getCardProductId(card);
+    if (!currentPid) return;
+    loupeBtnByBadge.get(badgeDifEl)?.remove();
+    badgeDifEl.classList.add('tp-deal-loading');
+    badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
+    const requestTimePrice = extractCanonicalPrice(card).price;
+    const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true);
+    const currentTimePrice = extractCanonicalPrice(card).price;
+    if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
+      badgeDifEl.classList.remove('tp-deal-loading');
+      triggerProcessListings();
+      return;
+    }
+    badgeDifEl.classList.remove('tp-deal-loading');
+    if (fetchedStats) {
+      triggerProcessListings();
+    } else {
+      badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
+      badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
+      badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
+      setTimeout(() => {
+        if (badgeDifEl && !getCachedPriceStats(currentPid)) {
+          triggerProcessListings();
+        }
+      }, 2500);
+    }
+  }
 
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
@@ -3568,45 +3676,15 @@ const SHADOW_MODAL_STYLES = `
         ? (rawDiscount >= 0 ? `-${rawDiscount}%` : `+${-rawDiscount}%`)
         : '';
 
-      // Bind single click handler on badge
+      // Bind single click handler on badge (mouse path; keyboard users get the
+      // adjacent .tp-loupe button running the same runSingleDealCheck flow).
       if (!badgeDifEl.dataset.tpDealBound) {
         badgeDifEl.dataset.tpDealBound = 'true';
-        badgeDifEl.addEventListener('click', async e => {
+        badgeDifEl.addEventListener('click', e => {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          if (badgeDifEl.classList.contains('tp-deal-loading')) return;
-          const currentPid = getCardProductId(card);
-          if (!currentPid) return;
-
-          badgeDifEl.classList.add('tp-deal-loading');
-          badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-          const requestTimePrice = extractCanonicalPrice(card).price;
-          const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true);
-
-          // Re-verify the card's price hasn't changed underneath us (e.g. dynamic sorting/reactivity)
-          const currentTimePrice = extractCanonicalPrice(card).price;
-
-          if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
-            // Price changed or is missing during fetch, fetch might be stale or product swapped
-            badgeDifEl.classList.remove('tp-deal-loading');
-            triggerProcessListings();
-            return;
-          }
-
-          badgeDifEl.classList.remove('tp-deal-loading');
-          if (fetchedStats) {
-            triggerProcessListings();
-          } else {
-            badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
-            badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
-            badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
-            setTimeout(() => {
-              if (badgeDifEl && !getCachedPriceStats(currentPid)) {
-                triggerProcessListings();
-              }
-            }, 2500);
-          }
+          runSingleDealCheck(card, badgeDifEl);
         });
       }
 
@@ -3773,14 +3851,14 @@ const SHADOW_MODAL_STYLES = `
           } else {
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
-              setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen.`);
+              setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
               }
             } else {
-              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis).`);
+              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis). Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
               } else {
@@ -3939,9 +4017,37 @@ const SHADOW_MODAL_STYLES = `
           }
         }
       }
+      // Loupe button: keyboard-operable twin of the badge click. The badge keeps
+      // its content and mouse click untouched; the button runs the same
+      // runSingleDealCheck flow. Shown only for unscanned cards (loupe states),
+      // never inside the badge. Reused across renders so focus survives.
+      const showLoupe = !!pid && !stats && !badgeDifEl.classList.contains('tp-deal-loading');
+      let loupeBtn = loupeBtnByBadge.get(badgeDifEl);
+      if (showLoupe) {
+        if (!loupeBtn?.isConnected || loupeBtn.previousElementSibling !== badgeDifEl) {
+          loupeBtn?.remove();
+          loupeBtn = document.createElement('button');
+          loupeBtn.type = 'button';
+          loupeBtn.className = 'tp-loupe';
+          loupeBtn.setAttribute('aria-label', 'Differenz prüfen');
+          loupeBtn.textContent = '🔍';
+          loupeBtn.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            runSingleDealCheck(card, badgeDifEl);
+          });
+          loupeBtnByBadge.set(badgeDifEl, loupeBtn);
+          badgeDifEl.insertAdjacentElement('afterend', loupeBtn);
+        }
+        loupeBtn.style.display = '';
+      } else {
+        loupeBtn?.remove();
+        loupeBtnByBadge.delete(badgeDifEl);
+      }
     } else {
       card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
       card.querySelector('.tp-card-historical-price')?.remove();
+      card.querySelectorAll('button.tp-loupe').forEach(b => b.remove());
     }
 
     // 5. Mini Price-Trend Sparkline
@@ -4212,10 +4318,6 @@ const SHADOW_MODAL_STYLES = `
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
-        <div class="tp-advanced-toggle-row tp-switch-container">
-          <div class="tp-switch-label"><label>⚙️ Erweiterte Einstellungen</label><span class="tp-switch-desc">Feintuning, Cache-Dauern & Verzögerungen ein-/ausblenden</span></div>
-          <label class="tp-switch tp-purple"><input type="checkbox" id="tp-advanced-toggle"><span class="tp-slider"></span></label>
-        </div>
         <div id="tp-basic-settings">
           <div class="tp-settings-group">
             <label title="So werden gefilterte Angebote dargestellt: farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
@@ -4280,17 +4382,18 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group">
             <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-            <input type="password" id="tp-discord-webhook-input" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 4px; box-sizing: border-box;">
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+            <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+            <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
           </div>
-          <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
-            <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
-            <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
-            <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
+          <div class="tp-settings-group tp-btn-row">
+            <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
+            <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
+            <input type="file" id="tp-import-config-file" accept=".json">
           </div>
         </div>
+        <details id="tp-advanced-details">
+          <summary>⚙️ Feintuning</summary>
         <div id="tp-advanced-panel">
-          <div class="tp-advanced-panel-header">⚙️ Feintuning</div>
           <div class="tp-advanced-subheader">Anzeige & Sortierung</div>
           <div class="tp-settings-group">
             <label>Sortierung nach Angeboten / Rabatt</label>
@@ -4333,17 +4436,17 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
               <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
             </div>
-            <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
+            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple tp-field-dark">
               <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
               <option value="180">6 Monate (180 Tage)</option>
               <option value="90">3 Monate (90 Tage)</option>
               <option value="0">Gesamte Historie (Lifetime)</option>
             </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+            <span class="tp-switch-desc tp-field-hint">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
           </div>
           <div class="tp-settings-group">
             <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
@@ -4351,7 +4454,7 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
               <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
             </div>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
+            <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
           </div>
           <div class="tp-advanced-subheader">Preisalarm</div>
           <div class="tp-settings-group">
@@ -4384,33 +4487,34 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
-            <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
-            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
+          <div class="tp-settings-group tp-cache-row">
+            <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
+            <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
           </div>
           <div class="tp-settings-group">
             <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
-            <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+            <select id="tp-cache-ttl-select" class="tp-select tp-field-dark">
               <option value="24">24 Stunden (1 Tag)</option>
               <option value="48">48 Stunden (2 Tage) [Standard]</option>
               <option value="72">72 Stunden (3 Tage)</option>
               <option value="168">7 Tage (1 Woche)</option>
               <option value="336">14 Tage (2 Wochen)</option>
             </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
+            <span class="tp-switch-desc tp-field-hint">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
           </div>
           <div class="tp-settings-group">
             <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
-            <select id="tp-cache-neg-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+            <select id="tp-cache-neg-ttl-select" class="tp-select tp-field-dark">
               <option value="1">1 Stunde</option>
               <option value="2">2 Stunden [Standard]</option>
               <option value="6">6 Stunden</option>
               <option value="12">12 Stunden</option>
               <option value="24">24 Stunden</option>
             </select>
-            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
+            <span class="tp-switch-desc tp-field-hint">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
           </div>
         </div>
+        </details>
         </div>
       `;
       section = tempDiv.firstElementChild;
@@ -4460,18 +4564,15 @@ const SHADOW_MODAL_STYLES = `
     const dur180 = shadow.getElementById('tp-dur-180');
     const dur365 = shadow.getElementById('tp-dur-365');
     const dur730 = shadow.getElementById('tp-dur-730');
-    const advancedToggle = shadow.getElementById('tp-advanced-toggle');
+    const advancedDetails = shadow.getElementById('tp-advanced-details');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
-    const sectionsHolder = shadow.getElementById('tp-settings-sections');
-    const applyAdvancedVisibility = (show) => { sectionsHolder?.classList.toggle('tp-hide-advanced', !show); };
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
 
     function syncFieldsFromConfig() {
-      if (advancedToggle) advancedToggle.checked = CONFIG.SHOW_ADVANCED === true;
-      applyAdvancedVisibility(CONFIG.SHOW_ADVANCED === true);
+      if (advancedDetails) advancedDetails.open = CONFIG.SHOW_ADVANCED === true;
       if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
       else if (CONFIG.MODE === 'hide') modeHide.checked = true;
       else modeDim.checked = true;
@@ -4543,7 +4644,15 @@ const SHADOW_MODAL_STYLES = `
         onInput?.(parseFloat(e.target.value));
       });
       numEl.addEventListener('input', e => {
-        rangeEl.value = e.target.value;
+        // Clamp typed values into the slider's range so the pair can't desync.
+        const min = parseFloat(rangeEl.min);
+        const max = parseFloat(rangeEl.max);
+        const typed = parseFloat(e.target.value);
+        if (!isNaN(min) && !isNaN(max) && !isNaN(typed)) {
+          rangeEl.value = Math.min(max, Math.max(min, typed));
+        } else {
+          rangeEl.value = e.target.value;
+        }
         onInput?.(parseFloat(e.target.value));
       });
     };
@@ -4556,7 +4665,7 @@ const SHADOW_MODAL_STYLES = `
         document.documentElement.style.setProperty('--tp-dim-opacity', v);
       });
       opacityVal.addEventListener('input', e => {
-        const v = (parseFloat(e.target.value) || 0) / 100;
+        const v = Math.min(0.95, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
         opacityRange.value = v;
         document.documentElement.style.setProperty('--tp-dim-opacity', v);
       });
@@ -4581,7 +4690,9 @@ const SHADOW_MODAL_STYLES = `
       }
     });
 
-    advancedToggle?.addEventListener('change', () => { saveConfigKey('SHOW_ADVANCED', advancedToggle.checked); applyAdvancedVisibility(advancedToggle.checked); });
+    // The toggle event is queued async; predict from the pre-click state in the
+    // click itself so SHOW_ADVANCED persists synchronously (as the old switch did).
+    advancedDetails?.querySelector('summary')?.addEventListener('click', () => { saveConfigKey('SHOW_ADVANCED', !advancedDetails.open); });
 
     cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -4718,7 +4829,7 @@ const SHADOW_MODAL_STYLES = `
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
-      updates.SHOW_ADVANCED = !!advancedToggle?.checked;
+      updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
       updateConfigs(updates);
       if (shippingChanged) clearPriceStatsCache();
@@ -4758,6 +4869,7 @@ const SHADOW_MODAL_STYLES = `
    * Manages the inline/floating contextual filter bar, quick filters,
    * deal thresholds, and scan progress.
    */
+
 
 
 
@@ -4921,7 +5033,16 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
           </div>
-          <button class="tp-bar-btn ${revealNeg ? 'tp-active' : ''}" id="tp-bar-reveal-neg" title="Durch Negativ-Filter ausgeblendete Produkte (${negHidden}) anzeigen — klicken zum Ein-/Ausblenden">Gefilterte (${negHidden})</button>
+          <div class="tp-reveal-menu-wrapper">
+            <button class="tp-bar-btn" id="tp-bar-reveal-menu" title="Ausgeblendete Produkte anzeigen — klicken zum Öffnen">👁️ Ausgeblendete (0)</button>
+            <div id="tp-bar-reveal-popover" role="menu" aria-label="Ausgeblendete Produkte">
+              <button class="tp-bar-btn ${revealNeg ? 'tp-active' : ''}" id="tp-bar-reveal-neg" title="Durch Negativ-Filter ausgeblendete Produkte (${negHidden}) anzeigen — klicken zum Ein-/Ausblenden">Gefilterte (${negHidden})</button>
+              <button class="tp-bar-btn ${revealMin ? 'tp-active' : ''}" id="tp-bar-reveal-min" title="Produkte mit zu wenigen Angeboten (${minHidden}) anzeigen — klicken zum Ein-/Ausblenden">Wenig Angebote (${minHidden})</button>
+              <button class="tp-bar-btn ${revealBad ? 'tp-active' : ''}" id="tp-bar-reveal-baddeals" title="Verifizierte Nicht-Deals mit Aufschlag (${badHidden}) anzeigen — klicken zum Ein-/Ausblenden">Schlechte Deals (${badHidden})</button>
+              <button class="tp-bar-btn ${revealUnchecked ? 'tp-active' : ''}" id="tp-bar-reveal-unchecked" title="Noch ungeprüfte Deals (${uncheckedHiddenCount}) anzeigen — klicken zum Ein-/Ausblenden">Ungeprüfte (${uncheckedHiddenCount})</button>
+              <div class="tp-reveal-hint" id="tp-bar-reveal-hint">Keine ausgeblendeten Produkte</div>
+            </div>
+          </div>
           <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten ausblenden">
             <span class="tp-stepper-label">Min-Angebote:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -4934,10 +5055,6 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
           </div>
-          <button class="tp-bar-btn ${revealMin ? 'tp-active' : ''}" id="tp-bar-reveal-min" title="Produkte mit zu wenigen Angeboten (${minHidden}) anzeigen — klicken zum Ein-/Ausblenden">Wenig Angebote (${minHidden})</button>
-          <button class="tp-bar-btn ${revealBad ? 'tp-active' : ''}" id="tp-bar-reveal-baddeals" title="Verifizierte Nicht-Deals mit Aufschlag (${badHidden}) anzeigen — klicken zum Ein-/Ausblenden">Schlechte Deals (${badHidden})</button>
-          <button class="tp-bar-btn ${revealUnchecked ? 'tp-active' : ''}" id="tp-bar-reveal-unchecked" title="Noch ungeprüfte Deals (${uncheckedHiddenCount}) anzeigen — klicken zum Ein-/Ausblenden">Ungeprüfte (${uncheckedHiddenCount})</button>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-hide-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)" style="display: flex;">👁️ Nur geprüfte</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
          <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
@@ -4998,6 +5115,23 @@ const SHADOW_MODAL_STYLES = `
       bindReveal('tp-bar-reveal-min', 'tp-reveal-min');
       bindReveal('tp-bar-reveal-baddeals', 'tp-reveal-baddeals');
       bindReveal('tp-bar-reveal-unchecked', 'tp-reveal-unchecked');
+      const revealMenuBtn = bar.querySelector('#tp-bar-reveal-menu');
+      const revealPopover = bar.querySelector('#tp-bar-reveal-popover');
+      if (revealMenuBtn && revealPopover) {
+        revealMenuBtn.onclick = e => {
+          e.stopPropagation();
+          revealPopover.classList.toggle('tp-show');
+        };
+        if (!window._tpRevealMenuDocBound) {
+          window._tpRevealMenuDocBound = true;
+          document.addEventListener('click', e => {
+            const b = document.getElementById('tp-suite-filter-bar');
+            if (b && !b.contains(e.target)) {
+              b.querySelector('#tp-bar-reveal-popover')?.classList.remove('tp-show');
+            }
+          });
+        }
+      }
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
         const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -5006,14 +5140,6 @@ const SHADOW_MODAL_STYLES = `
 
       const bestpreiseToggleBtn = bar.querySelector('#tp-bar-bestpreise-btn');
       if (bestpreiseToggleBtn) bindBestpreiseBtn(bestpreiseToggleBtn);
-      const hideUncheckedBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
-      if (hideUncheckedBtn) {
-        hideUncheckedBtn.onclick = () => {
-          const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
-          updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-          showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
-        };
-      }
 
 
       // Weight slider: live label on drag, debounced config write (each write
@@ -5072,6 +5198,15 @@ const SHADOW_MODAL_STYLES = `
     syncRevealBtn('tp-bar-reveal-min', '👁 Wenig Angebote', minHidden, 'tp-reveal-min', 'Produkte mit zu wenigen Angeboten');
     syncRevealBtn('tp-bar-reveal-baddeals', '👁 Schlechte Deals', badHidden, 'tp-reveal-baddeals', 'Verifizierte Nicht-Deals mit Aufschlag');
     syncRevealBtn('tp-bar-reveal-unchecked', '👁 Ungeprüfte', uncheckedHiddenCount, 'tp-reveal-unchecked', 'Noch ungeprüfte Deals');
+    const hiddenTotal = negHidden + minHidden + badHidden + uncheckedHiddenCount;
+    const revealMenuBtnSync = bar.querySelector('#tp-bar-reveal-menu');
+    if (revealMenuBtnSync) {
+      setTextIfChanged(revealMenuBtnSync, `👁️ Ausgeblendete (${hiddenTotal})`);
+      revealMenuBtnSync.classList.toggle('tp-tool-dim', hiddenTotal === 0);
+      revealMenuBtnSync.title = hiddenTotal > 0 ? `Ausgeblendete Produkte (${hiddenTotal}) anzeigen — klicken zum Öffnen` : 'Keine ausgeblendeten Produkte';
+    }
+    const revealHint = bar.querySelector('#tp-bar-reveal-hint');
+    if (revealHint) revealHint.style.setProperty('display', hiddenTotal === 0 ? 'block' : 'none', 'important');
 
     const heatBtn = bar.querySelector('#tp-bar-heat-btn');
     if (heatBtn) {
@@ -5262,7 +5397,6 @@ const SHADOW_MODAL_STYLES = `
         <span id="tp-floating-check-count">🔍</span>
       </button>
       <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
-      <button type="button" id="tp-floating-hide-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)">👁️ Nur geprüfte</button>
       <div id="tp-floating-threshold-popover" role="menu">
         <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
       </div>
@@ -5296,10 +5430,13 @@ const SHADOW_MODAL_STYLES = `
       e.stopPropagation();
       popover.classList.toggle('tp-show');
     };
-    el.querySelector('#tp-floating-hide-unchecked-btn').onclick = e => {
-      e.preventDefault();
-      e.stopPropagation();
-      const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
+    const filterRow = document.createElement('label');
+    filterRow.className = 'tp-floating-filter-row';
+    filterRow.title = 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+    filterRow.innerHTML = '<input type="checkbox" id="tp-floating-hide-unchecked-toggle"><span>Nur geprüfte</span>';
+    popover.appendChild(filterRow);
+    filterRow.querySelector('input').onchange = e => {
+      const next = e.target.checked;
       updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
       showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
     };
@@ -5369,11 +5506,14 @@ const SHADOW_MODAL_STYLES = `
     el.querySelectorAll('.tp-floating-option').forEach(opt => {
       opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
     });
-    const hideBtn = el.querySelector('#tp-floating-hide-unchecked-btn');
-    if (hideBtn) {
-      hideBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
-      setTextIfChanged(hideBtn, CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✅ Nur geprüfte' : '👁️ Nur geprüfte');
-      hideBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+    const hideToggleSync = el.querySelector('#tp-floating-hide-unchecked-toggle');
+    if (hideToggleSync && document.activeElement !== hideToggleSync) {
+      hideToggleSync.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
+    }
+    const filterRowSync = el.querySelector('.tp-floating-filter-row');
+    if (filterRowSync) {
+      filterRowSync.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+      filterRowSync.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
     }
   }
 

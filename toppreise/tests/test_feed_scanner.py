@@ -251,7 +251,8 @@ def test_mode_hides_non_bestpreis(page: Page):
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
     assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
-    # Click reveal button (👁️) and verify card-negative is shown with outline preview
+    # Reveal buttons live in the overflow menu: open it, then click reveal (👁️)
+    page.click('#tp-bar-reveal-menu')
     page.click('#tp-bar-reveal-baddeals')
     assert page.locator('#card-negative').is_visible()
     assert 'tp-reveal-baddeals' in (page.locator('body').get_attribute('class') or '')
@@ -491,6 +492,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert cta.is_visible()
 
     # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
+    page.click('#tp-bar-reveal-menu')
     page.click('#tp-bar-reveal-neg')
     page.wait_for_selector('body.tp-reveal-neg')
     # Both card-negative and card-iphone are now visible (revealed)
@@ -1192,6 +1194,12 @@ def test_unscanned_cards_no_stuck_loading_badge(page: Page):
     uncached_badge = page.locator('#card-low-offers .badge-dif')
     assert 'tp-deal-loading' not in (uncached_badge.get_attribute('class') or '')
     assert '🔍' in (uncached_badge.text_content() or '')
+    # Loupe action is a real focusable button adjacent to (never inside) the badge
+    loupe = page.locator('#card-low-offers button.tp-loupe')
+    assert loupe.is_visible()
+    assert loupe.is_enabled()
+    assert loupe.get_attribute('aria-label') == 'Differenz prüfen'
+    assert loupe.evaluate("el => el.previousElementSibling && el.previousElementSibling.matches('.badge-dif')")
 
 
 

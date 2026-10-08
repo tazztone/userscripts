@@ -11,6 +11,7 @@ import {
 } from "../scanner/scanner.js";
 import { scanState } from "../state/store.js";
 import { showToast } from "./toast.js";
+import { setTextIfChanged } from "./badges.js";
 import { triggerProcessListings } from "../page/adapter.js";
 
 function getSuiteBarPlacement() {
@@ -169,7 +170,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
           </label>
         </div>
-        <button class="tp-bar-btn ${revealNeg ? 'tp-active' : ''}" id="tp-bar-reveal-neg" title="Durch Negativ-Filter ausgeblendete Produkte (${negHidden}) anzeigen — klicken zum Ein-/Ausblenden">Gefilterte (${negHidden})</button>
+        <div class="tp-reveal-menu-wrapper">
+          <button class="tp-bar-btn" id="tp-bar-reveal-menu" title="Ausgeblendete Produkte anzeigen — klicken zum Öffnen">👁️ Ausgeblendete (0)</button>
+          <div id="tp-bar-reveal-popover" role="menu" aria-label="Ausgeblendete Produkte">
+            <button class="tp-bar-btn ${revealNeg ? 'tp-active' : ''}" id="tp-bar-reveal-neg" title="Durch Negativ-Filter ausgeblendete Produkte (${negHidden}) anzeigen — klicken zum Ein-/Ausblenden">Gefilterte (${negHidden})</button>
+            <button class="tp-bar-btn ${revealMin ? 'tp-active' : ''}" id="tp-bar-reveal-min" title="Produkte mit zu wenigen Angeboten (${minHidden}) anzeigen — klicken zum Ein-/Ausblenden">Wenig Angebote (${minHidden})</button>
+            <button class="tp-bar-btn ${revealBad ? 'tp-active' : ''}" id="tp-bar-reveal-baddeals" title="Verifizierte Nicht-Deals mit Aufschlag (${badHidden}) anzeigen — klicken zum Ein-/Ausblenden">Schlechte Deals (${badHidden})</button>
+            <button class="tp-bar-btn ${revealUnchecked ? 'tp-active' : ''}" id="tp-bar-reveal-unchecked" title="Noch ungeprüfte Deals (${uncheckedHiddenCount}) anzeigen — klicken zum Ein-/Ausblenden">Ungeprüfte (${uncheckedHiddenCount})</button>
+            <div class="tp-reveal-hint" id="tp-bar-reveal-hint">Keine ausgeblendeten Produkte</div>
+          </div>
+        </div>
         <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten ausblenden">
           <span class="tp-stepper-label">Min-Angebote:</span>
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -182,10 +192,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
           </label>
         </div>
-        <button class="tp-bar-btn ${revealMin ? 'tp-active' : ''}" id="tp-bar-reveal-min" title="Produkte mit zu wenigen Angeboten (${minHidden}) anzeigen — klicken zum Ein-/Ausblenden">Wenig Angebote (${minHidden})</button>
-        <button class="tp-bar-btn ${revealBad ? 'tp-active' : ''}" id="tp-bar-reveal-baddeals" title="Verifizierte Nicht-Deals mit Aufschlag (${badHidden}) anzeigen — klicken zum Ein-/Ausblenden">Schlechte Deals (${badHidden})</button>
-        <button class="tp-bar-btn ${revealUnchecked ? 'tp-active' : ''}" id="tp-bar-reveal-unchecked" title="Noch ungeprüfte Deals (${uncheckedHiddenCount}) anzeigen — klicken zum Ein-/Ausblenden">Ungeprüfte (${uncheckedHiddenCount})</button>
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-hide-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)" style="display: flex;">👁️ Nur geprüfte</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
        <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
@@ -246,6 +252,23 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     bindReveal('tp-bar-reveal-min', 'tp-reveal-min');
     bindReveal('tp-bar-reveal-baddeals', 'tp-reveal-baddeals');
     bindReveal('tp-bar-reveal-unchecked', 'tp-reveal-unchecked');
+    const revealMenuBtn = bar.querySelector('#tp-bar-reveal-menu');
+    const revealPopover = bar.querySelector('#tp-bar-reveal-popover');
+    if (revealMenuBtn && revealPopover) {
+      revealMenuBtn.onclick = e => {
+        e.stopPropagation();
+        revealPopover.classList.toggle('tp-show');
+      };
+      if (!window._tpRevealMenuDocBound) {
+        window._tpRevealMenuDocBound = true;
+        document.addEventListener('click', e => {
+          const b = document.getElementById('tp-suite-filter-bar');
+          if (b && !b.contains(e.target)) {
+            b.querySelector('#tp-bar-reveal-popover')?.classList.remove('tp-show');
+          }
+        });
+      }
+    }
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
       const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -254,14 +277,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
 
     const bestpreiseToggleBtn = bar.querySelector('#tp-bar-bestpreise-btn');
     if (bestpreiseToggleBtn) bindBestpreiseBtn(bestpreiseToggleBtn);
-    const hideUncheckedBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
-    if (hideUncheckedBtn) {
-      hideUncheckedBtn.onclick = () => {
-        const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
-        updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-        showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
-      };
-    }
 
 
     // Weight slider: live label on drag, debounced config write (each write
@@ -320,6 +335,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   syncRevealBtn('tp-bar-reveal-min', '👁 Wenig Angebote', minHidden, 'tp-reveal-min', 'Produkte mit zu wenigen Angeboten');
   syncRevealBtn('tp-bar-reveal-baddeals', '👁 Schlechte Deals', badHidden, 'tp-reveal-baddeals', 'Verifizierte Nicht-Deals mit Aufschlag');
   syncRevealBtn('tp-bar-reveal-unchecked', '👁 Ungeprüfte', uncheckedHiddenCount, 'tp-reveal-unchecked', 'Noch ungeprüfte Deals');
+  const hiddenTotal = negHidden + minHidden + badHidden + uncheckedHiddenCount;
+  const revealMenuBtnSync = bar.querySelector('#tp-bar-reveal-menu');
+  if (revealMenuBtnSync) {
+    setTextIfChanged(revealMenuBtnSync, `👁️ Ausgeblendete (${hiddenTotal})`);
+    revealMenuBtnSync.classList.toggle('tp-tool-dim', hiddenTotal === 0);
+    revealMenuBtnSync.title = hiddenTotal > 0 ? `Ausgeblendete Produkte (${hiddenTotal}) anzeigen — klicken zum Öffnen` : 'Keine ausgeblendeten Produkte';
+  }
+  const revealHint = bar.querySelector('#tp-bar-reveal-hint');
+  if (revealHint) revealHint.style.setProperty('display', hiddenTotal === 0 ? 'block' : 'none', 'important');
 
   const heatBtn = bar.querySelector('#tp-bar-heat-btn');
   if (heatBtn) {

@@ -17,10 +17,6 @@ export function setupUI() {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = `
       <div id="tp-section-unified-suite">
-      <div class="tp-advanced-toggle-row tp-switch-container">
-        <div class="tp-switch-label"><label>⚙️ Erweiterte Einstellungen</label><span class="tp-switch-desc">Feintuning, Cache-Dauern & Verzögerungen ein-/ausblenden</span></div>
-        <label class="tp-switch tp-purple"><input type="checkbox" id="tp-advanced-toggle"><span class="tp-slider"></span></label>
-      </div>
       <div id="tp-basic-settings">
         <div class="tp-settings-group">
           <label title="So werden gefilterte Angebote dargestellt: farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
@@ -85,17 +81,18 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group">
           <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-          <input type="password" id="tp-discord-webhook-input" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 4px; box-sizing: border-box;">
-          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+          <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+          <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
         </div>
-        <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
-          <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
-          <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
-          <input type="file" id="tp-import-config-file" accept=".json" style="display: none;">
+        <div class="tp-settings-group tp-btn-row">
+          <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
+          <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
+          <input type="file" id="tp-import-config-file" accept=".json">
         </div>
       </div>
+      <details id="tp-advanced-details">
+        <summary>⚙️ Feintuning</summary>
       <div id="tp-advanced-panel">
-        <div class="tp-advanced-panel-header">⚙️ Feintuning</div>
         <div class="tp-advanced-subheader">Anzeige & Sortierung</div>
         <div class="tp-settings-group">
           <label>Sortierung nach Angeboten / Rabatt</label>
@@ -138,17 +135,17 @@ export function setupUI() {
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
           </div>
-          <span class="tp-switch-desc" id="tp-bestpreise-weight-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
+          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-          <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+          <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple tp-field-dark">
             <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
             <option value="180">6 Monate (180 Tage)</option>
             <option value="90">3 Monate (90 Tage)</option>
             <option value="0">Gesamte Historie (Lifetime)</option>
           </select>
-          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+          <span class="tp-switch-desc tp-field-hint">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
         </div>
         <div class="tp-settings-group">
           <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
@@ -156,7 +153,7 @@ export function setupUI() {
             <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
             <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
           </div>
-          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
+          <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
         </div>
         <div class="tp-advanced-subheader">Preisalarm</div>
         <div class="tp-settings-group">
@@ -189,33 +186,34 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
-        <div class="tp-settings-group" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
-          <div style="font-size: 12px; opacity: 0.85;" id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
-          <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary" style="padding: 4px 10px; font-size: 12px;">🗑️ Cache leeren</button>
+        <div class="tp-settings-group tp-cache-row">
+          <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
+          <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
         </div>
         <div class="tp-settings-group">
           <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
-          <select id="tp-cache-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+          <select id="tp-cache-ttl-select" class="tp-select tp-field-dark">
             <option value="24">24 Stunden (1 Tag)</option>
             <option value="48">48 Stunden (2 Tage) [Standard]</option>
             <option value="72">72 Stunden (3 Tage)</option>
             <option value="168">7 Tage (1 Woche)</option>
             <option value="336">14 Tage (2 Wochen)</option>
           </select>
-          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
+          <span class="tp-switch-desc tp-field-hint">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
         </div>
         <div class="tp-settings-group">
           <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
-          <select id="tp-cache-neg-ttl-select" class="tp-select" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 13px; margin-top: 4px; box-sizing: border-box;">
+          <select id="tp-cache-neg-ttl-select" class="tp-select tp-field-dark">
             <option value="1">1 Stunde</option>
             <option value="2">2 Stunden [Standard]</option>
             <option value="6">6 Stunden</option>
             <option value="12">12 Stunden</option>
             <option value="24">24 Stunden</option>
           </select>
-          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
+          <span class="tp-switch-desc tp-field-hint">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
         </div>
       </div>
+      </details>
       </div>
     `;
     section = tempDiv.firstElementChild;
@@ -265,18 +263,15 @@ export function setupUI() {
   const dur180 = shadow.getElementById('tp-dur-180');
   const dur365 = shadow.getElementById('tp-dur-365');
   const dur730 = shadow.getElementById('tp-dur-730');
-  const advancedToggle = shadow.getElementById('tp-advanced-toggle');
+  const advancedDetails = shadow.getElementById('tp-advanced-details');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
-  const sectionsHolder = shadow.getElementById('tp-settings-sections');
-  const applyAdvancedVisibility = (show) => { sectionsHolder?.classList.toggle('tp-hide-advanced', !show); };
 
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
 
   function syncFieldsFromConfig() {
-    if (advancedToggle) advancedToggle.checked = CONFIG.SHOW_ADVANCED === true;
-    applyAdvancedVisibility(CONFIG.SHOW_ADVANCED === true);
+    if (advancedDetails) advancedDetails.open = CONFIG.SHOW_ADVANCED === true;
     if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
     else if (CONFIG.MODE === 'hide') modeHide.checked = true;
     else modeDim.checked = true;
@@ -348,7 +343,15 @@ export function setupUI() {
       onInput?.(parseFloat(e.target.value));
     });
     numEl.addEventListener('input', e => {
-      rangeEl.value = e.target.value;
+      // Clamp typed values into the slider's range so the pair can't desync.
+      const min = parseFloat(rangeEl.min);
+      const max = parseFloat(rangeEl.max);
+      const typed = parseFloat(e.target.value);
+      if (!isNaN(min) && !isNaN(max) && !isNaN(typed)) {
+        rangeEl.value = Math.min(max, Math.max(min, typed));
+      } else {
+        rangeEl.value = e.target.value;
+      }
       onInput?.(parseFloat(e.target.value));
     });
   };
@@ -361,7 +364,7 @@ export function setupUI() {
       document.documentElement.style.setProperty('--tp-dim-opacity', v);
     });
     opacityVal.addEventListener('input', e => {
-      const v = (parseFloat(e.target.value) || 0) / 100;
+      const v = Math.min(0.95, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
       opacityRange.value = v;
       document.documentElement.style.setProperty('--tp-dim-opacity', v);
     });
@@ -386,7 +389,9 @@ export function setupUI() {
     }
   });
 
-  advancedToggle?.addEventListener('change', () => { saveConfigKey('SHOW_ADVANCED', advancedToggle.checked); applyAdvancedVisibility(advancedToggle.checked); });
+  // The toggle event is queued async; predict from the pre-click state in the
+  // click itself so SHOW_ADVANCED persists synchronously (as the old switch did).
+  advancedDetails?.querySelector('summary')?.addEventListener('click', () => { saveConfigKey('SHOW_ADVANCED', !advancedDetails.open); });
 
   cacheClearBtn?.addEventListener('click', () => {
     const removed = clearPriceStatsCache();
@@ -523,7 +528,7 @@ export function setupUI() {
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
-    updates.SHOW_ADVANCED = !!advancedToggle?.checked;
+    updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
     updateConfigs(updates);
     if (shippingChanged) clearPriceStatsCache();

@@ -215,9 +215,8 @@ export function syncUiControl(key, val) {
           break;
         }
         case 'SHOW_ADVANCED': {
-          const toggle = shadow.getElementById('tp-advanced-toggle');
-          if (toggle) toggle.checked = !!val;
-          shadow.getElementById('tp-settings-sections')?.classList.toggle('tp-hide-advanced', !val);
+          const details = shadow.getElementById('tp-advanced-details');
+          if (details) details.open = !!val;
           break;
         }
       }
@@ -250,11 +249,6 @@ export function syncUiControl(key, val) {
             const bpBtn = bar.querySelector('#tp-bar-bestpreise-btn');
             if (bpBtn) bpBtn.classList.toggle('tp-bestpreise-active', val === true);
             bar.classList.toggle('tp-bestpreise-bar', val === true);
-            break;
-          }
-          case 'BESTPREISE_HIDE_UNCHECKED': {
-            const hideBtn = bar.querySelector('#tp-bar-hide-unchecked-btn');
-            if (hideBtn) hideBtn.classList.toggle('tp-active', val === true);
             break;
           }
           case 'FILTER_NEG_ENABLED': {
