@@ -11,6 +11,10 @@ _Avoid_: Real Deal, Bestpreis (als Synonym für den verifizierten Tiefstpreis)
 **Toppreis**:
 Das aktuell günstigste Angebot einer Produktseite (Toppreise-native Anzeige) — keine historische Aussage und kein Tiefstpreis.
 
+**Händler**:
+Der Shop des aktuell günstigsten Angebots eines geprüften Deals (erste Händlerzeile der Karte bzw. der Produktseite).
+_Avoid_: Store (in UI-Texten), Verkäufer
+
 **Differenz (ungeprüft)**:
 Die vom Badge angezeigte Toppreise-Differenz (z. B. gegenüber UVP). Solange ungeprüft, ist sie kein Tiefstpreis.
 _Avoid_: Site-Rabatt, Site-%

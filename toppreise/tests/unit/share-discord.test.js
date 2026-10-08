@@ -6,10 +6,14 @@ import {
   sparklineText,
   extractShareData,
   extractDealer,
-  postDealToDiscord
+  fetchProductInfo,
+  renderSparklinePng,
+  postDealToDiscord,
+  postDealImageToDiscord
 } from '../../src/features/share-discord.js';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';
+const PRODUCT_URL = 'https://www.toppreise.ch/preisvergleich/Maeuse/x-p830749';
 
 describe('isDiscordWebhookUrl', () => {
   it('accepts standard + ptb/canary webhook URLs', () => {
@@ -33,6 +37,12 @@ describe('sparklineText', () => {
     assert.equal(sparklineText([[1, 100], [2, 50], [3, 100]]), '█▁█');
   });
 
+  it('samples evenly across full history instead of the last window', () => {
+    const series = Array.from({ length: 100 }, (_, i) => [i, i < 80 ? 100 : 50]);
+    assert.equal(sparklineText(series, 20)[0], '█');
+    assert.equal(sparklineText(series, 20).slice(-1), '▁');
+  });
+
   it('returns empty for short/invalid series', () => {
     assert.equal(sparklineText([[1, 100]]), '');
     assert.equal(sparklineText(null), '');
@@ -41,29 +51,33 @@ describe('sparklineText', () => {
 });
 
 describe('formatDealMessage', () => {
-  it('puts the product link first, facts and dealer/prices below', () => {
+  it('puts one value per line: link, title, price, dealer, history', () => {
     const msg = formatDealMessage({
-      title: 'RTX 5070',
-      url: 'https://www.toppreise.ch/preisvergleich/Grafikkarten/x-p123',
-      priceText: 'CHF 499.00',
-      badgeText: 'Tiefstpreis -21% (Rekord)',
+      title: 'HyperX Pulsefire Fuse',
+      url: PRODUCT_URL,
+      priceText: 'CHF 31.90',
+      badgeText: 'Tiefstpreis -41% (Ø-Preis)',
       dealer: 'Digitec',
-      offerCount: 12,
-      spark: '▁▂█',
-      prevLowText: "Bisher: CHF 649.00",
-      medianText: 'Ø-Preis (1J): CHF 599.00'
+      offerCount: 3,
+      spark: '█▁▁',
+      prevLowText: 'Bisher: CHF 44.95',
+      medianText: 'Ø-Preis (1J): CHF 54.05'
     });
-    const lines = msg.split('\n');
-    assert.equal(lines[0], 'https://www.toppreise.ch/preisvergleich/Grafikkarten/x-p123');
-    assert.ok(lines[1].includes('🔥 **RTX 5070** – CHF 499.00 · Tiefstpreis -21% (Rekord)'));
-    assert.ok(msg.includes('Händler: Digitec · Angebote: 12'));
-    assert.ok(msg.includes('▁▂█ · Bisher: CHF 649.00 · Ø-Preis (1J): CHF 599.00'));
+    assert.deepEqual(msg.split('\n'), [
+      PRODUCT_URL,
+      '🔥 **HyperX Pulsefire Fuse**',
+      '💰 CHF 31.90 · Tiefstpreis -41% (Ø-Preis)',
+      '🏬 Händler: Digitec',
+      '🛒 Angebote: 3',
+      '📊 █▁▁',
+      '📉 Bisher: CHF 44.95',
+      '📈 Ø-Preis (1J): CHF 54.05'
+    ]);
   });
 
   it('omits empty rows and never truncates the link', () => {
-    const url = 'https://www.toppreise.ch/preisvergleich/X/x-p1';
-    const msg = formatDealMessage({ title: 'x'.repeat(500), url, priceText: '', badgeText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
-    assert.ok(msg.startsWith(url + '\n'));
+    const msg = formatDealMessage({ title: 'x'.repeat(500), url: PRODUCT_URL, priceText: '', badgeText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
+    assert.ok(msg.startsWith(PRODUCT_URL + '\n🔥'));
     assert.ok(msg.length <= 2000);
     assert.equal(msg.split('\n').length, 2);
   });
@@ -96,6 +110,41 @@ describe('extractShareData / extractDealer', () => {
     card.__set('.Plugin_DealerRelProdPriceInfo .title', { textContent: '\n Digitec \n' });
     assert.equal(extractDealer(card), 'Digitec');
     assert.equal(extractDealer(stubCard()), '');
+  });
+});
+
+describe('fetchProductInfo', () => {
+  afterEach(() => {
+    delete globalThis.fetch;
+    delete globalThis.DOMParser;
+  });
+
+  it('returns empty info without fetch/DOM or for bad URLs', async () => {
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL), { dealer: '', offers: 0 });
+    assert.deepEqual(await fetchProductInfo('not-a-url'), { dealer: '', offers: 0 });
+  });
+
+  it('reads cheapest dealer + offer count from the product page', async () => {
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: () => [{ textContent: ' Digitec ' }, { textContent: 'Brack' }] };
+      }
+    };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2 });
+  });
+
+  it('returns empty info on HTTP errors', async () => {
+    globalThis.fetch = async () => ({ ok: false, status: 404 });
+    globalThis.DOMParser = class { parseFromString() { throw new Error('unreachable'); } };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0 });
+  });
+});
+
+describe('renderSparklinePng', () => {
+  it('returns null without DOM', async () => {
+    assert.equal(await renderSparklinePng([[1, 100], [2, 50]]), null);
+    assert.equal(await renderSparklinePng(null), null);
   });
 });
 
@@ -153,5 +202,40 @@ describe('postDealToDiscord', () => {
     } finally {
       globalThis.fetch = realFetch;
     }
+  });
+});
+
+describe('postDealImageToDiscord', () => {
+  afterEach(() => {
+    delete globalThis.GM_xmlhttpRequest;
+  });
+
+  it('rejects invalid input without network', async () => {
+    await assert.rejects(postDealImageToDiscord('nope', 'hi', new Blob(['x'])), /Ungültige Webhook-URL/);
+    await assert.rejects(postDealImageToDiscord(HOOK, 'hi', null), /Ungültige Bilddaten/);
+  });
+
+  it('rejects without multipart transport', async () => {
+    delete globalThis.GM_xmlhttpRequest;
+    await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Kein Multipart-Transport/);
+  });
+
+  it('uploads payload_json + file via GM and resolves on 2xx', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
+    assert.equal(seen.method, 'POST');
+    assert.equal(seen.url, HOOK);
+    assert.ok(seen.data instanceof FormData);
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
+    assert.ok(seen.data.get('file') instanceof Blob);
+  });
+
+  it('rejects on Discord error status', async () => {
+    globalThis.GM_xmlhttpRequest = ({ onload }) => onload({ status: 400 });
+    await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Discord 400/);
   });
 });

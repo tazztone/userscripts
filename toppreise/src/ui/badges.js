@@ -13,7 +13,7 @@ import {
   extractCardDiscount,
   getCardProductId
   } from '../page/cards.js';
-import { isDiscordWebhookUrl, formatDealMessage, extractShareData, extractDealer, sparklineText, postDealToDiscord } from '../features/share-discord.js';
+import { isDiscordWebhookUrl, formatDealMessage, extractShareData, extractDealer, sparklineText, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
@@ -768,14 +768,26 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
           const prevLow = stats?.previousLow;
           const medianVal = stats?.medianPrice;
-          await postDealToDiscord(hook, formatDealMessage({
+          let dealer = extractDealer(card);
+          let offers = cd.offerCount || 0;
+          if ((!dealer || !offers) && url) {
+            const info = await fetchProductInfo(url).catch(() => null);
+            if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
+          }
+          const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
+          const content = formatDealMessage({
             title, url, priceText, badgeText,
-            dealer: extractDealer(card),
-            offerCount: cd.offerCount || 0,
-            spark: sparklineText(stats?.timeSeries),
+            dealer, offerCount: offers,
+            spark: png ? '' : sparklineText(stats?.timeSeries),
             prevLowText: (prevLow && priceToCents(prevLow) > priceToCents(cardPrice)) ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
             medianText: (medianVal && medianVal > cardPrice) ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : ''
-          }));
+          });
+          let shared = false;
+          if (png) {
+            try { await postDealImageToDiscord(hook, content, png); shared = true; }
+            catch { /* Text-Fallback unten */ }
+          }
+          if (!shared) await postDealToDiscord(hook, content);
           showToast('📤 Deal in Discord geteilt');
         } catch {
           showToast('📤 Teilen fehlgeschlagen');

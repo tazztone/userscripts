@@ -5,6 +5,7 @@
  */
 
 import { SELECTORS } from '../page/selectors.js';
+import { renderSparkline } from '../ui/sparkline.js';
 
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
@@ -14,26 +15,90 @@ export const isDiscordWebhookUrl = url =>
 const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 export function sparklineText(timeSeries, width = 20) {
   if (!Array.isArray(timeSeries)) return '';
-  const prices = timeSeries.map(p => (Array.isArray(p) ? +p[1] : 0)).filter(p => p > 0).slice(-width);
-  if (prices.length < 2) return '';
+  const all = timeSeries.map(p => (Array.isArray(p) ? +p[1] : 0)).filter(p => p > 0);
+  if (all.length < 2) return '';
+  // Gleichmäßig über die gesamte Historie, nicht nur das letzte Fenster
+  // (ein lange stabiler Tiefpreis sähe sonst fälschlich flach aus).
+  const prices = all.length <= width ? all : Array.from({ length: width }, (_, i) => all[Math.floor((i * all.length) / width)]);
   const min = Math.min(...prices);
   const range = Math.max(...prices) - min || 1;
   return prices.map(p => SPARK_CHARS[Math.min(7, Math.floor(((p - min) / range) * 8))]).join('');
 }
+// Preischart als PNG für Discord: vorhandenes SVG groß rendern, rastern, als
+// Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
+export function renderSparklinePng(timeSeries, width = 360, height = 100) {
+  return new Promise(resolve => {
+    try {
+      if (typeof document === 'undefined') return resolve(null);
+      const svg = renderSparkline(timeSeries, width, height);
+      if (!svg) return resolve(null);
+      const NS = 'http://www.w3.org/2000/svg';
+      const bg = document.createElementNS(NS, 'rect');
+      bg.setAttribute('width', String(width));
+      bg.setAttribute('height', String(height));
+      bg.setAttribute('rx', '8');
+      bg.setAttribute('fill', '#1e293b');
+      svg.insertBefore(bg, svg.firstChild);
+      svg.querySelector('polyline')?.setAttribute('stroke-width', '2.5');
+      const svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = width * 2;
+          canvas.height = height * 2;
+          canvas.getContext('2d').drawImage(img, 0, 0, width * 2, height * 2);
+          URL.revokeObjectURL(svgUrl);
+          canvas.toBlob(b => resolve(b), 'image/png');
+        } catch { resolve(null); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(svgUrl); resolve(null); };
+      img.src = svgUrl;
+    } catch { resolve(null); }
+  });
+}
 
-// Link zuerst (unantastbar), darunter Titel/Fakten, Händler, Preisinfos.
-// Der Titel schrumpft bei Bedarf — der Link wird nie angeschnitten.
+// PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
+// postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
+export function postDealImageToDiscord(webhookUrl, content, pngBlob) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
+      if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
+      if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
+      const form = new FormData();
+      form.append('payload_json', JSON.stringify({ content }));
+      form.append('file', pngBlob, 'preisverlauf.png');
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: webhookUrl.trim(),
+        data: form,
+        timeout: 20000,
+        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
+        onerror: () => reject(new Error('Netzwerkfehler')),
+        ontimeout: () => reject(new Error('Timeout'))
+      });
+    } catch { reject(new Error('Upload fehlgeschlagen')); }
+  });
+}
+
+// Ein Wert pro Zeile (scannbar): Link zuerst (unantastbar), dann Titel,
+// Preis, Händler, Verlauf. Der Titel schrumpft bei Bedarf.
 export function formatDealMessage({ title, url, priceText, badgeText, dealer, offerCount, spark, prevLowText, medianText }) {
   const link = (url || '').trim();
   let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-  const facts = [priceText, badgeText].filter(Boolean).join(' · ');
-  const meta = [dealer ? `Händler: ${dealer}` : '', offerCount ? `Angebote: ${offerCount}` : ''].filter(Boolean).join(' · ');
-  const history = [spark, prevLowText, medianText].filter(Boolean).join(' · ');
-  const rest = [meta, history].filter(Boolean).join('\n');
-  const maxTitle = Math.max(20, 2000 - link.length - facts.length - rest.length - 16);
+  const priceLine = [priceText, badgeText].filter(Boolean).join(' · ');
+  const rest = [
+    priceLine ? `💰 ${priceLine}` : '',
+    dealer ? `🏬 Händler: ${dealer}` : '',
+    offerCount ? `🛒 Angebote: ${offerCount}` : '',
+    spark ? `📊 ${spark}` : '',
+    prevLowText ? `📉 ${prevLowText}` : '',
+    medianText ? `📈 ${medianText}` : ''
+  ].filter(Boolean).join('\n');
+  const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
   cleanTitle = cleanTitle.slice(0, maxTitle);
-  const head = `🔥 **${cleanTitle}**` + (facts ? ` – ${facts}` : '');
-  return [link, head, rest].filter(Boolean).join('\n').slice(0, 2000);
+  return [link, `🔥 **${cleanTitle}**`, rest].filter(Boolean).join('\n').slice(0, 2000);
 }
 
 // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).
@@ -54,6 +119,27 @@ export function extractShareData(card) {
 export function extractDealer(card) {
   const el = card?.querySelector?.(`${SELECTORS.cards.dealerRows} .title`);
   return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
+}
+
+// Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
+// same-origin, kein CORS-Problem). Erste Zeile = günstigstes Angebot.
+export async function fetchProductInfo(productUrl, timeoutMs = 10000) {
+  const out = { dealer: '', offers: 0 };
+  try {
+    if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
+    if (!/^https?:\/\//i.test(productUrl || '')) return out;
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    const res = await fetch(productUrl, { signal: ctrl?.signal });
+    clearTimeout(timer);
+    if (!res.ok) return out;
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const titles = Array.from(doc.querySelectorAll(`${SELECTORS.cards.dealerRows} .title`));
+    // ponytail: first row is the cheapest offer on Toppreise listings
+    out.dealer = titles[0]?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    out.offers = titles.length;
+  } catch { /* Händler unbekannt: Zeile entfällt */ }
+  return out;
 }
 
 // GM_xmlhttpRequest umgeht CORS (Violentmonkey), fetch ist Fallback.
