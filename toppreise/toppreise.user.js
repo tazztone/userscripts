@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.102
+// @version      2.18.103
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4178,8 +4178,6 @@ const SHADOW_MODAL_STYLES = `
           try {
             const { title, url } = extractShareData(card);
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
-            const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
-            const medianVal = stats?.medianPrice;
             let dealer = extractDealer(card);
             let offers = cd.offerCount || 0;
             if ((!dealer || !offers) && url) {
@@ -4187,16 +4185,11 @@ const SHADOW_MODAL_STYLES = `
               if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
             }
             const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
-            const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
-            const medianShown = medianVal && medianVal > cardPrice;
             const content = formatDealMessage({
               title, url, priceText,
               dealer, offerCount: offers,
               spark: png ? '' : sparklineText(stats?.timeSeries),
-              prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
-              prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
-              medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
-              medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
+              ...resolveShareFields(cardPrice, stats)
             });
             let shared = false;
             if (png) {
@@ -5583,6 +5576,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   const isDiscordWebhookUrl = url =>
     typeof url === 'string' &&
     /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
@@ -5677,6 +5672,22 @@ const SHADOW_MODAL_STYLES = `
     const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
     cleanTitle = cleanTitle.slice(0, maxTitle);
     return [link, `🔥 **${cleanTitle}**`, rest].filter(Boolean).join('\n').slice(0, 2000);
+  }
+
+  // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
+  // je mit eigenem Rabatt-%). Einzeln testbar, damit vertauschte % auffallen;
+  // der Click-Handler in ui/badges.js nutzt nur diese eine Quelle.
+  function resolveShareFields(cardPrice, stats) {
+    const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
+    const medianVal = stats?.medianPrice;
+    const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
+    const medianShown = medianVal && priceToCents(medianVal) > priceToCents(cardPrice);
+    return {
+      prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+      prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
+      medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
+      medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
+    };
   }
 
   // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).

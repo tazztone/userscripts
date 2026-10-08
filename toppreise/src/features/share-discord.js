@@ -5,8 +5,9 @@
  */
 
 import { SELECTORS } from '../page/selectors.js';
+import { priceToCents, recordRefForPrice } from '../domain/price.js';
+import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal-score.js';
 import { renderSparkline } from '../ui/sparkline.js';
-
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
   /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
@@ -101,6 +102,22 @@ export function formatDealMessage({ title, url, priceText, dealer, offerCount, s
   const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
   cleanTitle = cleanTitle.slice(0, maxTitle);
   return [link, `🔥 **${cleanTitle}**`, rest].filter(Boolean).join('\n').slice(0, 2000);
+}
+
+// Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
+// je mit eigenem Rabatt-%). Einzeln testbar, damit vertauschte % auffallen;
+// der Click-Handler in ui/badges.js nutzt nur diese eine Quelle.
+export function resolveShareFields(cardPrice, stats) {
+  const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
+  const medianVal = stats?.medianPrice;
+  const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
+  const medianShown = medianVal && priceToCents(medianVal) > priceToCents(cardPrice);
+  return {
+    prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+    prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
+    medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
+    medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
+  };
 }
 
 // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).

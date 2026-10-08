@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isDiscordWebhookUrl,
   formatDealMessage,
+  resolveShareFields,
   sparklineText,
   extractShareData,
   extractDealer,
@@ -89,6 +90,49 @@ describe('formatDealMessage', () => {
     assert.ok(msg.startsWith(PRODUCT_URL + '\n🔥'));
     assert.ok(msg.length <= 2000);
     assert.equal(msg.split('\n').length, 2);
+  });
+});
+
+describe('resolveShareFields', () => {
+  // PHILIPS case from the deals channel: 271.38 vs Bisher 387.00 / Ø 403.00.
+  const stats = { tiefstpreis: 271.38, previousLow: 387.00, isNewAllTimeLow: true, medianPrice: 403.00, horizonDays: 365 };
+
+  it('maps record discount to Bisher and median discount to Ø-Preis (never swapped)', () => {
+    assert.deepEqual(resolveShareFields(271.38, stats), {
+      prevLowText: 'Bisher: CHF 387.00',
+      prevLowPct: 30,
+      medianText: 'Ø-Preis (1J): CHF 403.00',
+      medianPct: 33
+    });
+  });
+
+  it('renders end to end with one percentage per reference line', () => {
+    const msg = formatDealMessage({
+      title: 'PHILIPS 5000 Series 34E1C5600AM',
+      url: PRODUCT_URL,
+      priceText: 'CHF 271.38',
+      dealer: '',
+      offerCount: 4,
+      spark: '',
+      ...resolveShareFields(271.38, stats)
+    });
+    assert.deepEqual(msg.split('\n'), [
+      PRODUCT_URL,
+      '🔥 **PHILIPS 5000 Series 34E1C5600AM**',
+      '💰 **CHF 271.38**',
+      '🛒 Angebote: **4**',
+      '📉 Bisher: **CHF 387.00** **-30%**',
+      '📈 Ø-Preis (1J): **CHF 403.00** **-33%**'
+    ]);
+  });
+
+  it('hides reference lines at/above the card price', () => {
+    assert.deepEqual(resolveShareFields(500, stats), {
+      prevLowText: '',
+      prevLowPct: 0,
+      medianText: '',
+      medianPct: 0
+    });
   });
 });
 

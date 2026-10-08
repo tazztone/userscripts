@@ -13,7 +13,7 @@ import {
   extractCardDiscount,
   getCardProductId
   } from '../page/cards.js';
-import { isDiscordWebhookUrl, formatDealMessage, extractShareData, extractDealer, sparklineText, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
+import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, sparklineText, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
@@ -796,8 +796,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         try {
           const { title, url } = extractShareData(card);
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
-          const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
-          const medianVal = stats?.medianPrice;
           let dealer = extractDealer(card);
           let offers = cd.offerCount || 0;
           if ((!dealer || !offers) && url) {
@@ -805,16 +803,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
           }
           const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
-          const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
-          const medianShown = medianVal && medianVal > cardPrice;
           const content = formatDealMessage({
             title, url, priceText,
             dealer, offerCount: offers,
             spark: png ? '' : sparklineText(stats?.timeSeries),
-            prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
-            prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
-            medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
-            medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
+            ...resolveShareFields(cardPrice, stats)
           });
           let shared = false;
           if (png) {
