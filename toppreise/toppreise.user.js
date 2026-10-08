@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.92
+// @version      2.18.93
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -330,7 +330,7 @@ const STYLES = `
   .tp-share-btn {
     position: absolute !important;
     bottom: 6px !important;
-    right: 6px !important;
+    left: 6px !important;
     z-index: 6 !important;
     width: 26px !important;
     height: 26px !important;
@@ -343,10 +343,14 @@ const STYLES = `
     border: 1px solid rgba(88, 101, 242, 0.7) !important;
     border-radius: 8px !important;
     cursor: pointer !important;
-    opacity: 0.75 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
-  .tp-share-btn:hover {
-    opacity: 1 !important;
+  .tp-show-share > .tp-share-btn,
+  .tp-share-btn:hover,
+  .tp-share-btn:focus-visible {
+    opacity: 0.9 !important;
+    pointer-events: auto !important;
   }
   .tp-share-btn:disabled {
     opacity: 0.4 !important;
@@ -4002,6 +4006,11 @@ const SHADOW_MODAL_STYLES = `
     const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
     const isShareable = !!(dealDataNow || kindNow === 'new-low' || kindNow === 'at-low');
     let shareBtn = card.querySelector(':scope > .tp-share-btn');
+    if (!card.dataset.tpShareHoverBound) {
+      card.dataset.tpShareHoverBound = 'true';
+      card.addEventListener('mouseenter', () => card.classList.add('tp-show-share'));
+      card.addEventListener('mouseleave', () => card.classList.remove('tp-show-share'));
+    }
     if (isShareable) {
       if (!shareBtn) {
         shareBtn = document.createElement('button');

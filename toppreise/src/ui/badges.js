@@ -741,6 +741,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
   const isShareable = !!(dealDataNow || kindNow === 'new-low' || kindNow === 'at-low');
   let shareBtn = card.querySelector(':scope > .tp-share-btn');
+  if (!card.dataset.tpShareHoverBound) {
+    card.dataset.tpShareHoverBound = 'true';
+    card.addEventListener('mouseenter', () => card.classList.add('tp-show-share'));
+    card.addEventListener('mouseleave', () => card.classList.remove('tp-show-share'));
+  }
   if (isShareable) {
     if (!shareBtn) {
       shareBtn = document.createElement('button');

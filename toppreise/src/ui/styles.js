@@ -305,7 +305,7 @@ export const STYLES = `
   .tp-share-btn {
     position: absolute !important;
     bottom: 6px !important;
-    right: 6px !important;
+    left: 6px !important;
     z-index: 6 !important;
     width: 26px !important;
     height: 26px !important;
@@ -318,10 +318,14 @@ export const STYLES = `
     border: 1px solid rgba(88, 101, 242, 0.7) !important;
     border-radius: 8px !important;
     cursor: pointer !important;
-    opacity: 0.75 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
-  .tp-share-btn:hover {
-    opacity: 1 !important;
+  .tp-show-share > .tp-share-btn,
+  .tp-share-btn:hover,
+  .tp-share-btn:focus-visible {
+    opacity: 0.9 !important;
+    pointer-events: auto !important;
   }
   .tp-share-btn:disabled {
     opacity: 0.4 !important;
