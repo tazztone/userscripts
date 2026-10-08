@@ -206,6 +206,12 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
     assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
 
+def test_suite_filter_bar_grouping(page: Page):
+    assert page.evaluate("() => document.getElementById('tp-bar-reveal-baddeals').closest('.tp-group').classList.contains('tp-group-filter')")
+    assert page.evaluate("() => document.getElementById('tp-bar-hide-unchecked-btn').closest('.tp-group').classList.contains('tp-group-filter')")
+    assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
+
+
 
 def test_discount_heatmap_settings_modal_controls(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
