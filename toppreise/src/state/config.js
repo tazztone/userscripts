@@ -13,11 +13,12 @@ import { uiShadowRoot } from '../ui/shell.js';
 export function weightText(weightRecord, style) {
   const w = weightRecord ?? 0.50;
   if (style === 'short') {
-    if (Math.abs(w - 1.00) < 0.05) return '100% Rek';
-    if (Math.abs(w - 0.70) < 0.05) return '70/30';
-    if (Math.abs(w - 0.50) < 0.05) return '50/50';
-    if (Math.abs(w - 0.30) < 0.05) return '30/70';
-    if (Math.abs(w - 0.00) < 0.05) return '100% Med';
+    const n = Math.round(w * 20) / 20;
+    if (n === 1.00) return '100% Rek';
+    if (n === 0.70) return '70/30';
+    if (n === 0.50) return '50/50';
+    if (n === 0.30) return '30/70';
+    if (n === 0.00) return '100% Med';
     return `${Math.round(w * 100)}% Rek`;
   }
   if (style === 'title') {

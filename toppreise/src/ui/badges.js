@@ -102,6 +102,7 @@ async function runSingleDealCheck(card, badgeDifEl) {
 export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
   const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
+  const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
 
   // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0002: color
   // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
@@ -112,7 +113,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
-  const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode);
+  const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
   const heatProvisional = heatInfo.provisional;
   const heatIntensity = CONFIG.HEATMAP_INTENSITY;
@@ -346,7 +347,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
 
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-      const dealData = cd.dealScore || computeDealScore(stats, cardPrice);
       if (dealData) {
         // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
         // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
@@ -768,9 +768,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
   }
   // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
-  const dealDataNow = cd.dealScore || (stats && cardPrice > 0 ? computeDealScore(stats, cardPrice) : null);
   const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
-  const isShareable = !!(dealDataNow || kindNow === 'new-low' || kindNow === 'at-low');
+  const isShareable = !!(dealData || kindNow === 'new-low' || kindNow === 'at-low');
   let shareBtn = card.querySelector(':scope > .tp-share-btn');
   if (!card.dataset.tpShareHoverBound) {
     card.dataset.tpShareHoverBound = 'true';

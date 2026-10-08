@@ -155,9 +155,11 @@ export function medianHorizonLabel(stats) {
  * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
  * - unverified markup / unknown -> null (neutral)
  * Callers pass the mode positionally so the heat reuses the exact mode of the
- * badge branch (no parallel formulas).
+ * badge branch (no parallel formulas). The optional 5th parameter takes an
+ * already-computed dealScore (undefined = not provided, compute inside;
+ * null = computed-unqualified, never recompute).
  */
-export function getHeatInput(cardPrice, stats, siteDiff, mode) {
+export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = undefined) {
   const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
   if (verified) {
     const display = getDisplayDelta(cardPrice, stats);
@@ -176,7 +178,7 @@ export function getHeatInput(cardPrice, stats, siteDiff, mode) {
       ? display.dRecordRaw : (display.dRecord || 0);
     let showRecord = isSignificantRecord(display);
     if (heatMode === 'bestpreise') {
-      const dealScore = computeDealScore(stats, cardPrice);
+      const dealScore = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
       // Unqualified history: the badge shows a plain star with no % — heat
       // stays neutral to match instead of heating an unshown number.
       if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };

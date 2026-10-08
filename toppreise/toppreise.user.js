@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.98
+// @version      2.18.99
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1864,9 +1864,11 @@ const SHADOW_MODAL_STYLES = `
    * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
    * - unverified markup / unknown -> null (neutral)
    * Callers pass the mode positionally so the heat reuses the exact mode of the
-   * badge branch (no parallel formulas).
+   * badge branch (no parallel formulas). The optional 5th parameter takes an
+   * already-computed dealScore (undefined = not provided, compute inside;
+   * null = computed-unqualified, never recompute).
    */
-  function getHeatInput(cardPrice, stats, siteDiff, mode) {
+  function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = undefined) {
     const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
     if (verified) {
       const display = getDisplayDelta(cardPrice, stats);
@@ -1885,7 +1887,7 @@ const SHADOW_MODAL_STYLES = `
         ? display.dRecordRaw : (display.dRecord || 0);
       let showRecord = isSignificantRecord(display);
       if (heatMode === 'bestpreise') {
-        const dealScore = computeDealScore(stats, cardPrice);
+        const dealScore = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
         // Unqualified history: the badge shows a plain star with no % — heat
         // stays neutral to match instead of heating an unshown number.
         if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
@@ -2084,11 +2086,12 @@ const SHADOW_MODAL_STYLES = `
   function weightText(weightRecord, style) {
     const w = weightRecord ?? 0.50;
     if (style === 'short') {
-      if (Math.abs(w - 1.00) < 0.05) return '100% Rek';
-      if (Math.abs(w - 0.70) < 0.05) return '70/30';
-      if (Math.abs(w - 0.50) < 0.05) return '50/50';
-      if (Math.abs(w - 0.30) < 0.05) return '30/70';
-      if (Math.abs(w - 0.00) < 0.05) return '100% Med';
+      const n = Math.round(w * 20) / 20;
+      if (n === 1.00) return '100% Rek';
+      if (n === 0.70) return '70/30';
+      if (n === 0.50) return '50/50';
+      if (n === 0.30) return '30/70';
+      if (n === 0.00) return '100% Med';
       return `${Math.round(w * 100)}% Rek`;
     }
     if (style === 'title') {
@@ -2929,7 +2932,7 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.BESTPREISE_MODE_ACTIVE) {
         const scored = cards.map(c => {
           const cd = cdFor(c);
-          const dealData = computeDealScore(cd.stats, cd.cardPrice);
+          const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
           let score = -100;
           if (dealData) {
             score = dealData.score;
@@ -2940,10 +2943,11 @@ const SHADOW_MODAL_STYLES = `
             card: c,
             item: getCardSortableUnit(c),
             score,
+            dMed: dealData ? dealData.dMedian : 0,
             initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
           };
         });
-        scored.sort((a, b) => (b.score - a.score) || (a.initialOrder - b.initialOrder));
+        scored.sort((a, b) => (b.score - a.score) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
@@ -3445,6 +3449,7 @@ const SHADOW_MODAL_STYLES = `
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
     const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
+    const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
 
     // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0002: color
     // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
@@ -3455,7 +3460,7 @@ const SHADOW_MODAL_STYLES = `
     const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
       ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
-    const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode);
+    const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
     const heatProvisional = heatInfo.provisional;
     const heatIntensity = CONFIG.HEATMAP_INTENSITY;
@@ -3689,7 +3694,6 @@ const SHADOW_MODAL_STYLES = `
       }
 
       if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-        const dealData = cd.dealScore || computeDealScore(stats, cardPrice);
         if (dealData) {
           // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
           // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
@@ -4111,9 +4115,8 @@ const SHADOW_MODAL_STYLES = `
       }
     }
     // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
-    const dealDataNow = cd.dealScore || (stats && cardPrice > 0 ? computeDealScore(stats, cardPrice) : null);
     const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
-    const isShareable = !!(dealDataNow || kindNow === 'new-low' || kindNow === 'at-low');
+    const isShareable = !!(dealData || kindNow === 'new-low' || kindNow === 'at-low');
     let shareBtn = card.querySelector(':scope > .tp-share-btn');
     if (!card.dataset.tpShareHoverBound) {
       card.dataset.tpShareHoverBound = 'true';
@@ -5933,7 +5936,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         // nonBest is retired with the removed strictness toggles: outside the
         // mode nothing hides as non-best (truthful Aufschlag badge instead),
         // inside the mode it counts as bestpreiseHidden below. Never double-count.
-        cd.dealScore = computeDealScore(cd.stats, cd.cardPrice);
+        cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
         } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {

@@ -64,3 +64,18 @@ describe('weightText desc (worked example moves with the slider)', () => {
     assert.ok(weightText(0.00, 'desc').includes('Score 25'));
   });
 });
+
+describe('weightText short (endpoint and detent labels)', () => {
+  it('names the endpoints and detents exactly', () => {
+    assert.equal(weightText(1, 'short'), '100% Rek');
+    assert.equal(weightText(0.7, 'short'), '70/30');
+    assert.equal(weightText(0.5, 'short'), '50/50');
+    assert.equal(weightText(0.3, 'short'), '30/70');
+    assert.equal(weightText(0, 'short'), '100% Med');
+  });
+
+  it('falls back to N% Rek off-detent and tolerates float noise', () => {
+    assert.equal(weightText(0.95, 'short'), '95% Rek');
+    assert.equal(weightText(0.69999999, 'short'), '70/30');
+  });
+});

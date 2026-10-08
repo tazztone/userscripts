@@ -60,7 +60,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       const scored = cards.map(c => {
         const cd = cdFor(c);
-        const dealData = computeDealScore(cd.stats, cd.cardPrice);
+        const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
         let score = -100;
         if (dealData) {
           score = dealData.score;
@@ -71,10 +71,11 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
           card: c,
           item: getCardSortableUnit(c),
           score,
+          dMed: dealData ? dealData.dMedian : 0,
           initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
         };
       });
-      scored.sort((a, b) => (b.score - a.score) || (a.initialOrder - b.initialOrder));
+      scored.sort((a, b) => (b.score - a.score) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.

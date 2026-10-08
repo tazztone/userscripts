@@ -258,6 +258,15 @@ describe('Deal Score Domain Module', () => {
       assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
     });
 
+    it('honors an explicitly passed dealScore instead of recomputing', () => {
+      // Same thin history as above (computes to null), but the caller already
+      // qualified this card — the passed score must win over the recompute.
+      const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
+      const heat = getHeatInput(23.56, thinStats, -51, 'bestpreise',
+        { score: 1, dMedian: 51, dRecord: 0, isNewRecord: false, prevLow: null, medianPrice: 48 });
+      assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'median' });
+    });
+
     it('ignores the sort weight outside the feed (browse headlines record)', () => {
       const stats = { tiefstpreis: 90, medianPrice: 150, previousLow: 120, isNewAllTimeLow: true };
       for (const weightRecord of [0.30, 0.50, 0.80]) {
