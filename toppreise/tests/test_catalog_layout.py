@@ -702,26 +702,24 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 1: New Record -> ribbon prints the blend (-22%), card burns with it
+    # Card 1: New Record -> ribbon carries the blend (⚖️ -22%), card burns with it
     card1_badge = page.locator('#card-cheapest .badge-dif')
     assert 'tp-deal-new-record' in (card1_badge.get_attribute('class') or '')
-    assert 'Tiefstpreis' in (card1_badge.text_content() or '')
+    assert '⚖️' in (card1_badge.text_content() or '')
     assert '-22%' in (card1_badge.text_content() or '')
 
     card1_subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
-    assert 'Gewichtete Differenz -22%' in (card1_subline.text_content() or '')
-    assert '(Rek -18% · Ø -25%)' in (card1_subline.text_content() or '')
-    assert 'Bisher CHF 2200.00' in (card1_subline.text_content() or '')
+    assert '📉 CHF 2200.00 (-18%)' in (card1_subline.text_content() or '')
+    assert 'Ø (Lifetime) CHF 2400.00 (-25%)' in (card1_subline.text_content() or '')
 
-    # Card 2: Matching Low -> ribbon prints the blend (-14%) with median subline
+    # Card 2: Matching Low -> ribbon carries the blend (⚖️ -14%) with median subline
     card2_badge = page.locator('#card-expensive .badge-dif')
     assert 'tp-deal-alltime-low' in (card2_badge.get_attribute('class') or '')
-    assert 'Tiefstpreis' in (card2_badge.text_content() or '')
+    assert '⚖️' in (card2_badge.text_content() or '')
     assert '-14%' in (card2_badge.text_content() or '')
 
     card2_subline = page.locator('#card-expensive .tp-card-historical-price.tp-is-at-low')
-    assert 'Gewichtete Differenz -14%' in (card2_subline.text_content() or '')
-    assert 'CHF 1500.00' in (card2_subline.text_content() or '')
+    assert 'CHF 1500.00 (-27%)' in (card2_subline.text_content() or '')
 
     # Card 3: Scanned Non-Tiefstpreis -> Hidden in Tiefstpreise mode
     assert 'tp-baddeal-hidden' in (page.locator('#card-negative').get_attribute('class') or '')
@@ -1455,9 +1453,9 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
 
 def test_merged_blend_subline_rendering(page: Page):
     """
-    Validates that a verified deal prints the Gewichtete Differenz on the ribbon
-    (blend of Rekord vs Ø at the slider mix, NOT a Rek/Ø headline) and merges
-    the old score pill + hist line into one subline leading with the blend.
+    Validates that a verified deal carries the Gewichtete Differenz on the ribbon
+    (⚖️ + blend of Rekord vs Ø at the slider mix, NOT a Rek/Ø headline) with a
+    CHF-anchored split in the subline (per-leg % so CHF never truncates away).
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1479,10 +1477,10 @@ def test_merged_blend_subline_rendering(page: Page):
     card = page.locator('#card-cheapest')
     assert card.is_visible()
 
-    # Ribbon prints the blend (dMed 25% + dRec 10% at 50/50 -> -18%), no kind words
+    # Ribbon carries the blend (dMed 25% + dRec 10% at 50/50 -> ⚖️ -18%), no words
     badge = card.locator('.badge-dif')
     assert badge.is_visible()
-    assert 'Tiefstpreis' in badge.inner_text()
+    assert '⚖️' in badge.inner_text()
     assert '-18%' in badge.inner_text()
     assert 'Rekord' not in badge.inner_text()
     assert 'Ø-Preis' not in badge.inner_text()
@@ -1492,10 +1490,8 @@ def test_merged_blend_subline_rendering(page: Page):
     assert card.locator('.tp-badge-score-breakdown').count() == 0
     subline = card.locator('.tp-card-historical-price')
     text = subline.inner_text()
-    assert 'Gewichtete Differenz -18%' in text
-    assert '(Rek -10% · Ø -25%)' in text
-    assert 'Bisher CHF 2000.00' in text
-    assert 'Ø (Lifetime) CHF 2400.00' in text
+    assert '📉 CHF 2000.00 (-10%)' in text
+    assert 'Ø (Lifetime) CHF 2400.00 (-25%)' in text
 
 
 

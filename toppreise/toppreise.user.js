@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.106
+// @version      2.18.107
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3716,10 +3716,12 @@ const SHADOW_MODAL_STYLES = `
           // above — ribbon number always matches its color.
           const badgePct = heatInfo.pct;
 
+          // Ribbon carries the blend (ADR-0005): emoji + number, no words —
+          // the CHF-anchored split lives in the subline below.
           if (isListView) {
-            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}%</p>`);
+            setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
           } else {
-            setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · -${badgePct}%</div><p>-${badgePct}%</p>`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
           }
 
           const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
@@ -3734,18 +3736,18 @@ const SHADOW_MODAL_STYLES = `
             setTitleIfChanged(badgeDifEl, `${blendFormula}\n🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!${dealData.isNewRecord ? '' : ' Kein neuer Rekord.'}${medianVal ? ` Ø ${horizonLabel} CHF ${medianVal.toFixed(2)}.` : ''} · ${colorLegend}${outlierLine}\n[Klicken zum Aktualisieren]`);
           }
 
-          // Merged subline: blend first (ellipsis cuts the CHF tail first),
-          // then the Rek/Ø split and the CHF anchors under the usual gates.
+          // Merged subline: CHF-anchored split with per-leg % (no blend words —
+          // the ribbon above already shows it, so the short CHF tail survives
+          // ellipsis on narrow cards).
           const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
           const showMedianLine = !!(medianVal && medianVal > cardPrice);
           const hasRecordPart = dealData.isNewRecord && dealData.dRecord > 0;
           let histPriceEl = ensureHistPriceEl(card, cardPriceEl);
 
           if (showPrevLow || showMedianLine) {
-            const split = hasRecordPart ? `(Rek -${dealData.dRecord}% · Ø -${dealData.dMedian}%)` : `(Ø -${dealData.dMedian}%)`;
-            const parts = [`Gewichtete Differenz -${dealData.weightedDiff}% ${split}`];
-            if (showPrevLow) parts.push(`Bisher CHF ${prevLow.toFixed(2)}`);
-            if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)}`);
+            const parts = [];
+            if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecordPart ? ` (-${dealData.dRecord}%)` : ''}`);
+            if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
             if (dealData.isNewRecord && showPrevLow) {
               histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
               setTextIfChanged(histPriceEl, parts.join(' · '));
@@ -3894,13 +3896,13 @@ const SHADOW_MODAL_STYLES = `
             }
             if (isListView) {
               if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}%</p>`);
+                setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
               }
             } else {
               if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · -${badgePct}%</div><p>-${badgePct}%</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
               }
@@ -3951,8 +3953,9 @@ const SHADOW_MODAL_STYLES = `
           } else if (showPrevLow || showMedianLine) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             const parts = [];
-            if (showPrevLow) parts.push(`Bisher: CHF ${prevLow.toFixed(2)}`);
-            if (showMedianLine) parts.push(`Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}`);
+            const dMedBrowse = showMedianLine ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100) : 0;
+            if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${isNewRecord ? ` (-${realDropVsPrev}%)` : ''}`);
+            if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
             histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
             setTextIfChanged(histPriceEl, parts.join(' · '));
             if (isNewRecord && showPrevLow) {

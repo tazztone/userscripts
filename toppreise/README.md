@@ -10,18 +10,18 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.106)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.107)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Tiefstpreise: Kuratierter Tiefstpreis-Feed mit Gewichteter Differenz & Statistischem Filter (v2.18.106)**:
+1. **💎 Neue Tiefstpreise: Kuratierter Tiefstpreis-Feed mit Gewichteter Differenz & Statistischem Filter (v2.18.107)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Tiefstpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Tiefstpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Ersparnis.
    - **🔥 Gewichtete-Differenz Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird die Gewichtete Differenz aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **eine Zahl**: Sie steht auf dem Ribbon, färbt Karte + Badge auf einer Grau→Rot-Skala (tiefrot = grosser Tiefstpreis, grau = kein Rabatt) und sortiert den Feed. Niemals der Score und nach Prüfung niemals die Differenz — Aufschläge bleiben grau (`+XX%` steht im Badge). Blasse Farben = ungeprü…
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
    - **🛡️ Multi-Pass Preisfehler- & Ausreisser-Filter**: Erkennt und ignoriert automatisch kurzzeitige Händler-Fehllistings (z. B. ein CHF 15 Handy-Case, das versehentlich unter einem CHF 1'200 Smartphone gelistet war), sodass echte Allzeit-Tiefstpreise nicht fälschlicherweise blockiert werden.
-   - **🏷️ Tiefstpreis Badge & Subline**: Das Kreisbadge zeigt die Gewichtete Differenz (`Tiefstpreis · -X%`). Die Subline unter dem Preis führt dieselbe Zahl mit Split und CHF-Ankern (`Gewichtete Differenz -X% (Rek -X% · Ø -Y%) · Bisher CHF 2'399.00 · Ø (1J) CHF 2'450.00`). Ohne qualifizierte Historie erscheint schlichtes `Tiefstpreis` (grau, ohne Zahl). Der Tooltip erklärt Formel, Rekord-Status und Farb-Bedeutung.
+   - **🏷️ Tiefstpreis Badge & Subline**: Das Kreisbadge trägt die Gewichtete Differenz (`⚖️ -X%`). Die Subline unter dem Preis verankert beide Beine mit CHF und % (`📉 CHF 2'399.00 (-X%) · Ø (1J) CHF 2'450.00 (-Y%)`). Ohne qualifizierte Historie erscheint schlichtes `Tiefstpreis` (grau, ohne Zahl). Der Tooltip erklärt Formel, Rekord-Status und Farb-Bedeutung.
    - **⚖️ Konfigurierbare Sortier-Gewichtung**: Im Einstellungsmenü (oder per `⚖️`-Slider in der Leiste) kann das Mischverhältnis zwischen Alltags-Ersparnis (Median) und Rekord-Tiefstpreis stufenlos angepasst werden (Standard: 50% / 50%) — setzt Reihenfolge + Farb-Emphase, das Badge zeigt stets die daraus folgende Zahl. Ein Rechenbeispiel (`z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18`) läuft live beim Ziehen mit; der Leisten-Slider rastet in 5er-Schritten (`100% Med` … `100% Rek`).
    - **Non-Destructive Auto-Scan & Grid-Safe Sorting**: Ungeprüfte Produkte bleiben während des Paced Scans mit dezentem `⏳ Prüfe...`-Spinner sichtbar und sortieren sich live ein, ohne das Bootstrap-Grid zu beschädigen. Beim Deaktivieren wird die ursprüngliche Feed-Reihenfolge 100% sauber wiederhergestellt.
 2. **🌟 Integrierte Allzeit-Tiefstpreise & Allzeit-Tiefstpreis Prüfung**: Verifiziert echte Rekord-Preise direkt im bestehenden Toppreise Differenz-Kreisbadge (`.badge-dif`) ohne störende Extra-Badges.

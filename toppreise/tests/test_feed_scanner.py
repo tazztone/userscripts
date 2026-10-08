@@ -959,7 +959,7 @@ def test_real_deal_record_low_with_previous_low_subline(page: Page):
     # Verify record-low subline is displayed
     page.wait_for_selector('#card-cheapest .tp-card-historical-price.tp-is-record-low')
     subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
-    assert 'Bisher: CHF 2200.00' in (subline.text_content() or '')
+    assert '📉 CHF 2200.00 (-18%)' in (subline.text_content() or '')
 
     # Verify sparkline is rendered immediately from POST response
     sparkline = page.locator('#card-cheapest .tp-sparkline')
@@ -1313,9 +1313,9 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
 
 
 def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
-    """The ribbon prints the Gewichtete Differenz: dragging the weight slider
-    reprints the ribbon number (heat follows it, so number and color agree)
-    and the merged subline leads with the same number. No kind words, no pill."""
+    """The ribbon carries the Gewichtete Differenz (⚖️ + blend): dragging the
+    weight slider reprints the ribbon number (heat follows it, so number and
+    color agree) while the CHF-anchored subline legs stay put. No kind words, no pill."""
     # Record card with divergent numbers: Rekord -18% vs Ø -25%
     # Blends: 50/50 -> -22%, 100% Ø -> -25%, 100% Rek -> -18%
     page.evaluate("""() => {
@@ -1333,14 +1333,16 @@ def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
     badge = page.locator('#card-cheapest .badge-dif')
     subline = page.locator('#card-cheapest .tp-card-historical-price')
 
-    # Default 50/50: blend ribbon (-22%) with record heat applied
+    # Default 50/50: blend ribbon (⚖️ -22%) with record heat applied
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
     assert '-22%' in (badge.text_content() or '')
+    assert '⚖️' in (badge.text_content() or '')
     assert 'Rekord' not in (badge.text_content() or '')
-    # Ribbon number equals the leading number of the merged subline
-    assert 'Gewichtete Differenz -22%' in (subline.text_content() or '')
+    # Subline carries the CHF-anchored split with per-leg %
+    assert '📉 CHF 2200.00 (-18%)' in (subline.text_content() or '')
+    assert 'CHF 2400.00 (-25%)' in (subline.text_content() or '')
 
-    # Switch to 100% Ø: ribbon + subline move to the Ø leg
+    # Switch to 100% Ø: ribbon moves to the Ø leg, CHF legs stay put
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-weight-range');
         r.value = '0';
@@ -1348,7 +1350,7 @@ def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-25%')")
-    assert 'Gewichtete Differenz -25%' in (subline.text_content() or '')
+    assert '📉 CHF 2200.00 (-18%)' in (subline.text_content() or '')
     # Heat recolor is applied (ribbon carries an inline heat background)
     assert page.evaluate("() => document.querySelector('#card-cheapest .badge-dif').style.background !== ''")
 
@@ -1360,4 +1362,4 @@ def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-18%')")
-    assert 'Gewichtete Differenz -18%' in (subline.text_content() or '')
+    assert 'CHF 2400.00 (-25%)' in (subline.text_content() or '')
