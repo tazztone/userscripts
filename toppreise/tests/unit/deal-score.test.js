@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { analyzePriceTimeSeries, recordRefForPrice } from '../../src/domain/price.js';
 import { computeDealScore, getDisplayDelta, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../../src/domain/deal-score.js';
 import { CONFIG } from '../../src/state/config.js';
 
@@ -12,8 +13,7 @@ describe('Deal Score Domain Module', () => {
       previousLow: 120,
       medianPrice: 150,
       isNewAllTimeLow: true,
-      dataPointCount: 10,
-      timeSeries: new Array(10).fill([0, 150])
+      dataPointCount: 10
     };
 
     it('returns null when product history does not qualify (< 5 points)', () => {
@@ -150,6 +150,45 @@ describe('Deal Score Domain Module', () => {
       assert.equal(getDisplayDelta(0, { tiefstpreis: 21.70 }).kind, 'unknown');
       assert.equal(getDisplayDelta(10, null).kind, 'unknown');
     });
+
+    it('re-anchors the previous low at the live price when the series lags (ACER case)', () => {
+      // Series ends high again (272) after an old 319+ era and a 218 low era;
+      // the live offer (169.47) undercuts the series low (218). The stored
+      // previousLow (319, walked at the stale series-last point) must not
+      // leak into badge or score — true record is -22% vs 218, not -47%.
+      const now = Date.now();
+      const day = 86400 * 1000;
+      const series = [
+        [now - 400 * day, 319], [now - 380 * day, 325], [now - 360 * day, 332], [now - 340 * day, 328],
+        [now - 90 * day, 218], [now - 80 * day, 225], [now - 70 * day, 220],
+        [now - 30 * day, 250], [now - 20 * day, 260], [now - 10 * day, 272]
+      ];
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      const prevWeight = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+      try {
+        const stats = analyzePriceTimeSeries(series); // production path: no live price
+        assert.ok(stats);
+        assert.equal(stats.tiefstpreis, 218);
+        assert.equal(stats.previousLow, 319); // stale-anchored at series-last — the trap
+        assert.equal(recordRefForPrice(stats, 169.47).previousLow, 218);
+        const d = getDisplayDelta(169.47, stats);
+        assert.equal(d.kind, 'new-low');
+        assert.equal(d.prevLow, 218);
+        assert.equal(d.dRecord, 22);
+        const deal = computeDealScore(stats, 169.47);
+        assert.ok(deal);
+        assert.equal(deal.isNewRecord, true);
+        assert.equal(deal.dRecord, 22);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prevWeight;
+      }
+    });
   });
 
   describe('getLevelPct signed & getHeatInput (heatmap = badge number)', () => {
@@ -229,7 +268,10 @@ describe('Deal Score Domain Module', () => {
       isNewAllTimeLow: true,
       hoechstpreis: 60,
       dataPointCount: 10,
-      timeSeries: new Array(10).fill([0, 48])
+      // Self-consistent micro-record history: nine points at 48, then the
+      // 23.57 low the card undercuts by 1 cent (a flat 48-only series would
+      // contradict the stored previous low).
+      timeSeries: [...new Array(9).fill([0, 48]), [0, 23.57]]
     };
 
     it('heats micro-records by the headlined Ø-% (Tiefstpreise mode)', () => {

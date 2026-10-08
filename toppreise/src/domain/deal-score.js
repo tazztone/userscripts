@@ -4,7 +4,7 @@
  * and continuous weighted deal quality scoring.
  */
 
-import { priceToCents } from './price.js';
+import { priceToCents, recordRefForPrice } from './price.js';
 import { CONFIG } from '../state/config.js';
 
 // Display thresholds (documented in UI: badge titles, heatmap toggle, settings).
@@ -30,14 +30,18 @@ export function computeDealScore(stats, cardPrice) {
   const isAtLow = priceToCents(cardPrice) <= priceToCents(stats.tiefstpreis);
   if (!isAtLow) return null; // Auto-hide non-bestpreise
 
-  const isNewRecord = !!stats.isNewAllTimeLow;
+  // Live-anchored: the stored flag is relative to the (lagging) series-last
+  // point, not to this offer — re-derive it per card (fallback stats without
+  // a series keep their stored values).
+  const liveRec = recordRefForPrice(stats, cardPrice);
+  const isNewRecord = liveRec.isNewRecord;
   // Defensive fallback chain: series stats always carry a median; only
   // exotic hand-built stats fall through to the mean (or 0 = unscorable).
   const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
     ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
     : (stats.realDiscountVsMedian || 0);
 
-  const prevLow = stats.previousLow;
+  const prevLow = liveRec.previousLow;
   const dRecord = (isNewRecord && prevLow && prevLow > cardPrice)
     ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
     : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
@@ -78,10 +82,12 @@ export function getDisplayDelta(cardPrice, stats) {
   }
   const cPrice = priceToCents(cardPrice);
   const cLow = priceToCents(stats.tiefstpreis);
-  // Analyzed series include the current price, so a fresh record compares
-  // EQUAL in cents — the isNewAllTimeLow flag is authoritative there.
-  if (cPrice < cLow || (cPrice === cLow && stats.isNewAllTimeLow)) {
-    const prevLow = stats.previousLow;
+  // Live-anchored like the score: the series lags the offer, so the stored
+  // regime low/flag (relative to series-last) is re-derived per card price.
+  // Series-less fallback stats keep their stored values.
+  const liveRec = recordRefForPrice(stats, cardPrice);
+  if (cPrice < cLow || (cPrice === cLow && liveRec.isNewRecord)) {
+    const prevLow = liveRec.previousLow;
     // dRecordRaw drives the significance decision; the rounded dRecord is
     // display only — a true 1.96% dip must not flip the 2% gate by rounding.
     let dRecord = 0;
@@ -96,7 +102,7 @@ export function getDisplayDelta(cardPrice, stats) {
     return { kind: 'new-low', dRecord, dRecordRaw, prevLow: prevLow ?? null };
   }
   if (cPrice === cLow) {
-    return { kind: 'at-low', dRecord: 0, dRecordRaw: 0, prevLow: stats.previousLow ?? null };
+    return { kind: 'at-low', dRecord: 0, dRecordRaw: 0, prevLow: liveRec.previousLow };
   }
   return {
     kind: 'above-low',

@@ -14,7 +14,7 @@ import {
   getCardProductId
   } from '../page/cards.js';
 import { isDiscordWebhookUrl, formatDealMessage, extractShareData, extractDealer, sparklineText, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
-import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
+import { extractCanonicalPrice, parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
@@ -366,7 +366,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           badgeDifEl.classList.remove('tp-deal-new-record');
         }
 
-        const prevLow = stats?.previousLow;
+        const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
         const medianVal = stats?.medianPrice;
         const horizonLabel = medianHorizonLabel(stats);
         const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
@@ -546,8 +546,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       if (displayKind !== 'unknown') {
         const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
         const isNonBest = (displayKind === 'above-low');
-        const isNewRecord = (displayKind === 'new-low') || !!(stats.isNewAllTimeLow || (isAllTimeLow && stats.previousLow && priceToCents(stats.previousLow) > priceToCents(cardPrice)));
-        const prevLow = stats.previousLow;
+        const liveRec = recordRefForPrice(stats, cardPrice);
+        const isNewRecord = (displayKind === 'new-low') || (isAllTimeLow && liveRec.isNewRecord);
+        const prevLow = liveRec.previousLow;
         const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
 
         // Strictness lives in the mode now: outside it, verified non-deals
@@ -796,7 +797,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const { title, url } = extractShareData(card);
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
           const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
-          const prevLow = stats?.previousLow;
+          const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
           const medianVal = stats?.medianPrice;
           let dealer = extractDealer(card);
           let offers = cd.offerCount || 0;

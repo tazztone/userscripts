@@ -262,6 +262,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       if (!window._tpRevealMenuDocBound) {
         window._tpRevealMenuDocBound = true;
         document.addEventListener('click', e => {
+          if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
           const b = document.getElementById('tp-suite-filter-bar');
           if (b && !b.contains(e.target)) {
             b.querySelector('#tp-bar-reveal-popover')?.classList.remove('tp-show');

@@ -189,6 +189,7 @@ function ensureCta() {
   if (!window._tpFloatingCtaDocBound) {
     window._tpFloatingCtaDocBound = true;
     document.addEventListener('click', e => {
+      if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
       const cta = document.getElementById(FLOATING_CTA_ID);
       if (cta && !cta.contains(e.target)) {
         cta.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.99
+// @version      2.18.100
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1707,6 +1707,29 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
+  /**
+   * Live-anchored record reference for one concrete offer price.
+   * The cached analysis anchors its trailing-plateau walk at the series' last
+   * point, which lags live offers (daily sampling): a fresh undercut then
+   * reports an ancient regime low as "Bisher". Re-running the same walk
+   * anchored at the live card price returns exactly what the analysis would
+   * have produced had it known the price — same walk, right anchor.
+   * Stats without a series (HTML fallback) keep their stored values.
+   */
+  function recordRefForPrice(stats, cardPrice) {
+    const stored = { previousLow: stats?.previousLow ?? null, isNewRecord: !!stats?.isNewAllTimeLow };
+    const pts = stats?.timeSeries;
+    if (!(cardPrice > 0) || !Array.isArray(pts) || pts.length === 0) return stored;
+    const cCents = priceToCents(cardPrice);
+    const priceOf = p => (Array.isArray(p) ? p[1] : p?.price);
+    let idx = pts.length - 1;
+    while (idx > 0 && priceToCents(priceOf(pts[idx])) <= cCents) idx--;
+    const hist = pts.slice(0, idx + 1).map(priceOf).filter(p => typeof p === 'number' && p > 0);
+    if (hist.length === 0) return stored;
+    const prevLow = Math.min(...hist);
+    return { previousLow: prevLow, isNewRecord: prevLow > 0 && cCents < priceToCents(prevLow) };
+  }
+
   // ─── MODULE: src/domain/deal-score.js ───────────────────────────────────────
   /**
    * Pure Deal Scoring & State Logic
@@ -1739,14 +1762,18 @@ const SHADOW_MODAL_STYLES = `
     const isAtLow = priceToCents(cardPrice) <= priceToCents(stats.tiefstpreis);
     if (!isAtLow) return null; // Auto-hide non-bestpreise
 
-    const isNewRecord = !!stats.isNewAllTimeLow;
+    // Live-anchored: the stored flag is relative to the (lagging) series-last
+    // point, not to this offer — re-derive it per card (fallback stats without
+    // a series keep their stored values).
+    const liveRec = recordRefForPrice(stats, cardPrice);
+    const isNewRecord = liveRec.isNewRecord;
     // Defensive fallback chain: series stats always carry a median; only
     // exotic hand-built stats fall through to the mean (or 0 = unscorable).
     const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
       ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
       : (stats.realDiscountVsMedian || 0);
 
-    const prevLow = stats.previousLow;
+    const prevLow = liveRec.previousLow;
     const dRecord = (isNewRecord && prevLow && prevLow > cardPrice)
       ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
       : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
@@ -1787,10 +1814,12 @@ const SHADOW_MODAL_STYLES = `
     }
     const cPrice = priceToCents(cardPrice);
     const cLow = priceToCents(stats.tiefstpreis);
-    // Analyzed series include the current price, so a fresh record compares
-    // EQUAL in cents — the isNewAllTimeLow flag is authoritative there.
-    if (cPrice < cLow || (cPrice === cLow && stats.isNewAllTimeLow)) {
-      const prevLow = stats.previousLow;
+    // Live-anchored like the score: the series lags the offer, so the stored
+    // regime low/flag (relative to series-last) is re-derived per card price.
+    // Series-less fallback stats keep their stored values.
+    const liveRec = recordRefForPrice(stats, cardPrice);
+    if (cPrice < cLow || (cPrice === cLow && liveRec.isNewRecord)) {
+      const prevLow = liveRec.previousLow;
       // dRecordRaw drives the significance decision; the rounded dRecord is
       // display only — a true 1.96% dip must not flip the 2% gate by rounding.
       let dRecord = 0;
@@ -1805,7 +1834,7 @@ const SHADOW_MODAL_STYLES = `
       return { kind: 'new-low', dRecord, dRecordRaw, prevLow: prevLow ?? null };
     }
     if (cPrice === cLow) {
-      return { kind: 'at-low', dRecord: 0, dRecordRaw: 0, prevLow: stats.previousLow ?? null };
+      return { kind: 'at-low', dRecord: 0, dRecordRaw: 0, prevLow: liveRec.previousLow };
     }
     return {
       kind: 'above-low',
@@ -3713,7 +3742,7 @@ const SHADOW_MODAL_STYLES = `
             badgeDifEl.classList.remove('tp-deal-new-record');
           }
 
-          const prevLow = stats?.previousLow;
+          const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
           const medianVal = stats?.medianPrice;
           const horizonLabel = medianHorizonLabel(stats);
           const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
@@ -3893,8 +3922,9 @@ const SHADOW_MODAL_STYLES = `
         if (displayKind !== 'unknown') {
           const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
           const isNonBest = (displayKind === 'above-low');
-          const isNewRecord = (displayKind === 'new-low') || !!(stats.isNewAllTimeLow || (isAllTimeLow && stats.previousLow && priceToCents(stats.previousLow) > priceToCents(cardPrice)));
-          const prevLow = stats.previousLow;
+          const liveRec = recordRefForPrice(stats, cardPrice);
+          const isNewRecord = (displayKind === 'new-low') || (isAllTimeLow && liveRec.isNewRecord);
+          const prevLow = liveRec.previousLow;
           const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
 
           // Strictness lives in the mode now: outside it, verified non-deals
@@ -4143,7 +4173,7 @@ const SHADOW_MODAL_STYLES = `
             const { title, url } = extractShareData(card);
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
             const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
-            const prevLow = stats?.previousLow;
+            const prevLow = recordRefForPrice(stats, cardPrice).previousLow;
             const medianVal = stats?.medianPrice;
             let dealer = extractDealer(card);
             let offers = cd.offerCount || 0;
@@ -5128,6 +5158,7 @@ const SHADOW_MODAL_STYLES = `
         if (!window._tpRevealMenuDocBound) {
           window._tpRevealMenuDocBound = true;
           document.addEventListener('click', e => {
+            if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
             const b = document.getElementById('tp-suite-filter-bar');
             if (b && !b.contains(e.target)) {
               b.querySelector('#tp-bar-reveal-popover')?.classList.remove('tp-show');
@@ -5447,6 +5478,7 @@ const SHADOW_MODAL_STYLES = `
     if (!window._tpFloatingCtaDocBound) {
       window._tpFloatingCtaDocBound = true;
       document.addEventListener('click', e => {
+        if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
         const cta = document.getElementById(FLOATING_CTA_ID);
         if (cta && !cta.contains(e.target)) {
           cta.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');

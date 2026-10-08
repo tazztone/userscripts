@@ -308,3 +308,26 @@ export function analyzePriceTimeSeries(series, currentPrice = null) {
     timeSeries: points
   };
 }
+
+/**
+ * Live-anchored record reference for one concrete offer price.
+ * The cached analysis anchors its trailing-plateau walk at the series' last
+ * point, which lags live offers (daily sampling): a fresh undercut then
+ * reports an ancient regime low as "Bisher". Re-running the same walk
+ * anchored at the live card price returns exactly what the analysis would
+ * have produced had it known the price — same walk, right anchor.
+ * Stats without a series (HTML fallback) keep their stored values.
+ */
+export function recordRefForPrice(stats, cardPrice) {
+  const stored = { previousLow: stats?.previousLow ?? null, isNewRecord: !!stats?.isNewAllTimeLow };
+  const pts = stats?.timeSeries;
+  if (!(cardPrice > 0) || !Array.isArray(pts) || pts.length === 0) return stored;
+  const cCents = priceToCents(cardPrice);
+  const priceOf = p => (Array.isArray(p) ? p[1] : p?.price);
+  let idx = pts.length - 1;
+  while (idx > 0 && priceToCents(priceOf(pts[idx])) <= cCents) idx--;
+  const hist = pts.slice(0, idx + 1).map(priceOf).filter(p => typeof p === 'number' && p > 0);
+  if (hist.length === 0) return stored;
+  const prevLow = Math.min(...hist);
+  return { previousLow: prevLow, isNewRecord: prevLow > 0 && cCents < priceToCents(prevLow) };
+}
