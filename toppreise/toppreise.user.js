@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.103
+// @version      2.18.104
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2969,8 +2969,14 @@ const SHADOW_MODAL_STYLES = `
           const cd = cdFor(c);
           const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
           let score = -100;
+          let heatPct = 0;
           if (dealData) {
             score = dealData.score;
+            // Rank by the heated headline % (ADR-0002 single source): the number
+            // the ribbon prints and the card burns with. The blended score only
+            // breaks ties — ranking by the invisible blend put bright cards
+            // (Ø -35%) below faint ones (Rek -2%) at extreme weights.
+            heatPct = getHeatInput(cd.cardPrice, cd.stats, null, 'bestpreise', dealData).pct || 0;
           } else if (!cd.stats) {
             score = 0;
           }
@@ -2978,11 +2984,12 @@ const SHADOW_MODAL_STYLES = `
             card: c,
             item: getCardSortableUnit(c),
             score,
+            heatPct,
             dMed: dealData ? dealData.dMedian : 0,
             initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
           };
         });
-        scored.sort((a, b) => (b.score - a.score) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+        scored.sort((a, b) => (b.heatPct - a.heatPct) || (b.score - a.score) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
