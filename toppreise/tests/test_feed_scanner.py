@@ -967,9 +967,9 @@ def test_real_deal_record_low_with_previous_low_subline(page: Page):
 
 
 
-def test_deal_score_computation_and_weights(page: Page):
+def test_gewichtete_differenz_computation_and_weights(page: Page):
     # Test 1: New Record Low (50/50 default weight)
-    # dMedian = 40%, dRecord = 20% -> Score = 0.5*40 + 0.5*20 = 30%
+    # dMedian = 40%, dRecord = 20% -> blend = 0.5*40 + 0.5*20 = 30%
     score_res = page.evaluate("""() => {
         const stats = {
             tiefstpreis: 1500,
@@ -983,13 +983,13 @@ def test_deal_score_computation_and_weights(page: Page):
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         return window.ToppreiseSuite.computeDealScore(stats, 1500);
     }""")
-    assert score_res['score'] == 30
+    assert score_res['weightedDiff'] == 30
     assert score_res['dMedian'] == 40
     assert score_res['dRecord'] == 20
     assert score_res['isNewRecord'] is True
 
     # Test 2: Matching All-Time Low (dRecord = 0%)
-    # dMedian = 30%, dRecord = 0% -> Score = 0.5*30 + 0 = 15%
+    # dMedian = 30%, dRecord = 0% -> blend = 0.5*30 + 0 = 15%
     match_res = page.evaluate("""() => {
         const stats = {
             tiefstpreis: 1000,
@@ -1001,7 +1001,7 @@ def test_deal_score_computation_and_weights(page: Page):
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         return window.ToppreiseSuite.computeDealScore(stats, 1000);
     }""")
-    assert match_res['score'] == 15
+    assert match_res['weightedDiff'] == 15
     assert match_res['dMedian'] == 30
     assert match_res['dRecord'] == 0
     assert match_res['isNewRecord'] is False
@@ -1018,10 +1018,10 @@ def test_deal_score_computation_and_weights(page: Page):
         };
         // dMedian = 50%, dRecord = 20%
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 1.0;
-        const pureRecord = window.ToppreiseSuite.computeDealScore(stats, 1000).score;
+        const pureRecord = window.ToppreiseSuite.computeDealScore(stats, 1000).weightedDiff;
 
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.0;
-        const pureMedian = window.ToppreiseSuite.computeDealScore(stats, 1000).score;
+        const pureMedian = window.ToppreiseSuite.computeDealScore(stats, 1000).weightedDiff;
 
         return { pureRecord, pureMedian };
     }""")
@@ -1053,7 +1053,7 @@ def test_deal_score_computation_and_weights(page: Page):
     }""")
     assert tier3_flat is None
 
-    # Test 6: Exclusion: 0% Real Deal Score (price matches low and median, zero savings)
+    # Test 6: Exclusion: 0% blend (price matches low and median, zero savings)
     zero_score = page.evaluate("""() => {
         const stats = {
             tiefstpreis: 1000,
@@ -1312,12 +1312,12 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 0)")
 
 
-def test_weight_switch_moves_headline_and_heat(page: Page):
-    """Headline emphasis follows the sort weight: under Ø-emphasis the ribbon
-    leads with the Ø-% (heat follows it, so number and color still agree);
-    under Rekord-emphasis with the record-%. The Rek/Ø split stays visible
-    in the breakdown pill — no event truth is buried."""
+def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
+    """The ribbon prints the Gewichtete Differenz: dragging the weight slider
+    reprints the ribbon number (heat follows it, so number and color agree)
+    and the merged subline leads with the same number. No kind words, no pill."""
     # Record card with divergent numbers: Rekord -18% vs Ø -25%
+    # Blends: 50/50 -> -22%, 100% Ø -> -25%, 100% Rek -> -18%
     page.evaluate("""() => {
         const full = {
             tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 2400,
@@ -1331,14 +1331,16 @@ def test_weight_switch_moves_headline_and_heat(page: Page):
     }""")
 
     badge = page.locator('#card-cheapest .badge-dif')
-    breakdown = page.locator('#card-cheapest .tp-badge-score-breakdown')
+    subline = page.locator('#card-cheapest .tp-card-historical-price')
 
-    # Default 50/50: record headline (-18%) with record heat applied
+    # Default 50/50: blend ribbon (-22%) with record heat applied
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
-    assert '-18%' in (badge.text_content() or '')
-    assert 'Rekord' in (badge.text_content() or '')
+    assert '-22%' in (badge.text_content() or '')
+    assert 'Rekord' not in (badge.text_content() or '')
+    # Ribbon number equals the leading number of the merged subline
+    assert 'Gewichtete Differenz -22%' in (subline.text_content() or '')
 
-    # Switch to 100% Ø-emphasis: headline + heat move to the Ø-%
+    # Switch to 100% Ø: ribbon + subline move to the Ø leg
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-weight-range');
         r.value = '0';
@@ -1346,16 +1348,11 @@ def test_weight_switch_moves_headline_and_heat(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-25%')")
-    assert 'Ø-Preis' in (badge.text_content() or '')
-    # ... while the breakdown pill keeps both numbers (nothing buried)
-    assert 'Rek: -18%' in (breakdown.text_content() or '')
-    assert 'Ø: -25%' in (breakdown.text_content() or '')
-    # Score == Ø here, so it is not printed a third time
-    assert 'Score:' not in (breakdown.text_content() or '')
+    assert 'Gewichtete Differenz -25%' in (subline.text_content() or '')
     # Heat recolor is applied (ribbon carries an inline heat background)
     assert page.evaluate("() => document.querySelector('#card-cheapest .badge-dif').style.background !== ''")
 
-    # Back to 100% Rekord-emphasis: record headline returns
+    # Back to 100% Rekord: ribbon returns to the record leg
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-weight-range');
         r.value = '100';
@@ -1363,4 +1360,4 @@ def test_weight_switch_moves_headline_and_heat(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-18%')")
-    assert 'Rekord' in (badge.text_content() or '')
+    assert 'Gewichtete Differenz -18%' in (subline.text_content() or '')

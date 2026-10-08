@@ -1,5 +1,5 @@
 # Heat follows the headlined badge number in every mode
-
+> Headline rule superseded by ADR-0005 (badge shows the blend; heat/sort follow it).
 Screenshot review found two cards showing the same `-51%` ribbon (and the
 same `Ø → Score: 26` pill) with different card colors: one heated brown, one
 dark gray. Root cause, three related defects sharing one violation of the

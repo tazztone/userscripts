@@ -311,7 +311,7 @@ def test_bestpreise_settings_weight_slider(page: Page):
     assert '70% Rekord / 30% Ø-Preis' in desc_text
     assert 'Farb-Emphase' in desc_text
     # Worked example moves with the slider: 0.7*10 + 0.3*25 = 15
-    assert 'Score 15' in desc_text
+    assert 'Gewichtete Differenz 15' in desc_text
 
     # Save
     page.click('#tp-root >> #tp-btn-save')
@@ -395,9 +395,9 @@ def test_cache_settings_and_clear_button(page: Page):
 
 
 
-def test_deal_score_weight_slider_zero_persistence(page: Page):
+def test_gewichtete_differenz_weight_slider_zero_persistence(page: Page):
     """
-    Validates that setting the Deal-Score weight slider to 0% in settings dialog
+    Validates that setting the Gewichtete-Differenz weight slider to 0% in settings dialog
     persists as 0.0 (100% Median / 0% Neuer Rekord) without resetting to 0.50 (50%).
     """
     page.evaluate("""() => {

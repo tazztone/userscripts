@@ -6,8 +6,8 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 
-// One vocabulary everywhere: the Tiefstpreis-Score sorts the Tiefstpreise feed
-// and sets its headline emphasis (Rekord vs Ø) — badge numbers always show both.
+// One vocabulary everywhere: the Gewichtete Differenz (weight-blended
+// Ø-discount + record margin) prints on the badge and drives color + order.
 // The worked example uses fixed demo numbers so dragging the slider visibly
 // moves the result (Rek −10%, Ø −25%).
 export function weightText(weightRecord, style) {
@@ -23,14 +23,14 @@ export function weightText(weightRecord, style) {
   }
   if (style === 'title') {
     const pctRec = Math.round(w * 100);
-    return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt Rekord & Ø.`;
+    return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt die Gewichtete Differenz.`;
   }
   const pct = Math.round(w * 100);
-  const score = Math.round(((100 - pct) * 25 + pct * 10) / 100);
+  const weightedDiff = Math.round(((100 - pct) * 25 + pct * 10) / 100);
   const base = pct === 100 ? 'Rekord-Sortierung (100% Rekord / 0% Ø-Preis)'
     : pct === 0 ? 'Ø-Sortierung (0% Rekord / 100% Ø-Preis)'
     : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
-  return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
+  return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz ${weightedDiff}`;
 }
 
 export const DEFAULTS = Object.freeze({

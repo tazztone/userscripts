@@ -1,5 +1,5 @@
 # Strictness lives in the mode; one color language
-
+> Headline rule superseded by ADR-0005 (badge shows the blend; heat/sort follow it).
 Screenshot review showed three defects sharing one root cause — two controls
 (and two color systems) for one concept:
 

@@ -26,3 +26,7 @@ _Avoid_: Check Deals, checken
 **Schlechter Deal**:
 Geprüfter Preis, der kein Tiefstpreis ist (Aufschlag gegenüber dem historischen Tief); im Tiefstpreise-Modus ausgeblendet.
 _Avoid_: Non-Deal
+
+**Gewichtete Differenz**:
+Die eine Kennzahl des Tiefstpreise-Feeds: Gewichtungs-Blended Ø-Rabatt und Rekord-Marge im aktuellen Slider-Mix. Sie steht auf dem Badge, treibt Kartenfarbe und Feed-Reihenfolge; Rek/Ø erscheinen nur noch als Split in der Subline.
+_Avoid_: Score, Tiefstpreis-Score (in UI-Texten)

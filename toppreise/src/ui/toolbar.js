@@ -111,7 +111,7 @@ function bindWeightControls(wrapper) {
     const w = readWeight();
     paintWeightLabel();
     updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-    showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
+    showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (Reihenfolge + Farb-Emphase)`);
   };
 }
 
@@ -119,7 +119,7 @@ function buildWeightWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper';
   wrapper.id = 'tp-bar-weight-wrapper';
-  wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.';
+  wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
   wrapper.innerHTML = `
     <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
     <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">

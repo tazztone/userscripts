@@ -1,0 +1,3 @@
+# Badge shows the blend; heat and sort follow it
+
+The feed showed two competing numbers — a Rek/Ø headline on the ribbon versus a blended score that sorted (as tiebreak) and appeared in a second subline — which users read as a contradiction (ribbon `-7%` vs `Score: 15` on the same card). Now one metric, the **Gewichtete Differenz** (weight-blended Ø-discount + record-margin at the current slider mix), prints on the ribbon, drives card heat and feed sort, while Rek/Ø survive only as a consolidated split in a single merged subline; the percent-less star fallback and the `Rekord`/`Ø-Preis` ribbon kind words are gone. This supersedes the headline rule in ADR-0002–0004 (color = badge-% and emphasis-follows-weight now resolve to the blend, not a picked headline).

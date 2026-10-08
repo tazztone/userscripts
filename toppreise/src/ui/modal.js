@@ -130,12 +130,12 @@ export function setupUI() {
           </div>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-          <label>Tiefstpreis-Score Gewichtung: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+          <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
           </div>
-          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
+          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>

@@ -8,8 +8,8 @@ import { priceToCents, recordRefForPrice } from './price.js';
 import { CONFIG } from '../state/config.js';
 
 // Display thresholds (documented in UI: badge titles, heatmap toggle, settings).
-// Badge % always answers "how much cheaper, vs what" — never a blended score
-// and never the unverified site Differenz once history is verified.
+// Badge % is the Gewichtete Differenz (weight-blended Ø-discount +
+// record-margin) — never the unverified site Differenz once history is verified.
 export const HEAT_NEUTRAL_DEADBAND_PCT = 5;
 export const MIN_SIGNIFICANT_RECORD_PCT = 2;
 
@@ -50,16 +50,16 @@ export function computeDealScore(stats, cardPrice) {
     ? CONFIG.BESTPREISE_WEIGHT_RECORD
     : 0.50;
   // Qualification is weight-independent: a Tiefstpreis qualifies on real
-  // saving in EITHER component. Gating on the weighted score hid every
+  // saving in EITHER component. Gating on the blend hid every
   // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
   // "Sortierung + Farb-Emphase", never filtering. Clamp to >= 1 so qualified
   // deals keep sorting above unchecked cards (0) and hidden non-deals (-100).
   if (dMedian <= 0 && dRecord <= 0) return null;
   const wMedian = 1 - wRecord;
-  const score = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
+  const weightedDiff = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
 
   return {
-    score,
+    weightedDiff,
     dMedian,
     dRecord,
     isNewRecord,
@@ -69,11 +69,11 @@ export function computeDealScore(stats, cardPrice) {
 }
 
 /**
- * Display delta (deal EVENT): what the badge shows. Works with minimal stats
- * ({tiefstpreis} + card price); no history-quality gates — those only gate
- * the ranking score, never the displayed truth.
+ * Display delta (deal EVENT): new-low / at-low / above-low classification.
+ * Works with minimal stats ({tiefstpreis} + card price); no
+ * history-quality gates — those only gate the ranking blend, never the event.
  * - new-low  -> { kind:'new-low', dRecord }  (extra saving vs previous low)
- * - at-low   -> { kind:'at-low' }            (no new saving; badge uses level)
+ * - at-low   -> { kind:'at-low' }            (no new saving)
  * - above-low-> { kind:'above-low', markup } (premium vs all-time low)
  */
 export function getDisplayDelta(cardPrice, stats) {
@@ -82,7 +82,7 @@ export function getDisplayDelta(cardPrice, stats) {
   }
   const cPrice = priceToCents(cardPrice);
   const cLow = priceToCents(stats.tiefstpreis);
-  // Live-anchored like the score: the series lags the offer, so the stored
+  // Live-anchored like the blend: the series lags the offer, so the stored
   // regime low/flag (relative to series-last) is re-derived per card price.
   // Series-less fallback stats keep their stored values.
   const liveRec = recordRefForPrice(stats, cardPrice);
@@ -148,16 +148,16 @@ export function medianHorizonLabel(stats) {
 }
 
 /**
- * Single heat driver (ADR-0002: color always = badge-% heat, text = kind).
- * One computation feeds BOTH the card heat and the badge headline, so the
+ * Single heat driver (ADR-0005: badge shows the blend, heat/sort follow it).
+ * One computation feeds BOTH the card heat and the badge number, so the
  * ribbon number always matches its color. Returns
  * { value, provisional, pct, kind }:
- * - verified deal   -> headline % the badge shows (Rekord vs Ø per mode +
- *                      weight, ADR-0003), null inside the ±5% deadband
+ * - verified deal   -> blend % the badge shows (weight-blended Ø-discount +
+ *                      record-margin at the slider mix), null inside the ±5%
+ *                      deadband (number still prints, card stays gray)
  * - verified markup -> null (no deal, no color — the +XX% badge text
  *                      carries the markup signal)
- * - verified but unqualified in Tiefstpreise mode (thin/flat history, the
- *                      badge shows a plain star with no %) -> null
+ * - verified but unqualified (thin/flat history, no dealData) -> null
  * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
  * - unverified markup / unknown -> null (neutral)
  * Callers pass the mode positionally so the heat reuses the exact mode of the
@@ -172,35 +172,20 @@ export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = und
     if (display.kind !== 'new-low' && display.kind !== 'at-low') {
       return { value: null, provisional: false, pct: 0, kind: 'markup' };
     }
-    const heatMode = mode
-      || (CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse');
     const weight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-    const levelPct = getLevelPct(cardPrice, stats);
-    // Raw counterparts for the deadband decision below — the badge keeps
-    // showing rounded integers, but the ±5% gate must not flip on rounding.
     const levelRaw = (stats && stats.medianPrice > 0 && cardPrice > 0 && stats.medianPrice > cardPrice)
       ? ((stats.medianPrice - cardPrice) / stats.medianPrice) * 100 : 0;
     const recordRaw = (display && typeof display.dRecordRaw === 'number')
       ? display.dRecordRaw : (display.dRecord || 0);
-    let showRecord = isSignificantRecord(display);
-    if (heatMode === 'bestpreise') {
-      const dealScore = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
-      // Unqualified history: the badge shows a plain star with no % — heat
-      // stays neutral to match instead of heating an unshown number.
-      if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
-      const medianHeadline = weight < 0.5 && levelPct > 0;
-      showRecord = !!dealScore.isNewRecord && showRecord && !medianHeadline;
-    }
-    let pct = 0;
-    let raw = 0;
-    let kind = 'none';
-    if (showRecord) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
-    else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
-    if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
-    // ±5% deadband (documented noise guard): a tiny verified % shows in the
-    // badge text but stays gray on the card — decided on the raw value.
-    if (!(raw >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind };
-    return { value: -pct, provisional: false, pct, kind };
+    const dealData = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
+    // Unqualified history: no blend to show — heat stays neutral to match.
+    if (!dealData) return { value: null, provisional: false, pct: 0, kind: 'none' };
+    const pct = dealData.weightedDiff;
+    // ±5% deadband (documented noise guard): a tiny blend shows in the
+    // badge text but stays gray on the card — decided on the raw blend.
+    const rawBlend = (1 - weight) * levelRaw + weight * recordRaw;
+    if (!(rawBlend >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind: 'blend' };
+    return { value: -pct, provisional: false, pct, kind: 'blend' };
   }
   if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
     // Unverified markup (positive) -> neutral; only real discounts heat.

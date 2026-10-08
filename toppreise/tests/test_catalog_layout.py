@@ -141,12 +141,12 @@ def test_discount_heatmap_rendering(page: Page):
     assert 'tp-is-unverified' in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert 'tp-is-unverified' in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
 
-    # Seed verified deals: card 1 deep (-50% vs median), card 2 shallow (-10%)
+    # Seed verified deals: card 1 deep (-50% vs median), card 2 shallow (-12%)
     page.evaluate("""() => {
         const now = Date.now();
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: now }));
         if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({ tiefstpreis: 1100, hoechstpreis: 1800, medianPrice: 1222, time: now }));
+        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({ tiefstpreis: 1100, hoechstpreis: 1800, medianPrice: 1250, time: now }));
         if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
         window.ToppreiseSuite.processListings();
     }""")
@@ -158,7 +158,7 @@ def test_discount_heatmap_rendering(page: Page):
     assert 'tp-is-verified' in (card_hot.get_attribute('class') or '')
     assert 'tp-is-verified' in (card_hot.locator('.badge-dif').get_attribute('class') or '')
 
-    # Card 2 has a verified -10% deal -> faint warm thermal styling (same ramp, low intensity)
+    # Card 2 has a verified -12% deal -> faint warm thermal styling (same ramp, low intensity)
     card_cold = page.locator('#card-expensive')
     assert 'tp-heatmap-active' in (card_cold.get_attribute('class') or '')
 
@@ -664,8 +664,8 @@ def test_bestpreise_filter_bar_toggle_and_state(page: Page):
 
 
 def test_bestpreise_card_heatmap_and_badge(page: Page):
-    # Card 1 (797571, price 1800): New record (median 2400 -> dMed 25%, prevLow 2200 -> dRec 18%) -> Score = 22%
-    # Card 2 (797572, price 1100): Matching low (median 1500 -> dMed 27%, dRec 0%) -> Score = 14%
+    # Card 1 (797571, price 1800): New record (median 2400 -> dMed 25%, prevLow 2200 -> dRec 18%) -> blend = 22%
+    # Card 2 (797572, price 1100): Matching low (median 1500 -> dMed 27%, dRec 0%) -> blend = 14%
     # Card 3 (797573, price 15): Non-Tiefstpreis (tiefstpreis 10) -> Excluded
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
@@ -702,25 +702,25 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 1: New Record -> "Tiefstpreis -18% (Rekord)" headline and subline
-    # (badge-% = record discount vs Bisher, NOT the blended score -22%)
+    # Card 1: New Record -> ribbon prints the blend (-22%), card burns with it
     card1_badge = page.locator('#card-cheapest .badge-dif')
     assert 'tp-deal-new-record' in (card1_badge.get_attribute('class') or '')
     assert 'Tiefstpreis' in (card1_badge.text_content() or '')
-    assert '-18%' in (card1_badge.text_content() or '')
-    assert 'Rekord' in (card1_badge.text_content() or '')
+    assert '-22%' in (card1_badge.text_content() or '')
 
     card1_subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
-    assert 'Bisher: CHF 2200.00' in (card1_subline.text_content() or '')
+    assert 'Gewichtete Differenz -22%' in (card1_subline.text_content() or '')
+    assert '(Rek -18% · Ø -25%)' in (card1_subline.text_content() or '')
+    assert 'Bisher CHF 2200.00' in (card1_subline.text_content() or '')
 
-    # Card 2: Matching Low -> "Tiefstpreis -27% (Ø-Preis)" headline and median subline
-    # (badge-% = median discount, NOT the blended score -14%)
+    # Card 2: Matching Low -> ribbon prints the blend (-14%) with median subline
     card2_badge = page.locator('#card-expensive .badge-dif')
     assert 'tp-deal-alltime-low' in (card2_badge.get_attribute('class') or '')
     assert 'Tiefstpreis' in (card2_badge.text_content() or '')
-    assert '-27%' in (card2_badge.text_content() or '')
+    assert '-14%' in (card2_badge.text_content() or '')
 
     card2_subline = page.locator('#card-expensive .tp-card-historical-price.tp-is-at-low')
+    assert 'Gewichtete Differenz -14%' in (card2_subline.text_content() or '')
     assert 'CHF 1500.00' in (card2_subline.text_content() or '')
 
     # Card 3: Scanned Non-Tiefstpreis -> Hidden in Tiefstpreise mode
@@ -739,19 +739,16 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     assert 'tp-baddeal-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-unchecked-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-deal-new-record' not in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
-    assert '-18%' in (page.locator('#card-cheapest .badge-dif').text_content() or '')
+    assert '-22%' in (page.locator('#card-cheapest .badge-dif').text_content() or '')
 
 
 
-def test_bestpreise_sorting_by_headline_heat(page: Page):
-    # Setup 3 products with different headline discounts:
-    # Card 1 (797571, price 1800): new record, Rek 18% (median 2400 -> dMed 25%)
-    # Card 2 (797572, price 1100): at-low, no record, O 68% (median 3437)
-    # Card 3 (797573, price 15): new record, Rek 25% (median 30 -> dMed 50%)
-    # At 50/50 records headline Rek, non-records headline O.
-    # Sort order must follow the heated headline: Card 2 (68) -> Card 3 (25) -> Card 1 (18).
-    # (Blended-score order would be Card 3 (38) -> Card 2 (34) -> Card 1 (22) -
-    # the invisible blend must not outrank the number the ribbon prints.)
+def test_bestpreise_sorting_by_blend(page: Page):
+    # Setup 3 products with different blends at 50/50:
+    # Card 1 (797571, price 1800): new record, dMed 25% + dRec 18% -> blend 22%
+    # Card 2 (797572, price 1100): at-low, no record, dMed 68% -> blend 34%
+    # Card 3 (797573, price 15): new record, dMed 50% + dRec 25% -> blend 38%
+    # Sort order follows the ribbon number: Card 3 (38) -> Card 2 (34) -> Card 1 (22).
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
             tiefstpreis: 1800,
@@ -767,7 +764,7 @@ def test_bestpreise_sorting_by_headline_heat(page: Page):
         localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
             tiefstpreis: 1100,
             hoechstpreis: 3500,
-            medianPrice: 3437, // dMedian = 68%, no record -> headlines O 68%
+            medianPrice: 3437, // dMedian = 68%, no record -> blend 34%
             isNewAllTimeLow: false,
             dataPointCount: 15,
             time: Date.now()
@@ -779,7 +776,7 @@ def test_bestpreise_sorting_by_headline_heat(page: Page):
             medianPrice: 30,
             previousLow: 20,
             isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 25, // dMed 50%, dRec 25% -> headlines Rek 25%
+            realDiscountVsPrevLow: 25, // dMed 50%, dRec 25% -> blend 38%
             dataPointCount: 12,
             time: Date.now()
         }));
@@ -793,16 +790,16 @@ def test_bestpreise_sorting_by_headline_heat(page: Page):
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
         return cards.map(c => c.id);
     }""")
-    # Headlines: Card 2 (O 68%) -> Card 3 (Rek 25%) -> Card 1 (Rek 18%)
-    assert card_ids[0] == 'card-expensive'  # O 68%
-    assert card_ids[1] == 'card-negative'   # Rek 25%
-    assert card_ids[2] == 'card-cheapest'   # Rek 18%
+    # Blends: Card 3 (38) -> Card 2 (34) -> Card 1 (22)
+    assert card_ids[0] == 'card-negative'   # blend 38%
+    assert card_ids[1] == 'card-expensive'  # blend 34%
+    assert card_ids[2] == 'card-cheapest'   # blend 22%
 
-def test_bestpreise_sorting_at_100rek_follows_headline(page: Page):
-    # Screenshot case: at 100% Rek the blended score collapses every non-record
-    # to 1, which used to sink bright O-only cards below faint mini-records
-    # (O -35% sorted below Rek -2%). Order must follow the heated headline:
-    # Card 2 (O 68%) -> Card 3 (Rek 25%) -> Card 1 (Rek 18%).
+def test_bestpreise_sorting_at_100rek_follows_blend(page: Page):
+    # At 100% Rekord the blend is the record leg: non-records collapse to the
+    # >= 1 clamp and sort last — intended consequence of a 100% Rekord mix.
+    # Card 3 (Rek 25%) -> Card 1 (Rek 18%) -> Card 2 (Ø-only, blend -1%).
+    # The ribbon shows the same -1%.
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
             tiefstpreis: 1800,
@@ -818,7 +815,7 @@ def test_bestpreise_sorting_at_100rek_follows_headline(page: Page):
         localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
             tiefstpreis: 1100,
             hoechstpreis: 3500,
-            medianPrice: 3437, // dMedian = 68%, no record -> headlines O 68%
+            medianPrice: 3437, // dMedian = 68%, no record -> blend 1% (clamp)
             isNewAllTimeLow: false,
             dataPointCount: 15,
             time: Date.now()
@@ -844,11 +841,10 @@ def test_bestpreise_sorting_at_100rek_follows_headline(page: Page):
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
         return cards.map(c => c.id);
     }""")
-    assert card_ids[0] == 'card-expensive'  # O 68% (would be last under score-sort)
-    assert card_ids[1] == 'card-negative'   # Rek 25%
-    assert card_ids[2] == 'card-cheapest'   # Rek 18%
-
-
+    assert card_ids[0] == 'card-negative'   # blend 25%
+    assert card_ids[1] == 'card-cheapest'   # blend 18%
+    assert card_ids[2] == 'card-expensive'  # blend 1% (Ø-only at 100% Rek)
+    assert '-1%' in (page.locator('#card-expensive .badge-dif').text_content() or '')
 
 def test_bestpreise_sorting_nested_wrappers(page: Page):
     # Dynamically wrap each product card in a nested column/cell hierarchy to simulate real site layout:
@@ -864,7 +860,7 @@ def test_bestpreise_sorting_nested_wrappers(page: Page):
             col.appendChild(c);
         });
 
-        // Set deal stats: Card 1 -> Score 15%, Card 2 -> Score 40%, Card 3 -> Score 25%
+        // Set deal stats: Card 1 -> blend 9%, Card 2 -> blend 30%, Card 3 -> blend 52%
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
             tiefstpreis: 1800,
             hoechstpreis: 2400,
@@ -877,7 +873,7 @@ def test_bestpreise_sorting_nested_wrappers(page: Page):
         localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
             tiefstpreis: 1100,
             hoechstpreis: 3000,
-            medianPrice: 2750, // dMed 60% -> Score 30%
+            medianPrice: 2750, // dMed 60%, no record -> blend 30%
             isNewAllTimeLow: false,
             dataPointCount: 10,
             time: Date.now()
@@ -889,25 +885,26 @@ def test_bestpreise_sorting_nested_wrappers(page: Page):
             medianPrice: 40,
             previousLow: 25,
             isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 40, // Score 50%
+            realDiscountVsPrevLow: 40, // dMed 63%, dRec 40% -> blend 52%
             dataPointCount: 10,
             time: Date.now()
         }));
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
 
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Verify column wrappers were reordered by heated headline %:
-    # Card 2 (O 60%) -> Card 3 (Rek 40%) -> Card 1 (O 18%)
+    # Verify column wrappers were reordered by blend % (badge = heat = sort):
+    # Card 3 (blend 52%) -> Card 2 (blend 30%) -> Card 1 (blend 9%)
     wrapper_ids = page.evaluate("""() => {
         const wrappers = Array.from(document.querySelectorAll('#product-list .custom-col-wrapper'));
         return wrappers.map(w => w.querySelector('.Plugin_Product')?.id);
     }""")
-    assert wrapper_ids[0] == 'card-expensive'  # Card 2 (O 60%)
-    assert wrapper_ids[1] == 'card-negative'   # Card 3 (Rek 40%)
-    assert wrapper_ids[2] == 'card-cheapest'   # Card 1 (O 18%)
+    assert wrapper_ids[0] == 'card-negative'   # Card 3 (blend 52%)
+    assert wrapper_ids[1] == 'card-expensive'  # Card 2 (blend 30%)
+    assert wrapper_ids[2] == 'card-cheapest'   # Card 1 (blend 9%)
 
 
 
@@ -1075,58 +1072,59 @@ def test_bestpreise_cross_row_sorting_and_natural_order_restoration(page: Page):
         list.appendChild(row2);
         list.appendChild(row3);
 
-        // Row 1: Card 1 (Score 15%), Card 2 (Score 10%)
+        // Row 1: Card 1 (blend 12%), Card 2 (blend 8%)
         row1.innerHTML = `
             <div class="col-6 col-md-3" id="col-1"><a href="/preisvergleich/P1-p101" id="multi-card-1" class="Plugin_Product"><span class="product-name">HP Envy</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">100.00</div></div></div><div class="badge badge-dif"><p>-10%</p></div></a></div>
             <div class="col-6 col-md-3" id="col-2"><a href="/preisvergleich/P2-p102" id="multi-card-2" class="Plugin_Product"><span class="product-name">Kärcher</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">200.00</div></div></div><div class="badge badge-dif"><p>-10%</p></div></a></div>
         `;
 
-        // Row 2: Card 3 (Score 37% - Top Deal!), Card 4 (Score 25%)
+        // Row 2: Card 3 (blend 42% - Top Deal!), Card 4 (blend 26%)
         row2.innerHTML = `
             <div class="col-6 col-md-3" id="col-3"><a href="/preisvergleich/P3-p103" id="multi-card-3" class="Plugin_Product"><span class="product-name">Villeroy</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">300.00</div></div></div><div class="badge badge-dif"><p>-37%</p></div></a></div>
             <div class="col-6 col-md-3" id="col-4"><a href="/preisvergleich/P4-p104" id="multi-card-4" class="Plugin_Product"><span class="product-name">Lego</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">400.00</div></div></div><div class="badge badge-dif"><p>-25%</p></div></a></div>
         `;
 
-        // Row 3: Card 5 (Score 20%), Card 6 (Score 5%)
+        // Row 3: Card 5 (blend 19%), Card 6 (blend 4%)
         row3.innerHTML = `
             <div class="col-6 col-md-3" id="col-5"><a href="/preisvergleich/P5-p105" id="multi-card-5" class="Plugin_Product"><span class="product-name">Anker</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">500.00</div></div></div><div class="badge badge-dif"><p>-20%</p></div></a></div>
             <div class="col-6 col-md-3" id="col-6"><a href="/preisvergleich/P6-p106" id="multi-card-6" class="Plugin_Product"><span class="product-name">Maxi-Cosi</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">600.00</div></div></div><div class="badge badge-dif"><p>-5%</p></div></a></div>
         `;
 
-        // Seed price history cache with strictly descending scores:
-        // Card 3: ~37%, Card 4: ~25%, Card 5: ~19%, Card 1: ~12%, Card 2: ~8%, Card 6: ~4%
-        localStorage.setItem('tp_hist_v1_101', JSON.stringify({ tiefstpreis: 100, hoechstpreis: 150, medianPrice: 130, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // ~12%
+        // Seed price history cache with strictly descending blends:
+        // Card 3: 42%, Card 4: 26%, Card 5: 19%, Card 1: 12%, Card 2: 8%, Card 6: 4%
+        localStorage.setItem('tp_hist_v1_101', JSON.stringify({ tiefstpreis: 100, hoechstpreis: 150, medianPrice: 130, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 12%
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('101', JSON.parse(localStorage.getItem('tp_hist_v1_101')));
-        localStorage.setItem('tp_hist_v1_102', JSON.stringify({ tiefstpreis: 200, hoechstpreis: 250, medianPrice: 235, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // ~8%
+        localStorage.setItem('tp_hist_v1_102', JSON.stringify({ tiefstpreis: 200, hoechstpreis: 250, medianPrice: 235, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 8%
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('102', JSON.parse(localStorage.getItem('tp_hist_v1_102')));
-        localStorage.setItem('tp_hist_v1_103', JSON.stringify({ tiefstpreis: 300, hoechstpreis: 600, medianPrice: 550, previousLow: 480, isNewAllTimeLow: true, realDiscountVsPrevLow: 37, dataPointCount: 10, time: Date.now() })); // ~37%
+        localStorage.setItem('tp_hist_v1_103', JSON.stringify({ tiefstpreis: 300, hoechstpreis: 600, medianPrice: 550, previousLow: 480, isNewAllTimeLow: true, realDiscountVsPrevLow: 37, dataPointCount: 10, time: Date.now() })); // blend 42%
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('103', JSON.parse(localStorage.getItem('tp_hist_v1_103')));
-        localStorage.setItem('tp_hist_v1_104', JSON.stringify({ tiefstpreis: 400, hoechstpreis: 600, medianPrice: 550, previousLow: 530, isNewAllTimeLow: true, realDiscountVsPrevLow: 25, dataPointCount: 10, time: Date.now() })); // ~25%
+        localStorage.setItem('tp_hist_v1_104', JSON.stringify({ tiefstpreis: 400, hoechstpreis: 600, medianPrice: 550, previousLow: 530, isNewAllTimeLow: true, realDiscountVsPrevLow: 25, dataPointCount: 10, time: Date.now() })); // blend 26%
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('104', JSON.parse(localStorage.getItem('tp_hist_v1_104')));
-        localStorage.setItem('tp_hist_v1_105', JSON.stringify({ tiefstpreis: 500, hoechstpreis: 800, medianPrice: 800, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // ~19%
+        localStorage.setItem('tp_hist_v1_105', JSON.stringify({ tiefstpreis: 500, hoechstpreis: 800, medianPrice: 800, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 19%
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('105', JSON.parse(localStorage.getItem('tp_hist_v1_105')));
-        localStorage.setItem('tp_hist_v1_106', JSON.stringify({ tiefstpreis: 600, hoechstpreis: 660, medianPrice: 650, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // ~4%
+        localStorage.setItem('tp_hist_v1_106', JSON.stringify({ tiefstpreis: 600, hoechstpreis: 660, medianPrice: 650, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 4%
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('106', JSON.parse(localStorage.getItem('tp_hist_v1_106')));
 
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.processListings();
     }""")
 
-    # 1. Verify headline-heat order across rows in primary row:
-    # Card 3 (Rek 38%) -> Card 5 (O 38%, loses the 38-38 tie on blended score)
-    #   -> Card 4 (Rek 25%) -> Card 1 (O 23%) -> Card 2 (O 15%) -> Card 6 (O 8%)
+    # 1. Verify blend order across rows in primary row:
+    # Card 3 (42%) -> Card 4 (26%) -> Card 5 (19%)
+    #   -> Card 1 (12%) -> Card 2 (8%) -> Card 6 (4%)
     sorted_card_ids = page.evaluate("""() => {
         const primaryRow = document.getElementById('product-row-1');
         const cards = Array.from(primaryRow.querySelectorAll('.Plugin_Product'));
         return cards.map(c => c.id);
     }""")
     assert sorted_card_ids == [
-        'multi-card-3', # Rek 38% (Villeroy from Row 2)
-        'multi-card-5', # O 38% (Anker from Row 3)
-        'multi-card-4', # Rek 25% (Lego from Row 2)
-        'multi-card-1', # O 23% (HP Envy from Row 1)
-        'multi-card-2', # O 15%  (Kaercher from Row 1)
-        'multi-card-6'  # O 8%  (Maxi-Cosi from Row 3)
+        'multi-card-3', # blend 42% (Villeroy from Row 2)
+        'multi-card-4', # blend 26% (Lego from Row 2)
+        'multi-card-5', # blend 19% (Anker from Row 3)
+        'multi-card-1', # blend 12% (HP Envy from Row 1)
+        'multi-card-2', # blend 8%  (Kaercher from Row 1)
+        'multi-card-6'  # blend 4%  (Maxi-Cosi from Row 3)
     ]
 
     # 2. Secondary product rows must be hidden
@@ -1409,10 +1407,10 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 
 
 
-def test_deal_score_weight_slider_in_filter_bar(page: Page):
+def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
     """
-    Validates that the Deal-Score weighting slider appears in the Zeitraum row
-    when Tiefstpreise mode is active, and dragging it updates score weighting.
+    Validates that the Gewichtete-Differenz weighting slider appears in the Zeitraum row
+    when Tiefstpreise mode is active, and dragging it updates blend weighting.
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1427,7 +1425,7 @@ def test_deal_score_weight_slider_in_filter_bar(page: Page):
 
     weight_label = page.locator('#tp-bar-weight-label')
     assert '50/50' in weight_label.inner_text()
-    # Plain-language hint: order + color emphasis, badge keeps both numbers
+    # Plain-language hint: order + color emphasis, badge shows the blend
     assert 'Farb-Emphase' in (weight_label.get_attribute('title') or '')
 
     weight_range = page.locator('#tp-bar-weight-range')
@@ -1455,12 +1453,11 @@ def test_deal_score_weight_slider_in_filter_bar(page: Page):
 
 
 
-def test_dual_score_breakdown_pill_rendering(page: Page):
+def test_merged_blend_subline_rendering(page: Page):
     """
-    Validates that a verified deal renders its truthful event-% in the circle badge
-    (Rekord vs Bisher, NOT the blended score) and its individual components
-    (Rek: -X% · Ø: -Y%) in .tp-badge-score-breakdown underneath.
-    The blended score survives only as ranking info in the badge tooltip.
+    Validates that a verified deal prints the Gewichtete Differenz on the ribbon
+    (blend of Rekord vs Ø at the slider mix, NOT a Rek/Ø headline) and merges
+    the old score pill + hist line into one subline leading with the blend.
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
@@ -1482,20 +1479,23 @@ def test_dual_score_breakdown_pill_rendering(page: Page):
     card = page.locator('#card-cheapest')
     assert card.is_visible()
 
-    # Badge circle shows the truthful event-% (Rekord -10%), not the blended score
+    # Ribbon prints the blend (dMed 25% + dRec 10% at 50/50 -> -18%), no kind words
     badge = card.locator('.badge-dif')
     assert badge.is_visible()
     assert 'Tiefstpreis' in badge.inner_text()
-    assert '-10%' in badge.inner_text()
-    assert 'Rekord' in badge.inner_text()
-    assert 'Tiefstpreis-Score' in (badge.get_attribute('title') or '')
+    assert '-18%' in badge.inner_text()
+    assert 'Rekord' not in badge.inner_text()
+    assert 'Ø-Preis' not in badge.inner_text()
+    assert 'Gewichtete Differenz' in (badge.get_attribute('title') or '')
 
-    # Dual-score breakdown pill renders inputs + result (teaches the formula)
-    breakdown = card.locator('.tp-badge-score-breakdown')
-    assert breakdown.is_visible()
-    text = breakdown.inner_text()
-    assert 'Rek:' in text and 'Ø:' in text
-    assert 'Score: 18' in text
+    # No separate score pill exists anymore — one merged subline instead
+    assert card.locator('.tp-badge-score-breakdown').count() == 0
+    subline = card.locator('.tp-card-historical-price')
+    text = subline.inner_text()
+    assert 'Gewichtete Differenz -18%' in text
+    assert '(Rek -10% · Ø -25%)' in text
+    assert 'Bisher CHF 2000.00' in text
+    assert 'Ø (Lifetime) CHF 2400.00' in text
 
 
 

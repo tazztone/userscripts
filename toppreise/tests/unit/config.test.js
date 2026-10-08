@@ -53,15 +53,15 @@ describe('Config dual-layer storage', () => {
 });
 
 describe('weightText desc (worked example moves with the slider)', () => {
-  it('shows Score 18 at 50/50 for the demo Rek -10% + O -25%', () => {
+  it('shows Gewichtete Differenz 18 at 50/50 for the demo Rek -10% + O -25%', () => {
     const text = weightText(0.50, 'desc');
-    assert.ok(text.includes('Score 18'));
+    assert.ok(text.includes('Gewichtete Differenz 18'));
     assert.ok(text.includes('Farb-Emphase'));
   });
 
-  it('moves the demo score with the weight (pure Rekord / pure O)', () => {
-    assert.ok(weightText(1.00, 'desc').includes('Score 10'));
-    assert.ok(weightText(0.00, 'desc').includes('Score 25'));
+  it('moves the demo blend with the weight (pure Rekord / pure O)', () => {
+    assert.ok(weightText(1.00, 'desc').includes('Gewichtete Differenz 10'));
+    assert.ok(weightText(0.00, 'desc').includes('Gewichtete Differenz 25'));
   });
 });
 

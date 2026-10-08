@@ -419,33 +419,6 @@ export const STYLES = `
     margin-top: 1px !important;
     color: #fde68a !important;
   }
-  .tp-badge-score-breakdown {
-    position: absolute !important;
-    top: 64px !important;
-    right: 10px !important;
-    font: 600 9px/1.1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    background: rgba(15, 23, 42, 0.92) !important;
-    backdrop-filter: blur(6px) !important;
-    color: #cbd5e1 !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    border-radius: 4px !important;
-    padding: 2px 4px !important;
-    white-space: nowrap !important;
-    pointer-events: none !important;
-    z-index: 20 !important;
-    text-align: center !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.35) !important;
-  }
-  .tp-badge-score-breakdown .tp-score-record {
-    color: #fbbf24 !important;
-  }
-  .tp-badge-score-breakdown .tp-score-median {
-    color: #34d399 !important;
-  }
-  .tp-badge-score-breakdown .tp-score-result {
-    color: #f8fafc !important;
-    font-weight: 700 !important;
-  }
   .tp-card-historical-price {
     font: 500 10px/1.15 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #94a3b8 !important;

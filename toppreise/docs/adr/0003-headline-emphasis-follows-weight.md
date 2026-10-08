@@ -1,5 +1,5 @@
 # Headline emphasis follows the sort weight; no triple numbers
-
+> Headline rule superseded by ADR-0005 (badge shows the blend; heat/sort follow it).
 With the weight at 100% Ø the feed ranked by Ø-ersparnis while ribbons and
 card colors still shouted record numbers (sort hierarchy vs color hierarchy
 disagreed), and each card printed the same number up to three times

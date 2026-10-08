@@ -1,7 +1,7 @@
 /**
  * Grid Sorting Engine
  * Handles flex column reparenting and sorting by offer count, discount percent,
- * and continuous deal score, with 100% natural DOM order restoration.
+ * and continuous weighted difference, with 100% natural DOM order restoration.
  */
 
 import { CONFIG } from '../state/config.js';
@@ -11,7 +11,7 @@ import {
   extractCardDiscount,
   extractOfferCount
 } from './cards.js';
-import { computeDealScore, getHeatInput, getLevelPct } from '../domain/deal-score.js';
+import { computeDealScore, getLevelPct } from '../domain/deal-score.js';
 
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
   if (!cards || cards.length <= 1) return;
@@ -61,28 +61,23 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       const scored = cards.map(c => {
         const cd = cdFor(c);
         const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
-        let score = -100;
-        let heatPct = 0;
+        let weightedDiff = -100;
         if (dealData) {
-          score = dealData.score;
-          // Rank by the heated headline % (ADR-0002 single source): the number
-          // the ribbon prints and the card burns with. The blended score only
-          // breaks ties — ranking by the invisible blend put bright cards
-          // (Ø -35%) below faint ones (Rek -2%) at extreme weights.
-          heatPct = getHeatInput(cd.cardPrice, cd.stats, null, 'bestpreise', dealData).pct || 0;
+          // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
+          // and the card burns with it, so the feed ranks by it too.
+          weightedDiff = dealData.weightedDiff;
         } else if (!cd.stats) {
-          score = 0;
+          weightedDiff = 0;
         }
         return {
           card: c,
           item: getCardSortableUnit(c),
-          score,
-          heatPct,
+          weightedDiff,
           dMed: dealData ? dealData.dMedian : 0,
           initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
         };
       });
-      scored.sort((a, b) => (b.heatPct - a.heatPct) || (b.score - a.score) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+      scored.sort((a, b) => (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.

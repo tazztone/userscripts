@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.105
+// @version      2.18.106
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -443,33 +443,6 @@ const STYLES = `
     line-height: 1 !important;
     margin-top: 1px !important;
     color: #fde68a !important;
-  }
-  .tp-badge-score-breakdown {
-    position: absolute !important;
-    top: 64px !important;
-    right: 10px !important;
-    font: 600 9px/1.1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    background: rgba(15, 23, 42, 0.92) !important;
-    backdrop-filter: blur(6px) !important;
-    color: #cbd5e1 !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    border-radius: 4px !important;
-    padding: 2px 4px !important;
-    white-space: nowrap !important;
-    pointer-events: none !important;
-    z-index: 20 !important;
-    text-align: center !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.35) !important;
-  }
-  .tp-badge-score-breakdown .tp-score-record {
-    color: #fbbf24 !important;
-  }
-  .tp-badge-score-breakdown .tp-score-median {
-    color: #34d399 !important;
-  }
-  .tp-badge-score-breakdown .tp-score-result {
-    color: #f8fafc !important;
-    font-weight: 700 !important;
   }
   .tp-card-historical-price {
     font: 500 10px/1.15 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -1733,8 +1706,8 @@ const SHADOW_MODAL_STYLES = `
 
 
   // Display thresholds (documented in UI: badge titles, heatmap toggle, settings).
-  // Badge % always answers "how much cheaper, vs what" — never a blended score
-  // and never the unverified site Differenz once history is verified.
+  // Badge % is the Gewichtete Differenz (weight-blended Ø-discount +
+  // record-margin) — never the unverified site Differenz once history is verified.
   const HEAT_NEUTRAL_DEADBAND_PCT = 5;
   const MIN_SIGNIFICANT_RECORD_PCT = 2;
 
@@ -1775,16 +1748,16 @@ const SHADOW_MODAL_STYLES = `
       ? CONFIG.BESTPREISE_WEIGHT_RECORD
       : 0.50;
     // Qualification is weight-independent: a Tiefstpreis qualifies on real
-    // saving in EITHER component. Gating on the weighted score hid every
+    // saving in EITHER component. Gating on the blend hid every
     // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
     // "Sortierung + Farb-Emphase", never filtering. Clamp to >= 1 so qualified
     // deals keep sorting above unchecked cards (0) and hidden non-deals (-100).
     if (dMedian <= 0 && dRecord <= 0) return null;
     const wMedian = 1 - wRecord;
-    const score = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
+    const weightedDiff = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
 
     return {
-      score,
+      weightedDiff,
       dMedian,
       dRecord,
       isNewRecord,
@@ -1794,11 +1767,11 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Display delta (deal EVENT): what the badge shows. Works with minimal stats
-   * ({tiefstpreis} + card price); no history-quality gates — those only gate
-   * the ranking score, never the displayed truth.
+   * Display delta (deal EVENT): new-low / at-low / above-low classification.
+   * Works with minimal stats ({tiefstpreis} + card price); no
+   * history-quality gates — those only gate the ranking blend, never the event.
    * - new-low  -> { kind:'new-low', dRecord }  (extra saving vs previous low)
-   * - at-low   -> { kind:'at-low' }            (no new saving; badge uses level)
+   * - at-low   -> { kind:'at-low' }            (no new saving)
    * - above-low-> { kind:'above-low', markup } (premium vs all-time low)
    */
   function getDisplayDelta(cardPrice, stats) {
@@ -1807,7 +1780,7 @@ const SHADOW_MODAL_STYLES = `
     }
     const cPrice = priceToCents(cardPrice);
     const cLow = priceToCents(stats.tiefstpreis);
-    // Live-anchored like the score: the series lags the offer, so the stored
+    // Live-anchored like the blend: the series lags the offer, so the stored
     // regime low/flag (relative to series-last) is re-derived per card price.
     // Series-less fallback stats keep their stored values.
     const liveRec = recordRefForPrice(stats, cardPrice);
@@ -1873,16 +1846,16 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Single heat driver (ADR-0002: color always = badge-% heat, text = kind).
-   * One computation feeds BOTH the card heat and the badge headline, so the
+   * Single heat driver (ADR-0005: badge shows the blend, heat/sort follow it).
+   * One computation feeds BOTH the card heat and the badge number, so the
    * ribbon number always matches its color. Returns
    * { value, provisional, pct, kind }:
-   * - verified deal   -> headline % the badge shows (Rekord vs Ø per mode +
-   *                      weight, ADR-0003), null inside the ±5% deadband
+   * - verified deal   -> blend % the badge shows (weight-blended Ø-discount +
+   *                      record-margin at the slider mix), null inside the ±5%
+   *                      deadband (number still prints, card stays gray)
    * - verified markup -> null (no deal, no color — the +XX% badge text
    *                      carries the markup signal)
-   * - verified but unqualified in Tiefstpreise mode (thin/flat history, the
-   *                      badge shows a plain star with no %) -> null
+   * - verified but unqualified (thin/flat history, no dealData) -> null
    * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
    * - unverified markup / unknown -> null (neutral)
    * Callers pass the mode positionally so the heat reuses the exact mode of the
@@ -1897,35 +1870,20 @@ const SHADOW_MODAL_STYLES = `
       if (display.kind !== 'new-low' && display.kind !== 'at-low') {
         return { value: null, provisional: false, pct: 0, kind: 'markup' };
       }
-      const heatMode = mode
-        || (CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse');
       const weight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-      const levelPct = getLevelPct(cardPrice, stats);
-      // Raw counterparts for the deadband decision below — the badge keeps
-      // showing rounded integers, but the ±5% gate must not flip on rounding.
       const levelRaw = (stats && stats.medianPrice > 0 && cardPrice > 0 && stats.medianPrice > cardPrice)
         ? ((stats.medianPrice - cardPrice) / stats.medianPrice) * 100 : 0;
       const recordRaw = (display && typeof display.dRecordRaw === 'number')
         ? display.dRecordRaw : (display.dRecord || 0);
-      let showRecord = isSignificantRecord(display);
-      if (heatMode === 'bestpreise') {
-        const dealScore = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
-        // Unqualified history: the badge shows a plain star with no % — heat
-        // stays neutral to match instead of heating an unshown number.
-        if (!dealScore) return { value: null, provisional: false, pct: 0, kind: 'none' };
-        const medianHeadline = weight < 0.5 && levelPct > 0;
-        showRecord = !!dealScore.isNewRecord && showRecord && !medianHeadline;
-      }
-      let pct = 0;
-      let raw = 0;
-      let kind = 'none';
-      if (showRecord) { pct = display.dRecord; raw = recordRaw; kind = 'rekord'; }
-      else if (levelPct > 0) { pct = levelPct; raw = levelRaw; kind = 'median'; }
-      if (!(pct > 0)) return { value: null, provisional: false, pct: 0, kind: 'none' };
-      // ±5% deadband (documented noise guard): a tiny verified % shows in the
-      // badge text but stays gray on the card — decided on the raw value.
-      if (!(raw >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind };
-      return { value: -pct, provisional: false, pct, kind };
+      const dealData = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
+      // Unqualified history: no blend to show — heat stays neutral to match.
+      if (!dealData) return { value: null, provisional: false, pct: 0, kind: 'none' };
+      const pct = dealData.weightedDiff;
+      // ±5% deadband (documented noise guard): a tiny blend shows in the
+      // badge text but stays gray on the card — decided on the raw blend.
+      const rawBlend = (1 - weight) * levelRaw + weight * recordRaw;
+      if (!(rawBlend >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind: 'blend' };
+      return { value: -pct, provisional: false, pct, kind: 'blend' };
     }
     if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
       // Unverified markup (positive) -> neutral; only real discounts heat.
@@ -2118,8 +2076,8 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
-  // One vocabulary everywhere: the Tiefstpreis-Score sorts the Tiefstpreise feed
-  // and sets its headline emphasis (Rekord vs Ø) — badge numbers always show both.
+  // One vocabulary everywhere: the Gewichtete Differenz (weight-blended
+  // Ø-discount + record margin) prints on the badge and drives color + order.
   // The worked example uses fixed demo numbers so dragging the slider visibly
   // moves the result (Rek −10%, Ø −25%).
   function weightText(weightRecord, style) {
@@ -2135,14 +2093,14 @@ const SHADOW_MODAL_STYLES = `
     }
     if (style === 'title') {
       const pctRec = Math.round(w * 100);
-      return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt Rekord & Ø.`;
+      return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt die Gewichtete Differenz.`;
     }
     const pct = Math.round(w * 100);
-    const score = Math.round(((100 - pct) * 25 + pct * 10) / 100);
+    const weightedDiff = Math.round(((100 - pct) * 25 + pct * 10) / 100);
     const base = pct === 100 ? 'Rekord-Sortierung (100% Rekord / 0% Ø-Preis)'
       : pct === 0 ? 'Ø-Sortierung (0% Rekord / 100% Ø-Preis)'
       : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
-    return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
+    return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz ${weightedDiff}`;
   }
 
   const DEFAULTS = Object.freeze({
@@ -2918,7 +2876,7 @@ const SHADOW_MODAL_STYLES = `
   /**
    * Grid Sorting Engine
    * Handles flex column reparenting and sorting by offer count, discount percent,
-   * and continuous deal score, with 100% natural DOM order restoration.
+   * and continuous weighted difference, with 100% natural DOM order restoration.
    */
 
 
@@ -2972,28 +2930,23 @@ const SHADOW_MODAL_STYLES = `
         const scored = cards.map(c => {
           const cd = cdFor(c);
           const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
-          let score = -100;
-          let heatPct = 0;
+          let weightedDiff = -100;
           if (dealData) {
-            score = dealData.score;
-            // Rank by the heated headline % (ADR-0002 single source): the number
-            // the ribbon prints and the card burns with. The blended score only
-            // breaks ties — ranking by the invisible blend put bright cards
-            // (Ø -35%) below faint ones (Rek -2%) at extreme weights.
-            heatPct = getHeatInput(cd.cardPrice, cd.stats, null, 'bestpreise', dealData).pct || 0;
+            // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
+            // and the card burns with it, so the feed ranks by it too.
+            weightedDiff = dealData.weightedDiff;
           } else if (!cd.stats) {
-            score = 0;
+            weightedDiff = 0;
           }
           return {
             card: c,
             item: getCardSortableUnit(c),
-            score,
-            heatPct,
+            weightedDiff,
             dMed: dealData ? dealData.dMedian : 0,
             initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
           };
         });
-        scored.sort((a, b) => (b.heatPct - a.heatPct) || (b.score - a.score) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+        scored.sort((a, b) => (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
@@ -3497,14 +3450,12 @@ const SHADOW_MODAL_STYLES = `
     const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
     const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
 
-    // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0002: color
-    // always = badge-% heat, text = kind). One computation (getHeatInput) feeds
-    // BOTH the card heat here and the badge headline below, so the ribbon
-    // number always matches its color. The ranking score sorts only.
+    // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0005: badge
+    // shows the blend, heat/sort follow it). One computation (getHeatInput)
+    // feeds BOTH the card heat here and the badge number below, so the ribbon
+    // number always matches its color. The blend sorts too.
     // Unverified site discounts never heat: they read striped-gray via
     // tp-is-unverified (step 1b/6 below), verified cards heat as before.
-    const emphasizeMedian = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
-      ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50) < 0.5;
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
@@ -3741,11 +3692,9 @@ const SHADOW_MODAL_STYLES = `
 
       if (CONFIG.BESTPREISE_MODE_ACTIVE) {
         if (dealData) {
-          // Qualified Tiefstpreis! Badge-% = echter Rabatt (Rekord vs Bisher
-          // bzw. Ø-Preis), NIE der Score und NIE die Site-Differenz. Der Score
-          // sortiert; die Gewichtung setzt zusätzlich die Emphase: Unter 50%
-          // Rekord führt das Badge den Ø-Rabatt (Farbe folgt mit — Zahl und
-          // Farbe stimmen immer überein, Rek/Ø stehen beide in der Pille).
+          // Qualified Tiefstpreis! The ribbon prints the Gewichtete Differenz
+          // (ADR-0005) — NIE die Site-Differenz. Heat and sort follow the same
+          // number, so Zahl und Farbe stimmen immer überein.
           card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
@@ -3763,78 +3712,40 @@ const SHADOW_MODAL_STYLES = `
           const medianVal = stats?.medianPrice;
           const horizonLabel = medianHorizonLabel(stats);
           const outlierText = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? ` | ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-          const levelPct = getLevelPct(cardPrice, stats);
-          // Single source (ADR-0002): the headline % is the heat input computed
-          // above — ribbon number always matches its color. medianHeadline and
-          // showRecord stay for classes + tooltips.
-          const medianHeadline = emphasizeMedian && levelPct > 0;
+          // Single source (ADR-0005): the blend is the heat input computed
+          // above — ribbon number always matches its color.
           const badgePct = heatInfo.pct;
-          const badgeKind = heatInfo.kind === 'rekord' ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
 
           if (isListView) {
-            if (badgePct > 0) {
-              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}% (${badgeKind})</p>`);
-            } else {
-              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
-            }
+            setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}%</p>`);
           } else {
-            if (badgePct > 0) {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · ${badgeKind}</div><p>-${badgePct}%</p>`);
-            } else {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
-            }
+            setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · -${badgePct}%</div><p>-${badgePct}%</p>`);
           }
 
           const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
           const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
           const wMed = 1 - wRec;
           const fmtW = w => String(Math.round(w * 100) / 100);
-          const scoreFormula = `Tiefstpreis-Score ${dealData.score} = ${fmtW(wMed)}×Ø(${dealData.dMedian}) + ${fmtW(wRec)}×Rek(${dealData.dRecord}) (nur Feed-Sortierung)`;
+          const blendFormula = `Gewichtete Differenz -${dealData.weightedDiff}% = ${fmtW(wMed)}×Ø(-${dealData.dMedian}%) + ${fmtW(wRec)}×Rek(-${dealData.dRecord}%)`;
           const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-          if (showRecord && !medianHeadline) {
-            setTitleIfChanged(badgeDifEl, `🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${badgePct}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'}\nBadge = Rekord-Rabatt · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
-          } else if (showRecord) {
-            setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)}) — Ø-Emphase: Badge = Ø-Rabatt -${badgePct}% (Rekord -${displayDelta.dRecord}% steht in der Pille) · ${colorLegend}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
+          if (showRecord) {
+            setTitleIfChanged(badgeDifEl, `${blendFormula}\n🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${dealData.dRecord}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'} · ${colorLegend}${outlierLine}\n[Klicken zum Aktualisieren]`);
           } else {
-            setTitleIfChanged(badgeDifEl, `🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge = Ø-Rabatt -${badgePct}% (Ø ${horizonLabel}${medianVal ? ` CHF ${medianVal.toFixed(2)}` : ''}, kein neuer Rekord) · ${colorLegend}` : `Kein neuer Rekord · ${colorLegend}`}\n${scoreFormula}${outlierLine}\n[Klicken zum Aktualisieren]`);
+            setTitleIfChanged(badgeDifEl, `${blendFormula}\n🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!${dealData.isNewRecord ? '' : ' Kein neuer Rekord.'}${medianVal ? ` Ø ${horizonLabel} CHF ${medianVal.toFixed(2)}.` : ''} · ${colorLegend}${outlierLine}\n[Klicken zum Aktualisieren]`);
           }
 
-          // Score pill: inputs + weights + result in one glance (teaches the formula).
-          // (Container has pointer-events:none, so the formula lives in the badge title above.)
-          let breakdownEl = card.querySelector('.tp-badge-score-breakdown');
-          if (isListView) {
-            breakdownEl?.remove();
-          } else {
-            if (!breakdownEl) {
-              breakdownEl = document.createElement('div');
-              breakdownEl.className = 'tp-badge-score-breakdown';
-              card.appendChild(breakdownEl);
-            }
-            // The Score result only prints when it says something new: under
-            // Ø-Emphase Score == Ø by construction (same number thrice). The
-            // formula itself stays documented in the badge tooltip.
-            const shownInputs = (dealData.isNewRecord && dealData.dRecord > 0)
-              ? [dealData.dRecord, dealData.dMedian] : [dealData.dMedian];
-            const scoreTail = shownInputs.includes(dealData.score)
-              ? '' : ` → <span class="tp-score-result">Score: ${dealData.score}</span>`;
-            if (dealData.isNewRecord && dealData.dRecord > 0) {
-              setHtmlIfChanged(breakdownEl, `<span class="tp-score-record" title="Neuer Rekord-Rabatt (-${dealData.dRecord}%)">Rek: -${dealData.dRecord}%</span> · <span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>${scoreTail}`);
-            } else {
-              setHtmlIfChanged(breakdownEl, `<span class="tp-score-median" title="${horizonLabel}-Median-Rabatt (-${dealData.dMedian}%)">Ø: -${dealData.dMedian}%</span>${scoreTail}`);
-            }
-          }
-
-          // Bisher-line: the previous low is the single most decision-relevant
-          // number on the card — always shown when known & distinct from the
-          // current price, never dropped in favour of the Ø line.
+          // Merged subline: blend first (ellipsis cuts the CHF tail first),
+          // then the Rek/Ø split and the CHF anchors under the usual gates.
           const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
           const showMedianLine = !!(medianVal && medianVal > cardPrice);
+          const hasRecordPart = dealData.isNewRecord && dealData.dRecord > 0;
           let histPriceEl = ensureHistPriceEl(card, cardPriceEl);
 
           if (showPrevLow || showMedianLine) {
-            const parts = [];
-            if (showPrevLow) parts.push(`Bisher: CHF ${prevLow.toFixed(2)}`);
-            if (showMedianLine) parts.push(`Ø-Preis (${horizonLabel}): CHF ${medianVal.toFixed(2)}`);
+            const split = hasRecordPart ? `(Rek -${dealData.dRecord}% · Ø -${dealData.dMedian}%)` : `(Ø -${dealData.dMedian}%)`;
+            const parts = [`Gewichtete Differenz -${dealData.weightedDiff}% ${split}`];
+            if (showPrevLow) parts.push(`Bisher CHF ${prevLow.toFixed(2)}`);
+            if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)}`);
             if (dealData.isNewRecord && showPrevLow) {
               histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
               setTextIfChanged(histPriceEl, parts.join(' · '));
@@ -3860,7 +3771,6 @@ const SHADOW_MODAL_STYLES = `
           }
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
           card.querySelector('.tp-card-historical-price')?.remove();
-          card.querySelector('.tp-badge-score-breakdown')?.remove();
           const ddNow = getDisplayDelta(cardPrice, stats);
           if (ddNow.kind === 'above-low') {
             badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
@@ -3908,7 +3818,7 @@ const SHADOW_MODAL_STYLES = `
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
               }
             } else {
-              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis). Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
+              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = Gewichtete Differenz (Ø-Rabatt + Rekord-Marge). Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
               } else {
@@ -3921,7 +3831,6 @@ const SHADOW_MODAL_STYLES = `
       } else {
         card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record');
-        card.querySelector('.tp-badge-score-breakdown')?.remove();
 
         if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
           badgeDifEl.classList.add('tp-deal-loading');
@@ -3951,16 +3860,15 @@ const SHADOW_MODAL_STYLES = `
 
           if (isAllTimeLow) {
             // 3B: Verified All-Time Low (Glowing Emerald Halo)
-            // Badge-% = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis) — die
-            // Site-Differenz steht nach Prüfung nur noch.Tooltip als Kontext.
+            // Ribbon prints the Gewichtete Differenz (ADR-0005); unqualified
+            // history (no dealData) renders plain Tiefstpreis, gray, no number.
+            // Site-Differenz steht nach Prüfung nur noch im Tooltip als Kontext.
             badgeDifEl.classList.add('tp-deal-alltime-low', 'tp-deal-badge-interactive');
             badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
             const showRecord = isSignificantRecord(displayDelta);
-            const levelPct = getLevelPct(cardPrice, stats);
-            // Single source (ADR-0002): headline % is the heat input above.
-            const badgePct = heatInfo.pct;
-            const badgeKind = heatInfo.kind === 'rekord' ? 'Rekord' : (badgePct > 0 ? 'Ø-Preis' : '');
+            // Single source (ADR-0005): the blend is the heat input above.
+            const badgePct = dealData ? heatInfo.pct : 0;
 
             const detailParts = [];
             if (isNewRecord && prevLow) {
@@ -3976,16 +3884,23 @@ const SHADOW_MODAL_STYLES = `
             const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
             const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
 
-            setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${badgePct > 0 ? `Badge −${badgePct}% (${badgeKind}) · ${colorLegend}` : `${colorLegend}`}${detailLine}\n[Klicken zum Aktualisieren]`);
+            if (dealData) {
+              const wRecB = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
+              const wMedB = 1 - wRecB;
+              const fmtWB = w => String(Math.round(w * 100) / 100);
+              setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\nGewichtete Differenz -${dealData.weightedDiff}% = ${fmtWB(wMedB)}×Ø(-${dealData.dMedian}%) + ${fmtWB(wRecB)}×Rek(-${dealData.dRecord}%) · ${colorLegend}${detailLine}\n[Klicken zum Aktualisieren]`);
+            } else {
+              setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${colorLegend}${detailLine}\n[Klicken zum Aktualisieren]`);
+            }
             if (isListView) {
               if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}% (${badgeKind})</p>`);
+                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis -${badgePct}%</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
               }
             } else {
               if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · ${badgeKind}</div><p>-${badgePct}%</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis · -${badgePct}%</div><p>-${badgePct}%</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
               }
@@ -4477,12 +4392,12 @@ const SHADOW_MODAL_STYLES = `
             </div>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-            <label>Tiefstpreis-Score Gewichtung: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+            <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
               <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
             </div>
-            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Score 18</span>
+            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -5020,7 +4935,7 @@ const SHADOW_MODAL_STYLES = `
       const w = readWeight();
       paintWeightLabel();
       updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-      showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (nur Feed-Reihenfolge)`);
+      showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (Reihenfolge + Farb-Emphase)`);
     };
   }
 
@@ -5028,7 +4943,7 @@ const SHADOW_MODAL_STYLES = `
     const wrapper = document.createElement('div');
     wrapper.className = 'tp-threshold-wrapper';
     wrapper.id = 'tp-bar-weight-wrapper';
-    wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.';
+    wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
     wrapper.innerHTML = `
       <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
       <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
@@ -6058,7 +5973,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (!node || node.nodeType !== 1) return false;
         if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
         if (node.classList?.contains('tp-card-subline-row') ||
-            node.classList?.contains('tp-badge-score-breakdown') ||
             node.classList?.contains('tp-sparkline-container') ||
             node.classList?.contains('tp-best-price-badge') ||
             node.classList?.contains('tp-empty-state-notice')) {
