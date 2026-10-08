@@ -302,6 +302,31 @@ export const STYLES = `
   .badge-dif.tp-deal-badge-interactive * {
     pointer-events: none !important;
   }
+  .tp-share-btn {
+    position: absolute !important;
+    bottom: 6px !important;
+    right: 6px !important;
+    z-index: 6 !important;
+    width: 26px !important;
+    height: 26px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    background: rgba(15, 23, 42, 0.92) !important;
+    border: 1px solid rgba(88, 101, 242, 0.7) !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    opacity: 0.75 !important;
+  }
+  .tp-share-btn:hover {
+    opacity: 1 !important;
+  }
+  .tp-share-btn:disabled {
+    opacity: 0.4 !important;
+    cursor: wait !important;
+  }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;

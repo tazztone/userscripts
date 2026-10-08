@@ -51,6 +51,7 @@ export const DEFAULTS = Object.freeze({
   OUTLIER_REJECTION_ENABLED: true,
   ENABLE_SPARKLINES: true,
   NEGATIVE_TERMS: '',
+  DISCORD_WEBHOOK_URL: '',
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -73,6 +74,9 @@ const safeJsonParse = (raw, fallback) => {
     return fallback;
   }
 };
+// Bearer-Secrets (Discord-Webhook) bleiben GM-privat: nie ins page-lesbare localStorage.
+const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL']);
+
 export const _getValue = (k, def) => {
   try {
     if (typeof GM_getValue !== 'undefined') {
@@ -81,7 +85,7 @@ export const _getValue = (k, def) => {
     }
   } catch { /* fall through to domain backup */ }
   try {
-    if (typeof localStorage !== 'undefined') {
+    if (!SECRET_KEYS.has(k) && typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem('tp_suite_v2_' + k);
       if (raw !== null) return safeJsonParse(raw, def);
     }
@@ -90,8 +94,8 @@ export const _getValue = (k, def) => {
 };
 export const _setValue = (k, v) => {
   try { if (typeof GM_setValue !== 'undefined') GM_setValue(k, v); } catch { /* ignore */ }
-  // ponytail: unconditional mirror, one line makes reinstall recovery real
-  try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
+  // Secrets nie ins page-lesbare localStorage spiegeln (GM bleibt privat).
+  if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
 };
 
 export const CONFIG = {
@@ -113,6 +117,7 @@ export const CONFIG = {
   OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
+  DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
   SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
   ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),

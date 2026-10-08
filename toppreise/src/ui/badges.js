@@ -12,7 +12,8 @@ import {
   getCardDealerRows,
   extractCardDiscount,
   getCardProductId
-} from '../page/cards.js';
+  } from '../page/cards.js';
+import { isDiscordWebhookUrl, formatDealMessage, extractShareData, extractDealer, sparklineText, postDealToDiscord } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, getLevelPct, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
@@ -734,6 +735,55 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       badgeEl.classList.add('tp-is-verified');
       badgeEl.classList.remove('tp-is-unverified');
     }
+  }
+  // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
+  const dealDataNow = cd.dealScore || (stats && cardPrice > 0 ? computeDealScore(stats, cardPrice) : null);
+  const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
+  const isShareable = !!(dealDataNow || kindNow === 'new-low' || kindNow === 'at-low');
+  let shareBtn = card.querySelector(':scope > .tp-share-btn');
+  if (isShareable) {
+    if (!shareBtn) {
+      shareBtn = document.createElement('button');
+      shareBtn.type = 'button';
+      shareBtn.className = 'tp-share-btn';
+      shareBtn.textContent = '📤';
+      shareBtn.title = 'Deal in Discord teilen';
+      shareBtn.addEventListener('click', async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
+        if (!isDiscordWebhookUrl(hook)) {
+          showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
+          return;
+        }
+        shareBtn.disabled = true;
+        try {
+          const { title, url } = extractShareData(card);
+          const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+          const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
+          const prevLow = stats?.previousLow;
+          const medianVal = stats?.medianPrice;
+          await postDealToDiscord(hook, formatDealMessage({
+            title, url, priceText, badgeText,
+            dealer: extractDealer(card),
+            offerCount: cd.offerCount || 0,
+            spark: sparklineText(stats?.timeSeries),
+            prevLowText: (prevLow && priceToCents(prevLow) > priceToCents(cardPrice)) ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+            medianText: (medianVal && medianVal > cardPrice) ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : ''
+          }));
+          showToast('📤 Deal in Discord geteilt');
+        } catch {
+          showToast('📤 Teilen fehlgeschlagen');
+        }
+        shareBtn.disabled = false;
+      });
+      // Eigener Positioning-Kontext: Host-CSS garantiert kein relative (ausser .tp-is-cheapest).
+      if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
+      card.appendChild(shareBtn);
+    }
+    shareBtn.style.display = '';
+  } else {
+    shareBtn?.remove();
   }
 }
 

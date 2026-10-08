@@ -55,6 +55,7 @@ export function buildBundle() {
   const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
   const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
   const floatingCtaCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'floating-cta.js'), 'utf-8'));
+  const shareDiscordCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'share-discord.js'), 'utf-8'));
   const priceAlarmCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'price-alarm.js'), 'utf-8'));
   const productDetailCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'product-detail.js'), 'utf-8'));
   const rawAppCode = fs.readFileSync(path.join(SRC_DIR, 'app.js'), 'utf-8');
@@ -153,6 +154,9 @@ ${indent(toolbarCode, 2)}
 
   // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
 ${indent(floatingCtaCode, 2)}
+  // ─── MODULE: src/features/share-discord.js ────────────────────────────────
+${indent(shareDiscordCode, 2)}
+
 
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
 ${indent(priceAlarmCode, 2)}

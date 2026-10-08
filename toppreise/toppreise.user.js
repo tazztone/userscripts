@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.91
+// @version      2.18.92
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -10,6 +10,8 @@
 // @run-at       document-idle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_xmlhttpRequest
+// @connect      discord.com
 // @noframes
 // ==/UserScript==
 
@@ -324,6 +326,31 @@ const STYLES = `
   .badge.badge-dif.tp-deal-badge-interactive *,
   .badge-dif.tp-deal-badge-interactive * {
     pointer-events: none !important;
+  }
+  .tp-share-btn {
+    position: absolute !important;
+    bottom: 6px !important;
+    right: 6px !important;
+    z-index: 6 !important;
+    width: 26px !important;
+    height: 26px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    background: rgba(15, 23, 42, 0.92) !important;
+    border: 1px solid rgba(88, 101, 242, 0.7) !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    opacity: 0.75 !important;
+  }
+  .tp-share-btn:hover {
+    opacity: 1 !important;
+  }
+  .tp-share-btn:disabled {
+    opacity: 0.4 !important;
+    cursor: wait !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
@@ -2007,6 +2034,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_REJECTION_ENABLED: true,
     ENABLE_SPARKLINES: true,
     NEGATIVE_TERMS: '',
+    DISCORD_WEBHOOK_URL: '',
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -2029,6 +2057,9 @@ const SHADOW_MODAL_STYLES = `
       return fallback;
     }
   };
+  // Bearer-Secrets (Discord-Webhook) bleiben GM-privat: nie ins page-lesbare localStorage.
+  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL']);
+
   const _getValue = (k, def) => {
     try {
       if (typeof GM_getValue !== 'undefined') {
@@ -2037,7 +2068,7 @@ const SHADOW_MODAL_STYLES = `
       }
     } catch { /* fall through to domain backup */ }
     try {
-      if (typeof localStorage !== 'undefined') {
+      if (!SECRET_KEYS.has(k) && typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem('tp_suite_v2_' + k);
         if (raw !== null) return safeJsonParse(raw, def);
       }
@@ -2046,8 +2077,8 @@ const SHADOW_MODAL_STYLES = `
   };
   const _setValue = (k, v) => {
     try { if (typeof GM_setValue !== 'undefined') GM_setValue(k, v); } catch { /* ignore */ }
-    // ponytail: unconditional mirror, one line makes reinstall recovery real
-    try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
+    // Secrets nie ins page-lesbare localStorage spiegeln (GM bleibt privat).
+    if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
   };
 
   const CONFIG = {
@@ -2069,6 +2100,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
+    DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
     SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
     ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -3255,6 +3287,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function setHtmlIfChanged(el, newHtml) {
     if (el && el.innerHTML !== newHtml) {
       el.innerHTML = newHtml;
@@ -3964,6 +3997,55 @@ const SHADOW_MODAL_STYLES = `
         badgeEl.classList.remove('tp-is-unverified');
       }
     }
+    // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
+    const dealDataNow = cd.dealScore || (stats && cardPrice > 0 ? computeDealScore(stats, cardPrice) : null);
+    const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
+    const isShareable = !!(dealDataNow || kindNow === 'new-low' || kindNow === 'at-low');
+    let shareBtn = card.querySelector(':scope > .tp-share-btn');
+    if (isShareable) {
+      if (!shareBtn) {
+        shareBtn = document.createElement('button');
+        shareBtn.type = 'button';
+        shareBtn.className = 'tp-share-btn';
+        shareBtn.textContent = '📤';
+        shareBtn.title = 'Deal in Discord teilen';
+        shareBtn.addEventListener('click', async e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
+          if (!isDiscordWebhookUrl(hook)) {
+            showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
+            return;
+          }
+          shareBtn.disabled = true;
+          try {
+            const { title, url } = extractShareData(card);
+            const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+            const badgeText = ((typeof badgeDifEl !== 'undefined' && badgeDifEl?.textContent) || '').replace(/\s+/g, ' ').trim();
+            const prevLow = stats?.previousLow;
+            const medianVal = stats?.medianPrice;
+            await postDealToDiscord(hook, formatDealMessage({
+              title, url, priceText, badgeText,
+              dealer: extractDealer(card),
+              offerCount: cd.offerCount || 0,
+              spark: sparklineText(stats?.timeSeries),
+              prevLowText: (prevLow && priceToCents(prevLow) > priceToCents(cardPrice)) ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+              medianText: (medianVal && medianVal > cardPrice) ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : ''
+            }));
+            showToast('📤 Deal in Discord geteilt');
+          } catch {
+            showToast('📤 Teilen fehlgeschlagen');
+          }
+          shareBtn.disabled = false;
+        });
+        // Eigener Positioning-Kontext: Host-CSS garantiert kein relative (ausser .tp-is-cheapest).
+        if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
+        card.appendChild(shareBtn);
+      }
+      shareBtn.style.display = '';
+    } else {
+      shareBtn?.remove();
+    }
   }
 
   function renderEmptyState(cards, counts) {
@@ -4172,6 +4254,11 @@ const SHADOW_MODAL_STYLES = `
               <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
             </div>
           </div>
+          <div class="tp-settings-group">
+            <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
+            <input type="password" id="tp-discord-webhook-input" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 4px; box-sizing: border-box;">
+            <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+          </div>
           <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
             <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
             <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
@@ -4350,6 +4437,7 @@ const SHADOW_MODAL_STYLES = `
     const dur365 = shadow.getElementById('tp-dur-365');
     const dur730 = shadow.getElementById('tp-dur-730');
     const advancedToggle = shadow.getElementById('tp-advanced-toggle');
+    const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const sectionsHolder = shadow.getElementById('tp-settings-sections');
     const applyAdvancedVisibility = (show) => { sectionsHolder?.classList.toggle('tp-hide-advanced', !show); };
 
@@ -4421,6 +4509,7 @@ const SHADOW_MODAL_STYLES = `
       if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
+      if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
     }
 
     const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -4483,7 +4572,8 @@ const SHADOW_MODAL_STYLES = `
           version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.20',
           exported: new Date().toISOString()
         },
-        config: { ...CONFIG }
+        // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
+        config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined },
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -4512,6 +4602,7 @@ const SHADOW_MODAL_STYLES = `
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
             if (!(key in DEFAULTS) || key === 'DEBUG') continue;
+            if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
             // Coerce to the DEFAULTS type: save clamps, import must not store
             // NaN/garbage (or legacy numeric strings) raw.
             const def = DEFAULTS[key];
@@ -4602,6 +4693,7 @@ const SHADOW_MODAL_STYLES = `
 
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
+      if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       updates.SHOW_ADVANCED = !!advancedToggle?.checked;
 
       updateConfigs(updates);
@@ -5274,6 +5366,91 @@ const SHADOW_MODAL_STYLES = `
     ensureCta();
     syncFloatingCTA();
   }
+  // ─── MODULE: src/features/share-discord.js ────────────────────────────────
+  /**
+   * Discord Deal-Sharing
+   * 1-Klick-Share verifizierter Tiefstpreise in einen Discord-Channel via
+   * user-eigenem Webhook (GM-privat gespeichert, nie im Repo/Export/localStorage).
+   */
+
+
+  const isDiscordWebhookUrl = url =>
+    typeof url === 'string' &&
+    /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
+
+  // Geprüfte Preishistorie als Text-Sparkline (SVG geht nicht nach Discord).
+  const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+  function sparklineText(timeSeries, width = 20) {
+    if (!Array.isArray(timeSeries)) return '';
+    const prices = timeSeries.map(p => (Array.isArray(p) ? +p[1] : 0)).filter(p => p > 0).slice(-width);
+    if (prices.length < 2) return '';
+    const min = Math.min(...prices);
+    const range = Math.max(...prices) - min || 1;
+    return prices.map(p => SPARK_CHARS[Math.min(7, Math.floor(((p - min) / range) * 8))]).join('');
+  }
+
+  // Link zuerst (unantastbar), darunter Titel/Fakten, Händler, Preisinfos.
+  // Der Titel schrumpft bei Bedarf — der Link wird nie angeschnitten.
+  function formatDealMessage({ title, url, priceText, badgeText, dealer, offerCount, spark, prevLowText, medianText }) {
+    const link = (url || '').trim();
+    let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
+    const facts = [priceText, badgeText].filter(Boolean).join(' · ');
+    const meta = [dealer ? `Händler: ${dealer}` : '', offerCount ? `Angebote: ${offerCount}` : ''].filter(Boolean).join(' · ');
+    const history = [spark, prevLowText, medianText].filter(Boolean).join(' · ');
+    const rest = [meta, history].filter(Boolean).join('\n');
+    const maxTitle = Math.max(20, 2000 - link.length - facts.length - rest.length - 16);
+    cleanTitle = cleanTitle.slice(0, maxTitle);
+    const head = `🔥 **${cleanTitle}**` + (facts ? ` – ${facts}` : '');
+    return [link, head, rest].filter(Boolean).join('\n').slice(0, 2000);
+  }
+
+  // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).
+  function extractShareData(card) {
+    if (!card?.querySelector) return { title: '', url: '' };
+    const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
+    const title = titleEl?.textContent?.trim() || titleEl?.getAttribute?.('title') || '';
+    const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
+      || (card.tagName?.toLowerCase() === 'a' ? card : null);
+    let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
+    if (url && !/^https?:\/\//i.test(url)) {
+      try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+    }
+    return { title, url };
+  }
+
+  // Angezeigten Händler (günstigste Zeile zuerst) als Klartext.
+  function extractDealer(card) {
+    const el = card?.querySelector?.(`${SELECTORS.cards.dealerRows} .title`);
+    return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  }
+
+  // GM_xmlhttpRequest umgeht CORS (Violentmonkey), fetch ist Fallback.
+  function postDealToDiscord(webhookUrl, content) {
+    return new Promise((resolve, reject) => {
+      if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
+      const url = webhookUrl.trim();
+      const payload = JSON.stringify({ content });
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        GM_xmlhttpRequest({
+          method: 'POST',
+          url,
+          headers: { 'Content-Type': 'application/json' },
+          data: payload,
+          timeout: 15000,
+          onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
+          onerror: () => reject(new Error('Netzwerkfehler')),
+          ontimeout: () => reject(new Error('Timeout'))
+        });
+      } else if (typeof fetch !== 'undefined') {
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
+          .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
+          .catch(() => reject(new Error('Netzwerkfehler')));
+      } else {
+        reject(new Error('Kein HTTP-Transport verfügbar'));
+      }
+    });
+  }
+
 
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
   /**

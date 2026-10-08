@@ -83,6 +83,11 @@ export function setupUI() {
             <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
           </div>
         </div>
+        <div class="tp-settings-group">
+          <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
+          <input type="password" id="tp-discord-webhook-input" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 4px; box-sizing: border-box;">
+          <span class="tp-switch-desc" style="display: block; margin-top: 4px; font-size: 11px; opacity: 0.85;">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+        </div>
         <div class="tp-settings-group" style="display: flex; flex-direction: row; gap: 8px;">
           <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📥 Export (JSON)</button>
           <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">📤 Import (JSON)</button>
@@ -261,6 +266,7 @@ export function setupUI() {
   const dur365 = shadow.getElementById('tp-dur-365');
   const dur730 = shadow.getElementById('tp-dur-730');
   const advancedToggle = shadow.getElementById('tp-advanced-toggle');
+  const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
   const sectionsHolder = shadow.getElementById('tp-settings-sections');
   const applyAdvancedVisibility = (show) => { sectionsHolder?.classList.toggle('tp-hide-advanced', !show); };
 
@@ -332,6 +338,7 @@ export function setupUI() {
     if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
+    if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
   }
 
   const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -394,7 +401,8 @@ export function setupUI() {
         version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.20',
         exported: new Date().toISOString()
       },
-      config: { ...CONFIG }
+      // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
+      config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined },
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -423,6 +431,7 @@ export function setupUI() {
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
           if (!(key in DEFAULTS) || key === 'DEBUG') continue;
+          if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
           // Coerce to the DEFAULTS type: save clamps, import must not store
           // NaN/garbage (or legacy numeric strings) raw.
           const def = DEFAULTS[key];
@@ -513,6 +522,7 @@ export function setupUI() {
 
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
+    if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     updates.SHOW_ADVANCED = !!advancedToggle?.checked;
 
     updateConfigs(updates);
