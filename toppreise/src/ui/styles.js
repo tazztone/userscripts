@@ -420,13 +420,12 @@ export const STYLES = `
     color: #fde68a !important;
   }
   .tp-card-historical-price {
-    font: 500 10px/1.15 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #94a3b8 !important;
     text-align: right !important;
     margin: 0 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    white-space: normal !important;
+    overflow: visible !important;
     user-select: none !important;
     pointer-events: auto !important;
   }

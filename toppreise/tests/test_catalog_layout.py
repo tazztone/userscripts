@@ -1492,6 +1492,8 @@ def test_merged_blend_subline_rendering(page: Page):
     text = subline.inner_text()
     assert '📉 CHF 2000.00 (-10%)' in text
     assert 'Ø (Lifetime) CHF 2400.00 (-25%)' in text
+    # Expanded subline: full text fits, nothing ellipsized away
+    assert subline.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
 
