@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.100
+// @version      2.18.101
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1671,16 +1671,9 @@ const SHADOW_MODAL_STYLES = `
     const medianPrice = medianOf(sortedWindow);
 
     const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
-    const isAtAllTimeLow = priceToCents(curr) <= priceToCents(allTimeLow);
-    const isNonBest = !isAtAllTimeLow;
 
     const realDiscountVsPrevLow = (previousLow > 0 && isNewAllTimeLow)
       ? Math.round(((previousLow - curr) / previousLow) * 100)
-      : 0;
-
-
-    const markupVsLow = (allTimeLow > 0 && isNonBest)
-      ? Math.round(((curr - allTimeLow) / allTimeLow) * 100)
       : 0;
 
     const realDiscountVsMedian = (medianPrice > curr)
@@ -1690,18 +1683,14 @@ const SHADOW_MODAL_STYLES = `
     return {
       tiefstpreis: allTimeLow,
       hoechstpreis: allTimeHigh,
-      aktuellerToppreis: curr,
       previousLow: previousLow > 0 ? previousLow : null,
       medianPrice: Math.round(medianPrice * 100) / 100,
       medianFallback,
       horizonDays,
       filteredOutliers,
       isNewAllTimeLow,
-      isAtAllTimeLow,
-      isNonBest,
       realDiscountVsPrevLow,
       realDiscountVsMedian,
-      markupVsLow,
       dataPointCount: points.length,
       timeSeries: points
     };
@@ -1953,6 +1942,7 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
+
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
   const MAX_MEMORY_CACHE_ITEMS = 500;
 
@@ -2016,14 +2006,29 @@ const SHADOW_MODAL_STYLES = `
 
   function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     if (!productId) return null;
+    // Mode guard: the series is picked per shipping mode at fetch time and the
+    // key is bare, so a cross-mode entry would compare the wrong baseline
+    // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
+    // without the flag pass through; explicit mismatches read as a miss and
+    // self-heal via refetch on the next scan.
+    const isModeMatch = entry => {
+      if (typeof entry?.isShippingPrice !== 'boolean') return true;
+      try {
+        return entry.isShippingPrice === isShippingPriceActive();
+      } catch (e) { return true; }
+    };
     try {
       if (memoryCache.has(productId)) {
         const memData = memoryCache.get(productId);
         if (isCacheEntryFresh(memData, ignoreNegativeCache)) {
-          // LRU update
-          memoryCache.delete(productId);
-          memoryCache.set(productId, memData);
-          return memData;
+          if (!isModeMatch(memData)) {
+            memoryCache.delete(productId);
+          } else {
+            // LRU update
+            memoryCache.delete(productId);
+            memoryCache.set(productId, memData);
+            return memData;
+          }
         } else {
           memoryCache.delete(productId);
         }
@@ -2034,6 +2039,7 @@ const SHADOW_MODAL_STYLES = `
       const parsed = JSON.parse(raw);
 
       if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
+        if (!isModeMatch(parsed)) return null;
         memoryCache.set(productId, parsed);
         evictIfFull();
         return parsed;

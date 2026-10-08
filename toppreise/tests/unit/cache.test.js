@@ -120,4 +120,30 @@ describe('Bounded Cache Module', () => {
       assert.equal(marked.unavailable, true);
     });
   });
+
+  describe('shipping-mode guard', () => {
+    it('serves same-mode entries and legacy entries without a flag', () => {
+      const prev = CONFIG.USE_SHIPPING_PRICE;
+      CONFIG.USE_SHIPPING_PRICE = true; // Node: no document -> mode is the flag
+      try {
+        setCachedPriceStats('m1', { tiefstpreis: 100, isShippingPrice: true }, false, null);
+        setCachedPriceStats('m2', { tiefstpreis: 100 }, false, null); // legacy, no flag
+        assert.equal(getCachedPriceStats('m1', false, null).tiefstpreis, 100);
+        assert.equal(getCachedPriceStats('m2', false, null).tiefstpreis, 100);
+      } finally {
+        CONFIG.USE_SHIPPING_PRICE = prev;
+      }
+    });
+
+    it('reads cross-mode entries as a miss so the next scan refetches', () => {
+      const prev = CONFIG.USE_SHIPPING_PRICE;
+      CONFIG.USE_SHIPPING_PRICE = false; // product-price mode, entry is shipping
+      try {
+        setCachedPriceStats('m3', { tiefstpreis: 100, isShippingPrice: true }, false, null);
+        assert.equal(getCachedPriceStats('m3', false, null), null);
+      } finally {
+        CONFIG.USE_SHIPPING_PRICE = prev;
+      }
+    });
+  });
 });

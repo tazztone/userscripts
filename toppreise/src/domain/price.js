@@ -273,16 +273,9 @@ export function analyzePriceTimeSeries(series, currentPrice = null) {
   const medianPrice = medianOf(sortedWindow);
 
   const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
-  const isAtAllTimeLow = priceToCents(curr) <= priceToCents(allTimeLow);
-  const isNonBest = !isAtAllTimeLow;
 
   const realDiscountVsPrevLow = (previousLow > 0 && isNewAllTimeLow)
     ? Math.round(((previousLow - curr) / previousLow) * 100)
-    : 0;
-
-
-  const markupVsLow = (allTimeLow > 0 && isNonBest)
-    ? Math.round(((curr - allTimeLow) / allTimeLow) * 100)
     : 0;
 
   const realDiscountVsMedian = (medianPrice > curr)
@@ -292,18 +285,14 @@ export function analyzePriceTimeSeries(series, currentPrice = null) {
   return {
     tiefstpreis: allTimeLow,
     hoechstpreis: allTimeHigh,
-    aktuellerToppreis: curr,
     previousLow: previousLow > 0 ? previousLow : null,
     medianPrice: Math.round(medianPrice * 100) / 100,
     medianFallback,
     horizonDays,
     filteredOutliers,
     isNewAllTimeLow,
-    isAtAllTimeLow,
-    isNonBest,
     realDiscountVsPrevLow,
     realDiscountVsMedian,
-    markupVsLow,
     dataPointCount: points.length,
     timeSeries: points
   };

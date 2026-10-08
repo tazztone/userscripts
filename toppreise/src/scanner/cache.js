@@ -4,6 +4,7 @@
  * backed by localStorage with configurable TTL and auto-pruning.
  */
 
+import { isShippingPriceActive } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
@@ -69,14 +70,29 @@ function evictIfFull() {
 
 export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!productId) return null;
+  // Mode guard: the series is picked per shipping mode at fetch time and the
+  // key is bare, so a cross-mode entry would compare the wrong baseline
+  // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
+  // without the flag pass through; explicit mismatches read as a miss and
+  // self-heal via refetch on the next scan.
+  const isModeMatch = entry => {
+    if (typeof entry?.isShippingPrice !== 'boolean') return true;
+    try {
+      return entry.isShippingPrice === isShippingPriceActive();
+    } catch (e) { return true; }
+  };
   try {
     if (memoryCache.has(productId)) {
       const memData = memoryCache.get(productId);
       if (isCacheEntryFresh(memData, ignoreNegativeCache)) {
-        // LRU update
-        memoryCache.delete(productId);
-        memoryCache.set(productId, memData);
-        return memData;
+        if (!isModeMatch(memData)) {
+          memoryCache.delete(productId);
+        } else {
+          // LRU update
+          memoryCache.delete(productId);
+          memoryCache.set(productId, memData);
+          return memData;
+        }
       } else {
         memoryCache.delete(productId);
       }
@@ -87,6 +103,7 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
     const parsed = JSON.parse(raw);
 
     if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
+      if (!isModeMatch(parsed)) return null;
       memoryCache.set(productId, parsed);
       evictIfFull();
       return parsed;
