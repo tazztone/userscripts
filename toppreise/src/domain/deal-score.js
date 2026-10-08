@@ -45,11 +45,14 @@ export function computeDealScore(stats, cardPrice) {
   const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
     ? CONFIG.BESTPREISE_WEIGHT_RECORD
     : 0.50;
+  // Qualification is weight-independent: a Tiefstpreis qualifies on real
+  // saving in EITHER component. Gating on the weighted score hid every
+  // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
+  // "Sortierung + Farb-Emphase", never filtering. Clamp to >= 1 so qualified
+  // deals keep sorting above unchecked cards (0) and hidden non-deals (-100).
+  if (dMedian <= 0 && dRecord <= 0) return null;
   const wMedian = 1 - wRecord;
-  const score = Math.max(0, Math.round(wMedian * dMedian + wRecord * dRecord));
-
-  // Ein Tiefstpreis muss echte Ersparnis liefern (Score > 0%)
-  if (score <= 0) return null;
+  const score = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
 
   return {
     score,

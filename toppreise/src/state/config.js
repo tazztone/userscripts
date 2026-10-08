@@ -26,8 +26,8 @@ export function weightText(weightRecord, style) {
   }
   const pct = Math.round(w * 100);
   const score = Math.round(((100 - pct) * 25 + pct * 10) / 100);
-  const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
-    : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
+  const base = pct === 100 ? 'Rekord-Sortierung (100% Rekord / 0% Ø-Preis)'
+    : pct === 0 ? 'Ø-Sortierung (0% Rekord / 100% Ø-Preis)'
     : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
   return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
 }

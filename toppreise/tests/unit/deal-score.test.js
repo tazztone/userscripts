@@ -74,6 +74,38 @@ describe('Deal Score Domain Module', () => {
       };
       assert.equal(computeDealScore(zeroSavingsStats, 100), null);
     });
+
+    it('keeps at-low non-records qualified at 100% Rek (weight never filters)', () => {
+      // At-low, no new record: dRecord = 0, dMedian = (150-100)/150 = 33%.
+      // Weighted score at w=1 is 0 — must still qualify, slider is sort-only.
+      const atLow = { ...validStats, isNewAllTimeLow: false };
+      const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      CONFIG.BESTPREISE_WEIGHT_RECORD = 1.00;
+      try {
+        const result = computeDealScore(atLow, 100);
+        assert.ok(result);
+        assert.equal(result.dRecord, 0);
+        assert.ok(result.score >= 1);
+      } finally {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+      }
+    });
+
+    it('keeps new records qualified at 0% Rek (mirrored endpoint)', () => {
+      // dMedian = 0 (price == median) but dRecord = 17% (120 -> 100).
+      // Weighted score at w=0 is 0 — must still qualify.
+      const noMedianEdge = { ...validStats, medianPrice: 100 };
+      const prev = CONFIG.BESTPREISE_WEIGHT_RECORD;
+      CONFIG.BESTPREISE_WEIGHT_RECORD = 0.00;
+      try {
+        const result = computeDealScore(noMedianEdge, 100);
+        assert.ok(result);
+        assert.equal(result.dMedian, 0);
+        assert.ok(result.score >= 1);
+      } finally {
+        CONFIG.BESTPREISE_WEIGHT_RECORD = prev;
+      }
+    });
   });
 
   describe('getDisplayDelta (badge event, no history gates)', () => {

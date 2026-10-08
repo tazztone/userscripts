@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.94
+// @version      2.18.95
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1673,11 +1673,14 @@ const SHADOW_MODAL_STYLES = `
     const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
       ? CONFIG.BESTPREISE_WEIGHT_RECORD
       : 0.50;
+    // Qualification is weight-independent: a Tiefstpreis qualifies on real
+    // saving in EITHER component. Gating on the weighted score hid every
+    // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
+    // "Sortierung + Farb-Emphase", never filtering. Clamp to >= 1 so qualified
+    // deals keep sorting above unchecked cards (0) and hidden non-deals (-100).
+    if (dMedian <= 0 && dRecord <= 0) return null;
     const wMedian = 1 - wRecord;
-    const score = Math.max(0, Math.round(wMedian * dMedian + wRecord * dRecord));
-
-    // Ein Tiefstpreis muss echte Ersparnis liefern (Score > 0%)
-    if (score <= 0) return null;
+    const score = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
 
     return {
       score,
@@ -2013,8 +2016,8 @@ const SHADOW_MODAL_STYLES = `
     }
     const pct = Math.round(w * 100);
     const score = Math.round(((100 - pct) * 25 + pct * 10) / 100);
-    const base = pct === 100 ? 'Nur Rekorde (100% Rekord / 0% Ø-Preis)'
-      : pct === 0 ? 'Nur Ø-Preis (0% Rekord / 100% Ø-Preis)'
+    const base = pct === 100 ? 'Rekord-Sortierung (100% Rekord / 0% Ø-Preis)'
+      : pct === 0 ? 'Ø-Sortierung (0% Rekord / 100% Ø-Preis)'
       : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
     return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Tiefstpreis-Score ${score}`;
   }
