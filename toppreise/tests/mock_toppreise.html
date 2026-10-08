@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <title>Mock Toppreise - Neue Toppreise</title>
+  <!-- Live contract (2026-10-08, RESEARCH_LOG §8): product pages carry NO dealer
+       rows in static HTML (AJAX via /plugins/product/AuctionsOverview); offers
+       survive only as JSON-LD AggregateOffer (count, no sellers). Catalog cards
+       below keep rows; both shapes are exercised by share-discord tests. -->
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"Product","name":"Mock Product","offers":{"@type":"AggregateOffer","lowPrice":"16.95","highPrice":"82.00","offerCount":6,"priceCurrency":"CHF"}}
+  </script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #1a1a1a; color: #fff; }

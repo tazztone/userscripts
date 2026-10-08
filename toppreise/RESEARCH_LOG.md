@@ -350,3 +350,54 @@ native bar shows its own count.
    `closest('.col-12')` on `.title.col-12`.
 8. Feed has no offer counts — scanner needs explicit `pageHasOffers`;
    `0` weight is valid (`isNaN`, not `||`).
+
+## 8. Product-page offers pipeline (live-probed 2026-10-08)
+
+Product URL pattern `/preisvergleich/<Kat>/<Name>-p<PID>` (PID = `pcspagdpi`,
+e.g. BELKIN SoundForm Mini 2 `p869380`). Static HTML (~294 KB) contains:
+
+- **Zero** `.Plugin_DealerRelProdPriceInfo` rows — the dealer list renders via
+  AJAX. The `<noscript>` inside `.Plugin_AuctionsOverview` is a 92-char
+  placeholder, no data.
+- JSON-LD, exactly 2 blocks: `BreadcrumbList` + `Product` with a single
+  `AggregateOffer` (verbatim shape):
+
+```json
+{"@context":"https://schema.org","@type":"Product","brand":"Belkin","description":"…","gtin13":"…","image":"…","mpn":"…","name":"…","offers":{"@type":"AggregateOffer","highPrice":"82.00","lowPrice":"16.95","offerCount":6,"priceCurrency":"CHF"}}
+```
+
+  No per-offer sellers anywhere in static HTML → a fetched product page yields
+  the offer **count** but never a dealer **name**. Parsed by `parseJsonLdOffer`
+  (`src/features/share-discord.js`); cheapest-`Offer` preference is implemented
+  for the day Toppreise ships per-item offers.
+- Offers endpoint (page JS, nothing inline): `POST
+  /plugins/product/AuctionsOverview`, container `<div
+  id="Plugin_AuctionsOverview_<instance>" data-context-hash="<hash>"
+  data-ajax-url="/plugins/product/AuctionsOverview">`. Observed body carries
+  timestamp-prefixed filter state (`<ts>_fi_opp_opp`, `data-ser-plgn-data` JSON
+  in hidden inputs). Naive replay (all hidden inputs + ser-data, no session
+  wiring) → `410 Gone`. Related: `POST /plugins/auction/AuctionTotalItems`
+  (`…_fi_pidh_pid=<PID>&au_ati_ch=…&lang=de`), `POST
+  /plugins/product/pricechart` (`pcspagdpi=<PID>&…&p_pc_ch=…&lang=de` — the
+  suite's scanner route).
+- Bot protection: default fetch/Chromium UA → `403` error page (~14 KB); real
+  Chrome UA (`Chrome/126 …`) → `200`.
+- Probes (scratch, not suite): `scratch/discord_live_check.py` +
+  `scratch/share_probe.html` (real module import via local http,
+  `--disable-web-security`), XHR capture `scratch/offers_xhr_sniff.py`.
+
+Consequence: catalog cards → dealer name from DOM (`extractDealer`); feed
+cards → count from JSON-LD, name omitted. Fixture mirror of the live
+`AggregateOffer` lives in `tests/mock_toppreise.html` `<head>`.
+
+### Why history replays but offers don't
+
+`pricechart` is a stateless data dump: PID (`pcspagdpi`, from the URL) + one
+stable token → time series, no sellers by design. The suite's scanner replays
+it freely. `AuctionsOverview` is a stateful UI plugin: it demands the page's
+render-time filter/session state (timestamp-prefixed params, context hash) and
+answers session-less replays with `410 Gone`. Static HTML contains neither the
+series nor the sellers — history comes from its API, sellers only from the
+rendered DOM or the session endpoint. Cracking the plugin protocol is
+deliberately not pursued (silent breakage on every site update); feed shares
+get the JSON-LD count, catalog shares the DOM name.

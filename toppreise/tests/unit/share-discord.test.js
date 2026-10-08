@@ -162,8 +162,8 @@ describe('parseJsonLdOffer', () => {
       { dealer: 'Galaxus', offers: 1 });
   });
 
-  it('ignores AggregateOffer without item list, garbage and priceless offers', () => {
-    assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', lowPrice: 5, offerCount: 3 })), { dealer: '', offers: 0 });
+  it('takes the count from AggregateOffer (no sellers), ignores garbage', () => {
+    assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', lowPrice: 5, offerCount: 6 })), { dealer: '', offers: 6 });
     assert.deepEqual(parseJsonLdOffer({ '@type': 'Product' }), { dealer: '', offers: 0 });
     assert.deepEqual(parseJsonLdOffer(null), { dealer: '', offers: 0 });
     assert.deepEqual(parseJsonLdOffer([{ '@type': 'Offer', seller: { name: 'x' } }]), { dealer: '', offers: 0 });

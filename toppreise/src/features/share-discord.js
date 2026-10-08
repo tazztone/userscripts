@@ -135,7 +135,10 @@ export function parseJsonLdOffer(json) {
       if (!types.includes('Product')) continue;
       const list = Array.isArray(item.offers) ? item.offers : (item.offers ? [item.offers] : null);
       if (!list) continue;
-      if (list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' && !Array.isArray(list[0].offers)) continue;
+      if (list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' && !Array.isArray(list[0].offers)) {
+        const n = +list[0].offerCount; // kein Verkäufer, aber echte Angebotszahl
+        return { dealer: '', offers: Number.isFinite(n) ? Math.round(n) : 0 };
+      }
       let best = null;
       for (const o of list) {
         const price = +o?.price;
