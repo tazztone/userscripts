@@ -31,7 +31,7 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
   return new Promise(resolve => {
     try {
       if (typeof document === 'undefined') return resolve(null);
-      const svg = renderSparkline(timeSeries, width, height);
+      const svg = renderSparkline(timeSeries, width, height, { axes: true });
       if (!svg) return resolve(null);
       const NS = 'http://www.w3.org/2000/svg';
       const bg = document.createElementNS(NS, 'rect');

@@ -4,8 +4,9 @@
  * with color-coded trend indicators and interactive tooltips.
  */
 
-export function renderSparkline(timeSeries, width, height) {
+export function renderSparkline(timeSeries, width, height, opts = {}) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
+  const axes = opts && opts.axes === true;
   const prices = timeSeries.map(p => Array.isArray(p) ? +p[1] : 0).filter(p => p > 0);
 
   if (prices.length < 2) return null;
@@ -13,14 +14,6 @@ export function renderSparkline(timeSeries, width, height) {
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min || 1;
-  const padding = 2;
-  const usableHeight = height - padding * 2;
-
-  const points = prices.map((p, i) => {
-    const x = ((i / (prices.length - 1)) * width).toFixed(1);
-    const y = (height - padding - ((p - min) / range) * usableHeight).toFixed(1);
-    return `${x},${y}`;
-  }).join(' ');
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('width', String(width));
@@ -37,6 +30,106 @@ export function renderSparkline(timeSeries, width, height) {
   titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
   svg.appendChild(titleEl);
 
+  // Bare card path: identical output to before (title + polyline only).
+  const buildPoints = (x0, x1, y0, y1) => prices.map((p, i) => {
+    const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
+    const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
+    return `${x},${y}`;
+  }).join(' ');
+
+  const line = (x1, y1, x2, y2, opacity) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    el.setAttribute('x1', String(x1));
+    el.setAttribute('y1', String(y1));
+    el.setAttribute('x2', String(x2));
+    el.setAttribute('y2', String(y2));
+    el.setAttribute('stroke', '#334155');
+    el.setAttribute('stroke-width', '0.5');
+    el.setAttribute('opacity', String(opacity));
+    return el;
+  };
+
+  const label = (x, y, text, anchor) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    el.setAttribute('x', String(x));
+    el.setAttribute('y', String(y));
+    el.setAttribute('fill', '#64748b');
+    el.setAttribute('font-size', '8.5');
+    el.setAttribute('font-family', 'inherit');
+    el.setAttribute('text-anchor', anchor);
+    el.textContent = text;
+    return el;
+  };
+
+  const fmtPrice = v => (v >= 100 ? String(Math.round(v)) : v.toFixed(2));
+
+  let points;
+  let lastX = 0;
+  let lastY = 0;
+  if (!axes) {
+    const padding = 2;
+    const usableHeight = height - padding * 2;
+    points = prices.map((p, i) => {
+      const x = ((i / (prices.length - 1)) * width).toFixed(1);
+      const y = (height - padding - ((p - min) / range) * usableHeight).toFixed(1);
+      return `${x},${y}`;
+    }).join(' ');
+  } else {
+    const margin = { left: 38, right: 10, top: 6, bottom: 16 };
+    const x0 = margin.left;
+    const x1 = width - margin.right;
+    const y0 = margin.top;
+    const y1 = height - margin.bottom;
+    points = buildPoints(x0, x1, y0, y1);
+
+    // Y price grid: min / mid / max.
+    const mid = (min + max) / 2;
+    for (const v of [min, mid, max]) {
+      const y = y1 - ((v - min) / range) * (y1 - y0);
+      svg.appendChild(line(x0, y, x1, y, 0.8));
+      svg.appendChild(label(2, y + 3, `CHF ${fmtPrice(v)}`, 'start'));
+    }
+
+    // X months grid from timestamps (ms or s); skip when unusable.
+    const tsMs = timeSeries.map(p => {
+      const ts = Array.isArray(p) ? +p[0] : NaN;
+      if (!Number.isFinite(ts)) return NaN;
+      return ts < 1e12 ? ts * 1000 : ts;
+    });
+    const validTs = tsMs.some(t => Number.isFinite(t)) && tsMs.filter(Number.isFinite).length >= 2;
+    if (validTs) {
+      const monthStarts = [];
+      let prevKey = null;
+      tsMs.forEach((t, i) => {
+        if (!Number.isFinite(t)) return;
+        const d = new Date(t);
+        if (Number.isNaN(d.getTime())) return;
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (key !== prevKey) {
+          prevKey = key;
+          if (i > 0 || monthStarts.length === 0) monthStarts.push({ i, date: d });
+        }
+      });
+      if (monthStarts.length >= 2) {
+        const maxLabels = 6;
+        const step = Math.ceil(monthStarts.length / maxLabels);
+        const shown = monthStarts.filter((_, k) => k % step === 0);
+        for (const { i, date } of shown) {
+          if (i === 0) continue; // edge tick collides with Y labels, carries no info
+          const x = x0 + (i / (prices.length - 1)) * (x1 - x0);
+          svg.appendChild(line(x, y0, x, y1, 0.6));
+          const monthName = date.toLocaleString('en', { month: 'short' });
+          svg.appendChild(label(Math.min(Math.max(x, x0), x1), height - 4, monthName, 'middle'));
+        }
+      }
+    }
+
+    const pts = points.split(' ');
+    const last = pts[pts.length - 1].split(',');
+    lastX = last[0];
+    lastY = last[1];
+  }
+
   const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   polyline.setAttribute('points', points);
   polyline.setAttribute('fill', 'none');
@@ -45,6 +138,17 @@ export function renderSparkline(timeSeries, width, height) {
   polyline.setAttribute('stroke-linecap', 'round');
   polyline.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(polyline);
+
+  if (axes) {
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', String(lastX));
+    dot.setAttribute('cy', String(lastY));
+    dot.setAttribute('r', '3.2');
+    dot.setAttribute('fill', strokeColor);
+    dot.setAttribute('stroke', '#ffffff');
+    dot.setAttribute('stroke-width', '1.2');
+    svg.appendChild(dot);
+  }
 
   return svg;
 }

@@ -424,8 +424,11 @@ export const STYLES = `
     color: #94a3b8 !important;
     text-align: right !important;
     margin: 0 !important;
-    white-space: normal !important;
-    overflow: visible !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
     user-select: none !important;
     pointer-events: auto !important;
   }
@@ -450,6 +453,7 @@ export const STYLES = `
     display: inline-flex !important;
     align-items: center !important;
     justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
     gap: 4px !important;
     margin-top: 1px !important;
     width: 100% !important;
