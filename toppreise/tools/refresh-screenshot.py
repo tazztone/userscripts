@@ -1,10 +1,9 @@
 """Regenerate toppreise/Screenshot.webp from the live feed with the current bundle.
 
-Usage (repo root):
-    PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers \\
-        venv/bin/python toppreise/tools/refresh-screenshot.py
+Usage (repo root): toppreise/tools/refresh-screenshot.sh
 
-Requires pillow in the venv (run prerequisite, not a repo dependency):
+Requires an active display (headed Chrome: the site's WAF 403s automated
+clients) and pillow in the venv (run prerequisite, not a repo dependency):
     venv/bin/pip install pillow
 """
 
