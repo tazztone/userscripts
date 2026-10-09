@@ -808,9 +808,9 @@ def test_sparkline_renders_with_cached_timeseries(page: Page):
 
     polyline = page.locator('#card-cheapest .tp-sparkline polyline')
     assert polyline.count() == 1
-    # Down-trending price => stroke is green (#10b981)
+    # Single neutral color regardless of direction (#3b82f6)
     stroke = polyline.get_attribute('stroke')
-    assert stroke == '#10b981'
+    assert stroke == '#3b82f6'
 
 
 
@@ -823,7 +823,7 @@ def test_sparkline_not_rendered_without_timeseries(page: Page):
 
 
 
-def test_sparkline_trending_up_renders_red(page: Page):
+def test_sparkline_trending_up_renders_single_color(page: Page):
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
         const stats = {
@@ -842,8 +842,8 @@ def test_sparkline_trending_up_renders_red(page: Page):
 
     polyline = page.locator('#card-expensive .tp-sparkline polyline')
     stroke = polyline.get_attribute('stroke')
-    # Up-trending price => stroke is red (#ef4444)
-    assert stroke == '#ef4444'
+    # Same single color when price rises (#3b82f6)
+    assert stroke == '#3b82f6'
 
 
 
@@ -866,7 +866,7 @@ def test_sparkline_handles_edge_cases(page: Page):
     }""")
     assert page.locator('#card-cheapest .tp-sparkline').count() == 0
 
-    # Flat price trend (equal start and end) -> renders green (price did not go up)
+    # Flat price trend (equal start and end) -> same single color
     page.evaluate("""() => {
         const stats = {
             tiefstpreis: 1800.0,
@@ -880,7 +880,7 @@ def test_sparkline_handles_edge_cases(page: Page):
     sparkline = page.locator('#card-cheapest .tp-sparkline')
     assert sparkline.is_visible()
     polyline = page.locator('#card-cheapest .tp-sparkline polyline')
-    assert polyline.get_attribute('stroke') == '#10b981'
+    assert polyline.get_attribute('stroke') == '#3b82f6'
 
     # Disabled by default -> sparklines not rendered even if data exists
     page.evaluate("""() => {

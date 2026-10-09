@@ -1,7 +1,8 @@
 /**
  * Interactive SVG Sparkline Component
  * Generates lightweight inline SVG sparkline polyline charts from product price history
- * with color-coded trend indicators and interactive tooltips.
+ * with interactive tooltips. Single neutral color: history samples can be stale
+ * relative to the live card price, so trend coloring would mislead.
  */
 
 export function renderSparkline(timeSeries, width, height, opts = {}) {
@@ -23,8 +24,8 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
 
   const firstPrice = prices[0];
   const lastPrice = prices[prices.length - 1];
-  const isTrendingDown = lastPrice <= firstPrice;
-  const strokeColor = isTrendingDown ? '#10b981' : '#ef4444';
+  // Single neutral stroke (blue-500: readable on white cards and dark Discord bg).
+  const strokeColor = '#3b82f6';
 
   const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
   titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;

@@ -32,7 +32,7 @@ describe('Interactive SVG Sparkline Component', () => {
     assert.equal(renderSparkline([[1700000000, 100]]), null);
   });
 
-  it('renders SVG polyline with trend color for price drop (green)', () => {
+  it('renders SVG polyline with single neutral color for price drop', () => {
     const timeSeries = [
       [1700000000, 120.00],
       [1700100000, 110.00],
@@ -49,12 +49,12 @@ describe('Interactive SVG Sparkline Component', () => {
     assert.ok(!svg.getAttribute('title'));
     const polyline = svg.children[1];
     assert.ok(polyline);
-    assert.equal(polyline.getAttribute('stroke'), '#10b981'); // Green for downward price
+    assert.equal(polyline.getAttribute('stroke'), '#3b82f6'); // Single color, no trend coding
     assert.ok(titleEl.textContent.includes('120.00'));
     assert.ok(titleEl.textContent.includes('99.00'));
   });
 
-  it('renders red stroke when price increases', () => {
+  it('renders the same single color when price increases', () => {
     const timeSeries = [
       [1700000000, 80.00],
       [1700100000, 95.00]
@@ -62,7 +62,7 @@ describe('Interactive SVG Sparkline Component', () => {
     const svg = renderSparkline(timeSeries, 60, 20);
     assert.ok(svg);
     const polyline = svg.children[1];
-    assert.equal(polyline.getAttribute('stroke'), '#ef4444'); // Red for upward price
+    assert.equal(polyline.getAttribute('stroke'), '#3b82f6'); // Same color regardless of direction
   });
 
   it('bare path renders only title + polyline (no grid/dot)', () => {

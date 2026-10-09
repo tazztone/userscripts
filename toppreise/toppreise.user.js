@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.112
+// @version      2.18.113
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2848,7 +2848,8 @@ const SHADOW_MODAL_STYLES = `
   /**
    * Interactive SVG Sparkline Component
    * Generates lightweight inline SVG sparkline polyline charts from product price history
-   * with color-coded trend indicators and interactive tooltips.
+   * with interactive tooltips. Single neutral color: history samples can be stale
+   * relative to the live card price, so trend coloring would mislead.
    */
 
   function renderSparkline(timeSeries, width, height, opts = {}) {
@@ -2870,8 +2871,8 @@ const SHADOW_MODAL_STYLES = `
 
     const firstPrice = prices[0];
     const lastPrice = prices[prices.length - 1];
-    const isTrendingDown = lastPrice <= firstPrice;
-    const strokeColor = isTrendingDown ? '#10b981' : '#ef4444';
+    // Single neutral stroke (blue-500: readable on white cards and dark Discord bg).
+    const strokeColor = '#3b82f6';
 
     const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
     titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
