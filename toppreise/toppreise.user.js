@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.117
+// @version      2.18.118
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3899,15 +3899,35 @@ const SHADOW_MODAL_STYLES = `
               setHtmlIfChanged(badgeDifEl, `<div class="text">Aufschlag</div><p class="tp-markup-val">+${ddNow.markup}%</p>${fakeNow}`);
             }
           } else if (ddNow.kind === 'at-low' || ddNow.kind === 'new-low') {
-            // At-low without median (or unscored record): plain Tiefstpreis,
-            // no % claimed — the heat stays neutral gray to match.
+            // At-low without blend (no median / unqualified history): ribbon
+            // prints the Vortief-Abstand when known, else the preserved
+            // site-% — never a glyph. Gray stays: no blend, no heat.
             badgeDifEl.classList.add('tp-deal-badge-interactive');
             badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup');
-            setTitleIfChanged(badgeDifEl, `🌟 Tiefstpreis (CHF ${cardPrice.toFixed(2)}) — ohne Median kein %-Wert, daher grau statt farbig.\n[Klicken zum Aktualisieren]`);
-            if (isListView) {
-              setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+            const prevLowNow = recordRefForPrice(stats, cardPrice).previousLow;
+            const dropVsPrev = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice)
+              ? Math.round(((prevLowNow - cardPrice) / prevLowNow) * 100) : 0;
+            if (dropVsPrev > 0) {
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)})\n[Klicken: erneut prüfen]`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${dropVsPrev}%</p>`);
+              }
+            } else if (sitePctText) {
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft)\n[Klicken: erneut prüfen]`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>${sitePctText}</p>`);
+              }
             } else {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt (CHF ${cardPrice.toFixed(2)})\n[Klicken: erneut prüfen]`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>Tiefstpreis</span>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div>`);
+              }
             }
           }
           // 'unknown' (no usable price): loupe state stays — nothing truthful to claim.
@@ -3977,28 +3997,45 @@ const SHADOW_MODAL_STYLES = `
 
           if (isAllTimeLow) {
             // 3B: Verified All-Time Low (Glowing Emerald Halo)
-            // Ribbon prints the Gewichtete Differenz (ADR-0005); unqualified
-            // history (no dealData) renders plain Tiefstpreis, gray, no number.
-            // Tooltip carries only the action hint (trimmed: badge + pill show the numbers).
+            // Ribbon prints the Gewichtete Differenz (ADR-0005); without a
+            // blend the Vortief-Abstand, else the preserved site-% — never a
+            // glyph. Gray stays: no blend, no heat.
             badgeDifEl.classList.add('tp-deal-alltime-low', 'tp-deal-badge-interactive');
             badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
             // Single source (ADR-0005): the blend is the heat input above.
             const badgePct = dealData ? heatInfo.pct : 0;
+            const prevTip = prevLow && priceToCents(prevLow) > priceToCents(cardPrice)
+              ? ` vs. vorheriges Tief (CHF ${prevLow.toFixed(2)})` : '';
 
-            // Tooltip: action hint only — badge + pill carry the verified numbers.
-            setTitleIfChanged(badgeDifEl, '[Klicken zum Aktualisieren]');
-            if (isListView) {
-              if (badgePct > 0) {
+            if (badgePct > 0) {
+              // Tooltip: action hint only — badge + pill carry the verified numbers.
+              setTitleIfChanged(badgeDifEl, '[Klicken zum Aktualisieren]');
+              if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
               } else {
-                setHtmlIfChanged(badgeDifEl, `<span>🌟</span><p>Tiefstpreis</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
+              }
+            } else if (realDropVsPrev > 0) {
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip}\n[Klicken: erneut prüfen]`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>-${realDropVsPrev}%</span><p>Tiefstpreis</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${realDropVsPrev}%</p>`);
+              }
+            } else if (sitePctText) {
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft)\n[Klicken: erneut prüfen]`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
+              } else {
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>${sitePctText}</p>`);
               }
             } else {
-              if (badgePct > 0) {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt (CHF ${cardPrice.toFixed(2)})\n[Klicken: erneut prüfen]`);
+              if (isListView) {
+                setHtmlIfChanged(badgeDifEl, `<span>Tiefstpreis</span>`);
               } else {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>🌟</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div>`);
               }
             }
           } else {

@@ -57,9 +57,10 @@ def test_competing_reference_price_resolves_to_verified_low(page: Page):
     # Should not have the not-low class
     assert "tp-deal-not-low" not in badge.get_attribute("class")
 
-    # Title carries only the action hint now (numbers live on badge + pill)
+    # No blend (no median/series): ribbon keeps the preserved site-% with provenance label
     title = badge.get_attribute("title") or ""
-    assert "[Klicken zum Aktualisieren]" in title
+    assert "Tiefstpreis bestätigt" in title
+    assert "[Klicken: erneut prüfen]" in title
 
 
 
@@ -181,13 +182,13 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-badge-interactive')
     page.click('#card-cheapest .badge-dif')
 
-    # Verify badge transforms into Allzeit-Tiefstpreis with halo and truthful percentage
-    # (verified badge shows the real event, never the -67% site Differenz)
+    # Verify badge transforms into Allzeit-Tiefstpreis with halo and a number:
+    # Vortief-Abstand when known, else the preserved site-% (never a glyph)
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge1 = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
     assert 'Tiefstpreis' in (badge1.text_content() or '')
-    assert '-67%' not in (badge1.text_content() or '')
-    assert '[Klicken zum Aktualisieren]' in (badge1.get_attribute('title') or '')
+    assert '-67%' in (badge1.text_content() or '')
+    assert 'Tiefstpreis bestätigt' in (badge1.get_attribute('title') or '')
     assert not page.locator('#card-cheapest .tp-card-historical-price').is_visible()
 
     # 2. On Card 3 (Silikon Case, 15.00 CHF): click on-demand Differenz badge
@@ -302,7 +303,8 @@ def test_real_deal_not_low_tooltip_is_trimmed(page: Page):
 
     badge1 = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
     title1 = badge1.get_attribute('title') or ''
-    assert '[Klicken zum Aktualisieren]' in title1
+    assert 'Tiefstpreis bestätigt' in title1
+    assert '[Klicken: erneut prüfen]' in title1
 
     # Check Card 3
     page.wait_for_selector('#card-negative .badge-dif')
@@ -673,10 +675,10 @@ def test_real_world_toppreise_pricechart_html_parsing(page: Page):
     page.click('#card-negative .badge-dif')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low', timeout=3000)
     neg_badge = page.locator('#card-negative .badge-dif.tp-deal-alltime-low')
-    # Verified badge shows truthful Tiefstpreis; tooltip keeps only the action hint
+    # Verified badge prints the number (Vortief-Abstand, else preserved site-%); tooltip carries provenance
     assert 'Tiefstpreis' in (neg_badge.text_content() or '')
-    assert '-35%' not in (neg_badge.text_content() or '')
-    assert '[Klicken zum Aktualisieren]' in (neg_badge.get_attribute('title') or '')
+    assert '-35%' in (neg_badge.text_content() or '')
+    assert 'Tiefstpreis bestätigt' in (neg_badge.get_attribute('title') or '')
 
 
 
@@ -914,10 +916,10 @@ def test_negative_caching_and_manual_click_override(page: Page):
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    # Verified badge shows truthful Tiefstpreis; tooltip keeps only the action hint
+    # Verified badge prints the number (Vortief-Abstand, else preserved site-%); tooltip carries provenance
     assert 'Tiefstpreis' in (badge.text_content() or '')
-    assert '-67%' not in (badge.text_content() or '')
-    assert '[Klicken zum Aktualisieren]' in (badge.get_attribute('title') or '')
+    assert '-67%' in (badge.text_content() or '')
+    assert 'Tiefstpreis bestätigt' in (badge.get_attribute('title') or '')
 
 
 
@@ -954,8 +956,9 @@ def test_real_deal_record_low_with_previous_low_subline(page: Page):
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
     title = badge.get_attribute('title') or ''
-    # Trimmed tooltip: record numbers live on badge + pill, title keeps the hint
-    assert '[Klicken zum Aktualisieren]' in title
+    # Vortief-Abstand on the ribbon (3 points: no blend); provenance in the title
+    assert 'Tiefstpreis bestätigt' in title
+    assert '-18% vs. vorheriges Tief (CHF 2200.00)' in title
 
     # Verify record-low subline is displayed
     page.wait_for_selector('#card-cheapest .tp-card-historical-price.tp-is-record-low')

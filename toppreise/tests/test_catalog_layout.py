@@ -1695,9 +1695,10 @@ def test_shipping_price_mismatch(page: Page):
     badge = page.locator('#card-competing-reference .badge-dif')
     assert "tp-deal-not-low" not in badge.get_attribute("class")
 
-    # Trimmed tooltip: record numbers live on badge + pill, title keeps the hint
+    # No blend from 2 points: Vortief-Abstand with provenance label
     title = badge.get_attribute("title") or ""
-    assert "[Klicken zum Aktualisieren]" in title
+    assert "Tiefstpreis bestätigt" in title
+    assert "[Klicken: erneut prüfen]" in title
 
 
 
