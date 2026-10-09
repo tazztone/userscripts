@@ -1460,6 +1460,107 @@ def test_dealer_name_links_directly_to_shop_offer(page: Page):
     assert name.get_attribute('target') == '_blank'
 
 
+def test_dealer_name_survives_reload_without_refetch(page: Page, userscript_content):
+    """The 🏬 result persists in localStorage: after reload the dealer name
+    renders immediately with the shop link — no button, no product refetch."""
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    product_hits = []
+    def handle_product(route):
+        product_hits.append(route.request.url)
+        route.fulfill(
+            status=200,
+            headers={'access-control-allow-origin': '*'},
+            content_type='text/html',
+            body='<div class="Plugin_Offer">'
+                 '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+                 '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
+                 '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
+                 '</div>'
+        )
+    page.route('**/preisvergleich/**', handle_product)
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+
+    page.click('#card-cheapest .tp-dealer-btn')
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    assert len(product_hits) == 1
+
+    page.reload()
+    # The fixture injects the bundle via evaluate: reload wipes the suite, so
+    # re-inject it. The mock DOM is pristine again (dealer rows are back).
+    page.evaluate(userscript_content)
+    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        // In-card mutations don't trip the observer: re-render explicitly.
+        window.ToppreiseSuite.clearCardCache(card);
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert 'Galaxus' in (name.text_content() or '')
+    assert 'ext_de' in (name.get_attribute('href') or '')
+    assert len(product_hits) == 1
+
+
+def test_dealer_name_gets_full_row_width(page: Page):
+    """No arbitrary width cap on the dealer name: inside the price row it is a
+    flex item with max-width:none, so ellipsis only kicks in on real overflow
+    (the old 40% cap truncated names despite free space next to the price)."""
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    page.route('**/preisvergleich/**', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="Plugin_Offer">'
+             '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
+             '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
+             '</div>'
+    ))
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+
+    page.click('#card-cheapest .tp-dealer-btn')
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert 'Galaxus' in (name.text_content() or '')
+    assert name.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+    style = name.evaluate("""el => {
+        const cs = getComputedStyle(el);
+        return { maxWidth: cs.maxWidth, flexGrow: cs.flexGrow, anchorDisplay: getComputedStyle(el.parentElement).display };
+    }""")
+    assert style == {'maxWidth': 'none', 'flexGrow': '1', 'anchorDisplay': 'flex'}
+
+
 def test_dealer_button_retry_on_product_page_error(page: Page):
     """A failing product-page fetch keeps the 🏬 button (retry affordance),
     shows no dealer name, and throws nothing."""

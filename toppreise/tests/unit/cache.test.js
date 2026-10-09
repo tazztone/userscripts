@@ -6,7 +6,10 @@ import {
   isCacheEntryFresh,
   getCachedPriceStats,
   setCachedPriceStats,
-  clearPriceStatsCache
+  clearPriceStatsCache,
+  DEALER_CACHE_PREFIX,
+  getCachedDealer,
+  setCachedDealer,
 } from '../../src/scanner/cache.js';
 import { CONFIG } from '../../src/state/config.js';
 
@@ -144,6 +147,60 @@ describe('Bounded Cache Module', () => {
       } finally {
         CONFIG.USE_SHIPPING_PRICE = prev;
       }
+    });
+  });
+
+  describe('dealer persistence', () => {
+    const memStorage = () => {
+      const m = new Map();
+      return {
+        getItem: k => (m.has(k) ? m.get(k) : null),
+        setItem: (k, v) => { m.set(k, String(v)); },
+        removeItem: k => { m.delete(k); },
+        key: i => [...m.keys()][i] ?? null,
+        get length() { return m.size; },
+      };
+    };
+
+    it('round-trips dealer + url per price basis', () => {
+      const s = memStorage();
+      setCachedDealer('p1', false, 'Galaxus', 'https://www.toppreise.ch/ext_de?oid=1', s);
+      setCachedDealer('p1', true, 'Brack', '', s);
+      assert.deepEqual(getCachedDealer('p1', false, s), { dealer: 'Galaxus', url: 'https://www.toppreise.ch/ext_de?oid=1' });
+      assert.deepEqual(getCachedDealer('p1', true, s), { dealer: 'Brack', url: '' });
+      assert.equal(getCachedDealer('p2', false, s), null);
+    });
+
+    it('expires with the price-history TTL', () => {
+      const s = memStorage();
+      const prev = CONFIG.REAL_DEAL_CACHE_HOURS;
+      CONFIG.REAL_DEAL_CACHE_HOURS = 48;
+      try {
+        s.setItem(DEALER_CACHE_PREFIX + 'old', JSON.stringify({ time: Date.now() - 50 * 3600 * 1000, p: { dealer: 'Galaxus', url: '' } }));
+        assert.equal(getCachedDealer('old', false, s), null);
+        setCachedDealer('fresh', false, 'Galaxus', '', s);
+        assert.equal(getCachedDealer('fresh', false, s).dealer, 'Galaxus');
+      } finally {
+        CONFIG.REAL_DEAL_CACHE_HOURS = prev;
+      }
+    });
+
+    it('tolerates corrupt entries and needs no storage', () => {
+      const s = memStorage();
+      s.setItem(DEALER_CACHE_PREFIX + 'broken', 'kein json{{');
+      assert.equal(getCachedDealer('broken', false, s), null);
+      assert.equal(getCachedDealer('p1', false, null), null);
+      setCachedDealer('', false, 'Galaxus', '', s);
+      setCachedDealer('p1', false, '', '', s);
+      assert.equal(getCachedDealer('p1', false, s), null);
+    });
+
+    it('clearPriceStatsCache wipes dealer keys too', () => {
+      const s = memStorage();
+      setCachedDealer('p1', false, 'Galaxus', '', s);
+      s.setItem('tp_hist_v1_p1', JSON.stringify({ time: Date.now() }));
+      assert.equal(clearPriceStatsCache(s), 2);
+      assert.equal(getCachedDealer('p1', false, s), null);
     });
   });
 });

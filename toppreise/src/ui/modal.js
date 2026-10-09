@@ -8,6 +8,7 @@ import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
+import { clearDealerMemory } from "./badges.js";
 
 export function setupUI() {
   const { shadow } = ensureSkeleton();
@@ -395,6 +396,7 @@ export function setupUI() {
 
   cacheClearBtn?.addEventListener('click', () => {
     const removed = clearPriceStatsCache();
+    clearDealerMemory();
     if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
     processListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
@@ -531,7 +533,7 @@ export function setupUI() {
     updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
     updateConfigs(updates);
-    if (shippingChanged) clearPriceStatsCache();
+    if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();
   });

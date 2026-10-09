@@ -23,7 +23,7 @@ import {
 } from '../scanner/scanner.js';
 import { startBatchCheck } from './floating-cta.js';
 import { scanState } from '../state/store.js';
-import { getCachedPriceStats } from '../scanner/cache.js';
+import { getCachedPriceStats, getCachedDealer, setCachedDealer, MAX_MEMORY_CACHE_ITEMS } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
@@ -72,12 +72,23 @@ function ensureHistPriceEl(card, cardPriceEl) {
 const loupeBtnByBadge = new WeakMap();
 // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
 // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
-// Retry, Fetch passiert nur per Klick, also kein Loop). Keine Persistenz: nach
-// Reload kostet ein Feed-Händler einen Klick, dafür nie stale. Modus im Key,
+// Retry, Fetch passiert nur per Klick, also kein Loop). Persistiert in
+// localStorage (get/setCachedDealer, gleiche TTL wie Preishistorie); pro
+// pid:Modus ein Storage-Read pro Pageload (dealerHydrated-Guard). Modus im Key,
 // weil der günstigste Händler von der Preisbasis abhängt.
 const dealerCache = new Map();
 const dealerPending = new Set();
+const dealerHydrated = new Set();
 export const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
+function rememberDealer(dKey, value) {
+  dealerCache.delete(dKey);
+  dealerCache.set(dKey, value);
+  if (dealerCache.size > MAX_MEMORY_CACHE_ITEMS) dealerCache.delete(dealerCache.keys().next().value);
+}
+export function clearDealerMemory() {
+  dealerCache.clear();
+  dealerHydrated.clear();
+}
 async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;
   const currentPid = getCardProductId(card);
@@ -816,10 +827,16 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const useShipping = isShippingPriceActive(card);
     const dKey = dealerCacheKey(pid, useShipping);
     let dealer = extractDealer(card);
+    if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
+      dealerHydrated.add(dKey);
+      const stored = getCachedDealer(pid, useShipping);
+      if (stored?.dealer) rememberDealer(dKey, stored);
+    }
     const cached = dealerCache.get(dKey);
     if (!dealer && cached?.dealer) dealer = cached.dealer;
     const { url: productUrl } = extractShareData(card);
-    const targetUrl = cached?.url || (dealer ? extractDealerUrl(card) : '') || productUrl || '';
+    const directUrl = cached?.url || (dealer ? extractDealerUrl(card) : '');
+    const targetUrl = directUrl || productUrl || '';
     const hasUrl = /^https?:\/\//i.test(targetUrl);
     const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
       card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
@@ -843,7 +860,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         el.href = targetUrl;
       }
       setTextIfChanged(el, `🏬 ${dealer}`);
-      setTitleIfChanged(el, `Günstigster Händler: ${dealer}`);
+      setTitleIfChanged(el, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
     } else if (hasUrl && !dealerCache.has(dKey)) {
       let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
       if (!btn) {
@@ -862,7 +879,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           btn.disabled = true;
           try {
             const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info?.dealer) dealerCache.set(dKey, { dealer: info.dealer, url: info.dealerUrl || '' });
+            if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
           } finally {
             dealerPending.delete(dKey);
           }

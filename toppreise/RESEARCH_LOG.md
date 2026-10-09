@@ -377,7 +377,9 @@ e.g. BELKIN SoundForm Mini 2 `p869380`). Static HTML (~294 KB) contains:
   Each block also links the shop directly: `a[href*="ext_de"]`
   (`/ext_de?pid=…&did=…&oid=…`, title + buy button; logo links `/shops/…` instead
   — not the offer). The dealer label uses it as its href (new tab, product-page
-  fallback).
+  fallback). Dealer + URL persist in `localStorage` (`tp_dealer_v1_<PID>`,
+  p/s-slots per price basis, same TTL as price history, same janitor), so the
+  label survives reloads; "Cache leeren" wipes them too.
 - Offers endpoint (page JS, nothing inline): `POST
   /plugins/product/AuctionsOverview`, container `<div
   id="Plugin_AuctionsOverview_<instance>" data-context-hash="<hash>"

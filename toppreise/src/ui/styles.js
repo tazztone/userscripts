@@ -500,6 +500,30 @@ export const STYLES = `
     min-width: 0 !important;
     margin-right: auto !important;
   }
+  /* Preiszeile mit Händler als Flex-Row: der Name bekommt den verfügbaren
+  Platz (Ellipsis erst bei echtem Platzmangel), der Preis schrumpft nie.
+  40%-Cap oben gilt dann nur noch ohne Flex-Container (Fallback). */
+  .Plugin_PriceInformation:has(> .tp-dealer-name),
+  .price_information_product:has(> .tp-dealer-name),
+  .product-price:has(> .tp-dealer-name),
+  .priceContainer:has(> .tp-dealer-name) {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 6px !important;
+  }
+  .Plugin_PriceInformation:has(> .tp-dealer-name) > .tp-dealer-name,
+  .price_information_product:has(> .tp-dealer-name) > .tp-dealer-name,
+  .product-price:has(> .tp-dealer-name) > .tp-dealer-name,
+  .priceContainer:has(> .tp-dealer-name) > .tp-dealer-name {
+    flex: 1 1 auto !important;
+    max-width: none !important;
+  }
+  .Plugin_PriceInformation:has(> .tp-dealer-name) > :not(.tp-dealer-name),
+  .price_information_product:has(> .tp-dealer-name) > :not(.tp-dealer-name),
+  .product-price:has(> .tp-dealer-name) > :not(.tp-dealer-name),
+  .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
+    flex-shrink: 0 !important;
+  }
   a.tp-dealer-name:hover {
     opacity: 1 !important;
     text-decoration: underline !important;
@@ -510,6 +534,7 @@ export const STYLES = `
     cursor: pointer !important;
     padding: 0 !important;
     opacity: 0.75 !important;
+    flex: 0 0 auto !important;
   }
   button.tp-dealer-name.tp-dealer-btn:hover {
     opacity: 1 !important;

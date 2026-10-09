@@ -8,6 +8,10 @@ import { isShippingPriceActive } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
+export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
+// Janitor-Funktionen (prune/count/clear) betreuen beide Prefixe: Händlerdaten
+// sind abgeleitete Produktdaten mit derselben TTL wie die Preishistorie.
+const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX];
 export const MAX_MEMORY_CACHE_ITEMS = 500;
 
 export const memoryCache = new Map();
@@ -38,7 +42,7 @@ export function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? 
 
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
-      if (key && key.startsWith(STATS_CACHE_PREFIX)) {
+      if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
         try {
           const val = JSON.parse(storage.getItem(key) || '{}');
           const age = now - (val.time || 0);
@@ -141,7 +145,7 @@ export function countCachedPriceStats(storage = (typeof window !== 'undefined' ?
     if (storage) {
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(STATS_CACHE_PREFIX)) {
+        if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
           count++;
         }
       }
@@ -159,7 +163,7 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
       const keysToRemove = [];
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(STATS_CACHE_PREFIX)) {
+        if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
           keysToRemove.push(key);
         }
       }
@@ -168,4 +172,31 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
     }
   } catch (e) {}
   return count;
+}
+
+// Händlername + Angebotslink pro Produkt, je Preisbasis (p/s-Slot): wird beim
+// 🏬-Klick zusammen mit dem Produktseiten-Fetch geschrieben und überlebt so
+// Reloads — gleiche TTL wie die Preishistorie (REAL_DEAL_CACHE_HOURS).
+export function getCachedDealer(productId, useShipping, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  if (!productId) return null;
+  try {
+    const raw = storage?.getItem(DEALER_CACHE_PREFIX + productId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!isCacheEntryFresh(parsed)) return null;
+    const entry = useShipping ? parsed?.s : parsed?.p;
+    if (!entry?.dealer) return null;
+    return { dealer: entry.dealer, url: entry.url || '' };
+  } catch (e) {}
+  return null;
+}
+
+export function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  if (!productId || !dealer) return;
+  try {
+    let prev = {};
+    try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
+    const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '' } };
+    storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
+  } catch (e) {}
 }

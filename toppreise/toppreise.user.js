@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.125
+// @version      2.18.126
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -525,6 +525,30 @@ const STYLES = `
     min-width: 0 !important;
     margin-right: auto !important;
   }
+  /* Preiszeile mit Händler als Flex-Row: der Name bekommt den verfügbaren
+  Platz (Ellipsis erst bei echtem Platzmangel), der Preis schrumpft nie.
+  40%-Cap oben gilt dann nur noch ohne Flex-Container (Fallback). */
+  .Plugin_PriceInformation:has(> .tp-dealer-name),
+  .price_information_product:has(> .tp-dealer-name),
+  .product-price:has(> .tp-dealer-name),
+  .priceContainer:has(> .tp-dealer-name) {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 6px !important;
+  }
+  .Plugin_PriceInformation:has(> .tp-dealer-name) > .tp-dealer-name,
+  .price_information_product:has(> .tp-dealer-name) > .tp-dealer-name,
+  .product-price:has(> .tp-dealer-name) > .tp-dealer-name,
+  .priceContainer:has(> .tp-dealer-name) > .tp-dealer-name {
+    flex: 1 1 auto !important;
+    max-width: none !important;
+  }
+  .Plugin_PriceInformation:has(> .tp-dealer-name) > :not(.tp-dealer-name),
+  .price_information_product:has(> .tp-dealer-name) > :not(.tp-dealer-name),
+  .product-price:has(> .tp-dealer-name) > :not(.tp-dealer-name),
+  .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
+    flex-shrink: 0 !important;
+  }
   a.tp-dealer-name:hover {
     opacity: 1 !important;
     text-decoration: underline !important;
@@ -535,6 +559,7 @@ const STYLES = `
     cursor: pointer !important;
     padding: 0 !important;
     opacity: 0.75 !important;
+    flex: 0 0 auto !important;
   }
   button.tp-dealer-name.tp-dealer-btn:hover {
     opacity: 1 !important;
@@ -2005,6 +2030,10 @@ const SHADOW_MODAL_STYLES = `
 
 
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
+  const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
+  // Janitor-Funktionen (prune/count/clear) betreuen beide Prefixe: Händlerdaten
+  // sind abgeleitete Produktdaten mit derselben TTL wie die Preishistorie.
+  const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX];
   const MAX_MEMORY_CACHE_ITEMS = 500;
 
   const memoryCache = new Map();
@@ -2035,7 +2064,7 @@ const SHADOW_MODAL_STYLES = `
 
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(STATS_CACHE_PREFIX)) {
+        if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
           try {
             const val = JSON.parse(storage.getItem(key) || '{}');
             const age = now - (val.time || 0);
@@ -2138,7 +2167,7 @@ const SHADOW_MODAL_STYLES = `
       if (storage) {
         for (let i = 0; i < storage.length; i++) {
           const key = storage.key(i);
-          if (key && key.startsWith(STATS_CACHE_PREFIX)) {
+          if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
             count++;
           }
         }
@@ -2156,7 +2185,7 @@ const SHADOW_MODAL_STYLES = `
         const keysToRemove = [];
         for (let i = 0; i < storage.length; i++) {
           const key = storage.key(i);
-          if (key && key.startsWith(STATS_CACHE_PREFIX)) {
+          if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
             keysToRemove.push(key);
           }
         }
@@ -2165,6 +2194,33 @@ const SHADOW_MODAL_STYLES = `
       }
     } catch (e) {}
     return count;
+  }
+
+  // Händlername + Angebotslink pro Produkt, je Preisbasis (p/s-Slot): wird beim
+  // 🏬-Klick zusammen mit dem Produktseiten-Fetch geschrieben und überlebt so
+  // Reloads — gleiche TTL wie die Preishistorie (REAL_DEAL_CACHE_HOURS).
+  function getCachedDealer(productId, useShipping, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+    if (!productId) return null;
+    try {
+      const raw = storage?.getItem(DEALER_CACHE_PREFIX + productId);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!isCacheEntryFresh(parsed)) return null;
+      const entry = useShipping ? parsed?.s : parsed?.p;
+      if (!entry?.dealer) return null;
+      return { dealer: entry.dealer, url: entry.url || '' };
+    } catch (e) {}
+    return null;
+  }
+
+  function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+    if (!productId || !dealer) return;
+    try {
+      let prev = {};
+      try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
+      const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '' } };
+      storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
+    } catch (e) {}
   }
 
   // ─── MODULE: src/state/config.js ────────────────────────────────────────────
@@ -3689,12 +3745,23 @@ const SHADOW_MODAL_STYLES = `
   const loupeBtnByBadge = new WeakMap();
   // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
   // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
-  // Retry, Fetch passiert nur per Klick, also kein Loop). Keine Persistenz: nach
-  // Reload kostet ein Feed-Händler einen Klick, dafür nie stale. Modus im Key,
+  // Retry, Fetch passiert nur per Klick, also kein Loop). Persistiert in
+  // localStorage (get/setCachedDealer, gleiche TTL wie Preishistorie); pro
+  // pid:Modus ein Storage-Read pro Pageload (dealerHydrated-Guard). Modus im Key,
   // weil der günstigste Händler von der Preisbasis abhängt.
   const dealerCache = new Map();
   const dealerPending = new Set();
+  const dealerHydrated = new Set();
   const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
+  function rememberDealer(dKey, value) {
+    dealerCache.delete(dKey);
+    dealerCache.set(dKey, value);
+    if (dealerCache.size > MAX_MEMORY_CACHE_ITEMS) dealerCache.delete(dealerCache.keys().next().value);
+  }
+  function clearDealerMemory() {
+    dealerCache.clear();
+    dealerHydrated.clear();
+  }
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
     const currentPid = getCardProductId(card);
@@ -4433,10 +4500,16 @@ const SHADOW_MODAL_STYLES = `
       const useShipping = isShippingPriceActive(card);
       const dKey = dealerCacheKey(pid, useShipping);
       let dealer = extractDealer(card);
+      if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
+        dealerHydrated.add(dKey);
+        const stored = getCachedDealer(pid, useShipping);
+        if (stored?.dealer) rememberDealer(dKey, stored);
+      }
       const cached = dealerCache.get(dKey);
       if (!dealer && cached?.dealer) dealer = cached.dealer;
       const { url: productUrl } = extractShareData(card);
-      const targetUrl = cached?.url || (dealer ? extractDealerUrl(card) : '') || productUrl || '';
+      const directUrl = cached?.url || (dealer ? extractDealerUrl(card) : '');
+      const targetUrl = directUrl || productUrl || '';
       const hasUrl = /^https?:\/\//i.test(targetUrl);
       const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
         card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
@@ -4460,7 +4533,7 @@ const SHADOW_MODAL_STYLES = `
           el.href = targetUrl;
         }
         setTextIfChanged(el, `🏬 ${dealer}`);
-        setTitleIfChanged(el, `Günstigster Händler: ${dealer}`);
+        setTitleIfChanged(el, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
       } else if (hasUrl && !dealerCache.has(dKey)) {
         let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
         if (!btn) {
@@ -4479,7 +4552,7 @@ const SHADOW_MODAL_STYLES = `
             btn.disabled = true;
             try {
               const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-              if (info?.dealer) dealerCache.set(dKey, { dealer: info.dealer, url: info.dealerUrl || '' });
+              if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
             } finally {
               dealerPending.delete(dKey);
             }
@@ -4616,6 +4689,7 @@ const SHADOW_MODAL_STYLES = `
    * Manages the floating action button, single-page settings dialog,
    * dual-binding input controls, theme selection, import/export, and cache controls.
    */
+
 
 
 
@@ -5007,6 +5081,7 @@ const SHADOW_MODAL_STYLES = `
 
     cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
+      clearDealerMemory();
       if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
       processListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
@@ -5143,7 +5218,7 @@ const SHADOW_MODAL_STYLES = `
       updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
       updateConfigs(updates);
-      if (shippingChanged) clearPriceStatsCache();
+      if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });
