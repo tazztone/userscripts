@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.111
+// @version      2.18.112
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -475,17 +475,28 @@ const STYLES = `
     color: #fbbf24 !important;
   }
   .tp-card-subline-row {
+    position: absolute !important;
+    bottom: 4px !important;
+    left: 38px !important;
+    right: 6px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
     gap: 4px !important;
     width: auto !important;
-    max-width: 100% !important;
+    max-width: none !important;
     box-sizing: border-box !important;
-    /* Card-level bottom strip: starts right of the absolute share button (26px at left:6px). */
-    margin: 2px 6px 0 38px !important;
+    margin: 0 !important;
     padding: 0 !important;
+  }
+  /* Reserve strip space inside the card so fixed-height site cards grow
+     their padding instead of clipping the overlay. Only fires with strip. */
+  #product-list .Plugin_Product.medium-box:has(> .tp-card-subline-row),
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box:has(> .tp-card-subline-row),
+  .Plugin_Product:has(> .tp-card-subline-row) {
+    position: relative !important;
+    padding-bottom: 30px !important;
   }
   .tp-sparkline-container {
     display: inline-flex !important;
@@ -582,7 +593,7 @@ const STYLES = `
     max-width: 100% !important;
   }
   .tp-card-subline-row {
-    max-width: 100% !important;
+    max-width: none !important;
   }
   .tp-sparkline-container {
     flex-shrink: 0 !important;
@@ -4230,7 +4241,7 @@ const SHADOW_MODAL_STYLES = `
               const info = await fetchProductInfo(url).catch(() => null);
               if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
             }
-            const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
+            const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
             const content = formatDealMessage({
               title, url, priceText,
               dealer, offerCount: offers,
@@ -5640,6 +5651,16 @@ const SHADOW_MODAL_STYLES = `
     const min = Math.min(...prices);
     const range = Math.max(...prices) - min || 1;
     return prices.map(p => SPARK_CHARS[Math.min(7, Math.floor(((p - min) / range) * 8))]).join('');
+  }
+  // Historie endet am letzten Sample, nicht am Live-Kartenpreis (kann seitdem
+  // gefallen sein). Für den PNG-Chart den Livepreis anhängen, damit Linie und
+  // Endpunkt-Markierung am aktuellen Preis enden. Reine Funktion, nie mutierend.
+  function withLivePrice(timeSeries, price) {
+    if (!Array.isArray(timeSeries) || timeSeries.length === 0) return timeSeries;
+    if (!(price > 0)) return timeSeries;
+    const last = timeSeries[timeSeries.length - 1];
+    if (Array.isArray(last) && +last[1] === price) return timeSeries;
+    return [...timeSeries, [Date.now(), price]];
   }
   // Preischart als PNG für Discord: vorhandenes SVG groß rendern, rastern, als
   // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).

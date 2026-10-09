@@ -5,6 +5,7 @@ import {
   formatDealMessage,
   resolveShareFields,
   sparklineText,
+  withLivePrice,
   extractShareData,
   extractDealer,
   parseJsonLdOffer,
@@ -49,6 +50,25 @@ describe('sparklineText', () => {
     assert.equal(sparklineText([[1, 100]]), '');
     assert.equal(sparklineText(null), '');
     assert.equal(sparklineText('x'), '');
+  });
+});
+describe('withLivePrice', () => {
+  it('appends the live card price as the final point', () => {
+    const ts = [[1700000000, 25.90], [1700100000, 40.00]];
+    const out = withLivePrice(ts, 18.59);
+    assert.equal(out.length, 3);
+    assert.equal(out[2][1], 18.59);
+    assert.equal(ts.length, 2); // never mutates
+  });
+
+  it('passes through invalid, empty, or unchanged series', () => {
+    assert.equal(withLivePrice(null, 18.59), null);
+    assert.deepEqual(withLivePrice([], 18.59), []);
+    const ts0 = [[1, 10]];
+    assert.equal(withLivePrice(ts0, 0), ts0);
+    assert.equal(withLivePrice(ts0, -5), ts0);
+    const ts = [[1700000000, 18.59]];
+    assert.equal(withLivePrice(ts, 18.59), ts); // already current, no duplicate
   });
 });
 

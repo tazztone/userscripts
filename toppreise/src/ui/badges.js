@@ -13,7 +13,7 @@ import {
   extractCardDiscount,
   getCardProductId
   } from '../page/cards.js';
-import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, sparklineText, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
+import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
 import {
@@ -767,7 +767,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             const info = await fetchProductInfo(url).catch(() => null);
             if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
           }
-          const png = await renderSparklinePng(stats?.timeSeries).catch(() => null);
+          const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
           const content = formatDealMessage({
             title, url, priceText,
             dealer, offerCount: offers,

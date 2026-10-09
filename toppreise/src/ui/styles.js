@@ -450,17 +450,28 @@ export const STYLES = `
     color: #fbbf24 !important;
   }
   .tp-card-subline-row {
+    position: absolute !important;
+    bottom: 4px !important;
+    left: 38px !important;
+    right: 6px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
     gap: 4px !important;
     width: auto !important;
-    max-width: 100% !important;
+    max-width: none !important;
     box-sizing: border-box !important;
-    /* Card-level bottom strip: starts right of the absolute share button (26px at left:6px). */
-    margin: 2px 6px 0 38px !important;
+    margin: 0 !important;
     padding: 0 !important;
+  }
+  /* Reserve strip space inside the card so fixed-height site cards grow
+     their padding instead of clipping the overlay. Only fires with strip. */
+  #product-list .Plugin_Product.medium-box:has(> .tp-card-subline-row),
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box:has(> .tp-card-subline-row),
+  .Plugin_Product:has(> .tp-card-subline-row) {
+    position: relative !important;
+    padding-bottom: 30px !important;
   }
   .tp-sparkline-container {
     display: inline-flex !important;
@@ -557,7 +568,7 @@ export const STYLES = `
     max-width: 100% !important;
   }
   .tp-card-subline-row {
-    max-width: 100% !important;
+    max-width: none !important;
   }
   .tp-sparkline-container {
     flex-shrink: 0 !important;

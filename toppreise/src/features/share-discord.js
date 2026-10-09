@@ -25,6 +25,16 @@ export function sparklineText(timeSeries, width = 20) {
   const range = Math.max(...prices) - min || 1;
   return prices.map(p => SPARK_CHARS[Math.min(7, Math.floor(((p - min) / range) * 8))]).join('');
 }
+// Historie endet am letzten Sample, nicht am Live-Kartenpreis (kann seitdem
+// gefallen sein). Für den PNG-Chart den Livepreis anhängen, damit Linie und
+// Endpunkt-Markierung am aktuellen Preis enden. Reine Funktion, nie mutierend.
+export function withLivePrice(timeSeries, price) {
+  if (!Array.isArray(timeSeries) || timeSeries.length === 0) return timeSeries;
+  if (!(price > 0)) return timeSeries;
+  const last = timeSeries[timeSeries.length - 1];
+  if (Array.isArray(last) && +last[1] === price) return timeSeries;
+  return [...timeSeries, [Date.now(), price]];
+}
 // Preischart als PNG für Discord: vorhandenes SVG groß rendern, rastern, als
 // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
 export function renderSparklinePng(timeSeries, width = 360, height = 100) {
