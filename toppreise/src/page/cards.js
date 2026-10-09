@@ -181,6 +181,20 @@ export function getHeatmapStyles(diffPercent, intensity = 1.0) {
   const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
   return { bg, border, glow };
 }
+// Feathered-edge variant for Vortief heat (mode only): NO background fill —
+// the card keeps the site background. Same ramp hue, but the signal lives in
+// a heavily blurred outer glow + tinted border, so a fallback low can never
+// pass as a blended deal at a glance.
+export function getEdgeHeatStyle(dropPct, intensity = 1.0) {
+  const t = heatT(-Math.abs(dropPct));
+  if (t === null) return null;
+  const { acc, borderRgb, borderAlpha } = heatRamp(t);
+  const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+  return {
+    border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
+    glow: `0 0 34px 12px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
+  };
+}
 
 // Badge reuses the card logic: solid swatch from the same ramp so the badge
 // color always matches the card heat. The provisional flag still yields paler
@@ -245,7 +259,12 @@ export function extractCardData(card) {
 export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
   const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-  const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore;
+  // "Bad deal" in the mode is a VERIFIED markup only. A verified low without
+  // blend (at-low/new-low, thin history) stays visible with Vortief edge
+  // heat. Unknown kind (no displayDelta on this path, e.g. scanner targets)
+  // keeps the old strictness so the scanner can't waste passes on junk.
+  const kind = cd.displayDelta?.kind;
+  const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore && kind !== 'at-low' && kind !== 'new-low';
   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
   const isDealerLoser = false;
   const isFiltered = isNeg || isLowOffers || isDealerLoser || isBadDeal || isUnchecked;

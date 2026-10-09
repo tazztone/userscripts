@@ -11,7 +11,7 @@ import {
   extractCardDiscount,
   extractOfferCount
 } from './cards.js';
-import { computeDealScore, getLevelPct } from '../domain/deal-score.js';
+import { computeDealScore, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
 
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
   if (!cards || cards.length <= 1) return;
@@ -66,6 +66,10 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
           // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
           // and the card burns with it, so the feed ranks by it too.
           weightedDiff = dealData.weightedDiff;
+        } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
+          // Verified low without blend: rank by Vortief-Abstand — the same
+          // number the ribbon prints and the edge heat burns with.
+          weightedDiff = vortiefDropPct(cd.cardPrice, cd.stats);
         } else if (!cd.stats) {
           weightedDiff = 0;
         }

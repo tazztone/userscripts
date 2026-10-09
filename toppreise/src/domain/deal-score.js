@@ -119,6 +119,21 @@ export function isSignificantRecord(display) {
 }
 
 /**
+ * Vortief-Abstand: rounded % drop vs the previous low, for verified
+ * at-low/new-low cards WITHOUT a blend (thin history, no median). Single
+ * source for the fallback ribbon, the mode edge-heat and the mode sort key —
+ * all three consume this number so they can never disagree. 0 when there is
+ * no previous low to measure against.
+ */
+export function vortiefDropPct(cardPrice, stats) {
+  const display = getDisplayDelta(cardPrice, stats);
+  if (display.kind === 'new-low') return display.dRecord || 0;
+  if (display.kind === 'at-low' && display.prevLow > cardPrice) {
+    return Math.round(((display.prevLow - cardPrice) / display.prevLow) * 100);
+  }
+  return 0;
+}
+/**
  * Ø discount vs median, positive = below median (deal), 0 = at/above median
  * or no median. The exact formula the badge headline uses — shared by the
  * heat driver so both always consume the same number (ADR-0002).
@@ -157,7 +172,8 @@ export function medianHorizonLabel(stats) {
  *                      deadband (number still prints, card stays gray)
  * - verified markup -> null (no deal, no color — the +XX% badge text
  *                      carries the markup signal)
- * - verified but unqualified (thin/flat history, no dealData) -> null
+ * - verified but unqualified (thin/flat history, no dealData) -> null in
+ *   browse (gray; ribbon number only), Vortief-Abstand edge-heat in the mode
  * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
  * - unverified markup / unknown -> null (neutral)
  * Callers pass the mode positionally so the heat reuses the exact mode of the
@@ -178,8 +194,17 @@ export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = und
     const recordRaw = (display && typeof display.dRecordRaw === 'number')
       ? display.dRecordRaw : (display.dRecord || 0);
     const dealData = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
-    // Unqualified history: no blend to show — heat stays neutral to match.
-    if (!dealData) return { value: null, provisional: false, pct: 0, kind: 'none' };
+    // Unqualified history: no blend to show. In the mode the Vortief-Abstand
+    // still heats — edge-feathered by the renderer (kind 'vortief'), so the
+    // fallback never passes as a blend. Browse stays gray; the ribbon number
+    // is the whole signal there.
+    if (!dealData) {
+      if (mode === 'bestpreise') {
+        const vortief = vortiefDropPct(cardPrice, stats);
+        if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
+      }
+      return { value: null, provisional: false, pct: 0, kind: 'none' };
+    }
     const pct = dealData.weightedDiff;
     // ±5% deadband (documented noise guard): a tiny blend shows in the
     // badge text but stays gray on the card — decided on the raw blend.

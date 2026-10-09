@@ -9,14 +9,14 @@ import { CONFIG, updateConfig } from '../state/config.js';
 import {
   getBadgeHeatStyle,
   getHeatmapStyles,
+  getEdgeHeatStyle,
   getCardDealerRows,
   extractCardDiscount,
-  getCardProductId,
-  dealerLoserFor
-  } from '../page/cards.js';
+  getCardProductId
+} from '../page/cards.js';
 import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
-import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../domain/deal-score.js';
+import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
   cancelBestpreiseScan
@@ -120,31 +120,40 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
   // site Differenzen stay neutral — the tp-is-unverified class below paints
   // them gray-striped instead, so the state scans without comparing saturation.
+  // Vortief heat (mode, verified low without blend): same ramp hue, but the
+  // signal lives in a feathered edge glow — never a full wash — so the
+  // fallback can't pass as a blended deal at a glance.
+  const isVortiefHeat = heatInfo.kind === 'vortief';
   if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-    const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
+    const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
+      card.classList.toggle('tp-heat-vortief', isVortiefHeat);
+      const edge = isVortiefHeat ? getEdgeHeatStyle(heatInfo.pct, heatIntensity) : null;
       const heatStyles = getHeatmapStyles(effectiveDiff, heatIntensity);
-      card.style.setProperty('--tp-heat-bg', heatStyles.bg);
+      if (edge) { heatStyles.border = edge.border; heatStyles.glow = edge.glow; }
+      if (!edge) card.style.setProperty('--tp-heat-bg', heatStyles.bg);
       card.style.setProperty('--tp-heat-border', heatStyles.border);
       card.style.setProperty('--tp-heat-glow', heatStyles.glow);
 
       // DarkReader Dynamic Theme compatibility:
-      card.style.setProperty('--darkreader-inline-bgimage', heatStyles.bg);
+      if (!edge) card.style.setProperty('--darkreader-inline-bgimage', heatStyles.bg);
       card.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
       card.style.setProperty('--darkreader-inline-border', heatStyles.border);
       card.style.setProperty('--darkreader-inline-border-top', heatStyles.border);
       card.style.setProperty('--darkreader-inline-border-right', heatStyles.border);
       card.style.setProperty('--darkreader-inline-border-bottom', heatStyles.border);
       card.style.setProperty('--darkreader-inline-border-left', heatStyles.border);
-      card.style.setProperty('background', heatStyles.bg, 'important');
-      card.style.setProperty('background-image', heatStyles.bg, 'important');
+      if (!edge) card.style.setProperty('background', heatStyles.bg, 'important');
+      if (!edge) card.style.setProperty('background-image', heatStyles.bg, 'important');
       card.style.setProperty('border-color', heatStyles.border, 'important');
+      if (edge) card.style.setProperty('box-shadow', edge.glow, 'important');
 
       if (card.hasAttribute('data-darkreader-inline-bgcolor')) card.removeAttribute('data-darkreader-inline-bgcolor');
       if (card.hasAttribute('data-darkreader-inline-bgimage')) card.removeAttribute('data-darkreader-inline-bgimage');
 
-      const subElements = card.querySelectorAll(HEAT_SUB_SELECTOR);
+      // Edge heat keeps the site background: bleaching sub-elements would erase it.
+      const subElements = !edge ? card.querySelectorAll(HEAT_SUB_SELECTOR) : [];
       for (let s = 0; s < subElements.length; s++) {
         const sub = subElements[s];
         if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
@@ -160,7 +169,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         sub.style.setProperty('--darkreader-inline-bgimage', 'none');
       }
 
-      card.classList.add('tp-heatmap-active');
+      if (!edge) card.classList.add('tp-heatmap-active');
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
     // render (not only on heatKey change) so re-rendered badge nodes can't
@@ -175,7 +184,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
       heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
     }
-  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active')) {
+  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active') || card.classList.contains('tp-heat-vortief')) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
     if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
@@ -183,7 +192,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
     }
     delete card.dataset.tpAppliedHeat;
-    card.classList.remove('tp-heatmap-active');
+    if (card.classList.contains('tp-heat-vortief')) card.style.removeProperty('box-shadow');
+    card.classList.remove('tp-heatmap-active', 'tp-heat-vortief');
     card.style.removeProperty('--tp-heat-bg');
     card.style.removeProperty('--tp-heat-border');
     card.style.removeProperty('--tp-heat-glow');
@@ -394,19 +404,20 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           histPriceEl.remove();
         }
       } else if (stats) {
-        // Verified NON-Deal (stats but no qualifying score — e.g. minimal
-        // fallback stats without median, or above-low). Strictness lives in
-        // the mode now. The badge is ALWAYS repainted from the current stats
-        // — never preserved — so a stats regression can't strand a stale
-        // verified-% badge on a card whose heat is gone.
-        if (CONFIG.BESTPREISE_MODE_ACTIVE === true) {
+        // Verified but no qualifying blend — e.g. minimal fallback stats
+        // without median, or above-low. Only a verified MARKUP hides in the
+        // mode; a verified low without blend stays visible with Vortief edge
+        // heat (never a full wash). The badge is ALWAYS repainted from the
+        // current stats — never preserved — so a stats regression can't
+        // strand a stale verified-% badge on a card whose heat is gone.
+        const ddNow = getDisplayDelta(cardPrice, stats);
+        if (CONFIG.BESTPREISE_MODE_ACTIVE === true && ddNow.kind !== 'at-low' && ddNow.kind !== 'new-low') {
           card.classList.add('tp-baddeal-hidden');
         } else {
           card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
         }
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
         card.querySelector('.tp-card-historical-price')?.remove();
-        const ddNow = getDisplayDelta(cardPrice, stats);
         if (ddNow.kind === 'above-low') {
           badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
           // Tooltip: status + hint only — markup sits on the badge, historic low on the pill.
@@ -419,14 +430,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           }
         } else if (ddNow.kind === 'at-low' || ddNow.kind === 'new-low') {
           // At-low without blend (no median / unqualified history): ribbon
-          // prints the Vortief-Abstand when known, else the preserved
-          // site-% — never a glyph. Gray stays: no blend, no heat.
+          // prints the shared Vortief-Abstand when measurable, else the
+          // preserved site-% — never a glyph. Browse stays gray; the mode
+          // adds the feathered edge heat for the same number.
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup');
           const prevLowNow = recordRefForPrice(stats, cardPrice).previousLow;
-          const dropVsPrev = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice)
-            ? Math.round(((prevLowNow - cardPrice) / prevLowNow) * 100) : 0;
-          if (dropVsPrev > 0) {
+          const dropVsPrev = vortiefDropPct(cardPrice, stats);
+          const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice);
+          if (dropVsPrev > 0 && hasPrevLowBase) {
             setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)})\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);

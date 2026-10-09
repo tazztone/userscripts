@@ -33,6 +33,15 @@ export const STYLES = `
     --darkreader-inline-border-bottom: var(--tp-heat-border) !important;
     --darkreader-inline-border-left: var(--tp-heat-border) !important;
   }
+  /* Vortief edge heat (mode, verified low without blend): no fill — the card
+  keeps the site background. Same ramp hue as blended heat, but the signal is
+  a heavily feathered outer glow + tinted border, so the fallback never reads
+  as a blended deal. Border color + glow arrive inline; this sets the edge. */
+  .tp-heat-vortief {
+    border-width: 2px !important;
+    border-style: solid !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  }
   .tp-heatmap-active:hover,
   .Plugin_Product.tp-heatmap-active:hover,
   .mixedBrowsingListProduct.tp-heatmap-active:hover {

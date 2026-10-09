@@ -343,10 +343,17 @@ describe('Gewichtete Differenz Domain Module', () => {
       }
     });
 
-    it('stays neutral when Tiefstpreise mode cannot qualify the history', () => {
-      // Thin history: no blend to print — heat matches.
+    it('heats the Vortief-Abstand (edge, not blend) when the mode cannot qualify the history', () => {
+      // Thin history: no blend to print — the mode falls back to the
+      // previous-low drop (kind 'vortief': feathered edge, never a wash).
       const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
       const heat = getHeatInput(23.56, thinStats, -51, 'bestpreise');
+      assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'vortief' });
+    });
+
+    it('stays neutral in browse when the history cannot qualify (gray; ribbon only)', () => {
+      const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
+      const heat = getHeatInput(23.56, thinStats, -51, 'browse');
       assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
     });
 

@@ -1518,6 +1518,45 @@ def test_merged_blend_subline_rendering(page: Page):
     assert subline.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
+def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
+    """
+    A verified Tiefstpreis WITHOUT a blend (thin history, no median) is a mode
+    deal, not a bad deal: the card stays visible with feathered edge heat
+    (.tp-heat-vortief, no full wash) and the Vortief-Abstand on the ribbon.
+    """
+    page.set_viewport_size({'width': 1600, 'height': 900})
+    page.evaluate("""() => {
+        localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
+            tiefstpreis: 1800,
+            previousLow: 2000,
+            dataPointCount: 3,
+            time: Date.now()
+        }));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    card = page.locator('#card-cheapest')
+    assert card.is_visible()
+    assert 'tp-baddeal-hidden' not in (card.get_attribute('class') or '')
+    # Feathered edge, never the full blended wash
+    assert 'tp-heat-vortief' in (card.get_attribute('class') or '')
+    assert 'tp-heatmap-active' not in (card.get_attribute('class') or '')
+    bg = card.evaluate('el => getComputedStyle(el).backgroundImage')
+    assert 'linear-gradient' not in bg
+    # Ribbon prints the shared Vortief-Abstand (-10% vs CHF 2000.00)
+    badge = card.locator('.badge-dif')
+    assert '-10%' in badge.inner_text()
+    assert 'Tiefstpreis' in badge.inner_text()
+    title = badge.get_attribute('title') or ''
+    assert 'Tiefstpreis bestätigt' in title
+    assert '-10% vs. vorheriges Tief (CHF 2000.00)' in title
+
+
+
 
 def test_hover_stability_no_translate_jitter(page: Page):
     """
