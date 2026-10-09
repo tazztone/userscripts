@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.121
+// @version      2.18.122
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -474,8 +474,14 @@ const STYLES = `
     color: #fbbf24 !important;
   }
   .tp-dealer-name {
+    display: inline-block !important;
+    vertical-align: baseline !important;
     font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: #94a3b8 !important;
+    /* Kein Fix-Farbton: erbt die Containerfarbe ("ab CHF") und bleibt so in
+    Light-/Darkmode sowie unter Dark-Reader-Addons lesbar. */
+    color: inherit !important;
+    opacity: 0.8 !important;
+    background: transparent !important;
     text-decoration: none !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -485,7 +491,7 @@ const STYLES = `
     margin-right: auto !important;
   }
   a.tp-dealer-name:hover {
-    color: #e2e8f0 !important;
+    opacity: 1 !important;
     text-decoration: underline !important;
   }
   button.tp-dealer-name.tp-dealer-btn {
@@ -4391,7 +4397,9 @@ const SHADOW_MODAL_STYLES = `
         card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
       const place = el => {
         el.dataset.tpDealerPid = dKey;
-        if (cardPriceEl && anchor === cardPriceEl.parentElement) anchor.insertBefore(el, cardPriceEl);
+        // Prepend: links vom "ab CHF"-Prefix. insertBefore(cardPriceEl) landete
+        // dahinter (cardPriceEl ist nur die Zahl) und spaltete Prefix von Zahl.
+        if (anchor !== card) anchor.insertBefore(el, anchor.firstChild);
         else anchor.appendChild(el);
       };
       if (dealer) {
@@ -4401,7 +4409,7 @@ const SHADOW_MODAL_STYLES = `
           dealerEl?.remove();
           el = document.createElement(hasUrl ? 'a' : 'span');
           el.className = 'tp-dealer-name';
-          if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; }
+          if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; el.addEventListener('click', e => e.stopPropagation()); }
           place(el);
         }
         setTextIfChanged(el, `🏬 ${dealer}`);

@@ -2180,5 +2180,7 @@ def test_dealer_name_direct_from_dom_dealer_row(page: Page):
     assert name.is_visible()
     assert 'Digitec' in (name.text_content() or '')
     assert '/preisvergleich/' in (name.get_attribute('href') or '')
+    # Left of the whole price row: first element inside its container
+    assert name.evaluate("el => el.parentElement.firstElementChild === el")
     assert page.locator('#card-cheapest .tp-dealer-btn').count() == 0
     assert len(product_hits) == 0

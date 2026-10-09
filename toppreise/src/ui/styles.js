@@ -449,8 +449,14 @@ export const STYLES = `
     color: #fbbf24 !important;
   }
   .tp-dealer-name {
+    display: inline-block !important;
+    vertical-align: baseline !important;
     font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: #94a3b8 !important;
+    /* Kein Fix-Farbton: erbt die Containerfarbe ("ab CHF") und bleibt so in
+    Light-/Darkmode sowie unter Dark-Reader-Addons lesbar. */
+    color: inherit !important;
+    opacity: 0.8 !important;
+    background: transparent !important;
     text-decoration: none !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -460,7 +466,7 @@ export const STYLES = `
     margin-right: auto !important;
   }
   a.tp-dealer-name:hover {
-    color: #e2e8f0 !important;
+    opacity: 1 !important;
     text-decoration: underline !important;
   }
   button.tp-dealer-name.tp-dealer-btn {

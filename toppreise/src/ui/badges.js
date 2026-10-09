@@ -821,7 +821,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
     const place = el => {
       el.dataset.tpDealerPid = dKey;
-      if (cardPriceEl && anchor === cardPriceEl.parentElement) anchor.insertBefore(el, cardPriceEl);
+      // Prepend: links vom "ab CHF"-Prefix. insertBefore(cardPriceEl) landete
+      // dahinter (cardPriceEl ist nur die Zahl) und spaltete Prefix von Zahl.
+      if (anchor !== card) anchor.insertBefore(el, anchor.firstChild);
       else anchor.appendChild(el);
     };
     if (dealer) {
@@ -831,7 +833,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         dealerEl?.remove();
         el = document.createElement(hasUrl ? 'a' : 'span');
         el.className = 'tp-dealer-name';
-        if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; }
+        if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; el.addEventListener('click', e => e.stopPropagation()); }
         place(el);
       }
       setTextIfChanged(el, `🏬 ${dealer}`);

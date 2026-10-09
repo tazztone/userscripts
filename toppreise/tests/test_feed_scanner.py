@@ -1412,6 +1412,8 @@ def test_dealer_name_on_demand_button_on_feed_card(page: Page):
     name = page.locator('#card-cheapest a.tp-dealer-name')
     assert 'Galaxus' in (name.text_content() or '')
     assert '/preisvergleich/' in (name.get_attribute('href') or '')
+    # Left of the whole price row: first element inside its container
+    assert name.evaluate("el => el.parentElement.firstElementChild === el")
 
     # A second render pass must not refetch (memory cache per pid:mode)
     page.evaluate("() => window.ToppreiseSuite.processListings()")
