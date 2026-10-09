@@ -1461,6 +1461,7 @@ def test_merged_blend_subline_rendering(page: Page):
     (⚖️ + blend of Rekord vs Ø at the slider mix, NOT a Rek/Ø headline) with a
     CHF-anchored split in the subline (per-leg % so CHF never truncates away).
     """
+    page.set_viewport_size({'width': 1600, 'height': 900})  # desktop card: strip must fit full 2-leg text
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
@@ -1496,7 +1497,16 @@ def test_merged_blend_subline_rendering(page: Page):
     text = subline.inner_text()
     assert '📉 CHF 2000.00 (-10%)' in text
     assert 'Ø (Lifetime) CHF 2400.00 (-25%)' in text
-    # Expanded subline: full text fits, nothing ellipsized away
+    # Card-level bottom strip: one line, starting right of the share zone
+    row = card.locator('.tp-card-subline-row')
+    assert row.count() == 1
+    assert row.evaluate('el => el.parentElement === el.closest(".Plugin_Product")')
+    assert subline.evaluate('el => el.getBoundingClientRect().height <= 22')
+    # Mock feed column is only ~270px (narrow fallback: ellipsis, no wrap)
+    assert subline.evaluate('el => getComputedStyle(el).textOverflow === "ellipsis"')
+    # Normal-width desktop card (user screenshot ~560px): full text fits
+    card.evaluate('el => { el.style.flex = "0 0 auto"; el.style.maxWidth = "none"; el.style.width = "600px"; }')
+    page.wait_for_timeout(100)
     assert subline.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 

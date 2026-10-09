@@ -673,9 +673,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     card.querySelectorAll('button.tp-loupe').forEach(b => b.remove());
   }
 
-  // 5. Mini Price-Trend Sparkline
-  if (CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2) {
-    let sparkContainer = card.querySelector('.tp-sparkline-container');
+  // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
+  // pill spans from the share-button zone to the card's right edge, using
+  // full card width instead of the narrow price-info column).
+  const hasSeries = CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2;
+  let sparkContainer = hasSeries ? card.querySelector('.tp-sparkline-container') : null;
+  if (hasSeries) {
     if (!sparkContainer) {
       sparkContainer = document.createElement('div');
       sparkContainer.className = 'tp-sparkline-container';
@@ -687,19 +690,26 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         sparkContainer.appendChild(svg);
       }
     }
-    const histPriceEl = card.querySelector('.tp-card-historical-price');
-    if (histPriceEl) {
-      let subRow = card.querySelector('.tp-card-subline-row');
-      if (!subRow) {
-        subRow = document.createElement('div');
-        subRow.className = 'tp-card-subline-row';
-        histPriceEl.parentElement?.insertBefore(subRow, histPriceEl);
-        subRow.appendChild(histPriceEl);
-      }
-      if (sparkContainer.parentElement !== subRow) {
-        subRow.appendChild(sparkContainer);
-      }
-    } else {
+  } else {
+    card.querySelector('.tp-sparkline-container')?.remove();
+  }
+  const histPriceEl = card.querySelector('.tp-card-historical-price');
+  if (histPriceEl) {
+    let subRow = card.querySelector('.tp-card-subline-row');
+    if (!subRow) {
+      subRow = document.createElement('div');
+      subRow.className = 'tp-card-subline-row';
+      card.appendChild(subRow);
+      subRow.appendChild(histPriceEl);
+    } else if (histPriceEl.parentElement !== subRow) {
+      subRow.insertBefore(histPriceEl, subRow.firstChild);
+    }
+    if (sparkContainer && sparkContainer.parentElement !== subRow) {
+      subRow.appendChild(sparkContainer);
+    }
+  } else {
+    card.querySelector('.tp-card-subline-row')?.remove();
+    if (sparkContainer) {
       const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
                              cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
                              cardPriceEl?.parentElement ||
@@ -707,16 +717,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       if (sparkContainer.parentElement !== priceContainer) {
         priceContainer.appendChild(sparkContainer);
       }
-    }
-  } else {
-    card.querySelector('.tp-sparkline-container')?.remove();
-    const subRow = card.querySelector('.tp-card-subline-row');
-    if (subRow) {
-      const hist = subRow.querySelector('.tp-card-historical-price');
-      if (hist) {
-        subRow.parentElement?.insertBefore(hist, subRow);
-      }
-      subRow.remove();
     }
   }
   // 6. Badge geprüft/ungeprüft cue (always on): striped-gray ribbon when

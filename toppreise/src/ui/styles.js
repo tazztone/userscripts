@@ -450,13 +450,17 @@ export const STYLES = `
     color: #fbbf24 !important;
   }
   .tp-card-subline-row {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
     gap: 4px !important;
-    margin-top: 1px !important;
-    width: 100% !important;
+    width: auto !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    /* Card-level bottom strip: starts right of the absolute share button (26px at left:6px). */
+    margin: 2px 6px 0 38px !important;
+    padding: 0 !important;
   }
   .tp-sparkline-container {
     display: inline-flex !important;
