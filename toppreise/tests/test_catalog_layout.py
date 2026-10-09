@@ -2184,3 +2184,30 @@ def test_dealer_name_direct_from_dom_dealer_row(page: Page):
     assert name.evaluate("el => el.parentElement.firstElementChild === el")
     assert page.locator('#card-cheapest .tp-dealer-btn').count() == 0
     assert len(product_hits) == 0
+
+
+def test_heat_fill_light_text_and_spark_clip(page: Page):
+    """Dark heat fill carries light suite microcopy; the sparkline never bleeds
+    over truncated subline text (overflow:visible regression)."""
+    page.evaluate("""() => {
+        const full = {
+            tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600,
+            previousLow: 2000, isNewAllTimeLow: true, realDiscountVsPrevLow: 10,
+            dataPointCount: 10, time: Date.now()
+        };
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
+    subline = page.locator('#card-cheapest .tp-card-historical-price')
+    assert subline.count() == 1
+    assert subline.evaluate("el => window.getComputedStyle(el).color") == 'rgb(241, 245, 249)'
+    clip = page.locator('#card-cheapest .tp-card-subline-row').evaluate("""row => {
+        const svg = row.querySelector('.tp-sparkline');
+        if (!svg) return 'no-spark';
+        const r = row.getBoundingClientRect(), s = svg.getBoundingClientRect();
+        return s.right <= r.right + 1 ? 'clipped' : `bleed:${s.right - r.right}`;
+    }""")
+    assert clip in ('clipped', 'no-spark'), clip

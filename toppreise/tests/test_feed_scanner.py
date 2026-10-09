@@ -1450,3 +1450,26 @@ def test_dealer_button_retry_on_product_page_error(page: Page):
     )
     assert page.locator('#card-cheapest .tp-dealer-btn').is_visible()
     assert page.locator('#card-cheapest a.tp-dealer-name').count() == 0
+
+
+def test_reveal_all_button_shows_active_state(page: Page):
+    """Ein-/Ausblenden-Toggle braucht sichtbaren Zustand (tp-active), nicht nur Dimmen."""
+    btn = page.locator('#tp-bar-reveal-all')
+    page.click('#tp-bar-reveal-all')
+    page.wait_for_timeout(200)
+    assert 'tp-active' in (btn.get_attribute('class') or '')
+    page.click('#tp-bar-reveal-all')
+    page.wait_for_timeout(200)
+    assert 'tp-active' not in (btn.get_attribute('class') or '')
+
+
+def test_bestpreise_button_readable_on_light_background(page: Page):
+    """Aktiver Tiefstpreise-Button ist opak mit weißer Schrift — lesbar auch in
+    der weißen #timeframe-filter-Zeile, nicht nur in der dunklen Bar."""
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
+    page.wait_for_timeout(200)
+    btn = page.locator('#tp-bar-bestpreise-btn')
+    assert 'tp-bestpreise-active' in (btn.get_attribute('class') or '')
+    assert btn.evaluate("el => window.getComputedStyle(el).color") == 'rgb(255, 255, 255)'
+    assert 'gradient' in btn.evaluate("el => window.getComputedStyle(el).backgroundImage")
+

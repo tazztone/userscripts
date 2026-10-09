@@ -292,6 +292,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const revealAllBtn = bar.querySelector('#tp-bar-reveal-all');
   if (revealAllBtn) {
     setTextIfChanged(revealAllBtn, `👁️ Ausgeblendete (${hiddenTotal})`);
+    revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
     revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
     revealAllBtn.title = `Ausgeblendete (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
   }

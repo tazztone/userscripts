@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.122
+// @version      2.18.123
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -130,6 +130,22 @@ const STYLES = `
     background-color: transparent !important;
     --darkreader-inline-bgcolor: transparent !important;
     --darkreader-inline-bgimage: none !important;
+  }
+  /* Heat fill is dark by construction (near-opaque base stops): light text
+  carries suite microcopy + titles on filled cards. Edge/vortief keeps the site
+  background and never gets .tp-heatmap-active, so it stays untouched. */
+  .tp-heatmap-active .tp-dealer-name,
+  .tp-heatmap-active .tp-card-historical-price,
+  .tp-heatmap-active .tp-card-historical-price.tp-is-record-low,
+  .tp-heatmap-active .tp-card-historical-price.tp-is-at-low,
+  .tp-heatmap-active .tp-card-historical-price.tp-is-markup,
+  .tp-heatmap-active .product-name,
+  .tp-heatmap-active .productDetails {
+    color: #f1f5f9 !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
+  }
+  .tp-heatmap-active .tp-dealer-name {
+    opacity: 1 !important;
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest,
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-top],
@@ -445,7 +461,7 @@ const STYLES = `
   }
   .tp-card-historical-price {
     font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: #94a3b8 !important;
+    color: #64748b !important;
     text-align: right !important;
     margin: 0 !important;
     white-space: nowrap !important;
@@ -538,6 +554,7 @@ const STYLES = `
     vertical-align: middle !important;
     margin: 0 !important;
     line-height: 1 !important;
+    overflow: hidden !important;
   }
   .tp-sparkline {
     opacity: 0.85;
@@ -638,10 +655,15 @@ const STYLES = `
     color: #fbbf24 !important;
   }
   .tp-bar-btn.tp-bestpreise-active {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(245, 158, 11, 0.25)) !important;
-    border-color: rgba(139, 92, 246, 0.6) !important;
-    color: #e9d5ff !important;
+    /* Opak statt transluzent: der Button hängt auf Feeds in der weißen
+    #timeframe-filter-Zeile (toolbar.js ensureDealControlsPlacement), nicht nur in der dunklen Bar. */
+    background: linear-gradient(135deg, #8b5cf6, #f59e0b) !important;
+    border-color: #8b5cf6 !important;
+    color: #fff !important;
     box-shadow: 0 0 10px rgba(139, 92, 246, 0.3) !important;
+  }
+  #tp-bar-bestpreise-count {
+    opacity: 1 !important;
   }
   #tp-suite-filter-bar.tp-bestpreise-bar {
     border-color: rgba(139, 92, 246, 0.45) !important;
@@ -5419,6 +5441,7 @@ const SHADOW_MODAL_STYLES = `
     const revealAllBtn = bar.querySelector('#tp-bar-reveal-all');
     if (revealAllBtn) {
       setTextIfChanged(revealAllBtn, `👁️ Ausgeblendete (${hiddenTotal})`);
+      revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
       revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
       revealAllBtn.title = `Ausgeblendete (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
     }
