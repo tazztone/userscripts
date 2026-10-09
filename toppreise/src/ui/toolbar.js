@@ -135,20 +135,17 @@ function buildWeightWrapper() {
 }
 
 
-export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0 }, pageHasOffers = false, isDealFeed = false) {
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
   let bar = document.getElementById('tp-suite-filter-bar');
   const bestpreiseDeals = counts.bestpreiseDeals || 0;
-  const revealNeg = document.body.classList.contains('tp-reveal-neg');
-  const revealMin = document.body.classList.contains('tp-reveal-min');
-  const revealBad = document.body.classList.contains('tp-reveal-baddeals');
-  const revealUnchecked = document.body.classList.contains('tp-reveal-unchecked');
   const negHidden = counts.neg || 0;
   const minHidden = counts.min || 0;
   const badHidden = counts.badDeals || 0;
   const uncheckedHiddenCount = counts.uncheckedHidden || 0;
+  const dealerHidden = counts.dealer || 0;
 
   if (!bar) {
     bar = document.createElement('div');
@@ -170,16 +167,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
           </label>
         </div>
-        <div class="tp-reveal-menu-wrapper">
-          <button class="tp-bar-btn" id="tp-bar-reveal-menu" title="Ausgeblendete Produkte anzeigen — klicken zum Öffnen">👁️ Ausgeblendete (0)</button>
-          <div id="tp-bar-reveal-popover" role="menu" aria-label="Ausgeblendete Produkte">
-            <button class="tp-bar-btn ${revealNeg ? 'tp-active' : ''}" id="tp-bar-reveal-neg" title="Durch Negativ-Filter ausgeblendete Produkte (${negHidden}) anzeigen — klicken zum Ein-/Ausblenden">Gefilterte (${negHidden})</button>
-            <button class="tp-bar-btn ${revealMin ? 'tp-active' : ''}" id="tp-bar-reveal-min" title="Produkte mit zu wenigen Angeboten (${minHidden}) anzeigen — klicken zum Ein-/Ausblenden">Wenig Angebote (${minHidden})</button>
-            <button class="tp-bar-btn ${revealBad ? 'tp-active' : ''}" id="tp-bar-reveal-baddeals" title="Verifizierte Nicht-Deals mit Aufschlag (${badHidden}) anzeigen — klicken zum Ein-/Ausblenden">Schlechte Deals (${badHidden})</button>
-            <button class="tp-bar-btn ${revealUnchecked ? 'tp-active' : ''}" id="tp-bar-reveal-unchecked" title="Noch ungeprüfte Deals (${uncheckedHiddenCount}) anzeigen — klicken zum Ein-/Ausblenden">Ungeprüfte (${uncheckedHiddenCount})</button>
-            <div class="tp-reveal-hint" id="tp-bar-reveal-hint">Keine ausgeblendeten Produkte</div>
-          </div>
-        </div>
+        <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Ausgeblendete anzeigen — klicken zum Ein-/Ausblenden">👁️ Ausgeblendete (0)</button>
         <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten ausblenden">
           <span class="tp-stepper-label">Min-Angebote:</span>
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -242,34 +230,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       updateConfig('NEGATIVE_TERMS', '');
     };
 
-    const bindReveal = (id, flag) => {
-      bar.querySelector('#' + id).onclick = () => {
-        document.body.classList.toggle(flag);
-        triggerProcessListings();
-      };
+    bar.querySelector('#tp-bar-reveal-all').onclick = () => {
+      document.body.classList.toggle('tp-reveal-all');
+      triggerProcessListings();
     };
-    bindReveal('tp-bar-reveal-neg', 'tp-reveal-neg');
-    bindReveal('tp-bar-reveal-min', 'tp-reveal-min');
-    bindReveal('tp-bar-reveal-baddeals', 'tp-reveal-baddeals');
-    bindReveal('tp-bar-reveal-unchecked', 'tp-reveal-unchecked');
-    const revealMenuBtn = bar.querySelector('#tp-bar-reveal-menu');
-    const revealPopover = bar.querySelector('#tp-bar-reveal-popover');
-    if (revealMenuBtn && revealPopover) {
-      revealMenuBtn.onclick = e => {
-        e.stopPropagation();
-        revealPopover.classList.toggle('tp-show');
-      };
-      if (!window._tpRevealMenuDocBound) {
-        window._tpRevealMenuDocBound = true;
-        document.addEventListener('click', e => {
-          if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
-          const b = document.getElementById('tp-suite-filter-bar');
-          if (b && !b.contains(e.target)) {
-            b.querySelector('#tp-bar-reveal-popover')?.classList.remove('tp-show');
-          }
-        });
-      }
-    }
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
       const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -324,27 +288,13 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     if (clearBtn) clearBtn.style.display = CONFIG.NEGATIVE_TERMS ? 'block' : 'none';
   }
 
-  const syncRevealBtn = (id, label, count, flag, titleBase) => {
-    const b = bar.querySelector('#' + id);
-    if (!b) return;
-    b.style.setProperty('display', count > 0 ? 'flex' : 'none', 'important');
-    b.classList.toggle('tp-active', document.body.classList.contains(flag));
-    b.textContent = `${label} (${count})`;
-    b.title = `${titleBase} (${count}) anzeigen — klicken zum Ein-/Ausblenden`;
-  };
-  syncRevealBtn('tp-bar-reveal-neg', '👁 Gefilterte', negHidden, 'tp-reveal-neg', 'Durch Negativ-Filter ausgeblendete Produkte');
-  syncRevealBtn('tp-bar-reveal-min', '👁 Wenig Angebote', minHidden, 'tp-reveal-min', 'Produkte mit zu wenigen Angeboten');
-  syncRevealBtn('tp-bar-reveal-baddeals', '👁 Schlechte Deals', badHidden, 'tp-reveal-baddeals', 'Verifizierte Nicht-Deals mit Aufschlag');
-  syncRevealBtn('tp-bar-reveal-unchecked', '👁 Ungeprüfte', uncheckedHiddenCount, 'tp-reveal-unchecked', 'Noch ungeprüfte Deals');
-  const hiddenTotal = negHidden + minHidden + badHidden + uncheckedHiddenCount;
-  const revealMenuBtnSync = bar.querySelector('#tp-bar-reveal-menu');
-  if (revealMenuBtnSync) {
-    setTextIfChanged(revealMenuBtnSync, `👁️ Ausgeblendete (${hiddenTotal})`);
-    revealMenuBtnSync.classList.toggle('tp-tool-dim', hiddenTotal === 0);
-    revealMenuBtnSync.title = hiddenTotal > 0 ? `Ausgeblendete Produkte (${hiddenTotal}) anzeigen — klicken zum Öffnen` : 'Keine ausgeblendeten Produkte';
+  const hiddenTotal = counts.filteredCount || 0;
+  const revealAllBtn = bar.querySelector('#tp-bar-reveal-all');
+  if (revealAllBtn) {
+    setTextIfChanged(revealAllBtn, `👁️ Ausgeblendete (${hiddenTotal})`);
+    revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
+    revealAllBtn.title = `Ausgeblendete (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
   }
-  const revealHint = bar.querySelector('#tp-bar-reveal-hint');
-  if (revealHint) revealHint.style.setProperty('display', hiddenTotal === 0 ? 'block' : 'none', 'important');
 
   const heatBtn = bar.querySelector('#tp-bar-heat-btn');
   if (heatBtn) {

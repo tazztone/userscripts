@@ -11,7 +11,8 @@ import {
   getHeatmapStyles,
   getCardDealerRows,
   extractCardDiscount,
-  getCardProductId
+  getCardProductId,
+  dealerLoserFor
   } from '../page/cards.js';
 import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
@@ -230,49 +231,33 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   card.classList.toggle('tp-negative-filtered', filters.isNeg);
   card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
 
-  // 3. Toppreis Highlighting (filtered store holds the cheapest offer)
+  // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
+  // Dealer verdict is single-sourced from dealerLoserFor (cards.js) — no
+  // price comparison here. Both loser kinds share one presentation, so all
+  // losers read tp-not-cheapest; tp-no-store-offer is only ever removed.
   const dealerRows = activeStores.length > 0 ? getCardDealerRows(card) : [];
-  if (activeStores.length === 0 || (!isNeueFeed && dealerRows.length === 0)) {
+  if (activeStores.length === 0 || dealerRows.length === 0) {
     card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
     card.querySelector('.tp-best-price-badge')?.remove();
+    filters.isDealerLoser = false;
+  } else if (dealerLoserFor(card, activeStores, isNeueFeed)) {
+    card.classList.add('tp-not-cheapest');
+    card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
+    card.querySelector('.tp-best-price-badge')?.remove();
+    filters.isDealerLoser = true;
   } else {
-    let matchedRow = null;
-    for (let d = 0; d < dealerRows.length; d++) {
-      const item = dealerRows[d];
-      if (item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName))) {
-        matchedRow = item.row;
-        break;
-      }
+    card.classList.add('tp-is-cheapest');
+    card.classList.remove('tp-not-cheapest', 'tp-no-store-offer');
+    if (!card.querySelector('.tp-best-price-badge')) {
+      const badge = document.createElement('div');
+      badge.className = 'tp-best-price-badge';
+      badge.textContent = 'Toppreis';
+      card.appendChild(badge);
     }
-
-    if (matchedRow) {
-      const useShipping = isShippingPriceActive(card);
-      const storePriceEl = useShipping
-        ? (matchedRow.querySelector('.shippingPrice .Plugin_Price') || matchedRow.querySelector('.productPrice .Plugin_Price'))
-        : (matchedRow.querySelector('.productPrice .Plugin_Price') || matchedRow.querySelector('.shippingPrice .Plugin_Price'));
-      const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
-      const bestPrice = cardPrice > 0 ? cardPrice : (cardPriceEl ? parsePrice(cardPriceEl.textContent) : 0);
-
-      if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) {
-        card.classList.add('tp-is-cheapest');
-        card.classList.remove('tp-not-cheapest', 'tp-no-store-offer');
-        if (!card.querySelector('.tp-best-price-badge')) {
-          const badge = document.createElement('div');
-          badge.className = 'tp-best-price-badge';
-          badge.textContent = 'Toppreis';
-          card.appendChild(badge);
-        }
-      } else {
-        card.classList.add(storePrice > 0 && bestPrice > 0 ? 'tp-not-cheapest' : 'tp-no-store-offer');
-        card.classList.remove('tp-is-cheapest', storePrice > 0 && bestPrice > 0 ? 'tp-no-store-offer' : 'tp-not-cheapest');
-        card.querySelector('.tp-best-price-badge')?.remove();
-      }
-    } else {
-      card.classList.add('tp-no-store-offer');
-      card.classList.remove('tp-is-cheapest', 'tp-not-cheapest');
-      card.querySelector('.tp-best-price-badge')?.remove();
-    }
+    filters.isDealerLoser = false;
   }
+  filters.isFiltered = filters.isNeg || filters.isLowOffers || filters.isDealerLoser || filters.isBadDeal || filters.isUnchecked;
+  card.classList.toggle('tp-filtered', filters.isFiltered);
 
   // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
   let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
@@ -773,17 +758,13 @@ export function renderEmptyState(cards, counts) {
   }
 
   const bodyCls = document.body.classList;
-  const revealNeg = bodyCls.contains('tp-reveal-neg');
-  const revealMin = bodyCls.contains('tp-reveal-min');
-  const revealBad = bodyCls.contains('tp-reveal-baddeals');
-  const revealUnchecked = bodyCls.contains('tp-reveal-unchecked');
-  // Effective hidden count: each cause counts only while its own reveal flag is off.
-  const totalHidden = (revealNeg ? 0 : (counts.neg || 0)) + (revealMin ? 0 : (counts.min || 0)) + (revealBad ? 0 : (counts.badDeals || 0)) + (revealUnchecked ? 0 : (counts.uncheckedHidden || 0));
+  const revealAll = bodyCls.contains('tp-reveal-all');
+  const totalHidden = revealAll ? 0 : (counts.filteredCount || 0);
 
   const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
-  if (cards.length > 0 && totalHidden >= cards.length) {
+  if (CONFIG.MODE === 'hide' && cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}:${revealNeg}:${revealMin}:${revealBad}:${revealUnchecked}`;
+    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}:${revealAll}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -819,10 +800,7 @@ export function renderEmptyState(cards, counts) {
     });
 
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
-      const cls = document.body.classList;
-      const flags = ['tp-reveal-neg', 'tp-reveal-min', 'tp-reveal-baddeals', 'tp-reveal-unchecked'];
-      if (flags.every(f => cls.contains(f))) flags.forEach(f => cls.remove(f));
-      else flags.forEach(f => cls.add(f));
+      document.body.classList.toggle('tp-reveal-all');
       triggerProcessListings();
     });
     emptyNotice.querySelector('#tp-empty-disable-bestpreise-btn')?.addEventListener('click', () => {
@@ -833,6 +811,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfig('FILTER_NEG_ENABLED', false);
       updateConfig('FILTER_MIN_ENABLED', false);
+      document.body.classList.add('tp-reveal-all');
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

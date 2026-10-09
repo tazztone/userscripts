@@ -231,8 +231,10 @@ def test_mode_hides_non_bestpreis(page: Page):
     assert page.locator('#card-cheapest').is_visible()
     assert page.locator('#card-negative').is_visible()
 
-    # Enable Tiefstpreise mode
+    # Enable Tiefstpreise mode (cause) + Anzeige=hide (presentation) so the
+    # verified non-deal collapses instead of just dimming.
     page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('MODE', 'hide');
         window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.processListings();
     }""")
@@ -250,11 +252,10 @@ def test_mode_hides_non_bestpreis(page: Page):
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
     assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
-    # Reveal buttons live in the overflow menu: open it, then click reveal (👁️)
-    page.click('#tp-bar-reveal-menu')
-    page.click('#tp-bar-reveal-baddeals')
+    # Single reveal-all preview button toggles the tp-reveal-all display override
+    page.click('#tp-bar-reveal-all')
     assert page.locator('#card-negative').is_visible()
-    assert 'tp-reveal-baddeals' in (page.locator('body').get_attribute('class') or '')
+    assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
 
 
 
@@ -490,13 +491,14 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
     assert cta.is_visible()
 
-    # 5. Reveal ignored products -> reveal mode makes them visible, so they CAN now be checked
-    page.click('#tp-bar-reveal-menu')
-    page.click('#tp-bar-reveal-neg')
-    page.wait_for_selector('body.tp-reveal-neg')
-    # Both card-negative and card-iphone are now visible (revealed)
+    # 5. Reveal-all preview flags the ignored products, but the cause-based
+    # scanner path still skips them -> CTA stays at 0.
+    page.click('#tp-bar-reveal-all')
+    page.wait_for_selector('body.tp-reveal-all')
+    assert page.locator('#card-negative').is_visible()
+    assert page.locator('#card-iphone').is_visible()
     assert cta.is_visible()
-    assert '2 Tiefstpreise prüfen' in (cta_main.text_content() or '')
+    assert '0 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
 
 
@@ -1185,7 +1187,7 @@ def test_unscanned_cards_no_stuck_loading_badge(page: Page):
     # In Bestpreise mode, reveal filtered cards
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        document.body.classList.add('tp-reveal-baddeals');
+        document.body.classList.add('tp-reveal-all');
         window.ToppreiseSuite.processListings();
     }""")
 

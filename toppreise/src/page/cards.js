@@ -9,6 +9,7 @@ import { CONFIG } from '../state/config.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta } from '../domain/deal-score.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
+import { isShippingPriceActive } from './adapter.js';
 
 export const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
@@ -244,7 +245,35 @@ export function extractCardData(card) {
 export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
   const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-  return { isNeg, isLowOffers };
+  const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore;
+  const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
+  const isDealerLoser = false;
+  const isFiltered = isNeg || isLowOffers || isDealerLoser || isBadDeal || isUnchecked;
+  return { isNeg, isLowOffers, isBadDeal, isUnchecked, isDealerLoser, isFiltered };
+}
+
+export function dealerLoserFor(card, activeStores, isNeueFeed) {
+  if (!activeStores || activeStores.length === 0) return false;
+  const dealerRows = getCardDealerRows(card);
+  if (dealerRows.length === 0) return false;
+  let matchedRow = null;
+  for (let d = 0; d < dealerRows.length; d++) {
+    const item = dealerRows[d];
+    if (item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName))) {
+      matchedRow = item.row;
+      break;
+    }
+  }
+  if (!matchedRow) return true;
+  const priceData = extractCanonicalPrice(card);
+  const useShipping = isShippingPriceActive(card);
+  const storePriceEl = useShipping
+    ? (matchedRow.querySelector('.shippingPrice .Plugin_Price') || matchedRow.querySelector('.productPrice .Plugin_Price'))
+    : (matchedRow.querySelector('.productPrice .Plugin_Price') || matchedRow.querySelector('.shippingPrice .Plugin_Price'));
+  const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
+  const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
+  if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) return false;
+  return true;
 }
 
 export function isCardFilteredOut(card, filters = null, opts = null) {
@@ -253,41 +282,49 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   // unchecked-hidden cards, so the toggle can't starve verification.
   const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
     && card.classList?.contains('tp-unchecked-hidden') === true;
-  const bodyCls = document.body?.classList;
-  const revealNeg = bodyCls?.contains('tp-reveal-neg') === true;
-  const revealMin = bodyCls?.contains('tp-reveal-min') === true;
-  const revealBad = bodyCls?.contains('tp-reveal-baddeals') === true;
-  const revealUnchecked = bodyCls?.contains('tp-reveal-unchecked') === true;
+  const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || f.isBadDeal
+    || (f.isUnchecked && opts?.includeHiddenUnchecked !== true);
+  const displayHidden = () => CONFIG.MODE === 'hide'
+    && document.body?.classList?.contains('tp-reveal-all') !== true;
+  const legacyChecks = () => {
+    const tab = card.closest?.('.f_tab');
+    if (tab && !tab.classList.contains('selected')) return true;
+    if (!includeHiddenUnchecked) {
+      if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
+      if (typeof card.checkVisibility === 'function') {
+        if (!card.checkVisibility()) return true;
+      } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+        return true;
+      }
+    }
+    return false;
+  };
   if (filters) {
-    if ((filters.isNeg && !revealNeg) || (filters.isLowOffers && !revealMin)) return true;
-  } else {
-    if ((card.classList?.contains('tp-negative-filtered') && !revealNeg) ||
-        (card.classList?.contains('tp-min-offers-filtered') && !revealMin) ||
-        (card.classList?.contains('tp-baddeal-hidden') && !revealBad) ||
-        (card.classList?.contains('tp-unchecked-hidden') && !revealUnchecked && !includeHiddenUnchecked)) {
-      return true;
-    }
-    // ponytail: no page context here; callers with a card list must pass
-    // explicit filters built with the real pageHasOffers (feed cards have
-    // no offer counts, so assuming true wrongly filters the whole feed).
-    const termsList = parseNegativeTerms();
-    const offerCount = extractOfferCount(card);
-    const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
-    const f = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
-    if ((f.isNeg && !revealNeg) || (f.isLowOffers && !revealMin)) return true;
+    if (!causeHit(filters)) return legacyChecks();
+    // Cause-based path: scanner and counters ignore MODE/reveal.
+    if (opts?.includeHiddenUnchecked === true) return true;
+    return displayHidden();
   }
-  const tab = card.closest?.('.f_tab');
-  if (tab && !tab.classList.contains('selected')) return true;
-
-  if (!includeHiddenUnchecked) {
-    if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
-    if (typeof card.checkVisibility === 'function') {
-      if (!card.checkVisibility()) return true;
-    } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
-      return true;
-    }
-  }
-  return false;
+  const f = {
+    isNeg: card.classList?.contains('tp-negative-filtered') === true,
+    isLowOffers: card.classList?.contains('tp-min-offers-filtered') === true,
+    isBadDeal: card.classList?.contains('tp-baddeal-hidden') === true,
+    isUnchecked: card.classList?.contains('tp-unchecked-hidden') === true,
+    isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
+      || card.classList?.contains('tp-no-store-offer') === true,
+  };
+  // ponytail: no page context here; callers with a card list must pass
+  // explicit filters built with the real pageHasOffers (feed cards have
+  // no offer counts, so assuming true wrongly filters the whole feed).
+  const termsList = parseNegativeTerms();
+  const offerCount = extractOfferCount(card);
+  const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+  const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+  f.isNeg = f.isNeg || recomp.isNeg;
+  f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
+  if (!causeHit(f)) return legacyChecks();
+  if (opts?.includeHiddenUnchecked === true) return true;
+  return displayHidden();
 }
 
 export function getCardSortableUnit(card) {

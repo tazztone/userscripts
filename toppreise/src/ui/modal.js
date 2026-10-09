@@ -19,7 +19,7 @@ export function setupUI() {
       <div id="tp-section-unified-suite">
       <div id="tp-basic-settings">
         <div class="tp-settings-group">
-          <label title="So werden gefilterte Angebote dargestellt: farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
+          <label title="So werden gefilterte Angebote dargestellt (Negativ, Min-Angebote, Händler-Nicht-Toppreis, Schlechte Deals, Ungeprüfte): farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
           <div class="tp-segmented-control">
             <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
             <label for="tp-mode-highlight-only">Highlight</label>

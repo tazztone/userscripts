@@ -131,34 +131,23 @@ export const STYLES = `
     letter-spacing: 0.5px;
     pointer-events: none;
   }
-  .tp-mode-dim .Plugin_Product.mixedBrowsingList.tp-not-cheapest,
-  .tp-mode-dim .Plugin_Product.mixedBrowsingList.tp-no-store-offer {
+  body.tp-mode-hide .tp-filtered,
+  body.tp-mode-hide [class*="col-"]:has(> .tp-filtered) {
+    display: none !important;
+  }
+  body.tp-mode-dim .tp-filtered,
+  body.tp-mode-dim [class*="col-"]:has(> .tp-filtered) {
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
     transition: opacity 0.3s ease, filter 0.3s ease !important;
   }
-  .tp-mode-dim .Plugin_Product.mixedBrowsingList.tp-not-cheapest:hover,
-  .tp-mode-dim .Plugin_Product.mixedBrowsingList.tp-no-store-offer:hover {
+  body.tp-mode-dim .tp-filtered:hover,
+  body.tp-mode-dim [class*="col-"]:has(> .tp-filtered):hover {
     opacity: 0.6 !important;
     filter: grayscale(10%) !important;
   }
-  .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-not-cheapest,
-  .tp-mode-hide .Plugin_Product.mixedBrowsingList.tp-no-store-offer,
-  .tp-negative-filtered, .tp-min-offers-filtered, .tp-baddeal-hidden, .tp-unchecked-hidden,
-  [class*="col-"]:has(> .tp-negative-filtered),
-  [class*="col-"]:has(> .tp-min-offers-filtered),
-  [class*="col-"]:has(> .tp-baddeal-hidden),
-  [class*="col-"]:has(> .tp-unchecked-hidden) {
-    display: none !important;
-  }
-  body.tp-reveal-neg .tp-negative-filtered,
-  body.tp-reveal-neg [class*="col-"]:has(> .tp-negative-filtered),
-  body.tp-reveal-min .tp-min-offers-filtered,
-  body.tp-reveal-min [class*="col-"]:has(> .tp-min-offers-filtered),
-  body.tp-reveal-baddeals .tp-baddeal-hidden,
-  body.tp-reveal-baddeals [class*="col-"]:has(> .tp-baddeal-hidden),
-  body.tp-reveal-unchecked .tp-unchecked-hidden,
-  body.tp-reveal-unchecked [class*="col-"]:has(> .tp-unchecked-hidden) {
+  body.tp-reveal-all .tp-filtered,
+  body.tp-reveal-all [class*="col-"]:has(> .tp-filtered) {
     display: block !important;
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
@@ -847,25 +836,6 @@ export const STYLES = `
     border-color: rgba(16,185,129,0.4) !important;
     color: #34d399 !important;
   }
-  .tp-reveal-menu-wrapper { position: relative !important; }
-  #tp-bar-reveal-popover {
-    position: absolute !important;
-    top: calc(100% + 6px) !important;
-    left: 0 !important;
-    background: rgba(15, 23, 42, 0.97) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-    padding: 4px !important;
-    display: none;
-    flex-direction: column !important;
-    gap: 2px !important;
-    min-width: 220px !important;
-    z-index: 50 !important;
-  }
-  #tp-bar-reveal-popover.tp-show { display: flex !important; }
-  #tp-bar-reveal-popover .tp-bar-btn { justify-content: flex-start !important; width: 100% !important; }
-  #tp-bar-reveal-popover .tp-reveal-hint { color: #94a3b8 !important; padding: 5px 10px 3px !important; font-size: 11px !important; }
   .tp-mini-switch {
     position: relative !important;
     display: inline-flex !important;

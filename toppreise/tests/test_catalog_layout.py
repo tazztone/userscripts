@@ -207,8 +207,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
 
 def test_suite_filter_bar_grouping(page: Page):
-    assert page.evaluate("() => document.getElementById('tp-bar-reveal-baddeals').closest('.tp-group').classList.contains('tp-group-filter')")
-    assert page.evaluate("() => document.getElementById('tp-bar-reveal-menu').closest('.tp-group').classList.contains('tp-group-filter')")
+    assert page.evaluate("() => document.getElementById('tp-bar-reveal-all').closest('.tp-group').classList.contains('tp-group-filter')")
     assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
 
 
@@ -261,6 +260,8 @@ def test_sort_by_discount(page: Page):
 
 
 def test_empty_state_notice_and_actions(page: Page):
+    # Empty state collapses cards only in Anzeige=hide; dim/highlight never empty.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
     # Initially all 5 cards in mock_toppreise are visible, no empty notice
     assert not page.locator('#tp-empty-state-notice').is_visible()
 
@@ -274,14 +275,12 @@ def test_empty_state_notice_and_actions(page: Page):
 
     # Clicking "👁️ Ausgeblendete anzeigen" reveals previews
     page.click('#tp-empty-reveal-btn')
-    assert 'tp-reveal-neg' in (page.locator('body').get_attribute('class') or '')
+    assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
     assert not page.locator('#tp-empty-state-notice').is_visible()
 
-    # Toggle reveal off again -> notice comes back (reveal lives in the overflow menu)
-    page.click('#tp-bar-reveal-menu')
-    page.click('#tp-bar-reveal-neg')
+    # Toggle reveal off again -> notice comes back
+    page.click('#tp-bar-reveal-all')
     page.wait_for_selector('#tp-empty-state-notice')
-
     # Clicking "⚡ Filter ausschalten" disables all suite filter toggles safely and restores cards
     page.click('#tp-empty-toggle-filters-btn')
     assert not page.locator('#tp-empty-state-notice').is_visible()
@@ -348,8 +347,9 @@ def test_deal_features_enabled_on_category_page(page: Page):
 
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
-    for _btn in ['#tp-bar-reveal-neg', '#tp-bar-reveal-min', '#tp-bar-reveal-baddeals', '#tp-bar-reveal-unchecked']:
-        assert not page.locator(_btn).is_visible()
+    assert page.locator('#tp-bar-reveal-all').is_visible()
+    assert 'Ausgeblendete (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert 'Neg:0 Min:0 Händler:2 Bad:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
@@ -396,6 +396,8 @@ def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     assert has_heat
 
 def test_hide_unchecked_toggle_filters_unverified(page: Page):
+    # Display gate: unchecked cards collapse only in Anzeige=hide.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
     # Seed card 1 as a verified deal; the rest stay unchecked
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
@@ -1165,6 +1167,9 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
     # Ensure fresh state with no cached price stats
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        window.ToppreiseSuite.updateConfig('MODE', 'hide');
+        // Scope to Bestpreise causes: drop the store filter so dealer verdicts stay out.
+        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1263,6 +1268,9 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
     # 1. Uncached baseline
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        window.ToppreiseSuite.updateConfig('MODE', 'hide');
+        // Scope to Bestpreise causes: drop the store filter so dealer verdicts stay out.
+        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1342,8 +1350,8 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     Visibility Invariant Test 3: Column Wrapper Fidelity
     Verifies that when cards are nested inside <div class="col-*"> wrappers:
     1. getCardSortableUnit() targets the column wrapper.
-    2. Hiding a card with .tp-baddeal-hidden collapses the parent .col-* container via CSS.
-    3. Revealing with .tp-reveal-baddeals displays both card and column wrapper.
+    2. Hiding a card with .tp-filtered (Anzeige=hide) collapses the parent .col-* container via CSS.
+    3. Revealing with .tp-reveal-all displays both card and column wrapper.
     """
     page.evaluate("""() => {
         const list = document.getElementById('product-list');
@@ -1366,8 +1374,8 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
             </div>
         `;
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        window.ToppreiseSuite.updateConfig('MODE', 'hide');
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        window.ToppreiseSuite.processListings();
     }""")
 
     # Both wrapped cards are visible initially
@@ -1400,7 +1408,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 
     # Toggle reveal filtered -> wrapper-col-2 and wrap-card-2 are both displayed with dashed border
     page.evaluate("""() => {
-        document.body.classList.add('tp-reveal-baddeals');
+        document.body.classList.add('tp-reveal-all');
         window.ToppreiseSuite.processListings();
     }""")
 
