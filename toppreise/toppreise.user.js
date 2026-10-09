@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.120
+// @version      2.18.121
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -472,6 +472,35 @@ const STYLES = `
   }
   .tp-card-historical-price.tp-is-markup {
     color: #fbbf24 !important;
+  }
+  .tp-dealer-name {
+    font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #94a3b8 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 40% !important;
+    min-width: 0 !important;
+    margin-right: auto !important;
+  }
+  a.tp-dealer-name:hover {
+    color: #e2e8f0 !important;
+    text-decoration: underline !important;
+  }
+  button.tp-dealer-name.tp-dealer-btn {
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    opacity: 0.75 !important;
+  }
+  button.tp-dealer-name.tp-dealer-btn:hover {
+    opacity: 1 !important;
+  }
+  button.tp-dealer-name.tp-dealer-btn:disabled {
+    cursor: wait !important;
+    opacity: 0.4 !important;
   }
   .tp-card-subline-row {
     position: absolute !important;
@@ -3611,6 +3640,14 @@ const SHADOW_MODAL_STYLES = `
   // the adjacent .tp-loupe button. Reads price at click time and re-verifies it
   // after fetch so a stale or swapped card never paints another product's stats.
   const loupeBtnByBadge = new WeakMap();
+  // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
+  // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
+  // Retry, Fetch passiert nur per Klick, also kein Loop). Keine Persistenz: nach
+  // Reload kostet ein Feed-Händler einen Klick, dafür nie stale. Modus im Key,
+  // weil der günstigste Händler von der Preisbasis abhängt.
+  const dealerCache = new Map();
+  const dealerPending = new Set();
+  const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
     const currentPid = getCardProductId(card);
@@ -4335,6 +4372,71 @@ const SHADOW_MODAL_STYLES = `
       shareBtn.style.display = '';
     } else {
       shareBtn?.remove();
+    }
+    // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
+    // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
+    // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
+    // (dealerCache + dealerPending-Guard) und danach neu rendert.
+    const dealerEl = card.querySelector('.tp-dealer-name');
+    if (!stats || !pid) {
+      dealerEl?.remove();
+    } else {
+      const useShipping = isShippingPriceActive(card);
+      const dKey = dealerCacheKey(pid, useShipping);
+      let dealer = extractDealer(card);
+      if (!dealer && dealerCache.has(dKey)) dealer = dealerCache.get(dKey);
+      const { url: productUrl } = extractShareData(card);
+      const hasUrl = /^https?:\/\//i.test(productUrl || '');
+      const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
+        card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+      const place = el => {
+        el.dataset.tpDealerPid = dKey;
+        if (cardPriceEl && anchor === cardPriceEl.parentElement) anchor.insertBefore(el, cardPriceEl);
+        else anchor.appendChild(el);
+      };
+      if (dealer) {
+        let el = dealerEl?.dataset.tpDealerPid === dKey ? dealerEl : null;
+        if (el && ((el.tagName === 'A') !== hasUrl)) { el.remove(); el = null; }
+        if (!el) {
+          dealerEl?.remove();
+          el = document.createElement(hasUrl ? 'a' : 'span');
+          el.className = 'tp-dealer-name';
+          if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; }
+          place(el);
+        }
+        setTextIfChanged(el, `🏬 ${dealer}`);
+        setTitleIfChanged(el, `Günstigster Händler: ${dealer}`);
+      } else if (hasUrl && !dealerCache.has(dKey)) {
+        let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
+        if (!btn) {
+          dealerEl?.remove();
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'tp-dealer-name tp-dealer-btn';
+          btn.textContent = '🏬';
+          btn.setAttribute('aria-label', 'Händler laden');
+          btn.title = 'Günstigsten Händler laden (lädt die Produktseite einmalig)';
+          btn.addEventListener('click', async e => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (dealerPending.has(dKey)) return;
+            dealerPending.add(dKey);
+            btn.disabled = true;
+            try {
+              const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
+              if (info?.dealer) dealerCache.set(dKey, info.dealer);
+            } finally {
+              dealerPending.delete(dKey);
+            }
+            triggerProcessListings();
+          });
+          place(btn);
+        } else if (!dealerPending.has(dKey) && btn.disabled) {
+          btn.disabled = false;
+        }
+      } else {
+        dealerEl?.remove();
+      }
     }
   }
 

@@ -70,6 +70,14 @@ function ensureHistPriceEl(card, cardPriceEl) {
 // the adjacent .tp-loupe button. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.
 const loupeBtnByBadge = new WeakMap();
+// Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
+// Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
+// Retry, Fetch passiert nur per Klick, also kein Loop). Keine Persistenz: nach
+// Reload kostet ein Feed-Händler einen Klick, dafür nie stale. Modus im Key,
+// weil der günstigste Händler von der Preisbasis abhängt.
+const dealerCache = new Map();
+const dealerPending = new Set();
+export const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
 async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;
   const currentPid = getCardProductId(card);
@@ -794,6 +802,71 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     shareBtn.style.display = '';
   } else {
     shareBtn?.remove();
+  }
+  // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
+  // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
+  // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
+  // (dealerCache + dealerPending-Guard) und danach neu rendert.
+  const dealerEl = card.querySelector('.tp-dealer-name');
+  if (!stats || !pid) {
+    dealerEl?.remove();
+  } else {
+    const useShipping = isShippingPriceActive(card);
+    const dKey = dealerCacheKey(pid, useShipping);
+    let dealer = extractDealer(card);
+    if (!dealer && dealerCache.has(dKey)) dealer = dealerCache.get(dKey);
+    const { url: productUrl } = extractShareData(card);
+    const hasUrl = /^https?:\/\//i.test(productUrl || '');
+    const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
+      card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+    const place = el => {
+      el.dataset.tpDealerPid = dKey;
+      if (cardPriceEl && anchor === cardPriceEl.parentElement) anchor.insertBefore(el, cardPriceEl);
+      else anchor.appendChild(el);
+    };
+    if (dealer) {
+      let el = dealerEl?.dataset.tpDealerPid === dKey ? dealerEl : null;
+      if (el && ((el.tagName === 'A') !== hasUrl)) { el.remove(); el = null; }
+      if (!el) {
+        dealerEl?.remove();
+        el = document.createElement(hasUrl ? 'a' : 'span');
+        el.className = 'tp-dealer-name';
+        if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; }
+        place(el);
+      }
+      setTextIfChanged(el, `🏬 ${dealer}`);
+      setTitleIfChanged(el, `Günstigster Händler: ${dealer}`);
+    } else if (hasUrl && !dealerCache.has(dKey)) {
+      let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
+      if (!btn) {
+        dealerEl?.remove();
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tp-dealer-name tp-dealer-btn';
+        btn.textContent = '🏬';
+        btn.setAttribute('aria-label', 'Händler laden');
+        btn.title = 'Günstigsten Händler laden (lädt die Produktseite einmalig)';
+        btn.addEventListener('click', async e => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (dealerPending.has(dKey)) return;
+          dealerPending.add(dKey);
+          btn.disabled = true;
+          try {
+            const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
+            if (info?.dealer) dealerCache.set(dKey, info.dealer);
+          } finally {
+            dealerPending.delete(dKey);
+          }
+          triggerProcessListings();
+        });
+        place(btn);
+      } else if (!dealerPending.has(dKey) && btn.disabled) {
+        btn.disabled = false;
+      }
+    } else {
+      dealerEl?.remove();
+    }
   }
 }
 

@@ -1367,3 +1367,84 @@ def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
     }""")
     page.wait_for_function("() => document.querySelector('#card-cheapest .badge-dif')?.textContent?.includes('-18%')")
     assert 'CHF 2400.00 (-25%)' in (subline.text_content() or '')
+
+
+def test_dealer_name_on_demand_button_on_feed_card(page: Page):
+    """Feed cards carry no dealer rows: a verified card shows a 🏬 button that
+    fetches the product page once per pid:mode, then paints 🏬 {dealer} as a
+    product-page link. Production hrefs resolve to https; the file:// mock
+    needs an absolute href to simulate that."""
+    page.evaluate("""() => {
+        // Simulate production feed: strip dealer rows + offer count text
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    product_hits = []
+    def handle_product(route):
+        product_hits.append(route.request.url)
+        route.fulfill(
+            status=200,
+            headers={'access-control-allow-origin': '*'},
+            content_type='text/html',
+            body='<div class="Plugin_DealerRelProdPriceInfo"><span class="title">Galaxus</span></div>'
+        )
+    page.route('**/preisvergleich/**', handle_product)
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+
+    btn = page.locator('#card-cheapest .tp-dealer-btn')
+    assert btn.is_visible()
+    assert btn.text_content() == '🏬'
+    assert page.locator('#card-cheapest a.tp-dealer-name').count() == 0
+
+    btn.click()
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert 'Galaxus' in (name.text_content() or '')
+    assert '/preisvergleich/' in (name.get_attribute('href') or '')
+
+    # A second render pass must not refetch (memory cache per pid:mode)
+    page.evaluate("() => window.ToppreiseSuite.processListings()")
+    page.wait_for_timeout(300)
+    assert len(product_hits) == 1
+
+
+def test_dealer_button_retry_on_product_page_error(page: Page):
+    """A failing product-page fetch keeps the 🏬 button (retry affordance),
+    shows no dealer name, and throws nothing."""
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    page.route('**/preisvergleich/**', lambda route: route.fulfill(
+        status=404, headers={'access-control-allow-origin': '*'}, body='Not Found'
+    ))
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+
+    page.click('#card-cheapest .tp-dealer-btn')
+    page.wait_for_function(
+        "() => { const b = document.querySelector('#card-cheapest .tp-dealer-btn'); return b && !b.disabled; }"
+    )
+    assert page.locator('#card-cheapest .tp-dealer-btn').is_visible()
+    assert page.locator('#card-cheapest a.tp-dealer-name').count() == 0

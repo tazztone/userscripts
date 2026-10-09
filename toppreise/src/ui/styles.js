@@ -448,6 +448,35 @@ export const STYLES = `
   .tp-card-historical-price.tp-is-markup {
     color: #fbbf24 !important;
   }
+  .tp-dealer-name {
+    font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #94a3b8 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 40% !important;
+    min-width: 0 !important;
+    margin-right: auto !important;
+  }
+  a.tp-dealer-name:hover {
+    color: #e2e8f0 !important;
+    text-decoration: underline !important;
+  }
+  button.tp-dealer-name.tp-dealer-btn {
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    opacity: 0.75 !important;
+  }
+  button.tp-dealer-name.tp-dealer-btn:hover {
+    opacity: 1 !important;
+  }
+  button.tp-dealer-name.tp-dealer-btn:disabled {
+    cursor: wait !important;
+    opacity: 0.4 !important;
+  }
   .tp-card-subline-row {
     position: absolute !important;
     bottom: 4px !important;

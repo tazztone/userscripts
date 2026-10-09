@@ -2148,3 +2148,37 @@ def test_showproductprice_vs_showshippingprice_consistency(page: Page):
 
 
 
+
+
+def test_dealer_name_direct_from_dom_dealer_row(page: Page):
+    """Catalog cards carry dealer rows: after verification the dealer name
+    renders directly as a product-page link, with zero product-page fetches
+    and no click. Production hrefs resolve to https; the file:// mock needs
+    an absolute href to simulate that."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    product_hits = []
+    def handle_product(route):
+        product_hits.append(route.request.url)
+        route.fulfill(status=404, headers={'access-control-allow-origin': '*'}, body='Not Found')
+    page.route('**/preisvergleich/**', handle_product)
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert name.is_visible()
+    assert 'Digitec' in (name.text_content() or '')
+    assert '/preisvergleich/' in (name.get_attribute('href') or '')
+    assert page.locator('#card-cheapest .tp-dealer-btn').count() == 0
+    assert len(product_hits) == 0
