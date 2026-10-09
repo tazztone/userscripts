@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.119
+// @version      2.18.120
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -60,8 +60,9 @@ const STYLES = `
   }
   /* Vortief edge heat (mode, verified low without blend): no fill — the card
   keeps the site background. Same ramp hue as blended heat, but the signal is
-  a heavily feathered outer glow + tinted border, so the fallback never reads
-  as a blended deal. Border color + glow arrive inline; this sets the edge. */
+  an inset inner glow + tinted border, so the fallback never reads as a
+  blended deal. Inset never leaves the card's own edges. Border color + glow
+  arrive inline; this sets the edge. */
   .tp-heat-vortief {
     border-width: 2px !important;
     border-style: solid !important;
@@ -2726,10 +2727,12 @@ const SHADOW_MODAL_STYLES = `
     const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
     return { bg, border, glow };
   }
-  // Feathered-edge variant for Vortief heat (mode only): NO background fill —
-  // the card keeps the site background. Same ramp hue, but the signal lives in
-  // a heavily blurred outer glow + tinted border, so a fallback low can never
-  // pass as a blended deal at a glance.
+  // Feathered INNER-edge variant for Vortief heat (mode only): NO background
+  // fill — the card keeps the site background. Same ramp hue, but the signal
+  // lives in an inset glow + tinted border, so a fallback low can never pass
+  // as a blended deal at a glance. Inset (never outer): an outer box-shadow
+  // paints past the border box and bleeds onto neighboring cards — inset
+  // clips at the card's own edge by construction, no per-layout tuning.
   function getEdgeHeatStyle(dropPct, intensity = 1.0) {
     const t = heatT(-Math.abs(dropPct));
     if (t === null) return null;
@@ -2737,7 +2740,7 @@ const SHADOW_MODAL_STYLES = `
     const safeInt = Math.max(0.2, Math.min(1.0, intensity));
     return {
       border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
-      glow: `0 0 34px 12px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
+      glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
     };
   }
 
@@ -3659,8 +3662,8 @@ const SHADOW_MODAL_STYLES = `
     // site Differenzen stay neutral — the tp-is-unverified class below paints
     // them gray-striped instead, so the state scans without comparing saturation.
     // Vortief heat (mode, verified low without blend): same ramp hue, but the
-    // signal lives in a feathered edge glow — never a full wash — so the
-    // fallback can't pass as a blended deal at a glance.
+    // signal lives in an inset inner glow — never a full wash, never past the
+    // card's own edges — so the fallback can't pass as a blended deal.
     const isVortiefHeat = heatInfo.kind === 'vortief';
     if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;

@@ -181,10 +181,12 @@ export function getHeatmapStyles(diffPercent, intensity = 1.0) {
   const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
   return { bg, border, glow };
 }
-// Feathered-edge variant for Vortief heat (mode only): NO background fill —
-// the card keeps the site background. Same ramp hue, but the signal lives in
-// a heavily blurred outer glow + tinted border, so a fallback low can never
-// pass as a blended deal at a glance.
+// Feathered INNER-edge variant for Vortief heat (mode only): NO background
+// fill — the card keeps the site background. Same ramp hue, but the signal
+// lives in an inset glow + tinted border, so a fallback low can never pass
+// as a blended deal at a glance. Inset (never outer): an outer box-shadow
+// paints past the border box and bleeds onto neighboring cards — inset
+// clips at the card's own edge by construction, no per-layout tuning.
 export function getEdgeHeatStyle(dropPct, intensity = 1.0) {
   const t = heatT(-Math.abs(dropPct));
   if (t === null) return null;
@@ -192,7 +194,7 @@ export function getEdgeHeatStyle(dropPct, intensity = 1.0) {
   const safeInt = Math.max(0.2, Math.min(1.0, intensity));
   return {
     border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
-    glow: `0 0 34px 12px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
+    glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
   };
 }
 

@@ -1547,6 +1547,9 @@ def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
     assert 'tp-heatmap-active' not in (card.get_attribute('class') or '')
     bg = card.evaluate('el => getComputedStyle(el).backgroundImage')
     assert 'linear-gradient' not in bg
+    # Containment: the glow is inset, so it can never bleed onto neighbors
+    shadow = card.evaluate('el => getComputedStyle(el).boxShadow')
+    assert 'inset' in shadow
     # Ribbon prints the shared Vortief-Abstand (-10% vs CHF 2000.00)
     badge = card.locator('.badge-dif')
     assert '-10%' in badge.inner_text()

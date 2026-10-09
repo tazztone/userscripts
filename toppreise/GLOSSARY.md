@@ -32,4 +32,4 @@ Die eine Kennzahl des Tiefstpreise-Feeds: Gewichtungs-Blended Ø-Rabatt und Reko
 _Avoid_: Score, Tiefstpreis-Score (in UI-Texten)
 
 **Vortief-Abstand**:
-Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Im Tiefstpreise-Modus heizt er zusätzlich die Kartenkante (stark gefedertes Glühen statt Full-Wash), damit der Fallback nie als Blend durchgeht.
+Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Im Tiefstpreise-Modus heizt er zusätzlich die Kartenkante von innen (Inset-Glühen statt Full-Wash, nie über die Kartenkante hinaus), damit der Fallback nie als Blend durchgeht.

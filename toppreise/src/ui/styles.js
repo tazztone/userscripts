@@ -35,8 +35,9 @@ export const STYLES = `
   }
   /* Vortief edge heat (mode, verified low without blend): no fill — the card
   keeps the site background. Same ramp hue as blended heat, but the signal is
-  a heavily feathered outer glow + tinted border, so the fallback never reads
-  as a blended deal. Border color + glow arrive inline; this sets the edge. */
+  an inset inner glow + tinted border, so the fallback never reads as a
+  blended deal. Inset never leaves the card's own edges. Border color + glow
+  arrive inline; this sets the edge. */
   .tp-heat-vortief {
     border-width: 2px !important;
     border-style: solid !important;

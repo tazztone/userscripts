@@ -121,8 +121,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // site Differenzen stay neutral — the tp-is-unverified class below paints
   // them gray-striped instead, so the state scans without comparing saturation.
   // Vortief heat (mode, verified low without blend): same ramp hue, but the
-  // signal lives in a feathered edge glow — never a full wash — so the
-  // fallback can't pass as a blended deal at a glance.
+  // signal lives in an inset inner glow — never a full wash, never past the
+  // card's own edges — so the fallback can't pass as a blended deal.
   const isVortiefHeat = heatInfo.kind === 'vortief';
   if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
     const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
