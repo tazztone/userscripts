@@ -150,6 +150,16 @@ export function extractDealer(card) {
   return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
 }
 
+// Direktlink zum Händlerangebot aus der Händlerzeile (Katalog), falls verlinkt.
+export function extractDealerUrl(card) {
+  const a = card?.querySelector?.(`${SELECTORS.cards.dealerRows} a[href]`);
+  let url = a?.getAttribute?.('href') || a?.href || '';
+  if (url && !/^https?:\/\//i.test(url)) {
+    try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+  }
+  return url;
+}
+
 // Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
 // und fehlen im Fetch-HTML, `offers` steht dagegen schon in der Rohseite.
 export function parseJsonLdOffer(json) {
@@ -189,7 +199,9 @@ export function parseProductOffers(doc) {
     const dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
     const product = parsePrice(block.querySelector?.(SELECTORS.price.fallbackProduct)?.textContent);
     const shipping = parsePrice(block.querySelector?.(SELECTORS.price.fallbackShipping)?.textContent);
-    return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0 };
+    const link = block.querySelector?.('a[href*="ext_de"]');
+    const url = link?.getAttribute?.('href') || link?.href || '';
+    return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0, url: url || '' };
   }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
 }
 
@@ -198,16 +210,17 @@ export function pickCheapestOffer(offers, useShipping = false) {
   for (const o of offers || []) {
     const price = useShipping ? (o.shipping || o.product) : (o.product || o.shipping);
     if (!(price > 0)) continue;
-    if (!best || price < best.price) best = { price, dealer: o.dealer || '' };
+    if (!best || price < best.price) best = { price, dealer: o.dealer || '', url: o.url || '' };
   }
-  return best || { price: 0, dealer: '' };
+  return best || { price: 0, dealer: '', url: '' };
 }
 
 // Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
-// same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke →
-// JSON-LD (nur Count). Händler immer auf Karten-Preisbasis (Versand/Produkt).
+// same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke (inkl.
+// /ext_de-Direktlink zum günstigsten Angebot) → JSON-LD (nur Count). Händler
+// immer auf Karten-Preisbasis (Versand/Produkt).
 export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
-  const out = { dealer: '', offers: 0 };
+  const out = { dealer: '', offers: 0, dealerUrl: '' };
   try {
     if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
     if (!/^https?:\/\//i.test(productUrl || '')) return out;
@@ -226,14 +239,18 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
     const offers = parseProductOffers(doc);
     if (offers.length) {
       out.offers = offers.length;
-      out.dealer = pickCheapestOffer(offers, useShipping).dealer;
+      const best = pickCheapestOffer(offers, useShipping);
+      out.dealer = best.dealer;
+      if (best.url) {
+        try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
+      }
       return out;
     }
     const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
     for (const s of scripts) {
       try {
         const found = parseJsonLdOffer(JSON.parse(s.textContent));
-        if (found.dealer || found.offers) return found;
+        if (found.dealer || found.offers) return { dealer: found.dealer, offers: found.offers, dealerUrl: '' };
       } catch { /* Block einzeln ignorieren */ }
     }
     console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: titles.length, jsonLdBlocks: scripts.length });

@@ -8,6 +8,7 @@ import {
   withLivePrice,
   extractShareData,
   extractDealer,
+  extractDealerUrl,
   parseJsonLdOffer,
   parseProductOffers,
   pickCheapestOffer,
@@ -186,6 +187,15 @@ describe('extractShareData / extractDealer', () => {
     assert.equal(extractDealer(card), 'Digitec');
     assert.equal(extractDealer(stubCard()), '');
   });
+
+  it('reads the dealer row offer link, absolutized, empty when absent', () => {
+    const card = stubCard();
+    card.__set('.Plugin_DealerRelProdPriceInfo a[href]', { getAttribute: () => '/ext_de?pid=9&did=1&oid=11' });
+    globalThis.location = { href: 'https://www.toppreise.ch/katalog/Maeuse' };
+    assert.equal(extractDealerUrl(card), 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11');
+    delete globalThis.location;
+    assert.equal(extractDealerUrl(stubCard()), '');
+  });
 });
 
 describe('fetchProductInfo', () => {
@@ -195,8 +205,8 @@ describe('fetchProductInfo', () => {
   });
 
   it('returns empty info without fetch/DOM or for bad URLs', async () => {
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL), { dealer: '', offers: 0 });
-    assert.deepEqual(await fetchProductInfo('not-a-url'), { dealer: '', offers: 0 });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL), { dealer: '', offers: 0, dealerUrl: '' });
+    assert.deepEqual(await fetchProductInfo('not-a-url'), { dealer: '', offers: 0, dealerUrl: '' });
   });
 
   it('reads cheapest dealer + offer count from the product page', async () => {
@@ -206,21 +216,22 @@ describe('fetchProductInfo', () => {
         return { querySelectorAll: () => [{ textContent: ' Digitec ' }, { textContent: 'Brack' }] };
       }
     };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2 });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '' });
   });
 
   it('returns empty info on HTTP errors', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 404 });
     globalThis.DOMParser = class { parseFromString() { throw new Error('unreachable'); } };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0 });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0, dealerUrl: '' });
   });
 });
 describe('parseProductOffers / pickCheapestOffer', () => {
-  const block = ({ dealer, product, shipping }) => ({
+  const block = ({ dealer, product, shipping, href }) => ({
     querySelector: sel => {
       if (sel.startsWith('.Plugin_ShopLogo')) {
         return dealer ? { getAttribute: k => (k === 'alt' || k === 'title' ? dealer : null) } : null;
       }
+      if (sel.includes('ext_de')) return href ? { getAttribute: () => href } : null;
       if (sel.includes('productPrice')) return product ? { textContent: ` CHF ${product} ` } : null;
       if (sel.includes('shippingPrice')) return shipping ? { textContent: ` CHF ${shipping} ` } : null;
       return null;
@@ -230,11 +241,11 @@ describe('parseProductOffers / pickCheapestOffer', () => {
 
   it('reads dealer + both prices per block, drops empty rows', () => {
     const offers = parseProductOffers(doc([
-      block({ dealer: 'Amazon.de', product: '15.23', shipping: '20.48' }),
+      block({ dealer: 'Amazon.de', product: '15.23', shipping: '20.48', href: '/ext_de?pid=9&did=1&oid=11' }),
       block({ dealer: '', product: '', shipping: '' }),
     ]));
     assert.deepEqual(offers, [
-      { dealer: 'Amazon.de', product: 15.23, shipping: 20.48 },
+      { dealer: 'Amazon.de', product: 15.23, shipping: 20.48, url: '/ext_de?pid=9&did=1&oid=11' },
     ]);
     assert.deepEqual(parseProductOffers(doc([])), []);
     assert.deepEqual(parseProductOffers(null), []);
@@ -242,18 +253,18 @@ describe('parseProductOffers / pickCheapestOffer', () => {
 
   it('picks the cheapest on the card price basis, order-independent', () => {
     const offers = [
-      { dealer: 'Amazon.de', product: 15.23, shipping: 20.48 },
-      { dealer: 'Galaxus', product: 18.00, shipping: 19.00 },
+      { dealer: 'Amazon.de', product: 15.23, shipping: 20.48, url: '/ext_de?pid=9&did=1&oid=11' },
+      { dealer: 'Galaxus', product: 18.00, shipping: 19.00, url: '/ext_de?pid=9&did=2&oid=22' },
     ];
-    assert.deepEqual(pickCheapestOffer(offers, false), { price: 15.23, dealer: 'Amazon.de' });
-    assert.deepEqual(pickCheapestOffer([...offers].reverse(), true), { price: 19.00, dealer: 'Galaxus' });
-    assert.deepEqual(pickCheapestOffer([], true), { price: 0, dealer: '' });
+    assert.deepEqual(pickCheapestOffer(offers, false), { price: 15.23, dealer: 'Amazon.de', url: '/ext_de?pid=9&did=1&oid=11' });
+    assert.deepEqual(pickCheapestOffer([...offers].reverse(), true), { price: 19.00, dealer: 'Galaxus', url: '/ext_de?pid=9&did=2&oid=22' });
+    assert.deepEqual(pickCheapestOffer([], true), { price: 0, dealer: '', url: '' });
   });
 
   it('fetchProductInfo prefers offer blocks over JSON-LD, on card basis', async () => {
     const blocks = [
-      block({ dealer: 'Amazon.de', product: '15.23', shipping: '20.48' }),
-      block({ dealer: 'Galaxus', product: '18.00', shipping: '19.00' }),
+      block({ dealer: 'Amazon.de', product: '15.23', shipping: '20.48', href: '/ext_de?pid=9&did=1&oid=11' }),
+      block({ dealer: 'Galaxus', product: '18.00', shipping: '19.00', href: '/ext_de?pid=9&did=2&oid=22' }),
     ];
     const ld = { textContent: JSON.stringify({ '@type': 'Product', offers: { '@type': 'AggregateOffer', offerCount: 9 } }) };
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
@@ -263,8 +274,8 @@ describe('parseProductOffers / pickCheapestOffer', () => {
       }
     };
     try {
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2 });
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2 });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11' });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=2&oid=22' });
     } finally {
       delete globalThis.fetch;
       delete globalThis.DOMParser;
@@ -313,7 +324,7 @@ describe('fetchProductInfo JSON-LD fallback', () => {
     ] };
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>-x' });
     globalThis.DOMParser = class { parseFromString() { return docStub({ scripts: [{ textContent: JSON.stringify(ld) }] }); } };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2 });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '' });
   });
 
   it('prefers DOM rows over JSON-LD', async () => {
@@ -321,7 +332,7 @@ describe('fetchProductInfo JSON-LD fallback', () => {
     globalThis.DOMParser = class {
       parseFromString() { return docStub({ rows: [{ textContent: ' STEG ' }], scripts: [{ textContent: '{"@type":"Product","offers":[]}' }] }); }
     };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'STEG', offers: 1 });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'STEG', offers: 1, dealerUrl: '' });
   });
 
   it('survives corrupt JSON-LD without throwing', async () => {
@@ -330,7 +341,7 @@ describe('fetchProductInfo JSON-LD fallback', () => {
     const debug = console.debug;
     console.debug = () => {};
     try {
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0 });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0, dealerUrl: '' });
     } finally { console.debug = debug; }
   });
 });

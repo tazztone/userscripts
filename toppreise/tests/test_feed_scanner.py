@@ -1421,6 +1421,45 @@ def test_dealer_name_on_demand_button_on_feed_card(page: Page):
     assert len(product_hits) == 1
 
 
+def test_dealer_name_links_directly_to_shop_offer(page: Page):
+    """With .Plugin_Offer blocks on the product page, the dealer name links
+    straight to the cheapest shop offer (/ext_de redirect, new tab) instead
+    of the product page."""
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    page.route('**/preisvergleich/**', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="Plugin_Offer">'
+             '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
+             '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
+             '</div>'
+    ))
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+
+    page.click('#card-cheapest .tp-dealer-btn')
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert 'Galaxus' in (name.text_content() or '')
+    assert 'ext_de' in (name.get_attribute('href') or '')
+    assert name.get_attribute('target') == '_blank'
+
+
 def test_dealer_button_retry_on_product_page_error(page: Page):
     """A failing product-page fetch keeps the 🏬 button (retry affordance),
     shows no dealer name, and throws nothing."""

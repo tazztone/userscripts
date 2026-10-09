@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.124
+// @version      2.18.125
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4423,7 +4423,9 @@ const SHADOW_MODAL_STYLES = `
     // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
     // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
     // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
-    // (dealerCache + dealerPending-Guard) und danach neu rendert.
+    // (dealerCache + dealerPending-Guard) und danach neu rendert. Der Name
+    // verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw. Zeilenlink),
+    // Fallback ist die Produktseite — immer neuer Tab.
     const dealerEl = card.querySelector('.tp-dealer-name');
     if (!stats || !pid) {
       dealerEl?.remove();
@@ -4431,9 +4433,11 @@ const SHADOW_MODAL_STYLES = `
       const useShipping = isShippingPriceActive(card);
       const dKey = dealerCacheKey(pid, useShipping);
       let dealer = extractDealer(card);
-      if (!dealer && dealerCache.has(dKey)) dealer = dealerCache.get(dKey);
+      const cached = dealerCache.get(dKey);
+      if (!dealer && cached?.dealer) dealer = cached.dealer;
       const { url: productUrl } = extractShareData(card);
-      const hasUrl = /^https?:\/\//i.test(productUrl || '');
+      const targetUrl = cached?.url || (dealer ? extractDealerUrl(card) : '') || productUrl || '';
+      const hasUrl = /^https?:\/\//i.test(targetUrl);
       const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
         card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
       const place = el => {
@@ -4450,8 +4454,10 @@ const SHADOW_MODAL_STYLES = `
           dealerEl?.remove();
           el = document.createElement(hasUrl ? 'a' : 'span');
           el.className = 'tp-dealer-name';
-          if (hasUrl) { el.href = productUrl; el.target = '_blank'; el.rel = 'noopener'; el.addEventListener('click', e => e.stopPropagation()); }
+          if (hasUrl) { el.href = targetUrl; el.target = '_blank'; el.rel = 'noopener'; el.addEventListener('click', e => e.stopPropagation()); }
           place(el);
+        } else if (el.tagName === 'A' && hasUrl && el.getAttribute('href') !== targetUrl) {
+          el.href = targetUrl;
         }
         setTextIfChanged(el, `🏬 ${dealer}`);
         setTitleIfChanged(el, `Günstigster Händler: ${dealer}`);
@@ -4473,7 +4479,7 @@ const SHADOW_MODAL_STYLES = `
             btn.disabled = true;
             try {
               const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-              if (info?.dealer) dealerCache.set(dKey, info.dealer);
+              if (info?.dealer) dealerCache.set(dKey, { dealer: info.dealer, url: info.dealerUrl || '' });
             } finally {
               dealerPending.delete(dKey);
             }
@@ -5941,6 +5947,16 @@ const SHADOW_MODAL_STYLES = `
     return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
+  // Direktlink zum Händlerangebot aus der Händlerzeile (Katalog), falls verlinkt.
+  function extractDealerUrl(card) {
+    const a = card?.querySelector?.(`${SELECTORS.cards.dealerRows} a[href]`);
+    let url = a?.getAttribute?.('href') || a?.href || '';
+    if (url && !/^https?:\/\//i.test(url)) {
+      try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+    }
+    return url;
+  }
+
   // Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
   // und fehlen im Fetch-HTML, `offers` steht dagegen schon in der Rohseite.
   function parseJsonLdOffer(json) {
@@ -5980,7 +5996,9 @@ const SHADOW_MODAL_STYLES = `
       const dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
       const product = parsePrice(block.querySelector?.(SELECTORS.price.fallbackProduct)?.textContent);
       const shipping = parsePrice(block.querySelector?.(SELECTORS.price.fallbackShipping)?.textContent);
-      return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0 };
+      const link = block.querySelector?.('a[href*="ext_de"]');
+      const url = link?.getAttribute?.('href') || link?.href || '';
+      return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0, url: url || '' };
     }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
   }
 
@@ -5989,16 +6007,17 @@ const SHADOW_MODAL_STYLES = `
     for (const o of offers || []) {
       const price = useShipping ? (o.shipping || o.product) : (o.product || o.shipping);
       if (!(price > 0)) continue;
-      if (!best || price < best.price) best = { price, dealer: o.dealer || '' };
+      if (!best || price < best.price) best = { price, dealer: o.dealer || '', url: o.url || '' };
     }
-    return best || { price: 0, dealer: '' };
+    return best || { price: 0, dealer: '', url: '' };
   }
 
   // Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
-  // same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke →
-  // JSON-LD (nur Count). Händler immer auf Karten-Preisbasis (Versand/Produkt).
+  // same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke (inkl.
+  // /ext_de-Direktlink zum günstigsten Angebot) → JSON-LD (nur Count). Händler
+  // immer auf Karten-Preisbasis (Versand/Produkt).
   async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
-    const out = { dealer: '', offers: 0 };
+    const out = { dealer: '', offers: 0, dealerUrl: '' };
     try {
       if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
       if (!/^https?:\/\//i.test(productUrl || '')) return out;
@@ -6017,14 +6036,18 @@ const SHADOW_MODAL_STYLES = `
       const offers = parseProductOffers(doc);
       if (offers.length) {
         out.offers = offers.length;
-        out.dealer = pickCheapestOffer(offers, useShipping).dealer;
+        const best = pickCheapestOffer(offers, useShipping);
+        out.dealer = best.dealer;
+        if (best.url) {
+          try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
+        }
         return out;
       }
       const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
       for (const s of scripts) {
         try {
           const found = parseJsonLdOffer(JSON.parse(s.textContent));
-          if (found.dealer || found.offers) return found;
+          if (found.dealer || found.offers) return { dealer: found.dealer, offers: found.offers, dealerUrl: '' };
         } catch { /* Block einzeln ignorieren */ }
       }
       console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: titles.length, jsonLdBlocks: scripts.length });

@@ -374,6 +374,10 @@ e.g. BELKIN SoundForm Mini 2 `p869380`). Static HTML (~294 KB) contains:
   == JSON-LD `lowPrice`). Parsed by `parseProductOffers` + `pickCheapestOffer`
   (`src/features/share-discord.js`), cheapest on the card's price basis
   (min-selection, order-independent). `parseJsonLdOffer` stays last-resort count.
+  Each block also links the shop directly: `a[href*="ext_de"]`
+  (`/ext_de?pid=…&did=…&oid=…`, title + buy button; logo links `/shops/…` instead
+  — not the offer). The dealer label uses it as its href (new tab, product-page
+  fallback).
 - Offers endpoint (page JS, nothing inline): `POST
   /plugins/product/AuctionsOverview`, container `<div
   id="Plugin_AuctionsOverview_<instance>" data-context-hash="<hash>"
