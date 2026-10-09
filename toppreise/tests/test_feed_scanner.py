@@ -77,8 +77,8 @@ def test_exact_cent_boundary_badge_states(page: Page):
         # currentPrice, title hint string, expected_class, not_expected_class
         (37.94, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # new low
         (37.95, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low
-        (37.96, 'historisches Tief CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
-        (38.00, 'historisches Tief CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
+        (37.96, '⚠️ Kein Tiefstpreis (+0% Aufschlag)', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
+        (38.00, '⚠️ Kein Tiefstpreis (+0% Aufschlag)', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
         (37.9500001, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low normalized
     ]
 
@@ -258,7 +258,7 @@ def test_mode_hides_non_bestpreis(page: Page):
 
 
 
-def test_real_deal_rich_tooltips_with_peak_context(page: Page):
+def test_real_deal_not_low_tooltip_is_trimmed(page: Page):
     def handle_pricechart(route):
         url = route.request.url
         if 'p_pc_pid=797571' in url:
@@ -310,8 +310,9 @@ def test_real_deal_rich_tooltips_with_peak_context(page: Page):
 
     badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
     title3 = badge3.get_attribute('title') or ''
-    assert 'historisches Tief CHF 10.00, +50% Aufschlag' in title3
-    assert 'Höchstpreis: CHF 25.00' in title3
+    # Trimmed tooltip: status + hint only (markup on badge, historic low on pill)
+    assert '⚠️ Kein Tiefstpreis (+50% Aufschlag)' in title3
+    assert '[Klicken zum Aktualisieren]' in title3
 
 
 

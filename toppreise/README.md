@@ -10,13 +10,13 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.114)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.115)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
 ## ⚡ Features
 
-1. **💎 Neue Tiefstpreise: Kuratierter Tiefstpreis-Feed mit Gewichteter Differenz & Statistischem Filter (v2.18.114)**:
+1. **💎 Neue Tiefstpreise: Kuratierter Tiefstpreis-Feed mit Gewichteter Differenz & Statistischem Filter (v2.18.115)**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Tiefstpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Tiefstpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Ersparnis.
    - **🔥 Gewichtete-Differenz Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird die Gewichtete Differenz aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **eine Zahl**: Sie steht auf dem Ribbon, färbt Karte + Badge auf einer Grau→Rot-Skala (tiefrot = grosser Tiefstpreis, grau = kein Rabatt) und sortiert den Feed. Niemals der Score und nach Prüfung niemals die Differenz — Aufschläge bleiben grau (`+XX%` steht im Badge). Blasse Farben = ungeprü…
    - **📅 Rollierender Median-Zeithorizont (1 Jahr, 6M, 3M, Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage).
@@ -41,7 +41,7 @@ Requires Violentmonkey (or a compatible userscript manager):
    - **Kompakte Subcards & Titel-Pills**: In Varianten-Subcards (`.f_collection`) wird die Tiefstpreis-Pill elegant neben dem Variantentitel platziert, während Etiketten wie `🏷️ günstigste Variante` exakt an ihrer nativen Position bleiben.
    - **Verfügbarkeits-Icon Baseline & Randabstand**: Garantiert, dass der grüne Lieferbarkeits-Punkt (`.Plugin_AvailabilityInformation`) vertikal zentriert bleibt und selbst bei langen historischen Preisen und Sparklines niemals am rechten Kartenrand abgeschnitten wird.
    - **Händlerfilter-Kompatibilität**: Verhindert falsches Dimmen von Kategoriemarkt-Karten ohne Händlertabellen, wenn ein spezifischer Händler im Filter ausgewählt ist.
-4. **📈 Mini Preis-Trend Sparklines**: Zeigt auf Karten mit geprüfter Preishistorie kompakte Inline-SVG-Sparklines des historischen Preisverlaufs in neutralem Blau (in den Einstellungen aktivierbar). Lädt blitzschnell in einem einzigen Request ohne zusätzliche Server-Abfragen.
+4. **📈 Mini Preis-Trend Sparklines**: Zeigt auf Karten mit geprüfter Preishistorie kompakte Inline-SVG-Sparklines des historischen Preisverlaufs in neutralem Blau (in den Einstellungen aktivierbar). Auf Detailkarten spannt sich der Verlauf als Full-Width-Strip vom Share-Button bis zum Kartenrand, mit Live-Preis-Punkt am rechten Ende. Lädt blitzschnell in einem einzigen Request ohne zusätzliche Server-Abfragen.
 5. **🔥 Continuous Badge-Heatmap (Grau→Rot-Skala)**: Thermische Karten- und Badge-Färbung anhand der angezeigten Badge-%:
    - Grosser Rabatt (z.B. −58%): Tiefes Rubinrot 🔥 (Karte + Badge)
    - Kleiner Rabatt (z.B. −8%): Helles Warmbraun
@@ -61,7 +61,7 @@ Requires Violentmonkey (or a compatible userscript manager):
     - **Deal Feeds (`/neue-toppreise`)**: Full suite with `👁️ Ausgeblendete (N)` overflow menu, `🔥 Heatmap` toggle, `💎 Neue Tiefstpreise` mode toggle (strictness lives here: an = nur Tiefstpreise, aus = alles zeigen), and `Min-Angebote: [-] N [+]` stepper with `Aktiv` toggle. Ausgeschaltete Filter dimmen ihr Werkzeug grau. Verifying lives in the floating `🔍 N Tiefstpreise prüfen` CTA (bottom-left, with `≥30% ▾` Differenz-Vorauswahl plus `Nur geprüfte`-Option im selben Menü).
     - **Catalog / Search Listings (`/produktsuche/...`)**: Streamlined toolbar displaying `🚫 Negativ-Filter`, `👁️ Ausgeblendete (N)` overflow menu, and `Min-Angebote [-] N [+]` stepper.
     - **Product Detail Pages (`/preisvergleich/...-p...`)**: Filter bar is cleanly suppressed so single-product pages remain uncluttered.
-14. **📤 Discord 1-Klick-Share**: Verifizierte Tiefstpreis-Karten tragen einen `📤`-Button, der den Deal per eigenem Webhook in den Discord Deals-Channel postet — Produktlink zuerst, darunter Titel/Preis, Händler, Angebotszahl, bisheriger Best- und Ø-Preis mit je eigenem Rabatt-% (je eine Zeile) plus Preisverlauf-Bild als Attachment (Text-Sparkline als Fallback). Webhook-URL in den Einstellungen (⚙️) hinterlegen — GM-privat gespeichert, nie committet oder exportiert.
+14. **📤 Discord 1-Klick-Share**: Verifizierte Tiefstpreis-Karten tragen einen `📤`-Button, der den Deal per eigenem Webhook in den Discord Deals-Channel postet — Produktlink zuerst, darunter Titel/Preis, Händler, Angebotszahl, bisheriger Best- und Ø-Preis mit je eigenem Rabatt-% (je eine Zeile) plus Preisverlauf-Bild als Attachment (Text-Sparkline als Fallback). Das Chart-Bild trägt Preis-/Monatsraster mit Endpunkt-Markierung. Webhook-URL in den Einstellungen (⚙️) hinterlegen — GM-privat gespeichert, nie committet oder exportiert.
 
 ---
 

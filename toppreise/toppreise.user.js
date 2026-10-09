@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.114
+// @version      2.18.115
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3899,7 +3899,8 @@ const SHADOW_MODAL_STYLES = `
           const ddNow = getDisplayDelta(cardPrice, stats);
           if (ddNow.kind === 'above-low') {
             badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
-            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${ddNow.markup}% Aufschlag)\nFarbe = Rabatt-Tiefe (grau = kein Rabatt)\n[Klicken zum Aktualisieren]`);
+            // Tooltip: status + hint only — markup sits on the badge, historic low on the pill.
+            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis (+${ddNow.markup}% Aufschlag)\n[Klicken zum Aktualisieren]`);
             const fakeNow = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${ddNow.markup}%</p>`);
@@ -3936,14 +3937,14 @@ const SHADOW_MODAL_STYLES = `
           } else {
             badgeDifEl.classList.remove('tp-deal-loading');
             if (rawDiscount !== null && !isNaN(rawDiscount)) {
-              setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
+              setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (ungeprüft), kein verifizierter Tiefstpreis.\n[Klicken: echten Allzeit-Tiefstpreis prüfen]`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
               }
             } else {
-              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = Gewichtete Differenz (Ø-Rabatt + Rekord-Marge). Grau gestreift = ungeprüft; nach Prüfung folgt die Farbe der Badge-% (rot = Deal, grau = kein Rabatt).`);
+              setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen.`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
               } else {
@@ -4022,15 +4023,8 @@ const SHADOW_MODAL_STYLES = `
               badgeDifEl.classList.remove('tp-is-severe-markup');
             }
 
-            const notLowParts = [];
-            if (sitePctText) {
-              notLowParts.push(`Differenz: ${sitePctText} (ungeprüft, z.B. UVP)`);
-            }
-            if (hasSignificantPeak) {
-              notLowParts.push(`Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}`);
-            }
-            const notLowLine = notLowParts.length > 0 ? `\n${notLowParts.join(' · ')}` : '';
-            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis: CHF ${cardPrice.toFixed(2)} (historisches Tief CHF ${stats.tiefstpreis.toFixed(2)}, +${markupPct}% Aufschlag)${notLowLine}\nFarbe = Rabatt-Tiefe (rot = Deal, grau = kein Rabatt)\n[Klicken zum Aktualisieren]`);
+            // Tooltip: status + hint only — markup sits on the badge, historic low on the pill.
+            setTitleIfChanged(badgeDifEl, `⚠️ Kein Tiefstpreis (+${markupPct}% Aufschlag)\n[Klicken zum Aktualisieren]`);
             const fakeDiscHtml = sitePctText ? `<span class="tp-fake-discount"><s>${sitePctText}</s></span>` : '';
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⚠️</span><p class="tp-markup-val">+${markupPct}%</p>`);
@@ -4079,7 +4073,7 @@ const SHADOW_MODAL_STYLES = `
             setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft.`);
             setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
           } else {
-            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen. Badge-% nach Prüfung = echter Rabatt (Rekord vs Bisher bzw. Ø-Preis); die Kartenfarbe folgt der Badge-% (rot = Deal, grau = kein Rabatt).`);
+            setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen.`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>Prüfen</p>`);
             } else {
