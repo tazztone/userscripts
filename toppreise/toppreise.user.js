@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.113
+// @version      2.18.114
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3853,17 +3853,11 @@ const SHADOW_MODAL_STYLES = `
             setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
           }
 
-          const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
-          const wRec = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-          const wMed = 1 - wRec;
-          const fmtW = w => String(Math.round(w * 100) / 100);
-          const blendFormula = `Gewichtete Differenz -${dealData.weightedDiff}% = ${fmtW(wMed)}×Ø(-${dealData.dMedian}%) + ${fmtW(wRec)}×Rek(-${dealData.dRecord}%)`;
-          const outlierLine = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `\nℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert` : '';
-          if (showRecord) {
-            setTitleIfChanged(badgeDifEl, `${blendFormula}\n🔥 Neuer Rekord (CHF ${cardPrice.toFixed(2)}): -${dealData.dRecord}% vs Bisher CHF ${prevLow ? prevLow.toFixed(2) : '?'} · ${colorLegend}${outlierLine}\n[Klicken zum Aktualisieren]`);
-          } else {
-            setTitleIfChanged(badgeDifEl, `${blendFormula}\n🌟 Allzeit-Tiefstpreis (CHF ${cardPrice.toFixed(2)})!${dealData.isNewRecord ? '' : ' Kein neuer Rekord.'}${medianVal ? ` Ø ${horizonLabel} CHF ${medianVal.toFixed(2)}.` : ''} · ${colorLegend}${outlierLine}\n[Klicken zum Aktualisieren]`);
-          }
+          // Tooltip: only what the card doesn't show (outlier count) + action hint.
+          // Badge-% and both CHF legs live on ribbon/pill; color legend lives on
+          // the heatmap button.
+          const outlierTip = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert\n` : '';
+          setTitleIfChanged(badgeDifEl, `${outlierTip}[Klicken zum Aktualisieren]`);
 
           // Merged subline: CHF-anchored split with per-leg % (no blend words —
           // the ribbon above already shows it, so the short CHF tail survives
@@ -3993,36 +3987,15 @@ const SHADOW_MODAL_STYLES = `
             // 3B: Verified All-Time Low (Glowing Emerald Halo)
             // Ribbon prints the Gewichtete Differenz (ADR-0005); unqualified
             // history (no dealData) renders plain Tiefstpreis, gray, no number.
-            // Site-Differenz steht nach Prüfung nur noch im Tooltip als Kontext.
+            // Tooltip carries only the action hint (trimmed: badge + pill show the numbers).
             badgeDifEl.classList.add('tp-deal-alltime-low', 'tp-deal-badge-interactive');
             badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
-            const showRecord = isSignificantRecord(displayDelta);
             // Single source (ADR-0005): the blend is the heat input above.
             const badgePct = dealData ? heatInfo.pct : 0;
 
-            const detailParts = [];
-            if (isNewRecord && prevLow) {
-              detailParts.push(`Bisheriger Rekord: CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)`);
-            }
-            if (hasSignificantPeak) {
-              const peakDropPct = Math.round(((stats.hoechstpreis - cardPrice) / stats.hoechstpreis) * 100);
-              detailParts.push(`-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)}`);
-            }
-            if (sitePctText) {
-              detailParts.push(`Differenz: ${sitePctText} (ungeprüft, z.B. UVP)`);
-            }
-            const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
-            const colorLegend = `Farbe = Rabatt-Tiefe (tiefrot = grosser Tiefstpreis, grau = kein Rabatt)`;
-
-            if (dealData) {
-              const wRecB = (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number') ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-              const wMedB = 1 - wRecB;
-              const fmtWB = w => String(Math.round(w * 100) / 100);
-              setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\nGewichtete Differenz -${dealData.weightedDiff}% = ${fmtWB(wMedB)}×Ø(-${dealData.dMedian}%) + ${fmtWB(wRecB)}×Rek(-${dealData.dRecord}%) · ${colorLegend}${detailLine}\n[Klicken zum Aktualisieren]`);
-            } else {
-              setTitleIfChanged(badgeDifEl, `🌟 ${showRecord ? 'Neuer Allzeit-Tiefstpreis' : 'Allzeit-Tiefstpreis'} (CHF ${cardPrice.toFixed(2)})!\n${colorLegend}${detailLine}\n[Klicken zum Aktualisieren]`);
-            }
+            // Tooltip: action hint only — badge + pill carry the verified numbers.
+            setTitleIfChanged(badgeDifEl, '[Klicken zum Aktualisieren]');
             if (isListView) {
               if (badgePct > 0) {
                 setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
@@ -4432,7 +4405,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Rot = hoher Rabatt, Grau = kein Rabatt.">Heatmap</label>
+              <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt.">Heatmap</label>
             </div>
             <label class="tp-switch tp-rose">
               <input type="checkbox" id="tp-heatmap-enabled-toggle">

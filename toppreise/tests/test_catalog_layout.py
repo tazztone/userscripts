@@ -1489,7 +1489,7 @@ def test_merged_blend_subline_rendering(page: Page):
     assert '-18%' in badge.inner_text()
     assert 'Rekord' not in badge.inner_text()
     assert 'Ø-Preis' not in badge.inner_text()
-    assert 'Gewichtete Differenz' in (badge.get_attribute('title') or '')
+    assert '[Klicken zum Aktualisieren]' in (badge.get_attribute('title') or '')
 
     # No separate score pill exists anymore — one merged subline instead
     assert card.locator('.tp-badge-score-breakdown').count() == 0
@@ -1687,10 +1687,9 @@ def test_shipping_price_mismatch(page: Page):
     badge = page.locator('#card-competing-reference .badge-dif')
     assert "tp-deal-not-low" not in badge.get_attribute("class")
 
-    # Title should indicate Allzeit-Tiefstpreis
+    # Trimmed tooltip: record numbers live on badge + pill, title keeps the hint
     title = badge.get_attribute("title") or ""
-    assert "Allzeit-Tiefstpreis" in title
-    assert "CHF 65.98" in title
+    assert "[Klicken zum Aktualisieren]" in title
 
 
 

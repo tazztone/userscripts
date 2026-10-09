@@ -57,10 +57,9 @@ def test_competing_reference_price_resolves_to_verified_low(page: Page):
     # Should not have the not-low class
     assert "tp-deal-not-low" not in badge.get_attribute("class")
 
-    # Title should indicate Allzeit-Tiefstpreis
+    # Title carries only the action hint now (numbers live on badge + pill)
     title = badge.get_attribute("title") or ""
-    assert "Allzeit-Tiefstpreis" in title
-    assert "CHF 37.95" in title
+    assert "[Klicken zum Aktualisieren]" in title
 
 
 
@@ -75,12 +74,12 @@ def test_exact_cent_boundary_badge_states(page: Page):
     # Mode stays OFF (default) so the card stays in the DOM and we can inspect its badge properties
 
     cases = [
-        # currentPrice, expected_state (Allzeit-Tiefstpreis string), expected_class, not_expected_class
-        (37.94, 'Neuer Allzeit-Tiefstpreis (CHF 37.94)', 'tp-deal-alltime-low', 'tp-deal-not-low'), # new low
-        (37.95, 'Allzeit-Tiefstpreis (CHF 37.95)', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low
+        # currentPrice, title hint string, expected_class, not_expected_class
+        (37.94, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # new low
+        (37.95, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low
         (37.96, 'historisches Tief CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
         (38.00, 'historisches Tief CHF 37.95', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
-        (37.9500001, 'Allzeit-Tiefstpreis (CHF 37.95)', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low normalized
+        (37.9500001, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low normalized
     ]
 
     for (curr_price, title_match, expected_class, unexpected_class) in cases:
@@ -188,7 +187,7 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
     badge1 = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
     assert 'Tiefstpreis' in (badge1.text_content() or '')
     assert '-67%' not in (badge1.text_content() or '')
-    assert 'Allzeit-Tiefstpreis' in (badge1.get_attribute('title') or '')
+    assert '[Klicken zum Aktualisieren]' in (badge1.get_attribute('title') or '')
     assert not page.locator('#card-cheapest .tp-card-historical-price').is_visible()
 
     # 2. On Card 3 (Silikon Case, 15.00 CHF): click on-demand Differenz badge
@@ -302,8 +301,7 @@ def test_real_deal_rich_tooltips_with_peak_context(page: Page):
 
     badge1 = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
     title1 = badge1.get_attribute('title') or ''
-    assert 'Allzeit-Tiefstpreis' in title1
-    assert '-25% vom Höchstpreis CHF 2400.00' in title1
+    assert '[Klicken zum Aktualisieren]' in title1
 
     # Check Card 3
     page.wait_for_selector('#card-negative .badge-dif')
@@ -672,10 +670,10 @@ def test_real_world_toppreise_pricechart_html_parsing(page: Page):
     page.click('#card-negative .badge-dif')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low', timeout=3000)
     neg_badge = page.locator('#card-negative .badge-dif.tp-deal-alltime-low')
-    # Verified badge shows truthful Tiefstpreis, site -35% evicted to the tooltip
+    # Verified badge shows truthful Tiefstpreis; tooltip keeps only the action hint
     assert 'Tiefstpreis' in (neg_badge.text_content() or '')
     assert '-35%' not in (neg_badge.text_content() or '')
-    assert '-35%' in (neg_badge.get_attribute('title') or '')
+    assert '[Klicken zum Aktualisieren]' in (neg_badge.get_attribute('title') or '')
 
 
 
@@ -913,10 +911,10 @@ def test_negative_caching_and_manual_click_override(page: Page):
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    # Verified badge shows truthful Tiefstpreis, site -67% evicted to the tooltip
+    # Verified badge shows truthful Tiefstpreis; tooltip keeps only the action hint
     assert 'Tiefstpreis' in (badge.text_content() or '')
     assert '-67%' not in (badge.text_content() or '')
-    assert 'Allzeit-Tiefstpreis' in (badge.get_attribute('title') or '')
+    assert '[Klicken zum Aktualisieren]' in (badge.get_attribute('title') or '')
 
 
 
@@ -953,8 +951,8 @@ def test_real_deal_record_low_with_previous_low_subline(page: Page):
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')
     title = badge.get_attribute('title') or ''
-    assert 'Neuer Allzeit-Tiefstpreis' in title
-    assert 'Bisheriger Rekord: CHF 2200.00 (-18%)' in title
+    # Trimmed tooltip: record numbers live on badge + pill, title keeps the hint
+    assert '[Klicken zum Aktualisieren]' in title
 
     # Verify record-low subline is displayed
     page.wait_for_selector('#card-cheapest .tp-card-historical-price.tp-is-record-low')

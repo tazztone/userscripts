@@ -38,7 +38,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Rot = hoher Rabatt, Grau = kein Rabatt.">Heatmap</label>
+            <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt.">Heatmap</label>
           </div>
           <label class="tp-switch tp-rose">
             <input type="checkbox" id="tp-heatmap-enabled-toggle">
