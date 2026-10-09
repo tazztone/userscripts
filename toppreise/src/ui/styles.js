@@ -106,21 +106,40 @@ export const STYLES = `
     --darkreader-inline-bgcolor: transparent !important;
     --darkreader-inline-bgimage: none !important;
   }
-  /* Heat fill is dark by construction (near-opaque base stops): light text
-  carries suite microcopy + titles on filled cards. Edge/vortief keeps the site
-  background and never gets .tp-heatmap-active, so it stays untouched. */
+  /* Heat fill is dark by construction (near-opaque base stops, all L < 0.05):
+  light text carries suite microcopy + titles + the site price on filled cards.
+  Edge/vortief keeps the site background and never gets .tp-heatmap-active, so
+  light fills (peach site cards) stay untouched by construction - no luminance
+  JS needed. The "ab" prefix is a bare text node in .priceContainer, covered by
+  inheritance; the dealer <button> needs element-qualified specificity to beat
+  its own opacity rule. */
   .tp-heatmap-active .tp-dealer-name,
   .tp-heatmap-active .tp-card-historical-price,
   .tp-heatmap-active .tp-card-historical-price.tp-is-record-low,
   .tp-heatmap-active .tp-card-historical-price.tp-is-at-low,
   .tp-heatmap-active .tp-card-historical-price.tp-is-markup,
   .tp-heatmap-active .product-name,
-  .tp-heatmap-active .productDetails {
+  .tp-heatmap-active .productDetails,
+  .tp-heatmap-active .priceContainer,
+  .tp-heatmap-active .priceContainer a,
+  .tp-heatmap-active .priceContainer .currency,
+  .tp-heatmap-active .Plugin_Price,
+  .tp-heatmap-active .productPrice,
+  .tp-heatmap-active .shippingPrice,
+  .tp-heatmap-active .shippingText {
     color: #f1f5f9 !important;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
   }
-  .tp-heatmap-active .tp-dealer-name {
+  .tp-heatmap-active .tp-dealer-name,
+  .tp-heatmap-active button.tp-dealer-name.tp-dealer-btn {
     opacity: 1 !important;
+  }
+  /* Sparkline blue-500 dies on brown fill: light-blue stroke+dot on heated cards. */
+  .tp-heatmap-active .tp-sparkline polyline {
+    stroke: #93c5fd !important;
+  }
+  .tp-heatmap-active .tp-sparkline circle {
+    fill: #93c5fd !important;
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest,
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-top],

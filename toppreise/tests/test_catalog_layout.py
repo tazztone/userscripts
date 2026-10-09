@@ -2204,6 +2204,19 @@ def test_heat_fill_light_text_and_spark_clip(page: Page):
     subline = page.locator('#card-cheapest .tp-card-historical-price')
     assert subline.count() == 1
     assert subline.evaluate("el => window.getComputedStyle(el).color") == 'rgb(241, 245, 249)'
+    # Dark fill flips the site price to light; unheated cards keep site colors
+    # (mock green #10b981) - light fills stay untouched by construction.
+    assert page.locator('#card-cheapest .Plugin_Price').first.evaluate(
+        "el => window.getComputedStyle(el).color") == 'rgb(241, 245, 249)'
+    assert 'tp-heatmap-active' not in (page.locator('#card-expensive').get_attribute('class') or '')
+    assert page.locator('#card-expensive .Plugin_Price').first.evaluate(
+        "el => window.getComputedStyle(el).color") == 'rgb(16, 185, 129)'
+    stroke = page.locator('#card-cheapest .tp-card-subline-row').evaluate("""row => {
+        const pl = row.querySelector('.tp-sparkline polyline');
+        return pl ? window.getComputedStyle(pl).stroke : 'no-spark';
+    }""")
+    assert stroke in ('rgb(147, 197, 253)', 'no-spark'), stroke
+
     clip = page.locator('#card-cheapest .tp-card-subline-row').evaluate("""row => {
         const svg = row.querySelector('.tp-sparkline');
         if (!svg) return 'no-spark';
