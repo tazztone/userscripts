@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.126
+// @version      2.18.127
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2276,6 +2276,7 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
     ENABLE_SPARKLINES: true,
+    DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
     MIN_OFFERS: 0,
@@ -2342,6 +2343,7 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
     OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
+    DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
@@ -2437,6 +2439,11 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'ENABLE_SPARKLINES': {
             const toggle = shadow.getElementById('tp-sparklines-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'DEALER_AUTOFETCH': {
+            const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
             if (toggle) toggle.checked = !!val;
             break;
           }
@@ -3745,13 +3752,17 @@ const SHADOW_MODAL_STYLES = `
   const loupeBtnByBadge = new WeakMap();
   // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
   // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
-  // Retry, Fetch passiert nur per Klick, also kein Loop). Persistiert in
-  // localStorage (get/setCachedDealer, gleiche TTL wie Preishistorie); pro
-  // pid:Modus ein Storage-Read pro Pageload (dealerHydrated-Guard). Modus im Key,
-  // weil der günstigste Händler von der Preisbasis abhängt.
+  // Retry). Fetch per 🏬-Klick oder — opt-in via DEALER_AUTOFETCH — automatisch
+  // beim Rendern. Persistiert in localStorage (get/setCachedDealer, gleiche TTL
+  // wie Preishistorie); pro pid:Modus ein Storage-Read pro Pageload
+  // (dealerHydrated-Guard). Modus im Key, weil der günstigste Händler von der
+  // Preisbasis abhängt.
   const dealerCache = new Map();
   const dealerPending = new Set();
   const dealerHydrated = new Set();
+  // Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
+  // ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
+  const dealerAutoTried = new Set();
   const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
   function rememberDealer(dKey, value) {
     dealerCache.delete(dKey);
@@ -3761,6 +3772,7 @@ const SHADOW_MODAL_STYLES = `
   function clearDealerMemory() {
     dealerCache.clear();
     dealerHydrated.clear();
+    dealerAutoTried.clear();
   }
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
@@ -4490,9 +4502,10 @@ const SHADOW_MODAL_STYLES = `
     // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
     // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
     // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
-    // (dealerCache + dealerPending-Guard) und danach neu rendert. Der Name
-    // verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw. Zeilenlink),
-    // Fallback ist die Produktseite — immer neuer Tab.
+    // (dealerCache + dealerPending-Guard) und danach neu rendert — oder bei
+    // DEALER_AUTOFETCH denselben Loader ohne Klick (1×/Pageload, max. 3 parallel).
+    // Der Name verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw.
+    // Zeilenlink), Fallback ist die Produktseite — immer neuer Tab.
     const dealerEl = card.querySelector('.tp-dealer-name');
     if (!stats || !pid) {
       dealerEl?.remove();
@@ -4535,6 +4548,19 @@ const SHADOW_MODAL_STYLES = `
         setTextIfChanged(el, `🏬 ${dealer}`);
         setTitleIfChanged(el, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
       } else if (hasUrl && !dealerCache.has(dKey)) {
+        // Ein Loader für Klick + Auto-Fetch: Produktseite einmalig pro pid:Modus
+        // (dealerPending-Guard), Ergebnis in Memory + localStorage, danach Render.
+        const loadDealer = async () => {
+          if (dealerPending.has(dKey)) return;
+          dealerPending.add(dKey);
+          try {
+            const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
+            if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
+          } finally {
+            dealerPending.delete(dKey);
+          }
+          triggerProcessListings();
+        };
         let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
         if (!btn) {
           dealerEl?.remove();
@@ -4544,23 +4570,24 @@ const SHADOW_MODAL_STYLES = `
           btn.textContent = '🏬';
           btn.setAttribute('aria-label', 'Händler laden');
           btn.title = 'Günstigsten Händler laden (lädt die Produktseite einmalig)';
-          btn.addEventListener('click', async e => {
+          btn.addEventListener('click', e => {
             e.preventDefault();
             e.stopPropagation();
-            if (dealerPending.has(dKey)) return;
-            dealerPending.add(dKey);
             btn.disabled = true;
-            try {
-              const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-              if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
-            } finally {
-              dealerPending.delete(dKey);
-            }
-            triggerProcessListings();
+            loadDealer();
           });
           place(btn);
         } else if (!dealerPending.has(dKey) && btn.disabled) {
           btn.disabled = false;
+        }
+        // Opt-in (aus, Standard): Händler ohne Klick laden. Ein Versuch pro
+        // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
+        // parallele Fetches — fertige lösen per triggerProcessListings die
+        // nächste Staffel aus (Kaskade statt Request-Sturm).
+        if (CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
+          dealerAutoTried.add(dKey);
+          btn.disabled = true;
+          loadDealer();
         }
       } else {
         dealerEl?.remove();
@@ -4872,9 +4899,20 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Produktseiten-Abfragen (max. 3 parallel)</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-dealer-autofetch-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
+            <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-secondary" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
           </div>
           <div class="tp-settings-group">
             <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
@@ -4942,9 +4980,11 @@ const SHADOW_MODAL_STYLES = `
     const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
     const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
     const cacheClearBtn = shadow.getElementById('tp-cache-clear-btn');
+    const dataResetBtn = shadow.getElementById('tp-data-reset-btn');
     const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
     const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
+    const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
     const dur90 = shadow.getElementById('tp-dur-90');
     const dur180 = shadow.getElementById('tp-dur-180');
     const dur365 = shadow.getElementById('tp-dur-365');
@@ -5019,6 +5059,7 @@ const SHADOW_MODAL_STYLES = `
       if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
+      if (dealerAutofetchToggle) dealerAutofetchToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
       if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
     }
 
@@ -5085,6 +5126,17 @@ const SHADOW_MODAL_STYLES = `
       if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
       processListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
+    });
+
+    dataResetBtn?.addEventListener('click', () => {
+      if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
+      const removed = clearPriceStatsCache();
+      clearDealerMemory();
+      updateConfigs({ ...DEFAULTS });
+      updateBodyClasses();
+      syncFieldsFromConfig();
+      if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+      showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
     });
 
     exportBtn?.addEventListener('click', () => {
@@ -5214,6 +5266,7 @@ const SHADOW_MODAL_STYLES = `
 
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
+      if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       updates.SHOW_ADVANCED = !!advancedDetails?.open;
 

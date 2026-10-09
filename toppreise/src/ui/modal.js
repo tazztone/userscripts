@@ -187,9 +187,20 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
+            <span class="tp-switch-desc">Erfordert zusätzliche Produktseiten-Abfragen (max. 3 parallel)</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-dealer-autofetch-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
         <div class="tp-settings-group tp-cache-row">
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
+          <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-secondary" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
         </div>
         <div class="tp-settings-group">
           <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
@@ -257,9 +268,11 @@ export function setupUI() {
   const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
   const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
   const cacheClearBtn = shadow.getElementById('tp-cache-clear-btn');
+  const dataResetBtn = shadow.getElementById('tp-data-reset-btn');
   const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
   const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
   const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
+  const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
   const dur90 = shadow.getElementById('tp-dur-90');
   const dur180 = shadow.getElementById('tp-dur-180');
   const dur365 = shadow.getElementById('tp-dur-365');
@@ -334,6 +347,7 @@ export function setupUI() {
     if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
+    if (dealerAutofetchToggle) dealerAutofetchToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
     if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
   }
 
@@ -400,6 +414,17 @@ export function setupUI() {
     if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
     processListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
+  });
+
+  dataResetBtn?.addEventListener('click', () => {
+    if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
+    const removed = clearPriceStatsCache();
+    clearDealerMemory();
+    updateConfigs({ ...DEFAULTS });
+    updateBodyClasses();
+    syncFieldsFromConfig();
+    if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+    showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
   });
 
   exportBtn?.addEventListener('click', () => {
@@ -529,6 +554,7 @@ export function setupUI() {
 
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
+    if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
     if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     updates.SHOW_ADVANCED = !!advancedDetails?.open;
 

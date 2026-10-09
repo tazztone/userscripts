@@ -283,6 +283,44 @@ def test_sparklines_settings_toggle(page: Page):
 
     assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.ENABLE_SPARKLINES") is False
 
+def test_dealer_autofetch_settings_toggle(page: Page):
+    page.click('#tp-root >> #tp-settings-fab')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    # Dealer auto-fetch lives in the advanced panel: reveal it first
+    page.click('#tp-root >> #tp-advanced-details > summary')
+
+    toggle = page.locator('#tp-root >> #tp-dealer-autofetch-toggle')
+    assert not toggle.is_checked()
+
+    # Toggle auto-fetch on via slider click
+    page.click('#tp-root >> #tp-dealer-autofetch-toggle + .tp-slider')
+    assert toggle.is_checked()
+
+    # Save
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.DEALER_AUTOFETCH") is True
+
+
+def test_data_reset_clears_cache_and_settings(page: Page):
+    page.evaluate("""() => {
+        localStorage.setItem('tp_hist_v1_item1', JSON.stringify({ tiefstpreis: 100, time: Date.now() }));
+        window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 40, {skipRender: true});
+    }""")
+    page.click('#tp-root >> #tp-settings-fab')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    # Reset button lives in the advanced panel: reveal it first
+    page.click('#tp-root >> #tp-advanced-details > summary')
+
+    page.on('dialog', lambda dialog: dialog.accept())
+    page.click('#tp-root >> #tp-data-reset-btn')
+
+    stats_label = page.locator('#tp-root >> #tp-cache-stats-label')
+    assert '0 Einträge' in (stats_label.text_content() or '')
+    assert page.evaluate("() => localStorage.getItem('tp_hist_v1_item1')") is None
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 30
+
 
 
 def test_bestpreise_settings_weight_slider(page: Page):

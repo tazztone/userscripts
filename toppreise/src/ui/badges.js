@@ -72,13 +72,17 @@ function ensureHistPriceEl(card, cardPriceEl) {
 const loupeBtnByBadge = new WeakMap();
 // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
 // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
-// Retry, Fetch passiert nur per Klick, also kein Loop). Persistiert in
-// localStorage (get/setCachedDealer, gleiche TTL wie Preishistorie); pro
-// pid:Modus ein Storage-Read pro Pageload (dealerHydrated-Guard). Modus im Key,
-// weil der günstigste Händler von der Preisbasis abhängt.
+// Retry). Fetch per 🏬-Klick oder — opt-in via DEALER_AUTOFETCH — automatisch
+// beim Rendern. Persistiert in localStorage (get/setCachedDealer, gleiche TTL
+// wie Preishistorie); pro pid:Modus ein Storage-Read pro Pageload
+// (dealerHydrated-Guard). Modus im Key, weil der günstigste Händler von der
+// Preisbasis abhängt.
 const dealerCache = new Map();
 const dealerPending = new Set();
 const dealerHydrated = new Set();
+// Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
+// ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
+const dealerAutoTried = new Set();
 export const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
 function rememberDealer(dKey, value) {
   dealerCache.delete(dKey);
@@ -88,6 +92,7 @@ function rememberDealer(dKey, value) {
 export function clearDealerMemory() {
   dealerCache.clear();
   dealerHydrated.clear();
+  dealerAutoTried.clear();
 }
 async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;
@@ -817,9 +822,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
   // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
   // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
-  // (dealerCache + dealerPending-Guard) und danach neu rendert. Der Name
-  // verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw. Zeilenlink),
-  // Fallback ist die Produktseite — immer neuer Tab.
+  // (dealerCache + dealerPending-Guard) und danach neu rendert — oder bei
+  // DEALER_AUTOFETCH denselben Loader ohne Klick (1×/Pageload, max. 3 parallel).
+  // Der Name verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw.
+  // Zeilenlink), Fallback ist die Produktseite — immer neuer Tab.
   const dealerEl = card.querySelector('.tp-dealer-name');
   if (!stats || !pid) {
     dealerEl?.remove();
@@ -862,6 +868,19 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       setTextIfChanged(el, `🏬 ${dealer}`);
       setTitleIfChanged(el, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
     } else if (hasUrl && !dealerCache.has(dKey)) {
+      // Ein Loader für Klick + Auto-Fetch: Produktseite einmalig pro pid:Modus
+      // (dealerPending-Guard), Ergebnis in Memory + localStorage, danach Render.
+      const loadDealer = async () => {
+        if (dealerPending.has(dKey)) return;
+        dealerPending.add(dKey);
+        try {
+          const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
+          if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
+        } finally {
+          dealerPending.delete(dKey);
+        }
+        triggerProcessListings();
+      };
       let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
       if (!btn) {
         dealerEl?.remove();
@@ -871,23 +890,24 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         btn.textContent = '🏬';
         btn.setAttribute('aria-label', 'Händler laden');
         btn.title = 'Günstigsten Händler laden (lädt die Produktseite einmalig)';
-        btn.addEventListener('click', async e => {
+        btn.addEventListener('click', e => {
           e.preventDefault();
           e.stopPropagation();
-          if (dealerPending.has(dKey)) return;
-          dealerPending.add(dKey);
           btn.disabled = true;
-          try {
-            const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
-          } finally {
-            dealerPending.delete(dKey);
-          }
-          triggerProcessListings();
+          loadDealer();
         });
         place(btn);
       } else if (!dealerPending.has(dKey) && btn.disabled) {
         btn.disabled = false;
+      }
+      // Opt-in (aus, Standard): Händler ohne Klick laden. Ein Versuch pro
+      // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
+      // parallele Fetches — fertige lösen per triggerProcessListings die
+      // nächste Staffel aus (Kaskade statt Request-Sturm).
+      if (CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
+        dealerAutoTried.add(dKey);
+        btn.disabled = true;
+        loadDealer();
       }
     } else {
       dealerEl?.remove();

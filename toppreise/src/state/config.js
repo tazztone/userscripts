@@ -51,6 +51,7 @@ export const DEFAULTS = Object.freeze({
   BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
   OUTLIER_REJECTION_ENABLED: true,
   ENABLE_SPARKLINES: true,
+  DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
   MIN_OFFERS: 0,
@@ -117,6 +118,7 @@ export const CONFIG = {
   BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
   OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
+  DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
@@ -212,6 +214,11 @@ export function syncUiControl(key, val) {
         }
         case 'ENABLE_SPARKLINES': {
           const toggle = shadow.getElementById('tp-sparklines-toggle');
+          if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'DEALER_AUTOFETCH': {
+          const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
           if (toggle) toggle.checked = !!val;
           break;
         }

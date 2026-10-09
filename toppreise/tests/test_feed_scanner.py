@@ -1460,6 +1460,43 @@ def test_dealer_name_links_directly_to_shop_offer(page: Page):
     assert name.get_attribute('target') == '_blank'
 
 
+def test_dealer_autofetch_loads_without_click(page: Page):
+    """With DEALER_AUTOFETCH enabled, a verified feed card fetches the dealer
+    on render — no 🏬 click needed, exactly one product-page request."""
+    product_hits = []
+    page.on('request', lambda req: product_hits.append(req.url) if 'preisvergleich' in req.url else None)
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+        window.ToppreiseSuite.updateConfig('DEALER_AUTOFETCH', true);
+    }""")
+    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
+    ))
+    page.route('**/preisvergleich/**', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="Plugin_Offer">'
+             '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
+             '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
+             '</div>'
+    ))
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert 'Galaxus' in (name.text_content() or '')
+    assert 'ext_de' in (name.get_attribute('href') or '')
+    assert len(product_hits) == 1
+
 def test_dealer_name_survives_reload_without_refetch(page: Page, userscript_content):
     """The 🏬 result persists in localStorage: after reload the dealer name
     renders immediately with the shop link — no button, no product refetch."""
