@@ -136,11 +136,17 @@ function ensureCta() {
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', 'Tiefstpreise prüfen');
   el.innerHTML = `
-    <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
-      <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
-      <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
-      <span id="tp-floating-check-count">🔍</span>
-    </button>
+    <div id="tp-floating-check-col">
+      <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
+        <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
+        <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+        <span id="tp-floating-check-count">🔍</span>
+      </button>
+      <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
+        <input type="checkbox" id="tp-floating-dealer-toggle">
+        <span>🏬 Händler laden</span>
+      </label>
+    </div>
     <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
     <div id="tp-floating-threshold-popover" role="menu">
       <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
@@ -184,6 +190,13 @@ function ensureCta() {
     const next = e.target.checked;
     updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
     showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+  };
+  // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
+  // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
+  el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
+    const next = e.target.checked;
+    updateConfig('DEALER_AUTOFETCH', next);
+    showToast(next ? '🏬 Händler werden beim Prüfen automatisch geladen' : '🏬 Händler nur noch per Klick laden');
   };
 
   if (!window._tpFloatingCtaDocBound) {
@@ -256,6 +269,11 @@ function syncFloatingCTA() {
   if (hideToggleSync && document.activeElement !== hideToggleSync) {
     hideToggleSync.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
   }
+  const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
+  if (dealerToggle && document.activeElement !== dealerToggle) {
+    dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
+  }
+  el.querySelector('#tp-floating-dealer-row')?.classList.toggle('tp-active', CONFIG.DEALER_AUTOFETCH === true);
   const filterRowSync = el.querySelector('.tp-floating-filter-row');
   if (filterRowSync) {
     filterRowSync.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);

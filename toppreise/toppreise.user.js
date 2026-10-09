@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.127
+// @version      2.18.128
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1093,8 +1093,15 @@ const STYLES = `
     .badge-dif, .tp-deal-pill { color: #fff !important; border-width: 2px !important; }
     .tp-tool-dim { opacity: 0.75 !important; }
   }
+  #tp-floating-check-col {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+  }
   #tp-floating-check-btn {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    flex: 1 !important;
     border: none !important;
     border-radius: 10px 0 0 10px !important;
     color: #fff !important;
@@ -1107,6 +1114,21 @@ const STYLES = `
     line-height: 1.2 !important;
   }
   #tp-floating-check-btn:hover { filter: brightness(1.12) !important; }
+  #tp-floating-dealer-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 3px 14px 5px !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: #94a3b8 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    user-select: none !important;
+  }
+  #tp-floating-dealer-row:hover { color: #e2e8f0 !important; }
+  #tp-floating-dealer-row.tp-active { color: #34d399 !important; }
+  #tp-floating-dealer-row input { accent-color: #10b981 !important; margin: 0 !important; cursor: pointer !important; }
   #tp-floating-check-main { font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-sub { font-size: 10px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
   #tp-floating-threshold-btn {
@@ -1195,6 +1217,7 @@ const STYLES = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 999px !important; border: none !important; margin-left: 2px !important; }
@@ -5782,11 +5805,17 @@ const SHADOW_MODAL_STYLES = `
     el.setAttribute('role', 'region');
     el.setAttribute('aria-label', 'Tiefstpreise prüfen');
     el.innerHTML = `
-      <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
-        <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
-        <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
-        <span id="tp-floating-check-count">🔍</span>
-      </button>
+      <div id="tp-floating-check-col">
+        <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
+          <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
+          <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+          <span id="tp-floating-check-count">🔍</span>
+        </button>
+        <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
+          <input type="checkbox" id="tp-floating-dealer-toggle">
+          <span>🏬 Händler laden</span>
+        </label>
+      </div>
       <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
       <div id="tp-floating-threshold-popover" role="menu">
         <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
@@ -5830,6 +5859,13 @@ const SHADOW_MODAL_STYLES = `
       const next = e.target.checked;
       updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
       showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+    };
+    // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
+    // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
+    el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
+      const next = e.target.checked;
+      updateConfig('DEALER_AUTOFETCH', next);
+      showToast(next ? '🏬 Händler werden beim Prüfen automatisch geladen' : '🏬 Händler nur noch per Klick laden');
     };
 
     if (!window._tpFloatingCtaDocBound) {
@@ -5902,6 +5938,11 @@ const SHADOW_MODAL_STYLES = `
     if (hideToggleSync && document.activeElement !== hideToggleSync) {
       hideToggleSync.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
     }
+    const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
+    if (dealerToggle && document.activeElement !== dealerToggle) {
+      dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
+    }
+    el.querySelector('#tp-floating-dealer-row')?.classList.toggle('tp-active', CONFIG.DEALER_AUTOFETCH === true);
     const filterRowSync = el.querySelector('.tp-floating-filter-row');
     if (filterRowSync) {
       filterRowSync.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);

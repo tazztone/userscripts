@@ -21,6 +21,24 @@ def test_floating_cta_threshold_syncs_with_toolbar(page: Page):
     # Shared config dispatcher persists the choice
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 40
 
+def test_floating_cta_dealer_toggle_syncs_with_settings(page: Page):
+    row = page.locator('#tp-floating-dealer-row')
+    toggle = page.locator('#tp-floating-dealer-toggle')
+    assert row.is_visible()
+    assert 'Händler laden' in (row.text_content() or '')
+    assert not toggle.is_checked()
+
+    # Toggle ON in the pill: shared config key flips immediately
+    toggle.click()
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.DEALER_AUTOFETCH") is True
+    assert 'tp-active' in (row.get_attribute('class') or '')
+
+    # Settings modal mirrors the same key without a save round-trip
+    page.click('#tp-root >> #tp-settings-fab')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    page.click('#tp-root >> #tp-advanced-details > summary')
+    assert page.locator('#tp-root >> #tp-dealer-autofetch-toggle').is_checked()
+
 
 def test_floating_cta_runs_batch_check_and_stays_visible_dimmed_when_done(page: Page):
     def handle_pricechart(route):
