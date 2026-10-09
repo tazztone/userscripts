@@ -9,6 +9,8 @@ import {
   extractShareData,
   extractDealer,
   parseJsonLdOffer,
+  parseProductOffers,
+  pickCheapestOffer,
   fetchProductInfo,
   renderSparklinePng,
   postDealToDiscord,
@@ -213,6 +215,63 @@ describe('fetchProductInfo', () => {
     assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0 });
   });
 });
+describe('parseProductOffers / pickCheapestOffer', () => {
+  const block = ({ dealer, product, shipping }) => ({
+    querySelector: sel => {
+      if (sel.startsWith('.Plugin_ShopLogo')) {
+        return dealer ? { getAttribute: k => (k === 'alt' || k === 'title' ? dealer : null) } : null;
+      }
+      if (sel.includes('productPrice')) return product ? { textContent: ` CHF ${product} ` } : null;
+      if (sel.includes('shippingPrice')) return shipping ? { textContent: ` CHF ${shipping} ` } : null;
+      return null;
+    }
+  });
+  const doc = blocks => ({ querySelectorAll: sel => (sel === '.Plugin_Offer' ? blocks : []) });
+
+  it('reads dealer + both prices per block, drops empty rows', () => {
+    const offers = parseProductOffers(doc([
+      block({ dealer: 'Amazon.de', product: '15.23', shipping: '20.48' }),
+      block({ dealer: '', product: '', shipping: '' }),
+    ]));
+    assert.deepEqual(offers, [
+      { dealer: 'Amazon.de', product: 15.23, shipping: 20.48 },
+    ]);
+    assert.deepEqual(parseProductOffers(doc([])), []);
+    assert.deepEqual(parseProductOffers(null), []);
+  });
+
+  it('picks the cheapest on the card price basis, order-independent', () => {
+    const offers = [
+      { dealer: 'Amazon.de', product: 15.23, shipping: 20.48 },
+      { dealer: 'Galaxus', product: 18.00, shipping: 19.00 },
+    ];
+    assert.deepEqual(pickCheapestOffer(offers, false), { price: 15.23, dealer: 'Amazon.de' });
+    assert.deepEqual(pickCheapestOffer([...offers].reverse(), true), { price: 19.00, dealer: 'Galaxus' });
+    assert.deepEqual(pickCheapestOffer([], true), { price: 0, dealer: '' });
+  });
+
+  it('fetchProductInfo prefers offer blocks over JSON-LD, on card basis', async () => {
+    const blocks = [
+      block({ dealer: 'Amazon.de', product: '15.23', shipping: '20.48' }),
+      block({ dealer: 'Galaxus', product: '18.00', shipping: '19.00' }),
+    ];
+    const ld = { textContent: JSON.stringify({ '@type': 'Product', offers: { '@type': 'AggregateOffer', offerCount: 9 } }) };
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: sel => (sel === '.Plugin_Offer' ? blocks : sel.startsWith('script') ? [ld] : []) };
+      }
+    };
+    try {
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2 });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2 });
+    } finally {
+      delete globalThis.fetch;
+      delete globalThis.DOMParser;
+    }
+  });
+});
+
 describe('parseJsonLdOffer', () => {
   const product = offers => ({ '@context': 'https://schema.org', '@type': 'Product', name: 'x', offers });
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.115
+// @version      2.18.116
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4206,7 +4206,7 @@ const SHADOW_MODAL_STYLES = `
             let dealer = extractDealer(card);
             let offers = cd.offerCount || 0;
             if ((!dealer || !offers) && url) {
-              const info = await fetchProductInfo(url).catch(() => null);
+              const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
               if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
             }
             const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
@@ -5773,9 +5773,35 @@ const SHADOW_MODAL_STYLES = `
     return { dealer: '', offers: 0 };
   }
 
+  // Produktseiten listen Angebote als .Plugin_Offer-Blöcke (Preis-aufsteigend,
+  // statisch im HTML, live verifiziert 2026-10-09): Shopname im Logo-alt, je ein
+  // Produkt-/Versandpreis. Günstigstes Angebot auf Karten-Basis wählen (Min statt
+  // erste Zeile: robust gegen fremde Sortier-Cookies; nur Seite 1 geparst).
+  function parseProductOffers(doc) {
+    const blocks = Array.from(doc?.querySelectorAll?.('.Plugin_Offer') || []);
+    return blocks.map(block => {
+      const logo = block.querySelector?.('.Plugin_ShopLogo img[alt], .Plugin_ShopLogo img[title]');
+      const dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
+      const product = parsePrice(block.querySelector?.(SELECTORS.price.fallbackProduct)?.textContent);
+      const shipping = parsePrice(block.querySelector?.(SELECTORS.price.fallbackShipping)?.textContent);
+      return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0 };
+    }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
+  }
+
+  function pickCheapestOffer(offers, useShipping = false) {
+    let best = null;
+    for (const o of offers || []) {
+      const price = useShipping ? (o.shipping || o.product) : (o.product || o.shipping);
+      if (!(price > 0)) continue;
+      if (!best || price < best.price) best = { price, dealer: o.dealer || '' };
+    }
+    return best || { price: 0, dealer: '' };
+  }
+
   // Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
-  // same-origin, kein CORS-Problem). Erste Zeile = günstigstes Angebot, sonst JSON-LD.
-  async function fetchProductInfo(productUrl, timeoutMs = 10000) {
+  // same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke →
+  // JSON-LD (nur Count). Händler immer auf Karten-Preisbasis (Versand/Produkt).
+  async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
     const out = { dealer: '', offers: 0 };
     try {
       if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
@@ -5792,6 +5818,12 @@ const SHADOW_MODAL_STYLES = `
       out.dealer = titles[0]?.textContent?.replace(/\s+/g, ' ').trim() || '';
       out.offers = titles.length;
       if (out.dealer || out.offers) return out;
+      const offers = parseProductOffers(doc);
+      if (offers.length) {
+        out.offers = offers.length;
+        out.dealer = pickCheapestOffer(offers, useShipping).dealer;
+        return out;
+      }
       const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
       for (const s of scripts) {
         try {

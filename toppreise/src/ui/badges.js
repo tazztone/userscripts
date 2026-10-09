@@ -731,7 +731,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           let dealer = extractDealer(card);
           let offers = cd.offerCount || 0;
           if ((!dealer || !offers) && url) {
-            const info = await fetchProductInfo(url).catch(() => null);
+            const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
             if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
           }
           const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);

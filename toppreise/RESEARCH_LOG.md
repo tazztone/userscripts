@@ -366,10 +366,14 @@ e.g. BELKIN SoundForm Mini 2 `p869380`). Static HTML (~294 KB) contains:
 {"@context":"https://schema.org","@type":"Product","brand":"Belkin","description":"…","gtin13":"…","image":"…","mpn":"…","name":"…","offers":{"@type":"AggregateOffer","highPrice":"82.00","lowPrice":"16.95","offerCount":6,"priceCurrency":"CHF"}}
 ```
 
-  No per-offer sellers anywhere in static HTML → a fetched product page yields
-  the offer **count** but never a dealer **name**. Parsed by `parseJsonLdOffer`
-  (`src/features/share-discord.js`); cheapest-`Offer` preference is implemented
-  for the day Toppreise ships per-item offers.
+  Correction 2026-10-09: per-offer sellers ARE in static HTML — the 10-08 probe
+  searched catalog markup (`.Plugin_DealerRelProdPriceInfo`) and missed the
+  product-page shape: `.Plugin_Offer` blocks (price-ascending, page 1) carrying
+  `.Plugin_ShopLogo img[alt]` (= dealer) plus `.priceContainer.productPrice` /
+  `.shippingPrice .Plugin_Price` per offer (verified live on 2 products, cheapest
+  == JSON-LD `lowPrice`). Parsed by `parseProductOffers` + `pickCheapestOffer`
+  (`src/features/share-discord.js`), cheapest on the card's price basis
+  (min-selection, order-independent). `parseJsonLdOffer` stays last-resort count.
 - Offers endpoint (page JS, nothing inline): `POST
   /plugins/product/AuctionsOverview`, container `<div
   id="Plugin_AuctionsOverview_<instance>" data-context-hash="<hash>"
@@ -387,17 +391,16 @@ e.g. BELKIN SoundForm Mini 2 `p869380`). Static HTML (~294 KB) contains:
   `--disable-web-security`), XHR capture `scratch/offers_xhr_sniff.py`.
 
 Consequence: catalog cards → dealer name from DOM (`extractDealer`); feed
-cards → count from JSON-LD, name omitted. Fixture mirror of the live
+cards → dealer + count from the fetched product page (offer blocks, card price
+basis), JSON-LD count only when blocks are absent. Fixture mirror of the live
 `AggregateOffer` lives in `tests/mock_toppreise.html` `<head>`.
 
-### Why history replays but offers don't
+### Why history replays but offers don't need to
 
 `pricechart` is a stateless data dump: PID (`pcspagdpi`, from the URL) + one
 stable token → time series, no sellers by design. The suite's scanner replays
-it freely. `AuctionsOverview` is a stateful UI plugin: it demands the page's
-render-time filter/session state (timestamp-prefixed params, context hash) and
-answers session-less replays with `410 Gone`. Static HTML contains neither the
-series nor the sellers — history comes from its API, sellers only from the
-rendered DOM or the session endpoint. Cracking the plugin protocol is
-deliberately not pursued (silent breakage on every site update); feed shares
-get the JSON-LD count, catalog shares the DOM name.
+it freely. Sellers ride along in the static product HTML (`.Plugin_Offer`), so
+feed shares parse them from the same fetch that already fetched the count —
+no `AuctionsOverview` session replay, no standing maintenance item. (`AuctionsOverview`
+itself stays a stateful UI plugin: naive replays answer `410 Gone`; still
+deliberately not pursued — nothing needs it.)
