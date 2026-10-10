@@ -63,20 +63,9 @@ def test_exact_cent_boundary_badge_states(page: Page):
             // Overwrite price container
             const pEl = card.querySelector('.Plugin_PriceInformation .Plugin_Price');
             pEl.textContent = price;
-
-            // Seed a cached history where tiefstpreis = 37.95
-            localStorage.setItem('tp_hist_v1_1003795', JSON.stringify({
-                tiefstpreis: 37.95,
-                hoechstpreis: 55.00,
-                medianPrice: 45.00,
-                previousLow: 47.82,
-                isNewAllTimeLow: price < 37.95,
-                dataPointCount: 10,
-                time: Date.now()
-            }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('1003795', JSON.parse(localStorage.getItem('tp_hist_v1_1003795')));
-            window.ToppreiseSuite.processListings();
         }""", curr_price)
+        # Seed a cached history where tiefstpreis = 37.95 (Python-side `<`, not `<=`: 37.95 is at-low, not new-low)
+        seed_verified_deal(page, '1003795', {'tiefstpreis': 37.95, 'hoechstpreis': 55.00, 'medianPrice': 45.00, 'previousLow': 47.82, 'isNewAllTimeLow': curr_price < 37.95, 'dataPointCount': 10})
 
         # Wait a tick for mutations
         page.wait_for_timeout(100)
@@ -295,16 +284,8 @@ def test_real_deal_batch_check_button_counter_and_run(page: Page):
     # In mock_toppreise.html, 3 cards have >= 30% discount (-67%, -35%, -50%)
     assert '3 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
-    # Mock routes
-    def handle_pricechart(route):
-        route.fulfill(
-            status=200,
-            headers={'access-control-allow-origin': '*'},
-            content_type='text/html',
-            body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">500.00</div></div>'
-        )
-
-    page.route('**/plugins/product/pricechart*', handle_pricechart)
+    # Mock routes (every mock card at 500.00: helper 404s unlisted pids, old mock fulfilled all)
+    mock_pricechart(page, {'797571': 500, '797572': 500, '797573': 500, '797574': 500, '797575': 500, '1003795': 500})
 
     # 1. Checking one card individually reduces the batch count from (3) to (2)
     page.click('#card-cheapest .badge-dif')
@@ -684,17 +665,7 @@ def test_sparkline_renders_with_cached_timeseries(page: Page):
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
     }""")
     # Inject cached price stats with timeSeries into localStorage
-    page.evaluate("""() => {
-        const stats = {
-            tiefstpreis: 1800.0,
-            hoechstpreis: 2200.0,
-            aktuellerToppreis: 1800.0,
-            timeSeries: [[1672531199, 2200.0], [1675209599, 2000.0], [1677628799, 1800.0]],
-            time: Date.now()
-        };
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', stats);
-        window.ToppreiseSuite?.processListings?.();
-    }""")
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800.0, 'hoechstpreis': 2200.0, 'aktuellerToppreis': 1800.0, 'timeSeries': [[1672531199, 2200.0], [1675209599, 2000.0], [1677628799, 1800.0]]})
 
     # Verify sparkline SVG is rendered on card-cheapest
     sparkline = page.locator('#card-cheapest .tp-sparkline')
@@ -720,16 +691,8 @@ def test_sparkline_not_rendered_without_timeseries(page: Page):
 def test_sparkline_trending_up_renders_single_color(page: Page):
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
-        const stats = {
-            tiefstpreis: 900.0,
-            hoechstpreis: 1200.0,
-            aktuellerToppreis: 1100.0,
-            timeSeries: [[1672531199, 900.0], [1675209599, 1000.0], [1677628799, 1100.0]],
-            time: Date.now()
-        };
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', stats);
-        window.ToppreiseSuite?.processListings?.();
     }""")
+    seed_verified_deal(page, '797572', {'tiefstpreis': 900.0, 'hoechstpreis': 1200.0, 'aktuellerToppreis': 1100.0, 'timeSeries': [[1672531199, 900.0], [1675209599, 1000.0], [1677628799, 1100.0]]})
 
     sparkline = page.locator('#card-expensive .tp-sparkline')
     assert sparkline.is_visible()

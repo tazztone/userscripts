@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.144
+// @version      2.18.145
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3965,10 +3965,6 @@ const SHADOW_MODAL_STYLES = `
   // Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
   // ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
   const dealerAutoTried = new Set();
-  const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
-  function rememberDealer(dKey, value) {
-    lruSet(dealerCache, dKey, value);
-  }
   function clearDealerMemory() {
     dealerCache.clear();
     dealerHydrated.clear();
@@ -4522,7 +4518,7 @@ const SHADOW_MODAL_STYLES = `
             if (isNewRecord && showPrevLow) {
               setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)${showMedianLine ? ` · Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}` : ''}`);
             } else {
-              const dMedian = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
+              const dMedian = dMedBrowse;
               setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`);
             }
           } else if (histPriceEl) {
@@ -4734,12 +4730,12 @@ const SHADOW_MODAL_STYLES = `
       dealerEl?.remove();
     } else {
       const useShipping = isShippingPriceActive(card);
-      const dKey = dealerCacheKey(pid, useShipping);
+      const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
       let dealer = extractDealer(card);
       if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
         dealerHydrated.add(dKey);
         const stored = getCachedDealer(pid, useShipping);
-        if (stored?.dealer) rememberDealer(dKey, stored);
+        if (stored?.dealer) lruSet(dealerCache, dKey, stored);
       }
       const cached = dealerCache.get(dKey);
       if (!dealer && cached?.dealer) dealer = cached.dealer;
@@ -4778,7 +4774,7 @@ const SHADOW_MODAL_STYLES = `
           dealerPending.add(dKey);
           try {
             const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info?.dealer) { rememberDealer(dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
+            if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
           } finally {
             dealerPending.delete(dKey);
           }

@@ -249,10 +249,7 @@ def test_config_import_ignores_unknown_and_debug_keys(page: Page):
 
 
 def test_sparklines_settings_toggle(page: Page):
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Sparklines live in the advanced panel: reveal it first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     toggle = page.locator('#tp-root >> #tp-sparklines-toggle')
     assert toggle.is_checked()
@@ -268,10 +265,7 @@ def test_sparklines_settings_toggle(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.ENABLE_SPARKLINES") is False
 
 def test_dealer_autofetch_settings_toggle(page: Page):
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Dealer auto-fetch lives in the advanced panel: reveal it first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     toggle = page.locator('#tp-root >> #tp-dealer-autofetch-toggle')
     assert not toggle.is_checked()
@@ -292,10 +286,7 @@ def test_data_reset_clears_cache_and_settings(page: Page):
         localStorage.setItem('tp_hist_v1_item1', JSON.stringify({ tiefstpreis: 100, time: Date.now() }));
         window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 40, {skipRender: true});
     }""")
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Reset button lives in the advanced panel: reveal it first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     page.on('dialog', lambda dialog: dialog.accept())
     page.click('#tp-root >> #tp-data-reset-btn')
@@ -309,10 +300,7 @@ def test_data_reset_clears_cache_and_settings(page: Page):
 
 def test_bestpreise_settings_weight_slider(page: Page):
     # Open settings modal in Shadow DOM
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Weight slider is a fine-tuning control: reveal advanced first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
     assert not toggle.is_checked()
@@ -346,10 +334,7 @@ def test_bestpreise_settings_weight_slider(page: Page):
 
 def test_bestpreise_settings_horizon_selection_persistence(page: Page):
     # Open settings dialog in Shadow DOM
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Horizon select is a fine-tuning control: reveal advanced first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     # Toggle Bestpreise on if not active
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
@@ -380,10 +365,7 @@ def test_cache_settings_and_clear_button(page: Page):
     }""")
 
     # Open settings modal
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Cache TTL selects are fine-tuning controls: reveal advanced first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     # Verify cache count label displays 2 items
     stats_label = page.locator('#tp-root >> #tp-cache-stats-label')

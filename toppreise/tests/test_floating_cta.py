@@ -1,6 +1,6 @@
 from playwright.sync_api import Page
 
-from conftest import open_settings
+from conftest import open_settings, mock_pricechart
 
 
 def test_floating_cta_visible_with_unchecked_deals(page: Page):
@@ -41,15 +41,7 @@ def test_floating_cta_dealer_toggle_syncs_with_settings(page: Page):
 
 
 def test_floating_cta_runs_batch_check_and_stays_visible_dimmed_when_done(page: Page):
-    def handle_pricechart(route):
-        route.fulfill(
-            status=200,
-            headers={'access-control-allow-origin': '*'},
-            content_type='text/html',
-            body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">500.00</div></div>'
-        )
-
-    page.route('**/plugins/product/pricechart*', handle_pricechart)
+    mock_pricechart(page, {'797571': 500, '797572': 500, '797573': 500, '797574': 500, '797575': 500, '1003795': 500})
 
     page.click('#tp-floating-check-btn')
     # Scanning state with cancel hint

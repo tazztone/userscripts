@@ -753,38 +753,12 @@ def test_bestpreise_sorting_nested_wrappers(page: Page):
             list.appendChild(col);
             col.appendChild(c);
         });
-
-        // Set deal stats: Card 1 -> blend 9%, Card 2 -> blend 30%, Card 3 -> blend 52%
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
-            tiefstpreis: 1800,
-            hoechstpreis: 2400,
-            medianPrice: 2200,
-            isNewAllTimeLow: false,
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
-            tiefstpreis: 1100,
-            hoechstpreis: 3000,
-            medianPrice: 2750, // dMed 60%, no record -> blend 30%
-            isNewAllTimeLow: false,
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
-        localStorage.setItem('tp_hist_v1_797573', JSON.stringify({
-            tiefstpreis: 15,
-            hoechstpreis: 50,
-            medianPrice: 40,
-            previousLow: 25,
-            isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 40, // dMed 63%, dRec 40% -> blend 52%
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
-
+    }""")
+    # Card 1 -> blend 9%, Card 2 -> blend 30%, Card 3 -> blend 52%
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400, 'medianPrice': 2200, 'isNewAllTimeLow': False, 'dataPointCount': 10})
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 3000, 'medianPrice': 2750, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # dMed 60%, no record -> blend 30%
+    seed_verified_deal(page, '797573', {'tiefstpreis': 15, 'hoechstpreis': 50, 'medianPrice': 40, 'previousLow': 25, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 40, 'dataPointCount': 10}, clear=False)  # dMed 63%, dRec 40% -> blend 52%
+    page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.processListings();
@@ -984,21 +958,16 @@ def test_bestpreise_cross_row_sorting_and_natural_order_restoration(page: Page):
             <div class="col-6 col-md-3" id="col-6"><a href="/preisvergleich/P6-p106" id="multi-card-6" class="Plugin_Product"><span class="product-name">Maxi-Cosi</span><div class="Plugin_PriceInformation"><div class="priceContainer productPrice"><div class="Plugin_Price">600.00</div></div></div><div class="badge badge-dif"><p>-5%</p></div></a></div>
         `;
 
-        // Seed price history cache with strictly descending blends:
-        // Card 3: 42%, Card 4: 26%, Card 5: 19%, Card 1: 12%, Card 2: 8%, Card 6: 4%
-        localStorage.setItem('tp_hist_v1_101', JSON.stringify({ tiefstpreis: 100, hoechstpreis: 150, medianPrice: 130, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 12%
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('101', JSON.parse(localStorage.getItem('tp_hist_v1_101')));
-        localStorage.setItem('tp_hist_v1_102', JSON.stringify({ tiefstpreis: 200, hoechstpreis: 250, medianPrice: 235, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 8%
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('102', JSON.parse(localStorage.getItem('tp_hist_v1_102')));
-        localStorage.setItem('tp_hist_v1_103', JSON.stringify({ tiefstpreis: 300, hoechstpreis: 600, medianPrice: 550, previousLow: 480, isNewAllTimeLow: true, realDiscountVsPrevLow: 37, dataPointCount: 10, time: Date.now() })); // blend 42%
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('103', JSON.parse(localStorage.getItem('tp_hist_v1_103')));
-        localStorage.setItem('tp_hist_v1_104', JSON.stringify({ tiefstpreis: 400, hoechstpreis: 600, medianPrice: 550, previousLow: 530, isNewAllTimeLow: true, realDiscountVsPrevLow: 25, dataPointCount: 10, time: Date.now() })); // blend 26%
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('104', JSON.parse(localStorage.getItem('tp_hist_v1_104')));
-        localStorage.setItem('tp_hist_v1_105', JSON.stringify({ tiefstpreis: 500, hoechstpreis: 800, medianPrice: 800, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 19%
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('105', JSON.parse(localStorage.getItem('tp_hist_v1_105')));
-        localStorage.setItem('tp_hist_v1_106', JSON.stringify({ tiefstpreis: 600, hoechstpreis: 660, medianPrice: 650, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() })); // blend 4%
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('106', JSON.parse(localStorage.getItem('tp_hist_v1_106')));
-
+    }""")
+    # Seed price history cache with strictly descending blends:
+    # Card 3: 42%, Card 4: 26%, Card 5: 19%, Card 1: 12%, Card 2: 8%, Card 6: 4%
+    seed_verified_deal(page, '101', {'tiefstpreis': 100, 'hoechstpreis': 150, 'medianPrice': 130, 'isNewAllTimeLow': False, 'dataPointCount': 10})  # blend 12%
+    seed_verified_deal(page, '102', {'tiefstpreis': 200, 'hoechstpreis': 250, 'medianPrice': 235, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # blend 8%
+    seed_verified_deal(page, '103', {'tiefstpreis': 300, 'hoechstpreis': 600, 'medianPrice': 550, 'previousLow': 480, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 37, 'dataPointCount': 10}, clear=False)  # blend 42%
+    seed_verified_deal(page, '104', {'tiefstpreis': 400, 'hoechstpreis': 600, 'medianPrice': 550, 'previousLow': 530, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 25, 'dataPointCount': 10}, clear=False)  # blend 26%
+    seed_verified_deal(page, '105', {'tiefstpreis': 500, 'hoechstpreis': 800, 'medianPrice': 800, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # blend 19%
+    seed_verified_deal(page, '106', {'tiefstpreis': 600, 'hoechstpreis': 660, 'medianPrice': 650, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # blend 4%
+    page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.processListings();
