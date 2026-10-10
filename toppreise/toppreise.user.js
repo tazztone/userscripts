@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.155
+// @version      2.18.156
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -820,7 +820,7 @@ const STYLES = `
     justify-content: center !important;
     height: 100% !important;
     line-height: 1 !important;
-    min-width: 8ch !important;
+    min-width: 12ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
     vertical-align: middle !important;
@@ -873,13 +873,17 @@ const STYLES = `
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
     font-weight: 700 !important;
-    min-width: 26px !important;
+    min-width: 32px !important;
     display: inline-flex !important;
     align-items: center !important;
+    justify-content: center !important;
     height: 100% !important;
     line-height: 1 !important;
     vertical-align: middle !important;
     margin: 0 0 0 2px !important;
+    flex-shrink: 0 !important;
+    overflow: visible !important;
+    text-align: center !important;
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
@@ -892,7 +896,7 @@ const STYLES = `
     align-self: center !important;
   }
   #tp-bar-minpoints-label {
-    min-width: 6.5ch !important;
+    min-width: 10ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
     white-space: nowrap !important;
@@ -5850,15 +5854,16 @@ const SHADOW_MODAL_STYLES = `
       weightLabel.title = weightText(w, 'title');
     };
     paintWeightLabel();
+    let deb;
     weightRange.oninput = () => {
       paintWeightLabel();
-      clearTimeout(window._tpWeightDeb);
-      window._tpWeightDeb = setTimeout(() => {
+      clearTimeout(deb);
+      deb = setTimeout(() => {
         updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-      }, 150);
+      }, 1000);
     };
     weightRange.onchange = () => {
-      clearTimeout(window._tpWeightDeb);
+      clearTimeout(deb);
       const w = readWeight();
       paintWeightLabel();
       updateConfig('BESTPREISE_WEIGHT_RECORD', w);
@@ -5925,7 +5930,7 @@ const SHADOW_MODAL_STYLES = `
     range.oninput = () => {
       paint();
       clearTimeout(deb);
-      deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
+      deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 1000);
     };
     range.onchange = () => {
       clearTimeout(deb);

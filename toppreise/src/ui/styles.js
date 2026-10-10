@@ -795,7 +795,7 @@ export const STYLES = `
     justify-content: center !important;
     height: 100% !important;
     line-height: 1 !important;
-    min-width: 8ch !important;
+    min-width: 12ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
     vertical-align: middle !important;
@@ -848,13 +848,17 @@ export const STYLES = `
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
     font-weight: 700 !important;
-    min-width: 26px !important;
+    min-width: 32px !important;
     display: inline-flex !important;
     align-items: center !important;
+    justify-content: center !important;
     height: 100% !important;
     line-height: 1 !important;
     vertical-align: middle !important;
     margin: 0 0 0 2px !important;
+    flex-shrink: 0 !important;
+    overflow: visible !important;
+    text-align: center !important;
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
@@ -867,7 +871,7 @@ export const STYLES = `
     align-self: center !important;
   }
   #tp-bar-minpoints-label {
-    min-width: 6.5ch !important;
+    min-width: 10ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
     white-space: nowrap !important;

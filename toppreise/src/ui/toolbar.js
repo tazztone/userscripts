@@ -88,15 +88,16 @@ function bindWeightControls(wrapper) {
     weightLabel.title = weightText(w, 'title');
   };
   paintWeightLabel();
+  let deb;
   weightRange.oninput = () => {
     paintWeightLabel();
-    clearTimeout(window._tpWeightDeb);
-    window._tpWeightDeb = setTimeout(() => {
+    clearTimeout(deb);
+    deb = setTimeout(() => {
       updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-    }, 150);
+    }, 1000);
   };
   weightRange.onchange = () => {
-    clearTimeout(window._tpWeightDeb);
+    clearTimeout(deb);
     const w = readWeight();
     paintWeightLabel();
     updateConfig('BESTPREISE_WEIGHT_RECORD', w);
@@ -163,7 +164,7 @@ function bindMinPointsControls(wrapper) {
   range.oninput = () => {
     paint();
     clearTimeout(deb);
-    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
+    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 1000);
   };
   range.onchange = () => {
     clearTimeout(deb);
