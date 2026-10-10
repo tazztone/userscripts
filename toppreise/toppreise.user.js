@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.133
+// @version      2.18.134
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2498,7 +2498,7 @@ const SHADOW_MODAL_STYLES = `
               if (uncheckedBtn) {
                 uncheckedBtn.classList.toggle('tp-active', val === true);
                 uncheckedBtn.setAttribute('aria-pressed', String(val === true));
-                uncheckedBtn.title = val === true ? 'Nur geprüfte aktiv — klicken zum Aufheben (folgt der Anzeige)' : 'Nur geprüfte filtern (folgt der Anzeige)';
+                uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)';
               }
               break;
             }
@@ -4641,7 +4641,7 @@ const SHADOW_MODAL_STYLES = `
         <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
         <div class="tp-empty-state-actions">
           ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
-          ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="Ungeprüfte filtern (folgt der Anzeige)">👁️ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
+          ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)">✓ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte anzeigen</button>
           ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
@@ -4657,7 +4657,7 @@ const SHADOW_MODAL_STYLES = `
       emptyNotice.querySelector('#tp-empty-hide-unchecked-btn')?.addEventListener('click', () => {
         const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
         updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-        showToast(next ? '👁️ Nur geprüfte werden gefiltert (folgt der Anzeige)' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+        showToast(next ? '✓ Nur geprüfte filtern aktiv (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
       });
 
       emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
@@ -4746,6 +4746,7 @@ const SHADOW_MODAL_STYLES = `
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
         <div id="tp-basic-settings">
+          <div class="tp-advanced-subheader">Wie darstellen (gilt für alle Gefilterten)</div>
           <div class="tp-settings-group">
             <label title="So werden gefilterte Angebote dargestellt (Negativ, Min-Angebote, Händler-Nicht-Toppreis, Schlechte Deals, Ungeprüfte): farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
             <div class="tp-segmented-control">
@@ -4773,6 +4774,7 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-advanced-subheader">Was filtern (Ursachen — Negativ + Min-Angebote in der Toolbar)</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
@@ -4967,6 +4969,13 @@ const SHADOW_MODAL_STYLES = `
     const modeHighlight = shadow.getElementById('tp-mode-highlight-only');
     const modeDim = shadow.getElementById('tp-mode-dim');
     const modeHide = shadow.getElementById('tp-mode-hide');
+    const dimOpacityGroup = shadow.getElementById('tp-dim-opacity-group');
+    const syncOpacityVisibility = () => {
+      if (!dimOpacityGroup) return;
+      const checked = shadow.querySelector('input[name="tp-mode"]:checked');
+      dimOpacityGroup.style.display = (!checked || checked.value === 'dim') ? '' : 'none';
+    };
+    [modeHighlight, modeDim, modeHide].forEach(el => el?.addEventListener('change', syncOpacityVisibility));
     const marginRange = shadow.getElementById('tp-margin-range');
     const marginVal = shadow.getElementById('tp-margin-val');
     const opacityRange = shadow.getElementById('tp-opacity-range');
@@ -5016,6 +5025,7 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
       else if (CONFIG.MODE === 'hide') modeHide.checked = true;
       else modeDim.checked = true;
+      syncOpacityVisibility();
 
       marginRange.value = CONFIG.MARGIN_PERCENT;
       marginVal.value = CONFIG.MARGIN_PERCENT;
@@ -5483,7 +5493,7 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Gefilterte anzeigen — klicken zum Ein-/Ausblenden">👁️ Gefilterte (0)</button>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="Nur geprüfte filtern (folgt der Anzeige)">👁️ Nur geprüfte</button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)">✓ Nur geprüfte</button>
           <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (folgt der Anzeige)">
             <span class="tp-stepper-label">Min-Angebote:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -5551,7 +5561,7 @@ const SHADOW_MODAL_STYLES = `
       bar.querySelector('#tp-bar-unchecked-btn').onclick = () => {
         const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
         updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-        showToast(next ? '👁️ Nur geprüfte werden gefiltert (folgt der Anzeige)' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+        showToast(next ? '✓ Nur geprüfte filtern aktiv (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
   };
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
@@ -5627,7 +5637,7 @@ const SHADOW_MODAL_STYLES = `
     if (uncheckedBtn) {
       uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
       uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
-      uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Aufheben (folgt der Anzeige)' : 'Nur geprüfte filtern (folgt der Anzeige)';
+      uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)';
     }
 
     // Place first so the state sync below also covers nodes recreated after a native AJAX wipe.

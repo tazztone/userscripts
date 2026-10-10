@@ -19,6 +19,7 @@ export function setupUI() {
     tempDiv.innerHTML = `
       <div id="tp-section-unified-suite">
       <div id="tp-basic-settings">
+        <div class="tp-advanced-subheader">Wie darstellen (gilt für alle Gefilterten)</div>
         <div class="tp-settings-group">
           <label title="So werden gefilterte Angebote dargestellt (Negativ, Min-Angebote, Händler-Nicht-Toppreis, Schlechte Deals, Ungeprüfte): farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
           <div class="tp-segmented-control">
@@ -46,6 +47,7 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-advanced-subheader">Was filtern (Ursachen — Negativ + Min-Angebote in der Toolbar)</div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
@@ -240,6 +242,13 @@ export function setupUI() {
   const modeHighlight = shadow.getElementById('tp-mode-highlight-only');
   const modeDim = shadow.getElementById('tp-mode-dim');
   const modeHide = shadow.getElementById('tp-mode-hide');
+  const dimOpacityGroup = shadow.getElementById('tp-dim-opacity-group');
+  const syncOpacityVisibility = () => {
+    if (!dimOpacityGroup) return;
+    const checked = shadow.querySelector('input[name="tp-mode"]:checked');
+    dimOpacityGroup.style.display = (!checked || checked.value === 'dim') ? '' : 'none';
+  };
+  [modeHighlight, modeDim, modeHide].forEach(el => el?.addEventListener('change', syncOpacityVisibility));
   const marginRange = shadow.getElementById('tp-margin-range');
   const marginVal = shadow.getElementById('tp-margin-val');
   const opacityRange = shadow.getElementById('tp-opacity-range');
@@ -289,6 +298,7 @@ export function setupUI() {
     if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
     else if (CONFIG.MODE === 'hide') modeHide.checked = true;
     else modeDim.checked = true;
+    syncOpacityVisibility();
 
     marginRange.value = CONFIG.MARGIN_PERCENT;
     marginVal.value = CONFIG.MARGIN_PERCENT;
