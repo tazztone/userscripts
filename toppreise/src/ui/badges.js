@@ -929,13 +929,10 @@ export function renderEmptyState(cards, counts) {
   const totalHidden = revealAll ? 0 : (counts.filteredCount || 0);
 
   const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
-  // "Nur geprüfte" hides in every Anzeige mode, so the notice gate can't
-  // require MODE=hide alone — else a fully collapsed page shows no notice.
-  const uncheckedHidesAll = CONFIG.BESTPREISE_HIDE_UNCHECKED === true
-    && cards.length > 0 && (counts.uncheckedHidden || 0) >= cards.length;
-  if ((CONFIG.MODE === 'hide' || uncheckedHidesAll) && cards.length > 0 && totalHidden >= cards.length) {
+  // Anzeige decides display: only a full collapse (hide) empties the page.
+  if (CONFIG.MODE === 'hide' && cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}:${revealAll}`;
+    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${revealAll}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -951,8 +948,8 @@ export function renderEmptyState(cards, counts) {
       <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
       <div class="tp-empty-state-actions">
         ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
-        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="Ungeprüfte Deals aus-/einblenden">👁️ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
-        <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Ausgeblendete anzeigen</button>
+        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="Ungeprüfte filtern (folgt der Anzeige)">👁️ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
+        <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte anzeigen</button>
         ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
       </div>
@@ -967,7 +964,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-hide-unchecked-btn')?.addEventListener('click', () => {
       const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
       updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-      showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+      showToast(next ? '👁️ Nur geprüfte werden gefiltert (folgt der Anzeige)' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
     });
 
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
@@ -982,6 +979,7 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfig('FILTER_NEG_ENABLED', false);
       updateConfig('FILTER_MIN_ENABLED', false);
+      updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
       document.body.classList.add('tp-reveal-all');
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });

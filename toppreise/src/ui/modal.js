@@ -48,7 +48,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals. Ungeprüfte blendet der Schalter Nur geprüfte aus.">Tiefstpreise Modus</label>
+            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -57,7 +57,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Blendet alle noch ungeprüften Angebote aus (grau gestreifte Ribbons). Nur geprüfte Tiefstpreise bleiben sichtbar.">Nur geprüfte anzeigen</label>
+            <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Darstellung folgt der Anzeige.">Nur geprüfte anzeigen</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-hide-unchecked-toggle">

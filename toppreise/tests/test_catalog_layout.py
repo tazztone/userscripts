@@ -260,7 +260,7 @@ def test_sort_by_discount(page: Page):
 
 
 def test_empty_state_notice_and_actions(page: Page):
-    # Empty state collapses cards only in Anzeige=hide; dim/highlight never empty.
+    # Empty state fires when the active Anzeige collapses all cards, whatever the cause mix.
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
     # Initially all 5 cards in mock_toppreise are visible, no empty notice
     assert not page.locator('#tp-empty-state-notice').is_visible()
@@ -271,9 +271,9 @@ def test_empty_state_notice_and_actions(page: Page):
 
     notice = page.locator('#tp-empty-state-notice')
     assert notice.is_visible()
-    assert 'Alle 6 Angebote' in (notice.text_content() or '')
+    assert f'Alle {page.locator("#product-list .Plugin_Product").count()} Angebote' in (notice.text_content() or '')
 
-    # Clicking "👁️ Ausgeblendete anzeigen" reveals previews
+    # Clicking "👁️ Gefilterte anzeigen" reveals previews
     page.click('#tp-empty-reveal-btn')
     assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
     assert not page.locator('#tp-empty-state-notice').is_visible()
@@ -286,6 +286,8 @@ def test_empty_state_notice_and_actions(page: Page):
     assert not page.locator('#tp-empty-state-notice').is_visible()
     assert page.locator('#card-cheapest').is_visible()
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_ENABLED") is False
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_MIN_ENABLED") is False
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
 
 
@@ -348,8 +350,8 @@ def test_deal_features_enabled_on_category_page(page: Page):
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-bar-reveal-all').is_visible()
-    assert 'Ausgeblendete (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
-    assert 'Neg:0 Min:0 Händler:2 Bad:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
+    assert 'Gefilterte (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert 'Gefilterte (2) — Neg:0 Min:0 Händler:2 Bad:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
@@ -396,7 +398,7 @@ def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     assert has_heat
 
 def test_hide_unchecked_toggle_filters_unverified(page: Page):
-    # Display gate: unchecked cards collapse only in Anzeige=hide.
+    # Anzeige-parameterized: hide collapses unchecked (display:none), dim/highlight keep them visible (dimmed/marked).
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
     # Seed card 1 as a verified deal; the rest stay unchecked
     page.evaluate("""() => {

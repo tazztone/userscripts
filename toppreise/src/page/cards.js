@@ -299,15 +299,14 @@ export function dealerLoserFor(card, activeStores, isNeueFeed) {
 
 export function isCardFilteredOut(card, filters = null, opts = null) {
   if (!card) return true;
-  // "Nur geprüfte" is display-only: scans + counters opt in to still see
-  // unchecked-hidden cards, so the toggle can't starve verification.
+  // "Nur geprüfte" is cause-marker-only here: unchecked cards carry
+  // tp-filtered + tp-unchecked-hidden and Anzeige decides display;
+  // scans + counters opt in via includeHiddenUnchecked below.
   const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
     && card.classList?.contains('tp-unchecked-hidden') === true;
   const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || f.isBadDeal
-  // "Nur geprüfte" hides in every Anzeige mode (CSS collapses
-  // tp-unchecked-hidden outside tp-reveal-all), not just MODE=hide.
-  const displayHidden = f => (CONFIG.MODE === 'hide'
-    || (CONFIG.BESTPREISE_HIDE_UNCHECKED === true && f?.isUnchecked === true))
+  // Display collapses only in Anzeige=hide outside tp-reveal-all.
+  const displayHidden = f => (CONFIG.MODE === 'hide')
     && document.body?.classList?.contains('tp-reveal-all') !== true;
   const legacyChecks = () => {
     const tab = card.closest?.('.f_tab');

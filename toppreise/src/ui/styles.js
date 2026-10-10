@@ -191,22 +191,18 @@ export const STYLES = `
     opacity: 0.6 !important;
     filter: grayscale(10%) !important;
   }
-  body.tp-reveal-all .tp-filtered,
-  body.tp-reveal-all [class*="col-"]:has(> .tp-filtered) {
-    display: block !important;
-    opacity: var(--tp-dim-opacity, 0.25) !important;
-    filter: grayscale(40%) !important;
+  body.tp-mode-highlight-only .tp-filtered,
+  body.tp-mode-highlight-only [class*="col-"]:has(> .tp-filtered) {
     outline: 2px dashed #f59e0b !important;
     outline-offset: -2px !important;
   }
-  /* "Nur geprüfte" hides always (not Anzeige-gated): label promises
-     ausblenden, so dim/highlight modes collapse unchecked too. */
-  body:not(.tp-reveal-all) .tp-unchecked-hidden,
-  body:not(.tp-reveal-all) [class*="col-"]:has(> .tp-unchecked-hidden) {
-    display: none !important;
+  body.tp-mode-dim .tp-filtered.tp-is-unverified,
+  body.tp-mode-dim [class*="col-"]:has(> .tp-filtered.tp-is-unverified) {
+    filter: grayscale(40%) saturate(0.55) brightness(0.97) !important;
   }
-  body.tp-reveal-all .tp-unchecked-hidden,
-  body.tp-reveal-all [class*="col-"]:has(> .tp-unchecked-hidden) {
+  /* order matters: equal specificity with hide rule, later wins — do not reorder */
+  body.tp-reveal-all .tp-filtered,
+  body.tp-reveal-all [class*="col-"]:has(> .tp-filtered) {
     display: block !important;
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;

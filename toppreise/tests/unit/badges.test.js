@@ -43,7 +43,7 @@ describe('renderEmptyState signature skip', () => {
     };
   };
 
-  // Two cards, both hidden, MODE=hide → sig '2:2:false:0:30:false:false'.
+  // Two cards, both hidden, MODE=hide → sig '2:2:false:0:30:false'.
   const setup = () => {
     CONFIG.MODE = 'hide';
     return {
@@ -64,12 +64,12 @@ describe('renderEmptyState signature skip', () => {
 
   it('skips rebuild when signature matches', () => {
     const { cards, counts } = setup();
-    const notice = { dataset: { tpEmptySig: '2:2:false:0:30:false:false' } };
+    const notice = { dataset: { tpEmptySig: '2:2:false:0:30:false' } };
     const created = [];
     fakeDoc(notice, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 0);
-    assert.equal(notice.dataset.tpEmptySig, '2:2:false:0:30:false:false');
+    assert.equal(notice.dataset.tpEmptySig, '2:2:false:0:30:false');
   });
 
   it('builds notice and stamps signature on first render', () => {
@@ -78,6 +78,20 @@ describe('renderEmptyState signature skip', () => {
     fakeDoc(null, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 1);
-    assert.equal(created[0].dataset.tpEmptySig, '2:2:false:0:30:false:false');
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:false:0:30:false');
+  });
+
+  it('builds no notice in dim mode even when all filtered', () => {
+    const { cards, counts } = setup();
+    CONFIG.MODE = 'dim';
+    CONFIG.BESTPREISE_HIDE_UNCHECKED = true;
+    const created = [];
+    try {
+      fakeDoc(null, created);
+      renderEmptyState(cards, counts);
+      assert.equal(created.length, 0);
+    } finally {
+      delete CONFIG.BESTPREISE_HIDE_UNCHECKED;
+    }
   });
 });
