@@ -351,6 +351,18 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'vortief' });
     });
 
+    it('stays neutral in the mode when Fallback-Tiefs are excluded', () => {
+      const prev = CONFIG.BESTPREISE_INCLUDE_VORTIEF;
+      CONFIG.BESTPREISE_INCLUDE_VORTIEF = false;
+      try {
+        const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
+        const heat = getHeatInput(23.56, thinStats, -51, 'bestpreise');
+        assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
+      } finally {
+        CONFIG.BESTPREISE_INCLUDE_VORTIEF = prev;
+      }
+    });
+
     it('stays neutral in browse when the history cannot qualify (gray; ribbon only)', () => {
       const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
       const heat = getHeatInput(23.56, thinStats, -51, 'browse');

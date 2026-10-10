@@ -199,7 +199,7 @@ export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = und
     // fallback never passes as a blend. Browse stays gray; the ribbon number
     // is the whole signal there.
     if (!dealData) {
-      if (mode === 'bestpreise') {
+      if (mode === 'bestpreise' && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
         const vortief = vortiefDropPct(cardPrice, stats);
         if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
       }

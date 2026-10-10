@@ -431,11 +431,13 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // Verified but no qualifying blend — e.g. minimal fallback stats
         // without median, or above-low. Only a verified MARKUP hides in the
         // mode; a verified low without blend stays visible with Vortief edge
-        // heat (never a full wash). The badge is ALWAYS repainted from the
-        // current stats — never preserved — so a stats regression can't
-        // strand a stale verified-% badge on a card whose heat is gone.
+        // heat (never a full wash) unless Fallback-Tiefs are excluded.
+        // The badge is ALWAYS repainted from the current stats — never
+        // preserved — so a stats regression can't strand a stale verified-%
+        // badge on a card whose heat is gone.
         const ddNow = getDisplayDelta(cardPrice, stats);
-        if (CONFIG.BESTPREISE_MODE_ACTIVE === true && ddNow.kind !== 'at-low' && ddNow.kind !== 'new-low') {
+        const vortiefExcludedHere = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && !dealData && (ddNow.kind === 'at-low' || ddNow.kind === 'new-low');
+        if ((CONFIG.BESTPREISE_MODE_ACTIVE === true && ddNow.kind !== 'at-low' && ddNow.kind !== 'new-low') || (CONFIG.BESTPREISE_MODE_ACTIVE === true && vortiefExcludedHere)) {
           card.classList.add('tp-baddeal-hidden');
         } else {
           card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
@@ -463,14 +465,14 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const dropVsPrev = vortiefDropPct(cardPrice, stats);
           const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice);
           if (dropVsPrev > 0 && hasPrevLowBase) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)})\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (Kante statt Fläche)\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${dropVsPrev}%</p>`);
             }
           } else if (sitePctText) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft)\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft) · Fallback ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
             } else {
@@ -572,14 +574,14 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
               setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
             }
           } else if (realDropVsPrev > 0) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip}\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip} · Fallback: dünne Historie ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>-${realDropVsPrev}%</span><p>Tiefstpreis</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${realDropVsPrev}%</p>`);
             }
           } else if (sitePctText) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft)\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft) · Fallback ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
             } else {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.137
+// @version      2.18.138
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1990,7 +1990,7 @@ const SHADOW_MODAL_STYLES = `
       // fallback never passes as a blend. Browse stays gray; the ribbon number
       // is the whole signal there.
       if (!dealData) {
-        if (mode === 'bestpreise') {
+        if (mode === 'bestpreise' && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
           const vortief = vortiefDropPct(cardPrice, stats);
           if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
         }
@@ -2266,6 +2266,7 @@ const SHADOW_MODAL_STYLES = `
     NEGATIVE_CACHE_HOURS: 2,
     BESTPREISE_MODE_ACTIVE: false,
     BESTPREISE_HIDE_UNCHECKED: false,
+    BESTPREISE_INCLUDE_VORTIEF: true,
     BESTPREISE_WEIGHT_RECORD: 0.50,
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
@@ -2345,6 +2346,7 @@ const SHADOW_MODAL_STYLES = `
     NEGATIVE_CACHE_HOURS: parseInt(_getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
     BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
     BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
+    BESTPREISE_INCLUDE_VORTIEF: _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF),
     BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
     BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
     OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
@@ -2407,6 +2409,11 @@ const SHADOW_MODAL_STYLES = `
           case 'BESTPREISE_HIDE_UNCHECKED': {
             const toggle = shadow.getElementById('tp-hide-unchecked-toggle');
             if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'BESTPREISE_INCLUDE_VORTIEF': {
+            const toggle = shadow.getElementById('tp-include-vortief-toggle');
+            if (toggle) toggle.checked = val !== false;
             break;
           }
           case 'BESTPREISE_WEIGHT_RECORD': {
@@ -2960,10 +2967,13 @@ const SHADOW_MODAL_STYLES = `
     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
     // "Bad deal" in the mode is a VERIFIED markup only. A verified low without
     // blend (at-low/new-low, thin history) stays visible with Vortief edge
-    // heat. Unknown kind (no displayDelta on this path, e.g. scanner targets)
-    // keeps the old strictness so the scanner can't waste passes on junk.
+    // heat unless Fallback-Tiefs are excluded — then it follows Anzeige like
+    // any bad deal. Unknown kind (no displayDelta on this path, e.g. scanner
+    // targets) keeps the old strictness so the scanner can't waste passes on junk.
     const kind = cd.displayDelta?.kind;
-    const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore && kind !== 'at-low' && kind !== 'new-low';
+    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
+    const vortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+    const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore && (vortiefExcluded || (kind !== 'at-low' && kind !== 'new-low'));
     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
     const isDealerLoser = false;
     const isFiltered = isNeg || isLowOffers || isDealerLoser || isBadDeal || isUnchecked;
@@ -3351,9 +3361,10 @@ const SHADOW_MODAL_STYLES = `
             // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
             // and the card burns with it, so the feed ranks by it too.
             weightedDiff = dealData.weightedDiff;
-          } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
+          } else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
             // Verified low without blend: rank by Vortief-Abstand — the same
             // number the ribbon prints and the edge heat burns with.
+            // Excluded fallbacks sink with the bad deals (-100).
             weightedDiff = vortiefDropPct(cd.cardPrice, cd.stats);
           } else if (!cd.stats) {
             weightedDiff = 0;
@@ -4196,11 +4207,13 @@ const SHADOW_MODAL_STYLES = `
           // Verified but no qualifying blend — e.g. minimal fallback stats
           // without median, or above-low. Only a verified MARKUP hides in the
           // mode; a verified low without blend stays visible with Vortief edge
-          // heat (never a full wash). The badge is ALWAYS repainted from the
-          // current stats — never preserved — so a stats regression can't
-          // strand a stale verified-% badge on a card whose heat is gone.
+          // heat (never a full wash) unless Fallback-Tiefs are excluded.
+          // The badge is ALWAYS repainted from the current stats — never
+          // preserved — so a stats regression can't strand a stale verified-%
+          // badge on a card whose heat is gone.
           const ddNow = getDisplayDelta(cardPrice, stats);
-          if (CONFIG.BESTPREISE_MODE_ACTIVE === true && ddNow.kind !== 'at-low' && ddNow.kind !== 'new-low') {
+          const vortiefExcludedHere = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && !dealData && (ddNow.kind === 'at-low' || ddNow.kind === 'new-low');
+          if ((CONFIG.BESTPREISE_MODE_ACTIVE === true && ddNow.kind !== 'at-low' && ddNow.kind !== 'new-low') || (CONFIG.BESTPREISE_MODE_ACTIVE === true && vortiefExcludedHere)) {
             card.classList.add('tp-baddeal-hidden');
           } else {
             card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
@@ -4228,14 +4241,14 @@ const SHADOW_MODAL_STYLES = `
             const dropVsPrev = vortiefDropPct(cardPrice, stats);
             const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice);
             if (dropVsPrev > 0 && hasPrevLowBase) {
-              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)})\n[Klicken: erneut prüfen]`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (Kante statt Fläche)\n[Klicken: erneut prüfen]`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${dropVsPrev}%</p>`);
               }
             } else if (sitePctText) {
-              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft)\n[Klicken: erneut prüfen]`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft) · Fallback ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
               } else {
@@ -4337,14 +4350,14 @@ const SHADOW_MODAL_STYLES = `
                 setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
               }
             } else if (realDropVsPrev > 0) {
-              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip}\n[Klicken: erneut prüfen]`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip} · Fallback: dünne Historie ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>-${realDropVsPrev}%</span><p>Tiefstpreis</p>`);
               } else {
                 setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${realDropVsPrev}%</p>`);
               }
             } else if (sitePctText) {
-              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft)\n[Klicken: erneut prüfen]`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft) · Fallback ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
               } else {
@@ -4888,6 +4901,15 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
+              <label title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">Fallback-Tiefs einschließen</label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-include-vortief-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
               <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
             </div>
             <label class="tp-switch tp-blue">
@@ -5087,6 +5109,7 @@ const SHADOW_MODAL_STYLES = `
     const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
     const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
     const hideUncheckedToggle = shadow.getElementById('tp-hide-unchecked-toggle');
+    const includeVortiefToggle = shadow.getElementById('tp-include-vortief-toggle');
     const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
     const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
     const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
@@ -5151,6 +5174,7 @@ const SHADOW_MODAL_STYLES = `
 
       if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
       if (hideUncheckedToggle) hideUncheckedToggle.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
+      if (includeVortiefToggle) includeVortiefToggle.checked = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
       if (bestpreiseWeightGroup) {
         bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
       }
@@ -5379,6 +5403,7 @@ const SHADOW_MODAL_STYLES = `
         }
       }
       if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
+      if (includeVortiefToggle) updates.BESTPREISE_INCLUDE_VORTIEF = includeVortiefToggle.checked;
       if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
       if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 
@@ -6538,8 +6563,16 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
         } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
-          // Verified low without blend: a mode deal with Vortief edge heat, not a bad deal.
-          counts.bestpreiseDeals++;
+          // Verified low without blend: a mode deal with Vortief edge heat, not a bad deal —
+          // unless Fallback-Tiefs are excluded, then it hides like one.
+          if (CONFIG.BESTPREISE_INCLUDE_VORTIEF === false) {
+            if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
+              counts.bestpreiseHidden++;
+              counts.badDeals++;
+            }
+          } else {
+            counts.bestpreiseDeals++;
+          }
         } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
           counts.bestpreiseHidden++;
           counts.badDeals++;

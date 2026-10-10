@@ -263,10 +263,13 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
   // "Bad deal" in the mode is a VERIFIED markup only. A verified low without
   // blend (at-low/new-low, thin history) stays visible with Vortief edge
-  // heat. Unknown kind (no displayDelta on this path, e.g. scanner targets)
-  // keeps the old strictness so the scanner can't waste passes on junk.
+  // heat unless Fallback-Tiefs are excluded — then it follows Anzeige like
+  // any bad deal. Unknown kind (no displayDelta on this path, e.g. scanner
+  // targets) keeps the old strictness so the scanner can't waste passes on junk.
   const kind = cd.displayDelta?.kind;
-  const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore && kind !== 'at-low' && kind !== 'new-low';
+  const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
+  const vortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+  const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore && (vortiefExcluded || (kind !== 'at-low' && kind !== 'new-low'));
   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
   const isDealerLoser = false;
   const isFiltered = isNeg || isLowOffers || isDealerLoser || isBadDeal || isUnchecked;

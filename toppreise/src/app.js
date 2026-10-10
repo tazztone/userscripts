@@ -50,7 +50,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.137
+// @version      2.18.138
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -136,8 +136,16 @@ import { processProductDetailPage } from './features/product-detail.js';
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
         } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
-          // Verified low without blend: a mode deal with Vortief edge heat, not a bad deal.
-          counts.bestpreiseDeals++;
+          // Verified low without blend: a mode deal with Vortief edge heat, not a bad deal —
+          // unless Fallback-Tiefs are excluded, then it hides like one.
+          if (CONFIG.BESTPREISE_INCLUDE_VORTIEF === false) {
+            if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
+              counts.bestpreiseHidden++;
+              counts.badDeals++;
+            }
+          } else {
+            counts.bestpreiseDeals++;
+          }
         } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
           counts.bestpreiseHidden++;
           counts.badDeals++;
