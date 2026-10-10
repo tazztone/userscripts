@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.148
+// @version      2.18.149
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -952,7 +952,7 @@ const STYLES = `
     margin: 2px 0 !important;
   }
   .tp-stepper-label {
-    font-weight: 700 !important;
+    font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #94a3b8 !important;
     white-space: nowrap !important;
   }
@@ -1071,6 +1071,8 @@ const STYLES = `
     font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
     min-width: 22px !important;
+    margin-left: 2px !important;
+    flex-shrink: 0 !important;
     color: var(--tp-dim) !important;
   }
   .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
