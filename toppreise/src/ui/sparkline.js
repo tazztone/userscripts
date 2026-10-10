@@ -31,7 +31,7 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
   titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
   svg.appendChild(titleEl);
 
-  // Bare card path: identical output to before (title + polyline only).
+  // Bare mini omits grid/axes only; endpoint dot shared with Discord path.
   const buildPoints = (x0, x1, y0, y1) => prices.map((p, i) => {
     const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
     const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
@@ -124,12 +124,12 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
         }
       }
     }
-
-    const pts = points.split(' ');
-    const last = pts[pts.length - 1].split(',');
-    lastX = last[0];
-    lastY = last[1];
   }
+
+  const pts = points.split(' ');
+  const last = pts[pts.length - 1].split(',');
+  lastX = last[0];
+  lastY = last[1];
 
   const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   polyline.setAttribute('points', points);
@@ -140,16 +140,14 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
   polyline.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(polyline);
 
-  if (axes) {
-    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot.setAttribute('cx', String(lastX));
-    dot.setAttribute('cy', String(lastY));
-    dot.setAttribute('r', '3.2');
-    dot.setAttribute('fill', strokeColor);
-    dot.setAttribute('stroke', '#ffffff');
-    dot.setAttribute('stroke-width', '1.2');
-    svg.appendChild(dot);
-  }
+  const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  dot.setAttribute('cx', String(lastX));
+  dot.setAttribute('cy', String(lastY));
+  dot.setAttribute('r', axes ? '3.2' : '1.8');
+  dot.setAttribute('fill', strokeColor);
+  dot.setAttribute('stroke', '#ffffff');
+  dot.setAttribute('stroke-width', axes ? '1.2' : '0.5');
+  svg.appendChild(dot);
 
   return svg;
 }

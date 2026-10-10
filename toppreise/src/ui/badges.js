@@ -709,7 +709,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       sparkContainer.className = 'tp-sparkline-container';
     }
     if (!sparkContainer.querySelector('.tp-sparkline')) {
-      const svg = renderSparkline(stats.timeSeries, 44, 13);
+      const svg = renderSparkline(withLivePrice(stats.timeSeries, cardPrice), 44, 13);
       if (svg) {
         sparkContainer.replaceChildren();
         sparkContainer.appendChild(svg);

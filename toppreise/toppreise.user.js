@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.134
+// @version      2.18.135
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3093,7 +3093,7 @@ const SHADOW_MODAL_STYLES = `
     titleEl.textContent = `Preisverlauf: CHF ${firstPrice.toFixed(2)} → CHF ${lastPrice.toFixed(2)} (Min: ${min.toFixed(2)}, Max: ${max.toFixed(2)})`;
     svg.appendChild(titleEl);
 
-    // Bare card path: identical output to before (title + polyline only).
+    // Bare mini omits grid/axes only; endpoint dot shared with Discord path.
     const buildPoints = (x0, x1, y0, y1) => prices.map((p, i) => {
       const x = (x0 + (i / (prices.length - 1)) * (x1 - x0)).toFixed(1);
       const y = (y1 - ((p - min) / range) * (y1 - y0)).toFixed(1);
@@ -3186,12 +3186,12 @@ const SHADOW_MODAL_STYLES = `
           }
         }
       }
-
-      const pts = points.split(' ');
-      const last = pts[pts.length - 1].split(',');
-      lastX = last[0];
-      lastY = last[1];
     }
+
+    const pts = points.split(' ');
+    const last = pts[pts.length - 1].split(',');
+    lastX = last[0];
+    lastY = last[1];
 
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.setAttribute('points', points);
@@ -3202,16 +3202,14 @@ const SHADOW_MODAL_STYLES = `
     polyline.setAttribute('stroke-linejoin', 'round');
     svg.appendChild(polyline);
 
-    if (axes) {
-      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dot.setAttribute('cx', String(lastX));
-      dot.setAttribute('cy', String(lastY));
-      dot.setAttribute('r', '3.2');
-      dot.setAttribute('fill', strokeColor);
-      dot.setAttribute('stroke', '#ffffff');
-      dot.setAttribute('stroke-width', '1.2');
-      svg.appendChild(dot);
-    }
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', String(lastX));
+    dot.setAttribute('cy', String(lastY));
+    dot.setAttribute('r', axes ? '3.2' : '1.8');
+    dot.setAttribute('fill', strokeColor);
+    dot.setAttribute('stroke', '#ffffff');
+    dot.setAttribute('stroke-width', axes ? '1.2' : '0.5');
+    svg.appendChild(dot);
 
     return svg;
   }
@@ -4402,7 +4400,7 @@ const SHADOW_MODAL_STYLES = `
         sparkContainer.className = 'tp-sparkline-container';
       }
       if (!sparkContainer.querySelector('.tp-sparkline')) {
-        const svg = renderSparkline(stats.timeSeries, 44, 13);
+        const svg = renderSparkline(withLivePrice(stats.timeSeries, cardPrice), 44, 13);
         if (svg) {
           sparkContainer.replaceChildren();
           sparkContainer.appendChild(svg);

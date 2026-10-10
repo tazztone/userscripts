@@ -65,17 +65,23 @@ describe('Interactive SVG Sparkline Component', () => {
     assert.equal(polyline.getAttribute('stroke'), '#3b82f6'); // Same color regardless of direction
   });
 
-  it('bare path renders only title + polyline (no grid/dot)', () => {
+  it('bare path renders title + polyline + endpoint dot (no grid)', () => {
     const timeSeries = [
       [1700000000, 120.00],
       [1700100000, 110.00],
       [1700200000, 99.00]
     ];
-    const svg = renderSparkline(timeSeries, 360, 100);
-    assert.equal(svg.children.length, 2);
+    const svg = renderSparkline(timeSeries, 44, 13);
+    assert.equal(svg.children.length, 3);
     assert.equal(svg.children[0].tagName, 'title');
     assert.equal(svg.children[1].tagName, 'polyline');
-    assert.ok(!svg.children.some(c => c.tagName === 'line' || c.tagName === 'circle' || c.tagName === 'text'));
+    assert.equal(svg.children[2].tagName, 'circle');
+    assert.ok(!svg.children.some(c => c.tagName === 'line' || c.tagName === 'text'));
+    const polyline = svg.children[1];
+    const pts = polyline.getAttribute('points').split(' ');
+    const [lx, ly] = pts[pts.length - 1].split(',');
+    assert.equal(svg.children[2].getAttribute('cx'), lx);
+    assert.equal(svg.children[2].getAttribute('cy'), ly);
   });
 
   it('axes:true draws Y grid + month grid + endpoint dot', () => {
