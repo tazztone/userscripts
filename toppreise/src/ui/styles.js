@@ -774,6 +774,7 @@ export const STYLES = `
     box-sizing: border-box !important;
     color: #334155 !important;
     line-height: 1 !important;
+    flex-shrink: 0 !important;
   }
   /* Site timeframe-filter element rules beat bare classes — re-assert clean light text at ID specificity. */
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper {
