@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 
@@ -152,7 +152,7 @@ export function setupUI() {
         <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
           <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
           <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="14" step="1" value="4">
+            <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
             <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
           </div>
           <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>

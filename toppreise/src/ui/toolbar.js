@@ -5,7 +5,7 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { CONFIG, updateConfig, weightText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
+import { CONFIG, updateConfig, weightText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, paintMinPoints } from "../state/config.js";
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
@@ -159,13 +159,14 @@ function bindMinPointsControls(wrapper) {
   const readNum = () => minPointsFromIndex(range.value);
   const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
   paint();
+  let deb;
   range.oninput = () => {
     paint();
-    clearTimeout(window._tpMinPointsDeb);
-    window._tpMinPointsDeb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
+    clearTimeout(deb);
+    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
   };
   range.onchange = () => {
-    clearTimeout(window._tpMinPointsDeb);
+    clearTimeout(deb);
     const n = readNum();
     paint();
     updateConfig('BESTPREISE_MIN_POINTS', n);
@@ -398,13 +399,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (vortiefWrapper) {
     vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
-  const curMinPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
-  const minPointsRange = document.getElementById('tp-bar-minpoints-range');
-  if (minPointsRange && document.activeElement !== minPointsRange) {
-    minPointsRange.value = minPointsToIndex(curMinPoints);
-  }
-  const minPointsLabel = document.getElementById('tp-bar-minpoints-label');
-  if (minPointsLabel) minPointsLabel.textContent = `📊 ${curMinPoints} Pkt`;
+  paintMinPoints();
   const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
   if (minPointsWrapper) {
     minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');

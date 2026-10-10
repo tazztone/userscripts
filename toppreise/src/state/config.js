@@ -134,6 +134,21 @@ export const minPointsToIndex = v => {
   return best;
 };
 export const minPointsFromIndex = i => MIN_POINTS_STEPS[Math.max(0, Math.min(MIN_POINTS_STEPS.length - 1, parseInt(i, 10) || 0))];
+export function paintMinPoints(raw = CONFIG.BESTPREISE_MIN_POINTS, shadowRoot) {
+  const num = clampMinPoints(raw);
+  const idx = minPointsToIndex(num);
+  const shadow = shadowRoot ?? uiShadowRoot ?? (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
+  const range = shadow?.getElementById('tp-bestpreise-minpoints-range');
+  if (range) range.value = idx;
+  const valEl = shadow?.getElementById('tp-bestpreise-minpoints-val');
+  if (valEl) valEl.value = num;
+  if (typeof document !== 'undefined') {
+    const barRange = document.getElementById('tp-bar-minpoints-range');
+    if (barRange && document.activeElement !== barRange) barRange.value = idx;
+    const barLabel = document.getElementById('tp-bar-minpoints-label');
+    if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
+  }
+}
 export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
 export const CONFIG = {
@@ -244,18 +259,7 @@ export function syncUiControl(key, val) {
           break;
         }
         case 'BESTPREISE_MIN_POINTS': {
-          const num = clampMinPoints(val);
-          const idx = minPointsToIndex(num);
-          const range = shadow.getElementById('tp-bestpreise-minpoints-range');
-          const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
-          if (range) range.value = idx;
-          if (valEl) valEl.value = num;
-          if (typeof document !== 'undefined') {
-            const barRange = document.getElementById('tp-bar-minpoints-range');
-            if (barRange && document.activeElement !== barRange) barRange.value = idx;
-            const barLabel = document.getElementById('tp-bar-minpoints-label');
-            if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
-          }
+          paintMinPoints(val, shadow);
           break;
         }
         case 'REAL_DEAL_MIN_DISCOUNT': {

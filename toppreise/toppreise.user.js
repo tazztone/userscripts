@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.154
+// @version      2.18.155
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2623,6 +2623,21 @@ const SHADOW_MODAL_STYLES = `
     return best;
   };
   const minPointsFromIndex = i => MIN_POINTS_STEPS[Math.max(0, Math.min(MIN_POINTS_STEPS.length - 1, parseInt(i, 10) || 0))];
+  function paintMinPoints(raw = CONFIG.BESTPREISE_MIN_POINTS, shadowRoot) {
+    const num = clampMinPoints(raw);
+    const idx = minPointsToIndex(num);
+    const shadow = shadowRoot ?? uiShadowRoot ?? (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
+    const range = shadow?.getElementById('tp-bestpreise-minpoints-range');
+    if (range) range.value = idx;
+    const valEl = shadow?.getElementById('tp-bestpreise-minpoints-val');
+    if (valEl) valEl.value = num;
+    if (typeof document !== 'undefined') {
+      const barRange = document.getElementById('tp-bar-minpoints-range');
+      if (barRange && document.activeElement !== barRange) barRange.value = idx;
+      const barLabel = document.getElementById('tp-bar-minpoints-label');
+      if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
+    }
+  }
   const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
   const CONFIG = {
@@ -2733,18 +2748,7 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'BESTPREISE_MIN_POINTS': {
-            const num = clampMinPoints(val);
-            const idx = minPointsToIndex(num);
-            const range = shadow.getElementById('tp-bestpreise-minpoints-range');
-            const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
-            if (range) range.value = idx;
-            if (valEl) valEl.value = num;
-            if (typeof document !== 'undefined') {
-              const barRange = document.getElementById('tp-bar-minpoints-range');
-              if (barRange && document.activeElement !== barRange) barRange.value = idx;
-              const barLabel = document.getElementById('tp-bar-minpoints-label');
-              if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
-            }
+            paintMinPoints(val, shadow);
             break;
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
@@ -5287,7 +5291,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
             <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
             <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="14" step="1" value="4">
+              <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
               <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
             </div>
             <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
@@ -5917,13 +5921,14 @@ const SHADOW_MODAL_STYLES = `
     const readNum = () => minPointsFromIndex(range.value);
     const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
     paint();
+    let deb;
     range.oninput = () => {
       paint();
-      clearTimeout(window._tpMinPointsDeb);
-      window._tpMinPointsDeb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
+      clearTimeout(deb);
+      deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
     };
     range.onchange = () => {
-      clearTimeout(window._tpMinPointsDeb);
+      clearTimeout(deb);
       const n = readNum();
       paint();
       updateConfig('BESTPREISE_MIN_POINTS', n);
@@ -6156,13 +6161,7 @@ const SHADOW_MODAL_STYLES = `
     if (vortiefWrapper) {
       vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
-    const curMinPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
-    const minPointsRange = document.getElementById('tp-bar-minpoints-range');
-    if (minPointsRange && document.activeElement !== minPointsRange) {
-      minPointsRange.value = minPointsToIndex(curMinPoints);
-    }
-    const minPointsLabel = document.getElementById('tp-bar-minpoints-label');
-    if (minPointsLabel) minPointsLabel.textContent = `📊 ${curMinPoints} Pkt`;
+    paintMinPoints();
     const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
     if (minPointsWrapper) {
       minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
