@@ -416,7 +416,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   // between two visible groups.
   for (const group of bar.querySelectorAll('.tp-group')) {
     const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');
-    group.style.display = hasVisibleChild ? '' : 'none';
+    // Plain inline style loses to .tp-group{display:inline-flex !important} — use priority.
+    if (hasVisibleChild) group.style.display = '';
+    else group.style.setProperty('display', 'none', 'important');
   }
   for (const sep of bar.querySelectorAll('.tp-divider')) {
     let prev = sep.previousElementSibling;

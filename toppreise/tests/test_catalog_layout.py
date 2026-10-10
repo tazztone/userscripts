@@ -1291,6 +1291,8 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
     assert weight_wrapper.is_visible()
     assert weight_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
     assert weight_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-bestpreise-btn'")
+    # Evacuated deals group hides (needs important: .tp-group forces inline-flex).
+    assert page.locator('.tp-group-deals').evaluate("e => getComputedStyle(e).display") == "none"
 
     weight_label = page.locator('#tp-bar-weight-label')
     assert '50/50' in weight_label.inner_text()
