@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.135
+// @version      2.18.136
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3214,6 +3214,69 @@ const SHADOW_MODAL_STYLES = `
     return svg;
   }
 
+  // Discord-identical chart: axes build + dark card + heavier line. Single source
+  // for the Discord PNG (share-discord.js) and the click-to-expand popout below.
+  function renderDiscordChart(timeSeries, width = 360, height = 100) {
+    const svg = renderSparkline(timeSeries, width, height, { axes: true });
+    if (!svg) return null;
+    const NS = 'http://www.w3.org/2000/svg';
+    const bg = document.createElementNS(NS, 'rect');
+    bg.setAttribute('width', String(width));
+    bg.setAttribute('height', String(height));
+    bg.setAttribute('rx', '8');
+    bg.setAttribute('fill', '#1e293b');
+    svg.insertBefore(bg, svg.firstChild);
+    svg.querySelector('polyline')?.setAttribute('stroke-width', '2.5');
+    return svg;
+  }
+
+  function closeSparklinePopout() {
+    if (typeof document === 'undefined') return;
+    document.getElementById('tp-sparkline-popout')?.remove();
+  }
+
+  // Click on a mini sparkline pops the full Discord-style chart. Backdrop/×/Esc closes.
+  function openSparklinePopout(timeSeries) {
+    if (typeof document === 'undefined') return null;
+    closeSparklinePopout();
+    const svg = renderDiscordChart(timeSeries, 560, 220);
+    if (!svg) return null;
+    svg.style.maxWidth = '100%';
+    svg.style.height = 'auto';
+    svg.style.display = 'block';
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'tp-sparkline-popout';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-label', 'Preisverlauf');
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.65);padding:16px;box-sizing:border-box;';
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#1e293b;border-radius:12px;padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+    const title = document.createElement('div');
+    title.textContent = '📈 Preisverlauf';
+    title.style.cssText = 'color:#e2e8f0;font-size:14px;font-weight:600;';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.setAttribute('aria-label', 'Schliessen');
+    closeBtn.style.cssText = 'background:transparent;border:0;color:#94a3b8;font-size:16px;cursor:pointer;padding:4px 8px;';
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    function close() { document.removeEventListener('keydown', onKey); closeSparklinePopout(); }
+    document.addEventListener('keydown', onKey);
+    closeBtn.addEventListener('click', close);
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+    panel.appendChild(svg);
+    backdrop.appendChild(panel);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+    document.body.appendChild(backdrop);
+    closeBtn.focus?.();
+    return backdrop;
+  }
+
   // ─── MODULE: src/page/sort.js ───────────────────────────────────────────────
   /**
    * Grid Sorting Engine
@@ -4399,8 +4462,29 @@ const SHADOW_MODAL_STYLES = `
         sparkContainer = document.createElement('div');
         sparkContainer.className = 'tp-sparkline-container';
       }
+      // Click pops the full Discord-style chart (same series incl. live price).
+      sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
+      sparkContainer.style.cursor = 'pointer';
+      sparkContainer.setAttribute('role', 'button');
+      sparkContainer.setAttribute('tabindex', '0');
+      sparkContainer.setAttribute('title', 'Preisverlauf vergrössern');
+      if (!sparkContainer.dataset.tpPopoutBound) {
+        sparkContainer.dataset.tpPopoutBound = 'true';
+        sparkContainer.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          openSparklinePopout(sparkContainer._tpSeries);
+        });
+        sparkContainer.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            openSparklinePopout(sparkContainer._tpSeries);
+          }
+        });
+      }
       if (!sparkContainer.querySelector('.tp-sparkline')) {
-        const svg = renderSparkline(withLivePrice(stats.timeSeries, cardPrice), 44, 13);
+        const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
         if (svg) {
           sparkContainer.replaceChildren();
           sparkContainer.appendChild(svg);
@@ -6007,16 +6091,8 @@ const SHADOW_MODAL_STYLES = `
     return new Promise(resolve => {
       try {
         if (typeof document === 'undefined') return resolve(null);
-        const svg = renderSparkline(timeSeries, width, height, { axes: true });
+        const svg = renderDiscordChart(timeSeries, width, height);
         if (!svg) return resolve(null);
-        const NS = 'http://www.w3.org/2000/svg';
-        const bg = document.createElementNS(NS, 'rect');
-        bg.setAttribute('width', String(width));
-        bg.setAttribute('height', String(height));
-        bg.setAttribute('rx', '8');
-        bg.setAttribute('fill', '#1e293b');
-        svg.insertBefore(bg, svg.firstChild);
-        svg.querySelector('polyline')?.setAttribute('stroke-width', '2.5');
         const svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
         const img = new Image();
         img.onload = () => {

@@ -25,7 +25,7 @@ import { startBatchCheck } from './floating-cta.js';
 import { scanState } from '../state/store.js';
 import { getCachedPriceStats, getCachedDealer, setCachedDealer, MAX_MEMORY_CACHE_ITEMS } from '../scanner/cache.js';
 import { showToast } from './toast.js';
-import { renderSparkline } from './sparkline.js';
+import { renderSparkline, openSparklinePopout } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
 
 function setHtmlIfChanged(el, newHtml) {
@@ -708,8 +708,29 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       sparkContainer = document.createElement('div');
       sparkContainer.className = 'tp-sparkline-container';
     }
+    // Click pops the full Discord-style chart (same series incl. live price).
+    sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
+    sparkContainer.style.cursor = 'pointer';
+    sparkContainer.setAttribute('role', 'button');
+    sparkContainer.setAttribute('tabindex', '0');
+    sparkContainer.setAttribute('title', 'Preisverlauf vergrössern');
+    if (!sparkContainer.dataset.tpPopoutBound) {
+      sparkContainer.dataset.tpPopoutBound = 'true';
+      sparkContainer.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openSparklinePopout(sparkContainer._tpSeries);
+      });
+      sparkContainer.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          openSparklinePopout(sparkContainer._tpSeries);
+        }
+      });
+    }
     if (!sparkContainer.querySelector('.tp-sparkline')) {
-      const svg = renderSparkline(withLivePrice(stats.timeSeries, cardPrice), 44, 13);
+      const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
       if (svg) {
         sparkContainer.replaceChildren();
         sparkContainer.appendChild(svg);

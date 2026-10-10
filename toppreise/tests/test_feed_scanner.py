@@ -893,6 +893,30 @@ def test_sparkline_handles_edge_cases(page: Page):
     assert page.locator('#card-cheapest .tp-sparkline').count() == 0
 
 
+def test_sparkline_click_opens_discord_style_chart(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
+        const stats = {
+            tiefstpreis: 1800.0,
+            hoechstpreis: 2200.0,
+            aktuellerToppreis: 1800.0,
+            timeSeries: [[1672531199, 2200.0], [1675209599, 2000.0], [1677628799, 1800.0]],
+            time: Date.now()
+        };
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', stats);
+        window.ToppreiseSuite?.processListings?.();
+    }""")
+    page.locator('#card-cheapest .tp-sparkline-container').click()
+    popout = page.locator('#tp-sparkline-popout')
+    assert popout.is_visible()
+    # Discord-identical chart: dark card, axes grid, endpoint dot
+    assert popout.locator('svg rect').get_attribute('fill') == '#1e293b'
+    assert popout.locator('svg line').count() >= 2
+    assert popout.locator('svg circle').count() == 1
+    page.keyboard.press('Escape')
+    assert popout.count() == 0
+
+
 
 def test_negative_caching_and_manual_click_override(page: Page):
     # Set negative cache for card-cheapest (product 797571)

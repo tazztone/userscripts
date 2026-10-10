@@ -7,7 +7,7 @@
 import { SELECTORS } from '../page/selectors.js';
 import { parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal-score.js';
-import { renderSparkline } from '../ui/sparkline.js';
+import { renderDiscordChart } from '../ui/sparkline.js';
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
   /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
@@ -41,16 +41,8 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
   return new Promise(resolve => {
     try {
       if (typeof document === 'undefined') return resolve(null);
-      const svg = renderSparkline(timeSeries, width, height, { axes: true });
+      const svg = renderDiscordChart(timeSeries, width, height);
       if (!svg) return resolve(null);
-      const NS = 'http://www.w3.org/2000/svg';
-      const bg = document.createElementNS(NS, 'rect');
-      bg.setAttribute('width', String(width));
-      bg.setAttribute('height', String(height));
-      bg.setAttribute('rx', '8');
-      bg.setAttribute('fill', '#1e293b');
-      svg.insertBefore(bg, svg.firstChild);
-      svg.querySelector('polyline')?.setAttribute('stroke-width', '2.5');
       const svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
       const img = new Image();
       img.onload = () => {
