@@ -735,19 +735,20 @@ export const STYLES = `
     border-color: rgba(139, 92, 246, 0.45) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(139, 92, 246, 0.2) !important;
   }
-  #timeframe-filter {
+  /* Host is #timeframe-filter on most feeds, .Plugin_TimePeriod fallback (see ensureDealControlsPlacement). */
+  :is(#timeframe-filter, .Plugin_TimePeriod) {
     align-items: center !important;
     gap: 8px 12px !important;
     flex-wrap: wrap !important;
     row-gap: 8px !important;
   }
-  #timeframe-filter #tp-bar-bestpreise-btn,
-  #timeframe-filter #tp-bar-weight-wrapper,
-  #timeframe-filter #tp-bar-vortief-wrapper {
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper {
     margin-right: 8px !important;
     flex-shrink: 0 !important;
   }
-  #timeframe-filter #tp-bar-minpoints-wrapper {
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
     margin-right: 0 !important;
     flex-shrink: 0 !important;
   }
@@ -762,11 +763,11 @@ export const STYLES = `
     padding: 3px 8px !important;
   }
   /* Site timeframe-filter element rules beat bare classes — re-assert light text at ID specificity. */
-  #timeframe-filter .tp-threshold-wrapper { color: var(--tp-txt) !important; }
-  #timeframe-filter .tp-threshold-wrapper .tp-weight-label { color: #c4b5fd !important; }
-  #timeframe-filter .tp-threshold-wrapper .tp-stepper-label { color: #94a3b8 !important; }
-  #timeframe-filter .tp-threshold-wrapper .tp-mini-state { color: var(--tp-txt-dim) !important; }
-  #timeframe-filter .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper { color: var(--tp-txt) !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-weight-label { color: #c4b5fd !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #94a3b8 !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: var(--tp-txt-dim) !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
   .tp-weight-label {
     color: #c4b5fd !important;
     font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -783,7 +784,7 @@ export const STYLES = `
     cursor: pointer !important;
   }
   /* Explicit divider between deals controls (replaces the old auto-margin gap). */
-  #timeframe-filter .tp-sep, .tp-group-deals .tp-sep {
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-sep, .tp-group-deals .tp-sep {
     width: 1px !important;
     align-self: stretch !important;
     min-height: 18px !important;
