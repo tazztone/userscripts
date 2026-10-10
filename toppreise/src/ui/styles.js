@@ -748,16 +748,13 @@ export const STYLES = `
   /* Host is #timeframe-filter on most feeds, .Plugin_TimePeriod fallback (see ensureDealControlsPlacement). */
   :is(#timeframe-filter, .Plugin_TimePeriod) {
     align-items: center !important;
-    gap: 6px 10px !important;
+    gap: 6px 8px !important;
     flex-wrap: wrap !important;
     row-gap: 6px !important;
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper {
-    margin-right: 4px !important;
-    flex-shrink: 0 !important;
-  }
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
     margin-right: 8px !important;
     flex-shrink: 0 !important;
@@ -766,15 +763,17 @@ export const STYLES = `
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 5px !important;
+    justify-content: center !important;
+    gap: 6px !important;
     background: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: var(--tp-r-md) !important;
-    padding: 2px 7px !important;
+    padding: 0 9px !important;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
     height: 24px !important;
     box-sizing: border-box !important;
     color: #334155 !important;
+    line-height: 1 !important;
   }
   /* Site timeframe-filter element rules beat bare classes — re-assert clean light text at ID specificity. */
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper {
@@ -791,17 +790,25 @@ export const STYLES = `
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     white-space: nowrap !important;
     cursor: default !important;
-    display: inline-block !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 100% !important;
+    line-height: 1 !important;
     min-width: 8ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
+    vertical-align: middle !important;
   }
   #tp-bar-weight-range {
     width: 56px !important;
     accent-color: #6366f1 !important;
     cursor: pointer !important;
     height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
     vertical-align: middle !important;
+    align-self: center !important;
   }
   /* Explicit divider between deals controls (replaces the old auto-margin gap). */
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-sep, .tp-group-deals .tp-sep {
@@ -816,10 +823,28 @@ export const STYLES = `
   .tp-threshold-wrapper .tp-stepper-label {
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #475569 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    margin: 0 !important;
+  }
+  .tp-threshold-wrapper .tp-mini-switch {
+    display: inline-flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    gap: 4px !important;
+    margin: 0 !important;
+    vertical-align: middle !important;
   }
   .tp-threshold-wrapper .tp-mini-slider {
     width: 26px !important;
     height: 14px !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    align-self: center !important;
+    margin: 0 !important;
   }
   .tp-threshold-wrapper .tp-mini-slider:before {
     width: 10px !important;
@@ -832,14 +857,24 @@ export const STYLES = `
   }
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
+    font-weight: 700 !important;
     min-width: 18px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    margin: 0 0 0 2px !important;
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
     accent-color: #0284c7 !important;
     cursor: pointer !important;
     height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
     vertical-align: middle !important;
+    align-self: center !important;
   }
   #tp-bar-minpoints-label {
     min-width: 6.5ch !important;
@@ -848,6 +883,12 @@ export const STYLES = `
     white-space: nowrap !important;
     color: #475569 !important;
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 100% !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn {
     background: #ffffff !important;
@@ -855,8 +896,13 @@ export const STYLES = `
     color: #334155 !important;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
     height: 24px !important;
-    padding: 2px 9px !important;
+    padding: 0 9px !important;
     font-size: 11.5px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn:hover {
     background: #f8fafc !important;
@@ -1042,17 +1088,21 @@ export const STYLES = `
     background: rgba(255, 255, 255, 0.06) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     color: var(--tp-txt-dim) !important;
-    padding: 5px 11px !important;
+    padding: 0 11px !important;
+    height: 28px !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
     font-weight: 600 !important;
     cursor: pointer !important;
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
     gap: 5px !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
     transition: all 0.15s ease !important;
+    box-sizing: border-box !important;
   }
   .tp-bar-btn:hover { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
   .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
@@ -1066,6 +1116,7 @@ export const STYLES = `
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
+    line-height: 1 !important;
     gap: 5px !important;
     cursor: pointer !important;
     flex-shrink: 0 !important;
@@ -1087,6 +1138,10 @@ export const STYLES = `
     border: 1px solid rgba(100,116,139,0.55) !important;
     transition: background 0.2s ease, border-color 0.2s ease !important;
     flex-shrink: 0 !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    align-self: center !important;
+    margin: 0 !important;
   }
   .tp-mini-slider:before {
     content: "" !important;
@@ -1118,6 +1173,10 @@ export const STYLES = `
     margin-left: 2px !important;
     flex-shrink: 0 !important;
     color: var(--tp-dim) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
   }
   .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
   /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
@@ -1127,19 +1186,27 @@ export const STYLES = `
     transition: opacity 0.2s ease !important;
   }
   .tp-bar-stepper-group {
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
     background: rgba(15,23,42,0.6) !important;
     border: 1px solid var(--tp-line) !important;
-    padding: 2px 6px !important;
+    padding: 0 6px !important;
+    height: 28px !important;
+    box-sizing: border-box !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
     color: var(--tp-mut) !important;
+    line-height: 1 !important;
+  }
+  .tp-bar-stepper-group .tp-stepper-label {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
   }
   .tp-stepper-btn {
-    width: 24px !important;
-    height: 24px !important;
+    width: 22px !important;
+    height: 22px !important;
     border-radius: 50% !important;
     background: rgba(255,255,255,0.1) !important;
     border: 1px solid rgba(255,255,255,0.15) !important;
@@ -1147,6 +1214,11 @@ export const STYLES = `
     font-weight: 700 !important;
     cursor: pointer !important;
     padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    box-sizing: border-box !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
   .tp-stepper-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }

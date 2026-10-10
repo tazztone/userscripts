@@ -68,7 +68,7 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">Fallback-Tiefs einschließen</label>
+            <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Im Tiefstpreise-Modus ausblenden.">Fallback-Tiefs einschließen</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-include-vortief-toggle">

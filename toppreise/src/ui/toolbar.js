@@ -112,7 +112,7 @@ function bindVortiefControls(wrapper) {
   input.onchange = () => {
     updateConfig('BESTPREISE_INCLUDE_VORTIEF', input.checked);
     syncMiniToggle(input, input.checked, 'Fallback-Tiefs');
-    showToast(input.checked ? 'Fallback-Tiefs EIN — dünne Historie heizt die Kante' : 'Fallback-Tiefs AUS — sie folgen der Anzeige wie schlechte Deals');
+    showToast(input.checked ? 'Fallback-Tiefs EIN — Deals mit wenig Historie anzeigen' : 'Fallback-Tiefs AUS — Deals mit wenig Historie ausblenden');
   };
 }
 
@@ -120,7 +120,7 @@ function buildVortiefWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-vortief-wrapper';
-  wrapper.title = 'Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.';
+  wrapper.title = 'Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar).\nAN: Als Deals mit Kantenmarkierung anzeigen.\nAUS: Im Tiefstpreise-Modus ausblenden.';
   wrapper.innerHTML = `
     <span class="tp-sep" aria-hidden="true"></span>
     <span class="tp-stepper-label">Fallback-Tiefs</span>
