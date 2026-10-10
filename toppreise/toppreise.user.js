@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.129
+// @version      2.18.130
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -218,6 +218,20 @@ const STYLES = `
   }
   body.tp-reveal-all .tp-filtered,
   body.tp-reveal-all [class*="col-"]:has(> .tp-filtered) {
+    display: block !important;
+    opacity: var(--tp-dim-opacity, 0.25) !important;
+    filter: grayscale(40%) !important;
+    outline: 2px dashed #f59e0b !important;
+    outline-offset: -2px !important;
+  }
+  /* "Nur geprüfte" hides always (not Anzeige-gated): label promises
+     ausblenden, so dim/highlight modes collapse unchecked too. */
+  body:not(.tp-reveal-all) .tp-unchecked-hidden,
+  body:not(.tp-reveal-all) [class*="col-"]:has(> .tp-unchecked-hidden) {
+    display: none !important;
+  }
+  body.tp-reveal-all .tp-unchecked-hidden,
+  body.tp-reveal-all [class*="col-"]:has(> .tp-unchecked-hidden) {
     display: block !important;
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
@@ -2975,8 +2989,10 @@ const SHADOW_MODAL_STYLES = `
     const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
       && card.classList?.contains('tp-unchecked-hidden') === true;
     const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || f.isBadDeal
-      || (f.isUnchecked && opts?.includeHiddenUnchecked !== true);
-    const displayHidden = () => CONFIG.MODE === 'hide'
+    // "Nur geprüfte" hides in every Anzeige mode (CSS collapses
+    // tp-unchecked-hidden outside tp-reveal-all), not just MODE=hide.
+    const displayHidden = f => (CONFIG.MODE === 'hide'
+      || (CONFIG.BESTPREISE_HIDE_UNCHECKED === true && f?.isUnchecked === true))
       && document.body?.classList?.contains('tp-reveal-all') !== true;
     const legacyChecks = () => {
       const tab = card.closest?.('.f_tab');
@@ -2995,7 +3011,7 @@ const SHADOW_MODAL_STYLES = `
       if (!causeHit(filters)) return legacyChecks();
       // Cause-based path: scanner and counters ignore MODE/reveal.
       if (opts?.includeHiddenUnchecked === true) return true;
-      return displayHidden();
+      return displayHidden(filters);
     }
     const f = {
       isNeg: card.classList?.contains('tp-negative-filtered') === true,
@@ -3016,7 +3032,7 @@ const SHADOW_MODAL_STYLES = `
     f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
     if (!causeHit(f)) return legacyChecks();
     if (opts?.includeHiddenUnchecked === true) return true;
-    return displayHidden();
+    return displayHidden(f);
   }
 
   function getCardSortableUnit(card) {
@@ -4595,7 +4611,11 @@ const SHADOW_MODAL_STYLES = `
     const totalHidden = revealAll ? 0 : (counts.filteredCount || 0);
 
     const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
-    if (CONFIG.MODE === 'hide' && cards.length > 0 && totalHidden >= cards.length) {
+    // "Nur geprüfte" hides in every Anzeige mode, so the notice gate can't
+    // require MODE=hide alone — else a fully collapsed page shows no notice.
+    const uncheckedHidesAll = CONFIG.BESTPREISE_HIDE_UNCHECKED === true
+      && cards.length > 0 && (counts.uncheckedHidden || 0) >= cards.length;
+    if ((CONFIG.MODE === 'hide' || uncheckedHidesAll) && cards.length > 0 && totalHidden >= cards.length) {
       // Static notice: skip rebuild + listener re-bind when nothing changed
       const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}:${revealAll}`;
       if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
@@ -6404,6 +6424,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         // mode nothing hides as non-best (truthful Aufschlag badge instead),
         // inside the mode it counts as bestpreiseHidden below. Never double-count.
         cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
+        // "Nur Geprüfte" hides never-checked cards via tp-unchecked-hidden —
+        // count them so empty-state + reveal counts stay truthful (needs no
+        // stats by definition, so it lives outside the chain below).
+        if (cd.filters.isUnchecked) counts.uncheckedHidden++;
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
         } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
@@ -6412,10 +6436,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
           counts.bestpreiseHidden++;
           counts.badDeals++;
-          // "Nur Geprüfte" hides never-checked cards via tp-unchecked-hidden —
-          // count them so empty-state + reveal counts stay truthful.
-          counts.bestpreiseHidden++;
-          counts.uncheckedHidden++;
         }
       }
 

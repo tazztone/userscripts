@@ -50,7 +50,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.129
+// @version      2.18.130
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -129,6 +129,10 @@ import { processProductDetailPage } from './features/product-detail.js';
         // mode nothing hides as non-best (truthful Aufschlag badge instead),
         // inside the mode it counts as bestpreiseHidden below. Never double-count.
         cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
+        // "Nur Geprüfte" hides never-checked cards via tp-unchecked-hidden —
+        // count them so empty-state + reveal counts stay truthful (needs no
+        // stats by definition, so it lives outside the chain below).
+        if (cd.filters.isUnchecked) counts.uncheckedHidden++;
         if (cd.dealScore) {
           counts.bestpreiseDeals++;
         } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
@@ -137,10 +141,6 @@ import { processProductDetailPage } from './features/product-detail.js';
         } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
           counts.bestpreiseHidden++;
           counts.badDeals++;
-          // "Nur Geprüfte" hides never-checked cards via tp-unchecked-hidden —
-          // count them so empty-state + reveal counts stay truthful.
-          counts.bestpreiseHidden++;
-          counts.uncheckedHidden++;
         }
       }
 

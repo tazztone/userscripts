@@ -304,8 +304,10 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
     && card.classList?.contains('tp-unchecked-hidden') === true;
   const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || f.isBadDeal
-    || (f.isUnchecked && opts?.includeHiddenUnchecked !== true);
-  const displayHidden = () => CONFIG.MODE === 'hide'
+  // "Nur geprüfte" hides in every Anzeige mode (CSS collapses
+  // tp-unchecked-hidden outside tp-reveal-all), not just MODE=hide.
+  const displayHidden = f => (CONFIG.MODE === 'hide'
+    || (CONFIG.BESTPREISE_HIDE_UNCHECKED === true && f?.isUnchecked === true))
     && document.body?.classList?.contains('tp-reveal-all') !== true;
   const legacyChecks = () => {
     const tab = card.closest?.('.f_tab');
@@ -324,7 +326,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
     if (!causeHit(filters)) return legacyChecks();
     // Cause-based path: scanner and counters ignore MODE/reveal.
     if (opts?.includeHiddenUnchecked === true) return true;
-    return displayHidden();
+    return displayHidden(filters);
   }
   const f = {
     isNeg: card.classList?.contains('tp-negative-filtered') === true,
@@ -345,7 +347,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
   if (!causeHit(f)) return legacyChecks();
   if (opts?.includeHiddenUnchecked === true) return true;
-  return displayHidden();
+  return displayHidden(f);
 }
 
 export function getCardSortableUnit(card) {

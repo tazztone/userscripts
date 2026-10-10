@@ -199,6 +199,20 @@ export const STYLES = `
     outline: 2px dashed #f59e0b !important;
     outline-offset: -2px !important;
   }
+  /* "Nur geprüfte" hides always (not Anzeige-gated): label promises
+     ausblenden, so dim/highlight modes collapse unchecked too. */
+  body:not(.tp-reveal-all) .tp-unchecked-hidden,
+  body:not(.tp-reveal-all) [class*="col-"]:has(> .tp-unchecked-hidden) {
+    display: none !important;
+  }
+  body.tp-reveal-all .tp-unchecked-hidden,
+  body.tp-reveal-all [class*="col-"]:has(> .tp-unchecked-hidden) {
+    display: block !important;
+    opacity: var(--tp-dim-opacity, 0.25) !important;
+    filter: grayscale(40%) !important;
+    outline: 2px dashed #f59e0b !important;
+    outline-offset: -2px !important;
+  }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
   .badge.badge-dif.tp-injected-badge,

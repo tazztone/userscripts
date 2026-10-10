@@ -929,7 +929,11 @@ export function renderEmptyState(cards, counts) {
   const totalHidden = revealAll ? 0 : (counts.filteredCount || 0);
 
   const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
-  if (CONFIG.MODE === 'hide' && cards.length > 0 && totalHidden >= cards.length) {
+  // "Nur geprüfte" hides in every Anzeige mode, so the notice gate can't
+  // require MODE=hide alone — else a fully collapsed page shows no notice.
+  const uncheckedHidesAll = CONFIG.BESTPREISE_HIDE_UNCHECKED === true
+    && cards.length > 0 && (counts.uncheckedHidden || 0) >= cards.length;
+  if ((CONFIG.MODE === 'hide' || uncheckedHidesAll) && cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
     const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}:${revealAll}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
