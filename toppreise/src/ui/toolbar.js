@@ -67,10 +67,12 @@ function ensureDealControlsPlacement(isDealFeed) {
   const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
   let btn = document.getElementById('tp-bar-bestpreise-btn');
   let weight = document.getElementById('tp-bar-weight-wrapper');
+  let vortief = document.getElementById('tp-bar-vortief-wrapper');
   if (!isDealFeed || !tf) {
     if (home) {
       if (btn && btn.parentElement !== home) home.prepend(btn);
       if (weight && weight.parentElement !== home) home.append(weight);
+      if (vortief && vortief.parentElement !== home) home.append(vortief);
     }
     return;
   }
@@ -83,8 +85,10 @@ function ensureDealControlsPlacement(isDealFeed) {
     bindBestpreiseBtn(btn);
   }
   if (!weight) weight = buildWeightWrapper();
+  if (!vortief) vortief = buildVortiefWrapper();
   if (btn.parentElement !== tf) tf.prepend(btn);
   if (weight.parentElement !== tf || weight.previousElementSibling !== btn) btn.after(weight);
+  if (vortief.parentElement !== tf || vortief.previousElementSibling !== weight) weight.after(vortief);
 }
 
 function bindWeightControls(wrapper) {
@@ -113,6 +117,34 @@ function bindWeightControls(wrapper) {
     updateConfig('BESTPREISE_WEIGHT_RECORD', w);
     showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (Reihenfolge + Farb-Emphase)`);
   };
+}
+
+function bindVortiefControls(wrapper) {
+  if (!wrapper) return;
+  const input = wrapper.querySelector('#tp-toggle-vortief');
+  if (!input) return;
+  syncMiniToggle(input, CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false, 'Fallback-Tiefs');
+  input.onchange = () => {
+    updateConfig('BESTPREISE_INCLUDE_VORTIEF', input.checked);
+    syncMiniToggle(input, input.checked, 'Fallback-Tiefs');
+    showToast(input.checked ? 'Fallback-Tiefs EIN — dünne Historie heizt die Kante' : 'Fallback-Tiefs AUS — sie folgen der Anzeige wie schlechte Deals');
+  };
+}
+
+function buildVortiefWrapper() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tp-threshold-wrapper';
+  wrapper.id = 'tp-bar-vortief-wrapper';
+  wrapper.title = 'Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.';
+  wrapper.innerHTML = `
+    <span class="tp-stepper-label">Fallback-Tiefs</span>
+    <label class="tp-mini-switch">
+      <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
+      <span class="tp-mini-slider"></span>
+      <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
+    </label>`;
+  bindVortiefControls(wrapper);
+  return wrapper;
 }
 
 function buildWeightWrapper() {
@@ -199,6 +231,14 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <option value="100" label="Rek"></option>
           </datalist>
         </div>
+        <div class="tp-threshold-wrapper" id="tp-bar-vortief-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">
+          <span class="tp-stepper-label">Fallback-Tiefs</span>
+          <label class="tp-mini-switch">
+            <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
+            <span class="tp-mini-slider"></span>
+            <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
+          </label>
+        </div>
        </div>
       </div>
     `;
@@ -272,6 +312,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     };
     bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
     bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
+    bindVortiefControls(bar.querySelector('#tp-bar-vortief-wrapper'));
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
     if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
       placement.container.insertBefore(bar, placement.reference);
@@ -331,6 +372,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
 
   syncMiniToggle(bar.querySelector('#tp-toggle-neg'), CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
   syncMiniToggle(bar.querySelector('#tp-toggle-min'), CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
+  syncMiniToggle(bar.querySelector('#tp-toggle-vortief'), CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false, 'Fallback-Tiefs');
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
@@ -347,6 +389,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
   if (weightWrapper) {
     weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+  }
+  const vortiefWrapper = document.getElementById('tp-bar-vortief-wrapper');
+  if (vortiefWrapper) {
+    vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
   // The deals group is empty on catalog pages (children hidden) and on deal
   // feeds (children moved to #timeframe-filter) — hide the box + divider.
