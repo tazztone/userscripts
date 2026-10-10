@@ -115,6 +115,16 @@ def check_toppreise_quality_gates(toppreise_dir):
     return True
 
 
+def check_hf_logic_gate(hf_test):
+    print("🔍 [pre-commit] Running Hugging Face unit test...")
+    try:
+        subprocess.run(['node', '--test', hf_test], cwd=REPO_ROOT, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ [pre-commit] Hugging Face gate failed (exit code {e.returncode})")
+        return False
+    return True
+
+
 def get_staged_files():
     try:
         return subprocess.check_output(
@@ -136,6 +146,13 @@ def main():
             return 1
         # Re-read staged files after quality gate may have staged the bundle
         staged_files = get_staged_files()
+
+    # Hugging Face fast logic test (ex-CI gate)
+    hf_test = os.path.join('huggingface', 'tests', 'test_logic.js')
+    hf_staged = any(path.startswith('huggingface/') for path in staged_files)
+    if hf_staged and os.path.exists(os.path.join(REPO_ROOT, hf_test)):
+        if not check_hf_logic_gate(hf_test):
+            return 1
 
     staged_userscripts = [
         path for path in staged_files

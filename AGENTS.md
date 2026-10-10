@@ -33,13 +33,13 @@
   ```bash
   node toppreise/tools/build.js
   ```
-- **Verifying Bundles (CI Quality Check):**
+- **Verifying Bundles (Pre-commit Quality Check):**
   ```bash
   node toppreise/tools/build.js --check
   ```
 - **Pre-commit Quality Gates:**
   The repository pre-commit hook automatically rebuilds the bundle, executes unit tests, and increments the bundle version patch level upon commit.
-  - **Deletion checklist:** when deleting files, run the grep literally — `rg '<deleted-name>' .github/ bump_version_precommit.py <script>/tools/ AGENTS.md` — a stale gate fails CI or the commit.
+  - **Deletion checklist:** when deleting files, run the grep literally — `rg '<deleted-name>' bump_version_precommit.py <script>/tools/ AGENTS.md` — a stale gate fails the commit.
   - **Commit hygiene:** review full `git status` before staging; never stage unrelated pre-existing changes or untracked home dotfiles (e.g. `.env`).
   > [!NOTE]
   > When executing `git commit` via agent commands, `BypassSandbox: true` is required to allow write access to `.git/index.lock` and permit the pre-commit script to update bundle versions.
