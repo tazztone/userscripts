@@ -100,6 +100,18 @@ export const _setValue = (k, v) => {
   if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
 };
 
+// One-time migration: DEBUG default flipped true→false, but stored true
+// persists via _getValue precedence. No settings UI ever wrote DEBUG
+// (modal import/export skips it), so stored true came only from console —
+// silence it once. Marker keeps this a single read per load afterwards.
+export function migrateLegacyDebug() {
+  if (_getValue('MIGRATED_DEBUG_OFF', false)) return false;
+  _setValue('DEBUG', false);
+  _setValue('MIGRATED_DEBUG_OFF', true);
+  return true;
+}
+migrateLegacyDebug();
+
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),

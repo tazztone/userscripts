@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.131
+// @version      2.18.132
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2322,6 +2322,18 @@ const SHADOW_MODAL_STYLES = `
     // Secrets nie ins page-lesbare localStorage spiegeln (GM bleibt privat).
     if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
   };
+
+  // One-time migration: DEBUG default flipped true→false, but stored true
+  // persists via _getValue precedence. No settings UI ever wrote DEBUG
+  // (modal import/export skips it), so stored true came only from console —
+  // silence it once. Marker keeps this a single read per load afterwards.
+  function migrateLegacyDebug() {
+    if (_getValue('MIGRATED_DEBUG_OFF', false)) return false;
+    _setValue('DEBUG', false);
+    _setValue('MIGRATED_DEBUG_OFF', true);
+    return true;
+  }
+  migrateLegacyDebug();
 
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
