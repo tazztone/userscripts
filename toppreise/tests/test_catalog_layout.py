@@ -1296,9 +1296,9 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
 
     weight_label = page.locator('#tp-bar-weight-label')
     assert '50/50' in weight_label.inner_text()
-    # Single dark dialect: moved controls render as dark pills, not light surfaces.
-    assert weight_wrapper.evaluate("e => getComputedStyle(e).backgroundColor") == "rgba(15, 23, 42, 0.85)"
-    assert weight_label.evaluate("e => getComputedStyle(e).color") == "rgb(196, 181, 253)"
+    # Clean light surface integrated with native timeframe row
+    assert weight_wrapper.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(255, 255, 255)"
+    assert weight_label.evaluate("e => getComputedStyle(e).color") == "rgb(71, 85, 105)"
     # Plain-language hint: order + color emphasis, badge shows the blend
     assert 'Farb-Emphase' in (weight_label.get_attribute('title') or '')
 

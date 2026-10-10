@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.150
+// @version      2.18.151
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -758,86 +758,141 @@ const STYLES = `
   .tp-bar-btn.tp-bestpreise-active {
     /* Opak statt transluzent: der Button hängt auf Feeds in der weißen
     #timeframe-filter-Zeile (toolbar.js ensureDealControlsPlacement), nicht nur in der dunklen Bar. */
-    background: linear-gradient(135deg, #8b5cf6, #f59e0b) !important;
-    border-color: var(--tp-acc2) !important;
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    border-color: #4338ca !important;
     color: #fff !important;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.3) !important;
+    box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
   }
   #tp-bar-bestpreise-count {
     opacity: 1 !important;
   }
   #tp-suite-filter-bar.tp-bestpreise-bar {
-    border-color: rgba(139, 92, 246, 0.45) !important;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(139, 92, 246, 0.2) !important;
+    border-color: rgba(99, 102, 241, 0.45) !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
   }
   /* Host is #timeframe-filter on most feeds, .Plugin_TimePeriod fallback (see ensureDealControlsPlacement). */
   :is(#timeframe-filter, .Plugin_TimePeriod) {
     align-items: center !important;
-    gap: 8px 12px !important;
+    gap: 6px 10px !important;
     flex-wrap: wrap !important;
-    row-gap: 8px !important;
+    row-gap: 6px !important;
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper {
-    margin-right: 8px !important;
+    margin-right: 4px !important;
     flex-shrink: 0 !important;
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
-    margin-right: 0 !important;
+    margin-right: 8px !important;
     flex-shrink: 0 !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 6px !important;
-    background: rgba(15, 23, 42, 0.85) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    gap: 5px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
     border-radius: var(--tp-r-md) !important;
-    padding: 3px 8px !important;
+    padding: 2px 7px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    height: 24px !important;
+    box-sizing: border-box !important;
+    color: #334155 !important;
   }
-  /* Site timeframe-filter element rules beat bare classes — re-assert light text at ID specificity. */
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper { color: var(--tp-txt) !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-weight-label { color: #c4b5fd !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #94a3b8 !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: var(--tp-txt-dim) !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
+  /* Site timeframe-filter element rules beat bare classes — re-assert clean light text at ID specificity. */
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+  }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-weight-label { color: #475569 !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #475569 !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: #64748b !important; }
+  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: #059669 !important; }
   .tp-weight-label {
-    color: #c4b5fd !important;
-    font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #475569 !important;
+    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     white-space: nowrap !important;
     cursor: default !important;
     display: inline-block !important;
-    min-width: 11ch !important; /* widest text: "⚖️ 100% Med" — keeps the slider still while dragging */
+    min-width: 8ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
   }
   #tp-bar-weight-range {
-    width: 96px !important;
-    accent-color: var(--tp-acc2) !important;
+    width: 56px !important;
+    accent-color: #6366f1 !important;
     cursor: pointer !important;
+    height: 14px !important;
+    vertical-align: middle !important;
   }
   /* Explicit divider between deals controls (replaces the old auto-margin gap). */
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-sep, .tp-group-deals .tp-sep {
     width: 1px !important;
     align-self: stretch !important;
-    min-height: 18px !important;
-    background: rgba(148,163,184,0.45) !important;
-    margin: 0 2px !important;
+    min-height: 14px !important;
+    background: #cbd5e1 !important;
+    margin: 0 1px !important;
   }
   /* Pill wrappers carry their own edge — leading inner divider would double it. */
   .tp-threshold-wrapper > .tp-sep:first-child { display: none !important; }
+  .tp-threshold-wrapper .tp-stepper-label {
+    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #475569 !important;
+  }
+  .tp-threshold-wrapper .tp-mini-slider {
+    width: 26px !important;
+    height: 14px !important;
+  }
+  .tp-threshold-wrapper .tp-mini-slider:before {
+    width: 10px !important;
+    height: 10px !important;
+    top: 1px !important;
+    left: 1px !important;
+  }
+  .tp-threshold-wrapper .tp-mini-switch input:checked + .tp-mini-slider:before {
+    transform: translateX(12px) !important;
+  }
+  .tp-threshold-wrapper .tp-mini-state {
+    font-size: 10px !important;
+    min-width: 18px !important;
+  }
   #tp-bar-minpoints-range {
-    width: 96px !important;
-    accent-color: var(--tp-sky) !important;
+    width: 56px !important;
+    accent-color: #0284c7 !important;
     cursor: pointer !important;
+    height: 14px !important;
+    vertical-align: middle !important;
   }
   #tp-bar-minpoints-label {
-    min-width: 9ch !important;
+    min-width: 6.5ch !important;
     text-align: center !important;
     font-variant-numeric: tabular-nums !important;
     white-space: nowrap !important;
+    color: #475569 !important;
+    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    height: 24px !important;
+    padding: 2px 9px !important;
+    font-size: 11.5px !important;
+  }
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+  }
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn.tp-bestpreise-active {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    border-color: #4338ca !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
   }
   .tp-empty-state-notice {
     display: flex !important;
@@ -1123,32 +1178,52 @@ const STYLES = `
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;
-    left: 24px !important;
-    bottom: 24px !important;
+    left: 20px !important;
+    bottom: 20px !important;
     z-index: 99990 !important;
-    display: flex !important;
-    align-items: stretch !important;
-    gap: 0 !important;
-    max-width: 320px !important;
-    background: rgba(15, 23, 42, 0.94) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    max-width: none !important;
+    height: 36px !important;
+    background: rgba(15, 23, 42, 0.92) !important;
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
-    border: 1px solid rgba(16, 185, 129, 0.45) !important;
-    border-radius: var(--tp-r-lg) !important;
-    box-shadow: 0 10px 32px rgba(0,0,0,0.45), 0 0 16px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.08) !important;
-    padding: 6px !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 1px rgba(255,255,255,0.2) !important;
+    padding: 3px 5px !important;
     font-family: var(--tp-font) !important;
     animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
-    transition: left 0.2s ease, bottom 0.2s ease !important;
+    transition: left 0.2s ease, bottom 0.2s ease, opacity 0.2s ease, transform 0.2s ease !important;
+    box-sizing: border-box !important;
   }
   #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
-  #tp-floating-check-cta.tp-empty { animation: none !important; border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
-  #tp-floating-check-cta.tp-empty #tp-floating-check-btn { background: linear-gradient(135deg, var(--tp-line-soft) 0%, var(--tp-line) 100%) !important; color: var(--tp-txt-dim) !important; }
-  #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover { filter: brightness(1.08) !important; }
+  #tp-floating-check-cta.tp-empty {
+    animation: none !important;
+    border-color: rgba(148,163,184,0.2) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important;
+    opacity: 0.65 !important;
+  }
+  #tp-floating-check-cta.tp-empty:hover {
+    opacity: 1 !important;
+  }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--tp-txt-dim) !important;
+    box-shadow: none !important;
+  }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: #ffffff !important;
+  }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-sub {
+    opacity: 0.7 !important;
+  }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
-    0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.18) !important; }
-    50% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(16,185,129,0.4) !important; }
+    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 8px rgba(16,185,129,0.2) !important; }
+    50% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 18px rgba(16,185,129,0.45) !important; }
   }
   @media (prefers-reduced-motion: reduce) {
     #tp-floating-check-cta { animation: none !important; }
@@ -1159,62 +1234,74 @@ const STYLES = `
     .tp-tool-dim { opacity: 0.75 !important; }
   }
   #tp-floating-check-col {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 0 !important;
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 4px !important;
   }
   #tp-floating-check-btn {
-    background: var(--tp-grad-acc) !important;
-    flex: 1 !important;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
     border: none !important;
-    border-radius: 10px 0 0 10px !important;
+    border-radius: 999px !important;
     color: #fff !important;
-    padding: 8px 14px !important;
+    padding: 3px 12px !important;
     cursor: pointer !important;
-    display: flex !important;
+    display: inline-flex !important;
     flex-direction: column !important;
     align-items: flex-start !important;
+    justify-content: center !important;
     gap: 1px !important;
-    line-height: 1.2 !important;
+    line-height: 1.15 !important;
+    height: 30px !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3) !important;
+    transition: filter 0.15s ease !important;
   }
   #tp-floating-check-btn:hover { filter: brightness(1.12) !important; }
   #tp-floating-dealer-row {
-    display: flex !important;
+    display: inline-flex !important;
     align-items: center !important;
-    gap: 5px !important;
-    padding: 3px 14px 5px !important;
-    font-size: 10px !important;
+    gap: 4px !important;
+    padding: 0 8px !important;
+    height: 28px !important;
+    border-radius: 999px !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    font-size: 10.5px !important;
     font-weight: 600 !important;
-    color: var(--tp-mut) !important;
+    color: var(--tp-txt-dim) !important;
     cursor: pointer !important;
     white-space: nowrap !important;
     user-select: none !important;
+    box-sizing: border-box !important;
   }
-  #tp-floating-dealer-row:hover { color: var(--tp-txt-mid) !important; }
-  #tp-floating-dealer-row.tp-active { color: var(--tp-acc-txt) !important; }
+  #tp-floating-dealer-row:hover { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
+  #tp-floating-dealer-row.tp-active { background: rgba(16, 185, 129, 0.2) !important; border-color: rgba(16, 185, 129, 0.4) !important; color: var(--tp-acc-txt) !important; }
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
-  #tp-floating-check-main { font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-sub { font-size: var(--tp-fs-xs) !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
+  #tp-floating-check-main { font-size: 11.5px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-sub { font-size: 9.5px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
   #tp-floating-threshold-btn {
-    background: rgba(51,65,85,0.7) !important;
-    border: none !important;
-    border-left: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 0 10px 10px 0 !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 999px !important;
     color: var(--tp-txt-dim) !important;
-    padding: 8px 10px !important;
-    font-size: 12px !important;
+    padding: 0 8px !important;
+    height: 28px !important;
+    font-size: 11px !important;
     font-weight: 700 !important;
     cursor: pointer !important;
     white-space: nowrap !important;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box !important;
   }
-  #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(255, 255, 255, 0.12) !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
-    bottom: calc(100% + 6px) !important;
+    bottom: calc(100% + 8px) !important;
     right: 0 !important;
     background: rgba(15, 23, 42, 0.97) !important;
-    backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(14px) !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
     border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
@@ -1222,13 +1309,13 @@ const STYLES = `
     display: none;
     flex-direction: column !important;
     gap: 2px !important;
-    min-width: 220px !important;
+    min-width: 200px !important;
   }
   #tp-floating-threshold-popover.tp-show { display: flex !important; }
   #tp-floating-threshold-popover .tp-floating-hint {
     color: var(--tp-mut) !important;
-    padding: 5px 10px 3px !important;
-    font-size: 10.5px !important;
+    padding: 4px 8px 2px !important;
+    font-size: 10px !important;
     font-weight: 500 !important;
     cursor: default !important;
   }
@@ -1236,8 +1323,8 @@ const STYLES = `
     background: transparent !important;
     border: none !important;
     color: var(--tp-txt-dim) !important;
-    padding: 6px 10px !important;
-    font-size: 12px !important;
+    padding: 5px 8px !important;
+    font-size: 11.5px !important;
     font-weight: 600 !important;
     border-radius: var(--tp-r-sm) !important;
     cursor: pointer !important;
@@ -1246,30 +1333,34 @@ const STYLES = `
   #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
   #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: var(--tp-acc) !important; color: #fff !important; }
   #tp-floating-cta-collapse {
-    background: rgba(51,65,85,0.7) !important;
-    border: none !important;
-    border-left: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 0 10px 10px 0 !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 50% !important;
     color: var(--tp-mut) !important;
-    padding: 8px 10px !important;
-    font-size: 13px !important;
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    font-size: 12px !important;
     font-weight: 800 !important;
     cursor: pointer !important;
-    line-height: 1.2 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
   }
-  #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(255, 255, 255, 0.14) !important; }
   #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
-  #tp-floating-check-count { display: none !important; font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 4px !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 6px 12px !important; }
+  #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 3px !important; height: 32px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 0 10px !important; height: 26px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: var(--tp-r-pill) !important; border: none !important; margin-left: 2px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(255,255,255,0.1) !important; width: 24px !important; height: 24px !important; }
   @media (max-width: 600px) {
     #tp-floating-check-sub { display: none !important; }
     #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
