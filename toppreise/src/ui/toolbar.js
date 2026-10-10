@@ -122,7 +122,6 @@ function buildVortiefWrapper() {
   wrapper.id = 'tp-bar-vortief-wrapper';
   wrapper.title = 'Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar).\nAN: Als Deals mit Kantenmarkierung anzeigen.\nAUS: Im Tiefstpreise-Modus ausblenden.';
   wrapper.innerHTML = `
-    <span class="tp-sep" aria-hidden="true"></span>
     <span class="tp-stepper-label">Fallback-Tiefs</span>
     <label class="tp-mini-switch">
       <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
@@ -181,9 +180,8 @@ function buildMinPointsWrapper() {
   wrapper.id = 'tp-bar-minpoints-wrapper';
   wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
   wrapper.innerHTML = `
-    <span class="tp-sep" aria-hidden="true"></span>
     <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
-    <input type="range" id="tp-bar-minpoints-range" min="5" max="100" step="5" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (5), rechts streng (100)">`;
+    <input type="range" id="tp-bar-minpoints-range" min="1" max="100" step="1" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (1), rechts streng (100)">`;
   bindMinPointsControls(wrapper);
   return wrapper;
 }

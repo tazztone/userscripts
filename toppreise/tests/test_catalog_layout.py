@@ -1348,9 +1348,9 @@ def test_minpoints_slider_in_filter_bar(page: Page):
     assert 'Mindestanzahl Datenpunkte' in (minpoints_wrapper.get_attribute('title') or '')
 
     minpoints_range = page.locator('#tp-bar-minpoints-range')
-    assert minpoints_range.get_attribute('min') == '5'
+    assert minpoints_range.get_attribute('min') == '1'
     assert minpoints_range.get_attribute('max') == '100'
-    assert minpoints_range.get_attribute('step') == '5'
+    assert minpoints_range.get_attribute('step') == '1'
 
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-minpoints-range');

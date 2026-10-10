@@ -152,8 +152,8 @@ export function setupUI() {
         <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
           <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
           <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-minpoints-range" min="5" max="100" step="5" value="5">
-            <input type="number" id="tp-bestpreise-minpoints-val" min="5" max="100" step="5" value="5">
+            <input type="range" id="tp-bestpreise-minpoints-range" min="1" max="100" step="1" value="5">
+            <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
           </div>
           <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
         </div>

@@ -810,16 +810,6 @@ export const STYLES = `
     vertical-align: middle !important;
     align-self: center !important;
   }
-  /* Explicit divider between deals controls (replaces the old auto-margin gap). */
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-sep, .tp-group-deals .tp-sep {
-    width: 1px !important;
-    align-self: stretch !important;
-    min-height: 14px !important;
-    background: #cbd5e1 !important;
-    margin: 0 1px !important;
-  }
-  /* Pill wrappers carry their own edge — leading inner divider would double it. */
-  .tp-threshold-wrapper > .tp-sep:first-child { display: none !important; }
   .tp-threshold-wrapper .tp-stepper-label {
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #475569 !important;

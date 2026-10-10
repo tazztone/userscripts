@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.152
+// @version      2.18.153
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -835,16 +835,6 @@ const STYLES = `
     vertical-align: middle !important;
     align-self: center !important;
   }
-  /* Explicit divider between deals controls (replaces the old auto-margin gap). */
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-sep, .tp-group-deals .tp-sep {
-    width: 1px !important;
-    align-self: stretch !important;
-    min-height: 14px !important;
-    background: #cbd5e1 !important;
-    margin: 0 1px !important;
-  }
-  /* Pill wrappers carry their own edge — leading inner divider would double it. */
-  .tp-threshold-wrapper > .tp-sep:first-child { display: none !important; }
   .tp-threshold-wrapper .tp-stepper-label {
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: #475569 !important;
@@ -2614,9 +2604,13 @@ const SHADOW_MODAL_STYLES = `
   }
   migrateLegacyDebug();
 
-  // Shared clamps: single source for the min-points (5–100 data points) and
+  // Shared clamps: single source for the min-points (1–100 data points) and
   // heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
-  const clampMinPoints = v => Math.max(5, Math.min(100, Math.round(parseInt(v, 10) || 5)));
+  const clampMinPoints = v => {
+    const n = parseInt(v, 10);
+    if (Number.isNaN(n)) return 5;
+    return Math.max(1, Math.min(100, Math.round(n)));
+  };
   const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
   const CONFIG = {
@@ -5280,8 +5274,8 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
             <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
             <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-minpoints-range" min="5" max="100" step="5" value="5">
-              <input type="number" id="tp-bestpreise-minpoints-val" min="5" max="100" step="5" value="5">
+              <input type="range" id="tp-bestpreise-minpoints-range" min="1" max="100" step="1" value="5">
+              <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
             </div>
             <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
           </div>
@@ -5865,7 +5859,6 @@ const SHADOW_MODAL_STYLES = `
     wrapper.id = 'tp-bar-vortief-wrapper';
     wrapper.title = 'Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar).\nAN: Als Deals mit Kantenmarkierung anzeigen.\nAUS: Im Tiefstpreise-Modus ausblenden.';
     wrapper.innerHTML = `
-      <span class="tp-sep" aria-hidden="true"></span>
       <span class="tp-stepper-label">Fallback-Tiefs</span>
       <label class="tp-mini-switch">
         <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
@@ -5924,9 +5917,8 @@ const SHADOW_MODAL_STYLES = `
     wrapper.id = 'tp-bar-minpoints-wrapper';
     wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
     wrapper.innerHTML = `
-      <span class="tp-sep" aria-hidden="true"></span>
       <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
-      <input type="range" id="tp-bar-minpoints-range" min="5" max="100" step="5" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (5), rechts streng (100)">`;
+      <input type="range" id="tp-bar-minpoints-range" min="1" max="100" step="1" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (1), rechts streng (100)">`;
     bindMinPointsControls(wrapper);
     return wrapper;
   }

@@ -115,9 +115,13 @@ export function migrateLegacyDebug() {
 }
 migrateLegacyDebug();
 
-// Shared clamps: single source for the min-points (5–100 data points) and
+// Shared clamps: single source for the min-points (1–100 data points) and
 // heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
-export const clampMinPoints = v => Math.max(5, Math.min(100, Math.round(parseInt(v, 10) || 5)));
+export const clampMinPoints = v => {
+  const n = parseInt(v, 10);
+  if (Number.isNaN(n)) return 5;
+  return Math.max(1, Math.min(100, Math.round(n)));
+};
 export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
 export const CONFIG = {
