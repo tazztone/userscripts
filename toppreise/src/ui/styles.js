@@ -4,7 +4,40 @@
  * and isolated Shadow DOM modal dialog styles.
  */
 
+/**
+ * Shared UI tokens (single source for bar, deal cluster, modal, CTA).
+ * Same values as the hardcoded hex they replace — visual no-op on inject.
+ * Main doc consumes via :root, shadow modal via :host.
+ */
+export const TP_TOKEN_VARS = `
+  --tp-bg: #1e293b;
+  --tp-panel: rgba(15, 23, 42, 0.6);
+  --tp-line: #334155;
+  --tp-txt: #f8fafc;
+  --tp-mut: #94a3b8;
+  --tp-dim: #64748b;
+  --tp-acc: #10b981;
+  --tp-acc-soft: rgba(16, 185, 129, 0.2);
+  --tp-acc-line: rgba(16, 185, 129, 0.4);
+  --tp-acc-txt: #34d399;
+  --tp-acc2: #8b5cf6;
+  --tp-sky: #38bdf8;
+  --tp-warn: #f59e0b;
+  --tp-focus: #34d399;
+  --tp-r-sm: 6px;
+  --tp-r-md: 8px;
+  --tp-r-lg: 10px;
+  --tp-r-pill: 999px;
+  --tp-fs-xs: 10px;
+  --tp-fs-sm: 11px;
+  --tp-fs-md: 12px;
+  --tp-fs-lg: 13px;
+`;
+
 export const STYLES = `
+  :root {
+    ${TP_TOKEN_VARS}
+  }
   /* ─── HEATMAP CARD STYLES & DARKREADER DYNAMIC COMPATIBILITY ─── */
   html body .tp-heatmap-active,
   html body .Plugin_Product.tp-heatmap-active,
@@ -417,7 +450,7 @@ export const STYLES = `
     margin-left: 8px !important;
   }
   button.tp-loupe:hover { background: #334155 !important; }
-  button.tp-loupe:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
+  button.tp-loupe:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .badge.badge-dif.tp-deal-loading,
   .badge-dif.tp-deal-loading {
     cursor: wait !important;
@@ -678,16 +711,11 @@ export const STYLES = `
   .tp-sparkline-container {
     flex-shrink: 0 !important;
   }
-  .tp-bar-btn.tp-batch-active {
-    background: rgba(245, 158, 11, 0.25) !important;
-    border-color: rgba(245, 158, 11, 0.5) !important;
-    color: #fbbf24 !important;
-  }
   .tp-bar-btn.tp-bestpreise-active {
     /* Opak statt transluzent: der Button hängt auf Feeds in der weißen
     #timeframe-filter-Zeile (toolbar.js ensureDealControlsPlacement), nicht nur in der dunklen Bar. */
     background: linear-gradient(135deg, #8b5cf6, #f59e0b) !important;
-    border-color: #8b5cf6 !important;
+    border-color: var(--tp-acc2) !important;
     color: #fff !important;
     box-shadow: 0 0 10px rgba(139, 92, 246, 0.3) !important;
   }
@@ -719,10 +747,14 @@ export const STYLES = `
     display: inline-flex !important;
     align-items: center !important;
     gap: 6px !important;
+    background: rgba(15, 23, 42, 0.85) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: var(--tp-r-md) !important;
+    padding: 3px 8px !important;
   }
   .tp-weight-label {
     color: #c4b5fd !important;
-    font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     white-space: nowrap !important;
     cursor: default !important;
     display: inline-block !important;
@@ -731,8 +763,8 @@ export const STYLES = `
     font-variant-numeric: tabular-nums !important;
   }
   #tp-bar-weight-range {
-    width: 92px !important;
-    accent-color: #a855f7 !important;
+    width: 96px !important;
+    accent-color: var(--tp-acc2) !important;
     cursor: pointer !important;
   }
   /* Explicit divider between deals controls (replaces the old auto-margin gap). */
@@ -743,9 +775,11 @@ export const STYLES = `
     background: rgba(148,163,184,0.45) !important;
     margin: 0 2px !important;
   }
+  /* Pill wrappers carry their own edge — leading inner divider would double it. */
+  .tp-threshold-wrapper > .tp-sep:first-child { display: none !important; }
   #tp-bar-minpoints-range {
-    width: 92px !important;
-    accent-color: #38bdf8 !important;
+    width: 96px !important;
+    accent-color: var(--tp-sky) !important;
     cursor: pointer !important;
   }
   #tp-bar-minpoints-label {
@@ -763,14 +797,14 @@ export const STYLES = `
     background: rgba(30, 41, 59, 0.85) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px dashed rgba(255, 255, 255, 0.2) !important;
-    border-radius: 12px !important;
+    border-radius: var(--tp-r-lg) !important;
     padding: 24px 20px !important;
     margin: 16px auto !important;
     width: 100% !important;
     box-sizing: border-box !important;
     color: #e2e8f0 !important;
     text-align: center !important;
-    font: 500 13.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font: 500 var(--tp-fs-lg) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
   }
   .tp-empty-state-actions {
@@ -784,8 +818,8 @@ export const STYLES = `
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     color: #f1f5f9 !important;
     padding: 6px 12px !important;
-    border-radius: 6px !important;
-    font-size: 12px !important;
+    border-radius: var(--tp-r-sm) !important;
+    font-size: var(--tp-fs-md) !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
@@ -854,7 +888,7 @@ export const STYLES = `
     gap: 8px !important;
     background: rgba(15,23,42,0.35) !important;
     border: 1px solid rgba(255,255,255,0.07) !important;
-    border-radius: 10px !important;
+    border-radius: var(--tp-r-lg) !important;
     padding: 4px 8px !important;
     min-width: 0 !important;
   }
@@ -876,23 +910,12 @@ export const STYLES = `
     flex-shrink: 0 !important;
     margin: 2px 0 !important;
   }
-  .tp-btn-sub {
-    font-size: 10px !important;
-    font-weight: 500 !important;
-    opacity: 0.65 !important;
-  }
-  .tp-join {
-    display: inline-flex !important;
-    align-items: center !important;
-    flex-shrink: 0 !important;
-  }
   .tp-stepper-label {
     font-weight: 700 !important;
     color: #94a3b8 !important;
     white-space: nowrap !important;
   }
   @media (max-width: 900px) {
-    .tp-btn-sub { display: none !important; }
     .tp-divider { display: none !important; }
     .tp-group { width: 100% !important; }
   }
@@ -914,14 +937,14 @@ export const STYLES = `
     width: 100% !important;
     background: rgba(15,23,42,0.8) !important;
     border: 1px solid #334155 !important;
-    border-radius: 8px !important;
+    border-radius: var(--tp-r-md) !important;
     color: #fff !important;
     padding: 6px 26px 6px 10px !important;
-    font-size: 12px !important;
+    font-size: var(--tp-fs-md) !important;
     outline: none !important;
     box-sizing: border-box !important;
   }
-  #tp-inline-negative-input:focus { border-color: #10b981 !important; }
+  #tp-inline-negative-input:focus { border-color: var(--tp-acc) !important; }
   #tp-clear-neg-btn {
     position: absolute !important;
     right: 8px !important;
@@ -937,8 +960,8 @@ export const STYLES = `
     border: 1px solid #334155 !important;
     color: #cbd5e1 !important;
     padding: 5px 10px !important;
-    border-radius: 8px !important;
-    font-size: 11px !important;
+    border-radius: var(--tp-r-md) !important;
+    font-size: var(--tp-fs-sm) !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     display: flex !important;
@@ -948,11 +971,11 @@ export const STYLES = `
     flex-shrink: 0 !important;
   }
   .tp-bar-btn:hover { background: #334155 !important; color: #fff !important; }
-  .tp-bar-btn:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
+  .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
-    background: rgba(16,185,129,0.2) !important;
-    border-color: rgba(16,185,129,0.4) !important;
-    color: #34d399 !important;
+    background: var(--tp-acc-soft) !important;
+    border-color: var(--tp-acc-line) !important;
+    color: var(--tp-acc-txt) !important;
   }
   .tp-mini-switch {
     position: relative !important;
@@ -992,24 +1015,24 @@ export const STYLES = `
     transition: transform 0.2s ease, background 0.2s ease !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider {
-    background: rgba(16,185,129,0.4) !important;
-    border-color: rgba(16,185,129,0.6) !important;
+    background: var(--tp-acc-soft) !important;
+    border-color: var(--tp-acc-line) !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider:before {
     transform: translateX(14px) !important;
     background: #fff !important;
   }
   .tp-mini-switch input:focus-visible + .tp-mini-slider {
-    outline: 2px solid #34d399 !important;
+    outline: 2px solid var(--tp-focus) !important;
     outline-offset: 2px !important;
   }
   .tp-mini-state {
-    font-size: 10px !important;
+    font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
     min-width: 22px !important;
     color: #64748b !important;
   }
-  .tp-mini-switch input:checked ~ .tp-mini-state { color: #34d399 !important; }
+  .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
   /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
   .tp-tool-dim {
     opacity: 0.45 !important;
@@ -1023,8 +1046,8 @@ export const STYLES = `
     background: rgba(15,23,42,0.6) !important;
     border: 1px solid #334155 !important;
     padding: 2px 6px !important;
-    border-radius: 8px !important;
-    font-size: 11px !important;
+    border-radius: var(--tp-r-md) !important;
+    font-size: var(--tp-fs-sm) !important;
     color: #94a3b8 !important;
   }
   .tp-stepper-btn {
@@ -1039,7 +1062,7 @@ export const STYLES = `
     padding: 0 !important;
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
-  .tp-stepper-btn:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
+  .tp-stepper-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;
@@ -1052,7 +1075,7 @@ export const STYLES = `
     background: rgba(15, 23, 42, 0.96) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid rgba(16, 185, 129, 0.55) !important;
-    border-radius: 14px !important;
+    border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.25) !important;
     padding: 6px !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -1109,10 +1132,10 @@ export const STYLES = `
     user-select: none !important;
   }
   #tp-floating-dealer-row:hover { color: #e2e8f0 !important; }
-  #tp-floating-dealer-row.tp-active { color: #34d399 !important; }
-  #tp-floating-dealer-row input { accent-color: #10b981 !important; margin: 0 !important; cursor: pointer !important; }
-  #tp-floating-check-main { font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-sub { font-size: 10px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
+  #tp-floating-dealer-row.tp-active { color: var(--tp-acc-txt) !important; }
+  #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
+  #tp-floating-check-main { font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-sub { font-size: var(--tp-fs-xs) !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
   #tp-floating-threshold-btn {
     background: rgba(51,65,85,0.7) !important;
     border: none !important;
@@ -1176,9 +1199,9 @@ export const STYLES = `
   }
   #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
   #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
-  #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
+  #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
-  #tp-floating-check-count { display: none !important; font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-check-count { display: none !important; font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-cta.tp-collapsed { border-radius: 999px !important; padding: 4px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
@@ -1194,7 +1217,11 @@ export const STYLES = `
 `;
 
 export const SHADOW_MODAL_STYLES = `
-  :host { all: initial; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  :host {
+    all: initial;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    ${TP_TOKEN_VARS}
+  }
   #tp-settings-fab {
     position: fixed;
     bottom: 14px;
@@ -1222,7 +1249,7 @@ export const SHADOW_MODAL_STYLES = `
   }
   #tp-settings-fab:focus-visible {
     opacity: 1;
-    outline: 2px solid #34d399;
+    outline: 2px solid var(--tp-focus);
     outline-offset: 2px;
   }
   #tp-settings-fab svg { width: 24px; height: 24px; }
@@ -1264,21 +1291,21 @@ export const SHADOW_MODAL_STYLES = `
   #tp-advanced-panel { background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   #tp-advanced-details { margin-top: 4px; }
   #tp-advanced-details > summary { display: flex; align-items: center; gap: 8px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  #tp-advanced-details > summary:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
-  .tp-field-dark { width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 4px; box-sizing: border-box; }
-  select.tp-field-dark { font-size: 13px; }
-  .tp-field-hint { display: block; margin-top: 4px; font-size: 11px; opacity: 0.85; }
+  #tp-advanced-details > summary:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
+  .tp-field-dark { width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: var(--tp-r-sm); padding: 6px 10px; font-size: var(--tp-fs-md); margin-top: 4px; box-sizing: border-box; }
+  select.tp-field-dark { font-size: var(--tp-fs-lg); }
+  .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
   .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
   .tp-btn-row .tp-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-  .tp-cache-row #tp-cache-stats-label { font-size: 12px; opacity: 0.85; }
-  .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: 12px; }
-  .tp-advanced-subheader { color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
+  .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
+  .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: var(--tp-fs-md); }
+  .tp-advanced-subheader { color: #64748b; font-size: var(--tp-fs-sm); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
   .tp-segmented-control {
     display: flex;
     background: rgba(15,23,42,0.6);
-    border-radius: 8px;
+    border-radius: var(--tp-r-md);
     padding: 2px;
     border: 1px solid rgba(255,255,255,0.05);
   }
@@ -1287,21 +1314,21 @@ export const SHADOW_MODAL_STYLES = `
     text-align: center;
     padding: 7px 10px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--tp-fs-sm);
     font-weight: 600;
     color: #94a3b8;
-    border-radius: 6px;
+    border-radius: var(--tp-r-sm);
     transition: all 0.2s ease;
   }
   .tp-segmented-control input[type="radio"] { display: none; }
   .tp-segmented-control label:hover { color: #f1f5f9; }
   .tp-segmented-control input[type="radio"]:checked + label {
-    background: #10b981;
+    background: var(--tp-acc);
     color: #fff;
   }
   .tp-segmented-control-blue input[type="radio"]:checked + label { background: #3b82f6 !important; }
   .tp-range-container { display: flex; align-items: center; gap: 12px; }
-  .tp-range-container input[type="range"] { flex: 1; accent-color: #10b981; }
+  .tp-range-container input[type="range"] { flex: 1; accent-color: var(--tp-acc); }
   .tp-range-container.tp-blue input[type="range"] { accent-color: #3b82f6; }
   .tp-range-container.tp-rose input[type="range"] { accent-color: #f43f5e; }
   .tp-range-container input[type="number"] {
@@ -1309,9 +1336,9 @@ export const SHADOW_MODAL_STYLES = `
     padding: 4px 8px;
     background: rgba(15,23,42,0.6);
     border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px;
+    border-radius: var(--tp-r-sm);
     color: #fff;
-    font-size: 12px;
+    font-size: var(--tp-fs-md);
     text-align: center;
   }
   .tp-textarea {
@@ -1321,14 +1348,14 @@ export const SHADOW_MODAL_STYLES = `
     padding: 8px 10px;
     background: rgba(15,23,42,0.6);
     border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
+    border-radius: var(--tp-r-md);
     color: #f8fafc;
     font: inherit;
-    font-size: 12px;
+    font-size: var(--tp-fs-md);
   }
   .tp-switch-container { display: flex; align-items: center; justify-content: space-between; }
   .tp-switch-label { display: flex; flex-direction: column; gap: 2px; }
-  .tp-switch-desc { font-size: 11px; color: #64748b; }
+  .tp-switch-desc { font-size: var(--tp-fs-sm); color: #64748b; }
   .tp-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
   .tp-switch input { opacity: 0; width: 0; height: 0; }
   .tp-slider {
@@ -1351,10 +1378,10 @@ export const SHADOW_MODAL_STYLES = `
     border-radius: 50%;
     transition: .3s;
   }
-  .tp-switch input:checked + .tp-slider { background-color: #10b981; }
+  .tp-switch input:checked + .tp-slider { background-color: var(--tp-acc); }
   .tp-switch.tp-blue input:checked + .tp-slider { background-color: #3b82f6; }
   .tp-switch.tp-rose input:checked + .tp-slider { background-color: #f43f5e; }
-  .tp-switch.tp-purple input:checked + .tp-slider { background-color: #8b5cf6; }
+  .tp-switch.tp-purple input:checked + .tp-slider { background-color: var(--tp-acc2); }
   .tp-switch input:checked + .tp-slider:before { transform: translateX(20px); background-color: #fff; }
   .tp-modal-actions {
     display: flex;
@@ -1366,8 +1393,8 @@ export const SHADOW_MODAL_STYLES = `
   }
   .tp-btn {
     padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: var(--tp-r-md);
+    font-size: var(--tp-fs-lg);
     font-weight: 600;
     cursor: pointer;
     border: none;
@@ -1393,8 +1420,8 @@ export const SHADOW_MODAL_STYLES = `
     border: 1px solid rgba(56,189,248,0.3);
     color: #f8fafc;
     padding: 9px 14px;
-    border-radius: 8px;
-    font-size: 12px;
+    border-radius: var(--tp-r-md);
+    font-size: var(--tp-fs-md);
     font-weight: 600;
     box-shadow: 0 6px 20px rgba(0,0,0,0.45);
     display: flex;
@@ -1405,7 +1432,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
   .tp-btn:focus-visible, .tp-field-dark:focus-visible,
   .tp-switch input:focus-visible + .tp-slider,
-  .tp-segmented-control input:focus-visible + label { outline: 2px solid #a78bfa !important; outline-offset: 2px !important; }
+  .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   @media (prefers-reduced-motion: reduce) {
     #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
   }
