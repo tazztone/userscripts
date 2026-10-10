@@ -69,11 +69,12 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
   let lastX = 0;
   let lastY = 0;
   if (!axes) {
-    const padding = 2;
-    const usableHeight = height - padding * 2;
+    const pad = 2.5;
+    const usableWidth = width - pad * 2;
+    const usableHeight = height - pad * 2;
     points = prices.map((p, i) => {
-      const x = ((i / (prices.length - 1)) * width).toFixed(1);
-      const y = (height - padding - ((p - min) / range) * usableHeight).toFixed(1);
+      const x = (pad + (i / (prices.length - 1)) * usableWidth).toFixed(1);
+      const y = (height - pad - ((p - min) / range) * usableHeight).toFixed(1);
       return `${x},${y}`;
     }).join(' ');
   } else {

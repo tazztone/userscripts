@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.157
+// @version      2.18.158
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -874,7 +874,7 @@ const STYLES = `
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
     font-weight: 700 !important;
-    min-width: 32px !important;
+    min-width: 34px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -885,6 +885,7 @@ const STYLES = `
     flex-shrink: 0 !important;
     overflow: visible !important;
     text-align: center !important;
+    white-space: nowrap !important;
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
@@ -3444,11 +3445,12 @@ const SHADOW_MODAL_STYLES = `
     let lastX = 0;
     let lastY = 0;
     if (!axes) {
-      const padding = 2;
-      const usableHeight = height - padding * 2;
+      const pad = 2.5;
+      const usableWidth = width - pad * 2;
+      const usableHeight = height - pad * 2;
       points = prices.map((p, i) => {
-        const x = ((i / (prices.length - 1)) * width).toFixed(1);
-        const y = (height - padding - ((p - min) / range) * usableHeight).toFixed(1);
+        const x = (pad + (i / (prices.length - 1)) * usableWidth).toFixed(1);
+        const y = (height - pad - ((p - min) / range) * usableHeight).toFixed(1);
         return `${x},${y}`;
       }).join(' ');
     } else {

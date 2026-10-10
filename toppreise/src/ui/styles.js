@@ -849,7 +849,7 @@ export const STYLES = `
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
     font-weight: 700 !important;
-    min-width: 32px !important;
+    min-width: 34px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -860,6 +860,7 @@ export const STYLES = `
     flex-shrink: 0 !important;
     overflow: visible !important;
     text-align: center !important;
+    white-space: nowrap !important;
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
