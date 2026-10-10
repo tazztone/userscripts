@@ -62,7 +62,7 @@ export const DEFAULTS = Object.freeze({
   ALARM_AUTO_SUBMIT: true,
   OBSERVER_DEBOUNCE_MS: 200,
   SHOW_ADVANCED: false,
-  DEBUG: true
+  DEBUG: false
 });
 
 // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
@@ -250,7 +250,10 @@ export function syncUiControl(key, val) {
           }
           case 'HEATMAP_ENABLED': {
             const heatBtn = bar.querySelector('#tp-bar-heat-btn');
-            if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
+            if (heatBtn) {
+              heatBtn.classList.toggle('tp-active', val !== false);
+              heatBtn.setAttribute('aria-pressed', String(val !== false));
+            }
             break;
           }
           case 'BESTPREISE_MODE_ACTIVE': {
@@ -263,6 +266,7 @@ export function syncUiControl(key, val) {
             const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
             if (uncheckedBtn) {
               uncheckedBtn.classList.toggle('tp-active', val === true);
+              uncheckedBtn.setAttribute('aria-pressed', String(val === true));
               uncheckedBtn.title = val === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
             }
             break;

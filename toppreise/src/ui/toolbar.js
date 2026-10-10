@@ -156,7 +156,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
         <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
           <div class="tp-input-field-box">
-            <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
+            <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="">
             <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
           </div>
           <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
@@ -295,6 +295,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (revealAllBtn) {
     setTextIfChanged(revealAllBtn, `👁️ Ausgeblendete (${hiddenTotal})`);
     revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
+    revealAllBtn.setAttribute('aria-pressed', String(document.body.classList.contains('tp-reveal-all')));
     revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
     revealAllBtn.title = `Ausgeblendete (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
   }
@@ -302,11 +303,13 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const heatBtn = bar.querySelector('#tp-bar-heat-btn');
   if (heatBtn) {
     heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
+    heatBtn.setAttribute('aria-pressed', String(CONFIG.HEATMAP_ENABLED !== false));
     heatBtn.style.setProperty('display', 'flex', 'important');
   }
   const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
   if (uncheckedBtn) {
     uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+    uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
     uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
   }
 

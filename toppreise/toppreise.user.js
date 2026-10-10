@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.130
+// @version      2.18.131
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2285,7 +2285,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_AUTO_SUBMIT: true,
     OBSERVER_DEBOUNCE_MS: 200,
     SHOW_ADVANCED: false,
-    DEBUG: true
+    DEBUG: false
   });
 
   // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
@@ -2473,7 +2473,10 @@ const SHADOW_MODAL_STYLES = `
             }
             case 'HEATMAP_ENABLED': {
               const heatBtn = bar.querySelector('#tp-bar-heat-btn');
-              if (heatBtn) heatBtn.classList.toggle('tp-active', val !== false);
+              if (heatBtn) {
+                heatBtn.classList.toggle('tp-active', val !== false);
+                heatBtn.setAttribute('aria-pressed', String(val !== false));
+              }
               break;
             }
             case 'BESTPREISE_MODE_ACTIVE': {
@@ -2486,6 +2489,7 @@ const SHADOW_MODAL_STYLES = `
               const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
               if (uncheckedBtn) {
                 uncheckedBtn.classList.toggle('tp-active', val === true);
+                uncheckedBtn.setAttribute('aria-pressed', String(val === true));
                 uncheckedBtn.title = val === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
               }
               break;
@@ -5464,7 +5468,7 @@ const SHADOW_MODAL_STYLES = `
         <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
           <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
             <div class="tp-input-field-box">
-              <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
+              <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="">
               <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
             </div>
             <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
@@ -5603,6 +5607,7 @@ const SHADOW_MODAL_STYLES = `
     if (revealAllBtn) {
       setTextIfChanged(revealAllBtn, `👁️ Ausgeblendete (${hiddenTotal})`);
       revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
+      revealAllBtn.setAttribute('aria-pressed', String(document.body.classList.contains('tp-reveal-all')));
       revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
       revealAllBtn.title = `Ausgeblendete (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
     }
@@ -5610,11 +5615,13 @@ const SHADOW_MODAL_STYLES = `
     const heatBtn = bar.querySelector('#tp-bar-heat-btn');
     if (heatBtn) {
       heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
+      heatBtn.setAttribute('aria-pressed', String(CONFIG.HEATMAP_ENABLED !== false));
       heatBtn.style.setProperty('display', 'flex', 'important');
     }
     const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
     if (uncheckedBtn) {
       uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+      uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
       uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
     }
 
