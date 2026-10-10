@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.141
+// @version      2.18.142
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -767,6 +767,22 @@ const STYLES = `
     margin-right: 0 !important;
     flex-shrink: 0 !important;
   }
+  /* Light host row: #timeframe-filter is the site's white bar — dark pills
+  would float on it. Light surfaces, dark text, hue kept on labels. */
+  #timeframe-filter .tp-threshold-wrapper {
+    background: rgba(255,255,255,0.92) !important;
+    border: 1px solid rgba(15,23,42,0.16) !important;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.10) !important;
+  }
+  #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active) {
+    background: rgba(255,255,255,0.92) !important;
+    border: 1px solid rgba(15,23,42,0.16) !important;
+    color: #334155 !important;
+  }
+  #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active):hover { background: #f1f5f9 !important; color: #0f172a !important; }
+  #timeframe-filter .tp-weight-label { color: #7c3aed !important; }
+  #timeframe-filter #tp-bar-minpoints-label { color: #0369a1 !important; }
+  #timeframe-filter .tp-stepper-label { color: #475569 !important; }
   .tp-threshold-wrapper {
     position: relative !important;
     display: inline-flex !important;
