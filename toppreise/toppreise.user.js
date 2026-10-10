@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.136
+// @version      2.18.137
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3153,36 +3153,47 @@ const SHADOW_MODAL_STYLES = `
         svg.appendChild(label(2, y + 3, `CHF ${fmtPrice(v)}`, 'start'));
       }
 
-      // X months grid from timestamps (ms or s); skip when unusable.
+      // X time grid from timestamps (ms or s); young listings span < 1 month, so
+      // bucket granularity falls back with span: months → weeks → days.
       const tsMs = timeSeries.map(p => {
         const ts = Array.isArray(p) ? +p[0] : NaN;
         if (!Number.isFinite(ts)) return NaN;
         return ts < 1e12 ? ts * 1000 : ts;
       });
-      const validTs = tsMs.some(t => Number.isFinite(t)) && tsMs.filter(Number.isFinite).length >= 2;
-      if (validTs) {
-        const monthStarts = [];
+      const finiteTs = tsMs.filter(Number.isFinite);
+      if (finiteTs.length >= 2) {
+        const DAY_MS = 86400000;
+        const span = Math.max(...finiteTs) - Math.min(...finiteTs);
+        const mode = span >= 60 * DAY_MS ? 'month' : span >= 14 * DAY_MS ? 'week' : 'day';
+        const bucketKey = d => mode === 'month'
+          ? `${d.getFullYear()}-${d.getMonth()}`
+          : mode === 'week'
+            ? (() => { const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)); return `${mon.getFullYear()}-${mon.getMonth()}-${mon.getDate()}`; })()
+            : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const labelFor = date => mode === 'month'
+          ? date.toLocaleString('en', { month: 'short' })
+          : `${date.getDate()}.${date.getMonth() + 1}`;
+        const starts = [];
         let prevKey = null;
         tsMs.forEach((t, i) => {
           if (!Number.isFinite(t)) return;
           const d = new Date(t);
           if (Number.isNaN(d.getTime())) return;
-          const key = `${d.getFullYear()}-${d.getMonth()}`;
+          const key = bucketKey(d);
           if (key !== prevKey) {
             prevKey = key;
-            if (i > 0 || monthStarts.length === 0) monthStarts.push({ i, date: d });
+            starts.push({ i, date: d });
           }
         });
-        if (monthStarts.length >= 2) {
+        if (starts.length >= 2) {
           const maxLabels = 6;
-          const step = Math.ceil(monthStarts.length / maxLabels);
-          const shown = monthStarts.filter((_, k) => k % step === 0);
+          const step = Math.ceil(starts.length / maxLabels);
+          const shown = starts.filter((_, k) => k % step === 0);
           for (const { i, date } of shown) {
             if (i === 0) continue; // edge tick collides with Y labels, carries no info
             const x = x0 + (i / (prices.length - 1)) * (x1 - x0);
             svg.appendChild(line(x, y0, x, y1, 0.6));
-            const monthName = date.toLocaleString('en', { month: 'short' });
-            svg.appendChild(label(Math.min(Math.max(x, x0), x1), height - 4, monthName, 'middle'));
+            svg.appendChild(label(Math.min(Math.max(x, x0), x1), height - 4, labelFor(date), 'middle'));
           }
         }
       }

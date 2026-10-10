@@ -106,7 +106,7 @@ describe('Interactive SVG Sparkline Component', () => {
     assert.equal(circles[0].getAttribute('cy'), ly);
   });
 
-  it('axes:true on single-month series draws Y grid + dot, no X lines', () => {
+  it('axes:true on young series falls back to day labels', () => {
     const day = 86400;
     const start = Date.UTC(2025, 0, 1) / 1000;
     const timeSeries = Array.from({ length: 10 }, (_, i) => [start + i * day, 50 + i]);
@@ -114,8 +114,20 @@ describe('Interactive SVG Sparkline Component', () => {
     assert.ok(svg);
     const lines = svg.children.filter(c => c.tagName === 'line');
     assert.ok(lines.filter(l => l.getAttribute('opacity') === '0.8').length >= 2);
-    assert.equal(lines.filter(l => l.getAttribute('opacity') === '0.6').length, 0);
+    assert.ok(lines.filter(l => l.getAttribute('opacity') === '0.6').length >= 1);
+    const xLabels = svg.children.filter(c => c.tagName === 'text' && !c.textContent.startsWith('CHF'));
+    assert.ok(xLabels.length >= 1, `expected day labels like 5.1, got ${JSON.stringify(xLabels.map(t => t.textContent))}`);
     assert.equal(svg.children.filter(c => c.tagName === 'circle').length, 1);
+  });
+
+  it('axes:true on few-weeks series falls back to week labels', () => {
+    const day = 86400;
+    const start = Date.UTC(2025, 0, 6) / 1000; // a Monday
+    const timeSeries = Array.from({ length: 21 }, (_, i) => [start + i * day, 50 + (i % 5)]);
+    const svg = renderSparkline(timeSeries, 360, 100, { axes: true });
+    assert.ok(svg);
+    const lines = svg.children.filter(c => c.tagName === 'line');
+    assert.ok(lines.filter(l => l.getAttribute('opacity') === '0.6').length >= 1);
   });
 });
 
