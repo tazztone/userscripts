@@ -257,38 +257,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
-       <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
+      <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
         <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
-        <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.">
-          <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-          <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
-          <datalist id="tp-bar-weight-ticks">
-            <option value="0" label="Ø"></option>
-            <option value="30"></option>
-            <option value="50"></option>
-            <option value="70"></option>
-            <option value="100" label="Rek"></option>
-          </datalist>
-        </div>
-        <div class="tp-threshold-wrapper tp-deals-sep" id="tp-bar-vortief-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">
-          <span class="tp-sep" aria-hidden="true"></span>
-          <span class="tp-stepper-label">Fallback-Tiefs</span>
-          <label class="tp-mini-switch">
-            <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
-            <span class="tp-mini-slider"></span>
-            <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
-          </label>
-        </div>
-        <div class="tp-threshold-wrapper tp-deals-sep" id="tp-bar-minpoints-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">
-          <span class="tp-sep" aria-hidden="true"></span>
-          <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 5 Pkt</span>
-          <input type="range" id="tp-bar-minpoints-range" min="5" max="100" step="5" value="5" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (5), rechts streng (100)">
-        </div>
        </div>
       </div>
     `;
+    // Deal sliders built once via builders below (no duplicated markup).
+    bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildVortiefWrapper(), buildMinPointsWrapper());
 
     if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
       placement.container.insertBefore(bar, placement.reference);

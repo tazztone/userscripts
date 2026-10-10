@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.142
+// @version      2.18.143
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -38,17 +38,28 @@ const TP_TOKEN_VARS = `
   --tp-bg: #1e293b;
   --tp-panel: rgba(15, 23, 42, 0.6);
   --tp-line: #334155;
+  --tp-line-soft: #475569;
   --tp-txt: #f8fafc;
+  --tp-txt-mid: #e2e8f0;
+  --tp-txt-dim: #cbd5e1;
   --tp-mut: #94a3b8;
   --tp-dim: #64748b;
   --tp-acc: #10b981;
+  --tp-acc-deep: #059669;
   --tp-acc-soft: rgba(16, 185, 129, 0.2);
   --tp-acc-line: rgba(16, 185, 129, 0.4);
   --tp-acc-txt: #34d399;
   --tp-acc2: #8b5cf6;
   --tp-sky: #38bdf8;
+  --tp-blue: #3b82f6;
+  --tp-blue-soft: #60a5fa;
+  --tp-rose: #f43f5e;
   --tp-warn: #f59e0b;
   --tp-focus: #34d399;
+  --tp-grad-acc: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --tp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --tp-light-surface: rgba(255, 255, 255, 0.92);
+  --tp-light-line: rgba(15, 23, 42, 0.16);
   --tp-r-sm: 6px;
   --tp-r-md: 8px;
   --tp-r-lg: 10px;
@@ -204,17 +215,17 @@ const STYLES = `
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-right],
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-bottom],
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-left] {
-    border: 2px solid #10b981 !important;
-    border-color: #10b981 !important;
+    border: 2px solid var(--tp-acc) !important;
+    border-color: var(--tp-acc) !important;
     border-radius: 8px !important;
     position: relative !important;
     box-shadow: 0 4px 20px rgba(16,185,129,0.15) !important;
     transition: all 0.3s ease !important;
-    --darkreader-inline-border: #10b981 !important;
-    --darkreader-inline-border-top: #10b981 !important;
-    --darkreader-inline-border-right: #10b981 !important;
-    --darkreader-inline-border-bottom: #10b981 !important;
-    --darkreader-inline-border-left: #10b981 !important;
+    --darkreader-inline-border: var(--tp-acc) !important;
+    --darkreader-inline-border-top: var(--tp-acc) !important;
+    --darkreader-inline-border-right: var(--tp-acc) !important;
+    --darkreader-inline-border-bottom: var(--tp-acc) !important;
+    --darkreader-inline-border-left: var(--tp-acc) !important;
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest.tp-heatmap-active {
     box-shadow: 0 4px 20px rgba(16,185,129,0.25), var(--tp-heat-glow, none) !important;
@@ -223,9 +234,9 @@ const STYLES = `
     position: absolute;
     top: 13px;
     right: 68px;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--tp-grad-acc);
     color: #fff;
-    font: 700 11px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font: 700 11px/1.2 var(--tp-font);
     padding: 4px 10px;
     border-radius: 20px;
     text-transform: uppercase;
@@ -770,19 +781,19 @@ const STYLES = `
   /* Light host row: #timeframe-filter is the site's white bar — dark pills
   would float on it. Light surfaces, dark text, hue kept on labels. */
   #timeframe-filter .tp-threshold-wrapper {
-    background: rgba(255,255,255,0.92) !important;
-    border: 1px solid rgba(15,23,42,0.16) !important;
+    background: var(--tp-light-surface) !important;
+    border: 1px solid var(--tp-light-line) !important;
     box-shadow: 0 1px 2px rgba(15,23,42,0.10) !important;
   }
   #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active) {
-    background: rgba(255,255,255,0.92) !important;
-    border: 1px solid rgba(15,23,42,0.16) !important;
-    color: #334155 !important;
+    background: var(--tp-light-surface) !important;
+    border: 1px solid var(--tp-light-line) !important;
+    color: var(--tp-line) !important;
   }
-  #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active):hover { background: #f1f5f9 !important; color: #0f172a !important; }
+  #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active):hover { background: var(--tp-txt) !important; color: #0f172a !important; }
   #timeframe-filter .tp-weight-label { color: #7c3aed !important; }
   #timeframe-filter #tp-bar-minpoints-label { color: #0369a1 !important; }
-  #timeframe-filter .tp-stepper-label { color: #475569 !important; }
+  #timeframe-filter .tp-stepper-label { color: var(--tp-line-soft) !important; }
   .tp-threshold-wrapper {
     position: relative !important;
     display: inline-flex !important;
@@ -843,9 +854,9 @@ const STYLES = `
     margin: 16px auto !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    color: #e2e8f0 !important;
+    color: var(--tp-txt-mid) !important;
     text-align: center !important;
-    font: 500 var(--tp-fs-lg) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font: 500 var(--tp-fs-lg) var(--tp-font) !important;
     box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
   }
   .tp-empty-state-actions {
@@ -857,7 +868,7 @@ const STYLES = `
   .tp-empty-state-btn {
     background: rgba(15, 23, 42, 0.8) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: #f1f5f9 !important;
+    color: var(--tp-txt) !important;
     padding: 6px 12px !important;
     border-radius: var(--tp-r-sm) !important;
     font-size: var(--tp-fs-md) !important;
@@ -866,8 +877,8 @@ const STYLES = `
     transition: all 0.2s ease !important;
   }
   .tp-empty-state-btn:hover {
-    background: #3b82f6 !important;
-    border-color: #60a5fa !important;
+    background: var(--tp-blue) !important;
+    border-color: var(--tp-blue-soft) !important;
     color: #ffffff !important;
   }
   .tp-detail-deal-badge {
@@ -875,8 +886,8 @@ const STYLES = `
     align-items: center !important;
     gap: 6px !important;
     padding: 4px 10px !important;
-    border-radius: 8px !important;
-    font: 700 12.5px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    border-radius: var(--tp-r-md) !important;
+    font: 700 12.5px/1.3 var(--tp-font) !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
     vertical-align: middle !important;
     margin-left: 10px !important;
@@ -884,7 +895,7 @@ const STYLES = `
   }
   .tp-detail-deal-badge.tp-is-alltime-low {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%) !important;
-    border: 1px solid #34d399 !important;
+    border: 1px solid var(--tp-acc-txt) !important;
     color: #ffffff !important;
     box-shadow: 0 2px 10px rgba(16, 185, 129, 0.45) !important;
   }
@@ -896,7 +907,7 @@ const STYLES = `
   }
   .tp-detail-deal-badge.tp-is-severe-markup {
     background: linear-gradient(135deg, rgba(225, 29, 72, 0.95) 0%, rgba(190, 18, 60, 0.95)) !important;
-    border: 1px solid #f43f5e !important;
+    border: 1px solid var(--tp-rose) !important;
     color: #ffffff !important;
     box-shadow: 0 2px 10px rgba(225, 29, 72, 0.45) !important;
   }
@@ -904,12 +915,12 @@ const STYLES = `
     margin: 8px auto 12px !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    background: #1e293b !important;
-    border: 1px solid #334155 !important;
-    border-radius: 10px !important;
+    background: var(--tp-bg) !important;
+    border: 1px solid var(--tp-line) !important;
+    border-radius: var(--tp-r-lg) !important;
     padding: 8px 12px !important;
-    color: #f8fafc !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: var(--tp-txt) !important;
+    font-family: var(--tp-font) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2) !important;
     display: flex !important;
     flex-direction: column !important;
@@ -977,7 +988,7 @@ const STYLES = `
   #tp-inline-negative-input {
     width: 100% !important;
     background: rgba(15,23,42,0.8) !important;
-    border: 1px solid #334155 !important;
+    border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
     color: #fff !important;
     padding: 6px 26px 6px 10px !important;
@@ -991,15 +1002,15 @@ const STYLES = `
     right: 8px !important;
     background: transparent !important;
     border: none !important;
-    color: #64748b !important;
+    color: var(--tp-dim) !important;
     cursor: pointer !important;
     padding: 2px 6px !important;
   }
-  #tp-clear-neg-btn:hover { color: #f43f5e !important; }
+  #tp-clear-neg-btn:hover { color: var(--tp-rose) !important; }
   .tp-bar-btn {
     background: rgba(51,65,85,0.6) !important;
-    border: 1px solid #334155 !important;
-    color: #cbd5e1 !important;
+    border: 1px solid var(--tp-line) !important;
+    color: var(--tp-txt-dim) !important;
     padding: 5px 10px !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
@@ -1011,7 +1022,7 @@ const STYLES = `
     white-space: nowrap !important;
     flex-shrink: 0 !important;
   }
-  .tp-bar-btn:hover { background: #334155 !important; color: #fff !important; }
+  .tp-bar-btn:hover { background: var(--tp-line) !important; color: #fff !important; }
   .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -1038,7 +1049,7 @@ const STYLES = `
     position: relative !important;
     width: 32px !important;
     height: 18px !important;
-    border-radius: 999px !important;
+    border-radius: var(--tp-r-pill) !important;
     background: rgba(100,116,139,0.35) !important;
     border: 1px solid rgba(100,116,139,0.55) !important;
     transition: background 0.2s ease, border-color 0.2s ease !important;
@@ -1052,7 +1063,7 @@ const STYLES = `
     width: 12px !important;
     height: 12px !important;
     border-radius: 50% !important;
-    background: #94a3b8 !important;
+    background: var(--tp-mut) !important;
     transition: transform 0.2s ease, background 0.2s ease !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider {
@@ -1071,7 +1082,7 @@ const STYLES = `
     font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
     min-width: 22px !important;
-    color: #64748b !important;
+    color: var(--tp-dim) !important;
   }
   .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
   /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
@@ -1085,11 +1096,11 @@ const STYLES = `
     align-items: center !important;
     gap: 4px !important;
     background: rgba(15,23,42,0.6) !important;
-    border: 1px solid #334155 !important;
+    border: 1px solid var(--tp-line) !important;
     padding: 2px 6px !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
-    color: #94a3b8 !important;
+    color: var(--tp-mut) !important;
   }
   .tp-stepper-btn {
     width: 24px !important;
@@ -1119,12 +1130,12 @@ const STYLES = `
     border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.25) !important;
     padding: 6px !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-family: var(--tp-font) !important;
     animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
   }
   #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
   #tp-floating-check-cta.tp-empty { animation: none !important; border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
-  #tp-floating-check-cta.tp-empty #tp-floating-check-btn { background: linear-gradient(135deg, #475569 0%, #334155 100%) !important; color: #cbd5e1 !important; }
+  #tp-floating-check-cta.tp-empty #tp-floating-check-btn { background: linear-gradient(135deg, var(--tp-line-soft) 0%, var(--tp-line) 100%) !important; color: var(--tp-txt-dim) !important; }
   #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover { filter: brightness(1.08) !important; }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
@@ -1146,7 +1157,7 @@ const STYLES = `
     gap: 0 !important;
   }
   #tp-floating-check-btn {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    background: var(--tp-grad-acc) !important;
     flex: 1 !important;
     border: none !important;
     border-radius: 10px 0 0 10px !important;
@@ -1167,12 +1178,12 @@ const STYLES = `
     padding: 3px 14px 5px !important;
     font-size: 10px !important;
     font-weight: 600 !important;
-    color: #94a3b8 !important;
+    color: var(--tp-mut) !important;
     cursor: pointer !important;
     white-space: nowrap !important;
     user-select: none !important;
   }
-  #tp-floating-dealer-row:hover { color: #e2e8f0 !important; }
+  #tp-floating-dealer-row:hover { color: var(--tp-txt-mid) !important; }
   #tp-floating-dealer-row.tp-active { color: var(--tp-acc-txt) !important; }
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
   #tp-floating-check-main { font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
@@ -1182,7 +1193,7 @@ const STYLES = `
     border: none !important;
     border-left: 1px solid rgba(255,255,255,0.12) !important;
     border-radius: 0 10px 10px 0 !important;
-    color: #cbd5e1 !important;
+    color: var(--tp-txt-dim) !important;
     padding: 8px 10px !important;
     font-size: 12px !important;
     font-weight: 700 !important;
@@ -1197,7 +1208,7 @@ const STYLES = `
     background: rgba(15, 23, 42, 0.97) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    border-radius: 10px !important;
+    border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
     padding: 4px !important;
     display: none;
@@ -1207,7 +1218,7 @@ const STYLES = `
   }
   #tp-floating-threshold-popover.tp-show { display: flex !important; }
   #tp-floating-threshold-popover .tp-floating-hint {
-    color: #94a3b8 !important;
+    color: var(--tp-mut) !important;
     padding: 5px 10px 3px !important;
     font-size: 10.5px !important;
     font-weight: 500 !important;
@@ -1216,22 +1227,22 @@ const STYLES = `
   #tp-floating-threshold-popover .tp-floating-option {
     background: transparent !important;
     border: none !important;
-    color: #cbd5e1 !important;
+    color: var(--tp-txt-dim) !important;
     padding: 6px 10px !important;
     font-size: 12px !important;
     font-weight: 600 !important;
-    border-radius: 6px !important;
+    border-radius: var(--tp-r-sm) !important;
     cursor: pointer !important;
     text-align: left !important;
   }
   #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
-  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: #10b981 !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: var(--tp-acc) !important; color: #fff !important; }
   #tp-floating-cta-collapse {
     background: rgba(51,65,85,0.7) !important;
     border: none !important;
     border-left: 1px solid rgba(255,255,255,0.12) !important;
     border-radius: 0 10px 10px 0 !important;
-    color: #94a3b8 !important;
+    color: var(--tp-mut) !important;
     padding: 8px 10px !important;
     font-size: 13px !important;
     font-weight: 800 !important;
@@ -1243,14 +1254,14 @@ const STYLES = `
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
   #tp-floating-check-count { display: none !important; font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-cta.tp-collapsed { border-radius: 999px !important; padding: 4px !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: 999px !important; padding: 6px 12px !important; }
+  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 4px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 999px !important; border: none !important; margin-left: 2px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: var(--tp-r-pill) !important; border: none !important; margin-left: 2px !important; }
   @media (max-width: 600px) {
     #tp-floating-check-sub { display: none !important; }
     #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
@@ -1260,7 +1271,7 @@ const STYLES = `
 const SHADOW_MODAL_STYLES = `
   :host {
     all: initial;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--tp-font);
     ${TP_TOKEN_VARS}
   }
   #tp-settings-fab {
@@ -1279,7 +1290,7 @@ const SHADOW_MODAL_STYLES = `
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #f1f5f9;
+    color: var(--tp-txt);
     opacity: 0.5;
     transition: all 0.3s ease;
   }
@@ -1304,7 +1315,7 @@ const SHADOW_MODAL_STYLES = `
     border: 1px solid rgba(255,255,255,0.12);
     box-shadow: 0 20px 25px rgba(0,0,0,0.5);
     border-radius: 16px;
-    color: #f8fafc;
+    color: var(--tp-txt);
     padding: 24px;
     margin: auto;
   }
@@ -1313,7 +1324,7 @@ const SHADOW_MODAL_STYLES = `
     margin: 0 0 18px;
     font-size: 18px;
     font-weight: 700;
-    background: linear-gradient(to right, #34d399, #059669);
+    background: linear-gradient(to right, var(--tp-acc-txt), var(--tp-acc-deep));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -1325,7 +1336,7 @@ const SHADOW_MODAL_STYLES = `
     overflow-y: auto;
   }
   .tp-settings-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
-  .tp-settings-group label { font-size: 13px; font-weight: 600; color: #94a3b8; }
+  .tp-settings-group label { font-size: 13px; font-weight: 600; color: var(--tp-mut); }
   #tp-basic-settings { display: flex; flex-direction: column; gap: 8px; }
   #tp-basic-settings .tp-settings-group { margin-bottom: 10px; }
   #tp-basic-settings label[title], #tp-basic-settings button[title] { cursor: help; }
@@ -1333,7 +1344,7 @@ const SHADOW_MODAL_STYLES = `
   #tp-advanced-details { margin-top: 4px; }
   #tp-advanced-details > summary { display: flex; align-items: center; gap: 8px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
   #tp-advanced-details > summary:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
-  .tp-field-dark { width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: var(--tp-r-sm); padding: 6px 10px; font-size: var(--tp-fs-md); margin-top: 4px; box-sizing: border-box; }
+  .tp-field-dark { width: 100%; background: var(--tp-bg); color: var(--tp-txt); border: 1px solid var(--tp-line-soft); border-radius: var(--tp-r-sm); padding: 6px 10px; font-size: var(--tp-fs-md); margin-top: 4px; box-sizing: border-box; }
   select.tp-field-dark { font-size: var(--tp-fs-lg); }
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
   .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
@@ -1342,7 +1353,7 @@ const SHADOW_MODAL_STYLES = `
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
   .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: var(--tp-fs-md); }
-  .tp-advanced-subheader { color: #64748b; font-size: var(--tp-fs-sm); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
+  .tp-advanced-subheader { color: var(--tp-dim); font-size: var(--tp-fs-sm); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
   .tp-segmented-control {
     display: flex;
     background: rgba(15,23,42,0.6);
@@ -1357,21 +1368,21 @@ const SHADOW_MODAL_STYLES = `
     cursor: pointer;
     font-size: var(--tp-fs-sm);
     font-weight: 600;
-    color: #94a3b8;
+    color: var(--tp-mut);
     border-radius: var(--tp-r-sm);
     transition: all 0.2s ease;
   }
   .tp-segmented-control input[type="radio"] { display: none; }
-  .tp-segmented-control label:hover { color: #f1f5f9; }
+  .tp-segmented-control label:hover { color: var(--tp-txt); }
   .tp-segmented-control input[type="radio"]:checked + label {
     background: var(--tp-acc);
     color: #fff;
   }
-  .tp-segmented-control-blue input[type="radio"]:checked + label { background: #3b82f6 !important; }
+  .tp-segmented-control-blue input[type="radio"]:checked + label { background: var(--tp-blue) !important; }
   .tp-range-container { display: flex; align-items: center; gap: 12px; }
   .tp-range-container input[type="range"] { flex: 1; accent-color: var(--tp-acc); }
-  .tp-range-container.tp-blue input[type="range"] { accent-color: #3b82f6; }
-  .tp-range-container.tp-rose input[type="range"] { accent-color: #f43f5e; }
+  .tp-range-container.tp-blue input[type="range"] { accent-color: var(--tp-blue); }
+  .tp-range-container.tp-rose input[type="range"] { accent-color: var(--tp-rose); }
   .tp-range-container input[type="number"] {
     width: 60px;
     padding: 4px 8px;
@@ -1390,13 +1401,13 @@ const SHADOW_MODAL_STYLES = `
     background: rgba(15,23,42,0.6);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: var(--tp-r-md);
-    color: #f8fafc;
+    color: var(--tp-txt);
     font: inherit;
     font-size: var(--tp-fs-md);
   }
   .tp-switch-container { display: flex; align-items: center; justify-content: space-between; }
   .tp-switch-label { display: flex; flex-direction: column; gap: 2px; }
-  .tp-switch-desc { font-size: var(--tp-fs-sm); color: #64748b; }
+  .tp-switch-desc { font-size: var(--tp-fs-sm); color: var(--tp-dim); }
   .tp-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
   .tp-switch input { opacity: 0; width: 0; height: 0; }
   .tp-slider {
@@ -1415,13 +1426,13 @@ const SHADOW_MODAL_STYLES = `
     width: 16px;
     left: 3px;
     bottom: 3px;
-    background-color: #94a3b8;
+    background-color: var(--tp-mut);
     border-radius: 50%;
     transition: .3s;
   }
   .tp-switch input:checked + .tp-slider { background-color: var(--tp-acc); }
-  .tp-switch.tp-blue input:checked + .tp-slider { background-color: #3b82f6; }
-  .tp-switch.tp-rose input:checked + .tp-slider { background-color: #f43f5e; }
+  .tp-switch.tp-blue input:checked + .tp-slider { background-color: var(--tp-blue); }
+  .tp-switch.tp-rose input:checked + .tp-slider { background-color: var(--tp-rose); }
   .tp-switch.tp-purple input:checked + .tp-slider { background-color: var(--tp-acc2); }
   .tp-switch input:checked + .tp-slider:before { transform: translateX(20px); background-color: #fff; }
   .tp-modal-actions {
@@ -1440,10 +1451,10 @@ const SHADOW_MODAL_STYLES = `
     cursor: pointer;
     border: none;
   }
-  .tp-btn-secondary { background: rgba(255,255,255,0.08); color: #94a3b8; }
+  .tp-btn-secondary { background: rgba(255,255,255,0.08); color: var(--tp-mut); }
   .tp-btn-secondary:hover { background: rgba(255,255,255,0.15); color: #fff; }
   .tp-btn-primary {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--tp-grad-acc);
     color: #fff;
     box-shadow: 0 4px 12px rgba(16,185,129,0.3);
   }
@@ -1459,7 +1470,7 @@ const SHADOW_MODAL_STYLES = `
   .tp-toast {
     background: rgba(15,23,42,0.96);
     border: 1px solid rgba(56,189,248,0.3);
-    color: #f8fafc;
+    color: var(--tp-txt);
     padding: 9px 14px;
     border-radius: var(--tp-r-md);
     font-size: var(--tp-fs-md);
@@ -3177,7 +3188,8 @@ const SHADOW_MODAL_STYLES = `
 
     const firstPrice = prices[0];
     const lastPrice = prices[prices.length - 1];
-    // Single neutral stroke (blue-500: readable on white cards and dark Discord bg).
+    // ponytail: literal hex here — renderSparklinePng serializes this SVG to a
+    // Blob URL, where var() has no page context and would render transparent.
     const strokeColor = '#3b82f6';
 
     const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
@@ -3353,17 +3365,17 @@ const SHADOW_MODAL_STYLES = `
     backdrop.setAttribute('aria-label', 'Preisverlauf');
     backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.65);padding:16px;box-sizing:border-box;';
     const panel = document.createElement('div');
-    panel.style.cssText = 'background:#1e293b;border-radius:12px;padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
+    panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
     const title = document.createElement('div');
     title.textContent = '📈 Preisverlauf';
-    title.style.cssText = 'color:#e2e8f0;font-size:14px;font-weight:600;';
+    title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;';
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.textContent = '✕';
     closeBtn.setAttribute('aria-label', 'Schliessen');
-    closeBtn.style.cssText = 'background:transparent;border:0;color:#94a3b8;font-size:16px;cursor:pointer;padding:4px 8px;';
+    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
     const onKey = e => { if (e.key === 'Escape') close(); };
     function close() { document.removeEventListener('keydown', onKey); closeSparklinePopout(); }
     document.addEventListener('keydown', onKey);
@@ -5808,38 +5820,15 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
-         <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
+        <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
-          <div class="tp-threshold-wrapper" id="tp-bar-weight-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Reihenfolge + Farb-Emphase — Badge zeigt Rekord & Ø.">
-            <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-            <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
-            <datalist id="tp-bar-weight-ticks">
-              <option value="0" label="Ø"></option>
-              <option value="30"></option>
-              <option value="50"></option>
-              <option value="70"></option>
-              <option value="100" label="Rek"></option>
-            </datalist>
-          </div>
-          <div class="tp-threshold-wrapper tp-deals-sep" id="tp-bar-vortief-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">
-            <span class="tp-sep" aria-hidden="true"></span>
-            <span class="tp-stepper-label">Fallback-Tiefs</span>
-            <label class="tp-mini-switch">
-              <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
-              <span class="tp-mini-slider"></span>
-              <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
-            </label>
-          </div>
-          <div class="tp-threshold-wrapper tp-deals-sep" id="tp-bar-minpoints-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">
-            <span class="tp-sep" aria-hidden="true"></span>
-            <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 5 Pkt</span>
-            <input type="range" id="tp-bar-minpoints-range" min="5" max="100" step="5" value="5" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (5), rechts streng (100)">
-          </div>
          </div>
         </div>
       `;
+      // Deal sliders built once via builders below (no duplicated markup).
+      bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildVortiefWrapper(), buildMinPointsWrapper());
 
       if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
         placement.container.insertBefore(bar, placement.reference);

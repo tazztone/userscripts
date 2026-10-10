@@ -24,7 +24,8 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
 
   const firstPrice = prices[0];
   const lastPrice = prices[prices.length - 1];
-  // Single neutral stroke (blue-500: readable on white cards and dark Discord bg).
+  // ponytail: literal hex here — renderSparklinePng serializes this SVG to a
+  // Blob URL, where var() has no page context and would render transparent.
   const strokeColor = '#3b82f6';
 
   const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
@@ -200,17 +201,17 @@ export function openSparklinePopout(timeSeries) {
   backdrop.setAttribute('aria-label', 'Preisverlauf');
   backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.65);padding:16px;box-sizing:border-box;';
   const panel = document.createElement('div');
-  panel.style.cssText = 'background:#1e293b;border-radius:12px;padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
+  panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
   const title = document.createElement('div');
   title.textContent = '📈 Preisverlauf';
-  title.style.cssText = 'color:#e2e8f0;font-size:14px;font-weight:600;';
+  title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;';
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = '✕';
   closeBtn.setAttribute('aria-label', 'Schliessen');
-  closeBtn.style.cssText = 'background:transparent;border:0;color:#94a3b8;font-size:16px;cursor:pointer;padding:4px 8px;';
+  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
   const onKey = e => { if (e.key === 'Escape') close(); };
   function close() { document.removeEventListener('keydown', onKey); closeSparklinePopout(); }
   document.addEventListener('keydown', onKey);
