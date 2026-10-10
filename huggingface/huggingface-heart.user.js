@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.3
+// @version      2.0.4
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -861,14 +861,6 @@ const SHADOW_WIDGET_STYLES = `
     return Math.max(0, Math.floor(diffMs / (86400 * 1000)));
   }
 
-  function formatDateLabel(days) {
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
-    if (days >= 36500) return 'All time';
-    const date = new Date(Date.now() - days * 86400 * 1000);
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
   // ─── CARD VISUAL STATE & ACCESSIBILITY ───────────────────────────────────────
   function updateCardVisual(card, modelId) {
     const isLiked = isModelLiked(card, modelId);
@@ -928,13 +920,14 @@ const SHADOW_WIDGET_STYLES = `
   }
 
   function captureInlineVisual(container, heartSvg) {
+    const countNode = findLikeCountNode(container);
     return {
       heartClass: heartSvg?.getAttribute('class') ?? null,
       pathFills: heartSvg ? Array.from(heartSvg.querySelectorAll('path')).map(path => path.getAttribute('fill')) : [],
       ariaPressed: container?.getAttribute('aria-pressed') ?? null,
       ariaLabel: container?.getAttribute('aria-label') ?? null,
-      countNode: findLikeCountNode(container),
-      countText: findLikeCountNode(container)?.textContent ?? null
+      countNode,
+      countText: countNode?.textContent ?? null
     };
   }
 

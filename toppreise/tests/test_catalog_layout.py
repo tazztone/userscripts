@@ -1,7 +1,7 @@
 import os
 from playwright.sync_api import Page, expect
 
-SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'toppreise.user.js'))
+from conftest import open_settings, seed_verified_deal, mock_pricechart
 
 
 
@@ -53,9 +53,7 @@ def test_suite_filter_bar_styles(page: Page):
 
 def test_sort_by_offers(page: Page):
     # Open settings and enable sort by offers desc
-    page.click('#tp-root >> #tp-settings-fab')
-    # Sortierung lives in the advanced panel: reveal it first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
     page.click('#tp-root >> label[for="tp-sort-desc"]')
     page.click('#tp-root >> #tp-btn-save')
 
@@ -142,14 +140,8 @@ def test_discount_heatmap_rendering(page: Page):
     assert 'tp-is-unverified' in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
 
     # Seed verified deals: card 1 deep (-50% vs median), card 2 shallow (-12%)
-    page.evaluate("""() => {
-        const now = Date.now();
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: now }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({ tiefstpreis: 1100, hoechstpreis: 1800, medianPrice: 1250, time: now }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_verified_deal(page, '797571', clear=True)
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 1800, 'medianPrice': 1250}, clear=False)
 
     # Card 1 has a verified -50% deal -> hot thermal styling
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
@@ -180,11 +172,7 @@ def test_discount_heatmap_rendering(page: Page):
 
 def test_discount_heatmap_toolbar_toggle(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     heat_btn = page.locator('#tp-bar-heat-btn')
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
@@ -214,15 +202,9 @@ def test_suite_filter_bar_grouping(page: Page):
 
 def test_discount_heatmap_settings_modal_controls(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
-    # Open settings modal
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     # Toggle heatmap switch off inside modal via slider
     slider = page.locator('#tp-root >> #tp-heatmap-enabled-toggle + .tp-slider')
@@ -233,7 +215,7 @@ def test_discount_heatmap_settings_modal_controls(page: Page):
     assert 'tp-heatmap-active' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Re-enable in settings
-    page.click('#tp-root >> #tp-settings-fab')
+    open_settings(page)
     slider.click()
     page.click('#tp-root >> #tp-btn-save')
 
@@ -243,10 +225,7 @@ def test_discount_heatmap_settings_modal_controls(page: Page):
 
 
 def test_sort_by_discount(page: Page):
-    # Open settings and enable sort by discount descending
-    page.click('#tp-root >> #tp-settings-fab')
-    # Sortierung lives in the advanced panel: reveal it first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
     page.click('#tp-root >> label[for="tp-sort-discount"]')
     page.click('#tp-root >> #tp-btn-save')
 
@@ -387,11 +366,7 @@ def test_category_page_injects_interactive_deal_badges(page: Page):
 
 def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     # Seed a verified deal: only verified cards receive thermal heatmap
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     card = page.locator('#card-cheapest')
     has_heat = card.evaluate("el => el.classList.contains('tp-heatmap-active') || el.style.getPropertyValue('--tp-heat-bg') !== ''")
@@ -401,15 +376,11 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     # Anzeige-parameterized: hide collapses unchecked (display:none), dim/highlight keep them visible (dimmed/marked).
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
     # Seed card 1 as a verified deal; the rest stay unchecked
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-is-verified')
     assert 'tp-is-unverified' in (page.locator('#card-negative').get_attribute('class') or '')
     # Toggle faces: toolbar button + settings toggle (persisted pref)
-    page.click('#tp-root >> #tp-settings-fab')
+    open_settings(page)
     assert page.locator('#tp-root >> #tp-hide-unchecked-toggle').is_checked() is False
     page.click('#tp-root >> #tp-btn-close')
 
@@ -674,36 +645,10 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     # Card 1 (797571, price 1800): New record (median 2400 -> dMed 25%, prevLow 2200 -> dRec 18%) -> blend = 22%
     # Card 2 (797572, price 1100): Matching low (median 1500 -> dMed 27%, dRec 0%) -> blend = 14%
     # Card 3 (797573, price 15): Non-Tiefstpreis (tiefstpreis 10) -> Excluded
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10})
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 1800, 'medianPrice': 1500, 'isNewAllTimeLow': False, 'realDiscountVsMedian': 27, 'dataPointCount': 15}, clear=False)
+    seed_verified_deal(page, '797573', {'tiefstpreis': 10, 'hoechstpreis': 25, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)
     page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
-            tiefstpreis: 1800,
-            hoechstpreis: 2600,
-            medianPrice: 2400,
-            previousLow: 2200,
-            isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 18,
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
-            tiefstpreis: 1100,
-            hoechstpreis: 1800,
-            medianPrice: 1500,
-            isNewAllTimeLow: false,
-            realDiscountVsMedian: 27,
-            dataPointCount: 15,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
-        localStorage.setItem('tp_hist_v1_797573', JSON.stringify({
-            tiefstpreis: 10,
-            hoechstpreis: 25,
-            isNewAllTimeLow: false,
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
@@ -754,38 +699,10 @@ def test_bestpreise_sorting_by_blend(page: Page):
     # Card 2 (797572, price 1100): at-low, no record, dMed 68% -> blend 34%
     # Card 3 (797573, price 15): new record, dMed 50% + dRec 25% -> blend 38%
     # Sort order follows the ribbon number: Card 3 (38) -> Card 2 (34) -> Card 1 (22).
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10})
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 3500, 'medianPrice': 3437, 'isNewAllTimeLow': False, 'dataPointCount': 15}, clear=False)
+    seed_verified_deal(page, '797573', {'tiefstpreis': 15, 'hoechstpreis': 40, 'medianPrice': 30, 'previousLow': 20, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 25, 'dataPointCount': 12}, clear=False)
     page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
-            tiefstpreis: 1800,
-            hoechstpreis: 2600,
-            medianPrice: 2400,
-            previousLow: 2200,
-            isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 18,
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
-            tiefstpreis: 1100,
-            hoechstpreis: 3500,
-            medianPrice: 3437, // dMedian = 68%, no record -> blend 34%
-            isNewAllTimeLow: false,
-            dataPointCount: 15,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
-        localStorage.setItem('tp_hist_v1_797573', JSON.stringify({
-            tiefstpreis: 15,
-            hoechstpreis: 40,
-            medianPrice: 30,
-            previousLow: 20,
-            isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 25, // dMed 50%, dRec 25% -> blend 38%
-            dataPointCount: 12,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
@@ -805,38 +722,10 @@ def test_bestpreise_sorting_at_100rek_follows_blend(page: Page):
     # >= 1 clamp and sort last — intended consequence of a 100% Rekord mix.
     # Card 3 (Rek 25%) -> Card 1 (Rek 18%) -> Card 2 (Ø-only, blend -1%).
     # The ribbon shows the same -1%.
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10})
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 3500, 'medianPrice': 3437, 'isNewAllTimeLow': False, 'dataPointCount': 15}, clear=False)
+    seed_verified_deal(page, '797573', {'tiefstpreis': 15, 'hoechstpreis': 40, 'medianPrice': 30, 'previousLow': 20, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 25, 'dataPointCount': 12}, clear=False)
     page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
-            tiefstpreis: 1800,
-            hoechstpreis: 2600,
-            medianPrice: 2400,
-            previousLow: 2200,
-            isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 18,
-            dataPointCount: 10,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
-            tiefstpreis: 1100,
-            hoechstpreis: 3500,
-            medianPrice: 3437, // dMedian = 68%, no record -> blend 1% (clamp)
-            isNewAllTimeLow: false,
-            dataPointCount: 15,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
-        localStorage.setItem('tp_hist_v1_797573', JSON.stringify({
-            tiefstpreis: 15,
-            hoechstpreis: 40,
-            medianPrice: 30,
-            previousLow: 20,
-            isNewAllTimeLow: true,
-            realDiscountVsPrevLow: 25,
-            dataPointCount: 12,
-            time: Date.now()
-        }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 1.0;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
@@ -1718,12 +1607,12 @@ def test_card_elements_and_sparkline_visibility_unclipped(page: Page):
 
 
 
-def test_shipping_price_mismatch(page: Page):
+def test_shipping_price_mismatch(browser, userscript_content):
+    page = browser.new_page()
     test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
-    # Use the local mock file and evaluate the script contents
+    # Custom navigation (not the conftest page fixture): evaluate bundle directly.
     page.goto(f'file://{test_html_path}')
-    with open(SCRIPT_PATH, 'r', encoding='utf-8') as f:
-        page.add_script_tag(content=f.read())
+    page.evaluate(userscript_content)
 
     page.evaluate("() => { if(window.ToppreiseSuite) { window.ToppreiseSuite.CONFIG.USE_SHIPPING_PRICE = true; window.ToppreiseSuite.processListings(); } }")
 
@@ -1778,6 +1667,7 @@ def test_shipping_price_mismatch(page: Page):
     title = badge.get_attribute("title") or ""
     assert "Tiefstpreis bestätigt" in title
     assert "[Klicken: erneut prüfen]" in title
+    page.close()
 
 
 
@@ -2089,7 +1979,7 @@ def test_native_category_management_interactions(page: Page):
 
 
 
-def test_showproductprice_vs_showshippingprice_consistency(page: Page):
+def test_showproductprice_vs_showshippingprice_consistency(browser, userscript_content):
     """
     Validates that when Toppreise is in 'showproductprice' mode (Produktpreis exkl. Versand):
     1. isShippingPriceActive() returns false.
@@ -2099,9 +1989,9 @@ def test_showproductprice_vs_showshippingprice_consistency(page: Page):
     4. Switching to 'showshippingprice' dynamically selects the shipping price (47.90) and Series 1.
     """
     test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
+    page = browser.new_page()
     page.goto(f'file://{test_html_path}')
-    with open(SCRIPT_PATH, 'r', encoding='utf-8') as f:
-        page.add_script_tag(content=f.read())
+    page.evaluate(userscript_content)
 
     # Mock pricechart response with distinct series:
     # Series 0 (Produktpreis): current 39.95, low 39.65 -> +0.75% (+1%)
@@ -2181,6 +2071,7 @@ def test_showproductprice_vs_showshippingprice_consistency(page: Page):
     # Now shipping price (47.90 vs 39.65) yields +21%
     badge_html_shp = page.locator('#card-competing-reference .badge-dif').inner_html()
     assert "+21%" in badge_html_shp, f"Expected +21% markup with shipping active, got {badge_html_shp}"
+    page.close()
 
 
 
@@ -2197,12 +2088,7 @@ def test_dealer_name_direct_from_dom_dealer_row(page: Page):
         card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
         window.ToppreiseSuite.clearCardCache(card);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     product_hits = []
     def handle_product(route):
         product_hits.append(route.request.url)

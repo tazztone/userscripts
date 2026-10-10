@@ -8,6 +8,7 @@ import { getDetailProductId, getDetailLowestPrice } from '../page/adapter.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { getDisplayDelta } from '../domain/deal-score.js';
 import { activeFetches, fetchSingleProductPriceStats } from '../scanner/scanner.js';
+import { pctDrop, pctRise } from '../domain/price.js';
 
 
 export async function processProductDetailPage() {
@@ -45,13 +46,13 @@ export async function processProductDetailPage() {
       badge.className = 'tp-detail-deal-badge tp-is-alltime-low';
       let peakContext = '';
       if (hasSignificantPeak) {
-        const peakDropPct = Math.round(((stats.hoechstpreis - currentPrice) / stats.hoechstpreis) * 100);
+        const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
         peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
       }
       badge.title = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
       badge.textContent = '🌟 Allzeit-Tiefstpreis';
     } else {
-      const markupPct = Math.round(((currentPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100);
+      const markupPct = pctRise(stats.tiefstpreis, currentPrice);
       const isSevere = markupPct >= 50;
       badge.className = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
       const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';

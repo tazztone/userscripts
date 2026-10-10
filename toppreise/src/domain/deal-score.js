@@ -4,8 +4,8 @@
  * and continuous weighted deal quality scoring.
  */
 
-import { priceToCents, recordRefForPrice } from './price.js';
-import { CONFIG } from '../state/config.js';
+import { priceToCents, pctDrop, pctRise, recordRefForPrice } from './price.js';
+import { CONFIG, clampMinPoints } from '../state/config.js';
 
 // Display thresholds (documented in UI: badge titles, heatmap toggle, settings).
 // Badge % is the Gewichtete Differenz (weight-blended Ø-discount +
@@ -21,8 +21,7 @@ export function computeDealScore(stats, cardPrice) {
   // History Qualification Gate:
   // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
   const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
-  const rawMin = typeof CONFIG.BESTPREISE_MIN_POINTS === 'number' ? CONFIG.BESTPREISE_MIN_POINTS : parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10);
-  const minPoints = Number.isFinite(rawMin) ? Math.max(5, Math.min(100, Math.round(rawMin))) : 5;
+  const minPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
   if (pointsCount < minPoints) return null;
   if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
       ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
@@ -40,12 +39,12 @@ export function computeDealScore(stats, cardPrice) {
   // Defensive fallback chain: series stats always carry a median; only
   // exotic hand-built stats fall through to the mean (or 0 = unscorable).
   const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
-    ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
+    ? pctDrop(stats.medianPrice, cardPrice)
     : (stats.realDiscountVsMedian || 0);
 
   const prevLow = liveRec.previousLow;
   const dRecord = (isNewRecord && prevLow && prevLow > cardPrice)
-    ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
+    ? pctDrop(prevLow, cardPrice)
     : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
   const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
@@ -108,7 +107,7 @@ export function getDisplayDelta(cardPrice, stats) {
   }
   return {
     kind: 'above-low',
-    markup: Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)
+    markup: pctRise(stats.tiefstpreis, cardPrice)
   };
 }
 
@@ -131,7 +130,7 @@ export function vortiefDropPct(cardPrice, stats) {
   const display = getDisplayDelta(cardPrice, stats);
   if (display.kind === 'new-low') return display.dRecord || 0;
   if (display.kind === 'at-low' && display.prevLow > cardPrice) {
-    return Math.round(((display.prevLow - cardPrice) / display.prevLow) * 100);
+    return pctDrop(display.prevLow, cardPrice);
   }
   return 0;
 }

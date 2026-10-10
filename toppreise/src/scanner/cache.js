@@ -14,6 +14,12 @@ export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
 const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX];
 export const MAX_MEMORY_CACHE_ITEMS = 500;
 
+export function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
+  map.delete(key);
+  map.set(key, val);
+  if (map.size > cap) map.delete(map.keys().next().value);
+}
+
 export const memoryCache = new Map();
 
 export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
@@ -66,12 +72,6 @@ export function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? 
   } catch (e) {}
 }
 
-function evictIfFull() {
-  if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
-    memoryCache.delete(memoryCache.keys().next().value);
-  }
-}
-
 export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!productId) return null;
   // Mode guard: the series is picked per shipping mode at fetch time and the
@@ -93,8 +93,7 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
           memoryCache.delete(productId);
         } else {
           // LRU update
-          memoryCache.delete(productId);
-          memoryCache.set(productId, memData);
+          lruSet(memoryCache, productId, memData);
           return memData;
         }
       } else {
@@ -108,8 +107,7 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
 
     if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
       if (!isModeMatch(parsed)) return null;
-      memoryCache.set(productId, parsed);
-      evictIfFull();
+      lruSet(memoryCache, productId, parsed);
       return parsed;
     }
   } catch (e) {}
@@ -130,8 +128,7 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
     ? { unavailable: true, time: Date.now() }
     : { ...stats, time: Date.now() };
 
-  memoryCache.set(productId, payload);
-  evictIfFull();
+  lruSet(memoryCache, productId, payload);
 
   try {
     prunePriceStatsCache(storage);

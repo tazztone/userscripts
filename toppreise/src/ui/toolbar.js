@@ -5,7 +5,7 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { CONFIG, updateConfig, weightText } from "../state/config.js";
+import { CONFIG, updateConfig, weightText, clampMinPoints } from "../state/config.js";
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
@@ -176,7 +176,7 @@ function bindMinPointsControls(wrapper) {
   const range = wrapper.querySelector('#tp-bar-minpoints-range');
   const label = wrapper.querySelector('#tp-bar-minpoints-label');
   if (!range) return;
-  const readNum = () => Math.max(5, Math.min(100, parseInt(range.value, 10) || 5));
+  const readNum = () => clampMinPoints(range.value);
   const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
   paint();
   range.oninput = () => {
@@ -194,7 +194,7 @@ function bindMinPointsControls(wrapper) {
 }
 
 function buildMinPointsWrapper() {
-  const cur = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+  const cur = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-minpoints-wrapper';
@@ -419,7 +419,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (vortiefWrapper) {
     vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
-  const curMinPoints = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+  const curMinPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
   const minPointsRange = document.getElementById('tp-bar-minpoints-range');
   if (minPointsRange && document.activeElement !== minPointsRange) {
     minPointsRange.value = curMinPoints;

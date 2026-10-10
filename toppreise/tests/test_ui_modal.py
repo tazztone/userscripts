@@ -1,5 +1,7 @@
 from playwright.sync_api import Page, expect
 
+from conftest import open_settings, seed_verified_deal
+
 
 
 def test_shadow_dom_settings_dialog_open_and_close(page: Page):
@@ -20,9 +22,7 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
 
 
 def test_modal_mode_and_settings_in_shadow_dom(page: Page):
-    # Open settings modal
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     # Toggle mode to 'hide' via segmented control
     page.click('#tp-root >> label[for="tp-mode-hide"]')
@@ -37,11 +37,7 @@ def test_modal_mode_and_settings_in_shadow_dom(page: Page):
 
 def test_darkreader_dynamic_mode_compatibility(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600, time: Date.now() }));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_verified_deal(page)
     # Simulate DarkReader stamping data attributes and check that userscript maintains gradient
     page.wait_for_selector('#card-cheapest.tp-heatmap-active')
     card = page.locator('#card-cheapest')
@@ -64,11 +60,7 @@ def test_darkreader_dynamic_mode_compatibility(page: Page):
 def test_pruef_vorauswahl_threshold_persists(page: Page):
     # Strictness lives in the Tiefstpreise mode now: no separate filter toggle
     # in the modal anymore, but the Prüf-Vorauswahl threshold must persist.
-    # Open settings dialog
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    # Prüf-Vorauswahl is a fine-tuning control: reveal advanced first
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
 
     # Removed strictness toggle stays gone
     assert page.locator('#tp-root >> #tp-real-deal-filter-toggle').count() == 0
@@ -82,9 +74,7 @@ def test_pruef_vorauswahl_threshold_persists(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
-    # Re-open dialog and verify the threshold persisted
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
     assert page.locator('#tp-root >> #tp-real-deal-min-val').input_value() == '40'
     page.click('#tp-root >> #tp-btn-close')
 
@@ -128,9 +118,7 @@ def test_slash_key_noop_when_typing_in_input(page: Page):
 
 
 def test_config_export_produces_valid_json(page: Page):
-    # Open settings dialog
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     # Setup export interception
     exported_data = page.evaluate("""() => {
@@ -161,9 +149,7 @@ def test_config_export_produces_valid_json(page: Page):
 
 
 def test_config_import_applies_settings(page: Page):
-    # Open settings dialog
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     # Trigger file import via DataTransfer / File
     page.evaluate("""() => {
@@ -207,8 +193,7 @@ def test_config_import_applies_settings(page: Page):
 
 
 def test_config_import_invalid_json_shows_error_toast(page: Page):
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     page.evaluate("""() => {
         const shadow = document.getElementById('tp-root').shadowRoot;
@@ -229,8 +214,7 @@ def test_config_import_invalid_json_shows_error_toast(page: Page):
 
 
 def test_config_import_ignores_unknown_and_debug_keys(page: Page):
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     page.evaluate("""() => {
         const shadow = document.getElementById('tp-root').shadowRoot;

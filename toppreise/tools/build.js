@@ -38,26 +38,41 @@ function indent(code, spaces = 2) {
 
 export function buildBundle() {
   const stylesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'styles.js'), 'utf-8'));
-  const selectorsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'selectors.js'), 'utf-8'));
-  const priceCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'price.js'), 'utf-8'));
-  const dealScoreCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'domain', 'deal-score.js'), 'utf-8'));
-  const cacheCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'cache.js'), 'utf-8'));
-  const configCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'state', 'config.js'), 'utf-8'));
-  const storeCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'state', 'store.js'), 'utf-8'));
-  const adapterCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'adapter.js'), 'utf-8'));
-  const cardsCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'cards.js'), 'utf-8'));
-  const sparklineCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'sparkline.js'), 'utf-8'));
-  const sortCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'page', 'sort.js'), 'utf-8'));
-  const scannerCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'scanner', 'scanner.js'), 'utf-8'));
-  const badgesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'badges.js'), 'utf-8'));
-  const shellCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'shell.js'), 'utf-8'));
-  const modalCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'modal.js'), 'utf-8'));
-  const toastCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toast.js'), 'utf-8'));
-  const toolbarCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'toolbar.js'), 'utf-8'));
-  const floatingCtaCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'floating-cta.js'), 'utf-8'));
-  const shareDiscordCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'share-discord.js'), 'utf-8'));
-  const priceAlarmCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'price-alarm.js'), 'utf-8'));
-  const productDetailCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'features', 'product-detail.js'), 'utf-8'));
+  // [relpath, banner] in load-bearing bundle order. Banners padded as before.
+  const MODULES = [
+    ['page/selectors.js', '// ─── MODULE: src/page/selectors.js ──────────────────────────────────────────'],
+    ['domain/price.js', '// ─── MODULE: src/domain/price.js ────────────────────────────────────────────'],
+    ['domain/deal-score.js', '// ─── MODULE: src/domain/deal-score.js ───────────────────────────────────────'],
+    ['scanner/cache.js', '// ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────'],
+    ['state/config.js', '// ─── MODULE: src/state/config.js ────────────────────────────────────────────'],
+    ['state/store.js', '// ─── MODULE: src/state/store.js ─────────────────────────────────────────────'],
+    ['page/adapter.js', '// ─── MODULE: src/page/adapter.js ────────────────────────────────────────────'],
+    ['page/cards.js', '// ─── MODULE: src/page/cards.js ──────────────────────────────────────────────'],
+    ['ui/sparkline.js', '// ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────'],
+    ['page/sort.js', '// ─── MODULE: src/page/sort.js ───────────────────────────────────────────────'],
+    ['scanner/scanner.js', '// ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────'],
+    ['ui/badges.js', '// ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────'],
+    ['ui/shell.js', '// ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────'],
+    ['ui/modal.js', '// ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────'],
+    ['ui/toast.js', '// ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────'],
+    ['ui/toolbar.js', '// ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────'],
+    ['ui/floating-cta.js', '// ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────'],
+    ['features/share-discord.js', '// ─── MODULE: src/features/share-discord.js ────────────────────────────────'],
+    ['features/price-alarm.js', '// ─── MODULE: src/features/price-alarm.js ────────────────────────────────────'],
+    ['features/product-detail.js', '// ─── MODULE: src/features/product-detail.js ─────────────────────────────────'],
+  ];
+  const modules = MODULES.map(([rel, banner]) => ({
+    banner,
+    code: stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, rel), 'utf-8')),
+  }));
+  const blocks = modules.map(m => `  ${m.banner}\n${indent(m.code, 2)}`);
+  // Legacy whitespace quirks kept byte-identical: no blank line before
+  // share-discord, two blank lines before price-alarm, one elsewhere.
+  let modulesBlock = blocks[0];
+  for (let idx = 1; idx < blocks.length; idx++) {
+    const rel = MODULES[idx][0];
+    modulesBlock += (rel === 'features/share-discord.js' ? '\n' : rel === 'features/price-alarm.js' ? '\n\n\n' : '\n\n') + blocks[idx];
+  }
   const rawAppCode = fs.readFileSync(path.join(SRC_DIR, 'app.js'), 'utf-8');
 
   // Strip top imports from app.js
@@ -104,65 +119,7 @@ ${stylesCode}
 (() => {
   'use strict';
 
-  // ─── MODULE: src/page/selectors.js ──────────────────────────────────────────
-${indent(selectorsCode, 2)}
-
-  // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
-${indent(priceCode, 2)}
-
-  // ─── MODULE: src/domain/deal-score.js ───────────────────────────────────────
-${indent(dealScoreCode, 2)}
-
-  // ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────
-${indent(cacheCode, 2)}
-
-  // ─── MODULE: src/state/config.js ────────────────────────────────────────────
-${indent(configCode, 2)}
-
-  // ─── MODULE: src/state/store.js ─────────────────────────────────────────────
-${indent(storeCode, 2)}
-
-  // ─── MODULE: src/page/adapter.js ────────────────────────────────────────────
-${indent(adapterCode, 2)}
-
-  // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
-${indent(cardsCode, 2)}
-
-  // ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────
-${indent(sparklineCode, 2)}
-
-  // ─── MODULE: src/page/sort.js ───────────────────────────────────────────────
-${indent(sortCode, 2)}
-
-  // ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────
-${indent(scannerCode, 2)}
-
-  // ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────
-${indent(badgesCode, 2)}
-
-  // ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────
-${indent(shellCode, 2)}
-
-  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
-${indent(modalCode, 2)}
-
-  // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
-${indent(toastCode, 2)}
-
-  // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
-${indent(toolbarCode, 2)}
-
-  // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
-${indent(floatingCtaCode, 2)}
-  // ─── MODULE: src/features/share-discord.js ────────────────────────────────
-${indent(shareDiscordCode, 2)}
-
-
-  // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
-${indent(priceAlarmCode, 2)}
-
-  // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
-${indent(productDetailCode, 2)}
+${modulesBlock}
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
 ${indent(iifeBody, 0)}

@@ -1,5 +1,7 @@
 from playwright.sync_api import Page
 
+from conftest import open_settings
+
 
 def test_floating_cta_visible_with_unchecked_deals(page: Page):
     cta = page.locator('#tp-floating-check-cta')
@@ -34,9 +36,7 @@ def test_floating_cta_dealer_toggle_syncs_with_settings(page: Page):
     assert 'tp-active' in (row.get_attribute('class') or '')
 
     # Settings modal mirrors the same key without a save round-trip
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    page.click('#tp-root >> #tp-advanced-details > summary')
+    open_settings(page, advanced=True)
     assert page.locator('#tp-root >> #tp-dealer-autofetch-toggle').is_checked()
 
 

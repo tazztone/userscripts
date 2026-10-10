@@ -6,12 +6,24 @@
 
 import { CONFIG } from '../state/config.js';
 import {
-  getCardSortableUnit,
   extractCardData,
   extractCardDiscount,
   extractOfferCount
 } from './cards.js';
 import { computeDealScore, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
+
+function getCardSortableUnit(card) {
+  if (!card) return null;
+  const collItem = card.closest('.Plugin_ProductCollItem');
+  if (collItem) return collItem;
+  const parent = card.parentElement;
+  if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
+    if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
+      return parent;
+    }
+  }
+  return card;
+}
 
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
   if (!cards || cards.length <= 1) return;

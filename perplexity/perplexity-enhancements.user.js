@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Perplexity Enhancements
 // @namespace    https://github.com/tazztone/userscripts
-// @version      1.1.2
+// @version      1.1.3
 // @description  Keeps a preferred Perplexity model active and safely automates agent approvals and GitHub connector enablement.
 // @author       tazztone
 // @match        https://www.perplexity.ai/*
@@ -451,7 +451,6 @@ const SHADOW_STYLES = `
   }
 
   let connectorLock = false;
-  let connectorRoute = location.href;
 
   function runGithub() {
     if (!CONFIG.AUTO_ENABLE_GITHUB || isGithubEnabled() || connectorLock) return;
@@ -578,13 +577,12 @@ const SHADOW_STYLES = `
   let lastUrl = location.href;
   const observer = new MutationObserver(() => {
     try {
-      if (location.href !== lastUrl) { lastUrl = location.href; modelInteraction = false; modelCooldownUntil = 0; connectorLock = false; connectorRoute = lastUrl; }
+      if (location.href !== lastUrl) { lastUrl = location.href; modelInteraction = false; modelCooldownUntil = 0; connectorLock = false; }
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(run, CONFIG.OBSERVER_DEBOUNCE_MS);
     } catch (e) { error('Observer failed:', e); }
   });
-
-  const handleNavigation = () => { lastUrl = location.href; modelInteraction = false; modelCooldownUntil = 0; connectorLock = false; connectorRoute = lastUrl; run(); };
+  const handleNavigation = () => { lastUrl = location.href; modelInteraction = false; modelCooldownUntil = 0; connectorLock = false; run(); };
   if (self.navigation && typeof self.navigation.addEventListener === 'function') self.navigation.addEventListener('navigatesuccess', handleNavigation);
 
   injectStyle('px-enhancements-feature-style', HOST_FEATURE_STYLES);

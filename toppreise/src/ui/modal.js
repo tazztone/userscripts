@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, clampMinPoints, clampIntensity01, syncAllUiControls } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 
@@ -315,17 +315,14 @@ export function setupUI() {
   const importFile = shadow.getElementById('tp-import-config-file');
 
   function syncFieldsFromConfig() {
-    if (advancedDetails) advancedDetails.open = CONFIG.SHOW_ADVANCED === true;
-    if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
-    else if (CONFIG.MODE === 'hide') modeHide.checked = true;
-    else modeDim.checked = true;
+    // Every key syncUiControl covers (radios, toggles, weight, min-points,
+    // threshold, shipping, sparklines, dealer-autofetch, advanced) syncs
+    // through it — toolbar mirrors included. Only modal-only controls below.
+    syncAllUiControls();
     syncOpacityVisibility();
 
     marginRange.value = CONFIG.MARGIN_PERCENT;
     marginVal.value = CONFIG.MARGIN_PERCENT;
-    opacityRange.value = CONFIG.DIM_OPACITY;
-    opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
-    if (shippingToggle) shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
 
     if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
     else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
@@ -345,14 +342,10 @@ export function setupUI() {
 
     alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
 
-    heatmapEnabledToggle.checked = CONFIG.HEATMAP_ENABLED !== false;
     const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
     heatmapIntensityRange.value = heatIntensityPct;
     heatmapIntensityVal.value = heatIntensityPct;
 
-    if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
-    if (hideUncheckedToggle) hideUncheckedToggle.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
-    if (includeVortiefToggle) includeVortiefToggle.checked = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
     if (bestpreiseWeightGroup) {
       bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
     }
@@ -365,15 +358,6 @@ export function setupUI() {
     if (bestpreiseHorizonSelect) {
       bestpreiseHorizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
     }
-    const weightPct = Math.round((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50) * 100);
-    if (bestpreiseWeightRange) bestpreiseWeightRange.value = weightPct;
-    if (bestpreiseWeightVal) bestpreiseWeightVal.value = weightPct;
-    if (bestpreiseWeightDesc) {
-      bestpreiseWeightDesc.textContent = weightText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50), 'desc');
-    }
-    const minPointsNum = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
-    if (bestpreiseMinPointsRange) bestpreiseMinPointsRange.value = minPointsNum;
-    if (bestpreiseMinPointsVal) bestpreiseMinPointsVal.value = minPointsNum;
 
     if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
     if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
@@ -382,10 +366,6 @@ export function setupUI() {
       cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
     }
 
-    if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-    if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-    if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
-    if (dealerAutofetchToggle) dealerAutofetchToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
     if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
   }
 
@@ -504,7 +484,6 @@ export function setupUI() {
         const importConfig = data.config || data;
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
-          if (!(key in DEFAULTS) || key === 'DEBUG') continue;
           if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
           // Coerce to the DEFAULTS type: save clamps, import must not store
           // NaN/garbage (or legacy numeric strings) raw.
@@ -576,7 +555,7 @@ export function setupUI() {
 
     updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
     updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
-    updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));
+    updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(heatmapIntensityVal.value) || 100) / 100);
 
     if (bestpreiseModeToggle) {
       updates.BESTPREISE_MODE_ACTIVE = bestpreiseModeToggle.checked;
@@ -590,8 +569,7 @@ export function setupUI() {
         updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
       }
       if (bestpreiseMinPointsVal) {
-        const rawM = parseInt(bestpreiseMinPointsVal.value, 10);
-        updates.BESTPREISE_MIN_POINTS = Math.max(5, Math.min(100, isNaN(rawM) ? 5 : rawM));
+        updates.BESTPREISE_MIN_POINTS = clampMinPoints(bestpreiseMinPointsVal.value);
       }
     }
     if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;

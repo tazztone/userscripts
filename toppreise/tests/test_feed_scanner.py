@@ -1,5 +1,7 @@
 from playwright.sync_api import Page, expect
 
+from conftest import seed_verified_deal, mock_pricechart
+
 
 
 def test_competing_reference_price_resolves_to_verified_low(page: Page):
@@ -18,35 +20,7 @@ def test_competing_reference_price_resolves_to_verified_low(page: Page):
     # It starts as unchecked
     assert badge.is_visible()
 
-    # Mock the time series endpoint for it
-    def handle_pricechart(route):
-        # Fallback to post_data only if url does not contain it but we know how the mock is set up for fetch
-        if '1003795' in (route.request.post_data or '') or 'p_pc_pid=1003795' in route.request.url:
-            route.fulfill(
-                status=200,
-                headers={'access-control-allow-origin': '*'},
-                content_type='text/html',
-                body='''
-                <div class="PriceChartLegend">
-                  <div class="col-4">
-                    <div class="title">aktueller Toppreis</div>
-                    <div class="Plugin_Price">37.95</div>
-                  </div>
-                  <div class="col-4">
-                    <div class="title">Tiefstpreis</div>
-                    <div class="Plugin_Price">37.95</div>
-                  </div>
-                  <div class="col-4">
-                    <div class="title">Höchstpreis</div>
-                    <div class="Plugin_Price">55.00</div>
-                  </div>
-                </div>
-                '''
-            )
-        else:
-            route.continue_()
-
-    page.route("**/plugins/product/pricechart*", handle_pricechart)
+    mock_pricechart(page, {'1003795': (37.95, 55.00)})
 
     # Click to verify
     badge.click()
@@ -142,41 +116,7 @@ def test_price_alarm_automation(page: Page):
 
 
 def test_real_deal_on_demand_check_and_badges(page: Page):
-    # Setup mock network route for price chart HTML
-    def handle_pricechart(route):
-        url = route.request.url
-        if 'p_pc_pid=797571' in url:
-            # Card 1 (1800.00 CHF) -> Tiefstpreis is 1800.00 CHF (All-time low)
-            route.fulfill(
-                status=200,
-                headers={'access-control-allow-origin': '*'},
-                content_type='text/html',
-                body='''
-                <div class="PriceChartLegend">
-                  <div class="col-4"><div class="title">aktueller Toppreis</div><div class="Plugin_Price">1800.00</div></div>
-                  <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>
-                  <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">2400.00</div></div>
-                </div>
-                '''
-            )
-        elif 'p_pc_pid=797573' in url:
-            # Card 3 (15.00 CHF) -> Tiefstpreis was 10.00 CHF (Non-bestpreis)
-            route.fulfill(
-                status=200,
-                headers={'access-control-allow-origin': '*'},
-                content_type='text/html',
-                body='''
-                <div class="PriceChartLegend">
-                  <div class="col-4"><div class="title">aktueller Toppreis</div><div class="Plugin_Price">15.00</div></div>
-                  <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">10.00</div></div>
-                  <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">25.00</div></div>
-                </div>
-                '''
-            )
-        else:
-            route.fulfill(status=404, headers={'access-control-allow-origin': '*'}, body='Not Found')
-
-    page.route('**/plugins/product/pricechart*', handle_pricechart)
+    mock_pricechart(page, {'797571': (1800, 2400), '797573': (10, 25)})
 
     # 1. On Card 1 (RTX 4090, 1800.00 CHF): click on-demand Differenz badge
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-badge-interactive')
@@ -261,40 +201,7 @@ def test_mode_hides_non_bestpreis(page: Page):
 
 
 def test_real_deal_not_low_tooltip_is_trimmed(page: Page):
-    def handle_pricechart(route):
-        url = route.request.url
-        if 'p_pc_pid=797571' in url:
-            # Card 1 (1800.00 CHF, Tiefstpreis 1800.00 CHF, Höchstpreis 2400.00 CHF -> -25% drop)
-            route.fulfill(
-                status=200,
-                headers={'access-control-allow-origin': '*'},
-                content_type='text/html',
-                body='''
-                <div class="PriceChartLegend">
-                  <div class="col-4"><div class="title">aktueller Toppreis</div><div class="Plugin_Price">1800.00</div></div>
-                  <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>
-                  <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">2400.00</div></div>
-                </div>
-                '''
-            )
-        elif 'p_pc_pid=797573' in url:
-            # Card 3 (15.00 CHF, Tiefstpreis 10.00 CHF, Höchstpreis 25.00 CHF)
-            route.fulfill(
-                status=200,
-                headers={'access-control-allow-origin': '*'},
-                content_type='text/html',
-                body='''
-                <div class="PriceChartLegend">
-                  <div class="col-4"><div class="title">aktueller Toppreis</div><div class="Plugin_Price">15.00</div></div>
-                  <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">10.00</div></div>
-                  <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">25.00</div></div>
-                </div>
-                '''
-            )
-        else:
-            route.fulfill(status=404, headers={'access-control-allow-origin': '*'}, body='Not Found')
-
-    page.route('**/plugins/product/pricechart*', handle_pricechart)
+    mock_pricechart(page, {'797571': (1800, 2400), '797573': (10, 25)})
 
     # Check Card 1
     page.wait_for_selector('#card-cheapest .badge-dif')
@@ -331,13 +238,7 @@ def test_real_deal_dom_memoization_and_cache_pruning(page: Page):
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('fresh999', JSON.parse(localStorage.getItem('tp_hist_v1_fresh999')));
     }''')
 
-    # Trigger setCachedPriceStats by mocking a route and clicking check badge
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
 
     page.wait_for_selector('#card-cheapest .badge-dif')
     page.click('#card-cheapest .badge-dif')
@@ -363,17 +264,7 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
     assert 'tp-is-unverified' in (card1.locator('.badge-dif').get_attribute('class') or '')
     assert 'tp-is-unverified' in (card3.locator('.badge-dif').get_attribute('class') or '')
 
-    # Mock routes
-    def handle_pricechart(route):
-        url = route.request.url
-        if 'p_pc_pid=797571' in url:
-            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>')
-        elif 'p_pc_pid=797573' in url:
-            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">10.00</div></div>')
-        else:
-            route.fulfill(status=404, headers={'access-control-allow-origin': '*'}, body='Not Found')
-
-    page.route('**/plugins/product/pricechart*', handle_pricechart)
+    mock_pricechart(page, {'797571': 1800, '797573': 10})
 
     # Check card 1 (verified all-time low, no median) -> stays neutral: the
     # striped-gray Differenz ribbon becomes a verified Tiefstpreis badge, and

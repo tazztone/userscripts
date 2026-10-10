@@ -10,15 +10,6 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
-def bump_version_string(match):
-    prefix = match.group(1)
-    major = match.group(2)
-    minor = match.group(3)
-    patch = int(match.group(4)) + 1
-    new_ver = f"{major}.{minor}.{patch}"
-    return f"{prefix}{new_ver}", new_ver
-
-
 def process_script(script_relpath):
     script_abspath = os.path.join(REPO_ROOT, script_relpath)
     if not os.path.exists(script_abspath):
@@ -37,7 +28,7 @@ def process_script(script_relpath):
     if not match:
         return
 
-    new_content, new_version = re.subn(
+    new_content = re.sub(
         pattern,
         lambda m: f"{m.group(1)}{m.group(2)}.{m.group(3)}.{int(m.group(4)) + 1}",
         content,

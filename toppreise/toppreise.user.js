@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.143
+// @version      2.18.144
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1550,6 +1550,10 @@ const SHADOW_MODAL_STYLES = `
 
 
   const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
+  // Canonical discount/markup shapes: every call site already checks direction,
+  // so no internal guards. Keep `|| 0` fallbacks at call sites.
+  const pctDrop = (base, price) => Math.round(((base - price) / base) * 100);
+  const pctRise = (base, price) => Math.round(((price - base) / base) * 100);
 
   // True median: odd n takes the middle, even n averages the two middle
   // values (no upper-median bias from floor(n/2) indexing).
@@ -1817,11 +1821,11 @@ const SHADOW_MODAL_STYLES = `
     const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
 
     const realDiscountVsPrevLow = (previousLow > 0 && isNewAllTimeLow)
-      ? Math.round(((previousLow - curr) / previousLow) * 100)
+      ? pctDrop(previousLow, curr)
       : 0;
 
     const realDiscountVsMedian = (medianPrice > curr)
-      ? Math.round(((medianPrice - curr) / medianPrice) * 100)
+      ? pctDrop(medianPrice, curr)
       : 0;
 
     return {
@@ -1886,8 +1890,7 @@ const SHADOW_MODAL_STYLES = `
     // History Qualification Gate:
     // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
     const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
-    const rawMin = typeof CONFIG.BESTPREISE_MIN_POINTS === 'number' ? CONFIG.BESTPREISE_MIN_POINTS : parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10);
-    const minPoints = Number.isFinite(rawMin) ? Math.max(5, Math.min(100, Math.round(rawMin))) : 5;
+    const minPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
     if (pointsCount < minPoints) return null;
     if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
         ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
@@ -1905,12 +1908,12 @@ const SHADOW_MODAL_STYLES = `
     // Defensive fallback chain: series stats always carry a median; only
     // exotic hand-built stats fall through to the mean (or 0 = unscorable).
     const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
-      ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100)
+      ? pctDrop(stats.medianPrice, cardPrice)
       : (stats.realDiscountVsMedian || 0);
 
     const prevLow = liveRec.previousLow;
     const dRecord = (isNewRecord && prevLow && prevLow > cardPrice)
-      ? Math.round(((prevLow - cardPrice) / prevLow) * 100)
+      ? pctDrop(prevLow, cardPrice)
       : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
     const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
@@ -1973,7 +1976,7 @@ const SHADOW_MODAL_STYLES = `
     }
     return {
       kind: 'above-low',
-      markup: Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)
+      markup: pctRise(stats.tiefstpreis, cardPrice)
     };
   }
 
@@ -1996,7 +1999,7 @@ const SHADOW_MODAL_STYLES = `
     const display = getDisplayDelta(cardPrice, stats);
     if (display.kind === 'new-low') return display.dRecord || 0;
     if (display.kind === 'at-low' && display.prevLow > cardPrice) {
-      return Math.round(((display.prevLow - cardPrice) / display.prevLow) * 100);
+      return pctDrop(display.prevLow, cardPrice);
     }
     return 0;
   }
@@ -2106,6 +2109,12 @@ const SHADOW_MODAL_STYLES = `
   const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX];
   const MAX_MEMORY_CACHE_ITEMS = 500;
 
+  function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
+    map.delete(key);
+    map.set(key, val);
+    if (map.size > cap) map.delete(map.keys().next().value);
+  }
+
   const memoryCache = new Map();
 
   function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
@@ -2158,12 +2167,6 @@ const SHADOW_MODAL_STYLES = `
     } catch (e) {}
   }
 
-  function evictIfFull() {
-    if (memoryCache.size > MAX_MEMORY_CACHE_ITEMS) {
-      memoryCache.delete(memoryCache.keys().next().value);
-    }
-  }
-
   function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     if (!productId) return null;
     // Mode guard: the series is picked per shipping mode at fetch time and the
@@ -2185,8 +2188,7 @@ const SHADOW_MODAL_STYLES = `
             memoryCache.delete(productId);
           } else {
             // LRU update
-            memoryCache.delete(productId);
-            memoryCache.set(productId, memData);
+            lruSet(memoryCache, productId, memData);
             return memData;
           }
         } else {
@@ -2200,8 +2202,7 @@ const SHADOW_MODAL_STYLES = `
 
       if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
         if (!isModeMatch(parsed)) return null;
-        memoryCache.set(productId, parsed);
-        evictIfFull();
+        lruSet(memoryCache, productId, parsed);
         return parsed;
       }
     } catch (e) {}
@@ -2222,8 +2223,7 @@ const SHADOW_MODAL_STYLES = `
       ? { unavailable: true, time: Date.now() }
       : { ...stats, time: Date.now() };
 
-    memoryCache.set(productId, payload);
-    evictIfFull();
+    lruSet(memoryCache, productId, payload);
 
     try {
       prunePriceStatsCache(storage);
@@ -2409,6 +2409,11 @@ const SHADOW_MODAL_STYLES = `
   }
   migrateLegacyDebug();
 
+  // Shared clamps: single source for the min-points (5–100 data points) and
+  // heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
+  const clampMinPoints = v => Math.max(5, Math.min(100, Math.round(parseInt(v, 10) || 5)));
+  const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
+
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
     FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
@@ -2517,7 +2522,7 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'BESTPREISE_MIN_POINTS': {
-            const num = Math.max(5, Math.min(100, parseInt(val, 10) || 5));
+            const num = clampMinPoints(val);
             const range = shadow.getElementById('tp-bestpreise-minpoints-range');
             const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
             if (range) range.value = num;
@@ -2657,6 +2662,13 @@ const SHADOW_MODAL_STYLES = `
         }
       }
     }
+  }
+
+  // Full-form refresh: replays every CONFIG key through the single-control
+  // sync above. Used by the settings modal on open/import/reset instead of
+  // duplicating per-key assignments for keys syncUiControl already covers.
+  function syncAllUiControls(keys = Object.keys(CONFIG)) {
+    for (const k of keys) syncUiControl(k, CONFIG[k]);
   }
 
   function updateConfig(key, val, options = {}) {
@@ -2881,7 +2893,7 @@ const SHADOW_MODAL_STYLES = `
     const linkEls = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
     const hrefs = Array.from(new Set(linkEls.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
     for (const href of hrefs) {
-      const match = href.match(/-p(\d+)/);
+      const match = href.match(/-p(\d+)/i);
       if (match && match[1]) {
         if (card.dataset) card.dataset.tpProductId = match[1];
         return match[1];
@@ -2967,11 +2979,16 @@ const SHADOW_MODAL_STYLES = `
     return Math.max(0, Math.min(1, -Math.min(0, Math.max(-100, diff)) / 100));
   }
 
-  function getHeatmapStyles(diffPercent, intensity = 1.0) {
-    const t = heatT(diffPercent);
+  const heatColor = (diff, intensity) => {
+    const t = heatT(diff);
     if (t === null) return null;
-    const { base, acc, borderRgb, borderAlpha } = heatRamp(t);
-    const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+    return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
+  };
+
+  function getHeatmapStyles(diffPercent, intensity = 1.0) {
+    const c = heatColor(diffPercent, intensity);
+    if (!c) return null;
+    const { t, base, acc, borderRgb, borderAlpha, safeInt } = c;
     const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
     const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
     const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
@@ -2984,10 +3001,9 @@ const SHADOW_MODAL_STYLES = `
   // paints past the border box and bleeds onto neighboring cards — inset
   // clips at the card's own edge by construction, no per-layout tuning.
   function getEdgeHeatStyle(dropPct, intensity = 1.0) {
-    const t = heatT(-Math.abs(dropPct));
-    if (t === null) return null;
-    const { acc, borderRgb, borderAlpha } = heatRamp(t);
-    const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+    const c = heatColor(-Math.abs(dropPct), intensity);
+    if (!c) return null;
+    const { acc, borderRgb, borderAlpha, safeInt } = c;
     return {
       border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
       glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
@@ -3000,10 +3016,9 @@ const SHADOW_MODAL_STYLES = `
   // paints them striped-gray instead). At full intensity verified output is
   // identical to the legacy fixed alphas.
   function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
-    const t = heatT(diffPercent);
-    if (t === null) return null;
-    const { acc, borderRgb, borderAlpha } = heatRamp(t);
-    const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+    const c = heatColor(diffPercent, intensity);
+    if (!c) return null;
+    const { acc, borderRgb, borderAlpha, safeInt } = c;
     const alpha = (provisional ? 0.55 : 0.95) * safeInt;
     return {
       background: `rgba(${acc.join(',')},${alpha.toFixed(2)})`,
@@ -3030,7 +3045,6 @@ const SHADOW_MODAL_STYLES = `
     const cardPriceEl = priceData.el;
     const cardPrice = priceData.price;
     const stats = pid ? getCachedPriceStats(pid) : null;
-    const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
     const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
@@ -3045,7 +3059,6 @@ const SHADOW_MODAL_STYLES = `
       cardPriceEl,
       cardPrice,
       stats,
-      isVerifiedNonBest,
       diffVal,
       discountVal,
       dealScore,
@@ -3146,19 +3159,6 @@ const SHADOW_MODAL_STYLES = `
     if (!causeHit(f)) return legacyChecks();
     if (opts?.includeHiddenUnchecked === true) return true;
     return displayHidden(f);
-  }
-
-  function getCardSortableUnit(card) {
-    if (!card) return null;
-    const collItem = card.closest('.Plugin_ProductCollItem');
-    if (collItem) return collItem;
-    const parent = card.parentElement;
-    if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
-      if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
-        return parent;
-      }
-    }
-    return card;
   }
 
   // ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────
@@ -3400,6 +3400,19 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+  function getCardSortableUnit(card) {
+    if (!card) return null;
+    const collItem = card.closest('.Plugin_ProductCollItem');
+    if (collItem) return collItem;
+    const parent = card.parentElement;
+    if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
+      if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
+        return parent;
+      }
+    }
+    return card;
+  }
 
   function applySorting(cards, pageHasOffers, cardDataList = null) {
     if (!cards || cards.length <= 1) return;
@@ -3954,9 +3967,7 @@ const SHADOW_MODAL_STYLES = `
   const dealerAutoTried = new Set();
   const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
   function rememberDealer(dKey, value) {
-    dealerCache.delete(dKey);
-    dealerCache.set(dKey, value);
-    if (dealerCache.size > MAX_MEMORY_CACHE_ITEMS) dealerCache.delete(dealerCache.keys().next().value);
+    lruSet(dealerCache, dKey, value);
   }
   function clearDealerMemory() {
     dealerCache.clear();
@@ -4414,7 +4425,8 @@ const SHADOW_MODAL_STYLES = `
           const liveRec = recordRefForPrice(stats, cardPrice);
           const isNewRecord = (displayKind === 'new-low') || (isAllTimeLow && liveRec.isNewRecord);
           const prevLow = liveRec.previousLow;
-          const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
+          const realDropVsPrev = prevLow && prevLow > cardPrice ? pctDrop(prevLow, cardPrice) : (stats.realDiscountVsPrevLow || 0);
+          const markupPct = isNonBest ? pctRise(stats.tiefstpreis, cardPrice) : 0;
 
           // Strictness lives in the mode now: outside it, verified non-deals
           // stay visible with a truthful Aufschlag badge.
@@ -4466,7 +4478,6 @@ const SHADOW_MODAL_STYLES = `
             }
           } else {
             // 2A: Verified Non-Tiefstpreis (Amber Alert Morph with Shrunken Strikethrough)
-            const markupPct = Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100);
             const isSevere = markupPct >= 50;
 
             badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
@@ -4499,11 +4510,11 @@ const SHADOW_MODAL_STYLES = `
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             histPriceEl.className = 'tp-card-historical-price tp-is-markup';
             setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
-            setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)}% Aufschlag)`);
+            setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`);
           } else if (showPrevLow || showMedianLine) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             const parts = [];
-            const dMedBrowse = showMedianLine ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100) : 0;
+            const dMedBrowse = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
             if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${isNewRecord ? ` (-${realDropVsPrev}%)` : ''}`);
             if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
             histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
@@ -4511,7 +4522,7 @@ const SHADOW_MODAL_STYLES = `
             if (isNewRecord && showPrevLow) {
               setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)${showMedianLine ? ` · Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}` : ''}`);
             } else {
-              const dMedian = showMedianLine ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100) : 0;
+              const dMedian = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
               setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`);
             }
           } else if (histPriceEl) {
@@ -5241,17 +5252,14 @@ const SHADOW_MODAL_STYLES = `
     const importFile = shadow.getElementById('tp-import-config-file');
 
     function syncFieldsFromConfig() {
-      if (advancedDetails) advancedDetails.open = CONFIG.SHOW_ADVANCED === true;
-      if (CONFIG.MODE === 'highlight-only') modeHighlight.checked = true;
-      else if (CONFIG.MODE === 'hide') modeHide.checked = true;
-      else modeDim.checked = true;
+      // Every key syncUiControl covers (radios, toggles, weight, min-points,
+      // threshold, shipping, sparklines, dealer-autofetch, advanced) syncs
+      // through it — toolbar mirrors included. Only modal-only controls below.
+      syncAllUiControls();
       syncOpacityVisibility();
 
       marginRange.value = CONFIG.MARGIN_PERCENT;
       marginVal.value = CONFIG.MARGIN_PERCENT;
-      opacityRange.value = CONFIG.DIM_OPACITY;
-      opacityVal.value = Math.round(CONFIG.DIM_OPACITY * 100);
-      if (shippingToggle) shippingToggle.checked = CONFIG.USE_SHIPPING_PRICE;
 
       if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
       else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
@@ -5271,14 +5279,10 @@ const SHADOW_MODAL_STYLES = `
 
       alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
 
-      heatmapEnabledToggle.checked = CONFIG.HEATMAP_ENABLED !== false;
       const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
       heatmapIntensityRange.value = heatIntensityPct;
       heatmapIntensityVal.value = heatIntensityPct;
 
-      if (bestpreiseModeToggle) bestpreiseModeToggle.checked = CONFIG.BESTPREISE_MODE_ACTIVE === true;
-      if (hideUncheckedToggle) hideUncheckedToggle.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
-      if (includeVortiefToggle) includeVortiefToggle.checked = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
       if (bestpreiseWeightGroup) {
         bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
       }
@@ -5291,15 +5295,6 @@ const SHADOW_MODAL_STYLES = `
       if (bestpreiseHorizonSelect) {
         bestpreiseHorizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
       }
-      const weightPct = Math.round((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50) * 100);
-      if (bestpreiseWeightRange) bestpreiseWeightRange.value = weightPct;
-      if (bestpreiseWeightVal) bestpreiseWeightVal.value = weightPct;
-      if (bestpreiseWeightDesc) {
-        bestpreiseWeightDesc.textContent = weightText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50), 'desc');
-      }
-      const minPointsNum = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
-      if (bestpreiseMinPointsRange) bestpreiseMinPointsRange.value = minPointsNum;
-      if (bestpreiseMinPointsVal) bestpreiseMinPointsVal.value = minPointsNum;
 
       if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
       if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
@@ -5308,10 +5303,6 @@ const SHADOW_MODAL_STYLES = `
         cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
       }
 
-      if (realDealMinRange) realDealMinRange.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      if (realDealMinVal) realDealMinVal.value = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
-      if (sparklinesToggle) sparklinesToggle.checked = CONFIG.ENABLE_SPARKLINES === true;
-      if (dealerAutofetchToggle) dealerAutofetchToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
       if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
     }
 
@@ -5430,7 +5421,6 @@ const SHADOW_MODAL_STYLES = `
           const importConfig = data.config || data;
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
-            if (!(key in DEFAULTS) || key === 'DEBUG') continue;
             if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
             // Coerce to the DEFAULTS type: save clamps, import must not store
             // NaN/garbage (or legacy numeric strings) raw.
@@ -5502,7 +5492,7 @@ const SHADOW_MODAL_STYLES = `
 
       updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
       updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
-      updates.HEATMAP_INTENSITY = Math.max(0.2, Math.min(1.0, (parseInt(heatmapIntensityVal.value) || 100) / 100));
+      updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(heatmapIntensityVal.value) || 100) / 100);
 
       if (bestpreiseModeToggle) {
         updates.BESTPREISE_MODE_ACTIVE = bestpreiseModeToggle.checked;
@@ -5516,8 +5506,7 @@ const SHADOW_MODAL_STYLES = `
           updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
         }
         if (bestpreiseMinPointsVal) {
-          const rawM = parseInt(bestpreiseMinPointsVal.value, 10);
-          updates.BESTPREISE_MIN_POINTS = Math.max(5, Math.min(100, isNaN(rawM) ? 5 : rawM));
+          updates.BESTPREISE_MIN_POINTS = clampMinPoints(bestpreiseMinPointsVal.value);
         }
       }
       if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
@@ -5739,7 +5728,7 @@ const SHADOW_MODAL_STYLES = `
     const range = wrapper.querySelector('#tp-bar-minpoints-range');
     const label = wrapper.querySelector('#tp-bar-minpoints-label');
     if (!range) return;
-    const readNum = () => Math.max(5, Math.min(100, parseInt(range.value, 10) || 5));
+    const readNum = () => clampMinPoints(range.value);
     const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
     paint();
     range.oninput = () => {
@@ -5757,7 +5746,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function buildMinPointsWrapper() {
-    const cur = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+    const cur = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
     const wrapper = document.createElement('div');
     wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
     wrapper.id = 'tp-bar-minpoints-wrapper';
@@ -5982,7 +5971,7 @@ const SHADOW_MODAL_STYLES = `
     if (vortiefWrapper) {
       vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
-    const curMinPoints = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+    const curMinPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
     const minPointsRange = document.getElementById('tp-bar-minpoints-range');
     if (minPointsRange && document.activeElement !== minPointsRange) {
       minPointsRange.value = curMinPoints;
@@ -6636,6 +6625,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   async function processProductDetailPage() {
     const pid = getDetailProductId();
     if (!pid) return;
@@ -6671,13 +6661,13 @@ const SHADOW_MODAL_STYLES = `
         badge.className = 'tp-detail-deal-badge tp-is-alltime-low';
         let peakContext = '';
         if (hasSignificantPeak) {
-          const peakDropPct = Math.round(((stats.hoechstpreis - currentPrice) / stats.hoechstpreis) * 100);
+          const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
           peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
         }
         badge.title = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
         badge.textContent = '🌟 Allzeit-Tiefstpreis';
       } else {
-        const markupPct = Math.round(((currentPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100);
+        const markupPct = pctRise(stats.tiefstpreis, currentPrice);
         const isSevere = markupPct >= 50;
         badge.className = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
         const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';

@@ -15,7 +15,7 @@ import {
   getCardProductId
 } from '../page/cards.js';
 import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
-import { extractCanonicalPrice, parsePrice, priceToCents, recordRefForPrice } from '../domain/price.js';
+import { extractCanonicalPrice, parsePrice, pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../domain/deal-score.js';
 import {
   fetchSingleProductPriceStats,
@@ -23,7 +23,7 @@ import {
 } from '../scanner/scanner.js';
 import { startBatchCheck } from './floating-cta.js';
 import { scanState } from '../state/store.js';
-import { getCachedPriceStats, getCachedDealer, setCachedDealer, MAX_MEMORY_CACHE_ITEMS } from '../scanner/cache.js';
+import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline, openSparklinePopout } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
@@ -85,9 +85,7 @@ const dealerHydrated = new Set();
 const dealerAutoTried = new Set();
 export const dealerCacheKey = (pid, useShipping) => `${pid}:${useShipping ? 's' : 'p'}`;
 function rememberDealer(dKey, value) {
-  dealerCache.delete(dKey);
-  dealerCache.set(dKey, value);
-  if (dealerCache.size > MAX_MEMORY_CACHE_ITEMS) dealerCache.delete(dealerCache.keys().next().value);
+  lruSet(dealerCache, dKey, value);
 }
 export function clearDealerMemory() {
   dealerCache.clear();
@@ -545,7 +543,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         const liveRec = recordRefForPrice(stats, cardPrice);
         const isNewRecord = (displayKind === 'new-low') || (isAllTimeLow && liveRec.isNewRecord);
         const prevLow = liveRec.previousLow;
-        const realDropVsPrev = prevLow && prevLow > cardPrice ? Math.round(((prevLow - cardPrice) / prevLow) * 100) : (stats.realDiscountVsPrevLow || 0);
+        const realDropVsPrev = prevLow && prevLow > cardPrice ? pctDrop(prevLow, cardPrice) : (stats.realDiscountVsPrevLow || 0);
+        const markupPct = isNonBest ? pctRise(stats.tiefstpreis, cardPrice) : 0;
 
         // Strictness lives in the mode now: outside it, verified non-deals
         // stay visible with a truthful Aufschlag badge.
@@ -597,7 +596,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           }
         } else {
           // 2A: Verified Non-Tiefstpreis (Amber Alert Morph with Shrunken Strikethrough)
-          const markupPct = Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100);
           const isSevere = markupPct >= 50;
 
           badgeDifEl.classList.add('tp-deal-not-low', 'tp-deal-badge-interactive');
@@ -630,11 +628,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);
           histPriceEl.className = 'tp-card-historical-price tp-is-markup';
           setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
-          setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${Math.round(((cardPrice - stats.tiefstpreis) / stats.tiefstpreis) * 100)}% Aufschlag)`);
+          setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`);
         } else if (showPrevLow || showMedianLine) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);
           const parts = [];
-          const dMedBrowse = showMedianLine ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100) : 0;
+          const dMedBrowse = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
           if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${isNewRecord ? ` (-${realDropVsPrev}%)` : ''}`);
           if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
           histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
@@ -642,7 +640,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           if (isNewRecord && showPrevLow) {
             setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)${showMedianLine ? ` · Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}` : ''}`);
           } else {
-            const dMedian = showMedianLine ? Math.round(((stats.medianPrice - cardPrice) / stats.medianPrice) * 100) : 0;
+            const dMedian = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
             setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`);
           }
         } else if (histPriceEl) {

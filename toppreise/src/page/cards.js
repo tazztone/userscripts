@@ -5,8 +5,8 @@
  */
 
 import { SELECTORS } from './selectors.js';
-import { CONFIG } from '../state/config.js';
-import { extractCanonicalPrice, parsePrice, priceToCents } from '../domain/price.js';
+import { CONFIG, clampIntensity01 } from '../state/config.js';
+import { extractCanonicalPrice, parsePrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta } from '../domain/deal-score.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { isShippingPriceActive } from './adapter.js';
@@ -85,7 +85,7 @@ export function getCardProductId(card) {
   const linkEls = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
   const hrefs = Array.from(new Set(linkEls.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
   for (const href of hrefs) {
-    const match = href.match(/-p(\d+)/);
+    const match = href.match(/-p(\d+)/i);
     if (match && match[1]) {
       if (card.dataset) card.dataset.tpProductId = match[1];
       return match[1];
@@ -171,11 +171,16 @@ function heatT(diffPercent) {
   return Math.max(0, Math.min(1, -Math.min(0, Math.max(-100, diff)) / 100));
 }
 
-export function getHeatmapStyles(diffPercent, intensity = 1.0) {
-  const t = heatT(diffPercent);
+const heatColor = (diff, intensity) => {
+  const t = heatT(diff);
   if (t === null) return null;
-  const { base, acc, borderRgb, borderAlpha } = heatRamp(t);
-  const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+  return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
+};
+
+export function getHeatmapStyles(diffPercent, intensity = 1.0) {
+  const c = heatColor(diffPercent, intensity);
+  if (!c) return null;
+  const { t, base, acc, borderRgb, borderAlpha, safeInt } = c;
   const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
   const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
   const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
@@ -188,10 +193,9 @@ export function getHeatmapStyles(diffPercent, intensity = 1.0) {
 // paints past the border box and bleeds onto neighboring cards — inset
 // clips at the card's own edge by construction, no per-layout tuning.
 export function getEdgeHeatStyle(dropPct, intensity = 1.0) {
-  const t = heatT(-Math.abs(dropPct));
-  if (t === null) return null;
-  const { acc, borderRgb, borderAlpha } = heatRamp(t);
-  const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+  const c = heatColor(-Math.abs(dropPct), intensity);
+  if (!c) return null;
+  const { acc, borderRgb, borderAlpha, safeInt } = c;
   return {
     border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
     glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
@@ -204,10 +208,9 @@ export function getEdgeHeatStyle(dropPct, intensity = 1.0) {
 // paints them striped-gray instead). At full intensity verified output is
 // identical to the legacy fixed alphas.
 export function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
-  const t = heatT(diffPercent);
-  if (t === null) return null;
-  const { acc, borderRgb, borderAlpha } = heatRamp(t);
-  const safeInt = Math.max(0.2, Math.min(1.0, intensity));
+  const c = heatColor(diffPercent, intensity);
+  if (!c) return null;
+  const { acc, borderRgb, borderAlpha, safeInt } = c;
   const alpha = (provisional ? 0.55 : 0.95) * safeInt;
   return {
     background: `rgba(${acc.join(',')},${alpha.toFixed(2)})`,
@@ -234,7 +237,6 @@ export function extractCardData(card) {
   const cardPriceEl = priceData.el;
   const cardPrice = priceData.price;
   const stats = pid ? getCachedPriceStats(pid) : null;
-  const isVerifiedNonBest = !!(stats && cardPrice > 0 && stats.tiefstpreis > 0 && priceToCents(cardPrice) > priceToCents(stats.tiefstpreis));
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
   const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
@@ -249,7 +251,6 @@ export function extractCardData(card) {
     cardPriceEl,
     cardPrice,
     stats,
-    isVerifiedNonBest,
     diffVal,
     discountVal,
     dealScore,
@@ -352,15 +353,3 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   return displayHidden(f);
 }
 
-export function getCardSortableUnit(card) {
-  if (!card) return null;
-  const collItem = card.closest('.Plugin_ProductCollItem');
-  if (collItem) return collItem;
-  const parent = card.parentElement;
-  if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
-    if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
-      return parent;
-    }
-  }
-  return card;
-}

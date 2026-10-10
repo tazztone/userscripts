@@ -8,6 +8,10 @@ import { CONFIG } from '../state/config.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 
 export const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
+// Canonical discount/markup shapes: every call site already checks direction,
+// so no internal guards. Keep `|| 0` fallbacks at call sites.
+export const pctDrop = (base, price) => Math.round(((base - price) / base) * 100);
+export const pctRise = (base, price) => Math.round(((price - base) / base) * 100);
 
 // True median: odd n takes the middle, even n averages the two middle
 // values (no upper-median bias from floor(n/2) indexing).
@@ -275,11 +279,11 @@ export function analyzePriceTimeSeries(series, currentPrice = null) {
   const isNewAllTimeLow = previousLow > 0 && priceToCents(curr) < priceToCents(previousLow);
 
   const realDiscountVsPrevLow = (previousLow > 0 && isNewAllTimeLow)
-    ? Math.round(((previousLow - curr) / previousLow) * 100)
+    ? pctDrop(previousLow, curr)
     : 0;
 
   const realDiscountVsMedian = (medianPrice > curr)
-    ? Math.round(((medianPrice - curr) / medianPrice) * 100)
+    ? pctDrop(medianPrice, curr)
     : 0;
 
   return {

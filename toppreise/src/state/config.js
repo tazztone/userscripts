@@ -114,6 +114,11 @@ export function migrateLegacyDebug() {
 }
 migrateLegacyDebug();
 
+// Shared clamps: single source for the min-points (5–100 data points) and
+// heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
+export const clampMinPoints = v => Math.max(5, Math.min(100, Math.round(parseInt(v, 10) || 5)));
+export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
+
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
@@ -222,7 +227,7 @@ export function syncUiControl(key, val) {
           break;
         }
         case 'BESTPREISE_MIN_POINTS': {
-          const num = Math.max(5, Math.min(100, parseInt(val, 10) || 5));
+          const num = clampMinPoints(val);
           const range = shadow.getElementById('tp-bestpreise-minpoints-range');
           const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
           if (range) range.value = num;
@@ -362,6 +367,13 @@ export function syncUiControl(key, val) {
       }
     }
   }
+}
+
+// Full-form refresh: replays every CONFIG key through the single-control
+// sync above. Used by the settings modal on open/import/reset instead of
+// duplicating per-key assignments for keys syncUiControl already covers.
+export function syncAllUiControls(keys = Object.keys(CONFIG)) {
+  for (const k of keys) syncUiControl(k, CONFIG[k]);
 }
 
 export function updateConfig(key, val, options = {}) {
