@@ -217,6 +217,7 @@ def test_config_import_ignores_unknown_and_debug_keys(page: Page):
     open_settings(page)
 
     page.evaluate("""() => {
+        if (window.ToppreiseSuite) window.ToppreiseSuite.CONFIG.DEBUG = true;
         const shadow = document.getElementById('tp-root').shadowRoot;
         const fileInput = shadow.getElementById('tp-import-config-file');
         const payload = {

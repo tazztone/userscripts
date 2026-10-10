@@ -10,10 +10,10 @@
  * Main doc consumes via :root, shadow modal via :host.
  */
 export const TP_TOKEN_VARS = `
-  --tp-bg: #1e293b;
-  --tp-panel: rgba(15, 23, 42, 0.6);
-  --tp-line: #334155;
-  --tp-line-soft: #475569;
+  --tp-bg: #0f172a;
+  --tp-panel: rgba(15, 23, 42, 0.75);
+  --tp-line: rgba(255, 255, 255, 0.09);
+  --tp-line-soft: rgba(255, 255, 255, 0.16);
   --tp-txt: #f8fafc;
   --tp-txt-mid: #e2e8f0;
   --tp-txt-dim: #cbd5e1;
@@ -35,7 +35,7 @@ export const TP_TOKEN_VARS = `
   --tp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --tp-r-sm: 6px;
   --tp-r-md: 8px;
-  --tp-r-lg: 10px;
+  --tp-r-lg: 12px;
   --tp-r-pill: 999px;
   --tp-fs-xs: 10px;
   --tp-fs-sm: 11px;
@@ -268,10 +268,12 @@ export const STYLES = `
     text-align: center !important;
     z-index: 15 !important;
     box-sizing: border-box !important;
-    background: rgba(30, 41, 59, 0.88) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(15, 23, 42, 0.90) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
     color: #f1f5f9 !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
   }
   .badge.badge-dif.tp-injected-badge .text,
   .badge-dif.tp-injected-badge .text {
@@ -449,16 +451,24 @@ export const STYLES = `
     padding: 2px 4px !important;
     font-size: 13px !important;
     line-height: 1 !important;
-    background: rgba(51,65,85,0.85) !important;
-    border: 1px solid #334155 !important;
-    border-radius: 8px !important;
+    background: rgba(15, 23, 42, 0.88) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
     cursor: pointer !important;
+    transition: all 0.15s ease !important;
   }
   .tp-deal-pill + button.tp-loupe {
     position: static !important;
     margin-left: 8px !important;
   }
-  button.tp-loupe:hover { background: #334155 !important; }
+  button.tp-loupe:hover {
+    background: rgba(51, 65, 85, 0.95) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    transform: scale(1.05) !important;
+  }
   button.tp-loupe:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .badge.badge-dif.tp-deal-loading,
   .badge-dif.tp-deal-loading {
@@ -879,13 +889,15 @@ export const STYLES = `
     margin: 8px auto 12px !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    background: var(--tp-bg) !important;
+    background: rgba(15, 23, 42, 0.94) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-lg) !important;
     padding: 8px 12px !important;
     color: var(--tp-txt) !important;
     font-family: var(--tp-font) !important;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.2) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 8px !important;
@@ -902,9 +914,9 @@ export const STYLES = `
     display: inline-flex !important;
     align-items: center !important;
     gap: 8px !important;
-    background: rgba(15,23,42,0.35) !important;
-    border: 1px solid rgba(255,255,255,0.07) !important;
-    border-radius: var(--tp-r-lg) !important;
+    background: rgba(255, 255, 255, 0.035) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: var(--tp-r-md) !important;
     padding: 4px 8px !important;
     min-width: 0 !important;
   }
@@ -972,26 +984,28 @@ export const STYLES = `
   }
   #tp-clear-neg-btn:hover { color: var(--tp-rose) !important; }
   .tp-bar-btn {
-    background: rgba(51,65,85,0.6) !important;
-    border: 1px solid var(--tp-line) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
     color: var(--tp-txt-dim) !important;
-    padding: 5px 10px !important;
+    padding: 5px 11px !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     display: flex !important;
     align-items: center !important;
-    gap: 4px !important;
+    gap: 5px !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
+    transition: all 0.15s ease !important;
   }
-  .tp-bar-btn:hover { background: var(--tp-line) !important; color: #fff !important; }
+  .tp-bar-btn:hover { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
   .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;
     color: var(--tp-acc-txt) !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.15) !important;
   }
   .tp-mini-switch {
     position: relative !important;
@@ -1084,20 +1098,23 @@ export const STYLES = `
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;
-    left: 16px !important;
-    bottom: 16px !important;
+    left: 24px !important;
+    bottom: 24px !important;
     z-index: 99990 !important;
     display: flex !important;
     align-items: stretch !important;
     gap: 0 !important;
-    background: rgba(15, 23, 42, 0.96) !important;
-    backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(16, 185, 129, 0.55) !important;
+    max-width: 320px !important;
+    background: rgba(15, 23, 42, 0.94) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(16, 185, 129, 0.45) !important;
     border-radius: var(--tp-r-lg) !important;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.25) !important;
+    box-shadow: 0 10px 32px rgba(0,0,0,0.45), 0 0 16px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.08) !important;
     padding: 6px !important;
     font-family: var(--tp-font) !important;
     animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
+    transition: left 0.2s ease, bottom 0.2s ease !important;
   }
   #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
   #tp-floating-check-cta.tp-empty { animation: none !important; border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
@@ -1242,28 +1259,30 @@ export const SHADOW_MODAL_STYLES = `
   }
   #tp-settings-fab {
     position: fixed;
-    bottom: 14px;
-    right: 14px;
-    width: 40px;
-    height: 40px;
+    bottom: 24px;
+    right: 24px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    background: rgba(30,41,59,0.85);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.15);
-    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
     cursor: pointer;
     z-index: 99999;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--tp-txt);
-    opacity: 0.5;
-    transition: all 0.3s ease;
+    opacity: 0.6;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   #tp-settings-fab:hover {
-    background: rgba(16,185,129,0.9);
-    transform: scale(1.05);
+    background: rgba(16, 185, 129, 0.95);
+    transform: scale(1.08);
     opacity: 1;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
   }
   #tp-settings-fab:focus-visible {
     opacity: 1;
@@ -1274,18 +1293,19 @@ export const SHADOW_MODAL_STYLES = `
   dialog#tp-settings-dialog {
     box-sizing: border-box;
     width: 92%;
-    max-width: 500px;
+    max-width: 520px;
     max-height: 85vh;
-    background: rgba(30,41,59,0.95);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.12);
-    box-shadow: 0 20px 25px rgba(0,0,0,0.5);
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     color: var(--tp-txt);
     padding: 24px;
     margin: auto;
   }
-  dialog#tp-settings-dialog::backdrop { background: rgba(15,23,42,0.5); backdrop-filter: blur(6px); }
+  dialog#tp-settings-dialog::backdrop { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   dialog#tp-settings-dialog h3 {
     margin: 0 0 18px;
     font-size: 18px;
@@ -1306,9 +1326,10 @@ export const SHADOW_MODAL_STYLES = `
   #tp-basic-settings { display: flex; flex-direction: column; gap: 8px; }
   #tp-basic-settings .tp-settings-group { margin-bottom: 10px; }
   #tp-basic-settings label[title], #tp-basic-settings button[title] { cursor: help; }
-  #tp-advanced-panel { background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  #tp-advanced-panel { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
   #tp-advanced-details { margin-top: 4px; }
-  #tp-advanced-details > summary { display: flex; align-items: center; gap: 8px; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #tp-advanced-details > summary { display: flex; align-items: center; gap: 8px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+  #tp-advanced-details > summary:hover { background: rgba(139, 92, 246, 0.2); }
   #tp-advanced-details > summary:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
   .tp-field-dark { width: 100%; background: var(--tp-bg); color: var(--tp-txt); border: 1px solid var(--tp-line-soft); border-radius: var(--tp-r-sm); padding: 6px 10px; font-size: var(--tp-fs-md); margin-top: 4px; box-sizing: border-box; }
   select.tp-field-dark { font-size: var(--tp-fs-lg); }
