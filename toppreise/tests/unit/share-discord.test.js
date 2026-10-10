@@ -76,12 +76,13 @@ describe('withLivePrice', () => {
 });
 
 describe('formatDealMessage', () => {
-  it('puts one value per line: link, title, price, dealer, history', () => {
+  it('puts one value per line: title, price, dealer, history, link last', () => {
     const msg = formatDealMessage({
       title: 'HyperX Pulsefire Fuse',
       url: PRODUCT_URL,
       priceText: 'CHF 31.90',
       dealer: 'Digitec',
+      dealerUrl: 'https://www.toppreise.ch/ext_d-aUS0',
       offerCount: 3,
       spark: '█▁▁',
       prevLowText: 'Bisher: CHF 44.95',
@@ -90,15 +91,21 @@ describe('formatDealMessage', () => {
       medianPct: 41
     });
     assert.deepEqual(msg.split('\n'), [
-      PRODUCT_URL,
-      '🔥 **HyperX Pulsefire Fuse**',
+      '**HyperX Pulsefire Fuse**',
       '💰 **CHF 31.90**',
-      '🏬 Händler: **Digitec**',
+      '🏬 Händler: [**Digitec**](https://www.toppreise.ch/ext_d-aUS0)',
       '🛒 Angebote: **3**',
       '📊 █▁▁',
       '📉 Bisher: **CHF 44.95** **-29%**',
-      '📈 Ø-Preis (1J): **CHF 54.05** **-41%**'
+      '📈 Ø-Preis (1J): **CHF 54.05** **-41%**',
+      PRODUCT_URL
     ]);
+  });
+
+  it('falls back to plain dealer name without dealerUrl', () => {
+    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: 'Digitec', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
+    assert.ok(msg.includes('🏬 Händler: **Digitec**'));
+    assert.ok(!msg.includes('](http'));
   });
 
   it('omits percentages at/above reference and empty rows, never truncates the link', () => {
@@ -110,7 +117,8 @@ describe('formatDealMessage', () => {
 
   it('omits empty rows and never truncates the link', () => {
     const msg = formatDealMessage({ title: 'x'.repeat(500), url: PRODUCT_URL, priceText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
-    assert.ok(msg.startsWith(PRODUCT_URL + '\n🔥'));
+    assert.ok(!msg.includes('🔥'));
+    assert.ok(msg.endsWith(PRODUCT_URL));
     assert.ok(msg.length <= 2000);
     assert.equal(msg.split('\n').length, 2);
   });
@@ -140,12 +148,12 @@ describe('resolveShareFields', () => {
       ...resolveShareFields(271.38, stats)
     });
     assert.deepEqual(msg.split('\n'), [
-      PRODUCT_URL,
-      '🔥 **PHILIPS 5000 Series 34E1C5600AM**',
+      '**PHILIPS 5000 Series 34E1C5600AM**',
       '💰 **CHF 271.38**',
       '🛒 Angebote: **4**',
       '📉 Bisher: **CHF 387.00** **-30%**',
-      '📈 Ø-Preis (1J): **CHF 403.00** **-33%**'
+      '📈 Ø-Preis (1J): **CHF 403.00** **-33%**',
+      PRODUCT_URL
     ]);
   });
 

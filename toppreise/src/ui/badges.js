@@ -804,15 +804,16 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const { title, url } = extractShareData(card);
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
           let dealer = extractDealer(card);
+          let dealerUrl = extractDealerUrl(card);
           let offers = cd.offerCount || 0;
-          if ((!dealer || !offers) && url) {
+          if ((!dealer || !dealerUrl || !offers) && url) {
             const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
+            if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
           }
           const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
           const content = formatDealMessage({
             title, url, priceText,
-            dealer, offerCount: offers,
+            dealer, dealerUrl, offerCount: offers,
             spark: png ? '' : sparklineText(stats?.timeSeries),
             ...resolveShareFields(cardPrice, stats)
           });

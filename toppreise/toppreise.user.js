@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.158
+// @version      2.18.159
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4899,15 +4899,16 @@ const SHADOW_MODAL_STYLES = `
             const { title, url } = extractShareData(card);
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
             let dealer = extractDealer(card);
+            let dealerUrl = extractDealerUrl(card);
             let offers = cd.offerCount || 0;
-            if ((!dealer || !offers) && url) {
+            if ((!dealer || !dealerUrl || !offers) && url) {
               const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
-              if (info) { dealer = dealer || info.dealer; offers = offers || info.offers; }
+              if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
             }
             const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
             const content = formatDealMessage({
               title, url, priceText,
-              dealer, offerCount: offers,
+              dealer, dealerUrl, offerCount: offers,
               spark: png ? '' : sparklineText(stats?.timeSeries),
               ...resolveShareFields(cardPrice, stats)
             });
@@ -6560,17 +6561,17 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
-  // Ein Wert pro Zeile (scannbar, Zahlen fett): Link zuerst (unantastbar), dann
-  // Titel, Preis, Händler, Verlauf. Rabatte stehen je Referenzzeile (Bisher /
-  // Ø-Preis), nicht gebündelt in der Preiszeile.
+  // Ein Wert pro Zeile (scannbar, Zahlen fett): Titel zuerst, dann
+  // Preis, Händler, Verlauf. Produktlink zuletzt (unantastbar, embeddet).
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-  function formatDealMessage({ title, url, priceText, dealer, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct }) {
+  function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct }) {
     const link = (url || '').trim();
     let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
+    const dealerLine = dealer ? (dealerUrl ? `🏬 Händler: [**${dealer}**](${dealerUrl})` : `🏬 Händler: **${dealer}**`) : '';
     const rest = [
       priceText ? `💰 ${boldNumbers(priceText)}` : '',
-      dealer ? `🏬 Händler: **${dealer}**` : '',
+      dealerLine,
       offerCount ? `🛒 Angebote: **${offerCount}**` : '',
       spark ? `📊 ${spark}` : '',
       prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
@@ -6578,7 +6579,7 @@ const SHADOW_MODAL_STYLES = `
     ].filter(Boolean).join('\n');
     const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
     cleanTitle = cleanTitle.slice(0, maxTitle);
-    return [link, `🔥 **${cleanTitle}**`, rest].filter(Boolean).join('\n').slice(0, 2000);
+    return [`**${cleanTitle}**`, rest, link].filter(Boolean).join('\n').slice(0, 2000);
   }
 
   // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
