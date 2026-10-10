@@ -49,6 +49,7 @@ export const DEFAULTS = Object.freeze({
   BESTPREISE_HIDE_UNCHECKED: false,
   BESTPREISE_INCLUDE_VORTIEF: true,
   BESTPREISE_WEIGHT_RECORD: 0.50,
+  BESTPREISE_MIN_POINTS: 5,
   BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
   OUTLIER_REJECTION_ENABLED: true,
   ENABLE_SPARKLINES: true,
@@ -129,6 +130,7 @@ export const CONFIG = {
   BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
   BESTPREISE_INCLUDE_VORTIEF: _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF),
   BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+  BESTPREISE_MIN_POINTS: parseInt(_getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
   BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
   OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
@@ -216,6 +218,20 @@ export function syncUiControl(key, val) {
               barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
               barLabel.title = weightText(val, 'title');
             }
+          }
+          break;
+        }
+        case 'BESTPREISE_MIN_POINTS': {
+          const num = Math.max(5, Math.min(100, parseInt(val, 10) || 5));
+          const range = shadow.getElementById('tp-bestpreise-minpoints-range');
+          const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
+          if (range) range.value = num;
+          if (valEl) valEl.value = num;
+          if (typeof document !== 'undefined') {
+            const barRange = document.getElementById('tp-bar-minpoints-range');
+            if (barRange && document.activeElement !== barRange) barRange.value = num;
+            const barLabel = document.getElementById('tp-bar-minpoints-label');
+            if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
           }
           break;
         }

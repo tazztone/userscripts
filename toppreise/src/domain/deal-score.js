@@ -19,9 +19,11 @@ export function computeDealScore(stats, cardPrice) {
   if (!cardPrice || cardPrice <= 0) return null;
 
   // History Qualification Gate:
-  // Minimum 5 historical points if timeSeries is present, and >2% variance across history
+  // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
   const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
-  if (pointsCount < 5) return null;
+  const rawMin = typeof CONFIG.BESTPREISE_MIN_POINTS === 'number' ? CONFIG.BESTPREISE_MIN_POINTS : parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10);
+  const minPoints = Number.isFinite(rawMin) ? Math.max(5, Math.min(100, Math.round(rawMin))) : 5;
+  if (pointsCount < minPoints) return null;
   if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
       ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
     return null;

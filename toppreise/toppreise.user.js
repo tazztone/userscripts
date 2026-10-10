@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.139
+// @version      2.18.140
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -725,18 +725,19 @@ const STYLES = `
   }
   #timeframe-filter {
     align-items: center !important;
+    gap: 8px 12px !important;
+    flex-wrap: wrap !important;
+    row-gap: 8px !important;
   }
   #timeframe-filter #tp-bar-bestpreise-btn {
-    margin-right: 8px !important;
+    margin-right: 0 !important;
     flex-shrink: 0 !important;
   }
-  #timeframe-filter #tp-bar-weight-wrapper {
-    margin-right: auto !important;
+  #timeframe-filter #tp-bar-weight-wrapper,
+  #timeframe-filter #tp-bar-vortief-wrapper,
+  #timeframe-filter #tp-bar-minpoints-wrapper {
+    margin-right: 0 !important;
     flex-shrink: 0 !important;
-  }
-  .tp-bar-btn.tp-disabled {
-    opacity: 0.45 !important;
-    cursor: not-allowed !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;
@@ -758,6 +759,25 @@ const STYLES = `
     width: 92px !important;
     accent-color: #a855f7 !important;
     cursor: pointer !important;
+  }
+  /* Explicit divider between deals controls (replaces the old auto-margin gap). */
+  #timeframe-filter .tp-sep, .tp-group-deals .tp-sep {
+    width: 1px !important;
+    align-self: stretch !important;
+    min-height: 18px !important;
+    background: rgba(148,163,184,0.45) !important;
+    margin: 0 2px !important;
+  }
+  #tp-bar-minpoints-range {
+    width: 92px !important;
+    accent-color: #38bdf8 !important;
+    cursor: pointer !important;
+  }
+  #tp-bar-minpoints-label {
+    min-width: 9ch !important;
+    text-align: center !important;
+    font-variant-numeric: tabular-nums !important;
+    white-space: nowrap !important;
   }
   .tp-empty-state-notice {
     display: flex !important;
@@ -1810,9 +1830,11 @@ const SHADOW_MODAL_STYLES = `
     if (!cardPrice || cardPrice <= 0) return null;
 
     // History Qualification Gate:
-    // Minimum 5 historical points if timeSeries is present, and >2% variance across history
+    // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
     const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
-    if (pointsCount < 5) return null;
+    const rawMin = typeof CONFIG.BESTPREISE_MIN_POINTS === 'number' ? CONFIG.BESTPREISE_MIN_POINTS : parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10);
+    const minPoints = Number.isFinite(rawMin) ? Math.max(5, Math.min(100, Math.round(rawMin))) : 5;
+    if (pointsCount < minPoints) return null;
     if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
         ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
       return null;
@@ -2268,6 +2290,7 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_HIDE_UNCHECKED: false,
     BESTPREISE_INCLUDE_VORTIEF: true,
     BESTPREISE_WEIGHT_RECORD: 0.50,
+    BESTPREISE_MIN_POINTS: 5,
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
     ENABLE_SPARKLINES: true,
@@ -2348,6 +2371,7 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
     BESTPREISE_INCLUDE_VORTIEF: _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF),
     BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+    BESTPREISE_MIN_POINTS: parseInt(_getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
     BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
     OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
@@ -2435,6 +2459,20 @@ const SHADOW_MODAL_STYLES = `
                 barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
                 barLabel.title = weightText(val, 'title');
               }
+            }
+            break;
+          }
+          case 'BESTPREISE_MIN_POINTS': {
+            const num = Math.max(5, Math.min(100, parseInt(val, 10) || 5));
+            const range = shadow.getElementById('tp-bestpreise-minpoints-range');
+            const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
+            if (range) range.value = num;
+            if (valEl) valEl.value = num;
+            if (typeof document !== 'undefined') {
+              const barRange = document.getElementById('tp-bar-minpoints-range');
+              if (barRange && document.activeElement !== barRange) barRange.value = num;
+              const barLabel = document.getElementById('tp-bar-minpoints-label');
+              if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
             }
             break;
           }
@@ -4982,6 +5020,14 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
           </div>
+          <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
+            <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-minpoints-range" min="5" max="100" step="5" value="5">
+              <input type="number" id="tp-bestpreise-minpoints-val" min="5" max="100" step="5" value="5">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
+          </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
             <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple tp-field-dark">
@@ -5114,6 +5160,9 @@ const SHADOW_MODAL_STYLES = `
     const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
     const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
     const bestpreiseWeightDesc = shadow.getElementById('tp-bestpreise-weight-desc');
+    const bestpreiseMinPointsGroup = shadow.getElementById('tp-bestpreise-minpoints-group');
+    const bestpreiseMinPointsRange = shadow.getElementById('tp-bestpreise-minpoints-range');
+    const bestpreiseMinPointsVal = shadow.getElementById('tp-bestpreise-minpoints-val');
     const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
     const bestpreiseHorizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
     const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
@@ -5178,6 +5227,9 @@ const SHADOW_MODAL_STYLES = `
       if (bestpreiseWeightGroup) {
         bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
       }
+      if (bestpreiseMinPointsGroup) {
+        bestpreiseMinPointsGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
+      }
       if (bestpreiseHorizonGroup) {
         bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
       }
@@ -5190,6 +5242,9 @@ const SHADOW_MODAL_STYLES = `
       if (bestpreiseWeightDesc) {
         bestpreiseWeightDesc.textContent = weightText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50), 'desc');
       }
+      const minPointsNum = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+      if (bestpreiseMinPointsRange) bestpreiseMinPointsRange.value = minPointsNum;
+      if (bestpreiseMinPointsVal) bestpreiseMinPointsVal.value = minPointsNum;
 
       if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
       if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
@@ -5248,10 +5303,14 @@ const SHADOW_MODAL_STYLES = `
       }
     };
     bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
+    bindDual(bestpreiseMinPointsRange, bestpreiseMinPointsVal);
 
     bestpreiseModeToggle?.addEventListener('change', () => {
       if (bestpreiseWeightGroup) {
         bestpreiseWeightGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
+      }
+      if (bestpreiseMinPointsGroup) {
+        bestpreiseMinPointsGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
       }
       if (bestpreiseHorizonGroup) {
         bestpreiseHorizonGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
@@ -5401,6 +5460,10 @@ const SHADOW_MODAL_STYLES = `
           const rawH = parseInt(bestpreiseHorizonSelect.value, 10);
           updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
         }
+        if (bestpreiseMinPointsVal) {
+          const rawM = parseInt(bestpreiseMinPointsVal.value, 10);
+          updates.BESTPREISE_MIN_POINTS = Math.max(5, Math.min(100, isNaN(rawM) ? 5 : rawM));
+        }
       }
       if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
       if (includeVortiefToggle) updates.BESTPREISE_INCLUDE_VORTIEF = includeVortiefToggle.checked;
@@ -5513,11 +5576,13 @@ const SHADOW_MODAL_STYLES = `
     let btn = document.getElementById('tp-bar-bestpreise-btn');
     let weight = document.getElementById('tp-bar-weight-wrapper');
     let vortief = document.getElementById('tp-bar-vortief-wrapper');
+    let minpoints = document.getElementById('tp-bar-minpoints-wrapper');
     if (!isDealFeed || !tf) {
       if (home) {
         if (btn && btn.parentElement !== home) home.prepend(btn);
         if (weight && weight.parentElement !== home) home.append(weight);
         if (vortief && vortief.parentElement !== home) home.append(vortief);
+        if (minpoints && minpoints.parentElement !== home) home.append(minpoints);
       }
       return;
     }
@@ -5531,9 +5596,11 @@ const SHADOW_MODAL_STYLES = `
     }
     if (!weight) weight = buildWeightWrapper();
     if (!vortief) vortief = buildVortiefWrapper();
+    if (!minpoints) minpoints = buildMinPointsWrapper();
     if (btn.parentElement !== tf) tf.prepend(btn);
     if (weight.parentElement !== tf || weight.previousElementSibling !== btn) btn.after(weight);
     if (vortief.parentElement !== tf || vortief.previousElementSibling !== weight) weight.after(vortief);
+    if (minpoints.parentElement !== tf || minpoints.previousElementSibling !== vortief) vortief.after(minpoints);
   }
 
   function bindWeightControls(wrapper) {
@@ -5578,10 +5645,11 @@ const SHADOW_MODAL_STYLES = `
 
   function buildVortiefWrapper() {
     const wrapper = document.createElement('div');
-    wrapper.className = 'tp-threshold-wrapper';
+    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
     wrapper.id = 'tp-bar-vortief-wrapper';
     wrapper.title = 'Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.';
     wrapper.innerHTML = `
+      <span class="tp-sep" aria-hidden="true"></span>
       <span class="tp-stepper-label">Fallback-Tiefs</span>
       <label class="tp-mini-switch">
         <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
@@ -5608,6 +5676,42 @@ const SHADOW_MODAL_STYLES = `
         <option value="100" label="Rek"></option>
       </datalist>`;
     bindWeightControls(wrapper);
+    return wrapper;
+  }
+
+  function bindMinPointsControls(wrapper) {
+    if (!wrapper) return;
+    const range = wrapper.querySelector('#tp-bar-minpoints-range');
+    const label = wrapper.querySelector('#tp-bar-minpoints-label');
+    if (!range) return;
+    const readNum = () => Math.max(5, Math.min(100, parseInt(range.value, 10) || 5));
+    const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
+    paint();
+    range.oninput = () => {
+      paint();
+      clearTimeout(window._tpMinPointsDeb);
+      window._tpMinPointsDeb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 150);
+    };
+    range.onchange = () => {
+      clearTimeout(window._tpMinPointsDeb);
+      const n = readNum();
+      paint();
+      updateConfig('BESTPREISE_MIN_POINTS', n);
+      showToast(`Mindestanzahl Datenpunkte in der Preishistorie: ${n} (≈ Tage)`);
+    };
+  }
+
+  function buildMinPointsWrapper() {
+    const cur = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+    wrapper.id = 'tp-bar-minpoints-wrapper';
+    wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
+    wrapper.innerHTML = `
+      <span class="tp-sep" aria-hidden="true"></span>
+      <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
+      <input type="range" id="tp-bar-minpoints-range" min="5" max="100" step="5" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (5), rechts streng (100)">`;
+    bindMinPointsControls(wrapper);
     return wrapper;
   }
 
@@ -5676,13 +5780,19 @@ const SHADOW_MODAL_STYLES = `
               <option value="100" label="Rek"></option>
             </datalist>
           </div>
-          <div class="tp-threshold-wrapper" id="tp-bar-vortief-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">
+          <div class="tp-threshold-wrapper tp-deals-sep" id="tp-bar-vortief-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Dünne Historie ohne Ø-Vergleich (Kanten-Heat statt Vollfläche). Aus = diese Fallback-Tiefs folgen im Modus der Anzeige wie schlechte Deals.">
+            <span class="tp-sep" aria-hidden="true"></span>
             <span class="tp-stepper-label">Fallback-Tiefs</span>
             <label class="tp-mini-switch">
               <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
               <span class="tp-mini-slider"></span>
               <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
             </label>
+          </div>
+          <div class="tp-threshold-wrapper tp-deals-sep" id="tp-bar-minpoints-wrapper" style="display: ${isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE ? 'inline-flex' : 'none'};" title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">
+            <span class="tp-sep" aria-hidden="true"></span>
+            <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 5 Pkt</span>
+            <input type="range" id="tp-bar-minpoints-range" min="5" max="100" step="5" value="5" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (5), rechts streng (100)">
           </div>
          </div>
         </div>
@@ -5758,6 +5868,7 @@ const SHADOW_MODAL_STYLES = `
       bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
       bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
       bindVortiefControls(bar.querySelector('#tp-bar-vortief-wrapper'));
+      bindMinPointsControls(bar.querySelector('#tp-bar-minpoints-wrapper'));
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
         placement.container.insertBefore(bar, placement.reference);
@@ -5838,6 +5949,17 @@ const SHADOW_MODAL_STYLES = `
     const vortiefWrapper = document.getElementById('tp-bar-vortief-wrapper');
     if (vortiefWrapper) {
       vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+    }
+    const curMinPoints = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+    const minPointsRange = document.getElementById('tp-bar-minpoints-range');
+    if (minPointsRange && document.activeElement !== minPointsRange) {
+      minPointsRange.value = curMinPoints;
+    }
+    const minPointsLabel = document.getElementById('tp-bar-minpoints-label');
+    if (minPointsLabel) minPointsLabel.textContent = `📊 ${curMinPoints} Pkt`;
+    const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
+    if (minPointsWrapper) {
+      minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
     // The deals group is empty on catalog pages (children hidden) and on deal
     // feeds (children moved to #timeframe-filter) — hide the box + divider.

@@ -1463,6 +1463,42 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
     assert '100% Med' in weight_label.inner_text()
 
 
+def test_minpoints_slider_in_filter_bar(page: Page):
+    """
+    Validates that the Mindestanzahl-Datenpunkte slider sits in the Zeitraum row
+    after Fallback-Tiefs when Tiefstpreise mode is active, and moving it updates
+    the blend qualification threshold.
+    """
+    page.evaluate("""() => {
+        localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    minpoints_wrapper = page.locator('#tp-bar-minpoints-wrapper')
+    assert minpoints_wrapper.is_visible()
+    assert minpoints_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
+    assert minpoints_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-vortief-wrapper'")
+
+    minpoints_label = page.locator('#tp-bar-minpoints-label')
+    assert 'Pkt' in minpoints_label.inner_text()
+    assert 'Mindestanzahl Datenpunkte' in (minpoints_wrapper.get_attribute('title') or '')
+
+    minpoints_range = page.locator('#tp-bar-minpoints-range')
+    assert minpoints_range.get_attribute('min') == '5'
+    assert minpoints_range.get_attribute('max') == '100'
+    assert minpoints_range.get_attribute('step') == '5'
+
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-minpoints-range');
+        r.value = '30';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MIN_POINTS === 30")
+    assert '30 Pkt' in minpoints_label.inner_text()
+
+
 
 def test_merged_blend_subline_rendering(page: Page):
     """

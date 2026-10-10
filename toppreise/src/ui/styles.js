@@ -700,18 +700,19 @@ export const STYLES = `
   }
   #timeframe-filter {
     align-items: center !important;
+    gap: 8px 12px !important;
+    flex-wrap: wrap !important;
+    row-gap: 8px !important;
   }
   #timeframe-filter #tp-bar-bestpreise-btn {
-    margin-right: 8px !important;
+    margin-right: 0 !important;
     flex-shrink: 0 !important;
   }
-  #timeframe-filter #tp-bar-weight-wrapper {
-    margin-right: auto !important;
+  #timeframe-filter #tp-bar-weight-wrapper,
+  #timeframe-filter #tp-bar-vortief-wrapper,
+  #timeframe-filter #tp-bar-minpoints-wrapper {
+    margin-right: 0 !important;
     flex-shrink: 0 !important;
-  }
-  .tp-bar-btn.tp-disabled {
-    opacity: 0.45 !important;
-    cursor: not-allowed !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;
@@ -733,6 +734,25 @@ export const STYLES = `
     width: 92px !important;
     accent-color: #a855f7 !important;
     cursor: pointer !important;
+  }
+  /* Explicit divider between deals controls (replaces the old auto-margin gap). */
+  #timeframe-filter .tp-sep, .tp-group-deals .tp-sep {
+    width: 1px !important;
+    align-self: stretch !important;
+    min-height: 18px !important;
+    background: rgba(148,163,184,0.45) !important;
+    margin: 0 2px !important;
+  }
+  #tp-bar-minpoints-range {
+    width: 92px !important;
+    accent-color: #38bdf8 !important;
+    cursor: pointer !important;
+  }
+  #tp-bar-minpoints-label {
+    min-width: 9ch !important;
+    text-align: center !important;
+    font-variant-numeric: tabular-nums !important;
+    white-space: nowrap !important;
   }
   .tp-empty-state-notice {
     display: flex !important;

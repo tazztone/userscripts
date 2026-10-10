@@ -21,6 +21,30 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.equal(computeDealScore(unqualifiedStats, 100), null);
     });
 
+    it('gates the blend on BESTPREISE_MIN_POINTS instead of hardcoded 5', () => {
+      const prev = CONFIG.BESTPREISE_MIN_POINTS;
+      CONFIG.BESTPREISE_MIN_POINTS = 30;
+      try {
+        const thinStats = { ...validStats, dataPointCount: 10, timeSeries: new Array(10).fill([0, 100]) };
+        assert.equal(computeDealScore(thinStats, 90), null);
+        const richStats = { ...validStats, dataPointCount: 40, timeSeries: new Array(40).fill([0, 100]) };
+        assert.ok(computeDealScore(richStats, 90));
+      } finally {
+        CONFIG.BESTPREISE_MIN_POINTS = prev;
+      }
+    });
+
+    it('falls back to 5 on garbage BESTPREISE_MIN_POINTS', () => {
+      const prev = CONFIG.BESTPREISE_MIN_POINTS;
+      CONFIG.BESTPREISE_MIN_POINTS = 'junk';
+      try {
+        const stats = { ...validStats, dataPointCount: 10, timeSeries: new Array(10).fill([0, 100]) };
+        assert.ok(computeDealScore(stats, 90));
+      } finally {
+        CONFIG.BESTPREISE_MIN_POINTS = prev;
+      }
+    });
+
     it('returns null when historical price variance is <= 2%', () => {
       const flatStats = { ...validStats, tiefstpreis: 100, hoechstpreis: 101, dataPointCount: 10 };
       assert.equal(computeDealScore(flatStats, 100), null);

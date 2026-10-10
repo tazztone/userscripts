@@ -149,6 +149,14 @@ export function setupUI() {
           </div>
           <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
         </div>
+        <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
+          <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
+          <div class="tp-range-container tp-purple">
+            <input type="range" id="tp-bestpreise-minpoints-range" min="5" max="100" step="5" value="5">
+            <input type="number" id="tp-bestpreise-minpoints-val" min="5" max="100" step="5" value="5">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
+        </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
           <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple tp-field-dark">
@@ -281,6 +289,9 @@ export function setupUI() {
   const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
   const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
   const bestpreiseWeightDesc = shadow.getElementById('tp-bestpreise-weight-desc');
+  const bestpreiseMinPointsGroup = shadow.getElementById('tp-bestpreise-minpoints-group');
+  const bestpreiseMinPointsRange = shadow.getElementById('tp-bestpreise-minpoints-range');
+  const bestpreiseMinPointsVal = shadow.getElementById('tp-bestpreise-minpoints-val');
   const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
   const bestpreiseHorizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
   const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
@@ -345,6 +356,9 @@ export function setupUI() {
     if (bestpreiseWeightGroup) {
       bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
     }
+    if (bestpreiseMinPointsGroup) {
+      bestpreiseMinPointsGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
+    }
     if (bestpreiseHorizonGroup) {
       bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
     }
@@ -357,6 +371,9 @@ export function setupUI() {
     if (bestpreiseWeightDesc) {
       bestpreiseWeightDesc.textContent = weightText((CONFIG.BESTPREISE_WEIGHT_RECORD ?? 0.50), 'desc');
     }
+    const minPointsNum = Math.max(5, Math.min(100, parseInt(CONFIG.BESTPREISE_MIN_POINTS, 10) || 5));
+    if (bestpreiseMinPointsRange) bestpreiseMinPointsRange.value = minPointsNum;
+    if (bestpreiseMinPointsVal) bestpreiseMinPointsVal.value = minPointsNum;
 
     if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
     if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
@@ -415,10 +432,14 @@ export function setupUI() {
     }
   };
   bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
+  bindDual(bestpreiseMinPointsRange, bestpreiseMinPointsVal);
 
   bestpreiseModeToggle?.addEventListener('change', () => {
     if (bestpreiseWeightGroup) {
       bestpreiseWeightGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
+    }
+    if (bestpreiseMinPointsGroup) {
+      bestpreiseMinPointsGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
     }
     if (bestpreiseHorizonGroup) {
       bestpreiseHorizonGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
@@ -567,6 +588,10 @@ export function setupUI() {
       if (bestpreiseHorizonSelect) {
         const rawH = parseInt(bestpreiseHorizonSelect.value, 10);
         updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
+      }
+      if (bestpreiseMinPointsVal) {
+        const rawM = parseInt(bestpreiseMinPointsVal.value, 10);
+        updates.BESTPREISE_MIN_POINTS = Math.max(5, Math.min(100, isNaN(rawM) ? 5 : rawM));
       }
     }
     if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
