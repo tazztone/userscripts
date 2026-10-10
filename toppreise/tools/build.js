@@ -44,6 +44,7 @@ export function buildBundle() {
     ['domain/price.js', '// ─── MODULE: src/domain/price.js ────────────────────────────────────────────'],
     ['domain/deal-score.js', '// ─── MODULE: src/domain/deal-score.js ───────────────────────────────────────'],
     ['scanner/cache.js', '// ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────'],
+    ['ui/mini-toggle.js', '// ─── MODULE: src/ui/mini-toggle.js ──────────────────────────────────────────'],
     ['state/config.js', '// ─── MODULE: src/state/config.js ────────────────────────────────────────────'],
     ['state/store.js', '// ─── MODULE: src/state/store.js ─────────────────────────────────────────────'],
     ['page/adapter.js', '// ─── MODULE: src/page/adapter.js ────────────────────────────────────────────'],

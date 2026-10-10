@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.145
+// @version      2.18.146
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -58,8 +58,6 @@ const TP_TOKEN_VARS = `
   --tp-focus: #34d399;
   --tp-grad-acc: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --tp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --tp-light-surface: rgba(255, 255, 255, 0.92);
-  --tp-light-line: rgba(15, 23, 42, 0.16);
   --tp-r-sm: 6px;
   --tp-r-md: 8px;
   --tp-r-lg: 10px;
@@ -778,22 +776,6 @@ const STYLES = `
     margin-right: 0 !important;
     flex-shrink: 0 !important;
   }
-  /* Light host row: #timeframe-filter is the site's white bar — dark pills
-  would float on it. Light surfaces, dark text, hue kept on labels. */
-  #timeframe-filter .tp-threshold-wrapper {
-    background: var(--tp-light-surface) !important;
-    border: 1px solid var(--tp-light-line) !important;
-    box-shadow: 0 1px 2px rgba(15,23,42,0.10) !important;
-  }
-  #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active) {
-    background: var(--tp-light-surface) !important;
-    border: 1px solid var(--tp-light-line) !important;
-    color: var(--tp-line) !important;
-  }
-  #timeframe-filter .tp-bar-btn:not(.tp-bestpreise-active):hover { background: var(--tp-txt) !important; color: #0f172a !important; }
-  #timeframe-filter .tp-weight-label { color: #7c3aed !important; }
-  #timeframe-filter #tp-bar-minpoints-label { color: #0369a1 !important; }
-  #timeframe-filter .tp-stepper-label { color: var(--tp-line-soft) !important; }
   .tp-threshold-wrapper {
     position: relative !important;
     display: inline-flex !important;
@@ -1122,28 +1104,22 @@ const STYLES = `
     bottom: 16px !important;
     z-index: 99990 !important;
     display: flex !important;
-    align-items: stretch !important;
-    gap: 0 !important;
+    flex-direction: column !important;
+    min-width: 230px !important;
     background: rgba(15, 23, 42, 0.96) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid rgba(16, 185, 129, 0.55) !important;
     border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.25) !important;
-    padding: 6px !important;
+    padding: 8px !important;
     font-family: var(--tp-font) !important;
-    animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
   }
-  #tp-floating-check-cta.tp-scanning { animation: none !important; border-color: rgba(245,158,11,0.6) !important; }
-  #tp-floating-check-cta.tp-empty { animation: none !important; border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
+  #tp-floating-check-cta.tp-scanning { border-color: rgba(245,158,11,0.6) !important; }
+  #tp-floating-check-cta.tp-empty { border-color: rgba(148,163,184,0.35) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.5) !important; }
   #tp-floating-check-cta.tp-empty #tp-floating-check-btn { background: linear-gradient(135deg, var(--tp-line-soft) 0%, var(--tp-line) 100%) !important; color: var(--tp-txt-dim) !important; }
   #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover { filter: brightness(1.08) !important; }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
-  @keyframes tp-floating-pulse {
-    0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.18) !important; }
-    50% { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(16,185,129,0.4) !important; }
-  }
   @media (prefers-reduced-motion: reduce) {
-    #tp-floating-check-cta { animation: none !important; }
     .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
   }
   @media (prefers-contrast: more) {
@@ -1158,25 +1134,37 @@ const STYLES = `
   }
   #tp-floating-check-btn {
     background: var(--tp-grad-acc) !important;
-    flex: 1 !important;
+    width: 100% !important;
     border: none !important;
-    border-radius: 10px 0 0 10px !important;
+    border-radius: 10px !important;
     color: #fff !important;
-    padding: 8px 14px !important;
+    padding: 8px 12px !important;
     cursor: pointer !important;
     display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 1px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
     line-height: 1.2 !important;
+    text-align: left !important;
   }
   #tp-floating-check-btn:hover { filter: brightness(1.12) !important; }
+  #tp-floating-check-main { font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; flex: 1 !important; }
+  #tp-floating-check-sub { font-size: var(--tp-fs-xs) !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
+  #tp-floating-check-count { display: none !important; font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
+  #tp-floating-action-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    padding: 6px 4px 2px !important;
+  }
   #tp-floating-dealer-row {
     display: flex !important;
     align-items: center !important;
     gap: 5px !important;
-    padding: 3px 14px 5px !important;
-    font-size: 10px !important;
+    padding: 2px 4px !important;
+    font-size: 11px !important;
     font-weight: 600 !important;
     color: var(--tp-mut) !important;
     cursor: pointer !important;
@@ -1186,25 +1174,21 @@ const STYLES = `
   #tp-floating-dealer-row:hover { color: var(--tp-txt-mid) !important; }
   #tp-floating-dealer-row.tp-active { color: var(--tp-acc-txt) !important; }
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
-  #tp-floating-check-main { font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-sub { font-size: var(--tp-fs-xs) !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
   #tp-floating-threshold-btn {
-    background: rgba(51,65,85,0.7) !important;
+    background: transparent !important;
     border: none !important;
-    border-left: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 0 10px 10px 0 !important;
     color: var(--tp-txt-dim) !important;
-    padding: 8px 10px !important;
-    font-size: 12px !important;
+    padding: 4px 6px !important;
+    font-size: 11px !important;
     font-weight: 700 !important;
     cursor: pointer !important;
     white-space: nowrap !important;
   }
-  #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-threshold-btn:hover { color: #fff !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 6px) !important;
-    right: 0 !important;
+    left: 0 !important;
     background: rgba(15, 23, 42, 0.97) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -1238,30 +1222,26 @@ const STYLES = `
   #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
   #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: var(--tp-acc) !important; color: #fff !important; }
   #tp-floating-cta-collapse {
-    background: rgba(51,65,85,0.7) !important;
+    background: transparent !important;
     border: none !important;
-    border-left: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 0 10px 10px 0 !important;
     color: var(--tp-mut) !important;
-    padding: 8px 10px !important;
+    padding: 4px 6px !important;
     font-size: 13px !important;
     font-weight: 800 !important;
     cursor: pointer !important;
     line-height: 1.2 !important;
   }
-  #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
+  #tp-floating-cta-collapse:hover { color: #fff !important; }
   #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
-  #tp-floating-check-count { display: none !important; font-size: var(--tp-fs-lg) !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 4px !important; }
+  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 4px !important; min-width: 0 !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 6px 12px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: var(--tp-r-pill) !important; border: none !important; margin-left: 2px !important; }
   @media (max-width: 600px) {
     #tp-floating-check-sub { display: none !important; }
     #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
@@ -2293,12 +2273,42 @@ const SHADOW_MODAL_STYLES = `
     } catch (e) {}
   }
 
+  // ─── MODULE: src/ui/mini-toggle.js ──────────────────────────────────────────
+  /**
+   * Shared mini-toggle sync (single dialect for checkbox toggles with ON/OFF
+   * caption and dimming of the tools they own). Imported by toolbar.js and
+   * state/config.js — lives here because toolbar imports config (cycle).
+   */
+
+  // Tools dimmed when their mini-toggle is OFF (the toggle itself stays bright).
+  const DIM_TARGETS_BY_TOGGLE = {
+    'tp-toggle-neg': ['.tp-input-field-box'],
+    'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
+  };
+
+  function syncMiniToggle(input, enabled, titleBase) {
+    if (!input) return;
+    input.checked = !!enabled;
+    const label = input.closest?.('.tp-mini-switch');
+    const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+    if (label) label.title = title;
+    const state = label?.querySelector('.tp-mini-state');
+    if (state) state.textContent = enabled ? 'ON' : 'OFF';
+    const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+    const caption = scope?.querySelector('.tp-mini-caption');
+    if (caption) caption.title = title;
+    for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
+      scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
+    }
+  }
+
   // ─── MODULE: src/state/config.js ────────────────────────────────────────────
   /**
    * Configuration & Persistent Settings State Layer
    * Manages defaults, GM_getValue/localStorage synchronization,
    * active configuration object, and bidirectional UI control sync.
    */
+
 
 
   // One vocabulary everywhere: the Gewichtete Differenz (weight-blended
@@ -2610,12 +2620,7 @@ const SHADOW_MODAL_STYLES = `
               const toggle = bar.querySelector('#tp-toggle-neg');
               if (toggle) {
                 if (toggle.tagName === 'INPUT') {
-                  toggle.checked = !!val;
-                  const title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
-                  const label = toggle.closest?.('.tp-mini-switch');
-                  if (label) label.title = title;
-                  const state = label?.querySelector('.tp-mini-state');
-                  if (state) state.textContent = val ? 'ON' : 'OFF';
+                  syncMiniToggle(toggle, !!val, 'Negativ-Filter (Text)');
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -2628,12 +2633,7 @@ const SHADOW_MODAL_STYLES = `
               const toggle = bar.querySelector('#tp-toggle-min');
               if (toggle) {
                 if (toggle.tagName === 'INPUT') {
-                  toggle.checked = !!val;
-                  const title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-                  const label = toggle.closest?.('.tp-mini-switch');
-                  if (label) label.title = title;
-                  const state = label?.querySelector('.tp-mini-state');
-                  if (state) state.textContent = val ? 'ON' : 'OFF';
+                  syncMiniToggle(toggle, !!val, 'Min-Angebote-Filter');
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -5562,6 +5562,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
     const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -5581,26 +5582,6 @@ const SHADOW_MODAL_STYLES = `
     return { container: document.body, reference: document.body.firstElementChild };
   }
 
-  // Tools dimmed when their mini-toggle is OFF (the toggle itself stays bright).
-  const DIM_TARGETS_BY_TOGGLE = {
-    'tp-toggle-neg': ['.tp-input-field-box'],
-    'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
-  };
-  function syncMiniToggle(input, enabled, titleBase) {
-    if (!input) return;
-    input.checked = !!enabled;
-    const label = input.closest?.('.tp-mini-switch');
-    const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
-    if (label) label.title = title;
-    const state = label?.querySelector('.tp-mini-state');
-    if (state) state.textContent = enabled ? 'ON' : 'OFF';
-    const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-    const caption = scope?.querySelector('.tp-mini-caption');
-    if (caption) caption.title = title;
-    for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
-      scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
-    }
-  }
   function bindBestpreiseBtn(btn) {
     btn.onclick = () => {
       const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
@@ -5978,14 +5959,20 @@ const SHADOW_MODAL_STYLES = `
     if (minPointsWrapper) {
       minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
-    // The deals group is empty on catalog pages (children hidden) and on deal
-    // feeds (children moved to #timeframe-filter) — hide the box + divider.
-    const dealsGroup = bar.querySelector('.tp-group-deals');
-    if (dealsGroup) {
-      const hasVisibleChild = [...dealsGroup.children].some(el => el.style.display !== 'none');
-      dealsGroup.style.display = hasVisibleChild ? '' : 'none';
-      const sep = dealsGroup.previousElementSibling;
-      if (sep && sep.classList.contains('tp-divider')) sep.style.display = hasVisibleChild ? '' : 'none';
+    // A group left without visible children (evacuated deals group on deal
+    // feeds, option-less groups on catalog pages) hides; a divider shows only
+    // between two visible groups.
+    for (const group of bar.querySelectorAll('.tp-group')) {
+      const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');
+      group.style.display = hasVisibleChild ? '' : 'none';
+    }
+    for (const sep of bar.querySelectorAll('.tp-divider')) {
+      let prev = sep.previousElementSibling;
+      while (prev && !prev.classList.contains('tp-group')) prev = prev.previousElementSibling;
+      let next = sep.nextElementSibling;
+      while (next && !next.classList.contains('tp-group')) next = next.nextElementSibling;
+      const between = !!prev && !!next && prev.style.display !== 'none' && next.style.display !== 'none';
+      sep.style.display = between ? '' : 'none';
     }
 
     const minGroup = bar.querySelector('#tp-bar-min-offers-group');
@@ -6135,16 +6122,18 @@ const SHADOW_MODAL_STYLES = `
           <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
           <span id="tp-floating-check-count">🔍</span>
         </button>
-        <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
-          <input type="checkbox" id="tp-floating-dealer-toggle">
-          <span>🏬 Händler laden</span>
-        </label>
+        <div id="tp-floating-action-row">
+          <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
+            <input type="checkbox" id="tp-floating-dealer-toggle">
+            <span>🏬 Händler laden</span>
+          </label>
+          <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
+          <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
+        </div>
       </div>
-      <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
       <div id="tp-floating-threshold-popover" role="menu">
         <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
       </div>
-      <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
     `;
     const popover = el.querySelector('#tp-floating-threshold-popover');
     for (const val of THRESHOLD_OPTIONS) {

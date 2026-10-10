@@ -142,16 +142,18 @@ function ensureCta() {
         <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
         <span id="tp-floating-check-count">🔍</span>
       </button>
-      <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
-        <input type="checkbox" id="tp-floating-dealer-toggle">
-        <span>🏬 Händler laden</span>
-      </label>
+      <div id="tp-floating-action-row">
+        <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
+          <input type="checkbox" id="tp-floating-dealer-toggle">
+          <span>🏬 Händler laden</span>
+        </label>
+        <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
+        <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
+      </div>
     </div>
-    <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
     <div id="tp-floating-threshold-popover" role="menu">
       <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
     </div>
-    <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
   `;
   const popover = el.querySelector('#tp-floating-threshold-popover');
   for (const val of THRESHOLD_OPTIONS) {

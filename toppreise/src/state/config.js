@@ -5,6 +5,7 @@
  */
 
 import { uiShadowRoot } from '../ui/shell.js';
+import { syncMiniToggle } from '../ui/mini-toggle.js';
 
 // One vocabulary everywhere: the Gewichtete Differenz (weight-blended
 // Ø-discount + record margin) prints on the badge and drives color + order.
@@ -315,12 +316,7 @@ export function syncUiControl(key, val) {
             const toggle = bar.querySelector('#tp-toggle-neg');
             if (toggle) {
               if (toggle.tagName === 'INPUT') {
-                toggle.checked = !!val;
-                const title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
-                const label = toggle.closest?.('.tp-mini-switch');
-                if (label) label.title = title;
-                const state = label?.querySelector('.tp-mini-state');
-                if (state) state.textContent = val ? 'ON' : 'OFF';
+                syncMiniToggle(toggle, !!val, 'Negativ-Filter (Text)');
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
@@ -333,12 +329,7 @@ export function syncUiControl(key, val) {
             const toggle = bar.querySelector('#tp-toggle-min');
             if (toggle) {
               if (toggle.tagName === 'INPUT') {
-                toggle.checked = !!val;
-                const title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-                const label = toggle.closest?.('.tp-mini-switch');
-                if (label) label.title = title;
-                const state = label?.querySelector('.tp-mini-state');
-                if (state) state.textContent = val ? 'ON' : 'OFF';
+                syncMiniToggle(toggle, !!val, 'Min-Angebote-Filter');
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);

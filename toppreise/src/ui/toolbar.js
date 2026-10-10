@@ -13,6 +13,7 @@ import { scanState } from "../state/store.js";
 import { showToast } from "./toast.js";
 import { setTextIfChanged } from "./badges.js";
 import { triggerProcessListings } from "../page/adapter.js";
+import { syncMiniToggle } from "./mini-toggle.js";
 
 function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');
@@ -33,26 +34,6 @@ function getSuiteBarPlacement() {
   return { container: document.body, reference: document.body.firstElementChild };
 }
 
-// Tools dimmed when their mini-toggle is OFF (the toggle itself stays bright).
-const DIM_TARGETS_BY_TOGGLE = {
-  'tp-toggle-neg': ['.tp-input-field-box'],
-  'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
-};
-function syncMiniToggle(input, enabled, titleBase) {
-  if (!input) return;
-  input.checked = !!enabled;
-  const label = input.closest?.('.tp-mini-switch');
-  const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
-  if (label) label.title = title;
-  const state = label?.querySelector('.tp-mini-state');
-  if (state) state.textContent = enabled ? 'ON' : 'OFF';
-  const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-  const caption = scope?.querySelector('.tp-mini-caption');
-  if (caption) caption.title = title;
-  for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
-    scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
-  }
-}
 function bindBestpreiseBtn(btn) {
   btn.onclick = () => {
     const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
@@ -430,14 +411,20 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (minPointsWrapper) {
     minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
-  // The deals group is empty on catalog pages (children hidden) and on deal
-  // feeds (children moved to #timeframe-filter) — hide the box + divider.
-  const dealsGroup = bar.querySelector('.tp-group-deals');
-  if (dealsGroup) {
-    const hasVisibleChild = [...dealsGroup.children].some(el => el.style.display !== 'none');
-    dealsGroup.style.display = hasVisibleChild ? '' : 'none';
-    const sep = dealsGroup.previousElementSibling;
-    if (sep && sep.classList.contains('tp-divider')) sep.style.display = hasVisibleChild ? '' : 'none';
+  // A group left without visible children (evacuated deals group on deal
+  // feeds, option-less groups on catalog pages) hides; a divider shows only
+  // between two visible groups.
+  for (const group of bar.querySelectorAll('.tp-group')) {
+    const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');
+    group.style.display = hasVisibleChild ? '' : 'none';
+  }
+  for (const sep of bar.querySelectorAll('.tp-divider')) {
+    let prev = sep.previousElementSibling;
+    while (prev && !prev.classList.contains('tp-group')) prev = prev.previousElementSibling;
+    let next = sep.nextElementSibling;
+    while (next && !next.classList.contains('tp-group')) next = next.nextElementSibling;
+    const between = !!prev && !!next && prev.style.display !== 'none' && next.style.display !== 'none';
+    sep.style.display = between ? '' : 'none';
   }
 
   const minGroup = bar.querySelector('#tp-bar-min-offers-group');
