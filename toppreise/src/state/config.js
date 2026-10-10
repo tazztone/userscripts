@@ -122,6 +122,18 @@ export const clampMinPoints = v => {
   if (Number.isNaN(n)) return 5;
   return Math.max(1, Math.min(100, Math.round(n)));
 };
+// Stepped min-points scale: fine 1–5, then tens to 100. Sliders bind the
+// index (0–14), number inputs + stored value stay free 1–100.
+export const MIN_POINTS_STEPS = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+export const minPointsToIndex = v => {
+  const n = clampMinPoints(v);
+  let best = 0;
+  for (let i = 1; i < MIN_POINTS_STEPS.length; i++) {
+    if (Math.abs(MIN_POINTS_STEPS[i] - n) < Math.abs(MIN_POINTS_STEPS[best] - n)) best = i;
+  }
+  return best;
+};
+export const minPointsFromIndex = i => MIN_POINTS_STEPS[Math.max(0, Math.min(MIN_POINTS_STEPS.length - 1, parseInt(i, 10) || 0))];
 export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
 export const CONFIG = {
@@ -233,13 +245,14 @@ export function syncUiControl(key, val) {
         }
         case 'BESTPREISE_MIN_POINTS': {
           const num = clampMinPoints(val);
+          const idx = minPointsToIndex(num);
           const range = shadow.getElementById('tp-bestpreise-minpoints-range');
           const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
-          if (range) range.value = num;
+          if (range) range.value = idx;
           if (valEl) valEl.value = num;
           if (typeof document !== 'undefined') {
             const barRange = document.getElementById('tp-bar-minpoints-range');
-            if (barRange && document.activeElement !== barRange) barRange.value = num;
+            if (barRange && document.activeElement !== barRange) barRange.value = idx;
             const barLabel = document.getElementById('tp-bar-minpoints-label');
             if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
           }

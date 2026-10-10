@@ -848,7 +848,7 @@ export const STYLES = `
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
     font-weight: 700 !important;
-    min-width: 18px !important;
+    min-width: 26px !important;
     display: inline-flex !important;
     align-items: center !important;
     height: 100% !important;

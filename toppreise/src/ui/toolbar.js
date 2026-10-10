@@ -5,7 +5,7 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { CONFIG, updateConfig, weightText, clampMinPoints } from "../state/config.js";
+import { CONFIG, updateConfig, weightText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
@@ -156,7 +156,7 @@ function bindMinPointsControls(wrapper) {
   const range = wrapper.querySelector('#tp-bar-minpoints-range');
   const label = wrapper.querySelector('#tp-bar-minpoints-label');
   if (!range) return;
-  const readNum = () => clampMinPoints(range.value);
+  const readNum = () => minPointsFromIndex(range.value);
   const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
   paint();
   range.oninput = () => {
@@ -181,7 +181,7 @@ function buildMinPointsWrapper() {
   wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
   wrapper.innerHTML = `
     <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
-    <input type="range" id="tp-bar-minpoints-range" min="1" max="100" step="1" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (1), rechts streng (100)">`;
+    <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
   bindMinPointsControls(wrapper);
   return wrapper;
 }
@@ -401,7 +401,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const curMinPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
   const minPointsRange = document.getElementById('tp-bar-minpoints-range');
   if (minPointsRange && document.activeElement !== minPointsRange) {
-    minPointsRange.value = curMinPoints;
+    minPointsRange.value = minPointsToIndex(curMinPoints);
   }
   const minPointsLabel = document.getElementById('tp-bar-minpoints-label');
   if (minPointsLabel) minPointsLabel.textContent = `📊 ${curMinPoints} Pkt`;

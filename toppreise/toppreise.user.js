@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.153
+// @version      2.18.154
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -873,7 +873,7 @@ const STYLES = `
   .tp-threshold-wrapper .tp-mini-state {
     font-size: 10px !important;
     font-weight: 700 !important;
-    min-width: 18px !important;
+    min-width: 26px !important;
     display: inline-flex !important;
     align-items: center !important;
     height: 100% !important;
@@ -2611,6 +2611,18 @@ const SHADOW_MODAL_STYLES = `
     if (Number.isNaN(n)) return 5;
     return Math.max(1, Math.min(100, Math.round(n)));
   };
+  // Stepped min-points scale: fine 1–5, then tens to 100. Sliders bind the
+  // index (0–14), number inputs + stored value stay free 1–100.
+  const MIN_POINTS_STEPS = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  const minPointsToIndex = v => {
+    const n = clampMinPoints(v);
+    let best = 0;
+    for (let i = 1; i < MIN_POINTS_STEPS.length; i++) {
+      if (Math.abs(MIN_POINTS_STEPS[i] - n) < Math.abs(MIN_POINTS_STEPS[best] - n)) best = i;
+    }
+    return best;
+  };
+  const minPointsFromIndex = i => MIN_POINTS_STEPS[Math.max(0, Math.min(MIN_POINTS_STEPS.length - 1, parseInt(i, 10) || 0))];
   const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
   const CONFIG = {
@@ -2722,13 +2734,14 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'BESTPREISE_MIN_POINTS': {
             const num = clampMinPoints(val);
+            const idx = minPointsToIndex(num);
             const range = shadow.getElementById('tp-bestpreise-minpoints-range');
             const valEl = shadow.getElementById('tp-bestpreise-minpoints-val');
-            if (range) range.value = num;
+            if (range) range.value = idx;
             if (valEl) valEl.value = num;
             if (typeof document !== 'undefined') {
               const barRange = document.getElementById('tp-bar-minpoints-range');
-              if (barRange && document.activeElement !== barRange) barRange.value = num;
+              if (barRange && document.activeElement !== barRange) barRange.value = idx;
               const barLabel = document.getElementById('tp-bar-minpoints-label');
               if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
             }
@@ -5274,7 +5287,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
             <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
             <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-minpoints-range" min="1" max="100" step="1" value="5">
+              <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="14" step="1" value="4">
               <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
             </div>
             <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
@@ -5534,7 +5547,15 @@ const SHADOW_MODAL_STYLES = `
       }
     };
     bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
-    bindDual(bestpreiseMinPointsRange, bestpreiseMinPointsVal);
+    if (bestpreiseMinPointsRange && bestpreiseMinPointsVal) {
+      bestpreiseMinPointsRange.addEventListener('input', e => {
+        bestpreiseMinPointsVal.value = minPointsFromIndex(e.target.value);
+      });
+      bestpreiseMinPointsVal.addEventListener('input', e => {
+        const typed = parseFloat(e.target.value);
+        if (!isNaN(typed)) bestpreiseMinPointsRange.value = minPointsToIndex(clampMinPoints(typed));
+      });
+    }
 
     bestpreiseModeToggle?.addEventListener('change', () => {
       if (bestpreiseWeightGroup) {
@@ -5893,7 +5914,7 @@ const SHADOW_MODAL_STYLES = `
     const range = wrapper.querySelector('#tp-bar-minpoints-range');
     const label = wrapper.querySelector('#tp-bar-minpoints-label');
     if (!range) return;
-    const readNum = () => clampMinPoints(range.value);
+    const readNum = () => minPointsFromIndex(range.value);
     const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
     paint();
     range.oninput = () => {
@@ -5918,7 +5939,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
     wrapper.innerHTML = `
       <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
-      <input type="range" id="tp-bar-minpoints-range" min="1" max="100" step="1" value="${cur}" title="Mindestanzahl Datenpunkte in der Preishistorie: links locker (1), rechts streng (100)">`;
+      <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
     bindMinPointsControls(wrapper);
     return wrapper;
   }
@@ -6138,7 +6159,7 @@ const SHADOW_MODAL_STYLES = `
     const curMinPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
     const minPointsRange = document.getElementById('tp-bar-minpoints-range');
     if (minPointsRange && document.activeElement !== minPointsRange) {
-      minPointsRange.value = curMinPoints;
+      minPointsRange.value = minPointsToIndex(curMinPoints);
     }
     const minPointsLabel = document.getElementById('tp-bar-minpoints-label');
     if (minPointsLabel) minPointsLabel.textContent = `📊 ${curMinPoints} Pkt`;
