@@ -259,6 +259,14 @@ export function syncUiControl(key, val) {
             bar.classList.toggle('tp-bestpreise-bar', val === true);
             break;
           }
+          case 'BESTPREISE_HIDE_UNCHECKED': {
+            const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
+            if (uncheckedBtn) {
+              uncheckedBtn.classList.toggle('tp-active', val === true);
+              uncheckedBtn.title = val === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+            }
+            break;
+          }
           case 'FILTER_NEG_ENABLED': {
             const toggle = bar.querySelector('#tp-toggle-neg');
             if (toggle) {
@@ -269,9 +277,6 @@ export function syncUiControl(key, val) {
                 if (label) label.title = title;
                 const state = label?.querySelector('.tp-mini-state');
                 if (state) state.textContent = val ? 'ON' : 'OFF';
-                const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-                const caption = scope?.querySelector('.tp-mini-caption');
-                if (caption) caption.title = title;
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);
@@ -290,9 +295,6 @@ export function syncUiControl(key, val) {
                 if (label) label.title = title;
                 const state = label?.querySelector('.tp-mini-state');
                 if (state) state.textContent = val ? 'ON' : 'OFF';
-                const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-                const caption = scope?.querySelector('.tp-mini-caption');
-                if (caption) caption.title = title;
               } else {
                 toggle.classList.toggle('tp-active', !!val);
                 toggle.classList.toggle('tp-filter-off', !val);

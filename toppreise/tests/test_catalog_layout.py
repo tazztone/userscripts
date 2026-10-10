@@ -406,14 +406,13 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     }""")
     page.wait_for_selector('#card-cheapest.tp-is-verified')
     assert 'tp-is-unverified' in (page.locator('#card-negative').get_attribute('class') or '')
-    # Toggle faces: contextual checkbox in the CTA threshold popover + settings toggle (persisted pref)
+    # Toggle faces: toolbar button + settings toggle (persisted pref)
     page.click('#tp-root >> #tp-settings-fab')
     assert page.locator('#tp-root >> #tp-hide-unchecked-toggle').is_checked() is False
     page.click('#tp-root >> #tp-btn-close')
 
-    # Toggle ON via the popover checkbox hides unchecked cards, verified card stays visible
-    page.click('#tp-floating-threshold-btn')
-    page.click('.tp-floating-filter-row')
+    # Toggle ON via the toolbar button hides unchecked cards, verified card stays visible
+    page.click('#tp-bar-unchecked-btn')
     page.wait_for_selector('#card-negative.tp-unchecked-hidden', state='attached')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
     assert 'tp-unchecked-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
@@ -423,7 +422,7 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     assert 'prüfen' in (page.locator('#tp-floating-check-main').text_content() or '').lower()
 
     # Toggle OFF the same way brings unchecked cards back
-    page.click('.tp-floating-filter-row')
+    page.click('#tp-bar-unchecked-btn')
     page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-unchecked-hidden')")
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 

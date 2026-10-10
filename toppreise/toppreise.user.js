@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.128
+// @version      2.18.129
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -863,15 +863,6 @@ const STYLES = `
     flex-wrap: wrap !important;
     row-gap: 6px !important;
   }
-  .tp-group-label {
-    font-size: 9px !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.8px !important;
-    text-transform: uppercase !important;
-    color: #64748b !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-  }
   .tp-divider {
     width: 1px !important;
     align-self: stretch !important;
@@ -884,13 +875,6 @@ const STYLES = `
     font-size: 10px !important;
     font-weight: 500 !important;
     opacity: 0.65 !important;
-  }
-  .tp-mini-caption {
-    font-size: 10px !important;
-    font-weight: 700 !important;
-    color: #94a3b8 !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
   }
   .tp-join {
     display: inline-flex !important;
@@ -913,13 +897,6 @@ const STYLES = `
     align-items: center !important;
     gap: 6px !important;
     min-width: 0 !important;
-  }
-  .tp-input-label-inline {
-    font-size: 12px !important;
-    font-weight: 700 !important;
-    color: #94a3b8 !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
   }
   .tp-input-field-box {
     flex: 1 !important;
@@ -1144,21 +1121,6 @@ const STYLES = `
     white-space: nowrap !important;
   }
   #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
-  #tp-floating-threshold-popover .tp-floating-filter-row {
-    display: flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    color: #cbd5e1 !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    padding: 6px 10px !important;
-    cursor: pointer !important;
-    white-space: nowrap !important;
-    border-radius: 6px !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-filter-row:hover { background: rgba(51,65,85,1) !important; color: #fff !important; }
-  #tp-floating-threshold-popover .tp-floating-filter-row.tp-active { background: rgba(16,185,129,0.25) !important; color: #34d399 !important; }
-  #tp-floating-threshold-popover .tp-floating-filter-row input { accent-color: #10b981 !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 6px) !important;
@@ -1210,7 +1172,6 @@ const STYLES = `
   #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(51,65,85,1) !important; }
   #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid #34d399 !important; outline-offset: 2px !important; }
-  #tp-floating-threshold-popover .tp-floating-filter-row:focus-within { outline: 2px solid #34d399 !important; outline-offset: -2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
   #tp-floating-check-count { display: none !important; font-size: 13px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-cta.tp-collapsed { border-radius: 999px !important; padding: 4px !important; }
@@ -2507,6 +2468,14 @@ const SHADOW_MODAL_STYLES = `
               bar.classList.toggle('tp-bestpreise-bar', val === true);
               break;
             }
+            case 'BESTPREISE_HIDE_UNCHECKED': {
+              const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
+              if (uncheckedBtn) {
+                uncheckedBtn.classList.toggle('tp-active', val === true);
+                uncheckedBtn.title = val === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+              }
+              break;
+            }
             case 'FILTER_NEG_ENABLED': {
               const toggle = bar.querySelector('#tp-toggle-neg');
               if (toggle) {
@@ -2517,9 +2486,6 @@ const SHADOW_MODAL_STYLES = `
                   if (label) label.title = title;
                   const state = label?.querySelector('.tp-mini-state');
                   if (state) state.textContent = val ? 'ON' : 'OFF';
-                  const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-                  const caption = scope?.querySelector('.tp-mini-caption');
-                  if (caption) caption.title = title;
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -2538,9 +2504,6 @@ const SHADOW_MODAL_STYLES = `
                   if (label) label.title = title;
                   const state = label?.querySelector('.tp-mini-state');
                   if (state) state.textContent = val ? 'ON' : 'OFF';
-                  const scope = toggle.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
-                  const caption = scope?.querySelector('.tp-mini-caption');
-                  if (caption) caption.title = title;
                 } else {
                   toggle.classList.toggle('tp-active', !!val);
                   toggle.classList.toggle('tp-filter-off', !val);
@@ -5478,12 +5441,10 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.BESTPREISE_MODE_ACTIVE) bar.classList.add('tp-bestpreise-bar');
       bar.innerHTML = `
         <div class="tp-filter-main-row">
-         <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
-          <span class="tp-group-label" aria-hidden="true">Filter</span>
+        <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
           <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
-            <span class="tp-input-label-inline">🚫 Negativ-Filter:</span>
             <div class="tp-input-field-box">
-              <input type="text" id="tp-inline-negative-input" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
+              <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
               <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
             </div>
             <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
@@ -5493,12 +5454,12 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Ausgeblendete anzeigen — klicken zum Ein-/Ausblenden">👁️ Ausgeblendete (0)</button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)">👁️ Nur geprüfte</button>
           <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten ausblenden">
             <span class="tp-stepper-label">Min-Angebote:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
             <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
             <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
-            <span class="tp-mini-caption" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">Aktiv</span>
             <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
               <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
               <span class="tp-mini-slider"></span>
@@ -5507,8 +5468,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
-         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
-          <span class="tp-group-label" aria-hidden="true">Ansicht</span>
+        <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
           <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
@@ -5559,6 +5519,11 @@ const SHADOW_MODAL_STYLES = `
         document.body.classList.toggle('tp-reveal-all');
         triggerProcessListings();
       };
+      bar.querySelector('#tp-bar-unchecked-btn').onclick = () => {
+        const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
+        updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+        showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+  };
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
         const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -5627,6 +5592,11 @@ const SHADOW_MODAL_STYLES = `
       heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
       heatBtn.style.setProperty('display', 'flex', 'important');
     }
+    const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
+    if (uncheckedBtn) {
+      uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+      uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+    }
 
     // Place first so the state sync below also covers nodes recreated after a native AJAX wipe.
     ensureDealControlsPlacement(isDealFeed);
@@ -5663,6 +5633,15 @@ const SHADOW_MODAL_STYLES = `
     if (weightWrapper) {
       weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
+    // The deals group is empty on catalog pages (children hidden) and on deal
+    // feeds (children moved to #timeframe-filter) — hide the box + divider.
+    const dealsGroup = bar.querySelector('.tp-group-deals');
+    if (dealsGroup) {
+      const hasVisibleChild = [...dealsGroup.children].some(el => el.style.display !== 'none');
+      dealsGroup.style.display = hasVisibleChild ? '' : 'none';
+      const sep = dealsGroup.previousElementSibling;
+      if (sep && sep.classList.contains('tp-divider')) sep.style.display = hasVisibleChild ? '' : 'none';
+    }
 
     const minGroup = bar.querySelector('#tp-bar-min-offers-group');
     if (minGroup) minGroup.style.display = pageHasOffers ? 'flex' : 'none';
@@ -5675,8 +5654,8 @@ const SHADOW_MODAL_STYLES = `
    * Floating Check-Deals CTA Component
    * Primary one-click entry point for Tiefstpreis verification.
    *
-   * Why this exists: the toolbar packs ~8 controls into one row (FILTER |
-   * ANSICHT | DEALS) and the highest-value action — verifying N unchecked
+   * Why this exists: the toolbar packs ~8 controls into one row (filter + view
+   * + deals groups) and the highest-value action — verifying N unchecked
    * deals — drowns at the far right as just another small button. This
    * floating pill (bottom-left, thumb-reachable, above page content but clear
    * of the bottom-right settings FAB) carries that single action with live
@@ -5850,16 +5829,6 @@ const SHADOW_MODAL_STYLES = `
       e.stopPropagation();
       popover.classList.toggle('tp-show');
     };
-    const filterRow = document.createElement('label');
-    filterRow.className = 'tp-floating-filter-row';
-    filterRow.title = 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
-    filterRow.innerHTML = '<input type="checkbox" id="tp-floating-hide-unchecked-toggle"><span>Nur geprüfte</span>';
-    popover.appendChild(filterRow);
-    filterRow.querySelector('input').onchange = e => {
-      const next = e.target.checked;
-      updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-      showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
-    };
     // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
     // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
     el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
@@ -5934,20 +5903,11 @@ const SHADOW_MODAL_STYLES = `
     el.querySelectorAll('.tp-floating-option').forEach(opt => {
       opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
     });
-    const hideToggleSync = el.querySelector('#tp-floating-hide-unchecked-toggle');
-    if (hideToggleSync && document.activeElement !== hideToggleSync) {
-      hideToggleSync.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
-    }
     const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
     if (dealerToggle && document.activeElement !== dealerToggle) {
       dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
     }
     el.querySelector('#tp-floating-dealer-row')?.classList.toggle('tp-active', CONFIG.DEALER_AUTOFETCH === true);
-    const filterRowSync = el.querySelector('.tp-floating-filter-row');
-    if (filterRowSync) {
-      filterRowSync.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
-      filterRowSync.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
-    }
   }
 
   /**

@@ -2,8 +2,8 @@
  * Floating Check-Deals CTA Component
  * Primary one-click entry point for Tiefstpreis verification.
  *
- * Why this exists: the toolbar packs ~8 controls into one row (FILTER |
- * ANSICHT | DEALS) and the highest-value action — verifying N unchecked
+ * Why this exists: the toolbar packs ~8 controls into one row (filter + view
+ * + deals groups) and the highest-value action — verifying N unchecked
  * deals — drowns at the far right as just another small button. This
  * floating pill (bottom-left, thumb-reachable, above page content but clear
  * of the bottom-right settings FAB) carries that single action with live
@@ -181,16 +181,6 @@ function ensureCta() {
     e.stopPropagation();
     popover.classList.toggle('tp-show');
   };
-  const filterRow = document.createElement('label');
-  filterRow.className = 'tp-floating-filter-row';
-  filterRow.title = 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
-  filterRow.innerHTML = '<input type="checkbox" id="tp-floating-hide-unchecked-toggle"><span>Nur geprüfte</span>';
-  popover.appendChild(filterRow);
-  filterRow.querySelector('input').onchange = e => {
-    const next = e.target.checked;
-    updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-    showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
-  };
   // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
   // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
   el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
@@ -265,20 +255,11 @@ function syncFloatingCTA() {
   el.querySelectorAll('.tp-floating-option').forEach(opt => {
     opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
   });
-  const hideToggleSync = el.querySelector('#tp-floating-hide-unchecked-toggle');
-  if (hideToggleSync && document.activeElement !== hideToggleSync) {
-    hideToggleSync.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
-  }
   const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
   if (dealerToggle && document.activeElement !== dealerToggle) {
     dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
   }
   el.querySelector('#tp-floating-dealer-row')?.classList.toggle('tp-active', CONFIG.DEALER_AUTOFETCH === true);
-  const filterRowSync = el.querySelector('.tp-floating-filter-row');
-  if (filterRowSync) {
-    filterRowSync.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
-    filterRowSync.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
-  }
 }
 
 /**

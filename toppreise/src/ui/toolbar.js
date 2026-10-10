@@ -153,12 +153,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     if (CONFIG.BESTPREISE_MODE_ACTIVE) bar.classList.add('tp-bestpreise-bar');
     bar.innerHTML = `
       <div class="tp-filter-main-row">
-       <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
-        <span class="tp-group-label" aria-hidden="true">Filter</span>
+      <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
         <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
-          <span class="tp-input-label-inline">🚫 Negativ-Filter:</span>
           <div class="tp-input-field-box">
-            <input type="text" id="tp-inline-negative-input" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
+            <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="${CONFIG.NEGATIVE_TERMS || ''}">
             <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
           </div>
           <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
@@ -168,12 +166,12 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
           </label>
         </div>
         <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Ausgeblendete anzeigen — klicken zum Ein-/Ausblenden">👁️ Ausgeblendete (0)</button>
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="Nur geprüfte anzeigen (ungeprüfte ausblenden)">👁️ Nur geprüfte</button>
         <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten ausblenden">
           <span class="tp-stepper-label">Min-Angebote:</span>
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
           <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
           <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
-          <span class="tp-mini-caption" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">Aktiv</span>
           <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
             <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
             <span class="tp-mini-slider"></span>
@@ -182,8 +180,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         </div>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
-       <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
-        <span class="tp-group-label" aria-hidden="true">Ansicht</span>
+      <div class="tp-group tp-group-view" role="group" aria-label="Ansicht">
         <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
@@ -234,6 +231,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       document.body.classList.toggle('tp-reveal-all');
       triggerProcessListings();
     };
+    bar.querySelector('#tp-bar-unchecked-btn').onclick = () => {
+      const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
+      updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
+      showToast(next ? '👁️ Nur geprüfte Deals werden angezeigt' : '👁️ Ungeprüfte Deals werden wieder angezeigt');
+};
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
       const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -302,6 +304,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
     heatBtn.style.setProperty('display', 'flex', 'important');
   }
+  const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
+  if (uncheckedBtn) {
+    uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
+    uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Nur geprüfte aktiv — klicken zum Anzeigen aller' : 'Nur geprüfte anzeigen (ungeprüfte ausblenden)';
+  }
 
   // Place first so the state sync below also covers nodes recreated after a native AJAX wipe.
   ensureDealControlsPlacement(isDealFeed);
@@ -337,6 +344,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
   if (weightWrapper) {
     weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+  }
+  // The deals group is empty on catalog pages (children hidden) and on deal
+  // feeds (children moved to #timeframe-filter) — hide the box + divider.
+  const dealsGroup = bar.querySelector('.tp-group-deals');
+  if (dealsGroup) {
+    const hasVisibleChild = [...dealsGroup.children].some(el => el.style.display !== 'none');
+    dealsGroup.style.display = hasVisibleChild ? '' : 'none';
+    const sep = dealsGroup.previousElementSibling;
+    if (sep && sep.classList.contains('tp-divider')) sep.style.display = hasVisibleChild ? '' : 'none';
   }
 
   const minGroup = bar.querySelector('#tp-bar-min-offers-group');

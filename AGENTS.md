@@ -82,5 +82,3 @@
   ```bash
   firefox "https://raw.githubusercontent.com/tazztone/userscripts/<branch>/<script>/<script>.user.js"
   ```
----
-After each task is completed: update the affected readme/docs/specs if needed, then git commit with `git commit -m "…" && git log --oneline -1`.
