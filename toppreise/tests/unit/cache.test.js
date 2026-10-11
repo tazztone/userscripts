@@ -7,10 +7,15 @@ import {
   getCachedPriceStats,
   setCachedPriceStats,
   clearPriceStatsCache,
+  countCachedPriceStats,
+  prunePriceStatsCache,
   recomputeCachedMedians,
   DEALER_CACHE_PREFIX,
+  SHARED_CACHE_PREFIX,
   getCachedDealer,
   setCachedDealer,
+  getSharedDeal,
+  setSharedDeal,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
 import { CONFIG } from '../../src/state/config.js';
@@ -203,6 +208,75 @@ describe('Bounded Cache Module', () => {
       s.setItem('tp_hist_v1_p1', JSON.stringify({ time: Date.now() }));
       assert.equal(clearPriceStatsCache(s), 2);
       assert.equal(getCachedDealer('p1', false, s), null);
+    });
+  });
+  describe('shared-deal memory', () => {
+    const memStorage = () => {
+      const m = new Map();
+      return {
+        getItem: k => (m.has(k) ? m.get(k) : null),
+        setItem: (k, v) => { m.set(k, String(v)); },
+        removeItem: k => { m.delete(k); },
+        key: i => [...m.keys()][i] ?? null,
+        get length() { return m.size; },
+      };
+    };
+
+    it('round-trips same price, re-arms on price change', () => {
+      const s = memStorage();
+      setSharedDeal('p1', 9999, s);
+      assert.equal(getSharedDeal('p1', 9999, s), true);
+      assert.equal(getSharedDeal('p1', 8999, s), false);
+    });
+
+    it('forgets with pricing data (48h TTL)', () => {
+      const s = memStorage();
+      const prev = CONFIG.REAL_DEAL_CACHE_HOURS;
+      CONFIG.REAL_DEAL_CACHE_HOURS = 48;
+      try {
+        s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 49 * 3600 * 1000 }));
+        assert.equal(getSharedDeal('old', 1000, s), false);
+        setSharedDeal('fresh', 1000, s);
+        assert.equal(getSharedDeal('fresh', 1000, s), true);
+      } finally {
+        CONFIG.REAL_DEAL_CACHE_HOURS = prev;
+      }
+    });
+
+    it('tolerates missing/corrupt/falsy keys, set never throws', () => {
+      const s = memStorage();
+      assert.equal(getSharedDeal('missing', 1000, s), false);
+      s.setItem(SHARED_CACHE_PREFIX + 'broken', 'kein json{{');
+      assert.equal(getSharedDeal('broken', 1000, s), false);
+      assert.equal(getSharedDeal('', 1000, s), false);
+      assert.equal(getSharedDeal(null, 1000, s), false);
+      setSharedDeal(null, 1000, s);
+      setSharedDeal('', 1000, s);
+      setSharedDeal('p1', null, s);
+      assert.equal(s.length, 1); // only 'broken' written above
+    });
+
+    it('clearPriceStatsCache forgets shared marks', () => {
+      const s = memStorage();
+      setSharedDeal('p1', 1000, s);
+      assert.equal(clearPriceStatsCache(s), 1);
+      assert.equal(getSharedDeal('p1', 1000, s), false);
+    });
+
+    it('countCachedPriceStats ignores shared marks', () => {
+      const s = memStorage();
+      setSharedDeal('p1', 1000, s);
+      s.setItem('tp_hist_v1_p1', JSON.stringify({ time: Date.now() }));
+      assert.equal(countCachedPriceStats(s), 1);
+    });
+
+    it('prunePriceStatsCache removes shared entries older than 14 days', () => {
+      const s = memStorage();
+      s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 15 * 24 * 3600 * 1000 }));
+      setSharedDeal('fresh', 1000, s);
+      prunePriceStatsCache(s);
+      assert.equal(getSharedDeal('old', 1000, s), false);
+      assert.equal(getSharedDeal('fresh', 1000, s), true);
     });
   });
 

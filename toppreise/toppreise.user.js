@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.171
+// @version      2.18.172
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -443,6 +443,11 @@ const STYLES = `
   .tp-share-btn:disabled {
     opacity: 0.4 !important;
     cursor: wait !important;
+  }
+  .tp-share-btn.tp-share-done {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    box-shadow: 0 0 10px var(--tp-acc) !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
@@ -2294,9 +2299,11 @@ const SHADOW_MODAL_STYLES = `
 
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
   const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
-  // Janitor-Funktionen (prune/count/clear) betreuen beide Prefixe: Händlerdaten
-  // sind abgeleitete Produktdaten mit derselben TTL wie die Preishistorie.
-  const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX];
+  const SHARED_CACHE_PREFIX = 'tp_shared_v1_';
+  // Janitor-Funktionen (prune/count/clear) betreuen alle Prefixe: Händlerdaten
+  // und Geteilt-Markierungen sind abgeleitete Produktdaten mit derselben TTL
+  // wie die Preishistorie.
+  const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX, SHARED_CACHE_PREFIX];
   const MAX_MEMORY_CACHE_ITEMS = 500;
 
   function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
@@ -2427,7 +2434,8 @@ const SHADOW_MODAL_STYLES = `
       if (storage) {
         for (let i = 0; i < storage.length; i++) {
           const key = storage.key(i);
-          if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
+          // Geteilt-Markierungen sind keine gecachten Preise: Label zählt nur Historie + Händler.
+          if (key && [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX].some(p => key.startsWith(p))) {
             count++;
           }
         }
@@ -2521,6 +2529,28 @@ const SHADOW_MODAL_STYLES = `
       try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
       const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '' } };
       storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
+    } catch (e) {}
+  }
+
+  // Geteilt-Markierung pro Produkt+Preis: pid + Preis-Cents als Identität, damit
+  // eine Preisänderung die Markierung löst und der Deal neu scharf wird.
+  // TTL via isCacheEntryFresh (REAL_DEAL_CACHE_HOURS); clear/prune laufen über
+  // CACHE_PREFIXES mit — kein eigener Lifecycle.
+  function getSharedDeal(productId, priceCents, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+    if (!productId) return false;
+    try {
+      const raw = storage?.getItem(SHARED_CACHE_PREFIX + productId);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return isCacheEntryFresh(parsed) && parsed.priceCents === priceCents;
+    } catch (e) {}
+    return false;
+  }
+
+  function setSharedDeal(productId, priceCents, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+    if (!productId || priceCents == null) return;
+    try {
+      storage?.setItem(SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
     } catch (e) {}
   }
 
@@ -5053,6 +5083,7 @@ const SHADOW_MODAL_STYLES = `
               }
             }
             showToast('📤 Deal in Discord geteilt');
+            if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
           } catch {
             showToast('📤 Teilen fehlgeschlagen');
           }
@@ -5063,6 +5094,7 @@ const SHADOW_MODAL_STYLES = `
         card.appendChild(shareBtn);
       }
       shareBtn.style.display = '';
+      shareBtn.classList.toggle('tp-share-done', !!(pid && cardPrice > 0 && getSharedDeal(pid, priceToCents(cardPrice))));
     } else {
       shareBtn?.remove();
     }

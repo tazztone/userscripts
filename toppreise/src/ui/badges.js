@@ -23,7 +23,7 @@ import {
 } from '../scanner/scanner.js';
 import { startBatchCheck } from './floating-cta.js';
 import { scanState } from '../state/store.js';
-import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet } from '../scanner/cache.js';
+import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline, openSparklinePopout } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
@@ -851,6 +851,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             }
           }
           showToast('📤 Deal in Discord geteilt');
+          if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
         } catch {
           showToast('📤 Teilen fehlgeschlagen');
         }
@@ -861,6 +862,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       card.appendChild(shareBtn);
     }
     shareBtn.style.display = '';
+    shareBtn.classList.toggle('tp-share-done', !!(pid && cardPrice > 0 && getSharedDeal(pid, priceToCents(cardPrice))));
   } else {
     shareBtn?.remove();
   }

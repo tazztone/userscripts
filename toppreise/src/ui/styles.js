@@ -419,6 +419,11 @@ export const STYLES = `
     opacity: 0.4 !important;
     cursor: wait !important;
   }
+  .tp-share-btn.tp-share-done {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    box-shadow: 0 0 10px var(--tp-acc) !important;
+  }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;
