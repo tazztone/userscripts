@@ -143,23 +143,24 @@ def test_discount_heatmap_rendering(page: Page):
     seed_verified_deal(page, '797571', clear=True)
     seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 1800, 'medianPrice': 1250}, clear=False)
 
-    # Card 1 has a verified -50% deal -> hot chrome signal (border + no fill)
+    # Card 1 has a verified -50% deal -> hot inset wash (glow only, no border, no fill)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
     card_hot = page.locator('#card-cheapest')
     assert 'tp-heat-blend' in (card_hot.get_attribute('class') or '')
     assert 'tp-is-verified' in (card_hot.get_attribute('class') or '')
     assert 'tp-is-verified' in (card_hot.locator('.badge-dif').get_attribute('class') or '')
 
-    # Card 2 has a verified -12% deal -> faint warm chrome signal (same ramp, low intensity)
+    # Card 2 has a verified -12% deal -> faint warm inset wash (same ramp, low intensity)
     card_cold = page.locator('#card-expensive')
     assert 'tp-heat-blend' in (card_cold.get_attribute('class') or '')
 
-    # Check chrome signal values on cards: tinted border, no fill
-    hot_border = card_hot.evaluate("el => el.style.getPropertyValue('--tp-heat-border')")
-    cold_border = card_cold.evaluate("el => el.style.getPropertyValue('--tp-heat-border')")
-    assert 'rgba(' in hot_border
-    assert 'rgba(' in cold_border
-    assert hot_border != cold_border
+    # Check glow signal values on cards: tinted glow, no border, no fill
+    hot_glow = card_hot.evaluate("el => el.style.getPropertyValue('--tp-heat-glow')")
+    cold_glow = card_cold.evaluate("el => el.style.getPropertyValue('--tp-heat-glow')")
+    assert 'rgba(' in hot_glow
+    assert 'rgba(' in cold_glow
+    assert hot_glow != cold_glow
+    assert 'inset' in card_hot.evaluate('el => getComputedStyle(el).boxShadow')
     assert 'linear-gradient' not in card_hot.evaluate('el => getComputedStyle(el).backgroundImage')
 
     # Badges reuse the card ramp: deep-deal badge is redder than the -10% badge
@@ -370,7 +371,7 @@ def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
     card = page.locator('#card-cheapest')
-    has_heat = card.evaluate("el => el.classList.contains('tp-heat-blend') || el.style.getPropertyValue('--tp-heat-border') !== ''")
+    has_heat = card.evaluate("el => el.classList.contains('tp-heat-blend') || el.style.getPropertyValue('--tp-heat-glow') !== ''")
     assert has_heat
 
 def test_hide_unchecked_toggle_filters_unverified(page: Page):
@@ -1508,8 +1509,9 @@ def test_merged_blend_subline_rendering(page: Page):
 def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
     """
     A verified Tiefstpreis WITHOUT a blend (thin history, no median) is a mode
-    deal, not a bad deal: the card stays visible with feathered edge heat
-    (.tp-heat-vortief, no full wash) and the Vortief-Abstand on the ribbon.
+    deal, not a bad deal: the card stays visible with a subtle outer glow
+    (.tp-heat-vortief, never the regular inset wash) and the Vortief-Abstand
+    on the ribbon.
     """
     page.set_viewport_size({'width': 1600, 'height': 900})
     page.evaluate("""() => {
@@ -1529,14 +1531,14 @@ def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
     card = page.locator('#card-cheapest')
     assert card.is_visible()
     assert 'tp-baddeal-hidden' not in (card.get_attribute('class') or '')
-    # Feathered edge, never the full blended wash
+    # Subtle outer glow, never the regular inset wash
     assert 'tp-heat-vortief' in (card.get_attribute('class') or '')
     assert 'tp-heat-blend' not in (card.get_attribute('class') or '')
     bg = card.evaluate('el => getComputedStyle(el).backgroundImage')
     assert 'linear-gradient' not in bg
-    # Containment: the glow is inset, so it can never bleed onto neighbors
+    # Outer glow (or none for shallow drops) — inset is reserved for verified blend heat
     shadow = card.evaluate('el => getComputedStyle(el).boxShadow')
-    assert 'inset' in shadow
+    assert 'inset' not in shadow
     # Ribbon prints the shared Vortief-Abstand (-10% vs CHF 2000.00)
     badge = card.locator('.badge-dif')
     assert '-10%' in badge.inner_text()

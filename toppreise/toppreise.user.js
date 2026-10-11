@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.185
+// @version      2.18.186
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -72,7 +72,7 @@ const STYLES = `
   :root {
     ${TP_TOKEN_VARS}
   }
-  /* ─── CHROME-ONLY DEAL HEAT (no fill: card keeps the site background) ─── */
+  /* ─── GLOW-ONLY DEAL HEAT (no border, no fill: card keeps the site background, signal is box-shadow only) ─── */
   html body .tp-heat-blend,
   html body .Plugin_Product.tp-heat-blend,
   html body .mixedBrowsingListProduct.tp-heat-blend,
@@ -80,18 +80,13 @@ const STYLES = `
   .tp-heat-blend,
   .Plugin_Product.tp-heat-blend,
   .mixedBrowsingListProduct.tp-heat-blend {
-    border: 2px solid var(--tp-heat-border) !important;
-    border-color: var(--tp-heat-border) !important;
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
   }
-  /* Vortief edge heat (mode, verified low without blend): no fill — the card
-  keeps the site background. Same ramp hue as blended heat, but the signal is
-  an inset inner glow + tinted border, so the fallback never reads as a
-  blended deal. Inset never leaves the card's own edges. Border color + glow
-  arrive inline; this sets the edge. */
+  /* Vortief fallback heat (mode, verified low without blend): subtle outer
+  glow only — never the regular inset wash, never a solid border. Inset is
+  reserved for verified blend heat. Glow arrives inline via --tp-heat-glow;
+  this keeps only the transition. */
   .tp-heat-vortief {
-    border-width: 2px !important;
-    border-style: solid !important;
     transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest {
@@ -4272,20 +4267,22 @@ const SHADOW_MODAL_STYLES = `
     // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
     // site Differenzen stay neutral — the tp-is-unverified class below paints
     // them gray-striped instead, so the state scans without comparing saturation.
-    // Vortief heat (mode, verified low without blend): same ramp hue, but the
-    // signal lives in an inset inner glow — never a full wash, never past the
-    // card's own edges — so the fallback can't pass as a blended deal.
+    // Regular blend heat (verified): inset inner wash — the prominent signal,
+    // clipped to the card's own edges. Vortief fallback heat (mode, verified low
+    // without blend): same ramp hue, but only a subtle outer glow-or-none
+    // (getChromeHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
+    // glow, by design, so the fallback can't pass as a blended deal).
+    // NOTE: getEdgeHeatStyle serves regular here, getChromeHeatStyle the
+    // fallback — names read historically; the ternary below is the swap point.
     const isVortiefHeat = heatInfo.kind === 'vortief';
     if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
-        const heat = isVortiefHeat ? getEdgeHeatStyle(heatInfo.pct, heatIntensity) : getChromeHeatStyle(effectiveDiff, heatIntensity);
+        const heat = isVortiefHeat ? getChromeHeatStyle(effectiveDiff, heatIntensity) : getEdgeHeatStyle(heatInfo.pct, heatIntensity);
         card.classList.toggle('tp-heat-vortief', isVortiefHeat);
         card.classList.toggle('tp-heat-blend', !isVortiefHeat);
-        card.style.setProperty('--tp-heat-border', heat.border);
         card.style.setProperty('--tp-heat-glow', heat.glow);
-        card.style.setProperty('border-color', heat.border, 'important');
         card.style.setProperty('box-shadow', heat.glow, 'important');
       }
       // Badge follows the card heat: same ramp, solid swatch. Synced on every
@@ -4310,9 +4307,7 @@ const SHADOW_MODAL_STYLES = `
       delete card.dataset.tpAppliedHeat;
       card.style.removeProperty('box-shadow');
       card.classList.remove('tp-heat-blend', 'tp-heat-vortief');
-      card.style.removeProperty('--tp-heat-border');
       card.style.removeProperty('--tp-heat-glow');
-      card.style.removeProperty('border-color');
       // Undo the badge heat coupling from the apply path above
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
       if (heatBadgeEl) {

@@ -129,20 +129,22 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
   // site Differenzen stay neutral — the tp-is-unverified class below paints
   // them gray-striped instead, so the state scans without comparing saturation.
-  // Vortief heat (mode, verified low without blend): same ramp hue, but the
-  // signal lives in an inset inner glow — never a full wash, never past the
-  // card's own edges — so the fallback can't pass as a blended deal.
+  // Regular blend heat (verified): inset inner wash — the prominent signal,
+  // clipped to the card's own edges. Vortief fallback heat (mode, verified low
+  // without blend): same ramp hue, but only a subtle outer glow-or-none
+  // (getChromeHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
+  // glow, by design, so the fallback can't pass as a blended deal).
+  // NOTE: getEdgeHeatStyle serves regular here, getChromeHeatStyle the
+  // fallback — names read historically; the ternary below is the swap point.
   const isVortiefHeat = heatInfo.kind === 'vortief';
   if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
     const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
-      const heat = isVortiefHeat ? getEdgeHeatStyle(heatInfo.pct, heatIntensity) : getChromeHeatStyle(effectiveDiff, heatIntensity);
+      const heat = isVortiefHeat ? getChromeHeatStyle(effectiveDiff, heatIntensity) : getEdgeHeatStyle(heatInfo.pct, heatIntensity);
       card.classList.toggle('tp-heat-vortief', isVortiefHeat);
       card.classList.toggle('tp-heat-blend', !isVortiefHeat);
-      card.style.setProperty('--tp-heat-border', heat.border);
       card.style.setProperty('--tp-heat-glow', heat.glow);
-      card.style.setProperty('border-color', heat.border, 'important');
       card.style.setProperty('box-shadow', heat.glow, 'important');
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
@@ -167,9 +169,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     delete card.dataset.tpAppliedHeat;
     card.style.removeProperty('box-shadow');
     card.classList.remove('tp-heat-blend', 'tp-heat-vortief');
-    card.style.removeProperty('--tp-heat-border');
     card.style.removeProperty('--tp-heat-glow');
-    card.style.removeProperty('border-color');
     // Undo the badge heat coupling from the apply path above
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     if (heatBadgeEl) {

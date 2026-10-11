@@ -47,7 +47,7 @@ export const STYLES = `
   :root {
     ${TP_TOKEN_VARS}
   }
-  /* ─── CHROME-ONLY DEAL HEAT (no fill: card keeps the site background) ─── */
+  /* ─── GLOW-ONLY DEAL HEAT (no border, no fill: card keeps the site background, signal is box-shadow only) ─── */
   html body .tp-heat-blend,
   html body .Plugin_Product.tp-heat-blend,
   html body .mixedBrowsingListProduct.tp-heat-blend,
@@ -55,18 +55,13 @@ export const STYLES = `
   .tp-heat-blend,
   .Plugin_Product.tp-heat-blend,
   .mixedBrowsingListProduct.tp-heat-blend {
-    border: 2px solid var(--tp-heat-border) !important;
-    border-color: var(--tp-heat-border) !important;
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
   }
-  /* Vortief edge heat (mode, verified low without blend): no fill — the card
-  keeps the site background. Same ramp hue as blended heat, but the signal is
-  an inset inner glow + tinted border, so the fallback never reads as a
-  blended deal. Inset never leaves the card's own edges. Border color + glow
-  arrive inline; this sets the edge. */
+  /* Vortief fallback heat (mode, verified low without blend): subtle outer
+  glow only — never the regular inset wash, never a solid border. Inset is
+  reserved for verified blend heat. Glow arrives inline via --tp-heat-glow;
+  this keeps only the transition. */
   .tp-heat-vortief {
-    border-width: 2px !important;
-    border-style: solid !important;
     transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest {

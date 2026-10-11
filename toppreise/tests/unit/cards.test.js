@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getChromeHeatStyle, getBadgeHeatStyle } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getChromeHeatStyle, getEdgeHeatStyle, getBadgeHeatStyle } from '../../src/page/cards.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
   describe('getDistinctProductIds', () => {
@@ -67,7 +67,7 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
     });
   });
 
-  describe('getChromeHeatStyle chrome-only signal (border + glow, no fill)', () => {
+  describe('getChromeHeatStyle fallback signal (outer glow or none, no fill)', () => {
     it('returns border + glow for deep discount (-100% or more)', () => {
       const styles = getChromeHeatStyle(-100);
       assert.ok(!('bg' in styles));
@@ -102,6 +102,12 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       const pim = getChromeHeatStyle(-58, 1.0);
       const tru = getChromeHeatStyle(-52, 1.0);
       assert.notEqual(pim.border, tru.border);
+    });
+  });
+  describe('getEdgeHeatStyle regular-deal signal (prominent inset wash, no fill)', () => {
+    it('returns an inset glow for a deep drop (positive magnitude)', () => {
+      const styles = getEdgeHeatStyle(50);
+      assert.ok(styles.glow.startsWith('inset'));
     });
   });
 
