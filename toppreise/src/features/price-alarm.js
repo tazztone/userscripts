@@ -165,7 +165,7 @@ export function processPriceAlarmModal() {
           if (closeBtn) closeBtn.click();
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
         }, 800);
-        modalContainer.dataset.tpAlarmTimers = String(closeTimer);
+        modalContainer.dataset.tpAlarmTimers = `${submitTimer},${closeTimer}`;
       }, 300);
       modalContainer.dataset.tpAlarmTimers = String(submitTimer);
     } catch (err) {

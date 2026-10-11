@@ -131,6 +131,21 @@ def test_alarm_bell_three_states_and_cog(page: Page):
     for i in range(2):
         assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'auto'
 
+def test_alarm_bell_ajax_injected(page: Page):
+    # Bell injected after load (offer tabs / AJAX content) is painted via the
+    # main observer within one debounce window; body-level insertion mirrors
+    # the fixture containers. Fixture already provides 2 bells + 2 cogs.
+    page.evaluate("""() => {
+        document.body.insertAdjacentHTML('beforeend',
+            '<div data-context-hash="mock3" data-ajax-url="/plugins/infomails/NewInfoMailButton" data-prod-id="797573" data-templ="btn" class="Plugin_NewInfoMailButton hoverBox">' +
+            '<a href="/neue-infomail?im_nimf_pid=797573" rel="nofollow noindex" class="f_showNewInfoMailFormDialog d-inline-block" title="Preisalarm"><i class="TPIcons-alarm">🔔</i></a></div>');
+    }""")
+    page.wait_for_timeout(600)
+    bells = page.locator('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog')
+    assert bells.count() == 3
+    assert bells.nth(2).get_attribute('data-tp-alarm-state') == 'auto'
+    assert page.locator('.tp-alarm-cog').count() == 3
+
 
 def test_alarm_fill_clamps_corrupt_config(page: Page):
     # Fill-only mode: no auto-submit timers, deterministic asserts
