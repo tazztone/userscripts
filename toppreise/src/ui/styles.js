@@ -1031,6 +1031,7 @@ export const STYLES = `
   }
   .tp-input-wrapper {
     flex: 1 1 200px !important;
+    max-width: 420px !important;
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
