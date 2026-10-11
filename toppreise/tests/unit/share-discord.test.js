@@ -81,7 +81,7 @@ describe('withLivePrice', () => {
 });
 
 describe('formatDealMessage', () => {
-  it('puts one value per line: title, price, dealer, history, link last', () => {
+  it('sizes hierarchy: ## title link, # price, -# dealer, fused history, bare link last', () => {
     const msg = formatDealMessage({
       title: 'HyperX Pulsefire Fuse',
       url: PRODUCT_URL,
@@ -90,61 +90,61 @@ describe('formatDealMessage', () => {
       dealerUrl: 'https://www.toppreise.ch/ext_d-aUS0',
       offerCount: 3,
       spark: '█▁▁',
-      prevLowText: 'Bisher: CHF 44.95',
+      prevLowText: 'CHF 44.95',
       prevLowPct: 29,
       medianText: 'Ø-Preis (1J): CHF 54.05',
       medianPct: 41
     });
     assert.deepEqual(msg.split('\n'), [
-      '**HyperX Pulsefire Fuse**',
-      '💰 **CHF 31.90**',
-      '🏬 Händler: [**Digitec**](https://www.toppreise.ch/ext_d-aUS0)',
-      '🛒 Angebote: **3**',
+      `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`,
+      '# 💰 CHF 31.90',
+      '-# 🏬 [Digitec](https://www.toppreise.ch/ext_d-aUS0) · 🛒 3 Angebote',
       '📊 █▁▁',
-      '📉 Bisher: **CHF 44.95** **-29%**',
-      '📈 Ø-Preis (1J): **CHF 54.05** **-41%**',
+      '📉 **CHF 44.95** **-29%** · 📈 Ø-Preis (1J): **CHF 54.05** **-41%**',
       PRODUCT_URL
     ]);
   });
 
   it('falls back to plain dealer name without dealerUrl', () => {
     const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: 'Digitec', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
-    assert.ok(msg.includes('🏬 Händler: **Digitec**'));
-    assert.ok(!msg.includes('](http'));
+    assert.ok(msg.includes('-# 🏬 Digitec'));
+    assert.ok(!msg.includes('[Digitec]('));
   });
 
   it('omits percentages at/above reference and empty rows, never truncates the link', () => {
-    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: '', offerCount: 0, spark: '', prevLowText: 'Bisher: CHF 10.00', prevLowPct: 0, medianText: '', medianPct: 0 });
-    assert.ok(msg.includes('💰 **CHF 16.95**'));
-    assert.ok(msg.includes('📉 Bisher: **CHF 10.00**'));
+    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: '', offerCount: 0, spark: '', prevLowText: 'CHF 10.00', prevLowPct: 0, medianText: '', medianPct: 0 });
+    assert.ok(msg.includes('# 💰 CHF 16.95'));
+    assert.ok(msg.includes('📉 **CHF 10.00**'));
     assert.ok(!msg.includes('%'));
   });
 
   it('omits empty rows and never truncates the link', () => {
-    const msg = formatDealMessage({ title: 'x'.repeat(500), url: PRODUCT_URL, priceText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
+    const msg = formatDealMessage({ title: 'x'.repeat(500), url: PRODUCT_URL, priceText: '', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '', suppressProductEmbed: true });
     assert.ok(!msg.includes('🔥'));
-    assert.ok(msg.endsWith(PRODUCT_URL));
+    assert.ok(msg.includes(`](${`<${PRODUCT_URL}>`})`));
     assert.ok(msg.length <= 2000);
-    assert.equal(msg.split('\n').length, 2);
+    assert.equal(msg.split('\n').length, 1);
   });
 
   it('suppresses each link preview independently via angle brackets', () => {
     const base = { title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: 'Digitec', dealerUrl: DEALER_URL, offerCount: 0, spark: '', prevLowText: '', medianText: '' };
     const neither = formatDealMessage(base);
     assert.ok(neither.endsWith(PRODUCT_URL));
-    assert.ok(neither.includes(`🏬 Händler: [**Digitec**](${DEALER_URL})`));
+    assert.ok(neither.includes(`-# 🏬 [Digitec](${DEALER_URL})`));
     assert.ok(!neither.includes('<'));
     const dealerOnly = formatDealMessage({ ...base, suppressDealerEmbed: true });
     assert.ok(dealerOnly.includes(`](<${DEALER_URL}>)`));
     assert.ok(dealerOnly.endsWith(PRODUCT_URL));
     const productOnly = formatDealMessage({ ...base, suppressProductEmbed: true });
-    assert.ok(productOnly.endsWith(`<${PRODUCT_URL}>`));
-    assert.ok(productOnly.includes(`](${DEALER_URL})`));
+    assert.ok(productOnly.includes(`## [Belkin Test](<${PRODUCT_URL}>)`));
+    assert.ok(!productOnly.split('\n').some(l => l === PRODUCT_URL || l === `<${PRODUCT_URL}>`));
+    assert.ok(productOnly.endsWith(`-# 🏬 [Digitec](${DEALER_URL})`));
     const both = formatDealMessage({ ...base, suppressDealerEmbed: true, suppressProductEmbed: true });
     assert.ok(both.includes(`](<${DEALER_URL}>)`));
-    assert.ok(both.endsWith(`<${PRODUCT_URL}>`));
+    assert.ok(both.includes(`## [Belkin Test](<${PRODUCT_URL}>)`));
+    assert.ok(!both.split('\n').some(l => l === PRODUCT_URL || l === `<${PRODUCT_URL}>`));
     const long = formatDealMessage({ ...base, title: 'x'.repeat(500), suppressDealerEmbed: true, suppressProductEmbed: true });
-    assert.ok(long.endsWith(`<${PRODUCT_URL}>`));
+    assert.ok(!long.split('\n').some(l => l === PRODUCT_URL || l === `<${PRODUCT_URL}>`));
     assert.ok(long.length <= 2000);
   });
 });
@@ -155,7 +155,7 @@ describe('resolveShareFields', () => {
 
   it('maps record discount to Bisher and median discount to Ø-Preis (never swapped)', () => {
     assert.deepEqual(resolveShareFields(271.38, stats), {
-      prevLowText: 'Bisher: CHF 387.00',
+      prevLowText: 'CHF 387.00',
       prevLowPct: 30,
       medianText: 'Ø-Preis (1J): CHF 403.00',
       medianPct: 33
@@ -173,12 +173,35 @@ describe('resolveShareFields', () => {
       ...resolveShareFields(271.38, stats)
     });
     assert.deepEqual(msg.split('\n'), [
-      '**PHILIPS 5000 Series 34E1C5600AM**',
-      '💰 **CHF 271.38**',
-      '🛒 Angebote: **4**',
-      '📉 Bisher: **CHF 387.00** **-30%**',
-      '📈 Ø-Preis (1J): **CHF 403.00** **-33%**',
+      `## [PHILIPS 5000 Series 34E1C5600AM](${PRODUCT_URL})`,
+      '# 💰 CHF 271.38',
+      '-# 🛒 4 Angebote',
+      '📉 **CHF 387.00** **-30%** · 📈 Ø-Preis (1J): **CHF 403.00** **-33%**',
       PRODUCT_URL
+    ]);
+  });
+
+  it('posts four lines on the default caller path (both previews suppressed)', () => {
+    const msg = formatDealMessage({
+      title: 'Belkin Test',
+      url: PRODUCT_URL,
+      priceText: 'CHF 16.95',
+      dealer: 'Digitec',
+      dealerUrl: DEALER_URL,
+      offerCount: 2,
+      spark: '',
+      prevLowText: 'CHF 10.00',
+      prevLowPct: 5,
+      medianText: 'Ø-Preis (1J): CHF 20.00',
+      medianPct: 10,
+      suppressDealerEmbed: true,
+      suppressProductEmbed: true
+    });
+    assert.deepEqual(msg.split('\n'), [
+      `## [Belkin Test](<${PRODUCT_URL}>)`,
+      '# 💰 CHF 16.95',
+      `-# 🏬 [Digitec](<${DEALER_URL}>) · 🛒 2 Angebote`,
+      '📉 **CHF 10.00** **-5%** · 📈 Ø-Preis (1J): **CHF 20.00** **-10%**'
     ]);
   });
 

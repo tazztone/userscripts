@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.178
+// @version      2.18.179
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6900,8 +6900,8 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
-  // Ein Wert pro Zeile (scannbar, Zahlen fett): Titel zuerst, dann
-  // Preis, Händler, Verlauf. Produktlink zuletzt (unantastbar, embeddet).
+  // Größenhierarchie (# Preis, ## Titel, -# Kontext): Größe = was man zahlt,
+  // Fett = warum es ein Deal ist. Produktlink zuletzt (unantastbar, embeddet).
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
   function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct, suppressDealerEmbed = false, suppressProductEmbed = false }) {
@@ -6909,18 +6909,30 @@ const SHADOW_MODAL_STYLES = `
     const shownLink = (suppressProductEmbed && link) ? `<${link}>` : link;
     let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
     const dealerTarget = dealerUrl ? (suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '';
-    const dealerLine = dealer ? (dealerTarget ? `🏬 Händler: [**${dealer}**](${dealerTarget})` : `🏬 Händler: **${dealer}**`) : '';
-    const rest = [
-      priceText ? `💰 ${boldNumbers(priceText)}` : '',
-      dealerLine,
-      offerCount ? `🛒 Angebote: **${offerCount}**` : '',
-      spark ? `📊 ${spark}` : '',
+    const dealerSub = [
+      dealer ? (dealerTarget ? `🏬 [${dealer}](${dealerTarget})` : `🏬 ${dealer}`) : '',
+      offerCount ? `🛒 ${offerCount} Angebote` : ''
+    ].filter(Boolean).join(' · ');
+    const historyLine = [
       prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
       medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
-    ].filter(Boolean).join('\n');
-    const maxTitle = Math.max(20, 2000 - shownLink.length - rest.length - 32);
+    ].filter(Boolean).join(' · ');
+    const restPieces = [
+      priceText ? `# 💰 ${priceText}` : '',
+      dealerSub ? `-# ${dealerSub}` : '',
+      spark ? `📊 ${spark}` : '',
+      historyLine
+    ].filter(Boolean);
+    const rest = restPieces.join('\n');
+    const bareLink = (link && !suppressProductEmbed) ? link : '';
+    const hasLink = Boolean(link);
+    const prefix = hasLink ? '## [' : '## ';
+    const middle = hasLink ? `](${shownLink})` : '';
+    const newlines = restPieces.length + (bareLink ? 1 : 0);
+    const maxTitle = Math.max(20, 2000 - rest.length - prefix.length - middle.length - bareLink.length - newlines);
     cleanTitle = cleanTitle.slice(0, maxTitle);
-    return [`**${cleanTitle}**`, rest, shownLink].filter(Boolean).join('\n').slice(0, 2000);
+    const titleLine = `${prefix}${cleanTitle}${middle}`;
+    return [titleLine, rest, bareLink].filter(Boolean).join('\n').slice(0, 2000);
   }
 
   // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
@@ -6932,7 +6944,7 @@ const SHADOW_MODAL_STYLES = `
     const prevLowShown = prevLow && priceToCents(prevLow) > priceToCents(cardPrice);
     const medianShown = medianVal && priceToCents(medianVal) > priceToCents(cardPrice);
     return {
-      prevLowText: prevLowShown ? `Bisher: CHF ${prevLow.toFixed(2)}` : '',
+      prevLowText: prevLowShown ? `CHF ${prevLow.toFixed(2)}` : '',
       prevLowPct: prevLowShown ? (getDisplayDelta(cardPrice, stats).dRecord || 0) : 0,
       medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
       medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
