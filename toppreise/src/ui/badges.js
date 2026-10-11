@@ -5,7 +5,7 @@
  * mini sparklines, and empty-state messaging.
  */
 
-import { CONFIG, updateConfig } from '../state/config.js';
+import { CONFIG, updateConfig, _getValue, _setValue } from '../state/config.js';
 import {
   getBadgeHeatStyle,
   getHeatmapStyles,
@@ -14,7 +14,7 @@ import {
   extractCardDiscount,
   getCardProductId
 } from '../page/cards.js';
-import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord } from '../features/share-discord.js';
+import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, discordForumFlagKey } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../domain/deal-score.js';
 import {
@@ -819,12 +819,32 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
             suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
           });
-          let shared = false;
-          if (png) {
-            try { await postDealImageToDiscord(hook, content, png); shared = true; }
-            catch { /* Text-Fallback unten */ }
+          const threadName = buildThreadName(title);
+          const flagKey = discordForumFlagKey(hook);
+          const forum = _getValue(flagKey, false) === true;
+          const postText = withThread => postDealToDiscord(hook, content, withThread ? { threadName } : undefined);
+          const postImage = withThread => postDealImageToDiscord(hook, content, png, withThread ? { threadName } : undefined);
+          const tryRound = async withThread => {
+            if (png) {
+              try { await postImage(withThread); return; }
+              catch (imgErr) {
+                if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
+                else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
+                else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+              }
+            }
+            await postText(withThread);
+          };
+          for (const withThread of (forum ? [true, false] : [false, true])) {
+            try {
+              await tryRound(withThread);
+              if (withThread !== forum) _setValue(flagKey, withThread);
+              break;
+            } catch (err) {
+              if (!isForumThreadError(err) || withThread) throw err;
+              // plain round hit forum → loop continues threaded
+            }
           }
-          if (!shared) await postDealToDiscord(hook, content);
           showToast('📤 Deal in Discord geteilt');
         } catch {
           showToast('📤 Teilen fehlgeschlagen');

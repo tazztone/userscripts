@@ -11,6 +11,16 @@ import { renderDiscordChart } from '../ui/sparkline.js';
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
   /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
+// Forum-/Media-Channel brauchen thread_name (sonst 405/400, nichts erstellt).
+// Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
+export const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
+export const isForumThreadError = err => /^Discord (400|405)$/.test(err?.message || '');
+export function discordForumFlagKey(webhookUrl) {
+  let h = 5381;
+  const s = String(webhookUrl || '').trim();
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return `DISCORD_FORUM:${h.toString(16).padStart(8, '0')}`;
+}
 
 // Geprüfte Preishistorie als Text-Sparkline (SVG geht nicht nach Discord).
 const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
@@ -63,14 +73,16 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
 
 // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
 // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
-export function postDealImageToDiscord(webhookUrl, content, pngBlob) {
+export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
   return new Promise((resolve, reject) => {
     try {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
       if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
       const form = new FormData();
-      form.append('payload_json', JSON.stringify({ content }));
+      const body = { content };
+      if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
+      form.append('payload_json', JSON.stringify(body));
       form.append('file', pngBlob, 'preisverlauf.png');
       GM_xmlhttpRequest({
         method: 'POST',
@@ -251,11 +263,13 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
   } catch { /* Händler unbekannt: Zeile entfällt */ }
   return out;
 }
-export function postDealToDiscord(webhookUrl, content) {
+export function postDealToDiscord(webhookUrl, content, options = {}) {
   return new Promise((resolve, reject) => {
     if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
     const url = webhookUrl.trim();
-    const payload = JSON.stringify({ content });
+    const body = { content };
+    if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
+    const payload = JSON.stringify(body);
     if (typeof GM_xmlhttpRequest !== 'undefined') {
       GM_xmlhttpRequest({
         method: 'POST',

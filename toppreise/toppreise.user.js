@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.167
+// @version      2.18.168
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5021,12 +5021,32 @@ const SHADOW_MODAL_STYLES = `
               suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
             });
-            let shared = false;
-            if (png) {
-              try { await postDealImageToDiscord(hook, content, png); shared = true; }
-              catch { /* Text-Fallback unten */ }
+            const threadName = buildThreadName(title);
+            const flagKey = discordForumFlagKey(hook);
+            const forum = _getValue(flagKey, false) === true;
+            const postText = withThread => postDealToDiscord(hook, content, withThread ? { threadName } : undefined);
+            const postImage = withThread => postDealImageToDiscord(hook, content, png, withThread ? { threadName } : undefined);
+            const tryRound = async withThread => {
+              if (png) {
+                try { await postImage(withThread); return; }
+                catch (imgErr) {
+                  if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
+                  else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
+                  else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                }
+              }
+              await postText(withThread);
+            };
+            for (const withThread of (forum ? [true, false] : [false, true])) {
+              try {
+                await tryRound(withThread);
+                if (withThread !== forum) _setValue(flagKey, withThread);
+                break;
+              } catch (err) {
+                if (!isForumThreadError(err) || withThread) throw err;
+                // plain round hit forum → loop continues threaded
+              }
             }
-            if (!shared) await postDealToDiscord(hook, content);
             showToast('📤 Deal in Discord geteilt');
           } catch {
             showToast('📤 Teilen fehlgeschlagen');
@@ -6701,6 +6721,16 @@ const SHADOW_MODAL_STYLES = `
   const isDiscordWebhookUrl = url =>
     typeof url === 'string' &&
     /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
+  // Forum-/Media-Channel brauchen thread_name (sonst 405/400, nichts erstellt).
+  // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
+  const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
+  const isForumThreadError = err => /^Discord (400|405)$/.test(err?.message || '');
+  function discordForumFlagKey(webhookUrl) {
+    let h = 5381;
+    const s = String(webhookUrl || '').trim();
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    return `DISCORD_FORUM:${h.toString(16).padStart(8, '0')}`;
+  }
 
   // Geprüfte Preishistorie als Text-Sparkline (SVG geht nicht nach Discord).
   const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
@@ -6753,14 +6783,16 @@ const SHADOW_MODAL_STYLES = `
 
   // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
   // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
-  function postDealImageToDiscord(webhookUrl, content, pngBlob) {
+  function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
     return new Promise((resolve, reject) => {
       try {
         if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
         if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
         if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
-        form.append('payload_json', JSON.stringify({ content }));
+        const body = { content };
+        if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
+        form.append('payload_json', JSON.stringify(body));
         form.append('file', pngBlob, 'preisverlauf.png');
         GM_xmlhttpRequest({
           method: 'POST',
@@ -6941,11 +6973,13 @@ const SHADOW_MODAL_STYLES = `
     } catch { /* Händler unbekannt: Zeile entfällt */ }
     return out;
   }
-  function postDealToDiscord(webhookUrl, content) {
+  function postDealToDiscord(webhookUrl, content, options = {}) {
     return new Promise((resolve, reject) => {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       const url = webhookUrl.trim();
-      const payload = JSON.stringify({ content });
+      const body = { content };
+      if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
+      const payload = JSON.stringify(body);
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         GM_xmlhttpRequest({
           method: 'POST',

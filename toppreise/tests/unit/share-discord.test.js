@@ -15,7 +15,10 @@ import {
   fetchProductInfo,
   renderSparklinePng,
   postDealToDiscord,
-  postDealImageToDiscord
+  postDealImageToDiscord,
+  buildThreadName,
+  isForumThreadError,
+  discordForumFlagKey
 } from '../../src/features/share-discord.js';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';
@@ -492,5 +495,80 @@ describe('postDealImageToDiscord', () => {
     await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
     assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
     assert.ok(seen.data.get('file') instanceof Blob);
+  });
+});
+
+describe('buildThreadName', () => {
+  it('collapses whitespace and trims', () => {
+    assert.equal(buildThreadName('  Logitech   MX  Master  '), 'Logitech MX Master');
+  });
+  it('falls back on empty/null', () => {
+    assert.equal(buildThreadName('   '), 'Toppreise-Deal');
+    assert.equal(buildThreadName(null), 'Toppreise-Deal');
+  });
+  it('truncates to 100 chars', () => {
+    assert.ok(buildThreadName('x'.repeat(150)).length <= 100);
+  });
+});
+
+describe('isForumThreadError', () => {
+  it('true only for Discord 400/405', () => {
+    assert.equal(isForumThreadError(new Error('Discord 400')), true);
+    assert.equal(isForumThreadError(new Error('Discord 405')), true);
+    assert.equal(isForumThreadError(new Error('Discord 429')), false);
+    assert.equal(isForumThreadError(new Error('Discord 401')), false);
+    assert.equal(isForumThreadError(new Error('Netzwerkfehler')), false);
+    assert.equal(isForumThreadError(new Error('Timeout')), false);
+    assert.equal(isForumThreadError(null), false);
+  });
+});
+
+describe('discordForumFlagKey', () => {
+  it('deterministic, trimmed, URL-scoped, token-free', () => {
+    const a = discordForumFlagKey(HOOK);
+    assert.ok(a.startsWith('DISCORD_FORUM:'));
+    assert.equal(a, discordForumFlagKey(`  ${HOOK}  `));
+    assert.notEqual(a, discordForumFlagKey(HOOK.replace('123456789012345678', '999')));
+    assert.equal(a.includes('abcDEF123'), false);
+  });
+});
+
+describe('thread_name post paths', () => {
+  afterEach(() => {
+    delete globalThis.GM_xmlhttpRequest;
+    delete globalThis.fetch;
+  });
+  it('postDealToDiscord sends thread_name when passed', async () => {
+    let seen = null;
+    globalThis.fetch = async (url, opts) => {
+      seen = { url, opts };
+      return { ok: true, status: 200 };
+    };
+    await postDealToDiscord(HOOK, 'hi', { threadName: 'Deal X' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', thread_name: 'Deal X' });
+  });
+  it('postDealToDiscord body stays plain without opts', async () => {
+    let seen = null;
+    globalThis.fetch = async (url, opts) => {
+      seen = { url, opts };
+      return { ok: true, status: 200 };
+    };
+    await postDealToDiscord(HOOK, 'hi');
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi' });
+  });
+  it('postDealImageToDiscord sends thread_name when passed', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { threadName: 'Deal X' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', thread_name: 'Deal X' });
+  });
+  it('never auto-retries: 429 emits exactly one request', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return { ok: false, status: 429 }; };
+    await assert.rejects(postDealToDiscord(HOOK, 'hi'), /Discord 429/);
+    assert.equal(calls, 1);
   });
 });
