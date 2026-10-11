@@ -442,6 +442,8 @@ export const STYLES = `
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8)) !important;
     pointer-events: none !important;
   }
+  .badge.badge-dif[role="button"]:focus-visible,
+  .badge-dif[role="button"]:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .badge.badge-dif.tp-deal-loading,
   .badge-dif.tp-deal-loading {
     cursor: wait !important;
