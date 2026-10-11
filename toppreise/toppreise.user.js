@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.170
+// @version      2.18.171
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5004,6 +5004,7 @@ const SHADOW_MODAL_STYLES = `
           shareBtn.disabled = true;
           try {
             const { title, url, imageUrl } = extractShareData(card);
+            const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
             let dealer = extractDealer(card);
             let dealerUrl = extractDealerUrl(card);
@@ -5024,9 +5025,9 @@ const SHADOW_MODAL_STYLES = `
             const threadName = buildThreadName(title);
             const flagKey = discordForumFlagKey(hook);
             const forum = _getValue(flagKey, false) === true;
-            // Produkt-Bytes einmal laden (vor den Runden): gelingt der Download nicht,
-            // bleibt das URL-Embed als Fallback bestehen.
-            const productBlob = (png && imageUrl) ? await fetchImageBlob(imageUrl).catch(() => null) : null;
+            // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
+            // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
+            const productBlob = (png && productDl) ? await productDl : null;
             const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
             const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
@@ -6787,6 +6788,7 @@ const SHADOW_MODAL_STYLES = `
 
   // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
   // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
+  //
   // Produkt-Bytes für den Upload holen (same-origin via GM-Transport, kein CORS-
   // Problem). URL-Embeds verlieren gegen Inline-Attachments in der Thread-
   // Vorschau — darum wird das Produkt als erste Attachment-Datei mitgeschickt.
@@ -6802,8 +6804,12 @@ const SHADOW_MODAL_STYLES = `
           timeout: timeoutMs,
           onload: res => {
             const data = res?.response;
-            if (res.status >= 200 && res.status < 300 && data) resolve(data instanceof Blob ? data : new Blob([data]));
-            else reject(new Error(`Bild-Download ${res.status}`));
+            if (res.status >= 200 && res.status < 300 && data) {
+              const blob = data instanceof Blob ? data : new Blob([data]);
+              if (!blob.size) return reject(new Error('Leeres Bild'));
+              if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
+              resolve(blob);
+            } else reject(new Error(`Bild-Download ${res.status}`));
           },
           onerror: () => reject(new Error('Netzwerkfehler')),
           ontimeout: () => reject(new Error('Timeout'))

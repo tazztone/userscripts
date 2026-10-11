@@ -73,6 +73,7 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
 
 // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
 // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
+//
 // Produkt-Bytes für den Upload holen (same-origin via GM-Transport, kein CORS-
 // Problem). URL-Embeds verlieren gegen Inline-Attachments in der Thread-
 // Vorschau — darum wird das Produkt als erste Attachment-Datei mitgeschickt.
@@ -88,8 +89,12 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
         timeout: timeoutMs,
         onload: res => {
           const data = res?.response;
-          if (res.status >= 200 && res.status < 300 && data) resolve(data instanceof Blob ? data : new Blob([data]));
-          else reject(new Error(`Bild-Download ${res.status}`));
+          if (res.status >= 200 && res.status < 300 && data) {
+            const blob = data instanceof Blob ? data : new Blob([data]);
+            if (!blob.size) return reject(new Error('Leeres Bild'));
+            if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
+            resolve(blob);
+          } else reject(new Error(`Bild-Download ${res.status}`));
         },
         onerror: () => reject(new Error('Netzwerkfehler')),
         ontimeout: () => reject(new Error('Timeout'))

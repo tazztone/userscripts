@@ -802,6 +802,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         shareBtn.disabled = true;
         try {
           const { title, url, imageUrl } = extractShareData(card);
+          const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
           let dealer = extractDealer(card);
           let dealerUrl = extractDealerUrl(card);
@@ -822,9 +823,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const threadName = buildThreadName(title);
           const flagKey = discordForumFlagKey(hook);
           const forum = _getValue(flagKey, false) === true;
-          // Produkt-Bytes einmal laden (vor den Runden): gelingt der Download nicht,
-          // bleibt das URL-Embed als Fallback bestehen.
-          const productBlob = (png && imageUrl) ? await fetchImageBlob(imageUrl).catch(() => null) : null;
+          // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
+          // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
+          const productBlob = (png && productDl) ? await productDl : null;
           const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
           const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
           const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
