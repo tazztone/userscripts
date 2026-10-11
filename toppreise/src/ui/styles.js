@@ -376,10 +376,6 @@ export const STYLES = `
   .tp-card-historical-price.tp-is-record-low {
     color: #065f46 !important;
     font-weight: 700 !important;
-    background: rgba(52, 211, 153, 0.12) !important;
-    border: 1px solid rgba(52, 211, 153, 0.35) !important;
-    border-radius: 4px !important;
-    padding: 1px 5px !important;
   }
   .tp-card-historical-price.tp-is-at-low {
     color: #047857 !important;
