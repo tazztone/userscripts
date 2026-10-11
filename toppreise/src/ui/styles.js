@@ -10,20 +10,20 @@
  * Main doc consumes via :root, shadow modal via :host.
  */
 export const TP_TOKEN_VARS = `
-  --tp-bg: #0f172a;
-  --tp-panel: rgba(15, 23, 42, 0.75);
-  --tp-line: rgba(255, 255, 255, 0.09);
-  --tp-line-soft: rgba(255, 255, 255, 0.16);
-  --tp-txt: #f8fafc;
-  --tp-txt-mid: #e2e8f0;
-  --tp-txt-dim: #cbd5e1;
-  --tp-mut: #94a3b8;
+  --tp-bg: #ffffff;
+  --tp-panel: rgba(255,255,255,0.92);
+  --tp-line: rgba(15,23,42,0.12);
+  --tp-line-soft: rgba(15,23,42,0.16);
+  --tp-txt: #0f172a;
+  --tp-txt-mid: #1e293b;
+  --tp-txt-dim: #334155;
+  --tp-mut: #64748b;
   --tp-dim: #64748b;
   --tp-acc: #10b981;
   --tp-acc-deep: #059669;
   --tp-acc-soft: rgba(16, 185, 129, 0.2);
   --tp-acc-line: rgba(16, 185, 129, 0.4);
-  --tp-acc-txt: #34d399;
+  --tp-acc-txt: #059669;
   --tp-acc2: #8b5cf6;
   --tp-sky: #38bdf8;
   --tp-blue: #3b82f6;
@@ -47,33 +47,17 @@ export const STYLES = `
   :root {
     ${TP_TOKEN_VARS}
   }
-  /* ─── HEATMAP CARD STYLES & DARKREADER DYNAMIC COMPATIBILITY ─── */
-  html body .tp-heatmap-active,
-  html body .Plugin_Product.tp-heatmap-active,
-  html body .mixedBrowsingListProduct.tp-heatmap-active,
-  html body a.Plugin_Product.tp-heatmap-active,
-  .tp-heatmap-active,
-  .Plugin_Product.tp-heatmap-active,
-  .mixedBrowsingListProduct.tp-heatmap-active,
-  .tp-heatmap-active[data-darkreader-inline-bgcolor],
-  .Plugin_Product.tp-heatmap-active[data-darkreader-inline-bgcolor],
-  .mixedBrowsingListProduct.tp-heatmap-active[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active[data-darkreader-inline-bgimage],
-  .Plugin_Product.tp-heatmap-active[data-darkreader-inline-bgimage],
-  .mixedBrowsingListProduct.tp-heatmap-active[data-darkreader-inline-bgimage] {
-    background: var(--tp-heat-bg) !important;
-    background-image: var(--tp-heat-bg) !important;
-    border: 1.5px solid var(--tp-heat-border) !important;
+  /* ─── CHROME-ONLY DEAL HEAT (no fill: card keeps the site background) ─── */
+  html body .tp-heat-blend,
+  html body .Plugin_Product.tp-heat-blend,
+  html body .mixedBrowsingListProduct.tp-heat-blend,
+  html body a.Plugin_Product.tp-heat-blend,
+  .tp-heat-blend,
+  .Plugin_Product.tp-heat-blend,
+  .mixedBrowsingListProduct.tp-heat-blend {
+    border: 2px solid var(--tp-heat-border) !important;
     border-color: var(--tp-heat-border) !important;
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
-    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
-    --darkreader-inline-bgcolor: transparent !important;
-    --darkreader-inline-bgimage: var(--tp-heat-bg) !important;
-    --darkreader-inline-border: var(--tp-heat-border) !important;
-    --darkreader-inline-border-top: var(--tp-heat-border) !important;
-    --darkreader-inline-border-right: var(--tp-heat-border) !important;
-    --darkreader-inline-border-bottom: var(--tp-heat-border) !important;
-    --darkreader-inline-border-left: var(--tp-heat-border) !important;
   }
   /* Vortief edge heat (mode, verified low without blend): no fill — the card
   keeps the site background. Same ramp hue as blended heat, but the signal is
@@ -85,122 +69,15 @@ export const STYLES = `
     border-style: solid !important;
     transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
   }
-  .tp-heatmap-active:hover,
-  .Plugin_Product.tp-heatmap-active:hover,
-  .mixedBrowsingListProduct.tp-heatmap-active:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.45), var(--tp-heat-glow, none) !important;
-  }
-  .tp-heatmap-active .badge.badge-dif,
-  .Plugin_Product.tp-heatmap-active .badge.badge-dif {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 10px var(--tp-heat-border) !important;
-  }
-  .tp-heatmap-active .row,
-  .tp-heatmap-active .col,
-  .tp-heatmap-active [class*="col-"],
-  .tp-heatmap-active .priceAvailabilityContainer,
-  .tp-heatmap-active .price-availability,
-  .tp-heatmap-active .offersContainer,
-  .tp-heatmap-active .offers,
-  .tp-heatmap-active .priceContainer,
-  .tp-heatmap-active .Plugin_Price,
-  .tp-heatmap-active .productPrice,
-  .tp-heatmap-active .shippingPrice,
-  .tp-heatmap-active .shippingText,
-  .tp-heatmap-active .manufacturer-image,
-  .tp-heatmap-active .product-name,
-  .tp-heatmap-active .product-name[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .productDetails,
-  .tp-heatmap-active .productDetails[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .price_information_product,
-  .tp-heatmap-active .price_information_product[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .Plugin_PriceInformation,
-  .tp-heatmap-active .Plugin_PriceInformation[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .f_product_info,
-  .tp-heatmap-active .f_product_info[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .productDescription,
-  .tp-heatmap-active .productDescription[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .productDetailsDescription,
-  .tp-heatmap-active .productDetailsDescription[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .product-details,
-  .tp-heatmap-active .product-details[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .f_product_container,
-  .tp-heatmap-active .f_product_container[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .product-image,
-  .tp-heatmap-active .product-image[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .productImage,
-  .tp-heatmap-active .productImage[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .image_container,
-  .tp-heatmap-active .image_container[data-darkreader-inline-bgcolor],
-  .tp-heatmap-active .image,
-  .tp-heatmap-active [data-darkreader-inline-bgcolor],
-  .tp-heatmap-active [data-darkreader-inline-bgimage] {
-    background: transparent !important;
-    background-color: transparent !important;
-    --darkreader-inline-bgcolor: transparent !important;
-    --darkreader-inline-bgimage: none !important;
-  }
-  .tp-heatmap-active div:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-sparkline-container),
-  .tp-heatmap-active a:not(.badge):not(.tp-deal-pill):not(.tp-best-price-badge):not(.tp-sparkline-container),
-  .tp-heatmap-active p,
-  .tp-heatmap-active span:not(.badge *):not(.tp-deal-pill *):not(.tp-best-price-badge *):not(.tp-sparkline-container *) {
-    background: transparent !important;
-    background-color: transparent !important;
-    --darkreader-inline-bgcolor: transparent !important;
-    --darkreader-inline-bgimage: none !important;
-  }
-  /* Heat fill is dark by construction (near-opaque base stops, all L < 0.05):
-  light text carries suite microcopy + titles + the site price on filled cards.
-  Edge/vortief keeps the site background and never gets .tp-heatmap-active, so
-  light fills (peach site cards) stay untouched by construction - no luminance
-  JS needed. The "ab" prefix is a bare text node in .priceContainer, covered by
-  inheritance; the dealer <button> needs element-qualified specificity to beat
-  its own opacity rule. */
-  .tp-heatmap-active .tp-dealer-name,
-  .tp-heatmap-active .tp-card-historical-price,
-  .tp-heatmap-active .tp-card-historical-price.tp-is-record-low,
-  .tp-heatmap-active .tp-card-historical-price.tp-is-at-low,
-  .tp-heatmap-active .tp-card-historical-price.tp-is-markup,
-  .tp-heatmap-active .product-name,
-  .tp-heatmap-active .productDetails,
-  .tp-heatmap-active .priceContainer,
-  .tp-heatmap-active .priceContainer a,
-  .tp-heatmap-active .priceContainer .currency,
-  .tp-heatmap-active .Plugin_Price,
-  .tp-heatmap-active .productPrice,
-  .tp-heatmap-active .shippingPrice,
-  .tp-heatmap-active .shippingText {
-    color: #f1f5f9 !important;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
-  }
-  .tp-heatmap-active .tp-dealer-name,
-  .tp-heatmap-active button.tp-dealer-name.tp-dealer-btn {
-    opacity: 1 !important;
-  }
-  /* Sparkline blue-500 dies on brown fill: light-blue stroke+dot on heated cards. */
-  .tp-heatmap-active .tp-sparkline polyline {
-    stroke: #93c5fd !important;
-  }
-  .tp-heatmap-active .tp-sparkline circle {
-    fill: #93c5fd !important;
-  }
-  .Plugin_Product.mixedBrowsingList.tp-is-cheapest,
-  .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-top],
-  .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-right],
-  .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-bottom],
-  .Plugin_Product.mixedBrowsingList.tp-is-cheapest[data-darkreader-inline-border-left] {
+  .Plugin_Product.mixedBrowsingList.tp-is-cheapest {
     border: 2px solid var(--tp-acc) !important;
     border-color: var(--tp-acc) !important;
     border-radius: 8px !important;
     position: relative !important;
     box-shadow: 0 4px 20px rgba(16,185,129,0.15) !important;
     transition: all 0.3s ease !important;
-    --darkreader-inline-border: var(--tp-acc) !important;
-    --darkreader-inline-border-top: var(--tp-acc) !important;
-    --darkreader-inline-border-right: var(--tp-acc) !important;
-    --darkreader-inline-border-bottom: var(--tp-acc) !important;
-    --darkreader-inline-border-left: var(--tp-acc) !important;
   }
-  .Plugin_Product.mixedBrowsingList.tp-is-cheapest.tp-heatmap-active {
+  .Plugin_Product.mixedBrowsingList.tp-is-cheapest.tp-heat-blend {
     box-shadow: 0 4px 20px rgba(16,185,129,0.25), var(--tp-heat-glow, none) !important;
   }
   .tp-best-price-badge {
@@ -268,11 +145,11 @@ export const STYLES = `
     text-align: center !important;
     z-index: 15 !important;
     box-sizing: border-box !important;
-    background: rgba(15, 23, 42, 0.90) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.18) !important;
-    color: #f1f5f9 !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    color: var(--tp-txt) !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
   }
   .badge.badge-dif.tp-injected-badge .text,
@@ -312,9 +189,9 @@ export const STYLES = `
     cursor: pointer !important;
     text-align: center !important;
     gap: 4px !important;
-    background: rgba(15, 23, 42, 0.95) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     border: 1.5px solid rgba(56, 189, 248, 0.6) !important;
-    color: #f1f5f9 !important;
+    color: var(--tp-txt) !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 6px rgba(56, 189, 248, 0.25) !important;
     transform: none !important;
   }
@@ -352,7 +229,7 @@ export const STYLES = `
      DOM as logic hooks but must not paint — otherwise a -3% at-low glows the
      same green as a -60% one and depth stops being readable. */
   .badge.badge-dif.tp-deal-pill.tp-deal-loading {
-    background: rgba(30, 41, 59, 0.9) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     border-color: #38bdf8 !important;
     color: #38bdf8 !important;
   }
@@ -402,7 +279,7 @@ export const STYLES = `
     justify-content: center !important;
     font-size: 13px !important;
     line-height: 1 !important;
-    background: rgba(15, 23, 42, 0.92) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     border: 1px solid rgba(88, 101, 242, 0.7) !important;
     border-radius: 8px !important;
     cursor: pointer !important;
@@ -453,9 +330,9 @@ export const STYLES = `
      glance, verified ribbons stay solid heat. Always on, no heat dependency. */
   .badge.badge-dif.tp-is-unverified,
   .badge-dif.tp-is-unverified {
-    background: repeating-linear-gradient(135deg, #475569 0 6px, #334155 6px 12px) !important;
-    border: 1.5px dashed #94a3b8 !important;
-    color: #ffffff !important;
+    background: repeating-linear-gradient(135deg, #e2e8f0 0 6px, #cbd5e1 6px 12px) !important;
+    border: 1.5px dashed var(--tp-line-soft) !important;
+    color: var(--tp-txt-dim) !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
   }
   .badge.badge-dif.tp-is-verified,
@@ -902,9 +779,9 @@ export const STYLES = `
     align-items: center !important;
     justify-content: center !important;
     gap: 12px !important;
-    background: rgba(30, 41, 59, 0.85) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(12px) !important;
-    border: 1px dashed rgba(255, 255, 255, 0.2) !important;
+    border: 1px dashed rgba(15, 23, 42, 0.2) !important;
     border-radius: var(--tp-r-lg) !important;
     padding: 24px 20px !important;
     margin: 16px auto !important;
@@ -922,8 +799,8 @@ export const STYLES = `
     justify-content: center !important;
   }
   .tp-empty-state-btn {
-    background: rgba(15, 23, 42, 0.8) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1px solid var(--tp-line-soft) !important;
     color: var(--tp-txt) !important;
     padding: 6px 12px !important;
     border-radius: var(--tp-r-sm) !important;
@@ -971,7 +848,7 @@ export const STYLES = `
     margin: 8px auto 12px !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    background: rgba(15, 23, 42, 0.94) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(14px) !important;
     -webkit-backdrop-filter: blur(14px) !important;
     border: 1px solid var(--tp-line) !important;
@@ -979,7 +856,7 @@ export const STYLES = `
     padding: 8px 12px !important;
     color: var(--tp-txt) !important;
     font-family: var(--tp-font) !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 8px !important;
@@ -996,8 +873,8 @@ export const STYLES = `
     display: inline-flex !important;
     align-items: center !important;
     gap: 8px !important;
-    background: rgba(255, 255, 255, 0.035) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: rgba(15, 23, 42, 0.04) !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
     border-radius: var(--tp-r-md) !important;
     padding: 4px 8px !important;
     min-width: 0 !important;
@@ -1015,14 +892,14 @@ export const STYLES = `
   .tp-divider {
     width: 1px !important;
     align-self: stretch !important;
-    background: rgba(255,255,255,0.10) !important;
+    background: rgba(15,23,42,0.10) !important;
     border-radius: 1px !important;
     flex-shrink: 0 !important;
     margin: 2px 0 !important;
   }
   .tp-stepper-label {
     font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: #94a3b8 !important;
+    color: var(--tp-mut) !important;
     white-space: nowrap !important;
   }
   @media (max-width: 900px) {
@@ -1046,10 +923,10 @@ export const STYLES = `
   }
   #tp-inline-negative-input {
     width: 100% !important;
-    background: rgba(15,23,42,0.8) !important;
+    background: rgba(255,255,255,0.95) !important;
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
-    color: #fff !important;
+    color: var(--tp-txt) !important;
     padding: 6px 26px 6px 10px !important;
     font-size: var(--tp-fs-md) !important;
     outline: none !important;
@@ -1067,8 +944,8 @@ export const STYLES = `
   }
   #tp-clear-neg-btn:hover { color: var(--tp-rose) !important; }
   .tp-bar-btn {
-    background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
     color: var(--tp-txt-dim) !important;
     padding: 0 11px !important;
     height: 28px !important;
@@ -1086,7 +963,7 @@ export const STYLES = `
     transition: all 0.15s ease !important;
     box-sizing: border-box !important;
   }
-  .tp-bar-btn:hover { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
+  .tp-bar-btn:hover { background: rgba(15, 23, 42, 0.08) !important; color: var(--tp-txt) !important; }
   .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -1171,7 +1048,7 @@ export const STYLES = `
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
-    background: rgba(15,23,42,0.6) !important;
+    background: rgba(15,23,42,0.04) !important;
     border: 1px solid var(--tp-line) !important;
     padding: 0 6px !important;
     height: 28px !important;
@@ -1190,9 +1067,9 @@ export const STYLES = `
     width: 22px !important;
     height: 22px !important;
     border-radius: 50% !important;
-    background: rgba(255,255,255,0.1) !important;
-    border: 1px solid rgba(255,255,255,0.15) !important;
-    color: #fff !important;
+    background: rgba(15,23,42,0.06) !important;
+    border: 1px solid rgba(15,23,42,0.12) !important;
+    color: var(--tp-txt) !important;
     font-weight: 700 !important;
     cursor: pointer !important;
     padding: 0 !important;
@@ -1215,12 +1092,12 @@ export const STYLES = `
     gap: 4px !important;
     max-width: none !important;
     height: 36px !important;
-    background: rgba(15, 23, 42, 0.92) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border: 1px solid var(--tp-line-soft) !important;
     border-radius: 999px !important;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 1px rgba(255,255,255,0.2) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
     padding: 3px 5px !important;
     font-family: var(--tp-font) !important;
     animation: tp-floating-pulse 2.4s ease-in-out infinite !important;
@@ -1238,13 +1115,13 @@ export const STYLES = `
     opacity: 1 !important;
   }
   #tp-floating-check-cta.tp-empty #tp-floating-check-btn {
-    background: rgba(255, 255, 255, 0.08) !important;
+    background: rgba(15, 23, 42, 0.06) !important;
     color: var(--tp-txt-dim) !important;
     box-shadow: none !important;
   }
   #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover {
-    background: rgba(255, 255, 255, 0.14) !important;
-    color: #ffffff !important;
+    background: rgba(15, 23, 42, 0.10) !important;
+    color: var(--tp-txt) !important;
   }
   #tp-floating-check-cta.tp-empty #tp-floating-check-sub {
     opacity: 0.7 !important;
@@ -1294,8 +1171,8 @@ export const STYLES = `
     padding: 0 8px !important;
     height: 28px !important;
     border-radius: 999px !important;
-    background: rgba(255, 255, 255, 0.07) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
     font-size: 10.5px !important;
     font-weight: 600 !important;
     color: var(--tp-txt-dim) !important;
@@ -1304,14 +1181,14 @@ export const STYLES = `
     user-select: none !important;
     box-sizing: border-box !important;
   }
-  #tp-floating-dealer-row:hover { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
+  #tp-floating-dealer-row:hover { background: rgba(15, 23, 42, 0.08) !important; color: var(--tp-txt) !important; }
   #tp-floating-dealer-row.tp-active { background: rgba(16, 185, 129, 0.2) !important; border-color: rgba(16, 185, 129, 0.4) !important; color: var(--tp-acc-txt) !important; }
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
   #tp-floating-check-main { font-size: 11.5px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-sub { font-size: 9.5px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
   #tp-floating-threshold-btn {
-    background: rgba(255, 255, 255, 0.07) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
     border-radius: 999px !important;
     color: var(--tp-txt-dim) !important;
     padding: 0 8px !important;
@@ -1324,16 +1201,16 @@ export const STYLES = `
     align-items: center;
     box-sizing: border-box !important;
   }
-  #tp-floating-threshold-btn:hover { color: #fff !important; background: rgba(255, 255, 255, 0.12) !important; }
+  #tp-floating-threshold-btn:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.08) !important; }
   #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 8px) !important;
     right: 0 !important;
-    background: rgba(15, 23, 42, 0.97) !important;
+    background: rgba(255, 255, 255, 0.97) !important;
     backdrop-filter: blur(14px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border: 1px solid var(--tp-line-soft) !important;
     border-radius: var(--tp-r-lg) !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25) !important;
     padding: 4px !important;
     display: none;
     flex-direction: column !important;
@@ -1359,11 +1236,11 @@ export const STYLES = `
     cursor: pointer !important;
     text-align: left !important;
   }
-  #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: var(--tp-txt) !important; }
   #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: var(--tp-acc) !important; color: #fff !important; }
   #tp-floating-cta-collapse {
-    background: rgba(255, 255, 255, 0.07) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
     border-radius: 50% !important;
     color: var(--tp-mut) !important;
     width: 28px !important;
@@ -1377,7 +1254,7 @@ export const STYLES = `
     justify-content: center !important;
     box-sizing: border-box !important;
   }
-  #tp-floating-cta-collapse:hover { color: #fff !important; background: rgba(255, 255, 255, 0.14) !important; }
+  #tp-floating-cta-collapse:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.10) !important; }
   #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
@@ -1389,7 +1266,7 @@ export const STYLES = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(255,255,255,0.1) !important; width: 24px !important; height: 24px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 24px !important; height: 24px !important; }
   @media (max-width: 600px) {
     #tp-floating-check-sub { display: none !important; }
     #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
@@ -1409,11 +1286,11 @@ export const SHADOW_MODAL_STYLES = `
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background: rgba(15, 23, 42, 0.88);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--tp-line-soft);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
     cursor: pointer;
     z-index: 99999;
     display: flex;
@@ -1425,6 +1302,7 @@ export const SHADOW_MODAL_STYLES = `
   }
   #tp-settings-fab:hover {
     background: rgba(16, 185, 129, 0.95);
+    color: #fff;
     transform: scale(1.08);
     opacity: 1;
     box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
@@ -1440,11 +1318,11 @@ export const SHADOW_MODAL_STYLES = `
     width: 92%;
     max-width: 520px;
     max-height: 85vh;
-    background: rgba(15, 23, 42, 0.96);
+    background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--tp-line-soft);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     border-radius: 16px;
     color: var(--tp-txt);
     padding: 24px;
@@ -1470,7 +1348,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: var(--tp-mut); }
   #tp-section-unified-suite { display: flex; flex-direction: column; gap: 12px; }
   #tp-section-unified-suite label[title], #tp-section-unified-suite button[title] { cursor: help; }
-  .tp-section-card { background: rgba(15, 23, 42, 0.5); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
   .tp-section-header { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
@@ -1494,10 +1372,10 @@ export const SHADOW_MODAL_STYLES = `
   .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: var(--tp-fs-md); }
   .tp-segmented-control {
     display: flex;
-    background: rgba(15,23,42,0.6);
+    background: rgba(255,255,255,0.7);
     border-radius: var(--tp-r-md);
     padding: 2px;
-    border: 1px solid rgba(255,255,255,0.05);
+    border: 1px solid var(--tp-line-soft);
   }
   .tp-segmented-control label {
     flex: 1;
@@ -1524,10 +1402,10 @@ export const SHADOW_MODAL_STYLES = `
   .tp-range-container input[type="number"] {
     width: 60px;
     padding: 4px 8px;
-    background: rgba(15,23,42,0.6);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.75);
+    border: 1px solid var(--tp-line-soft);
     border-radius: var(--tp-r-sm);
-    color: #fff;
+    color: var(--tp-txt);
     font-size: var(--tp-fs-md);
     text-align: center;
   }
@@ -1536,8 +1414,8 @@ export const SHADOW_MODAL_STYLES = `
     box-sizing: border-box;
     min-height: 70px;
     padding: 8px 10px;
-    background: rgba(15,23,42,0.6);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.75);
+    border: 1px solid var(--tp-line-soft);
     border-radius: var(--tp-r-md);
     color: var(--tp-txt);
     font: inherit;
@@ -1552,9 +1430,9 @@ export const SHADOW_MODAL_STYLES = `
     position: absolute;
     cursor: pointer;
     inset: 0;
-    background-color: rgba(15,23,42,0.6);
+    background-color: rgba(15,23,42,0.12);
     border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid var(--tp-line-soft);
     transition: .3s;
   }
   .tp-slider:before {
@@ -1579,7 +1457,7 @@ export const SHADOW_MODAL_STYLES = `
     gap: 10px;
     margin-top: 20px;
     padding-top: 16px;
-    border-top: 1px solid rgba(255,255,255,0.08);
+    border-top: 1px solid rgba(15,23,42,0.08);
   }
   .tp-btn {
     padding: 8px 16px;
@@ -1589,8 +1467,8 @@ export const SHADOW_MODAL_STYLES = `
     cursor: pointer;
     border: none;
   }
-  .tp-btn-secondary { background: rgba(255,255,255,0.08); color: var(--tp-mut); }
-  .tp-btn-secondary:hover { background: rgba(255,255,255,0.15); color: #fff; }
+  .tp-btn-secondary { background: rgba(15,23,42,0.06); color: var(--tp-mut); }
+  .tp-btn-secondary:hover { background: rgba(15,23,42,0.10); color: var(--tp-txt); }
   .tp-btn-primary {
     background: var(--tp-grad-acc);
     color: #fff;
@@ -1606,14 +1484,14 @@ export const SHADOW_MODAL_STYLES = `
     gap: 8px;
   }
   .tp-toast {
-    background: rgba(15,23,42,0.96);
+    background: rgba(255,255,255,0.97);
     border: 1px solid rgba(56,189,248,0.3);
     color: var(--tp-txt);
     padding: 9px 14px;
     border-radius: var(--tp-r-md);
     font-size: var(--tp-fs-md);
     font-weight: 600;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
     display: flex;
     align-items: center;
     gap: 10px;

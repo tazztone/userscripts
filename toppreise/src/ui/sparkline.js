@@ -165,7 +165,7 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
   return svg;
 }
 
-// Discord-identical chart: axes build + dark card + heavier line. Single source
+// Discord-identical chart: axes build + light card + heavier line. Single source
 // for the Discord PNG (share-discord.js) and the click-to-expand popout below.
 export function renderDiscordChart(timeSeries, width = 360, height = 100) {
   const svg = renderSparkline(timeSeries, width, height, { axes: true });
@@ -175,7 +175,7 @@ export function renderDiscordChart(timeSeries, width = 360, height = 100) {
   bg.setAttribute('width', String(width));
   bg.setAttribute('height', String(height));
   bg.setAttribute('rx', '8');
-  bg.setAttribute('fill', '#1e293b');
+  bg.setAttribute('fill', '#f1f5f9');
   svg.insertBefore(bg, svg.firstChild);
   svg.querySelector('polyline')?.setAttribute('stroke-width', '2.5');
   return svg;
@@ -200,7 +200,7 @@ export function openSparklinePopout(timeSeries) {
   backdrop.id = 'tp-sparkline-popout';
   backdrop.setAttribute('role', 'dialog');
   backdrop.setAttribute('aria-label', 'Preisverlauf');
-  backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.65);padding:16px;box-sizing:border-box;';
+  backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);padding:16px;box-sizing:border-box;';
   const panel = document.createElement('div');
   panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
   const header = document.createElement('div');

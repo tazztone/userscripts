@@ -35,28 +35,6 @@ def test_modal_mode_and_settings_in_shadow_dom(page: Page):
 
 
 
-def test_darkreader_dynamic_mode_compatibility(page: Page):
-    # Seed a verified deal so the card heats (unchecked cards never heat)
-    seed_verified_deal(page)
-    # Simulate DarkReader stamping data attributes and check that userscript maintains gradient
-    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
-    card = page.locator('#card-cheapest')
-    # Check that darkreader CSS variables are properly populated with gradient and transparent bg
-    dr_bgimage = card.evaluate("el => el.style.getPropertyValue('--darkreader-inline-bgimage')")
-    dr_bgcolor = card.evaluate("el => el.style.getPropertyValue('--darkreader-inline-bgcolor')")
-    assert 'linear-gradient' in dr_bgimage
-    assert dr_bgcolor == 'transparent'
-
-    # Check child element transparent backgrounds
-    product_name = page.locator('#card-cheapest .product-name')
-    child_bg = product_name.evaluate("el => window.getComputedStyle(el).backgroundColor")
-    assert child_bg in ('rgba(0, 0, 0, 0)', 'transparent')
-
-
-
-
-
-
 def test_pruef_vorauswahl_threshold_persists(page: Page):
     # Strictness lives in the Tiefstpreise mode now: no separate filter toggle
     # in the modal anymore, but the Prüf-Vorauswahl threshold must persist.

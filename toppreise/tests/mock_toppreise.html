@@ -12,7 +12,7 @@
   </script>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #1a1a1a; color: #fff; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #fff; color: #0f172a; }
     .container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 15px; }
     .row { display: flex; flex-wrap: wrap; margin-right: -10px; margin-left: -10px; }
     .no-gutters { margin-right: 0; margin-left: 0; }
@@ -31,14 +31,14 @@
       display: block;
       text-decoration: none;
       color: inherit;
-      border: 1px solid #334155;
-      background: #242424;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
       padding: 16px;
       margin-bottom: 16px;
       border-radius: 8px;
       position: relative;
     }
-    .product-name { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #f1f5f9; }
+    .product-name { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #0f172a; }
     .priceContainer { display: flex; gap: 4px; font-size: 14px; }
     .Plugin_Price { font-weight: 700; color: #10b981; }
     .badge { position: absolute; top: 10px; right: 10px; border-radius: 50%; width: 50px; height: 50px; text-align: center; }
@@ -49,11 +49,11 @@
     .sidebar-title { font-weight: bold; margin-bottom: 10px; }
     .category-tree { list-style: none; padding-left: 0; }
     .tabbedContainer { display: flex; gap: 10px; margin-bottom: 15px; }
-    .tab { padding: 8px 16px; background: #334155; border-radius: 4px; cursor: pointer; }
-    .tab.active { background: #2563eb; }
+    .tab { padding: 8px 16px; background: #e2e8f0; border-radius: 4px; cursor: pointer; }
+    .tab.active { background: #2563eb; color: #fff; }
     .timeframe-row { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; }
-    .time-btn { padding: 4px 10px; background: #334155; border-radius: 4px; cursor: pointer; }
-    .time-btn.active { background: #2563eb; }
+    .time-btn { padding: 4px 10px; background: #e2e8f0; border-radius: 4px; cursor: pointer; }
+    .time-btn.active { background: #2563eb; color: #fff; }
     .h-100 { height: 100% !important; }
     .d-flex { display: flex !important; }
     .flex-column { flex-direction: column !important; }
@@ -61,12 +61,12 @@
     .align-items-center { align-items: center !important; }
 
     /* Native Ignored Categories & Sidebar Management */
-    .Plugin_CategoryMainSelectionLeft { background: #242424; border: 1px solid #334155; border-radius: 6px; padding: 12px; }
+    .Plugin_CategoryMainSelectionLeft { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
     .Plugin_CategoryMainSelectionLeft .label.bold { font-weight: 700; margin-bottom: 8px; }
-    .Plugin_CategoryMainSelectionLeft .label.bold a { color: #f1f5f9; text-decoration: none; }
+    .Plugin_CategoryMainSelectionLeft .label.bold a { color: #0f172a; text-decoration: none; }
     .Plugin_CategoryMainSelectionLeft ul { list-style: none; padding-left: 0; margin: 0 0 10px 0; }
     .Plugin_CategoryMainSelectionLeft li { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-    .Plugin_CategoryMainSelectionLeft li a { color: #94a3b8; text-decoration: none; flex: 1; }
+    .Plugin_CategoryMainSelectionLeft li a { color: #64748b; text-decoration: none; flex: 1; }
     .Plugin_CategoryMainSelectionLeft li a:hover { color: #38bdf8; }
     .Plugin_CategoryMainSelectionLeft .ignoreCategory { cursor: pointer; color: #64748b; font-size: 11px; padding: 2px 6px; border-radius: 3px; }
     .Plugin_CategoryMainSelectionLeft .ignoreCategory:hover { color: #f43f5e; background: rgba(244,63,94,0.1); }
@@ -77,26 +77,26 @@
 
     .Plugin_IgnoredCategories.ignoredCategoriesBar,
     .Plugin_IgnoredCategories .ignoredCategoriesBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 4px; margin: 8px 0; font-size: 13px; }
-    .Plugin_IgnoredCategories .label { padding: 4px; font-weight: 600; color: #94a3b8; }
-    .Plugin_IgnoredCategories .ignoreCategoryHint { display: inline-block; padding: 5px 4px; color: #94a3b8; font-size: 12px; }
-    .Plugin_IgnoredCategories .ignoredCategory { display: inline-flex; align-items: center; cursor: pointer; background: #1e293b; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 12px; color: #f1f5f9; gap: 4px; }
+    .Plugin_IgnoredCategories .label { padding: 4px; font-weight: 600; color: #64748b; }
+    .Plugin_IgnoredCategories .ignoreCategoryHint { display: inline-block; padding: 5px 4px; color: #64748b; font-size: 12px; }
+    .Plugin_IgnoredCategories .ignoredCategory { display: inline-flex; align-items: center; cursor: pointer; background: #f1f5f9; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 12px; color: #0f172a; gap: 4px; }
     .Plugin_IgnoredCategories .ignoredCategory:hover { color: #38bdf8; border-color: #38bdf8; }
-    .Plugin_IgnoredCategories .ignoredCategory .removeFilter { font-size: 10px; margin-left: 4px; color: #94a3b8; }
+    .Plugin_IgnoredCategories .ignoredCategory .removeFilter { font-size: 10px; margin-left: 4px; color: #64748b; }
     .Plugin_IgnoredCategories .ignoredCategory.moreChip { display: none; }
     .Plugin_IgnoredCategories .moreChipsToggle { cursor: pointer; color: #38bdf8; background: none; border: none; font-size: 12px; padding: 0; }
     .Plugin_IgnoredCategories .moreChipsToggle:hover { text-decoration: underline; }
-    .Plugin_IgnoredCategories .resetAll { display: inline-block; cursor: pointer; white-space: nowrap; margin-left: auto; background: #1e293b; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; color: #f43f5e; font-size: 12px; text-decoration: none; }
+    .Plugin_IgnoredCategories .resetAll { display: inline-block; cursor: pointer; white-space: nowrap; margin-left: auto; background: #f1f5f9; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; color: #f43f5e; font-size: 12px; text-decoration: none; }
     .Plugin_IgnoredCategories .resetAll:hover { color: #fb7185; border-color: #f43f5e; }
 
-    .Plugin_Product .hideCategoryTrigger { position: absolute; top: 0; right: 0; z-index: 3; cursor: pointer; opacity: 0; padding: 5px; line-height: 1; color: #94a3b8; transition: opacity 0.2s, color 0.2s; }
+    .Plugin_Product .hideCategoryTrigger { position: absolute; top: 0; right: 0; z-index: 3; cursor: pointer; opacity: 0; padding: 5px; line-height: 1; color: #64748b; transition: opacity 0.2s, color 0.2s; }
     .Plugin_Product:hover .hideCategoryTrigger { opacity: 0.65; }
     .Plugin_Product .hideCategoryTrigger:hover { color: #f43f5e; opacity: 1; }
     .Plugin_Product.hasHideTrigger .product-name { padding-right: 22px; }
 
-    .emptyBecauseIgnored { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 16px 44px; color: #94a3b8; }
+    .emptyBecauseIgnored { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 16px 44px; color: #64748b; }
     .emptyBecauseIgnored i { font-size: 34px; color: #64748b; margin-bottom: 14px; }
-    .emptyBecauseIgnored .hint { color: #94a3b8; max-width: 420px; font-size: 14px; margin-bottom: 12px; }
-    .emptyBecauseIgnored .resetAll { display: inline-block; cursor: pointer; margin-top: 16px; padding: 0.25rem 0.5rem; border: 1px solid #475569; background: #1e293b; color: #f43f5e; border-radius: 4px; }
+    .emptyBecauseIgnored .hint { color: #64748b; max-width: 420px; font-size: 14px; margin-bottom: 12px; }
+    .emptyBecauseIgnored .resetAll { display: inline-block; cursor: pointer; margin-top: 16px; padding: 0.25rem 0.5rem; border: 1px solid #475569; background: #f1f5f9; color: #f43f5e; border-radius: 4px; }
 
     .IgnoredCategoriesMenu { max-width: calc(100vw - 32px); font-size: 12px; }
     .IgnoredCategoriesMenu .title { font-weight: 700; margin-bottom: 6px; white-space: nowrap; }
@@ -125,14 +125,14 @@
     .w-100 { width: 100% !important; }
     .ml-auto { margin-left: auto !important; }
     .text-right { text-align: right !important; }
-    .bold { font-weight: 700; color: #f1f5f9; text-decoration: none; }
-    .product-features { font-size: 13px; color: #94a3b8; text-decoration: none; }
-    .Page_Browsing a { color: #f1f5f9; text-decoration: none; }
+    .bold { font-weight: 700; color: #0f172a; text-decoration: none; }
+    .product-features { font-size: 13px; color: #64748b; text-decoration: none; }
+    .Page_Browsing a { color: #0f172a; text-decoration: none; }
 
     /* Collection and Subcards */
     .Plugin_ProductCollItem {
-      background: #242424;
-      border: 1px solid #334155;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 16px;
       margin-bottom: 16px;
@@ -140,15 +140,15 @@
     .Plugin_ProductCollItem .product-name {
       font-size: 16px;
       font-weight: 700;
-      color: #f1f5f9;
+      color: #0f172a;
     }
     .Plugin_ProductCollectionRelProductsList {
       margin-top: 12px;
-      border-top: 1px solid #334155;
+      border-top: 1px solid #e2e8f0;
       padding-left: 0;
     }
     .Plugin_ProductCollectionRelProductsList .f_item {
-      border-bottom: 1px solid #2d3748;
+      border-bottom: 1px solid #e2e8f0;
       padding: 0;
     }
     .Plugin_ProductCollectionRelProductsList .f_item:last-child {
@@ -168,14 +168,14 @@
     }
     .priceContainer.shippingPrice { font-size: 14px; font-weight: 700; }
     .priceContainer.shippingPrice .Plugin_Price { font-size: 17px; color: #f59e0b; }
-    .priceContainer.productPrice { font-size: 12px; color: #94a3b8; }
-    .shippingText { font-size: 11px; color: #94a3b8; }
-    .offersContainer { font-size: 12px; color: #94a3b8; }
+    .priceContainer.productPrice { font-size: 12px; color: #64748b; }
+    .shippingText { font-size: 11px; color: #64748b; }
+    .offersContainer { font-size: 12px; color: #64748b; }
     .price-availability { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
   </style>
 </head>
 <body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-lng="de" data-current_url="/neue-toppreise">
-  <div class="breadcrumb" style="margin-bottom: 12px; font-size: 13px; color: #94a3b8;">
+  <div class="breadcrumb" style="margin-bottom: 12px; font-size: 13px; color: #64748b;">
     <span>Home</span> &gt; <span>Neue Toppreise</span>
   </div>
 

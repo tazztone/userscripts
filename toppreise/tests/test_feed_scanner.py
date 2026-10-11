@@ -266,7 +266,7 @@ def test_mode_hides_non_bestpreis(page: Page):
     # (single color language: color = badge-% heat, text = kind).
     assert page.locator('#card-cheapest').is_visible()
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
-    assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Single reveal-all preview button toggles the tp-reveal-all display override
     page.click('#tp-bar-reveal-all')
@@ -332,8 +332,8 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
     # of the old pale site-Differenz warmth. Card 1 (-67%) and card 3 (-35%).
     card1 = page.locator('#card-cheapest')
     card3 = page.locator('#card-negative')
-    assert 'tp-heatmap-active' not in (card1.get_attribute('class') or '')
-    assert 'tp-heatmap-active' not in (card3.get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (card1.get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (card3.get_attribute('class') or '')
     assert 'tp-is-unverified' in (card1.get_attribute('class') or '')
     assert 'tp-is-unverified' in (card3.get_attribute('class') or '')
     assert 'tp-is-unverified' in (card1.locator('.badge-dif').get_attribute('class') or '')
@@ -346,7 +346,7 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
     # without a median there is no % to heat by.
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    assert 'tp-heatmap-active' not in (card1.get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (card1.get_attribute('class') or '')
     assert 'tp-is-verified' in (card1.get_attribute('class') or '')
     assert 'tp-is-verified' in (card1.locator('.badge-dif').get_attribute('class') or '')
 
@@ -355,7 +355,7 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
     # badge text carries the markup signal instead.
     page.click('#card-negative .badge-dif')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-not-low')
-    assert 'tp-heatmap-active' not in (card3.get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (card3.get_attribute('class') or '')
     assert card3.locator('.badge-dif').evaluate('el => el.style.getPropertyValue("background")') == ''
     assert 'tp-is-verified' in (card3.get_attribute('class') or '')
     assert 'tp-is-verified' in (card3.locator('.badge-dif').get_attribute('class') or '')
@@ -849,8 +849,8 @@ def test_sparkline_click_opens_discord_style_chart(page: Page):
     page.locator('#card-cheapest .tp-sparkline-container').click()
     popout = page.locator('#tp-sparkline-popout')
     assert popout.is_visible()
-    # Discord-identical chart: dark card, axes grid, endpoint dot
-    assert popout.locator('svg rect').get_attribute('fill') == '#1e293b'
+    # Discord-identical chart: light card, axes grid, endpoint dot
+    assert popout.locator('svg rect').get_attribute('fill') == '#f1f5f9'
     assert popout.locator('svg line').count() >= 2
     assert popout.locator('svg circle').count() == 1
     page.keyboard.press('Escape')

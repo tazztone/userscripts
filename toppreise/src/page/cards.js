@@ -177,14 +177,13 @@ const heatColor = (diff, intensity) => {
   return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
 };
 
-export function getHeatmapStyles(diffPercent, intensity = 1.0) {
+export function getChromeHeatStyle(diffPercent, intensity = 1.0) {
   const c = heatColor(diffPercent, intensity);
   if (!c) return null;
-  const { t, base, acc, borderRgb, borderAlpha, safeInt } = c;
-  const bg = `linear-gradient(135deg, rgba(${base.join(',')},${(0.92 + 0.04 * t).toFixed(2)}) 0%, rgba(${acc.join(',')},${((0.75 + 0.20 * t) * safeInt).toFixed(2)}) 100%)`;
+  const { t, acc, borderRgb, borderAlpha, safeInt } = c;
   const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
   const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
-  return { bg, border, glow };
+  return { border, glow };
 }
 // Feathered INNER-edge variant for Vortief heat (mode only): NO background
 // fill — the card keeps the site background. Same ramp hue, but the signal

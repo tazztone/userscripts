@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getHeatmapStyles, getBadgeHeatStyle } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getChromeHeatStyle, getBadgeHeatStyle } from '../../src/page/cards.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
   describe('getDistinctProductIds', () => {
@@ -67,42 +67,40 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
     });
   });
 
-  describe('getHeatmapStyles continuous spectrum', () => {
-    it('returns red heat for deep discount (-100% or more)', () => {
-      const styles = getHeatmapStyles(-100);
-      assert.ok(styles.bg.includes('linear-gradient'));
+  describe('getChromeHeatStyle chrome-only signal (border + glow, no fill)', () => {
+    it('returns border + glow for deep discount (-100% or more)', () => {
+      const styles = getChromeHeatStyle(-100);
+      assert.ok(!('bg' in styles));
       assert.ok(styles.border.includes('rgba'));
       assert.ok(styles.glow !== 'none');
     });
 
     it('renders neutral gray for markups and parity (no cold blue)', () => {
-      const markup = getHeatmapStyles(100);
-      const parity = getHeatmapStyles(0);
-      assert.ok(markup.bg.includes('linear-gradient'));
-      assert.strictEqual(markup.bg, parity.bg);
+      const markup = getChromeHeatStyle(100);
+      const parity = getChromeHeatStyle(0);
+      assert.strictEqual(markup.border, parity.border);
       assert.strictEqual(markup.glow, 'none');
     });
 
     it('returns neutral slate for parity (0%)', () => {
-      const styles = getHeatmapStyles(0);
-      assert.ok(styles.bg.includes('linear-gradient'));
+      const styles = getChromeHeatStyle(0);
+      assert.ok(styles.border.includes('rgba'));
       assert.strictEqual(styles.glow, 'none');
     });
 
     it('clamps beyond -100 to max red and beyond +100 to neutral gray', () => {
-      const styles1 = getHeatmapStyles(-150);
-      const styles2 = getHeatmapStyles(-100);
-      assert.strictEqual(styles1.bg, styles2.bg);
+      const styles1 = getChromeHeatStyle(-150);
+      const styles2 = getChromeHeatStyle(-100);
+      assert.deepStrictEqual(styles1, styles2);
 
-      const styles3 = getHeatmapStyles(200);
-      const styles4 = getHeatmapStyles(0);
-      assert.strictEqual(styles3.bg, styles4.bg);
+      const styles3 = getChromeHeatStyle(200);
+      const styles4 = getChromeHeatStyle(0);
+      assert.deepStrictEqual(styles3, styles4);
     });
 
     it('renders visibly distinct shades for distinct deal sizes (PIMAX vs TRUST)', () => {
-      const pim = getHeatmapStyles(-58, 1.0);
-      const tru = getHeatmapStyles(-52, 1.0);
-      assert.notEqual(pim.bg, tru.bg);
+      const pim = getChromeHeatStyle(-58, 1.0);
+      const tru = getChromeHeatStyle(-52, 1.0);
       assert.notEqual(pim.border, tru.border);
     });
   });

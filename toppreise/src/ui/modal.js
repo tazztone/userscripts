@@ -1,7 +1,7 @@
 /**
  * Settings Modal & Shadow DOM Component
  * Manages the floating action button, single-page settings dialog,
- * dual-binding input controls, theme selection, import/export, and cache controls.
+ * dual-binding input controls, Anzeige display-mode, import/export, and cache controls.
  */
 
 import { showToast } from "./toast.js";

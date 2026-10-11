@@ -8,7 +8,7 @@
 import { CONFIG, updateConfig, _getValue, _setValue } from '../state/config.js';
 import {
   getBadgeHeatStyle,
-  getHeatmapStyles,
+  getChromeHeatStyle,
   getEdgeHeatStyle,
   getCardDealerRows,
   extractCardDiscount,
@@ -46,13 +46,7 @@ function setTitleIfChanged(el, newTitle) {
   }
 }
 
-// Sub-elements the heatmap touches (apply + removal must use the same set)
-const HEAT_SUB_SELECTOR =
-  '.row, .col, [class*="col-"], .priceAvailabilityContainer, .price-availability, ' +
-  '.offersContainer, .offers, .priceContainer, .Plugin_Price, .productPrice, .shippingPrice, .shippingText, ' +
-  '.manufacturer-image, .product-name, .productDetails, .price_information_product, .Plugin_PriceInformation, ' +
-  '.f_product_info, .productDescription, .productDetailsDescription, .product-details, .f_product_container, ' +
-  '.product-image, .productImage, .image_container, .image, [data-darkreader-inline-bgcolor], [data-darkreader-inline-bgimage]';
+// Heat is chrome-only (border + glow): the card keeps the site background.
 
 function ensureHistPriceEl(card, cardPriceEl) {
   let el = card.querySelector('.tp-card-historical-price');
@@ -143,48 +137,13 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
+      const heat = isVortiefHeat ? getEdgeHeatStyle(heatInfo.pct, heatIntensity) : getChromeHeatStyle(effectiveDiff, heatIntensity);
       card.classList.toggle('tp-heat-vortief', isVortiefHeat);
-      const edge = isVortiefHeat ? getEdgeHeatStyle(heatInfo.pct, heatIntensity) : null;
-      const heatStyles = getHeatmapStyles(effectiveDiff, heatIntensity);
-      if (edge) { heatStyles.border = edge.border; heatStyles.glow = edge.glow; }
-      if (!edge) card.style.setProperty('--tp-heat-bg', heatStyles.bg);
-      card.style.setProperty('--tp-heat-border', heatStyles.border);
-      card.style.setProperty('--tp-heat-glow', heatStyles.glow);
-
-      // DarkReader Dynamic Theme compatibility:
-      if (!edge) card.style.setProperty('--darkreader-inline-bgimage', heatStyles.bg);
-      card.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
-      card.style.setProperty('--darkreader-inline-border', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-top', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-right', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-bottom', heatStyles.border);
-      card.style.setProperty('--darkreader-inline-border-left', heatStyles.border);
-      if (!edge) card.style.setProperty('background', heatStyles.bg, 'important');
-      if (!edge) card.style.setProperty('background-image', heatStyles.bg, 'important');
-      card.style.setProperty('border-color', heatStyles.border, 'important');
-      if (edge) card.style.setProperty('box-shadow', edge.glow, 'important');
-
-      if (card.hasAttribute('data-darkreader-inline-bgcolor')) card.removeAttribute('data-darkreader-inline-bgcolor');
-      if (card.hasAttribute('data-darkreader-inline-bgimage')) card.removeAttribute('data-darkreader-inline-bgimage');
-
-      // Edge heat keeps the site background: bleaching sub-elements would erase it.
-      const subElements = !edge ? card.querySelectorAll(HEAT_SUB_SELECTOR) : [];
-      for (let s = 0; s < subElements.length; s++) {
-        const sub = subElements[s];
-        if (sub.classList.contains('badge') || sub.classList.contains('tp-deal-pill') ||
-            sub.classList.contains('tp-best-price-badge') ||
-            sub.classList.contains('tp-sparkline-container') || sub.tagName === 'BUTTON') {
-          continue;
-        }
-        if (sub.hasAttribute('data-darkreader-inline-bgcolor')) sub.removeAttribute('data-darkreader-inline-bgcolor');
-        if (sub.hasAttribute('data-darkreader-inline-bgimage')) sub.removeAttribute('data-darkreader-inline-bgimage');
-        sub.style.setProperty('background-color', 'transparent', 'important');
-        sub.style.setProperty('background', 'transparent', 'important');
-        sub.style.setProperty('--darkreader-inline-bgcolor', 'transparent');
-        sub.style.setProperty('--darkreader-inline-bgimage', 'none');
-      }
-
-      if (!edge) card.classList.add('tp-heatmap-active');
+      card.classList.toggle('tp-heat-blend', !isVortiefHeat);
+      card.style.setProperty('--tp-heat-border', heat.border);
+      card.style.setProperty('--tp-heat-glow', heat.glow);
+      card.style.setProperty('border-color', heat.border, 'important');
+      card.style.setProperty('box-shadow', heat.glow, 'important');
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
     // render (not only on heatKey change) so re-rendered badge nodes can't
@@ -197,9 +156,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
       heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
       heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
-      heatBadgeEl.style.setProperty('--darkreader-inline-bgcolor', badgeHeat.background);
     }
-  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heatmap-active') || card.classList.contains('tp-heat-vortief')) {
+  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.classList.contains('tp-heat-vortief')) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
     if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
@@ -207,21 +165,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
     }
     delete card.dataset.tpAppliedHeat;
-    if (card.classList.contains('tp-heat-vortief')) card.style.removeProperty('box-shadow');
-    card.classList.remove('tp-heatmap-active', 'tp-heat-vortief');
-    card.style.removeProperty('--tp-heat-bg');
+    card.style.removeProperty('box-shadow');
+    card.classList.remove('tp-heat-blend', 'tp-heat-vortief');
     card.style.removeProperty('--tp-heat-border');
     card.style.removeProperty('--tp-heat-glow');
-    card.style.removeProperty('--darkreader-inline-bgimage');
-    card.style.removeProperty('--darkreader-inline-bgcolor');
-    card.style.removeProperty('--darkreader-inline-border');
-    card.style.removeProperty('--darkreader-inline-border-top');
-    card.style.removeProperty('--darkreader-inline-border-right');
-    card.style.removeProperty('--darkreader-inline-border-bottom');
-    card.style.removeProperty('--darkreader-inline-border-left');
-    card.style.removeProperty('background');
-    card.style.removeProperty('background-image');
-    card.style.removeProperty('background-color');
     card.style.removeProperty('border-color');
     // Undo the badge heat coupling from the apply path above
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
@@ -230,14 +177,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       heatBadgeEl.style.removeProperty('border-color');
       heatBadgeEl.style.removeProperty('color');
       heatBadgeEl.style.removeProperty('box-shadow');
-      heatBadgeEl.style.removeProperty('--darkreader-inline-bgcolor');
-    }
-    // Undo the per-subelement overrides from the apply path above
-    for (const sub of card.querySelectorAll(HEAT_SUB_SELECTOR)) {
-      sub.style.removeProperty('background-color');
-      sub.style.removeProperty('background');
-      sub.style.removeProperty('--darkreader-inline-bgcolor');
-      sub.style.removeProperty('--darkreader-inline-bgimage');
     }
   }
   // 1b. Geprüft vs ungeprüft card cue (always on, independent of Heatmap):

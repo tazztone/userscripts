@@ -135,7 +135,7 @@ def test_filter_bar_mounting_safety_and_interaction(page: Page):
 
 def test_discount_heatmap_rendering(page: Page):
     # Unchecked cards never heat: striped-gray ribbons, no thermal styling
-    assert 'tp-heatmap-active' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert 'tp-is-unverified' in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert 'tp-is-unverified' in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
 
@@ -143,23 +143,24 @@ def test_discount_heatmap_rendering(page: Page):
     seed_verified_deal(page, '797571', clear=True)
     seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 1800, 'medianPrice': 1250}, clear=False)
 
-    # Card 1 has a verified -50% deal -> hot thermal styling
-    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
+    # Card 1 has a verified -50% deal -> hot chrome signal (border + no fill)
+    page.wait_for_selector('#card-cheapest.tp-heat-blend')
     card_hot = page.locator('#card-cheapest')
-    assert 'tp-heatmap-active' in (card_hot.get_attribute('class') or '')
+    assert 'tp-heat-blend' in (card_hot.get_attribute('class') or '')
     assert 'tp-is-verified' in (card_hot.get_attribute('class') or '')
     assert 'tp-is-verified' in (card_hot.locator('.badge-dif').get_attribute('class') or '')
 
-    # Card 2 has a verified -12% deal -> faint warm thermal styling (same ramp, low intensity)
+    # Card 2 has a verified -12% deal -> faint warm chrome signal (same ramp, low intensity)
     card_cold = page.locator('#card-expensive')
-    assert 'tp-heatmap-active' in (card_cold.get_attribute('class') or '')
+    assert 'tp-heat-blend' in (card_cold.get_attribute('class') or '')
 
-    # Check CSS variable values on cards
-    hot_bg = card_hot.evaluate("el => el.style.getPropertyValue('--tp-heat-bg')")
-    cold_bg = card_cold.evaluate("el => el.style.getPropertyValue('--tp-heat-bg')")
-    assert 'linear-gradient' in hot_bg
-    assert 'linear-gradient' in cold_bg
-    assert hot_bg != cold_bg
+    # Check chrome signal values on cards: tinted border, no fill
+    hot_border = card_hot.evaluate("el => el.style.getPropertyValue('--tp-heat-border')")
+    cold_border = card_cold.evaluate("el => el.style.getPropertyValue('--tp-heat-border')")
+    assert 'rgba(' in hot_border
+    assert 'rgba(' in cold_border
+    assert hot_border != cold_border
+    assert 'linear-gradient' not in card_hot.evaluate('el => getComputedStyle(el).backgroundImage')
 
     # Badges reuse the card ramp: deep-deal badge is redder than the -10% badge
     hot_badge_bg = card_hot.locator('.badge-dif').evaluate('el => el.style.getPropertyValue("background")')
@@ -173,7 +174,7 @@ def test_discount_heatmap_rendering(page: Page):
 def test_discount_heatmap_toolbar_toggle(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
     seed_verified_deal(page)
-    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
+    page.wait_for_selector('#card-cheapest.tp-heat-blend')
     heat_btn = page.locator('#tp-bar-heat-btn')
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
 
@@ -182,7 +183,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
     page.wait_for_timeout(200)
 
     assert 'tp-active' not in (heat_btn.get_attribute('class') or '')
-    assert 'tp-heatmap-active' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
     # Verified class survives without heat: state signal is heat-independent
     assert 'tp-is-verified' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
@@ -191,7 +192,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
     page.wait_for_timeout(200)
 
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
-    assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
 
 def test_suite_filter_bar_grouping(page: Page):
@@ -203,7 +204,7 @@ def test_suite_filter_bar_grouping(page: Page):
 def test_discount_heatmap_settings_modal_controls(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
     seed_verified_deal(page)
-    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
+    page.wait_for_selector('#card-cheapest.tp-heat-blend')
     open_settings(page)
 
     # Toggle heatmap switch off inside modal via slider
@@ -212,7 +213,7 @@ def test_discount_heatmap_settings_modal_controls(page: Page):
     page.click('#tp-root >> #tp-btn-save')
 
     page.wait_for_timeout(200)
-    assert 'tp-heatmap-active' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Re-enable in settings
     open_settings(page)
@@ -220,7 +221,7 @@ def test_discount_heatmap_settings_modal_controls(page: Page):
     page.click('#tp-root >> #tp-btn-save')
 
     page.wait_for_timeout(200)
-    assert 'tp-heatmap-active' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
 
 
@@ -367,9 +368,9 @@ def test_category_page_injects_interactive_deal_badges(page: Page):
 def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     # Seed a verified deal: only verified cards receive thermal heatmap
     seed_verified_deal(page)
-    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
+    page.wait_for_selector('#card-cheapest.tp-heat-blend')
     card = page.locator('#card-cheapest')
-    has_heat = card.evaluate("el => el.classList.contains('tp-heatmap-active') || el.style.getPropertyValue('--tp-heat-bg') !== ''")
+    has_heat = card.evaluate("el => el.classList.contains('tp-heat-blend') || el.style.getPropertyValue('--tp-heat-border') !== ''")
     assert has_heat
 
 def test_hide_unchecked_toggle_filters_unverified(page: Page):
@@ -1530,7 +1531,7 @@ def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
     assert 'tp-baddeal-hidden' not in (card.get_attribute('class') or '')
     # Feathered edge, never the full blended wash
     assert 'tp-heat-vortief' in (card.get_attribute('class') or '')
-    assert 'tp-heatmap-active' not in (card.get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (card.get_attribute('class') or '')
     bg = card.evaluate('el => getComputedStyle(el).backgroundImage')
     assert 'linear-gradient' not in bg
     # Containment: the glow is inset, so it can never bleed onto neighbors
@@ -1555,7 +1556,7 @@ def test_hover_stability_no_translate_jitter(page: Page):
         for (const sheet of document.styleSheets) {
             try {
                 for (const rule of sheet.cssRules) {
-                    if (rule.selectorText && rule.selectorText.includes(':hover') && rule.selectorText.includes('tp-heatmap-active')) {
+                    if (rule.selectorText && rule.selectorText.includes(':hover') && rule.selectorText.includes('tp-heat-blend')) {
                         if (rule.style.transform && rule.style.transform.includes('translateY')) {
                             return true;
                         }
@@ -2169,9 +2170,11 @@ def test_dealer_name_direct_from_dom_dealer_row(page: Page):
     assert len(product_hits) == 0
 
 
-def test_heat_fill_light_text_and_spark_clip(page: Page):
-    """Dark heat fill carries light suite microcopy; the sparkline never bleeds
-    over truncated subline text (overflow:visible regression)."""
+def test_heat_chrome_keeps_site_colors_and_spark(page: Page):
+    """Chrome-only heat keeps the site skin: heated cards carry the same dark
+    site text as unheated ones, and the sparkline keeps its blue stroke (no
+    heated-card override). The sparkline never bleeds over truncated subline
+    text (overflow:visible regression)."""
     page.evaluate("""() => {
         const full = {
             tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 3600,
@@ -2183,22 +2186,21 @@ def test_heat_fill_light_text_and_spark_clip(page: Page):
         window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.processListings();
     }""")
-    page.wait_for_selector('#card-cheapest.tp-heatmap-active')
+    page.wait_for_selector('#card-cheapest.tp-heat-blend')
     subline = page.locator('#card-cheapest .tp-card-historical-price')
     assert subline.count() == 1
-    assert subline.evaluate("el => window.getComputedStyle(el).color") == 'rgb(241, 245, 249)'
-    # Dark fill flips the site price to light; unheated cards keep site colors
-    # (mock green #10b981) - light fills stay untouched by construction.
-    assert page.locator('#card-cheapest .Plugin_Price').first.evaluate(
-        "el => window.getComputedStyle(el).color") == 'rgb(241, 245, 249)'
-    assert 'tp-heatmap-active' not in (page.locator('#card-expensive').get_attribute('class') or '')
-    assert page.locator('#card-expensive .Plugin_Price').first.evaluate(
+    assert subline.evaluate("el => window.getComputedStyle(el).color") == 'rgb(52, 211, 153)'
+    # Heated card keeps site price color (mock green #10b981), same as unheated
+    assert page.locator('#card-cheapest .priceContainer.productPrice .Plugin_Price').evaluate(
+        "el => window.getComputedStyle(el).color") == 'rgb(16, 185, 129)'
+    assert 'tp-heat-blend' not in (page.locator('#card-expensive').get_attribute('class') or '')
+    assert page.locator('#card-expensive .priceContainer.productPrice .Plugin_Price').evaluate(
         "el => window.getComputedStyle(el).color") == 'rgb(16, 185, 129)'
     stroke = page.locator('#card-cheapest .tp-card-subline-row').evaluate("""row => {
         const pl = row.querySelector('.tp-sparkline polyline');
         return pl ? window.getComputedStyle(pl).stroke : 'no-spark';
     }""")
-    assert stroke in ('rgb(147, 197, 253)', 'no-spark'), stroke
+    assert stroke in ('rgb(59, 130, 246)', 'no-spark'), stroke
 
     clip = page.locator('#card-cheapest .tp-card-subline-row').evaluate("""row => {
         const svg = row.querySelector('.tp-sparkline');
