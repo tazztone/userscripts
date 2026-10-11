@@ -103,6 +103,86 @@ def test_price_alarm_automation(page: Page):
     assert not page.locator('#mock-alarm-dialog').is_visible()
 
 
+def test_alarm_bell_three_states_and_cog(page: Page):
+    bell = page.locator('#mock-alarm-bell')
+    # Default config (enabled + auto-submit): auto state, live numbers in title
+    assert bell.get_attribute('data-tp-alarm-state') == 'auto'
+    assert 'tp-alarm-auto' in (bell.get_attribute('class') or '')
+    assert '60%' in (bell.get_attribute('title') or '')
+    cog = page.locator('.tp-alarm-cog')
+    assert cog.count() == 1
+
+    # Cog opens settings scrolled to the Preisalarm section
+    cog.click()
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    assert page.locator('#tp-root >> #tp-section-alarm').is_visible()
+
+    # Fill-only and off states repaint live via updateConfig (no reload)
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', false)")
+    assert bell.get_attribute('data-tp-alarm-state') == 'fill'
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_ENABLED', false)")
+    assert bell.get_attribute('data-tp-alarm-state') == 'off'
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('ALARM_ENABLED', true); window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true); }")
+    assert bell.get_attribute('data-tp-alarm-state') == 'auto'
+
+
+def test_alarm_fill_clamps_corrupt_config(page: Page):
+    # Fill-only mode: no auto-submit timers, deterministic asserts
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', false)")
+
+    # Fill-only leaves the terms checkbox for manual review
+    page.evaluate("""() => {
+      const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
+      delete form.dataset.tpAlarmProcessed;
+      form.querySelector('#im_nimf_prtrm').checked = false;
+      window.ToppreiseSuite.processPriceAlarmModal();
+    }""")
+    assert not page.locator('#im_nimf_prtrm').is_checked()
+
+    # NaN percent falls back to 60%: 60% of CHF 1000 = 600.00
+    page.evaluate("""() => {
+      window.ToppreiseSuite.updateConfig('ALARM_TARGET_PERCENT', NaN);
+      const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
+      delete form.dataset.tpAlarmProcessed;
+      form.querySelector('#f_NewInfoMailForm_priceFrom').value = '';
+      window.ToppreiseSuite.processPriceAlarmModal();
+    }""")
+    assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == '600.00'
+
+    # 500% clamps to 99% (990.00); unknown duration falls back to 730
+    page.evaluate("""() => {
+      window.ToppreiseSuite.updateConfig('ALARM_TARGET_PERCENT', 5.0);
+      window.ToppreiseSuite.updateConfig('ALARM_DURATION_DAYS', '999');
+      const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
+      delete form.dataset.tpAlarmProcessed;
+      window.ToppreiseSuite.processPriceAlarmModal();
+    }""")
+    assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == '990.00'
+    assert page.locator('#mock-alarm-dialog input[name="im_nimf_du"]').input_value() == '730'
+
+
+def test_alarm_missing_price_retries(page: Page):
+    page.evaluate("""() => {
+      const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
+      delete form.dataset.tpAlarmProcessed;
+      form.querySelector('.productPrice .Plugin_Price').textContent = '';
+      form.querySelector('#f_NewInfoMailForm_priceFrom').value = '';
+      document.querySelector('#mock-alarm-dialog').style.display = 'block';
+      window.ToppreiseSuite.processPriceAlarmModal();
+    }""")
+    form = page.locator('#mock-alarm-dialog .Plugin_NewInfoMailForm')
+    assert form.get_attribute('data-tp-alarm-processed') is None
+    assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == ''
+
+    page.evaluate("""() => {
+      const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
+      form.querySelector('.productPrice .Plugin_Price').textContent = '1000.00';
+      window.ToppreiseSuite.processPriceAlarmModal();
+    }""")
+    assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == '600.00'
+    assert form.get_attribute('data-tp-alarm-processed') == 'true'
+
+
 
 def test_real_deal_on_demand_check_and_badges(page: Page):
     mock_pricechart(page, {'797571': (1800, 2400), '797573': (10, 25)})

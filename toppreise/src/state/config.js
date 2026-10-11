@@ -204,10 +204,27 @@ export const CONFIG = {
   SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
   DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
 };
+// Corrupt storage must never silently break fills: clamp percent to the
+// modal save bounds, fall back to defaults on NaN/unknown durations.
+if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
+else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
+if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
 
 export const saveConfigKey = (key, val) => {
   CONFIG[key] = val;
   _setValue(key, val);
+};
+// Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
+// here (a static import would cycle config ← price-alarm; the concat-IIFE
+// bundler also drops dynamic import()). syncUiControl notifies on alarm keys.
+let alarmConfigListener = null;
+export function setAlarmConfigListener(fn) {
+  alarmConfigListener = typeof fn === 'function' ? fn : null;
+}
+const notifyAlarmConfig = () => {
+  try { alarmConfigListener?.(); } catch (err) {
+    if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] alarm repaint error', err);
+  }
 };
 
 
@@ -336,6 +353,33 @@ export function syncUiControl(key, val) {
           if (toggle) toggle.checked = val === false;
           break;
         }
+        case 'ALARM_ENABLED': {
+          const toggle = shadow.getElementById('tp-alarm-enabled-toggle');
+          if (toggle) toggle.checked = val !== false;
+          notifyAlarmConfig();
+          break;
+        }
+        case 'ALARM_TARGET_PERCENT': {
+          const pct = Math.round((Number.isFinite(val) ? val : 0.60) * 100);
+          const range = shadow.getElementById('tp-alarm-target-range');
+          const num = shadow.getElementById('tp-alarm-target-val');
+          if (range) range.value = pct;
+          if (num) num.value = pct;
+          notifyAlarmConfig();
+          break;
+        }
+        case 'ALARM_DURATION_DAYS': {
+          const radio = shadow.querySelector(`input[name="tp-alarm-duration"][value="${val}"]`);
+          if (radio) radio.checked = true;
+          notifyAlarmConfig();
+          break;
+        }
+        case 'ALARM_AUTO_SUBMIT': {
+          const toggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
+          if (toggle) toggle.checked = val !== false;
+          notifyAlarmConfig();
+          break;
+        }
       }
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
@@ -435,6 +479,9 @@ export function syncAllUiControls(keys = Object.keys(CONFIG)) {
   for (const k of keys) syncUiControl(k, CONFIG[k]);
 }
 
+// Alarm-only changes repaint just the bell (via syncUiControl) — a full
+// processListings() re-render would be wasted work on every settings save.
+const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
 export function updateConfig(key, val, options = {}) {
   saveConfigKey(key, val);
   if (!options.skipUiSync) {
@@ -443,7 +490,7 @@ export function updateConfig(key, val, options = {}) {
   if (key === 'MODE' || key === 'DIM_OPACITY') {
     updateBodyClasses();
   }
-  if (!options.skipRender && typeof processListings === 'function') {
+  if (!options.skipRender && !ALARM_ONLY_KEYS.has(key) && typeof processListings === 'function') {
     processListings();
   }
 }
@@ -452,7 +499,8 @@ export function updateConfigs(entries, options = {}) {
   for (const [k, v] of Object.entries(entries)) {
     updateConfig(k, v, { ...options, skipRender: true });
   }
-  if (!options.skipRender && typeof processListings === 'function') {
+  const needsRender = !options.skipRender && Object.keys(entries).some(k => !ALARM_ONLY_KEYS.has(k));
+  if (needsRender && typeof processListings === 'function') {
     processListings();
   }
 }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.172
+// @version      2.18.173
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1526,6 +1526,7 @@ const SHADOW_MODAL_STYLES = `
   #tp-section-unified-suite { display: flex; flex-direction: column; gap: 12px; }
   #tp-section-unified-suite label[title], #tp-section-unified-suite button[title] { cursor: help; }
   .tp-section-card { background: rgba(15, 23, 42, 0.5); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
   .tp-section-header { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
   .tp-section-display { border-color: rgba(16, 185, 129, 0.35); }
@@ -2789,10 +2790,27 @@ const SHADOW_MODAL_STYLES = `
     SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
     DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
   };
+  // Corrupt storage must never silently break fills: clamp percent to the
+  // modal save bounds, fall back to defaults on NaN/unknown durations.
+  if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
+  else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
+  if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
 
   const saveConfigKey = (key, val) => {
     CONFIG[key] = val;
     _setValue(key, val);
+  };
+  // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
+  // here (a static import would cycle config ← price-alarm; the concat-IIFE
+  // bundler also drops dynamic import()). syncUiControl notifies on alarm keys.
+  let alarmConfigListener = null;
+  function setAlarmConfigListener(fn) {
+    alarmConfigListener = typeof fn === 'function' ? fn : null;
+  }
+  const notifyAlarmConfig = () => {
+    try { alarmConfigListener?.(); } catch (err) {
+      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] alarm repaint error', err);
+    }
   };
 
 
@@ -2921,6 +2939,33 @@ const SHADOW_MODAL_STYLES = `
             if (toggle) toggle.checked = val === false;
             break;
           }
+          case 'ALARM_ENABLED': {
+            const toggle = shadow.getElementById('tp-alarm-enabled-toggle');
+            if (toggle) toggle.checked = val !== false;
+            notifyAlarmConfig();
+            break;
+          }
+          case 'ALARM_TARGET_PERCENT': {
+            const pct = Math.round((Number.isFinite(val) ? val : 0.60) * 100);
+            const range = shadow.getElementById('tp-alarm-target-range');
+            const num = shadow.getElementById('tp-alarm-target-val');
+            if (range) range.value = pct;
+            if (num) num.value = pct;
+            notifyAlarmConfig();
+            break;
+          }
+          case 'ALARM_DURATION_DAYS': {
+            const radio = shadow.querySelector(`input[name="tp-alarm-duration"][value="${val}"]`);
+            if (radio) radio.checked = true;
+            notifyAlarmConfig();
+            break;
+          }
+          case 'ALARM_AUTO_SUBMIT': {
+            const toggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
+            if (toggle) toggle.checked = val !== false;
+            notifyAlarmConfig();
+            break;
+          }
         }
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
@@ -3020,6 +3065,9 @@ const SHADOW_MODAL_STYLES = `
     for (const k of keys) syncUiControl(k, CONFIG[k]);
   }
 
+  // Alarm-only changes repaint just the bell (via syncUiControl) — a full
+  // processListings() re-render would be wasted work on every settings save.
+  const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
   function updateConfig(key, val, options = {}) {
     saveConfigKey(key, val);
     if (!options.skipUiSync) {
@@ -3028,7 +3076,7 @@ const SHADOW_MODAL_STYLES = `
     if (key === 'MODE' || key === 'DIM_OPACITY') {
       updateBodyClasses();
     }
-    if (!options.skipRender && typeof processListings === 'function') {
+    if (!options.skipRender && !ALARM_ONLY_KEYS.has(key) && typeof processListings === 'function') {
       processListings();
     }
   }
@@ -3037,7 +3085,8 @@ const SHADOW_MODAL_STYLES = `
     for (const [k, v] of Object.entries(entries)) {
       updateConfig(k, v, { ...options, skipRender: true });
     }
-    if (!options.skipRender && typeof processListings === 'function') {
+    const needsRender = !options.skipRender && Object.keys(entries).some(k => !ALARM_ONLY_KEYS.has(k));
+    if (needsRender && typeof processListings === 'function') {
       processListings();
     }
   }
@@ -5481,8 +5530,8 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group">
             <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
             <div class="tp-range-container tp-blue">
-              <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
-              <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
+              <input type="range" id="tp-alarm-target-range" min="5" max="99" step="5" value="60">
+              <input type="number" id="tp-alarm-target-val" min="5" max="99" step="1" value="60">
             </div>
           </div>
           <div class="tp-settings-group">
@@ -5638,10 +5687,6 @@ const SHADOW_MODAL_STYLES = `
     const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
-    const dur90 = shadow.getElementById('tp-dur-90');
-    const dur180 = shadow.getElementById('tp-dur-180');
-    const dur365 = shadow.getElementById('tp-dur-365');
-    const dur730 = shadow.getElementById('tp-dur-730');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
     const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
@@ -5652,7 +5697,7 @@ const SHADOW_MODAL_STYLES = `
 
     function syncFieldsFromConfig() {
       // Every key syncUiControl covers (radios, toggles, weight, min-points,
-      // threshold, shipping, sparklines, dealer-autofetch, embeds) syncs
+      // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
       // through it — toolbar mirrors included. Only modal-only controls below.
       syncAllUiControls();
       syncOpacityVisibility();
@@ -5664,19 +5709,6 @@ const SHADOW_MODAL_STYLES = `
       else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
       else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') sortDiscount.checked = true;
       else sortNone.checked = true;
-
-      alarmEnabledToggle.checked = CONFIG.ALARM_ENABLED !== false;
-      const targetPct = Math.round(CONFIG.ALARM_TARGET_PERCENT * 100);
-      alarmTargetRange.value = targetPct;
-      alarmTargetVal.value = targetPct;
-
-      const dur = String(CONFIG.ALARM_DURATION_DAYS);
-      if (dur === '90') dur90.checked = true;
-      else if (dur === '180') dur180.checked = true;
-      else if (dur === '365') dur365.checked = true;
-      else dur730.checked = true;
-
-      alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
 
       const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
       heatmapIntensityRange.value = heatIntensityPct;
@@ -5909,7 +5941,7 @@ const SHADOW_MODAL_STYLES = `
       updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
 
       const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
-      if (checkedDur) updates.ALARM_DURATION_DAYS = parseInt(checkedDur.value, 10) || 730;
+      if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
       updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
       updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
@@ -5946,6 +5978,20 @@ const SHADOW_MODAL_STYLES = `
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });
+  }
+
+  // Bell-cog entry point: opens settings via the FAB path (identical sync +
+  // show behavior), then scrolls to the requested section with a one-shot
+  // flash. Optional anchor keeps all existing open paths untouched.
+  function openSettingsAt(sectionId) {
+    const { shadow } = ensureSkeleton();
+    shadow.getElementById('tp-settings-fab')?.click();
+    if (!sectionId) return;
+    const anchor = shadow.getElementById(sectionId);
+    if (!anchor) return;
+    anchor.scrollIntoView({ block: 'start' });
+    anchor.classList.add('tp-flash');
+    setTimeout(() => anchor.classList.remove('tp-flash'), 2000);
   }
 
   // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
@@ -7095,15 +7141,118 @@ const SHADOW_MODAL_STYLES = `
    * Automates the Toppreise price alarm popup dialog:
    * calculates discount target, configures alert duration, accepts terms,
    * and submits automatically when configured.
+   * Also paints the native bell trigger with the 3-state auto-fill mode
+   * (off / fill-only / auto-submit) plus a cog jumping to its settings.
    */
 
 
 
+
+  const ALARM_DURATIONS = ['90', '180', '365', '730'];
+  const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
+  // Live bell trigger selector still unconfirmed (repo/mock carry no native
+  // bell element); first entry is the test fixture. Silent no-op when absent.
+  const ALARM_BELL_SELECTORS = [
+    '#mock-alarm-bell',
+    '.f_NewInfoMailTrigger',
+    '.Plugin_NewInfoMailTrigger',
+    'a[href*="NewInfoMail"]',
+  ];
+  const BELL_STYLE_ID = 'tp-alarm-bell-style';
+
+  const clampAlarmTarget = v =>
+    (Number.isFinite(v) ? Math.min(0.99, Math.max(0.05, v)) : 0.60);
+  const normalizeAlarmDuration = v => {
+    const s = String(v);
+    return ALARM_DURATIONS.includes(s) ? s : '730';
+  };
+
+  const alarmBellState = () => {
+    if (CONFIG.ALARM_ENABLED === false) return 'off';
+    return CONFIG.ALARM_AUTO_SUBMIT === false ? 'fill' : 'auto';
+  };
+
+  const findAlarmBell = () => {
+    for (const sel of ALARM_BELL_SELECTORS) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  };
+
+  function ensureAlarmBellStyle() {
+    if (document.getElementById(BELL_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = BELL_STYLE_ID;
+    style.textContent = [
+      '.tp-alarm-off{opacity:.45 !important;}',
+      '.tp-alarm-fill,.tp-alarm-auto{position:relative !important;outline:2px solid #3b82f6 !important;outline-offset:2px;border-radius:4px;}',
+      '.tp-alarm-auto::after{content:"\\26A1";position:absolute;top:-10px;right:-10px;font-size:12px;line-height:1;}',
+      '.tp-alarm-cog{margin-left:6px;padding:0 4px;border:none;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
+      '.tp-alarm-cog:hover{opacity:1;}',
+    ].join('\n');
+    document.head.appendChild(style);
+  }
+
+  function ensureAlarmCog(bell) {
+    let cog = bell.nextElementSibling;
+    if (!cog || !cog.classList?.contains('tp-alarm-cog')) {
+      cog = document.querySelector('.tp-alarm-cog');
+      if (!cog) {
+        cog = document.createElement('button');
+        cog.type = 'button';
+        cog.className = 'tp-alarm-cog';
+        cog.textContent = '⚙';
+        cog.title = 'Preisalarm-Einstellungen';
+        cog.setAttribute('aria-label', 'Preisalarm-Einstellungen');
+        cog.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          openSettingsAt('tp-section-alarm');
+        });
+      }
+      bell.after(cog);
+    }
+    return cog;
+  }
+
+  function refreshAlarmBellDecor() {
+    try {
+      if (typeof document === 'undefined') return;
+      ensureAlarmBellStyle();
+      const bell = findAlarmBell();
+      if (!bell) return;
+      const state = alarmBellState();
+      bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
+      bell.classList.add(`tp-alarm-${state}`);
+      bell.setAttribute('data-tp-alarm-state', state);
+      const pct = Math.round(clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT) * 100);
+      const dur = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
+      const durLabel = DURATION_LABELS[dur] || dur;
+      bell.title = state === 'off'
+        ? 'Preisalarm auto-fill AUS — ⚙ für Einstellungen'
+        : state === 'fill'
+          ? `Preisalarm: füllt Ziel ${pct}% / ${durLabel} an — klicken zum Prüfen`
+          : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
+      ensureAlarmCog(bell);
+    } catch (err) {
+      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] bell decor error', err);
+    }
+  }
+
+  const clearAlarmTimers = modal => {
+    const raw = modal.dataset.tpAlarmTimers;
+    if (!raw) return;
+    raw.split(',').forEach(id => clearTimeout(Number(id)));
+    delete modal.dataset.tpAlarmTimers;
+  };
+
   function processPriceAlarmModal() {
+    refreshAlarmBellDecor();
     if (!CONFIG.ALARM_ENABLED) return;
     const modalContainer = document.querySelector('.Plugin_NewInfoMailForm');
     if (!modalContainer || modalContainer.dataset.tpAlarmProcessed === 'true') return;
-    modalContainer.dataset.tpAlarmProcessed = 'true';
+    clearAlarmTimers(modalContainer);
 
     const priceEl = modalContainer.querySelector('.shippingPrice .Plugin_Price') ||
                     modalContainer.querySelector('.productPrice .Plugin_Price') ||
@@ -7111,9 +7260,11 @@ const SHADOW_MODAL_STYLES = `
     if (!priceEl) return;
 
     const presentValue = parsePrice(priceEl.textContent);
-    if (presentValue <= 0) return;
+    if (!(presentValue > 0)) return;
+    modalContainer.dataset.tpAlarmProcessed = 'true';
 
-    const targetPrice = (presentValue * CONFIG.ALARM_TARGET_PERCENT).toFixed(2);
+    const targetPrice = (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2);
+    const duration = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
     const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
     if (priceInput) {
       priceInput.value = targetPrice;
@@ -7123,32 +7274,43 @@ const SHADOW_MODAL_STYLES = `
 
     const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
     if (durationHidden) {
-      durationHidden.value = CONFIG.ALARM_DURATION_DAYS;
+      durationHidden.value = duration;
       durationHidden.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    modalContainer.querySelector(`li[data-value="${CONFIG.ALARM_DURATION_DAYS}"]`)?.click();
-
-    const termsCheckbox = modalContainer.querySelector('input#im_nimf_prtrm');
-    if (termsCheckbox) {
-      termsCheckbox.checked = true;
-      termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    modalContainer.querySelector(`li[data-value="${duration}"]`)?.click();
 
     if (CONFIG.ALARM_AUTO_SUBMIT) {
-      setTimeout(() => {
-        const submitBtn = modalContainer.querySelector('input.f_submitbtn');
-        if (submitBtn) {
+      const termsCheckbox = modalContainer.querySelector('input#im_nimf_prtrm');
+      if (termsCheckbox) {
+        termsCheckbox.checked = true;
+        termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      try {
+        const submitTimer = setTimeout(() => {
+          const submitBtn = modalContainer.querySelector('input.f_submitbtn');
+          if (!submitBtn) {
+            if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Submit-Button gefunden');
+            return;
+          }
           submitBtn.click();
           // Allow in-flight AJAX request to complete before closing the dialog container
-          setTimeout(() => {
+          const closeTimer = setTimeout(() => {
             const closeBtn = modalContainer.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
+            else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
           }, 800);
-        }
-      }, 300);
+          modalContainer.dataset.tpAlarmTimers = String(closeTimer);
+        }, 300);
+        modalContainer.dataset.tpAlarmTimers = String(submitTimer);
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
+      }
     }
   }
+
+  setAlarmConfigListener(refreshAlarmBellDecor);
 
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
   /**
@@ -7428,6 +7590,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   if (typeof window !== 'undefined') {
     window.ToppreiseSuite = {
       processListings,
+      processPriceAlarmModal,
       processProductDetailPage,
       updateConfig,
       saveConfigKey,

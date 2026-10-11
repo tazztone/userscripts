@@ -168,8 +168,8 @@ export function setupUI() {
         <div class="tp-settings-group">
           <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
           <div class="tp-range-container tp-blue">
-            <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
-            <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
+            <input type="range" id="tp-alarm-target-range" min="5" max="99" step="5" value="60">
+            <input type="number" id="tp-alarm-target-val" min="5" max="99" step="1" value="60">
           </div>
         </div>
         <div class="tp-settings-group">
@@ -325,10 +325,6 @@ export function setupUI() {
   const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
   const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
   const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
-  const dur90 = shadow.getElementById('tp-dur-90');
-  const dur180 = shadow.getElementById('tp-dur-180');
-  const dur365 = shadow.getElementById('tp-dur-365');
-  const dur730 = shadow.getElementById('tp-dur-730');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
   const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
   const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
@@ -339,7 +335,7 @@ export function setupUI() {
 
   function syncFieldsFromConfig() {
     // Every key syncUiControl covers (radios, toggles, weight, min-points,
-    // threshold, shipping, sparklines, dealer-autofetch, embeds) syncs
+    // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
     // through it — toolbar mirrors included. Only modal-only controls below.
     syncAllUiControls();
     syncOpacityVisibility();
@@ -351,19 +347,6 @@ export function setupUI() {
     else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
     else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') sortDiscount.checked = true;
     else sortNone.checked = true;
-
-    alarmEnabledToggle.checked = CONFIG.ALARM_ENABLED !== false;
-    const targetPct = Math.round(CONFIG.ALARM_TARGET_PERCENT * 100);
-    alarmTargetRange.value = targetPct;
-    alarmTargetVal.value = targetPct;
-
-    const dur = String(CONFIG.ALARM_DURATION_DAYS);
-    if (dur === '90') dur90.checked = true;
-    else if (dur === '180') dur180.checked = true;
-    else if (dur === '365') dur365.checked = true;
-    else dur730.checked = true;
-
-    alarmAutoSubmitToggle.checked = CONFIG.ALARM_AUTO_SUBMIT !== false;
 
     const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
     heatmapIntensityRange.value = heatIntensityPct;
@@ -596,7 +579,7 @@ export function setupUI() {
     updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
 
     const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
-    if (checkedDur) updates.ALARM_DURATION_DAYS = parseInt(checkedDur.value, 10) || 730;
+    if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
     updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
     updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
@@ -633,5 +616,19 @@ export function setupUI() {
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();
   });
+}
+
+// Bell-cog entry point: opens settings via the FAB path (identical sync +
+// show behavior), then scrolls to the requested section with a one-shot
+// flash. Optional anchor keeps all existing open paths untouched.
+export function openSettingsAt(sectionId) {
+  const { shadow } = ensureSkeleton();
+  shadow.getElementById('tp-settings-fab')?.click();
+  if (!sectionId) return;
+  const anchor = shadow.getElementById(sectionId);
+  if (!anchor) return;
+  anchor.scrollIntoView({ block: 'start' });
+  anchor.classList.add('tp-flash');
+  setTimeout(() => anchor.classList.remove('tp-flash'), 2000);
 }
 

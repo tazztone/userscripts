@@ -1501,6 +1501,7 @@ export const SHADOW_MODAL_STYLES = `
   #tp-section-unified-suite { display: flex; flex-direction: column; gap: 12px; }
   #tp-section-unified-suite label[title], #tp-section-unified-suite button[title] { cursor: help; }
   .tp-section-card { background: rgba(15, 23, 42, 0.5); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
   .tp-section-header { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
   .tp-section-display { border-color: rgba(16, 185, 129, 0.35); }
