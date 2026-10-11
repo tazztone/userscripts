@@ -2,6 +2,8 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderSparkline } from '../../src/ui/sparkline.js';
 
+const DAY_S = 86400; // seconds-based timestamps; ms DAY does not apply
+
 describe('Interactive SVG Sparkline Component', () => {
   beforeEach(() => {
     // Mock document.createElementNS for Node environment
@@ -85,9 +87,8 @@ describe('Interactive SVG Sparkline Component', () => {
   });
 
   it('axes:true draws Y grid + month grid + endpoint dot', () => {
-    const day = 86400;
     const start = Date.UTC(2025, 0, 1) / 1000; // Jan 1 2025 (s timestamps)
-    const timeSeries = Array.from({ length: 100 }, (_, i) => [start + i * day, 100 - i * 0.2 + (i % 7)]);
+    const timeSeries = Array.from({ length: 100 }, (_, i) => [start + i * DAY_S, 100 - i * 0.2 + (i % 7)]);
     const svg = renderSparkline(timeSeries, 360, 100, { axes: true });
     assert.ok(svg);
     const lines = svg.children.filter(c => c.tagName === 'line');
@@ -107,9 +108,8 @@ describe('Interactive SVG Sparkline Component', () => {
   });
 
   it('axes:true on young series falls back to day labels', () => {
-    const day = 86400;
     const start = Date.UTC(2025, 0, 1) / 1000;
-    const timeSeries = Array.from({ length: 10 }, (_, i) => [start + i * day, 50 + i]);
+    const timeSeries = Array.from({ length: 10 }, (_, i) => [start + i * DAY_S, 50 + i]);
     const svg = renderSparkline(timeSeries, 360, 100, { axes: true });
     assert.ok(svg);
     const lines = svg.children.filter(c => c.tagName === 'line');
@@ -121,9 +121,8 @@ describe('Interactive SVG Sparkline Component', () => {
   });
 
   it('axes:true on few-weeks series falls back to week labels', () => {
-    const day = 86400;
     const start = Date.UTC(2025, 0, 6) / 1000; // a Monday
-    const timeSeries = Array.from({ length: 21 }, (_, i) => [start + i * day, 50 + (i % 5)]);
+    const timeSeries = Array.from({ length: 21 }, (_, i) => [start + i * DAY_S, 50 + (i % 5)]);
     const svg = renderSparkline(timeSeries, 360, 100, { axes: true });
     assert.ok(svg);
     const lines = svg.children.filter(c => c.tagName === 'line');

@@ -18,7 +18,7 @@ import {
   setSharedDeal,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
-import { DAY, withConfig } from './helpers.js';
+import { DAY, HOUR, withConfig } from './helpers.js';
 
 const memStorage = () => {
   const m = new Map();
@@ -76,8 +76,8 @@ describe('Bounded Cache Module', () => {
     it('enforces regular cache TTL (default 48h)', () => {
       withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
         const now = Date.now();
-        const freshEntry = { tiefstpreis: 100, time: now - 40 * 3600 * 1000 };
-        const expiredEntry = { tiefstpreis: 100, time: now - 50 * 3600 * 1000 };
+        const freshEntry = { tiefstpreis: 100, time: now - 40 * HOUR };
+        const expiredEntry = { tiefstpreis: 100, time: now - 50 * HOUR };
 
         assert.equal(isCacheEntryFresh(freshEntry), true);
         assert.equal(isCacheEntryFresh(expiredEntry), false);
@@ -87,8 +87,8 @@ describe('Bounded Cache Module', () => {
     it('enforces negative cache TTL (default 2h)', () => {
       withConfig('NEGATIVE_CACHE_HOURS', 2, () => {
         const now = Date.now();
-        const freshNeg = { unavailable: true, time: now - 1 * 3600 * 1000 };
-        const expiredNeg = { unavailable: true, time: now - 3 * 3600 * 1000 };
+        const freshNeg = { unavailable: true, time: now - 1 * HOUR };
+        const expiredNeg = { unavailable: true, time: now - 3 * HOUR };
 
         assert.equal(isCacheEntryFresh(freshNeg), true);
         assert.equal(isCacheEntryFresh(expiredNeg), false);
@@ -165,7 +165,7 @@ describe('Bounded Cache Module', () => {
     it('expires with the price-history TTL', () => {
       const s = memStorage();
       withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
-        s.setItem(DEALER_CACHE_PREFIX + 'old', JSON.stringify({ time: Date.now() - 50 * 3600 * 1000, p: { dealer: 'Galaxus', url: '' } }));
+        s.setItem(DEALER_CACHE_PREFIX + 'old', JSON.stringify({ time: Date.now() - 50 * HOUR, p: { dealer: 'Galaxus', url: '' } }));
         assert.equal(getCachedDealer('old', false, s), null);
         setCachedDealer('fresh', false, 'Galaxus', '', s);
         assert.equal(getCachedDealer('fresh', false, s).dealer, 'Galaxus');
@@ -201,7 +201,7 @@ describe('Bounded Cache Module', () => {
     it('forgets with pricing data (48h TTL)', () => {
       const s = memStorage();
       withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
-        s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 49 * 3600 * 1000 }));
+        s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 49 * HOUR }));
         assert.equal(getSharedDeal('old', 1000, s), false);
         setSharedDeal('fresh', 1000, s);
         assert.equal(getSharedDeal('fresh', 1000, s), true);
@@ -237,7 +237,7 @@ describe('Bounded Cache Module', () => {
 
     it('prunePriceStatsCache removes shared entries older than 14 days', () => {
       const s = memStorage();
-      s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 15 * 24 * 3600 * 1000 }));
+      s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 15 * DAY }));
       setSharedDeal('fresh', 1000, s);
       prunePriceStatsCache(s);
       assert.equal(getSharedDeal('old', 1000, s), false);
@@ -258,7 +258,7 @@ describe('Bounded Cache Module', () => {
       withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
         const seedStats = analyzePriceTimeSeries(series, null, 0);
         assert.equal(seedStats.medianPrice, 800);
-        const fixedTime = now - 3600 * 1000;
+        const fixedTime = now - HOUR;
         setCachedPriceStats('p1', seedStats, false, null);
         memoryCache.get('p1').time = fixedTime;
         setCachedPriceStats('p2', { tiefstpreis: 100 }, false, null);

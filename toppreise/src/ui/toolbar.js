@@ -243,6 +243,14 @@ function buildHorizonWrapper() {
 }
 
 
+function placeBar(bar, placement) {
+  if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
+    placement.container.insertBefore(bar, placement.reference);
+  } else {
+    placement.container.appendChild(bar);
+  }
+}
+
 export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
@@ -302,11 +310,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     // Deal sliders built once via builders below (no duplicated markup).
     bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildVortiefWrapper(), buildMinPointsWrapper());
 
-    if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
-      placement.container.insertBefore(bar, placement.reference);
-    } else {
-      placement.container.appendChild(bar);
-    }
+    placeBar(bar, placement);
 
     const input = bar.querySelector('#tp-inline-negative-input');
     const clearBtn = bar.querySelector('#tp-clear-neg-btn');
@@ -374,11 +378,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     bindVortiefControls(bar.querySelector('#tp-bar-vortief-wrapper'));
     bindMinPointsControls(bar.querySelector('#tp-bar-minpoints-wrapper'));
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
-    if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
-      placement.container.insertBefore(bar, placement.reference);
-    } else {
-      placement.container.appendChild(bar);
-    }
+    placeBar(bar, placement);
   }
 
   bar.style.display = 'flex';
@@ -421,12 +421,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
     bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-    if (scanState.isBestpreiseScanning) {
-      // Leave dynamic text during scan
-    } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-      bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
-    } else {
-      bestpreiseBtn.innerHTML = `💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
+    if (!scanState.isBestpreiseScanning) {
+      bestpreiseBtn.innerHTML = `💎 ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'Tiefstpreise' : 'Neue Tiefstpreise'} <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
     }
   }
 

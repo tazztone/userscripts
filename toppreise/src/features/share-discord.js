@@ -103,12 +103,27 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
   });
 }
 
+function gmPost({ url, data, headers, timeoutMs }) {
+  return new Promise((resolve, reject) => {
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url,
+      ...(headers ? { headers } : {}),
+      data,
+      timeout: timeoutMs,
+      onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
+      onerror: () => reject(new Error('Netzwerkfehler')),
+      ontimeout: () => reject(new Error('Timeout'))
+    });
+  });
+}
+
 export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
   return new Promise((resolve, reject) => {
     try {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
-      if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
+      if (typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
       const form = new FormData();
       const body = { content };
       const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
@@ -125,15 +140,16 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
       } else {
         form.append('file', pngBlob, 'preisverlauf.png');
       }
-      GM_xmlhttpRequest({
-        method: 'POST',
-        url: webhookUrl.trim(),
-        data: form,
-        timeout: 20000,
-        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
-        onerror: () => reject(new Error('Netzwerkfehler')),
-        ontimeout: () => reject(new Error('Timeout'))
-      });
+      const url = webhookUrl.trim();
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
+      } else if (typeof fetch !== 'undefined') {
+        fetch(url, { method: 'POST', body: form })
+          .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
+          .catch(() => reject(new Error('Netzwerkfehler')));
+      } else {
+        reject(new Error('Kein Multipart-Transport'));
+      }
     } catch { reject(new Error('Upload fehlgeschlagen')); }
   });
 }
@@ -389,16 +405,7 @@ export function postDealToDiscord(webhookUrl, content, options = {}) {
     if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
     const payload = JSON.stringify(body);
     if (typeof GM_xmlhttpRequest !== 'undefined') {
-      GM_xmlhttpRequest({
-        method: 'POST',
-        url,
-        headers: { 'Content-Type': 'application/json' },
-        data: payload,
-        timeout: 15000,
-        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
-        onerror: () => reject(new Error('Netzwerkfehler')),
-        ontimeout: () => reject(new Error('Timeout'))
-      });
+      gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
     } else if (typeof fetch !== 'undefined') {
       fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
         .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))

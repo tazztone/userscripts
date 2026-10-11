@@ -9,6 +9,7 @@ import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
+import { triggerProcessListings } from "../page/adapter.js";
 import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from "../features/share-discord.js";
 
 export function setupUI() {
@@ -521,7 +522,7 @@ export function setupUI() {
     const removed = clearPriceStatsCache();
     clearDealerMemory();
     if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
-    processListings();
+    triggerProcessListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
   });
   discordWebhookReveal?.addEventListener('click', () => {
@@ -626,7 +627,7 @@ export function setupUI() {
           count++;
         }
         updateBodyClasses();
-        processListings();
+        triggerProcessListings();
         syncFieldsFromConfig();
         showToast(`${count} Einstellungen importiert`);
       } catch (err) {

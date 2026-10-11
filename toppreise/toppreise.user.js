@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.191
+// @version      2.18.192
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5131,6 +5131,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function setupUI() {
     const { shadow } = ensureSkeleton();
     let section = shadow.getElementById('tp-section-unified-suite');
@@ -5641,7 +5642,7 @@ const SHADOW_MODAL_STYLES = `
       const removed = clearPriceStatsCache();
       clearDealerMemory();
       if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
-      processListings();
+      triggerProcessListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
     discordWebhookReveal?.addEventListener('click', () => {
@@ -5746,7 +5747,7 @@ const SHADOW_MODAL_STYLES = `
             count++;
           }
           updateBodyClasses();
-          processListings();
+          triggerProcessListings();
           syncFieldsFromConfig();
           showToast(`${count} Einstellungen importiert`);
         } catch (err) {
@@ -6126,6 +6127,14 @@ const SHADOW_MODAL_STYLES = `
   }
 
 
+  function placeBar(bar, placement) {
+    if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
+      placement.container.insertBefore(bar, placement.reference);
+    } else {
+      placement.container.appendChild(bar);
+    }
+  }
+
   function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
     const placement = getSuiteBarPlacement();
     if (!placement?.container) return;
@@ -6185,11 +6194,7 @@ const SHADOW_MODAL_STYLES = `
       // Deal sliders built once via builders below (no duplicated markup).
       bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildVortiefWrapper(), buildMinPointsWrapper());
 
-      if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
-        placement.container.insertBefore(bar, placement.reference);
-      } else {
-        placement.container.appendChild(bar);
-      }
+      placeBar(bar, placement);
 
       const input = bar.querySelector('#tp-inline-negative-input');
       const clearBtn = bar.querySelector('#tp-clear-neg-btn');
@@ -6257,11 +6262,7 @@ const SHADOW_MODAL_STYLES = `
       bindVortiefControls(bar.querySelector('#tp-bar-vortief-wrapper'));
       bindMinPointsControls(bar.querySelector('#tp-bar-minpoints-wrapper'));
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
-      if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
-        placement.container.insertBefore(bar, placement.reference);
-      } else {
-        placement.container.appendChild(bar);
-      }
+      placeBar(bar, placement);
     }
 
     bar.style.display = 'flex';
@@ -6304,12 +6305,8 @@ const SHADOW_MODAL_STYLES = `
     if (bestpreiseBtn) {
       bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
       bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-      if (scanState.isBestpreiseScanning) {
-        // Leave dynamic text during scan
-      } else if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-        bestpreiseBtn.innerHTML = `💎 Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
-      } else {
-        bestpreiseBtn.innerHTML = `💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
+      if (!scanState.isBestpreiseScanning) {
+        bestpreiseBtn.innerHTML = `💎 ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'Tiefstpreise' : 'Neue Tiefstpreise'} <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
       }
     }
 
@@ -6761,12 +6758,27 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
+  function gmPost({ url, data, headers, timeoutMs }) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url,
+        ...(headers ? { headers } : {}),
+        data,
+        timeout: timeoutMs,
+        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
+        onerror: () => reject(new Error('Netzwerkfehler')),
+        ontimeout: () => reject(new Error('Timeout'))
+      });
+    });
+  }
+
   function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
     return new Promise((resolve, reject) => {
       try {
         if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
         if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
-        if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
+        if (typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
         const body = { content };
         const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
@@ -6783,15 +6795,16 @@ const SHADOW_MODAL_STYLES = `
         } else {
           form.append('file', pngBlob, 'preisverlauf.png');
         }
-        GM_xmlhttpRequest({
-          method: 'POST',
-          url: webhookUrl.trim(),
-          data: form,
-          timeout: 20000,
-          onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
-          onerror: () => reject(new Error('Netzwerkfehler')),
-          ontimeout: () => reject(new Error('Timeout'))
-        });
+        const url = webhookUrl.trim();
+        if (typeof GM_xmlhttpRequest !== 'undefined') {
+          gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
+        } else if (typeof fetch !== 'undefined') {
+          fetch(url, { method: 'POST', body: form })
+            .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
+            .catch(() => reject(new Error('Netzwerkfehler')));
+        } else {
+          reject(new Error('Kein Multipart-Transport'));
+        }
       } catch { reject(new Error('Upload fehlgeschlagen')); }
     });
   }
@@ -7047,16 +7060,7 @@ const SHADOW_MODAL_STYLES = `
       if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
       const payload = JSON.stringify(body);
       if (typeof GM_xmlhttpRequest !== 'undefined') {
-        GM_xmlhttpRequest({
-          method: 'POST',
-          url,
-          headers: { 'Content-Type': 'application/json' },
-          data: payload,
-          timeout: 15000,
-          onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
-          onerror: () => reject(new Error('Netzwerkfehler')),
-          ontimeout: () => reject(new Error('Timeout'))
-        });
+        gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
       } else if (typeof fetch !== 'undefined') {
         fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
           .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
@@ -7330,23 +7334,14 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let mainObserver = null;
 
   function processListings() {
+    const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
     if (isModifyingDOM) return;
-    if (isProductDetailPage()) {
-      const staleBar = document.getElementById('tp-suite-filter-bar');
-      if (staleBar) staleBar.remove();
-      hideFloatingCTA();
-      return;
-    }
+    if (isProductDetailPage()) { dismissChrome(); return; }
     isModifyingDOM = true;
     if (mainObserver) mainObserver.disconnect();
     try {
       const cards = getProductCards();
-      if (cards.length === 0) {
-        const staleBar = document.getElementById('tp-suite-filter-bar');
-        if (staleBar) staleBar.remove();
-        hideFloatingCTA();
-        return;
-      }
+      if (cards.length === 0) { dismissChrome(); return; }
 
       // --- Extract ---
       const activeStores = extractActiveStores();

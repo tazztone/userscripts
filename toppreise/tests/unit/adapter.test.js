@@ -8,13 +8,13 @@ import {
   getDetailProductId,
   getDetailLowestPrice
 } from '../../src/page/adapter.js';
-import { CONFIG } from '../../src/state/config.js';
+import { withConfig } from './helpers.js';
 
 describe('Page Adapter Layer', () => {
   describe('clearCardCache', () => {
     it('safely handles null/undefined cards', () => {
-      assert.doesNotThrow(() => clearCardCache(null));
-      assert.doesNotThrow(() => clearCardCache(undefined));
+      assert.equal(clearCardCache(null), undefined);
+      assert.equal(clearCardCache(undefined), undefined);
     });
 
     it('clears memoized properties on card element', () => {
@@ -33,13 +33,9 @@ describe('Page Adapter Layer', () => {
 
   describe('isShippingPriceActive', () => {
     it('returns false when CONFIG.USE_SHIPPING_PRICE is disabled', () => {
-      const prev = CONFIG.USE_SHIPPING_PRICE;
-      CONFIG.USE_SHIPPING_PRICE = false;
-      try {
+      withConfig('USE_SHIPPING_PRICE', false, () => {
         assert.equal(isShippingPriceActive(), false);
-      } finally {
-        CONFIG.USE_SHIPPING_PRICE = prev;
-      }
+      });
     });
   });
 

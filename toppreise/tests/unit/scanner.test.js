@@ -2,16 +2,16 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchSingleProductPriceStats } from '../../src/scanner/scanner.js';
 import { setCachedPriceStats, memoryCache } from '../../src/scanner/cache.js';
+import { DAY } from './helpers.js';
 
 const PID = 'test-pid-refresh';
 const now = Date.now();
-const dayMs = 86400 * 1000;
 const freshSeries = [
-  [now - 5 * dayMs, 100],
-  [now - 4 * dayMs, 95],
-  [now - 3 * dayMs, 90],
-  [now - 2 * dayMs, 85],
-  [now - 1 * dayMs, 80],
+  [now - 5 * DAY, 100],
+  [now - 4 * DAY, 95],
+  [now - 3 * DAY, 90],
+  [now - 2 * DAY, 85],
+  [now - 1 * DAY, 80],
   [now, 75]
 ];
 

@@ -23,7 +23,7 @@ describe('Badges helpers', () => {
     });
 
     it('ignores null element', () => {
-      assert.doesNotThrow(() => setTextIfChanged(null, 'x'));
+      assert.equal(setTextIfChanged(null, 'x'), undefined);
     });
   });
 });

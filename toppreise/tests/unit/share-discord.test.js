@@ -554,6 +554,22 @@ describe('postDealImageToDiscord', () => {
     assert.ok(seen.data.get('file') instanceof Blob);
   });
 
+  it('falls back to fetch multipart when GM is unavailable', async () => {
+    delete globalThis.GM_xmlhttpRequest;
+    const realFetch = globalThis.fetch;
+    let seen = null;
+    globalThis.fetch = async (url, opts) => { seen = { url, opts }; return { ok: true }; };
+    try {
+      await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
+    } finally {
+      if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch;
+    }
+    assert.equal(seen.url, HOOK);
+    assert.equal(seen.opts.method, 'POST');
+    assert.ok(seen.opts.body instanceof FormData);
+  });
+
+
   it('rejects on Discord error status', async () => {
     globalThis.GM_xmlhttpRequest = ({ onload }) => onload({ status: 400 });
     await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Discord 400/);

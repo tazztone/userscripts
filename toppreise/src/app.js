@@ -7,8 +7,6 @@ import { computeDealScore } from './domain/deal-score.js';
 import { memoryCache } from './scanner/cache.js';
 import {
   getProductCards,
-  extractOfferCount,
-  matchesNegativeTerms,
   parseNegativeTerms,
   extractCardData,
   extractActiveStores,
@@ -47,7 +45,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.191
+// @version      2.18.192
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -79,23 +77,14 @@ import { processProductDetailPage } from './features/product-detail.js';
   let mainObserver = null;
 
   function processListings() {
+    const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
     if (isModifyingDOM) return;
-    if (isProductDetailPage()) {
-      const staleBar = document.getElementById('tp-suite-filter-bar');
-      if (staleBar) staleBar.remove();
-      hideFloatingCTA();
-      return;
-    }
+    if (isProductDetailPage()) { dismissChrome(); return; }
     isModifyingDOM = true;
     if (mainObserver) mainObserver.disconnect();
     try {
       const cards = getProductCards();
-      if (cards.length === 0) {
-        const staleBar = document.getElementById('tp-suite-filter-bar');
-        if (staleBar) staleBar.remove();
-        hideFloatingCTA();
-        return;
-      }
+      if (cards.length === 0) { dismissChrome(); return; }
 
       // --- Extract ---
       const activeStores = extractActiveStores();
