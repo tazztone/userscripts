@@ -13,22 +13,23 @@ import { openSettingsAt } from '../ui/modal.js';
 
 const ALARM_DURATIONS = ['90', '180', '365', '730'];
 const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
-// Live bell trigger selector still unconfirmed (repo/mock carry no native
-// bell element); first entry is the test fixture. Silent no-op when absent.
-const ALARM_BELL_SELECTORS = [
-  '#mock-alarm-bell',
-  '.f_NewInfoMailTrigger',
-  '.Plugin_NewInfoMailTrigger',
-  'a[href*="NewInfoMail"]',
-];
-const BELL_STYLE_ID = 'tp-alarm-bell-style';
-
 export const clampAlarmTarget = v =>
   (Number.isFinite(v) ? Math.min(0.99, Math.max(0.05, v)) : 0.60);
 export const normalizeAlarmDuration = v => {
   const s = String(v);
   return ALARM_DURATIONS.includes(s) ? s : '730';
 };
+// Live bell trigger (confirmed 2026-10-11 on search + product pages):
+// `.Plugin_NewInfoMailButton` container, clickable bell is
+// `a.f_showNewInfoMailFormDialog` with a `TPIcons-alarm` icon. First entry
+// is the test fixture. Silent no-op when absent.
+const ALARM_BELL_SELECTORS = [
+  '#mock-alarm-bell',
+  '.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog',
+  '.Plugin_NewInfoMailButton a',
+  'a[href*="NewInfoMail"]',
+];
+const BELL_STYLE_ID = 'tp-alarm-bell-style';
 
 const alarmBellState = () => {
   if (CONFIG.ALARM_ENABLED === false) return 'off';

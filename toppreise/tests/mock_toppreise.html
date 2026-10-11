@@ -457,9 +457,12 @@
     </div>
   </div>
 
-  <!-- Mock native bell trigger (live selector unconfirmed): suite paints
-       3-state decor here + inserts the settings cog after it. -->
-  <button id="mock-alarm-bell" class="f_NewInfoMailTrigger" title="Preisalarm">🔔</button>
+  <!-- Faithful native bell trigger (live `.Plugin_NewInfoMailButton`
+       component, confirmed 2026-10-11): suite paints 3-state decor on the
+       anchor + inserts the settings cog after it. -->
+  <div id="Plugin_NewInfoMailButton_mock" data-context-hash="mock" data-ajax-url="/plugins/infomails/NewInfoMailButton" data-prod-id="797571" data-templ="btn" class="Plugin_NewInfoMailButton hoverBox">
+    <a id="mock-alarm-bell" href="/neue-infomail?im_nimf_pid=797571" rel="nofollow noindex" class="f_showNewInfoMailFormDialog d-inline-block" title="Preisalarm"><i class="TPIcons-alarm">🔔</i></a>
+  </div>
   <!-- Real Price Alarm Modal Markup from Toppreise.ch -->
   <div class="AbstractDialog AbstractDialog_NewInfoMailFormDialog" style="display: none;" id="mock-alarm-dialog">
     <div class="AbstractDialog_CloseButton">✕</div>
