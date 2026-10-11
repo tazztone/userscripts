@@ -4,8 +4,9 @@
  * backed by localStorage with configurable TTL and auto-pruning.
  */
 
-import { isShippingPriceActive } from '../page/adapter.js';
+import { analyzePriceTimeSeries } from '../domain/price.js';
 import { CONFIG } from '../state/config.js';
+import { isShippingPriceActive } from '../page/adapter.js';
 
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
 export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
@@ -166,6 +167,47 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
       }
       count = keysToRemove.length;
       keysToRemove.forEach(k => storage.removeItem(k));
+    }
+  } catch (e) {}
+  return count;
+}
+
+// Horizon-Wechsel ohne Netz: jede gecachte Analyse trägt ihre Rohserie
+// (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
+// `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
+// Serienlose Einträge (Fallback/negativ) werden übersprungen.
+export function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  let count = 0;
+  const rewrite = entry => {
+    if (!entry || !Array.isArray(entry.timeSeries)) return null;
+    const fresh = analyzePriceTimeSeries(entry.timeSeries, null, horizonDays);
+    if (!fresh) return null;
+    return { ...entry, ...fresh };
+  };
+  const seen = new Set();
+  for (const [productId, entry] of memoryCache) {
+    const next = rewrite(entry);
+    if (!next) continue;
+    memoryCache.set(productId, next);
+    seen.add(productId);
+    try { storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(next)); } catch (e) {}
+    count++;
+  }
+  try {
+    if (storage) {
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (!key || !key.startsWith(STATS_CACHE_PREFIX)) continue;
+        const productId = key.slice(STATS_CACHE_PREFIX.length);
+        if (seen.has(productId)) continue;
+        let entry = null;
+        try { entry = JSON.parse(storage.getItem(key) || 'null'); } catch (e) { continue; }
+        const next = rewrite(entry);
+        if (!next) continue;
+        memoryCache.set(productId, next);
+        try { storage.setItem(key, JSON.stringify(next)); } catch (e) {}
+        count++;
+      }
     }
   } catch (e) {}
   return count;

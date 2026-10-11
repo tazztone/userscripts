@@ -287,6 +287,45 @@ describe('Price Domain Module', () => {
       assert.equal(analysis2.medianFallback, false);
       assert.equal(analysis2.medianPrice, 780); // [750, 780, 800] window median
     });
+
+    it('accepts an explicit horizon override independent of CONFIG', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 500 * dayMs, 2000],
+        [now - 400 * dayMs, 1900],
+        [now - 60 * dayMs, 800],
+        [now - 30 * dayMs, 780],
+        [now, 750]
+      ];
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      try {
+        const win = analyzePriceTimeSeries(series, null, 90);
+        assert.ok(win);
+        assert.equal(win.horizonDays, 90);
+        assert.equal(win.medianFallback, false);
+        assert.equal(win.medianPrice, 780); // [750, 780, 800] window median
+        const thin = analyzePriceTimeSeries(series, null, 30);
+        assert.ok(thin);
+        assert.equal(thin.horizonDays, 30);
+        assert.equal(thin.medianFallback, true); // only 2 window points
+        assert.equal(thin.medianPrice, 800); // full-history fallback median
+        const life = analyzePriceTimeSeries(series, null, 0);
+        assert.ok(life);
+        assert.equal(life.medianFallback, false);
+        assert.equal(life.medianPrice, 800);
+        const fromConfig = analyzePriceTimeSeries(series);
+        assert.ok(fromConfig);
+        assert.equal(fromConfig.horizonDays, 0); // third arg omitted: CONFIG wins
+        assert.equal(fromConfig.medianPrice, 800);
+      } finally {
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+      }
+    });
   });
 
   describe('parsePriceStatsFromHtml', () => {

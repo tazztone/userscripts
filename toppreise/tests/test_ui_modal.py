@@ -355,14 +355,26 @@ def test_bestpreise_settings_horizon_selection_persistence(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
 
 
-def test_horizon_change_evicts_cached_price_stats(page: Page):
+def test_horizon_change_recomputes_cached_price_stats(page: Page):
     # Cached analyses bake in the old horizon (median window + Ø label), so a
-    # horizon change + Save must evict them or cards keep showing "1J" till TTL.
-    page.evaluate("""() => {
+    # horizon change + Save must recompute them from the retained series —
+    # entries survive with the new window median, no refetch till TTL.
+    import time
+    now_ms = int(time.time() * 1000)
+    day_ms = 86400 * 1000
+    page.evaluate("""([now_ms, day_ms]) => {
         localStorage.clear();
-        const stats = { tiefstpreis: 1800, medianPrice: 2400, horizonDays: 365, time: Date.now() };
+        const series = [
+            [now_ms - 200 * day_ms, 2600],
+            [now_ms - 120 * day_ms, 2500],
+            [now_ms - 60 * day_ms, 2100],
+            [now_ms - 30 * day_ms, 2000],
+            [now_ms, 1900],
+        ];
+        const stats = { tiefstpreis: 1800, medianPrice: 2100, horizonDays: 365, medianFallback: false, dataPointCount: 5, timeSeries: series, time: Date.now() };
         localStorage.setItem('tp_hist_v1_horizon', JSON.stringify(stats));
-    }""")
+        window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED = false;
+    }""", [now_ms, day_ms])
     open_settings(page, advanced=True)
 
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
@@ -373,15 +385,10 @@ def test_horizon_change_evicts_cached_price_stats(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 90
-    remaining = page.evaluate("""() => {
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('tp_hist_v1_')) keys.push(k);
-        }
-        return keys;
-    }""")
-    assert remaining == []
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_horizon'))")
+    assert entry['horizonDays'] == 90
+    assert entry['medianPrice'] == 2000
+    assert entry['medianFallback'] is False
 
 
 def test_cache_settings_and_clear_button(page: Page):

@@ -9,7 +9,7 @@ import { CONFIG, updateConfig, weightText, clampMinPoints, minPointsToIndex, min
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
-import { clearPriceStatsCache } from "../scanner/cache.js";
+import { recomputeCachedMedians } from "../scanner/cache.js";
 import { scanState } from "../state/store.js";
 import { showToast } from "./toast.js";
 import { setTextIfChanged } from "./badges.js";
@@ -201,11 +201,11 @@ function bindHorizonControls(wrapper) {
   select.onchange = () => {
     const raw = parseInt(select.value, 10);
     const v = isNaN(raw) ? 365 : raw;
+    // recompute BEFORE updateConfig: its trailing processListings then
+    // renders the fresh medians in a single pass, zero network.
+    recomputeCachedMedians(v);
     updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    // Cached analyses bake in the median horizon (window + label), so a
-    // horizon change must invalidate them the same way as the modal save.
-    clearPriceStatsCache();
-    showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — Preise werden neu berechnet`);
+    showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — live aktualisiert`);
   };
 }
 
@@ -214,7 +214,7 @@ function buildHorizonWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-horizon-wrapper';
-  wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel verwirft gecachte Preisanalysen und berechnet neu.';
+  wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel rechnet gecachte Mediane lokal neu — ohne Netz.';
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Ø-Zeitraum</span>
     <select id="tp-bar-horizon-select" title="Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen], 6 Monate, 3 Monate, Lifetime">

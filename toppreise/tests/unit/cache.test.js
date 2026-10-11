@@ -7,10 +7,12 @@ import {
   getCachedPriceStats,
   setCachedPriceStats,
   clearPriceStatsCache,
+  recomputeCachedMedians,
   DEALER_CACHE_PREFIX,
   getCachedDealer,
   setCachedDealer,
 } from '../../src/scanner/cache.js';
+import { analyzePriceTimeSeries } from '../../src/domain/price.js';
 import { CONFIG } from '../../src/state/config.js';
 
 describe('Bounded Cache Module', () => {
@@ -201,6 +203,58 @@ describe('Bounded Cache Module', () => {
       s.setItem('tp_hist_v1_p1', JSON.stringify({ time: Date.now() }));
       assert.equal(clearPriceStatsCache(s), 2);
       assert.equal(getCachedDealer('p1', false, s), null);
+    });
+  });
+
+  describe('recomputeCachedMedians', () => {
+    const memStorage = () => {
+      const m = new Map();
+      return {
+        getItem: k => (m.has(k) ? m.get(k) : null),
+        setItem: (k, v) => { m.set(k, String(v)); },
+        removeItem: k => { m.delete(k); },
+        key: i => [...m.keys()][i] ?? null,
+        get length() { return m.size; },
+      };
+    };
+
+    it('recomputes medians locally, preserves TTL, skips series-less entries', () => {
+      const now = Date.now();
+      const dayMs = 86400 * 1000;
+      const series = [
+        [now - 500 * dayMs, 2000],
+        [now - 400 * dayMs, 1900],
+        [now - 60 * dayMs, 800],
+        [now - 30 * dayMs, 780],
+        [now, 750]
+      ];
+      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
+      CONFIG.OUTLIER_REJECTION_ENABLED = false;
+      try {
+        const seedStats = analyzePriceTimeSeries(series, null, 0);
+        assert.equal(seedStats.medianPrice, 800);
+        const fixedTime = now - 3600 * 1000;
+        setCachedPriceStats('p1', seedStats, false, null);
+        memoryCache.get('p1').time = fixedTime;
+        setCachedPriceStats('p2', { tiefstpreis: 100 }, false, null);
+        const s = memStorage();
+        s.setItem('tp_hist_v1_p3', JSON.stringify({ ...seedStats, time: fixedTime }));
+        const rewritten = recomputeCachedMedians(90, s);
+        assert.equal(rewritten, 2);
+        const e1 = memoryCache.get('p1');
+        assert.equal(e1.medianPrice, 780);
+        assert.equal(e1.horizonDays, 90);
+        assert.equal(e1.medianFallback, false);
+        assert.equal(e1.time, fixedTime); // TTL untouched: no refetch
+        assert.equal(memoryCache.get('p2').tiefstpreis, 100);
+        assert.equal(memoryCache.get('p2').medianPrice, undefined);
+        const e3 = memoryCache.get('p3');
+        assert.equal(e3.horizonDays, 90);
+        assert.equal(JSON.parse(s.getItem('tp_hist_v1_p3')).horizonDays, 90);
+        assert.equal(JSON.parse(s.getItem('tp_hist_v1_p1')).medianPrice, 780);
+      } finally {
+        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
+      }
     });
   });
 });

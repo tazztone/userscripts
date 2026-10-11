@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.165
+// @version      2.18.166
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1933,7 +1933,7 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function analyzePriceTimeSeries(series, currentPrice = null) {
+  function analyzePriceTimeSeries(series, currentPrice = null, horizonOverride = null) {
     if (!series || !Array.isArray(series) || series.length === 0) return null;
 
     let rawPoints = series;
@@ -1979,9 +1979,11 @@ const SHADOW_MODAL_STYLES = `
     const historicalPrices = prices.slice(0, idx + 1);
     const previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
 
-    const horizonDays = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
-      ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
-      : 365;
+    const horizonDays = typeof horizonOverride === 'number'
+      ? horizonOverride
+      : (typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
+        ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
+        : 365);
     // Thin windows (< 3 points) fall back to the full history — flagged via
     // medianFallback so labels stay honest ("Lifetime", never "1J").
     let windowPrices = prices;
@@ -2287,6 +2289,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
   const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
   // Janitor-Funktionen (prune/count/clear) betreuen beide Prefixe: Händlerdaten
@@ -2446,6 +2449,47 @@ const SHADOW_MODAL_STYLES = `
         }
         count = keysToRemove.length;
         keysToRemove.forEach(k => storage.removeItem(k));
+      }
+    } catch (e) {}
+    return count;
+  }
+
+  // Horizon-Wechsel ohne Netz: jede gecachte Analyse trägt ihre Rohserie
+  // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
+  // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
+  // Serienlose Einträge (Fallback/negativ) werden übersprungen.
+  function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+    let count = 0;
+    const rewrite = entry => {
+      if (!entry || !Array.isArray(entry.timeSeries)) return null;
+      const fresh = analyzePriceTimeSeries(entry.timeSeries, null, horizonDays);
+      if (!fresh) return null;
+      return { ...entry, ...fresh };
+    };
+    const seen = new Set();
+    for (const [productId, entry] of memoryCache) {
+      const next = rewrite(entry);
+      if (!next) continue;
+      memoryCache.set(productId, next);
+      seen.add(productId);
+      try { storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(next)); } catch (e) {}
+      count++;
+    }
+    try {
+      if (storage) {
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (!key || !key.startsWith(STATS_CACHE_PREFIX)) continue;
+          const productId = key.slice(STATS_CACHE_PREFIX.length);
+          if (seen.has(productId)) continue;
+          let entry = null;
+          try { entry = JSON.parse(storage.getItem(key) || 'null'); } catch (e) { continue; }
+          const next = rewrite(entry);
+          if (!next) continue;
+          memoryCache.set(productId, next);
+          try { storage.setItem(key, JSON.stringify(next)); } catch (e) {}
+          count++;
+        }
       }
     } catch (e) {}
     return count;
@@ -5758,8 +5802,8 @@ const SHADOW_MODAL_STYLES = `
       // share one cache key), so a mode change must invalidate them.
       const shippingChanged = !!shippingToggle && CONFIG.USE_SHIPPING_PRICE !== shippingToggle.checked;
       if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-      // Cached analyses also bake in the median horizon (window + label), so a
-      // horizon change must invalidate them the same way.
+      // Cached analyses bake in the median horizon — recompute them locally
+      // from the retained series (no network) before the single repaint below.
       const rawHorizon = bestpreiseHorizonSelect ? parseInt(bestpreiseHorizonSelect.value, 10) : NaN;
       const newHorizon = isNaN(rawHorizon) ? 0 : rawHorizon;
       const horizonChanged = !!bestpreiseHorizonSelect && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
@@ -5801,9 +5845,9 @@ const SHADOW_MODAL_STYLES = `
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
+      if (horizonChanged) recomputeCachedMedians(newHorizon);
       updateConfigs(updates);
       if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
-      if (horizonChanged) clearPriceStatsCache();
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });
@@ -6035,11 +6079,11 @@ const SHADOW_MODAL_STYLES = `
     select.onchange = () => {
       const raw = parseInt(select.value, 10);
       const v = isNaN(raw) ? 365 : raw;
+      // recompute BEFORE updateConfig: its trailing processListings then
+      // renders the fresh medians in a single pass, zero network.
+      recomputeCachedMedians(v);
       updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-      // Cached analyses bake in the median horizon (window + label), so a
-      // horizon change must invalidate them the same way as the modal save.
-      clearPriceStatsCache();
-      showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — Preise werden neu berechnet`);
+      showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — live aktualisiert`);
     };
   }
 
@@ -6048,7 +6092,7 @@ const SHADOW_MODAL_STYLES = `
     const wrapper = document.createElement('div');
     wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
     wrapper.id = 'tp-bar-horizon-wrapper';
-    wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel verwirft gecachte Preisanalysen und berechnet neu.';
+    wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel rechnet gecachte Mediane lokal neu — ohne Netz.';
     wrapper.innerHTML = `
       <span class="tp-stepper-label">Ø-Zeitraum</span>
       <select id="tp-bar-horizon-select" title="Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen], 6 Monate, 3 Monate, Lifetime">

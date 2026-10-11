@@ -1365,14 +1365,27 @@ def test_minpoints_slider_in_filter_bar(page: Page):
 def test_horizon_select_in_filter_bar(page: Page):
     """
     Validates that the Ø-Zeitraum select sits in the Zeitraum row directly after
-    Gewicht when Tiefstpreise mode is active, and changing it persists the
-    horizon, evicts cached price stats (no stale Ø label until TTL), and both
-    surfaces stay synced.
+    Gewicht when Tiefstpreise mode is active, and changing it recomputes the
+    cached median locally (no eviction, no pricechart request) and relabels
+    cards live — both surfaces stay synced.
     """
-    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10, 'horizonDays': 365})
+    import time
+    now_ms = int(time.time() * 1000)
+    day_ms = 86400 * 1000
+    series = [
+        [now_ms - 500 * day_ms, 3000],
+        [now_ms - 400 * day_ms, 2900],
+        [now_ms - 200 * day_ms, 2600],
+        [now_ms - 120 * day_ms, 2500],
+        [now_ms - 60 * day_ms, 2100],
+        [now_ms - 30 * day_ms, 2000],
+        [now_ms, 1900],
+    ]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2100, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 7, 'horizonDays': 365, 'medianFallback': False, 'timeSeries': series})
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED = false;
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1387,24 +1400,22 @@ def test_horizon_select_in_filter_bar(page: Page):
     assert horizon_select.input_value() == '365'
     assert 'Ø (1J)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
 
-    # Changing the bar select persists, evicts the old-horizon cache, and toasts.
+    # Any pricechart request from here on is a live-update violation.
+    hits = []
+    page.route('**/plugins/product/pricechart*', lambda route: (hits.append(route.request.url), route.abort()))
+
+    # Changing the bar select recomputes in place: entry survives with the new
+    # window median, the card relabels without refetch.
     page.select_option('#tp-bar-horizon-select', '90')
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 90")
-    remaining = page.evaluate("""() => {
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('tp_hist_v1_')) keys.push(k);
-        }
-        return keys;
-    }""")
-    assert remaining == []
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571'))")
+    assert entry['horizonDays'] == 90
+    assert entry['medianPrice'] == 2000
+    assert entry['medianFallback'] is False
+    assert 'Ø (90T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+    assert hits == []
     toast = page.locator('#tp-root >> .tp-toast').last
     assert 'Ø-Vergleichszeitraum' in (toast.text_content() or '')
-
-    # Refetch under the new horizon relabels the card (no stale 1J label).
-    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10, 'horizonDays': 90}, clear=False)
-    assert 'Ø (90T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
 
     # Modal round-trip: modal shows the bar value, saving there updates the bar.
     open_settings(page)
@@ -1414,6 +1425,8 @@ def test_horizon_select_in_filter_bar(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
     assert horizon_select.input_value() == '180'
+    assert page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571')).horizonDays") == 180
+    assert hits == []
 
 
 def test_merged_blend_subline_rendering(page: Page):

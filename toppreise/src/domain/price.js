@@ -206,7 +206,7 @@ export function sanitizeTimeSeries(points) {
   };
 }
 
-export function analyzePriceTimeSeries(series, currentPrice = null) {
+export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverride = null) {
   if (!series || !Array.isArray(series) || series.length === 0) return null;
 
   let rawPoints = series;
@@ -252,9 +252,11 @@ export function analyzePriceTimeSeries(series, currentPrice = null) {
   const historicalPrices = prices.slice(0, idx + 1);
   const previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
 
-  const horizonDays = typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
-    ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
-    : 365;
+  const horizonDays = typeof horizonOverride === 'number'
+    ? horizonOverride
+    : (typeof CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 'number'
+      ? CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS
+      : 365);
   // Thin windows (< 3 points) fall back to the full history — flagged via
   // medianFallback so labels stay honest ("Lifetime", never "1J").
   let windowPrices = prices;

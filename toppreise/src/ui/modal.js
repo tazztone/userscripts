@@ -7,7 +7,7 @@
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
-import { countCachedPriceStats, clearPriceStatsCache } from "../scanner/cache.js";
+import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 
 export function setupUI() {
@@ -572,8 +572,8 @@ export function setupUI() {
     // share one cache key), so a mode change must invalidate them.
     const shippingChanged = !!shippingToggle && CONFIG.USE_SHIPPING_PRICE !== shippingToggle.checked;
     if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-    // Cached analyses also bake in the median horizon (window + label), so a
-    // horizon change must invalidate them the same way.
+    // Cached analyses bake in the median horizon — recompute them locally
+    // from the retained series (no network) before the single repaint below.
     const rawHorizon = bestpreiseHorizonSelect ? parseInt(bestpreiseHorizonSelect.value, 10) : NaN;
     const newHorizon = isNaN(rawHorizon) ? 0 : rawHorizon;
     const horizonChanged = !!bestpreiseHorizonSelect && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
@@ -615,9 +615,9 @@ export function setupUI() {
     if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
+    if (horizonChanged) recomputeCachedMedians(newHorizon);
     updateConfigs(updates);
     if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
-    if (horizonChanged) clearPriceStatsCache();
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();
   });
