@@ -71,6 +71,13 @@ export const DEFAULTS = Object.freeze({
   DISCORD_WEBHOOK_URL: '',
   DISCORD_SUPPRESS_DEALER_EMBED: true,
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
+  // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
+  DISCORD_LAYOUT: `## {title}
+# {price}
+-# {dealer} · {offers}
+{spark}
+{prevlow} · {median}
+{link}`,
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -168,6 +175,7 @@ export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 // One-time migration: single DISCORD_SUPPRESS_EMBEDS key split into dealer +
 // product keys. Stored old value seeds both new keys once; stale key unread.
 const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
+const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
 
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
@@ -194,6 +202,7 @@ export const CONFIG = {
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
   DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
   DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
+  DISCORD_LAYOUT: (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT,
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
   SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
   ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.180
+// @version      2.18.181
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2505,6 +2505,13 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_WEBHOOK_URL: '',
     DISCORD_SUPPRESS_DEALER_EMBED: true,
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
+    // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
+    DISCORD_LAYOUT: `## {title}
+  # {price}
+  -# {dealer} · {offers}
+  {spark}
+  {prevlow} · {median}
+  {link}`,
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -2602,6 +2609,7 @@ const SHADOW_MODAL_STYLES = `
   // One-time migration: single DISCORD_SUPPRESS_EMBEDS key split into dealer +
   // product keys. Stored old value seeds both new keys once; stale key unread.
   const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
+  const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
 
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
@@ -2628,6 +2636,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
     DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
     DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
+    DISCORD_LAYOUT: (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT,
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
     SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
     ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -4864,7 +4873,7 @@ const SHADOW_MODAL_STYLES = `
               ...resolveShareFields(cardPrice, stats),
               suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
-            });
+            }, CONFIG.DISCORD_LAYOUT);
             const threadName = buildThreadName(title);
             const flagKey = discordForumFlagKey(hook);
             const forum = _getValue(flagKey, false) === true;
@@ -5136,6 +5145,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function setupUI() {
     const { shadow } = ensureSkeleton();
     let section = shadow.getElementById('tp-section-unified-suite');
@@ -5351,6 +5361,30 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group">
+            <label for="tp-discord-layout-input">Nachrichten-Layout (Baukasten)</label>
+            <div>
+              <button type="button" id="tp-discord-layout-preset-kompakt" class="tp-btn tp-btn-secondary">Kompakt</button>
+              <button type="button" id="tp-discord-layout-preset-ausfuehrlich" class="tp-btn tp-btn-secondary">Ausführlich</button>
+              <button type="button" id="tp-discord-layout-preset-minimal" class="tp-btn tp-btn-secondary">Minimal</button>
+            </div>
+            <div id="tp-discord-layout-chips">
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{title}">Titel {title}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{price}">Preis {price}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{dealer}">Händler {dealer}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{offers}">Angebote {offers}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{spark}">Spark {spark}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
+            </div>
+            <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · blendet leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
+            <pre id="tp-discord-layout-preview"></pre>
+            <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
+            <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
+            <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary">Layout zurücksetzen</button>
+          </div>
         </section>
         <section id="tp-section-data" class="tp-section-card tp-section-data">
           <div class="tp-section-header">💾 Daten & Cache</div>
@@ -5463,6 +5497,29 @@ const SHADOW_MODAL_STYLES = `
     const discordWebhookStatus = shadow.getElementById('tp-discord-webhook-status');
     const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
     const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
+    const discordLayoutInput = shadow.getElementById('tp-discord-layout-input');
+    const discordLayoutPreview = shadow.getElementById('tp-discord-layout-preview');
+    const discordLayoutCount = shadow.getElementById('tp-discord-layout-count');
+    const discordLayoutError = shadow.getElementById('tp-discord-layout-error');
+    const discordLayoutReset = shadow.getElementById('tp-discord-layout-reset');
+    const LAYOUT_PRESETS = {
+      kompakt: DEFAULT_LAYOUT,
+      ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{spark}\n{prevlow}\n{median}\n{link}',
+      minimal: '## {title}\n# {price}\n{link}'
+    };
+    const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+    function renderLayoutPreview() {
+      if (!discordLayoutInput || !discordLayoutPreview) return;
+      const recipe = discordLayoutInput.value;
+      const rendered = renderLayout({
+        ...LAYOUT_SAMPLE,
+        suppressDealerEmbed: discordDealerEmbedToggle ? !discordDealerEmbedToggle.checked : true,
+        suppressProductEmbed: discordProductEmbedToggle ? !discordProductEmbedToggle.checked : true
+      }, recipe);
+      discordLayoutPreview.textContent = rendered;
+      if (discordLayoutCount) discordLayoutCount.textContent = `${recipe.length}/2000 Zeichen · ${rendered.length}/2000 Nachricht`;
+      if (discordLayoutError) discordLayoutError.textContent = '';
+    }
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -5516,6 +5573,8 @@ const SHADOW_MODAL_STYLES = `
       if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
       if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
       if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
+      if (discordLayoutInput) discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
+      renderLayoutPreview();
     }
 
     const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -5605,6 +5664,31 @@ const SHADOW_MODAL_STYLES = `
       discordWebhookReveal.style.display = 'none';
       discordWebhookReveal.setAttribute('aria-expanded', 'true');
       discordWebhookInput.focus();
+    });
+    discordLayoutInput?.addEventListener('input', renderLayoutPreview);
+    discordDealerEmbedToggle?.addEventListener('change', renderLayoutPreview);
+    discordProductEmbedToggle?.addEventListener('change', renderLayoutPreview);
+    for (const [name, recipe] of Object.entries(LAYOUT_PRESETS)) {
+      shadow.getElementById(`tp-discord-layout-preset-${name}`)?.addEventListener('click', () => {
+        if (!discordLayoutInput) return;
+        const current = discordLayoutInput.value;
+        if (!Object.values(LAYOUT_PRESETS).includes(current) && !window.confirm('Layout ersetzen?')) return;
+        discordLayoutInput.value = recipe;
+        renderLayoutPreview();
+      });
+    }
+    shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
+      const token = e.target?.closest?.('button')?.dataset?.token;
+      if (!token || !discordLayoutInput) return;
+      const { selectionStart = discordLayoutInput.value.length, selectionEnd = discordLayoutInput.value.length } = discordLayoutInput;
+      discordLayoutInput.value = discordLayoutInput.value.slice(0, selectionStart) + token + discordLayoutInput.value.slice(selectionEnd);
+      discordLayoutInput.focus();
+      renderLayoutPreview();
+    });
+    discordLayoutReset?.addEventListener('click', () => {
+      if (!discordLayoutInput) return;
+      discordLayoutInput.value = DEFAULT_LAYOUT;
+      renderLayoutPreview();
     });
 
 
@@ -5757,6 +5841,20 @@ const SHADOW_MODAL_STYLES = `
       if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
+      if (discordLayoutInput) {
+        const value = String(discordLayoutInput.value || '');
+        const names = [...value.matchAll(/\{([^}]*)\}/g)].map(m => m[1]);
+        const unknown = names.filter(n => !LAYOUT_TOKENS.has(n));
+        if (!value.trim()) {
+          if (discordLayoutError) discordLayoutError.textContent = 'Layout ist leer';
+          return;
+        }
+        if (unknown.length) {
+          if (discordLayoutError) discordLayoutError.textContent = `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}`;
+          return;
+        }
+        updates.DISCORD_LAYOUT = value;
+      }
       if (horizonChanged) recomputeCachedMedians(newHorizon);
       updateConfigs(updates);
       if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
@@ -6716,39 +6814,61 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
-  // Größenhierarchie (# Preis, ## Titel, -# Kontext): Größe = was man zahlt,
-  // Fett = warum es ein Deal ist. Produktlink zuletzt (unantastbar, embeddet).
+  // Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
+  // Zeilenanfang. · blendet leere Nachbarn aus, {link} nur bei aktivem Embed.
+  const DEFAULT_LAYOUT = '## {title}\n# {price}\n-# {dealer} · {offers}\n{spark}\n{prevlow} · {median}\n{link}';
+  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-  function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct, suppressDealerEmbed = false, suppressProductEmbed = false }) {
-    const link = (url || '').trim();
-    const shownLink = (suppressProductEmbed && link) ? `<${link}>` : link;
-    let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-    const dealerTarget = dealerUrl ? (suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '';
-    const dealerSub = [
-      dealer ? (dealerTarget ? `🏬 [${dealer}](${dealerTarget})` : `🏬 ${dealer}`) : '',
-      offerCount ? `🛒 ${offerCount} Angebote` : ''
-    ].filter(Boolean).join(' · ');
-    const historyLine = [
-      prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
-      medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
-    ].filter(Boolean).join(' · ');
-    const restPieces = [
-      priceText ? `# 💰 ${priceText}` : '',
-      dealerSub ? `-# ${dealerSub}` : '',
-      spark ? `📊 ${spark}` : '',
-      historyLine
-    ].filter(Boolean);
-    const rest = restPieces.join('\n');
-    const bareLink = (link && !suppressProductEmbed) ? link : '';
-    const hasLink = Boolean(link);
-    const prefix = hasLink ? '## [' : '## ';
-    const middle = hasLink ? `](${shownLink})` : '';
-    const newlines = restPieces.length + (bareLink ? 1 : 0);
-    const maxTitle = Math.max(20, 2000 - rest.length - prefix.length - middle.length - bareLink.length - newlines);
-    cleanTitle = cleanTitle.slice(0, maxTitle);
-    const titleLine = `${prefix}${cleanTitle}${middle}`;
-    return [titleLine, rest, bareLink].filter(Boolean).join('\n').slice(0, 2000);
+  const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
+  function tokenText(name, ctx) {
+    switch (name) {
+      case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
+      case 'price': return ctx.priceText ? `💰 ${ctx.priceText}` : '';
+      case 'dealer': return ctx.dealer ? (ctx.dealerTarget ? `🏬 [${ctx.dealer}](${ctx.dealerTarget})` : `🏬 ${ctx.dealer}`) : '';
+      case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
+      case 'spark': return ctx.spark ? `📊 ${ctx.spark}` : '';
+      case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
+      case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
+      case 'link': return (ctx.link && !ctx.suppressProductEmbed) ? ctx.link : '';
+      default: return '';
+    }
+  }
+  function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
+    recipe = String(recipe || '').replace(/\r/g, '');
+    if (!recipe.trim()) recipe = DEFAULT_LAYOUT;
+    const link = ((fields || {}).url || '').trim();
+    const dealerUrl = (fields || {}).dealerUrl || '';
+    const ctx = {
+      cleanTitle: cleanTitleOf((fields || {}).title),
+      link,
+      titleTarget: link ? (((fields || {}).suppressProductEmbed && link) ? `<${link}>` : link) : '',
+      priceText: (fields || {}).priceText || '',
+      dealer: (fields || {}).dealer || '',
+      dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
+      offerCount: (fields || {}).offerCount || 0,
+      spark: (fields || {}).spark || '',
+      prevLowText: (fields || {}).prevLowText || '',
+      prevLowPct: (fields || {}).prevLowPct || 0,
+      medianText: (fields || {}).medianText || '',
+      medianPct: (fields || {}).medianPct || 0,
+      suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
+    };
+    const out = [];
+    for (const rawLine of recipe.split('\n')) {
+      const line = rawLine.replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '');
+      if (line.replace(/^[#\s-]+/, '').trim() === '') continue;
+      out.push(line);
+    }
+    return out.join('\n');
+  }
+  function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
+    const full = renderLayout(fields, recipe);
+    if (full.length <= 2000) return full;
+    const cleanTitle = cleanTitleOf((fields || {}).title);
+    const over = full.length - 2000;
+    const shrunk = cleanTitle.slice(0, Math.max(20, cleanTitle.length - over));
+    return renderLayout({ ...(fields || {}), title: shrunk }, recipe).slice(0, 2000);
   }
 
   // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis

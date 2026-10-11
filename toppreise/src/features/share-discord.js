@@ -138,39 +138,61 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
   });
 }
 
-// Größenhierarchie (# Preis, ## Titel, -# Kontext): Größe = was man zahlt,
-// Fett = warum es ein Deal ist. Produktlink zuletzt (unantastbar, embeddet).
+// Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
+// Zeilenanfang. · blendet leere Nachbarn aus, {link} nur bei aktivem Embed.
+export const DEFAULT_LAYOUT = '## {title}\n# {price}\n-# {dealer} · {offers}\n{spark}\n{prevlow} · {median}\n{link}';
+export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
 const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
 const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-export function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct, suppressDealerEmbed = false, suppressProductEmbed = false }) {
-  const link = (url || '').trim();
-  const shownLink = (suppressProductEmbed && link) ? `<${link}>` : link;
-  let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-  const dealerTarget = dealerUrl ? (suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '';
-  const dealerSub = [
-    dealer ? (dealerTarget ? `🏬 [${dealer}](${dealerTarget})` : `🏬 ${dealer}`) : '',
-    offerCount ? `🛒 ${offerCount} Angebote` : ''
-  ].filter(Boolean).join(' · ');
-  const historyLine = [
-    prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
-    medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
-  ].filter(Boolean).join(' · ');
-  const restPieces = [
-    priceText ? `# 💰 ${priceText}` : '',
-    dealerSub ? `-# ${dealerSub}` : '',
-    spark ? `📊 ${spark}` : '',
-    historyLine
-  ].filter(Boolean);
-  const rest = restPieces.join('\n');
-  const bareLink = (link && !suppressProductEmbed) ? link : '';
-  const hasLink = Boolean(link);
-  const prefix = hasLink ? '## [' : '## ';
-  const middle = hasLink ? `](${shownLink})` : '';
-  const newlines = restPieces.length + (bareLink ? 1 : 0);
-  const maxTitle = Math.max(20, 2000 - rest.length - prefix.length - middle.length - bareLink.length - newlines);
-  cleanTitle = cleanTitle.slice(0, maxTitle);
-  const titleLine = `${prefix}${cleanTitle}${middle}`;
-  return [titleLine, rest, bareLink].filter(Boolean).join('\n').slice(0, 2000);
+const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
+function tokenText(name, ctx) {
+  switch (name) {
+    case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
+    case 'price': return ctx.priceText ? `💰 ${ctx.priceText}` : '';
+    case 'dealer': return ctx.dealer ? (ctx.dealerTarget ? `🏬 [${ctx.dealer}](${ctx.dealerTarget})` : `🏬 ${ctx.dealer}`) : '';
+    case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
+    case 'spark': return ctx.spark ? `📊 ${ctx.spark}` : '';
+    case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
+    case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
+    case 'link': return (ctx.link && !ctx.suppressProductEmbed) ? ctx.link : '';
+    default: return '';
+  }
+}
+export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
+  recipe = String(recipe || '').replace(/\r/g, '');
+  if (!recipe.trim()) recipe = DEFAULT_LAYOUT;
+  const link = ((fields || {}).url || '').trim();
+  const dealerUrl = (fields || {}).dealerUrl || '';
+  const ctx = {
+    cleanTitle: cleanTitleOf((fields || {}).title),
+    link,
+    titleTarget: link ? (((fields || {}).suppressProductEmbed && link) ? `<${link}>` : link) : '',
+    priceText: (fields || {}).priceText || '',
+    dealer: (fields || {}).dealer || '',
+    dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
+    offerCount: (fields || {}).offerCount || 0,
+    spark: (fields || {}).spark || '',
+    prevLowText: (fields || {}).prevLowText || '',
+    prevLowPct: (fields || {}).prevLowPct || 0,
+    medianText: (fields || {}).medianText || '',
+    medianPct: (fields || {}).medianPct || 0,
+    suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
+  };
+  const out = [];
+  for (const rawLine of recipe.split('\n')) {
+    const line = rawLine.replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '');
+    if (line.replace(/^[#\s-]+/, '').trim() === '') continue;
+    out.push(line);
+  }
+  return out.join('\n');
+}
+export function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
+  const full = renderLayout(fields, recipe);
+  if (full.length <= 2000) return full;
+  const cleanTitle = cleanTitleOf((fields || {}).title);
+  const over = full.length - 2000;
+  const shrunk = cleanTitle.slice(0, Math.max(20, cleanTitle.length - over));
+  return renderLayout({ ...(fields || {}), title: shrunk }, recipe).slice(0, 2000);
 }
 
 // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis

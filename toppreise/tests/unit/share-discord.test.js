@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   isDiscordWebhookUrl,
   formatDealMessage,
+  renderLayout,
+  DEFAULT_LAYOUT,
   resolveShareFields,
   sparklineText,
   withLivePrice,
@@ -719,5 +721,52 @@ describe('thread_name post paths', () => {
     globalThis.fetch = async () => { calls++; return { ok: false, status: 429 }; };
     await assert.rejects(postDealToDiscord(HOOK, 'hi'), /Discord 429/);
     assert.equal(calls, 1);
+  });
+});
+
+describe('layout recipe', () => {
+  const base = {
+    title: 'HyperX Pulsefire Fuse',
+    url: PRODUCT_URL,
+    priceText: 'CHF 31.90',
+    dealer: 'Digitec',
+    dealerUrl: DEALER_URL,
+    offerCount: 3,
+    spark: '█▁▁',
+    prevLowText: 'CHF 44.95',
+    prevLowPct: 29,
+    medianText: 'Ø-Preis (1J): CHF 54.05',
+    medianPct: 41
+  };
+  it('custom order puts the price line first', () => {
+    const msg = renderLayout(base, '# {price}\n## {title}');
+    assert.deepEqual(msg.split('\n'), ['# 💰 CHF 31.90', `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`]);
+  });
+  it('split history yields two rows', () => {
+    const msg = renderLayout(base, '{prevlow}\n{median}');
+    assert.deepEqual(msg.split('\n'), ['📉 **CHF 44.95** **-29%**', '📈 Ø-Preis (1J): **CHF 54.05** **-41%**']);
+  });
+  it('unknown tokens vanish', () => {
+    assert.ok(!renderLayout(base, 'X {foo} Y').includes('{foo}'));
+  });
+  it('· drops empty neighbors', () => {
+    assert.equal(renderLayout({ ...base, dealer: '', dealerUrl: '' }, '-# {dealer} · {offers}'), '-# 🛒 3 Angebote');
+  });
+  it('marker-only lines drop when the token is empty', () => {
+    assert.equal(renderLayout({ ...base, priceText: '' }, '# {price}\n## {title}'), `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`);
+  });
+  it('blank recipe falls back to the default layout', () => {
+    assert.equal(renderLayout(base, '   \n  '), renderLayout(base, DEFAULT_LAYOUT));
+    assert.equal(formatDealMessage(base, ''), formatDealMessage(base));
+  });
+  it('truncation keeps the message within limits and the link intact', () => {
+    const msg = formatDealMessage({ ...base, title: 'x'.repeat(500) }, '## {title}\n# {price}\n{prevlow}\n{median}');
+    assert.ok(msg.length <= 2000);
+    assert.ok(msg.includes(PRODUCT_URL));
+  });
+  it('config mirror stays in sync with DEFAULT_LAYOUT', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/state/config.js', import.meta.url), 'utf8');
+    assert.ok(src.includes(DEFAULT_LAYOUT));
   });
 });

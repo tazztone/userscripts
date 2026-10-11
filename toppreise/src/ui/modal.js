@@ -9,6 +9,7 @@ import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
+import { DEFAULT_LAYOUT, LAYOUT_TOKENS, renderLayout } from "../features/share-discord.js";
 
 export function setupUI() {
   const { shadow } = ensureSkeleton();
@@ -225,6 +226,30 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group">
+          <label for="tp-discord-layout-input">Nachrichten-Layout (Baukasten)</label>
+          <div>
+            <button type="button" id="tp-discord-layout-preset-kompakt" class="tp-btn tp-btn-secondary">Kompakt</button>
+            <button type="button" id="tp-discord-layout-preset-ausfuehrlich" class="tp-btn tp-btn-secondary">Ausführlich</button>
+            <button type="button" id="tp-discord-layout-preset-minimal" class="tp-btn tp-btn-secondary">Minimal</button>
+          </div>
+          <div id="tp-discord-layout-chips">
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{title}">Titel {title}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{price}">Preis {price}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{dealer}">Händler {dealer}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{offers}">Angebote {offers}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{spark}">Spark {spark}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
+          </div>
+          <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
+          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · blendet leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
+          <pre id="tp-discord-layout-preview"></pre>
+          <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
+          <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
+          <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary">Layout zurücksetzen</button>
+        </div>
       </section>
       <section id="tp-section-data" class="tp-section-card tp-section-data">
         <div class="tp-section-header">💾 Daten & Cache</div>
@@ -337,6 +362,29 @@ export function setupUI() {
   const discordWebhookStatus = shadow.getElementById('tp-discord-webhook-status');
   const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
   const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
+  const discordLayoutInput = shadow.getElementById('tp-discord-layout-input');
+  const discordLayoutPreview = shadow.getElementById('tp-discord-layout-preview');
+  const discordLayoutCount = shadow.getElementById('tp-discord-layout-count');
+  const discordLayoutError = shadow.getElementById('tp-discord-layout-error');
+  const discordLayoutReset = shadow.getElementById('tp-discord-layout-reset');
+  const LAYOUT_PRESETS = {
+    kompakt: DEFAULT_LAYOUT,
+    ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{spark}\n{prevlow}\n{median}\n{link}',
+    minimal: '## {title}\n# {price}\n{link}'
+  };
+  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+  function renderLayoutPreview() {
+    if (!discordLayoutInput || !discordLayoutPreview) return;
+    const recipe = discordLayoutInput.value;
+    const rendered = renderLayout({
+      ...LAYOUT_SAMPLE,
+      suppressDealerEmbed: discordDealerEmbedToggle ? !discordDealerEmbedToggle.checked : true,
+      suppressProductEmbed: discordProductEmbedToggle ? !discordProductEmbedToggle.checked : true
+    }, recipe);
+    discordLayoutPreview.textContent = rendered;
+    if (discordLayoutCount) discordLayoutCount.textContent = `${recipe.length}/2000 Zeichen · ${rendered.length}/2000 Nachricht`;
+    if (discordLayoutError) discordLayoutError.textContent = '';
+  }
 
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -390,6 +438,8 @@ export function setupUI() {
     if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
     if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
     if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
+    if (discordLayoutInput) discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
+    renderLayoutPreview();
   }
 
   const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -479,6 +529,31 @@ export function setupUI() {
     discordWebhookReveal.style.display = 'none';
     discordWebhookReveal.setAttribute('aria-expanded', 'true');
     discordWebhookInput.focus();
+  });
+  discordLayoutInput?.addEventListener('input', renderLayoutPreview);
+  discordDealerEmbedToggle?.addEventListener('change', renderLayoutPreview);
+  discordProductEmbedToggle?.addEventListener('change', renderLayoutPreview);
+  for (const [name, recipe] of Object.entries(LAYOUT_PRESETS)) {
+    shadow.getElementById(`tp-discord-layout-preset-${name}`)?.addEventListener('click', () => {
+      if (!discordLayoutInput) return;
+      const current = discordLayoutInput.value;
+      if (!Object.values(LAYOUT_PRESETS).includes(current) && !window.confirm('Layout ersetzen?')) return;
+      discordLayoutInput.value = recipe;
+      renderLayoutPreview();
+    });
+  }
+  shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
+    const token = e.target?.closest?.('button')?.dataset?.token;
+    if (!token || !discordLayoutInput) return;
+    const { selectionStart = discordLayoutInput.value.length, selectionEnd = discordLayoutInput.value.length } = discordLayoutInput;
+    discordLayoutInput.value = discordLayoutInput.value.slice(0, selectionStart) + token + discordLayoutInput.value.slice(selectionEnd);
+    discordLayoutInput.focus();
+    renderLayoutPreview();
+  });
+  discordLayoutReset?.addEventListener('click', () => {
+    if (!discordLayoutInput) return;
+    discordLayoutInput.value = DEFAULT_LAYOUT;
+    renderLayoutPreview();
   });
 
 
@@ -631,6 +706,20 @@ export function setupUI() {
     if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
+    if (discordLayoutInput) {
+      const value = String(discordLayoutInput.value || '');
+      const names = [...value.matchAll(/\{([^}]*)\}/g)].map(m => m[1]);
+      const unknown = names.filter(n => !LAYOUT_TOKENS.has(n));
+      if (!value.trim()) {
+        if (discordLayoutError) discordLayoutError.textContent = 'Layout ist leer';
+        return;
+      }
+      if (unknown.length) {
+        if (discordLayoutError) discordLayoutError.textContent = `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}`;
+        return;
+      }
+      updates.DISCORD_LAYOUT = value;
+    }
     if (horizonChanged) recomputeCachedMedians(newHorizon);
     updateConfigs(updates);
     if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }

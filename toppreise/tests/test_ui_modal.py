@@ -515,3 +515,13 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
+def test_discord_layout_editor(page: Page):
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-section-discord >> #tp-discord-layout-input').is_visible()
+    page.fill('#tp-root >> #tp-discord-layout-input', '## {title}\n# {price}')
+    assert page.locator('#tp-root >> #tp-discord-layout-preview').inner_text().startswith('## [')
+    page.fill('#tp-root >> #tp-discord-layout-input', '# {price}')
+    assert page.locator('#tp-root >> #tp-discord-layout-preview').inner_text().startswith('# 💰')
+    page.click('#tp-root >> #tp-btn-close')
+
+

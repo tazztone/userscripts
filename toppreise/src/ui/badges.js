@@ -736,7 +736,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             ...resolveShareFields(cardPrice, stats),
             suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
             suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
-          });
+          }, CONFIG.DISCORD_LAYOUT);
           const threadName = buildThreadName(title);
           const flagKey = discordForumFlagKey(hook);
           const forum = _getValue(flagKey, false) === true;
