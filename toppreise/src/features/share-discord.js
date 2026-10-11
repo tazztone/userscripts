@@ -63,14 +63,14 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
 
 // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
 // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
-export function postDealImageToDiscord(webhookUrl, content, pngBlob, suppressEmbeds = false) {
+export function postDealImageToDiscord(webhookUrl, content, pngBlob) {
   return new Promise((resolve, reject) => {
     try {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
       if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
       const form = new FormData();
-      form.append('payload_json', JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content }));
+      form.append('payload_json', JSON.stringify({ content }));
       form.append('file', pngBlob, 'preisverlauf.png');
       GM_xmlhttpRequest({
         method: 'POST',
@@ -89,10 +89,12 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, suppressEmb
 // Preis, Händler, Verlauf. Produktlink zuletzt (unantastbar, embeddet).
 const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
 const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-export function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct }) {
+export function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct, suppressDealerEmbed = false, suppressProductEmbed = false }) {
   const link = (url || '').trim();
+  const shownLink = (suppressProductEmbed && link) ? `<${link}>` : link;
   let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-  const dealerLine = dealer ? (dealerUrl ? `🏬 Händler: [**${dealer}**](${dealerUrl})` : `🏬 Händler: **${dealer}**`) : '';
+  const dealerTarget = dealerUrl ? (suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '';
+  const dealerLine = dealer ? (dealerTarget ? `🏬 Händler: [**${dealer}**](${dealerTarget})` : `🏬 Händler: **${dealer}**`) : '';
   const rest = [
     priceText ? `💰 ${boldNumbers(priceText)}` : '',
     dealerLine,
@@ -101,9 +103,9 @@ export function formatDealMessage({ title, url, priceText, dealer, dealerUrl, of
     prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
     medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
   ].filter(Boolean).join('\n');
-  const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
+  const maxTitle = Math.max(20, 2000 - shownLink.length - rest.length - 32);
   cleanTitle = cleanTitle.slice(0, maxTitle);
-  return [`**${cleanTitle}**`, rest, link].filter(Boolean).join('\n').slice(0, 2000);
+  return [`**${cleanTitle}**`, rest, shownLink].filter(Boolean).join('\n').slice(0, 2000);
 }
 
 // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
@@ -249,13 +251,11 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
   } catch { /* Händler unbekannt: Zeile entfällt */ }
   return out;
 }
-
-// GM_xmlhttpRequest umgeht CORS (Violentmonkey), fetch ist Fallback.
-export function postDealToDiscord(webhookUrl, content, suppressEmbeds = false) {
+export function postDealToDiscord(webhookUrl, content) {
   return new Promise((resolve, reject) => {
     if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
     const url = webhookUrl.trim();
-    const payload = JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content });
+    const payload = JSON.stringify({ content });
     if (typeof GM_xmlhttpRequest !== 'undefined') {
       GM_xmlhttpRequest({
         method: 'POST',

@@ -57,7 +57,8 @@ export const DEFAULTS = Object.freeze({
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
-  DISCORD_SUPPRESS_EMBEDS: true,
+  DISCORD_SUPPRESS_DEALER_EMBED: true,
+  DISCORD_SUPPRESS_PRODUCT_EMBED: true,
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -152,6 +153,10 @@ export function paintMinPoints(raw = CONFIG.BESTPREISE_MIN_POINTS, shadowRoot) {
 }
 export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
+// One-time migration: single DISCORD_SUPPRESS_EMBEDS key split into dealer +
+// product keys. Stored old value seeds both new keys once; stale key unread.
+const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
+
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
@@ -175,7 +180,8 @@ export const CONFIG = {
   DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
-  DISCORD_SUPPRESS_EMBEDS: _getValue('DISCORD_SUPPRESS_EMBEDS', DEFAULTS.DISCORD_SUPPRESS_EMBEDS),
+  DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
+  DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
   SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
   ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -286,8 +292,13 @@ export function syncUiControl(key, val) {
           if (toggle) toggle.checked = !!val;
           break;
         }
-        case 'DISCORD_SUPPRESS_EMBEDS': {
-          const toggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
+        case 'DISCORD_SUPPRESS_DEALER_EMBED': {
+          const toggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
+          if (toggle) toggle.checked = val !== false;
+          break;
+        }
+        case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
+          const toggle = shadow.getElementById('tp-discord-suppress-product-toggle');
           if (toggle) toggle.checked = val !== false;
           break;
         }

@@ -815,15 +815,16 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             title, url, priceText,
             dealer, dealerUrl, offerCount: offers,
             spark: png ? '' : sparklineText(stats?.timeSeries),
-            ...resolveShareFields(cardPrice, stats)
+            ...resolveShareFields(cardPrice, stats),
+            suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+            suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
           });
           let shared = false;
-          const suppress = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
           if (png) {
-            try { await postDealImageToDiscord(hook, content, png, suppress); shared = true; }
+            try { await postDealImageToDiscord(hook, content, png); shared = true; }
             catch { /* Text-Fallback unten */ }
           }
-          if (!shared) await postDealToDiscord(hook, content, suppress);
+          if (!shared) await postDealToDiscord(hook, content);
           showToast('📤 Deal in Discord geteilt');
         } catch {
           showToast('📤 Teilen fehlgeschlagen');

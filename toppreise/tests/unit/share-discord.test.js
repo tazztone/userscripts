@@ -20,6 +20,7 @@ import {
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';
 const PRODUCT_URL = 'https://www.toppreise.ch/preisvergleich/Maeuse/x-p830749';
+const DEALER_URL = 'https://www.toppreise.ch/ext_d-aUS0';
 
 describe('isDiscordWebhookUrl', () => {
   it('accepts standard + ptb/canary webhook URLs', () => {
@@ -123,10 +124,24 @@ describe('formatDealMessage', () => {
     assert.equal(msg.split('\n').length, 2);
   });
 
-  it('keeps the trailing link bare (no angle-bracket suppression)', () => {
-    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
-    assert.ok(msg.endsWith(PRODUCT_URL));
-    assert.ok(!msg.includes('<' + PRODUCT_URL + '>'));
+  it('suppresses each link preview independently via angle brackets', () => {
+    const base = { title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: 'Digitec', dealerUrl: DEALER_URL, offerCount: 0, spark: '', prevLowText: '', medianText: '' };
+    const neither = formatDealMessage(base);
+    assert.ok(neither.endsWith(PRODUCT_URL));
+    assert.ok(neither.includes(`🏬 Händler: [**Digitec**](${DEALER_URL})`));
+    assert.ok(!neither.includes('<'));
+    const dealerOnly = formatDealMessage({ ...base, suppressDealerEmbed: true });
+    assert.ok(dealerOnly.includes(`](<${DEALER_URL}>)`));
+    assert.ok(dealerOnly.endsWith(PRODUCT_URL));
+    const productOnly = formatDealMessage({ ...base, suppressProductEmbed: true });
+    assert.ok(productOnly.endsWith(`<${PRODUCT_URL}>`));
+    assert.ok(productOnly.includes(`](${DEALER_URL})`));
+    const both = formatDealMessage({ ...base, suppressDealerEmbed: true, suppressProductEmbed: true });
+    assert.ok(both.includes(`](<${DEALER_URL}>)`));
+    assert.ok(both.endsWith(`<${PRODUCT_URL}>`));
+    const long = formatDealMessage({ ...base, title: 'x'.repeat(500), suppressDealerEmbed: true, suppressProductEmbed: true });
+    assert.ok(long.endsWith(`<${PRODUCT_URL}>`));
+    assert.ok(long.length <= 2000);
   });
 });
 
@@ -423,15 +438,13 @@ describe('postDealToDiscord', () => {
     }
   });
 
-  it('sends flags:4 when suppressEmbeds is true, no flags by default', async () => {
+  it('sends content without flags (per-link suppression lives in the markup)', async () => {
     let seen = null;
     globalThis.fetch = async (url, opts) => {
       seen = { url, opts };
       return { ok: true, status: 204 };
     };
-    await postDealToDiscord(HOOK, '🔥 deal', true);
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal', flags: 4 });
-    await postDealToDiscord(HOOK, '🔥 deal', false);
+    await postDealToDiscord(HOOK, '🔥 deal');
     assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal' });
   });
 });
@@ -470,16 +483,14 @@ describe('postDealImageToDiscord', () => {
     await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Discord 400/);
   });
 
-  it('sends flags:4 with the file attached when suppressEmbeds is true', async () => {
+  it('sends payload_json without flags (per-link suppression lives in the markup)', async () => {
     let seen = null;
     globalThis.GM_xmlhttpRequest = opts => {
       seen = opts;
       opts.onload({ status: 200 });
     };
-    await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }), true);
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal', flags: 4 });
-    assert.ok(seen.data.get('file') instanceof Blob);
     await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
     assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
+    assert.ok(seen.data.get('file') instanceof Blob);
   });
 });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.160
+// @version      2.18.161
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2552,7 +2552,8 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
-    DISCORD_SUPPRESS_EMBEDS: true,
+    DISCORD_SUPPRESS_DEALER_EMBED: true,
+    DISCORD_SUPPRESS_PRODUCT_EMBED: true,
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -2647,6 +2648,10 @@ const SHADOW_MODAL_STYLES = `
   }
   const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 
+  // One-time migration: single DISCORD_SUPPRESS_EMBEDS key split into dealer +
+  // product keys. Stored old value seeds both new keys once; stale key unread.
+  const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
+
   const CONFIG = {
     FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
     FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
@@ -2670,7 +2675,8 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
-    DISCORD_SUPPRESS_EMBEDS: _getValue('DISCORD_SUPPRESS_EMBEDS', DEFAULTS.DISCORD_SUPPRESS_EMBEDS),
+    DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
+    DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
     SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
     ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -2781,8 +2787,13 @@ const SHADOW_MODAL_STYLES = `
             if (toggle) toggle.checked = !!val;
             break;
           }
-          case 'DISCORD_SUPPRESS_EMBEDS': {
-            const toggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
+          case 'DISCORD_SUPPRESS_DEALER_EMBED': {
+            const toggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
+            if (toggle) toggle.checked = val !== false;
+            break;
+          }
+          case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
+            const toggle = shadow.getElementById('tp-discord-suppress-product-toggle');
             if (toggle) toggle.checked = val !== false;
             break;
           }
@@ -4917,15 +4928,16 @@ const SHADOW_MODAL_STYLES = `
               title, url, priceText,
               dealer, dealerUrl, offerCount: offers,
               spark: png ? '' : sparklineText(stats?.timeSeries),
-              ...resolveShareFields(cardPrice, stats)
+              ...resolveShareFields(cardPrice, stats),
+              suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+              suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
             });
             let shared = false;
-            const suppress = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
             if (png) {
-              try { await postDealImageToDiscord(hook, content, png, suppress); shared = true; }
+              try { await postDealImageToDiscord(hook, content, png); shared = true; }
               catch { /* Text-Fallback unten */ }
             }
-            if (!shared) await postDealToDiscord(hook, content, suppress);
+            if (!shared) await postDealToDiscord(hook, content);
             showToast('📤 Deal in Discord geteilt');
           } catch {
             showToast('📤 Teilen fehlgeschlagen');
@@ -5253,11 +5265,21 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Unterdrückt die automatische Link-Vorschau (Embed) unter Discord-Posts. Das Preisverlauf-Bild wird weiterhin angehängt.">Discord Embeds</label>
-              <span class="tp-switch-desc">AUS = Link-Vorschau unterdrücken (Bild bleibt)</span>
+              <label title="Unterdrückt die automatische Händler-Link-Vorschau (Embed) unter Discord-Posts.">Händler-Link Embed</label>
+              <span class="tp-switch-desc">AUS = keine Händler-Vorschau</span>
             </div>
             <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-discord-suppress-embeds-toggle">
+              <input type="checkbox" id="tp-discord-suppress-dealer-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Unterdrückt die automatische Produkt-Link-Vorschau (Embed) unter Discord-Posts. Das Preisverlauf-Bild wird weiterhin angehängt.">Toppreise-Link Embed</label>
+              <span class="tp-switch-desc">AUS = keine Produkt-Vorschau (Bild bleibt)</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-discord-suppress-product-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
@@ -5474,7 +5496,8 @@ const SHADOW_MODAL_STYLES = `
     const dur730 = shadow.getElementById('tp-dur-730');
     const advancedDetails = shadow.getElementById('tp-advanced-details');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
-    const discordSuppressEmbedsToggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
+    const discordSuppressDealerToggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
+    const discordSuppressProductToggle = shadow.getElementById('tp-discord-suppress-product-toggle');
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -5533,7 +5556,8 @@ const SHADOW_MODAL_STYLES = `
       }
 
       if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
-      if (discordSuppressEmbedsToggle) discordSuppressEmbedsToggle.checked = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
+      if (discordSuppressDealerToggle) discordSuppressDealerToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false;
+      if (discordSuppressProductToggle) discordSuppressProductToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false;
     }
 
     const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -5756,7 +5780,8 @@ const SHADOW_MODAL_STYLES = `
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
-      if (discordSuppressEmbedsToggle) updates.DISCORD_SUPPRESS_EMBEDS = discordSuppressEmbedsToggle.checked;
+      if (discordSuppressDealerToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = discordSuppressDealerToggle.checked;
+      if (discordSuppressProductToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = discordSuppressProductToggle.checked;
       updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
       updateConfigs(updates);
@@ -6560,14 +6585,14 @@ const SHADOW_MODAL_STYLES = `
 
   // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
   // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
-  function postDealImageToDiscord(webhookUrl, content, pngBlob, suppressEmbeds = false) {
+  function postDealImageToDiscord(webhookUrl, content, pngBlob) {
     return new Promise((resolve, reject) => {
       try {
         if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
         if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
         if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
-        form.append('payload_json', JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content }));
+        form.append('payload_json', JSON.stringify({ content }));
         form.append('file', pngBlob, 'preisverlauf.png');
         GM_xmlhttpRequest({
           method: 'POST',
@@ -6586,10 +6611,12 @@ const SHADOW_MODAL_STYLES = `
   // Preis, Händler, Verlauf. Produktlink zuletzt (unantastbar, embeddet).
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-  function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct }) {
+  function formatDealMessage({ title, url, priceText, dealer, dealerUrl, offerCount, spark, prevLowText, prevLowPct, medianText, medianPct, suppressDealerEmbed = false, suppressProductEmbed = false }) {
     const link = (url || '').trim();
+    const shownLink = (suppressProductEmbed && link) ? `<${link}>` : link;
     let cleanTitle = (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
-    const dealerLine = dealer ? (dealerUrl ? `🏬 Händler: [**${dealer}**](${dealerUrl})` : `🏬 Händler: **${dealer}**`) : '';
+    const dealerTarget = dealerUrl ? (suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '';
+    const dealerLine = dealer ? (dealerTarget ? `🏬 Händler: [**${dealer}**](${dealerTarget})` : `🏬 Händler: **${dealer}**`) : '';
     const rest = [
       priceText ? `💰 ${boldNumbers(priceText)}` : '',
       dealerLine,
@@ -6598,9 +6625,9 @@ const SHADOW_MODAL_STYLES = `
       prevLowText ? `📉 ${boldNumbers(withPct(prevLowText, prevLowPct))}` : '',
       medianText ? `📈 ${boldNumbers(withPct(medianText, medianPct))}` : ''
     ].filter(Boolean).join('\n');
-    const maxTitle = Math.max(20, 2000 - link.length - rest.length - 32);
+    const maxTitle = Math.max(20, 2000 - shownLink.length - rest.length - 32);
     cleanTitle = cleanTitle.slice(0, maxTitle);
-    return [`**${cleanTitle}**`, rest, link].filter(Boolean).join('\n').slice(0, 2000);
+    return [`**${cleanTitle}**`, rest, shownLink].filter(Boolean).join('\n').slice(0, 2000);
   }
 
   // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
@@ -6746,13 +6773,11 @@ const SHADOW_MODAL_STYLES = `
     } catch { /* Händler unbekannt: Zeile entfällt */ }
     return out;
   }
-
-  // GM_xmlhttpRequest umgeht CORS (Violentmonkey), fetch ist Fallback.
-  function postDealToDiscord(webhookUrl, content, suppressEmbeds = false) {
+  function postDealToDiscord(webhookUrl, content) {
     return new Promise((resolve, reject) => {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       const url = webhookUrl.trim();
-      const payload = JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content });
+      const payload = JSON.stringify({ content });
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         GM_xmlhttpRequest({
           method: 'POST',
