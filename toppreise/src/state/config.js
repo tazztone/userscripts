@@ -302,11 +302,6 @@ export function syncUiControl(key, val) {
           if (toggle) toggle.checked = val === false;
           break;
         }
-        case 'SHOW_ADVANCED': {
-          const details = shadow.getElementById('tp-advanced-details');
-          if (details) details.open = !!val;
-          break;
-        }
       }
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);

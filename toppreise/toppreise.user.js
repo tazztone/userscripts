@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.162
+// @version      2.18.163
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1507,14 +1507,20 @@ const SHADOW_MODAL_STYLES = `
   }
   .tp-settings-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: var(--tp-mut); }
-  #tp-basic-settings { display: flex; flex-direction: column; gap: 8px; }
-  #tp-basic-settings .tp-settings-group { margin-bottom: 10px; }
-  #tp-basic-settings label[title], #tp-basic-settings button[title] { cursor: help; }
-  #tp-advanced-panel { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-  #tp-advanced-details { margin-top: 4px; }
-  #tp-advanced-details > summary { display: flex; align-items: center; gap: 8px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
-  #tp-advanced-details > summary:hover { background: rgba(139, 92, 246, 0.2); }
-  #tp-advanced-details > summary:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
+  #tp-section-unified-suite { display: flex; flex-direction: column; gap: 12px; }
+  #tp-section-unified-suite label[title], #tp-section-unified-suite button[title] { cursor: help; }
+  .tp-section-card { background: rgba(15, 23, 42, 0.5); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .tp-section-card .tp-settings-group { margin-bottom: 10px; }
+  .tp-section-header { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .tp-section-display { border-color: rgba(16, 185, 129, 0.35); }
+  .tp-section-display .tp-section-header { color: var(--tp-acc-txt); }
+  .tp-section-deals { border-color: rgba(139, 92, 246, 0.35); }
+  .tp-section-deals .tp-section-header { color: var(--tp-acc2); }
+  .tp-section-alarm { border-color: rgba(59, 130, 246, 0.35); }
+  .tp-section-alarm .tp-section-header { color: var(--tp-blue-soft); }
+  .tp-section-discord { border-color: rgba(56, 189, 248, 0.35); }
+  .tp-section-discord .tp-section-header { color: var(--tp-sky); }
+  .tp-section-data .tp-section-header { color: var(--tp-dim); }
   .tp-field-dark { width: 100%; background: var(--tp-bg); color: var(--tp-txt); border: 1px solid var(--tp-line-soft); border-radius: var(--tp-r-sm); padding: 6px 10px; font-size: var(--tp-fs-md); margin-top: 4px; box-sizing: border-box; }
   select.tp-field-dark { font-size: var(--tp-fs-lg); }
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
@@ -1524,7 +1530,6 @@ const SHADOW_MODAL_STYLES = `
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
   .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: var(--tp-fs-md); }
-  .tp-advanced-subheader { color: var(--tp-dim); font-size: var(--tp-fs-sm); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
   .tp-segmented-control {
     display: flex;
     background: rgba(15,23,42,0.6);
@@ -1660,7 +1665,7 @@ const SHADOW_MODAL_STYLES = `
     #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
   }
   @media (prefers-contrast: more) {
-    .tp-switch-desc, .tp-advanced-subheader, .tp-cache-row #tp-cache-stats-label { opacity: 1 !important; }
+    .tp-switch-desc, .tp-section-header, .tp-cache-row #tp-cache-stats-label { opacity: 1 !important; }
     .tp-field-dark { border-width: 2px !important; }
   }
 `;
@@ -2795,11 +2800,6 @@ const SHADOW_MODAL_STYLES = `
           case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
             const toggle = shadow.getElementById('tp-discord-product-embed-toggle');
             if (toggle) toggle.checked = val === false;
-            break;
-          }
-          case 'SHOW_ADVANCED': {
-            const details = shadow.getElementById('tp-advanced-details');
-            if (details) details.open = !!val;
             break;
           }
         }
@@ -5185,8 +5185,8 @@ const SHADOW_MODAL_STYLES = `
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
-        <div id="tp-basic-settings">
-          <div class="tp-advanced-subheader">Wie darstellen (gilt für alle Gefilterten)</div>
+        <section id="tp-section-display" class="tp-section-card tp-section-display">
+          <div class="tp-section-header">🖥️ Anzeige</div>
           <div class="tp-settings-group">
             <label title="So werden gefilterte Angebote dargestellt (Negativ, Min-Angebote, Händler-Nicht-Toppreis, Schlechte Deals, Ungeprüfte): farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
             <div class="tp-segmented-control">
@@ -5214,85 +5214,6 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-advanced-subheader">Was filtern (Ursachen — Negativ + Min-Angebote in der Toolbar)</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-bestpreise-mode-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Darstellung folgt der Anzeige.">Nur geprüfte anzeigen</label>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-hide-unchecked-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Im Tiefstpreise-Modus ausblenden.">Fallback-Tiefs einschließen</label>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-include-vortief-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
-            </div>
-            <label class="tp-switch tp-blue">
-              <input type="checkbox" id="tp-alarm-enabled-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
-            <div class="tp-range-container tp-blue">
-              <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
-              <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-            <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
-            <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Unterdrückt die automatische Händler-Link-Vorschau (Embed) unter Discord-Posts.">Händler-Link Embed</label>
-              <span class="tp-switch-desc">AUS = keine Händler-Vorschau</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-discord-dealer-embed-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Unterdrückt die automatische Produkt-Link-Vorschau (Embed) unter Discord-Posts. Das Preisverlauf-Bild wird weiterhin angehängt.">Toppreise-Link Embed</label>
-              <span class="tp-switch-desc">AUS = keine Produkt-Vorschau (Bild bleibt)</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-discord-product-embed-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-btn-row">
-            <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
-            <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
-            <input type="file" id="tp-import-config-file" accept=".json">
-          </div>
-        </div>
-        <details id="tp-advanced-details">
-          <summary>⚙️ Feintuning</summary>
-        <div id="tp-advanced-panel">
-          <div class="tp-advanced-subheader">Anzeige & Sortierung</div>
           <div class="tp-settings-group">
             <label>Sortierung nach Angeboten / Rabatt</label>
             <div class="tp-segmented-control">
@@ -5320,13 +5241,52 @@ const SHADOW_MODAL_STYLES = `
               <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
             </div>
           </div>
-          <div class="tp-advanced-subheader">Heatmap & Deals</div>
           <div class="tp-settings-group">
             <label>Heatmap-Intensität (%)</label>
             <div class="tp-range-container tp-rose">
               <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
               <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
             </div>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-sparklines-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+        </section>
+        <section id="tp-section-deals" class="tp-section-card tp-section-deals">
+          <div class="tp-section-header">💎 Tiefstpreise & Deals</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-bestpreise-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Darstellung folgt der Anzeige.">Nur geprüfte anzeigen</label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-hide-unchecked-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Im Tiefstpreise-Modus ausblenden.">Fallback-Tiefs einschließen</label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-include-vortief-toggle">
+              <span class="tp-slider"></span>
+            </label>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
             <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
@@ -5362,7 +5322,25 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
           </div>
-          <div class="tp-advanced-subheader">Preisalarm</div>
+        </section>
+        <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
+          <div class="tp-section-header">🔔 Preisalarm</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
+            </div>
+            <label class="tp-switch tp-blue">
+              <input type="checkbox" id="tp-alarm-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
+            <div class="tp-range-container tp-blue">
+              <input type="range" id="tp-alarm-target-range" min="10" max="95" step="5" value="60">
+              <input type="number" id="tp-alarm-target-val" min="1" max="99" step="1" value="60">
+            </div>
+          </div>
           <div class="tp-settings-group">
             <label>Laufzeit Dauer</label>
             <div class="tp-segmented-control tp-segmented-control-blue">
@@ -5382,17 +5360,37 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-advanced-subheader">Darstellung & Cache</div>
+        </section>
+        <section id="tp-section-discord" class="tp-section-card tp-section-discord">
+          <div class="tp-section-header">💬 Discord Share</div>
+          <div class="tp-settings-group">
+            <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
+            <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+            <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+              <label title="Unterdrückt die automatische Händler-Link-Vorschau (Embed) unter Discord-Posts.">Händler-Link Embed</label>
+              <span class="tp-switch-desc">AUS = keine Händler-Vorschau</span>
             </div>
             <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-sparklines-toggle">
+              <input type="checkbox" id="tp-discord-dealer-embed-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Unterdrückt die automatische Produkt-Link-Vorschau (Embed) unter Discord-Posts. Das Preisverlauf-Bild wird weiterhin angehängt.">Toppreise-Link Embed</label>
+              <span class="tp-switch-desc">AUS = keine Produkt-Vorschau (Bild bleibt)</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-discord-product-embed-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+        </section>
+        <section id="tp-section-data" class="tp-section-card tp-section-data">
+          <div class="tp-section-header">💾 Daten & Cache</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
@@ -5430,8 +5428,12 @@ const SHADOW_MODAL_STYLES = `
             </select>
             <span class="tp-switch-desc tp-field-hint">Verhindert wiederholte Server-Anfragen bei Produkten ohne Preiskurve</span>
           </div>
-        </div>
-        </details>
+          <div class="tp-settings-group tp-btn-row">
+            <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
+            <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
+            <input type="file" id="tp-import-config-file" accept=".json">
+          </div>
+        </section>
         </div>
       `;
       section = tempDiv.firstElementChild;
@@ -5494,7 +5496,6 @@ const SHADOW_MODAL_STYLES = `
     const dur180 = shadow.getElementById('tp-dur-180');
     const dur365 = shadow.getElementById('tp-dur-365');
     const dur730 = shadow.getElementById('tp-dur-730');
-    const advancedDetails = shadow.getElementById('tp-advanced-details');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
     const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
@@ -5505,7 +5506,7 @@ const SHADOW_MODAL_STYLES = `
 
     function syncFieldsFromConfig() {
       // Every key syncUiControl covers (radios, toggles, weight, min-points,
-      // threshold, shipping, sparklines, dealer-autofetch, advanced) syncs
+      // threshold, shipping, sparklines, dealer-autofetch, embeds) syncs
       // through it — toolbar mirrors included. Only modal-only controls below.
       syncAllUiControls();
       syncOpacityVisibility();
@@ -5624,10 +5625,6 @@ const SHADOW_MODAL_STYLES = `
         bestpreiseHorizonGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
       }
     });
-
-    // The toggle event is queued async; predict from the pre-click state in the
-    // click itself so SHOW_ADVANCED persists synchronously (as the old switch did).
-    advancedDetails?.querySelector('summary')?.addEventListener('click', () => { saveConfigKey('SHOW_ADVANCED', !advancedDetails.open); });
 
     cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -5782,8 +5779,6 @@ const SHADOW_MODAL_STYLES = `
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
-      updates.SHOW_ADVANCED = !!advancedDetails?.open;
-
       updateConfigs(updates);
       if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
       showToast('Toppreise Suite Einstellungen gespeichert');

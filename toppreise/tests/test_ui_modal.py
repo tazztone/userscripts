@@ -465,40 +465,36 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
-def test_advanced_settings_details_hide_fine_tuning(page: Page):
+def test_settings_grouped_sections_visible_without_expanding(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
-    # Collapsed by default: native disclosure closed, fine-tuning hidden, everyday controls usable
-    assert page.locator('#tp-root >> #tp-advanced-details').evaluate('el => el.open') is False
-    assert not page.locator('#tp-root >> #tp-margin-range').is_visible()
-    assert not page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
+    # Five typed sections, always visible on one page; no disclosure to expand
+    assert page.locator('#tp-root >> .tp-section-header').count() == 5
+    for section in ['display', 'deals', 'alarm', 'discord', 'data']:
+        assert page.locator(f'#tp-root >> #tp-section-{section}').is_visible()
+    assert page.locator('#tp-root >> #tp-advanced-details').count() == 0
+
+    # Former Feintuning controls need no expanding
+    assert page.locator('#tp-root >> #tp-margin-range').is_visible()
+    assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
     assert page.locator('#tp-root >> label[for="tp-mode-dim"]').is_visible()
     assert page.locator('#tp-root >> #tp-btn-save').is_visible()
 
-    # Basic view stays minimal: everyday controls usable, no headers; exact
-    # group/label counts intentionally unpinned (new fields must not churn this)
-    assert not page.locator('#tp-root >> #tp-advanced-panel').is_visible()
-    assert page.locator('#tp-root >> .tp-section-header').count() == 0
-    assert page.locator('#tp-root >> #tp-basic-settings button[title]').count() == 2
+    # Discord controls live in their own section
+    for control in ['#tp-discord-webhook-input', '#tp-discord-dealer-embed-toggle', '#tp-discord-product-embed-toggle']:
+        assert page.locator(f'#tp-root >> #tp-section-discord >> {control}').count() == 1
 
-    # Reveal via the native disclosure summary
-    page.click('#tp-root >> #tp-advanced-details > summary')
-    assert page.locator('#tp-root >> #tp-advanced-details').evaluate('el => el.open') is True
-    assert page.locator('#tp-root >> #tp-advanced-panel').is_visible()
-    assert 'feintuning' in page.locator('#tp-root >> #tp-advanced-details > summary').inner_text().lower()
-    assert page.locator('#tp-root >> #tp-margin-range').is_visible()
-    assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
-    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.SHOW_ADVANCED") is True
-
-    # Save persists the view choice; reopening shows the disclosure still open
+    # Save roundtrip across sections: webhook + target + weight persist
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/123/abc')
+    page.fill('#tp-root >> #tp-alarm-target-val', '60')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-    assert page.evaluate("() => localStorage.getItem('tp_suite_v2_SHOW_ADVANCED')") == 'true'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.ALARM_TARGET_PERCENT") == 0.6
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    assert page.locator('#tp-root >> #tp-advanced-details').evaluate('el => el.open') is True
-    assert page.locator('#tp-root >> #tp-margin-range').is_visible()
+    assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == 'https://discord.com/api/webhooks/123/abc'
+    assert page.locator('#tp-root >> #tp-alarm-target-val').input_value() == '60'
     page.click('#tp-root >> #tp-btn-close')
 
 

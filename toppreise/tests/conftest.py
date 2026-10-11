@@ -79,8 +79,6 @@ def mock_pricechart(page, lows):
 
 
 def open_settings(page, advanced=False):
-    """Open the settings modal via FAB; optionally reveal the advanced panel."""
+    """Open the settings modal via FAB; `advanced` kept for caller compat (all sections always visible)."""
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
-    if advanced:
-        page.click('#tp-root >> #tp-advanced-details > summary')
