@@ -9,7 +9,7 @@ import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
-import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview } from "../features/share-discord.js";
+import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from "../features/share-discord.js";
 
 export function setupUI() {
   const { shadow } = ensureSkeleton();
@@ -372,7 +372,7 @@ export function setupUI() {
     ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{spark}\n{prevlow}\n{median}\n{link}',
     minimal: '## {title}\n# {price}\n{link}'
   };
-  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '▁▂▃▄▅▆▇', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
   function renderLayoutPreview() {
     if (!discordLayoutInput || !discordLayoutPreview) return;
     const recipe = discordLayoutInput.value;
@@ -383,7 +383,7 @@ export function setupUI() {
       suppressProductEmbed: discordProductEmbedToggle ? !discordProductEmbedToggle.checked : true
     }, recipe);
     discordLayoutPreview.innerHTML = renderDiscordMarkdownPreview(rendered);
-    if (discordLayoutCount) discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${rendered.length > 2000 ? ' — über Limit, Titel wird gekürzt' : ''}`;
+    if (discordLayoutCount) discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${layoutOverLimitSuffix(rendered.length, recipe)}`;
   }
   let layoutTimer = 0;
   function scheduleLayoutPreview() { clearTimeout(layoutTimer); layoutTimer = setTimeout(renderLayoutPreview, 150); }

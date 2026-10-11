@@ -6,6 +6,7 @@ import {
   renderLayout,
   validateLayoutRecipe,
   renderDiscordMarkdownPreview,
+  layoutOverLimitSuffix,
   DEFAULT_LAYOUT,
   resolveShareFields,
   sparklineText,
@@ -803,5 +804,17 @@ describe('renderDiscordMarkdownPreview', () => {
   it('renders suppression-bracket URLs once, without nesting', () => {
     const out = renderDiscordMarkdownPreview('<https://www.toppreise.ch/p>');
     assert.equal(out.match(/tp-md-url/g).length, 1);
+  });
+});
+
+describe('layoutOverLimitSuffix', () => {
+  it('returns empty below the limit', () => {
+    assert.equal(layoutOverLimitSuffix(100, DEFAULT_LAYOUT), '');
+  });
+  it('names title-shrink when the recipe has {title}', () => {
+    assert.equal(layoutOverLimitSuffix(2001, '## {title}\n# {price}'), ' — über Limit, Titel wird gekürzt');
+  });
+  it('names hard truncation without {title}', () => {
+    assert.equal(layoutOverLimitSuffix(2001, '# {price}\n{link}'), ' — über Limit, wird hart auf 2000 gekürzt');
   });
 });
