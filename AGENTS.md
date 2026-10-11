@@ -38,7 +38,7 @@
   node toppreise/tools/build.js --check
   ```
 - **Pre-commit Quality Gates:**
-  The repository pre-commit hook only runs `bump_version_precommit.py` (increments the bundle version patch level, syncs README) upon commit — it does NOT rebuild the bundle or run unit tests. Run `node toppreise/tools/build.js --check` and the unit tests manually before committing.
+  The repository pre-commit hook automatically rebuilds the bundle, executes unit tests, and increments the bundle version patch level upon commit.
   - **Deletion checklist:** when deleting files, run the grep literally — `rg '<deleted-name>' bump_version_precommit.py <script>/tools/ AGENTS.md` — a stale gate fails the commit.
   - **Commit hygiene:** review full `git status` before staging; never stage unrelated pre-existing changes or untracked home dotfiles (e.g. `.env`).
   > [!NOTE]
