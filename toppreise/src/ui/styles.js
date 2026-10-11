@@ -754,10 +754,19 @@ export const STYLES = `
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-horizon-wrapper,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
     margin-right: 8px !important;
     flex-shrink: 0 !important;
+  }
+  #tp-bar-horizon-select {
+    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #475569 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    cursor: pointer !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;

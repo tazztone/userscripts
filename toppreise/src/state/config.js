@@ -270,6 +270,16 @@ export function syncUiControl(key, val) {
           paintMinPoints(val, shadow);
           break;
         }
+        case 'BESTPREISE_MEDIAN_HORIZON_DAYS': {
+          const horizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
+          if (horizonSelect) horizonSelect.value = String(val ?? 365);
+          // Toolbar select mirrors the modal control (skip while interacting).
+          if (typeof document !== 'undefined') {
+            const barSelect = document.getElementById('tp-bar-horizon-select');
+            if (barSelect && document.activeElement !== barSelect) barSelect.value = String(val ?? 365);
+          }
+          break;
+        }
         case 'REAL_DEAL_MIN_DISCOUNT': {
           const range = shadow.getElementById('tp-real-deal-min-range');
           const valEl = shadow.getElementById('tp-real-deal-min-val');

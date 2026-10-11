@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.164
+// @version      2.18.165
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -779,10 +779,19 @@ const STYLES = `
   }
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
+  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-horizon-wrapper,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper,
   :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
     margin-right: 8px !important;
     flex-shrink: 0 !important;
+  }
+  #tp-bar-horizon-select {
+    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #475569 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    cursor: pointer !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;
@@ -2768,6 +2777,16 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'BESTPREISE_MIN_POINTS': {
             paintMinPoints(val, shadow);
+            break;
+          }
+          case 'BESTPREISE_MEDIAN_HORIZON_DAYS': {
+            const horizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
+            if (horizonSelect) horizonSelect.value = String(val ?? 365);
+            // Toolbar select mirrors the modal control (skip while interacting).
+            if (typeof document !== 'undefined') {
+              const barSelect = document.getElementById('tp-bar-horizon-select');
+              if (barSelect && document.activeElement !== barSelect) barSelect.value = String(val ?? 365);
+            }
             break;
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
@@ -5830,6 +5849,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
     const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -5863,14 +5883,15 @@ const SHADOW_MODAL_STYLES = `
     const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
     let btn = document.getElementById('tp-bar-bestpreise-btn');
     let weight = document.getElementById('tp-bar-weight-wrapper');
+    let horizon = document.getElementById('tp-bar-horizon-wrapper');
     let vortief = document.getElementById('tp-bar-vortief-wrapper');
     let minpoints = document.getElementById('tp-bar-minpoints-wrapper');
     if (!isDealFeed || !tf) {
       if (home) {
         if (btn && btn.parentElement !== home) home.prepend(btn);
         if (weight && weight.parentElement !== home) home.append(weight);
+        if (horizon && horizon.parentElement !== home) home.append(horizon);
         if (vortief && vortief.parentElement !== home) home.append(vortief);
-        if (minpoints && minpoints.parentElement !== home) home.append(minpoints);
       }
       return;
     }
@@ -5883,11 +5904,13 @@ const SHADOW_MODAL_STYLES = `
       bindBestpreiseBtn(btn);
     }
     if (!weight) weight = buildWeightWrapper();
+    if (!horizon) horizon = buildHorizonWrapper();
     if (!vortief) vortief = buildVortiefWrapper();
     if (!minpoints) minpoints = buildMinPointsWrapper();
     if (btn.parentElement !== tf) tf.prepend(btn);
     if (weight.parentElement !== tf || weight.previousElementSibling !== btn) btn.after(weight);
-    if (vortief.parentElement !== tf || vortief.previousElementSibling !== weight) weight.after(vortief);
+    if (horizon.parentElement !== tf || horizon.previousElementSibling !== weight) weight.after(horizon);
+    if (vortief.parentElement !== tf || vortief.previousElementSibling !== horizon) horizon.after(vortief);
     if (minpoints.parentElement !== tf || minpoints.previousElementSibling !== vortief) vortief.after(minpoints);
   }
 
@@ -6000,6 +6023,41 @@ const SHADOW_MODAL_STYLES = `
       <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
       <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
     bindMinPointsControls(wrapper);
+    return wrapper;
+  }
+
+  const HORIZON_SHORT_LABELS = { 365: '1J', 180: '180T', 90: '90T', 0: 'Lifetime' };
+
+  function bindHorizonControls(wrapper) {
+    if (!wrapper) return;
+    const select = wrapper.querySelector('#tp-bar-horizon-select');
+    if (!select) return;
+    select.onchange = () => {
+      const raw = parseInt(select.value, 10);
+      const v = isNaN(raw) ? 365 : raw;
+      updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
+      // Cached analyses bake in the median horizon (window + label), so a
+      // horizon change must invalidate them the same way as the modal save.
+      clearPriceStatsCache();
+      showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — Preise werden neu berechnet`);
+    };
+  }
+
+  function buildHorizonWrapper() {
+    const cur = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+    wrapper.id = 'tp-bar-horizon-wrapper';
+    wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel verwirft gecachte Preisanalysen und berechnet neu.';
+    wrapper.innerHTML = `
+      <span class="tp-stepper-label">Ø-Zeitraum</span>
+      <select id="tp-bar-horizon-select" title="Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen], 6 Monate, 3 Monate, Lifetime">
+        <option value="365"${cur === 365 ? ' selected' : ''}>1J</option>
+        <option value="180"${cur === 180 ? ' selected' : ''}>180T</option>
+        <option value="90"${cur === 90 ? ' selected' : ''}>90T</option>
+        <option value="0"${cur === 0 ? ' selected' : ''}>Lifetime</option>
+      </select>`;
+    bindHorizonControls(wrapper);
     return wrapper;
   }
 
@@ -6219,6 +6277,14 @@ const SHADOW_MODAL_STYLES = `
     const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
     if (minPointsWrapper) {
       minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+    }
+    const horizonSelect = document.getElementById('tp-bar-horizon-select');
+    if (horizonSelect && document.activeElement !== horizonSelect) {
+      horizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
+    }
+    const horizonWrapper = document.getElementById('tp-bar-horizon-wrapper');
+    if (horizonWrapper) {
+      horizonWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
     // A group left without visible children (evacuated deals group on deal
     // feeds, option-less groups on catalog pages) hides; a divider shows only

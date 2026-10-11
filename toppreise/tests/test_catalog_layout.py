@@ -1362,6 +1362,59 @@ def test_minpoints_slider_in_filter_bar(page: Page):
     assert '30 Pkt' in minpoints_label.inner_text()
 
 
+def test_horizon_select_in_filter_bar(page: Page):
+    """
+    Validates that the Ø-Zeitraum select sits in the Zeitraum row directly after
+    Gewicht when Tiefstpreise mode is active, and changing it persists the
+    horizon, evicts cached price stats (no stale Ø label until TTL), and both
+    surfaces stay synced.
+    """
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10, 'horizonDays': 365})
+    page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.processListings();
+    }""")
+
+    horizon_wrapper = page.locator('#tp-bar-horizon-wrapper')
+    assert horizon_wrapper.is_visible()
+    assert horizon_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
+    assert horizon_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-weight-wrapper'")
+    assert 'Median-Berechnungszeitraum' in (horizon_wrapper.get_attribute('title') or '')
+
+    horizon_select = page.locator('#tp-bar-horizon-select')
+    assert horizon_select.evaluate("e => [...e.options].map(o => o.value)") == ['365', '180', '90', '0']
+    assert horizon_select.input_value() == '365'
+    assert 'Ø (1J)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+
+    # Changing the bar select persists, evicts the old-horizon cache, and toasts.
+    page.select_option('#tp-bar-horizon-select', '90')
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 90")
+    remaining = page.evaluate("""() => {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('tp_hist_v1_')) keys.push(k);
+        }
+        return keys;
+    }""")
+    assert remaining == []
+    toast = page.locator('#tp-root >> .tp-toast').last
+    assert 'Ø-Vergleichszeitraum' in (toast.text_content() or '')
+
+    # Refetch under the new horizon relabels the card (no stale 1J label).
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10, 'horizonDays': 90}, clear=False)
+    assert 'Ø (90T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+
+    # Modal round-trip: modal shows the bar value, saving there updates the bar.
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-bestpreise-horizon-select').input_value() == '90'
+    page.select_option('#tp-root >> #tp-bestpreise-horizon-select', '180')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
+    assert horizon_select.input_value() == '180'
+
 
 def test_merged_blend_subline_rendering(page: Page):
     """
