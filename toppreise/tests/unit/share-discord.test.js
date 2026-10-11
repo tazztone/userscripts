@@ -18,7 +18,8 @@ import {
   postDealImageToDiscord,
   buildThreadName,
   isForumThreadError,
-  discordForumFlagKey
+  discordForumFlagKey,
+  fetchImageBlob,
 } from '../../src/features/share-discord.js';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';
@@ -559,6 +560,54 @@ describe('postDealImageToDiscord', () => {
     };
     await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { threadName: 'Deal X', productImageUrl: 'https://img/u.jpg' });
     assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
+  });
+
+  it('sends product bytes as first attachment with inline embeds in order', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { productImageBlob: new Blob(['product']) });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }] });
+    assert.ok(seen.data.get('files[0]') instanceof Blob);
+    assert.ok(seen.data.get('files[1]') instanceof Blob);
+    assert.equal(seen.data.get('file'), null);
+  });
+
+  it('ignores a non-Blob productImageBlob (single chart file as before)', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { productImageBlob: 'https://img/u.jpg' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi' });
+    assert.ok(seen.data.get('file') instanceof Blob);
+  });
+});
+
+describe('fetchImageBlob', () => {
+  afterEach(() => {
+    delete globalThis.GM_xmlhttpRequest;
+  });
+
+  it('resolves the downloaded bytes as Blob', async () => {
+    globalThis.GM_xmlhttpRequest = opts => {
+      assert.equal(opts.method, 'GET');
+      assert.equal(opts.responseType, 'blob');
+      opts.onload({ status: 200, response: new Blob(['img']) });
+    };
+    const blob = await fetchImageBlob('https://img/u.jpg');
+    assert.ok(blob instanceof Blob);
+  });
+
+  it('rejects on bad URL, missing transport, and HTTP errors', async () => {
+    await assert.rejects(fetchImageBlob('data:image/gif;base64,x'), /Ungültige Bild-URL/);
+    delete globalThis.GM_xmlhttpRequest;
+    await assert.rejects(fetchImageBlob('https://img/u.jpg'), /Kein HTTP-Transport/);
+    globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 404, response: null });
+    await assert.rejects(fetchImageBlob('https://img/u.jpg'), /Bild-Download 404/);
   });
 });
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.169
+// @version      2.18.170
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5024,8 +5024,12 @@ const SHADOW_MODAL_STYLES = `
             const threadName = buildThreadName(title);
             const flagKey = discordForumFlagKey(hook);
             const forum = _getValue(flagKey, false) === true;
-            const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
-            const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
+            // Produkt-Bytes einmal laden (vor den Runden): gelingt der Download nicht,
+            // bleibt das URL-Embed als Fallback bestehen.
+            const productBlob = (png && imageUrl) ? await fetchImageBlob(imageUrl).catch(() => null) : null;
+            const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
+            const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+            const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const tryRound = async withThread => {
               if (png) {
                 try { await postImage(withThread); return; }
@@ -6783,6 +6787,31 @@ const SHADOW_MODAL_STYLES = `
 
   // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
   // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
+  // Produkt-Bytes für den Upload holen (same-origin via GM-Transport, kein CORS-
+  // Problem). URL-Embeds verlieren gegen Inline-Attachments in der Thread-
+  // Vorschau — darum wird das Produkt als erste Attachment-Datei mitgeschickt.
+  function fetchImageBlob(imageUrl, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      try {
+        if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl.trim())) return reject(new Error('Ungültige Bild-URL'));
+        if (typeof GM_xmlhttpRequest === 'undefined') return reject(new Error('Kein HTTP-Transport verfügbar'));
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: imageUrl.trim(),
+          responseType: 'blob',
+          timeout: timeoutMs,
+          onload: res => {
+            const data = res?.response;
+            if (res.status >= 200 && res.status < 300 && data) resolve(data instanceof Blob ? data : new Blob([data]));
+            else reject(new Error(`Bild-Download ${res.status}`));
+          },
+          onerror: () => reject(new Error('Netzwerkfehler')),
+          ontimeout: () => reject(new Error('Timeout'))
+        });
+      } catch (err) { reject(err); }
+    });
+  }
+
   function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
     return new Promise((resolve, reject) => {
       try {
@@ -6791,10 +6820,20 @@ const SHADOW_MODAL_STYLES = `
         if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
         const body = { content };
-        if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
+        const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
+        if (productBlob) {
+          body.embeds = [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }];
+        } else if (typeof options.productImageUrl === 'string' && options.productImageUrl) {
+          body.embeds = [{ image: { url: options.productImageUrl } }];
+        }
         if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
         form.append('payload_json', JSON.stringify(body));
-        form.append('file', pngBlob, 'preisverlauf.png');
+        if (productBlob) {
+          form.append('files[0]', productBlob, 'produkt.png');
+          form.append('files[1]', pngBlob, 'preisverlauf.png');
+        } else {
+          form.append('file', pngBlob, 'preisverlauf.png');
+        }
         GM_xmlhttpRequest({
           method: 'POST',
           url: webhookUrl.trim(),

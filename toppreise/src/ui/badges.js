@@ -14,7 +14,7 @@ import {
   extractCardDiscount,
   getCardProductId
 } from '../page/cards.js';
-import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, discordForumFlagKey } from '../features/share-discord.js';
+import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, fetchImageBlob, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, discordForumFlagKey } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../domain/deal-score.js';
 import {
@@ -822,8 +822,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const threadName = buildThreadName(title);
           const flagKey = discordForumFlagKey(hook);
           const forum = _getValue(flagKey, false) === true;
-          const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
-          const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
+          // Produkt-Bytes einmal laden (vor den Runden): gelingt der Download nicht,
+          // bleibt das URL-Embed als Fallback bestehen.
+          const productBlob = (png && imageUrl) ? await fetchImageBlob(imageUrl).catch(() => null) : null;
+          const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
+          const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+          const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
           const tryRound = async withThread => {
             if (png) {
               try { await postImage(withThread); return; }
