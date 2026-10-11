@@ -1366,6 +1366,12 @@ export const SHADOW_MODAL_STYLES = `
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
   .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
   .tp-btn-row .tp-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #tp-discord-layout-preview { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
+  #tp-discord-layout-preview .tp-md-lg { font-size: 16px !important; font-weight: 800 !important; }
+  #tp-discord-layout-preview .tp-md-md { font-size: 14px !important; font-weight: 800 !important; }
+  #tp-discord-layout-preview .tp-md-sm { font-size: 12px !important; font-weight: 700 !important; }
+  #tp-discord-layout-preview .tp-md-link { font-weight: 700 !important; }
+  #tp-discord-layout-preview .tp-md-url { opacity: .65 !important; font-size: 11px !important; }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }

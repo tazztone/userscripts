@@ -517,11 +517,16 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
 
 def test_discord_layout_editor(page: Page):
     open_settings(page)
-    assert page.locator('#tp-root >> #tp-section-discord >> #tp-discord-layout-input').is_visible()
+    preview = page.locator('#tp-root >> #tp-section-discord >> #tp-discord-layout-preview')
     page.fill('#tp-root >> #tp-discord-layout-input', '## {title}\n# {price}')
-    assert page.locator('#tp-root >> #tp-discord-layout-preview').inner_text().startswith('## [')
+    expect(preview).to_contain_text('URBANISTA Porto')
+    expect(preview).to_contain_text('CHF 16.85')
+    assert '## [' not in preview.inner_text()
     page.fill('#tp-root >> #tp-discord-layout-input', '# {price}')
-    assert page.locator('#tp-root >> #tp-discord-layout-preview').inner_text().startswith('# 💰')
+    expect(preview).to_contain_text('CHF 16.85')
+    page.fill('#tp-root >> #tp-discord-layout-input', '{foo}')
+    expect(page.locator('#tp-root >> #tp-section-discord >> #tp-discord-layout-error')).to_contain_text('Unbekannte Tokens: {foo}')
+    assert preview.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
     page.click('#tp-root >> #tp-btn-close')
 
 

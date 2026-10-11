@@ -9,7 +9,7 @@ import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
-import { DEFAULT_LAYOUT, LAYOUT_TOKENS, renderLayout } from "../features/share-discord.js";
+import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview } from "../features/share-discord.js";
 
 export function setupUI() {
   const { shadow } = ensureSkeleton();
@@ -376,15 +376,17 @@ export function setupUI() {
   function renderLayoutPreview() {
     if (!discordLayoutInput || !discordLayoutPreview) return;
     const recipe = discordLayoutInput.value;
+    if (discordLayoutError) discordLayoutError.textContent = validateLayoutRecipe(recipe) || '';
     const rendered = renderLayout({
       ...LAYOUT_SAMPLE,
       suppressDealerEmbed: discordDealerEmbedToggle ? !discordDealerEmbedToggle.checked : true,
       suppressProductEmbed: discordProductEmbedToggle ? !discordProductEmbedToggle.checked : true
     }, recipe);
-    discordLayoutPreview.textContent = rendered;
-    if (discordLayoutCount) discordLayoutCount.textContent = `${recipe.length}/2000 Zeichen · ${rendered.length}/2000 Nachricht`;
-    if (discordLayoutError) discordLayoutError.textContent = '';
+    discordLayoutPreview.innerHTML = renderDiscordMarkdownPreview(rendered);
+    if (discordLayoutCount) discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${rendered.length > 2000 ? ' — über Limit, Titel wird gekürzt' : ''}`;
   }
+  let layoutTimer = 0;
+  function scheduleLayoutPreview() { clearTimeout(layoutTimer); layoutTimer = setTimeout(renderLayoutPreview, 150); }
 
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -530,16 +532,16 @@ export function setupUI() {
     discordWebhookReveal.setAttribute('aria-expanded', 'true');
     discordWebhookInput.focus();
   });
-  discordLayoutInput?.addEventListener('input', renderLayoutPreview);
-  discordDealerEmbedToggle?.addEventListener('change', renderLayoutPreview);
-  discordProductEmbedToggle?.addEventListener('change', renderLayoutPreview);
+  discordLayoutInput?.addEventListener('input', scheduleLayoutPreview);
+  discordDealerEmbedToggle?.addEventListener('change', scheduleLayoutPreview);
+  discordProductEmbedToggle?.addEventListener('change', scheduleLayoutPreview);
   for (const [name, recipe] of Object.entries(LAYOUT_PRESETS)) {
     shadow.getElementById(`tp-discord-layout-preset-${name}`)?.addEventListener('click', () => {
       if (!discordLayoutInput) return;
       const current = discordLayoutInput.value;
       if (!Object.values(LAYOUT_PRESETS).includes(current) && !window.confirm('Layout ersetzen?')) return;
       discordLayoutInput.value = recipe;
-      renderLayoutPreview();
+      scheduleLayoutPreview();
     });
   }
   shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
@@ -548,12 +550,12 @@ export function setupUI() {
     const { selectionStart = discordLayoutInput.value.length, selectionEnd = discordLayoutInput.value.length } = discordLayoutInput;
     discordLayoutInput.value = discordLayoutInput.value.slice(0, selectionStart) + token + discordLayoutInput.value.slice(selectionEnd);
     discordLayoutInput.focus();
-    renderLayoutPreview();
+    scheduleLayoutPreview();
   });
   discordLayoutReset?.addEventListener('click', () => {
     if (!discordLayoutInput) return;
     discordLayoutInput.value = DEFAULT_LAYOUT;
-    renderLayoutPreview();
+    scheduleLayoutPreview();
   });
 
 
@@ -708,14 +710,9 @@ export function setupUI() {
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
     if (discordLayoutInput) {
       const value = String(discordLayoutInput.value || '');
-      const names = [...value.matchAll(/\{([^}]*)\}/g)].map(m => m[1]);
-      const unknown = names.filter(n => !LAYOUT_TOKENS.has(n));
-      if (!value.trim()) {
-        if (discordLayoutError) discordLayoutError.textContent = 'Layout ist leer';
-        return;
-      }
-      if (unknown.length) {
-        if (discordLayoutError) discordLayoutError.textContent = `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}`;
+      const err = validateLayoutRecipe(value);
+      if (err) {
+        if (discordLayoutError) discordLayoutError.textContent = err;
         return;
       }
       updates.DISCORD_LAYOUT = value;

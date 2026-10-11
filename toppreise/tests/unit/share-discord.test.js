@@ -4,6 +4,8 @@ import {
   isDiscordWebhookUrl,
   formatDealMessage,
   renderLayout,
+  validateLayoutRecipe,
+  renderDiscordMarkdownPreview,
   DEFAULT_LAYOUT,
   resolveShareFields,
   sparklineText,
@@ -768,5 +770,38 @@ describe('layout recipe', () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('../../src/state/config.js', import.meta.url), 'utf8');
     assert.ok(src.includes(DEFAULT_LAYOUT));
+  });
+});
+
+describe('validateLayoutRecipe', () => {
+  it('rejects blank recipes', () => {
+    assert.equal(validateLayoutRecipe(''), 'Layout ist leer');
+    assert.equal(validateLayoutRecipe('   \n  '), 'Layout ist leer');
+  });
+  it('dedupes unknown tokens', () => {
+    assert.equal(validateLayoutRecipe('## {title}\n{foo} {foo} {bar}'), 'Unbekannte Tokens: {foo}, {bar}');
+  });
+  it('accepts the default layout', () => {
+    assert.equal(validateLayoutRecipe(DEFAULT_LAYOUT), null);
+  });
+});
+
+describe('renderDiscordMarkdownPreview', () => {
+  it('escapes hostile titles', () => {
+    const out = renderDiscordMarkdownPreview('## <img src=x onerror=alert(1)>');
+    assert.ok(out.includes('&lt;img'));
+    assert.ok(!out.includes('<img'));
+  });
+  it('renders headings, bold, links, bare URLs', () => {
+    const out = renderDiscordMarkdownPreview('## [T](https://x.io/a?b=1)\n# **CHF 5**\nhttps://www.toppreise.ch/p');
+    assert.ok(out.includes('tp-md-lg'));
+    assert.ok(out.includes('<strong>CHF 5</strong>'));
+    assert.ok(out.includes('tp-md-link'));
+    assert.ok(out.includes('tp-md-url'));
+    assert.ok(!out.includes('## ['));
+  });
+  it('renders suppression-bracket URLs once, without nesting', () => {
+    const out = renderDiscordMarkdownPreview('<https://www.toppreise.ch/p>');
+    assert.equal(out.match(/tp-md-url/g).length, 1);
   });
 });

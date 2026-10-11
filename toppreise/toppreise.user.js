@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.182
+// @version      2.18.183
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1391,6 +1391,12 @@ const SHADOW_MODAL_STYLES = `
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
   .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
   .tp-btn-row .tp-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #tp-discord-layout-preview { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
+  #tp-discord-layout-preview .tp-md-lg { font-size: 16px !important; font-weight: 800 !important; }
+  #tp-discord-layout-preview .tp-md-md { font-size: 14px !important; font-weight: 800 !important; }
+  #tp-discord-layout-preview .tp-md-sm { font-size: 12px !important; font-weight: 700 !important; }
+  #tp-discord-layout-preview .tp-md-link { font-weight: 700 !important; }
+  #tp-discord-layout-preview .tp-md-url { opacity: .65 !important; font-size: 11px !important; }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
@@ -5511,15 +5517,17 @@ const SHADOW_MODAL_STYLES = `
     function renderLayoutPreview() {
       if (!discordLayoutInput || !discordLayoutPreview) return;
       const recipe = discordLayoutInput.value;
+      if (discordLayoutError) discordLayoutError.textContent = validateLayoutRecipe(recipe) || '';
       const rendered = renderLayout({
         ...LAYOUT_SAMPLE,
         suppressDealerEmbed: discordDealerEmbedToggle ? !discordDealerEmbedToggle.checked : true,
         suppressProductEmbed: discordProductEmbedToggle ? !discordProductEmbedToggle.checked : true
       }, recipe);
-      discordLayoutPreview.textContent = rendered;
-      if (discordLayoutCount) discordLayoutCount.textContent = `${recipe.length}/2000 Zeichen · ${rendered.length}/2000 Nachricht`;
-      if (discordLayoutError) discordLayoutError.textContent = '';
+      discordLayoutPreview.innerHTML = renderDiscordMarkdownPreview(rendered);
+      if (discordLayoutCount) discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${rendered.length > 2000 ? ' — über Limit, Titel wird gekürzt' : ''}`;
     }
+    let layoutTimer = 0;
+    function scheduleLayoutPreview() { clearTimeout(layoutTimer); layoutTimer = setTimeout(renderLayoutPreview, 150); }
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -5665,16 +5673,16 @@ const SHADOW_MODAL_STYLES = `
       discordWebhookReveal.setAttribute('aria-expanded', 'true');
       discordWebhookInput.focus();
     });
-    discordLayoutInput?.addEventListener('input', renderLayoutPreview);
-    discordDealerEmbedToggle?.addEventListener('change', renderLayoutPreview);
-    discordProductEmbedToggle?.addEventListener('change', renderLayoutPreview);
+    discordLayoutInput?.addEventListener('input', scheduleLayoutPreview);
+    discordDealerEmbedToggle?.addEventListener('change', scheduleLayoutPreview);
+    discordProductEmbedToggle?.addEventListener('change', scheduleLayoutPreview);
     for (const [name, recipe] of Object.entries(LAYOUT_PRESETS)) {
       shadow.getElementById(`tp-discord-layout-preset-${name}`)?.addEventListener('click', () => {
         if (!discordLayoutInput) return;
         const current = discordLayoutInput.value;
         if (!Object.values(LAYOUT_PRESETS).includes(current) && !window.confirm('Layout ersetzen?')) return;
         discordLayoutInput.value = recipe;
-        renderLayoutPreview();
+        scheduleLayoutPreview();
       });
     }
     shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
@@ -5683,12 +5691,12 @@ const SHADOW_MODAL_STYLES = `
       const { selectionStart = discordLayoutInput.value.length, selectionEnd = discordLayoutInput.value.length } = discordLayoutInput;
       discordLayoutInput.value = discordLayoutInput.value.slice(0, selectionStart) + token + discordLayoutInput.value.slice(selectionEnd);
       discordLayoutInput.focus();
-      renderLayoutPreview();
+      scheduleLayoutPreview();
     });
     discordLayoutReset?.addEventListener('click', () => {
       if (!discordLayoutInput) return;
       discordLayoutInput.value = DEFAULT_LAYOUT;
-      renderLayoutPreview();
+      scheduleLayoutPreview();
     });
 
 
@@ -5843,14 +5851,9 @@ const SHADOW_MODAL_STYLES = `
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
       if (discordLayoutInput) {
         const value = String(discordLayoutInput.value || '');
-        const names = [...value.matchAll(/\{([^}]*)\}/g)].map(m => m[1]);
-        const unknown = names.filter(n => !LAYOUT_TOKENS.has(n));
-        if (!value.trim()) {
-          if (discordLayoutError) discordLayoutError.textContent = 'Layout ist leer';
-          return;
-        }
-        if (unknown.length) {
-          if (discordLayoutError) discordLayoutError.textContent = `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}`;
+        const err = validateLayoutRecipe(value);
+        if (err) {
+          if (discordLayoutError) discordLayoutError.textContent = err;
           return;
         }
         updates.DISCORD_LAYOUT = value;
@@ -6818,6 +6821,35 @@ const SHADOW_MODAL_STYLES = `
   // Zeilenanfang. · blendet leere Nachbarn aus, {link} nur bei aktivem Embed.
   const DEFAULT_LAYOUT = '## {title}\n# {price}\n-# {dealer} · {offers}\n{spark}\n{prevlow} · {median}\n{link}';
   const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
+  function validateLayoutRecipe(recipe) {
+    const value = String(recipe ?? '');
+    if (!value.trim()) return 'Layout ist leer';
+    const unknown = [...new Set([...value.matchAll(/\{([^}]*)\}/g)].map(m => m[1]))].filter(n => !LAYOUT_TOKENS.has(n));
+    return unknown.length ? `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}` : null;
+  }
+  const escapePreviewHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const mdInlineText = text => text
+    .replace(/(?<!&lt;)https?:\/\/[^\s<]+?(?=&gt;|[\s<]|$)/g, '<span class="tp-md-url">$&</span>')
+    .replace(/&lt;(https?:\/\/\S+?)&gt;/g, '<span class="tp-md-url">$1</span>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  function renderDiscordMarkdownPreview(markdown) {
+    return String(markdown ?? '').replace(/\r/g, '').split('\n').map(rawLine => {
+      let line = rawLine;
+      let cls = '';
+      const prefix = line.match(/^(##|#|-#)\s?/);
+      if (prefix) {
+        cls = prefix[1] === '##' ? 'tp-md-lg' : prefix[1] === '#' ? 'tp-md-md' : 'tp-md-sm';
+        line = line.slice(prefix[0].length);
+      }
+      const parts = escapePreviewHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
+      let html = '';
+      for (let i = 0; i < parts.length; i += 3) {
+        html += mdInlineText(parts[i]);
+        if (i + 2 < parts.length) html += `<span class="tp-md-link">${parts[i + 1]}</span> <span class="tp-md-url">${parts[i + 2].replace(/^&lt;|&gt;$/g, '')}</span>`;
+      }
+      return cls ? `<span class="${cls}">${html}</span>` : html;
+    }).join('<br>');
+  }
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
   const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();

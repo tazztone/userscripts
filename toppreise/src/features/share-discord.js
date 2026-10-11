@@ -142,6 +142,35 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
 // Zeilenanfang. · blendet leere Nachbarn aus, {link} nur bei aktivem Embed.
 export const DEFAULT_LAYOUT = '## {title}\n# {price}\n-# {dealer} · {offers}\n{spark}\n{prevlow} · {median}\n{link}';
 export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
+export function validateLayoutRecipe(recipe) {
+  const value = String(recipe ?? '');
+  if (!value.trim()) return 'Layout ist leer';
+  const unknown = [...new Set([...value.matchAll(/\{([^}]*)\}/g)].map(m => m[1]))].filter(n => !LAYOUT_TOKENS.has(n));
+  return unknown.length ? `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}` : null;
+}
+const escapePreviewHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const mdInlineText = text => text
+  .replace(/(?<!&lt;)https?:\/\/[^\s<]+?(?=&gt;|[\s<]|$)/g, '<span class="tp-md-url">$&</span>')
+  .replace(/&lt;(https?:\/\/\S+?)&gt;/g, '<span class="tp-md-url">$1</span>')
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+export function renderDiscordMarkdownPreview(markdown) {
+  return String(markdown ?? '').replace(/\r/g, '').split('\n').map(rawLine => {
+    let line = rawLine;
+    let cls = '';
+    const prefix = line.match(/^(##|#|-#)\s?/);
+    if (prefix) {
+      cls = prefix[1] === '##' ? 'tp-md-lg' : prefix[1] === '#' ? 'tp-md-md' : 'tp-md-sm';
+      line = line.slice(prefix[0].length);
+    }
+    const parts = escapePreviewHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
+    let html = '';
+    for (let i = 0; i < parts.length; i += 3) {
+      html += mdInlineText(parts[i]);
+      if (i + 2 < parts.length) html += `<span class="tp-md-link">${parts[i + 1]}</span> <span class="tp-md-url">${parts[i + 2].replace(/^&lt;|&gt;$/g, '')}</span>`;
+    }
+    return cls ? `<span class="${cls}">${html}</span>` : html;
+  }).join('<br>');
+}
 const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
 const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
 const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
