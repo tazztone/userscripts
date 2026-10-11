@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.163
+// @version      2.18.164
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5739,7 +5739,11 @@ const SHADOW_MODAL_STYLES = `
       // share one cache key), so a mode change must invalidate them.
       const shippingChanged = !!shippingToggle && CONFIG.USE_SHIPPING_PRICE !== shippingToggle.checked;
       if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
-
+      // Cached analyses also bake in the median horizon (window + label), so a
+      // horizon change must invalidate them the same way.
+      const rawHorizon = bestpreiseHorizonSelect ? parseInt(bestpreiseHorizonSelect.value, 10) : NaN;
+      const newHorizon = isNaN(rawHorizon) ? 0 : rawHorizon;
+      const horizonChanged = !!bestpreiseHorizonSelect && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
       const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
@@ -5761,8 +5765,7 @@ const SHADOW_MODAL_STYLES = `
           updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
         }
         if (bestpreiseHorizonSelect) {
-          const rawH = parseInt(bestpreiseHorizonSelect.value, 10);
-          updates.BESTPREISE_MEDIAN_HORIZON_DAYS = isNaN(rawH) ? 0 : rawH;
+          updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
         }
         if (bestpreiseMinPointsVal) {
           updates.BESTPREISE_MIN_POINTS = clampMinPoints(bestpreiseMinPointsVal.value);
@@ -5781,6 +5784,7 @@ const SHADOW_MODAL_STYLES = `
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
       updateConfigs(updates);
       if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
+      if (horizonChanged) clearPriceStatsCache();
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });

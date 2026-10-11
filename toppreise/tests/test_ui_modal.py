@@ -355,6 +355,34 @@ def test_bestpreise_settings_horizon_selection_persistence(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
 
 
+def test_horizon_change_evicts_cached_price_stats(page: Page):
+    # Cached analyses bake in the old horizon (median window + Ø label), so a
+    # horizon change + Save must evict them or cards keep showing "1J" till TTL.
+    page.evaluate("""() => {
+        localStorage.clear();
+        const stats = { tiefstpreis: 1800, medianPrice: 2400, horizonDays: 365, time: Date.now() };
+        localStorage.setItem('tp_hist_v1_horizon', JSON.stringify(stats));
+    }""")
+    open_settings(page, advanced=True)
+
+    toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
+    if not toggle.is_checked():
+        page.click('#tp-root >> #tp-bestpreise-mode-toggle + .tp-slider')
+    page.select_option('#tp-root >> #tp-bestpreise-horizon-select', '90')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 90
+    remaining = page.evaluate("""() => {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('tp_hist_v1_')) keys.push(k);
+        }
+        return keys;
+    }""")
+    assert remaining == []
+
 
 def test_cache_settings_and_clear_button(page: Page):
     # Seed local storage with 2 fake cache items
