@@ -13,7 +13,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 Every userscript resides in its own subdirectory:
 
 - **`RESEARCH_LOG.md`**: Rigorous documentation of the target site's DOM structure, robust selectors, and visual heuristics. Used to ensure longevity against UI updates.
-- **`[name].user.js`**: The source code following a strict component separation (CONFIG, STYLES, UTILITIES, LOGIC, ORCHESTRATION).
+- **`[name].user.js`**: The distributable bundle. Larger scripts keep modular sources under `[name]/src/` and compile the bundle via `node [name]/tools/build.js` (`--check` verifies integrity); smaller scripts keep the single-file layout.
 - **`README.md`**: User guide containing configuration mapping and quick-install links.
 - **`tests/`** (Optional): Testing infrastructure (e.g., Playwright) to verify logic against mock environments.
 

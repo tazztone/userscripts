@@ -172,10 +172,10 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
   Subline combines: `Bisher: CHF … · Ø-Preis (1J): CHF 460.00` (fallback reads
   `Lifetime`).
 
-### Deal-Score (`deal-score.js`)
+### Gewichtete Differenz (`deal-score.js`, ADR-0005)
 
 ```
-Score = max(0, round((1−W)·D_median + W·D_record))
+Blend = max(0, round((1−W)·D_median + W·D_record))
 D_median  = (P_median − P_curr)/P_median × 100      (everyday savings)
 D_record  = (P_prev_low − P_curr)/P_prev_low × 100  (0 if matching record)
 W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar slider 0–100 step 5
@@ -184,17 +184,16 @@ W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar slider 0–100 step 
             modal control two-way synced, skipped mid-drag)
 ```
 
-Gate: at/below low, ≥2% lifetime variance, ≥5 points, Score > 0 —
-else `null` (hidden via `.tp-bestpreise-hidden`). The score **ranks only**
-(feed sort, ⚖️ weight slider); it drives no color and no badge text. Badge
-shows the event: `Real Deal · Rekord −D_record%` for significant new records
-(raw ≥ 2.0% decides, rounded % displays; else plain `Tiefstpreis 🌟`), `Real Deal · Ø-Preis −D_median%` at a
-matched low — never the score, never the site Differenz once verified.
-Sub-pill `Rek: −X% · Ø: −Y%`; tooltip carries the ranking score + color
-legend. Gold halo = significant new record, emerald = at low; tooltip breaks
-down `Ø-Rabatt` / `Rekord-Marge`.
-Feed sorts Score ↓. Toggle `💎 Neue Bestpreise` is instant client-side (0
-network); `🔍 Check Deals` / `≥30%` stay active to stream-threshold-scan into it.
+Gate: at/below low, ≥2% lifetime variance, ≥5 points, Blend > 0 —
+else `null` (hidden via `.tp-bestpreise-hidden`). One metric everywhere:
+the blend prints on the badge (`⚖️ −X%`), drives card heat via
+`getHeatInput()` and feed sort ↓. Rek/Ø survive only as a consolidated
+split in the subline (`📉 CHF curr (−X%) · Ø (1J) CHF med (−Y%)`); the
+percent-less star fallback and `Rekord`/`Ø-Preis` ribbon kind words are gone.
+±5% deadband: tiny blend prints but stays gray. No-blend fallback (thin
+history, no median): `Vortief-Abstand` on the badge + inset edge glow only,
+never full wash. Toggle `💎 Neue Tiefstpreise` is instant client-side (0
+network); `🔍 Tiefstpreise prüfen` / `≥30%` stay active to stream-threshold-scan into it.
 
 ### Cache + scanner pacing
 

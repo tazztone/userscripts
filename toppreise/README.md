@@ -16,7 +16,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 
 ## ⚡ Features
 
-1. **💎 Neue Tiefstpreise: Kuratierter Tiefstpreis-Feed mit Gewichteter Differenz & Statistischem Filter (v2.18.190)**:
+1. **💎 Neue Tiefstpreise: Kuratierter Tiefstpreis-Feed mit Gewichteter Differenz & Statistischem Filter**:
    - **1-Klick-Feed-Modus (`[ 💎 Neue Tiefstpreise ]`)**: Verwandelt `/neue-toppreise` per Knopfdruck in einen echten Tiefstpreis-Feed. Filtert Schein-Rabatte und unvollständige Daten automatisch aus und sortiert alle Angebote nach echter Ersparnis.
    - **🔥 Gewichtete-Differenz Ranking & Badge-Heatmap (gekoppelt)**: Für jedes verifizierte Angebot wird die Gewichtete Differenz aus Median-Rabatt ($D_{\text{median}}$) und Allzeit-Rekordmarge ($D_{\text{record}}$) berechnet — **eine Zahl**: Sie steht auf dem Ribbon, färbt Karte + Badge auf einer Grau→Rot-Skala (tiefrot = grosser Tiefstpreis, grau = kein Rabatt) und sortiert den Feed. Niemals der Score und nach Prüfung niemals die Differenz — Aufschläge bleiben grau (`+XX%` steht im Badge). Blasse Farben = ungeprü…
   - **📅 Rollierender Median-Zeithorizont (Slider: 30–730 Tage + Lifetime)**: Verhindert verzerrte Durchschnittspreise bei älteren Produkten (z. B. 2–3 Jahre alte Grafikkarten/Fernseher mit hohem Launch-UVP). In den Einstellungen kann der Vergleichszeitraum für den Marktpreis frei gewählt werden (Standard: 1 Jahr / 365 Tage). Ein Wechsel (Leiste oder Einstellungen) rechnet alle gecachten Mediane sofort lokal neu — Karten aktualisieren sich live ohne erneute Prüfung oder Netzabfrage.
@@ -92,12 +92,12 @@ Klicke auf das schwebende **Zahnrad-Symbol** unten rechts auf Toppreise.ch, um d
 
 ## 🏗️ Architecture & Development
 
-The source code is modularized under `src/` (22 modules; `node tools/build.js` concatenates them in load-bearing order):
+The source code is modularized under `src/` (23 modules; `node tools/build.js` concatenates them in load-bearing order):
 - `src/domain/`: `price.js` (parsing, cents, time-series, horizons), `deal-score.js` (Tiefstpreis classification, Gewichtete Differenz).
 - `src/page/`: `selectors.js` (immutable `SELECTORS` registry), `adapter.js` (DOM/price extraction), `cards.js` (card data, heat ramp), `sort.js` (grid sorting).
 - `src/scanner/`: `cache.js` (bounded LRU + TTL + pruning), `scanner.js` (fetch orchestration).
 - `src/state/`: `config.js` (2-layer persistence, UI sync), `store.js` (runtime scan state).
-- `src/ui/`: `shell.js` (shadow skeleton), `styles.js` (design tokens), `modal.js` (settings dialog), `toolbar.js` (filter bar), `badges.js` (deal badges), `sparkline.js` (SVG sparklines), `floating-cta.js` (batch check CTA), `toast.js` (notifications).
+- `src/ui/`: `shell.js` (shadow skeleton), `styles.js` (design tokens), `modal.js` (settings dialog), `toolbar.js` (filter bar), `mini-toggle.js` (toggle primitive), `badges.js` (deal badges), `sparkline.js` (SVG sparklines), `floating-cta.js` (batch check CTA), `toast.js` (notifications).
 - `src/features/`: `share-discord.js` (webhook sharing), `price-alarm.js` (drop alerts), `product-detail.js` (detail-page badge).
 - `src/app.js`: orchestration, observers, DOM lifecycle.
 
