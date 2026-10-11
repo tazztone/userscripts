@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 
@@ -139,13 +139,11 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-          <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple tp-field-dark">
-            <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
-            <option value="180">6 Monate (180 Tage)</option>
-            <option value="90">3 Monate (90 Tage)</option>
-            <option value="0">Gesamte Historie (Lifetime)</option>
-          </select>
-          <span class="tp-switch-desc tp-field-hint">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+          <div class="tp-range-container tp-purple">
+            <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
+            <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
+          </div>
+          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
         </div>
         <div class="tp-settings-group">
           <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
@@ -315,7 +313,9 @@ export function setupUI() {
   const bestpreiseMinPointsRange = shadow.getElementById('tp-bestpreise-minpoints-range');
   const bestpreiseMinPointsVal = shadow.getElementById('tp-bestpreise-minpoints-val');
   const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
-  const bestpreiseHorizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
+  const bestpreiseHorizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
+  const bestpreiseHorizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
+  const bestpreiseHorizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
   const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
   const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
   const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
@@ -378,8 +378,11 @@ export function setupUI() {
     if (bestpreiseHorizonGroup) {
       bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
     }
-    if (bestpreiseHorizonSelect) {
-      bestpreiseHorizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
+    {
+      const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
+      if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
+      if (bestpreiseHorizonVal) bestpreiseHorizonVal.value = stored;
+      if (bestpreiseHorizonDesc) bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
     }
 
     if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
@@ -437,6 +440,14 @@ export function setupUI() {
     }
   };
   bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
+  bindDual(bestpreiseHorizonRange, bestpreiseHorizonVal, (raw) => {
+    const v = isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+    if (bestpreiseHorizonDesc) bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+    if (v === 0) {
+      if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = 760;
+      if (bestpreiseHorizonVal && raw > 730) bestpreiseHorizonVal.value = 0;
+    }
+  });
   if (bestpreiseMinPointsRange && bestpreiseMinPointsVal) {
     bestpreiseMinPointsRange.addEventListener('input', e => {
       bestpreiseMinPointsVal.value = minPointsFromIndex(e.target.value);
@@ -574,9 +585,10 @@ export function setupUI() {
     if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
     // Cached analyses bake in the median horizon — recompute them locally
     // from the retained series (no network) before the single repaint below.
-    const rawHorizon = bestpreiseHorizonSelect ? parseInt(bestpreiseHorizonSelect.value, 10) : NaN;
-    const newHorizon = isNaN(rawHorizon) ? 0 : rawHorizon;
-    const horizonChanged = !!bestpreiseHorizonSelect && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
+    const rawHorizon = bestpreiseHorizonVal ? parseInt(bestpreiseHorizonVal.value, 10)
+      : (bestpreiseHorizonRange ? parseInt(bestpreiseHorizonRange.value, 10) : NaN);
+    const newHorizon = isNaN(rawHorizon) ? 365 : (rawHorizon <= 0 || rawHorizon > 730 ? 0 : Math.min(730, Math.max(30, rawHorizon)));
+    const horizonChanged = !!(bestpreiseHorizonVal || bestpreiseHorizonRange) && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
     const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
     if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
@@ -597,7 +609,7 @@ export function setupUI() {
         const weightNum = isNaN(rawW) ? 50 : rawW;
         updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
       }
-      if (bestpreiseHorizonSelect) {
+      if (bestpreiseHorizonVal || bestpreiseHorizonRange) {
         updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
       }
       if (bestpreiseMinPointsVal) {

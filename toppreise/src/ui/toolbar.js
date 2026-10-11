@@ -5,7 +5,7 @@
  */
 
 import { SELECTORS } from "../page/selectors.js";
-import { CONFIG, updateConfig, weightText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, paintMinPoints } from "../state/config.js";
+import { CONFIG, updateConfig, weightText, horizonText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, paintMinPoints } from "../state/config.js";
 import {
   cancelBestpreiseScan
 } from "../scanner/scanner.js";
@@ -192,20 +192,39 @@ function buildMinPointsWrapper() {
   return wrapper;
 }
 
-const HORIZON_SHORT_LABELS = { 365: '1J', 180: '180T', 90: '90T', 0: 'Lifetime' };
-
 function bindHorizonControls(wrapper) {
   if (!wrapper) return;
-  const select = wrapper.querySelector('#tp-bar-horizon-select');
-  if (!select) return;
-  select.onchange = () => {
-    const raw = parseInt(select.value, 10);
-    const v = isNaN(raw) ? 365 : raw;
-    // recompute BEFORE updateConfig: its trailing processListings then
-    // renders the fresh medians in a single pass, zero network.
+  const range = wrapper.querySelector('#tp-bar-horizon-range');
+  const label = wrapper.querySelector('#tp-bar-horizon-label');
+  if (!range) return;
+  const readHorizon = () => {
+    const raw = parseInt(range.value, 10);
+    return isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+  };
+  const paintHorizonLabel = () => {
+    if (!label) return;
+    const v = readHorizon();
+    label.textContent = horizonText(v);
+    label.title = horizonText(v, 'title');
+  };
+  paintHorizonLabel();
+  let deb;
+  range.oninput = () => {
+    paintHorizonLabel();
+    clearTimeout(deb);
+    deb = setTimeout(() => {
+      const v = readHorizon();
+      recomputeCachedMedians(v);
+      updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
+    }, 1000);
+  };
+  range.onchange = () => {
+    clearTimeout(deb);
+    const v = readHorizon();
+    paintHorizonLabel();
     recomputeCachedMedians(v);
     updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — live aktualisiert`);
+    showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
   };
 }
 
@@ -217,12 +236,8 @@ function buildHorizonWrapper() {
   wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel rechnet gecachte Mediane lokal neu — ohne Netz.';
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Ø-Zeitraum</span>
-    <select id="tp-bar-horizon-select" title="Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen], 6 Monate, 3 Monate, Lifetime">
-      <option value="365"${cur === 365 ? ' selected' : ''}>1J</option>
-      <option value="180"${cur === 180 ? ' selected' : ''}>180T</option>
-      <option value="90"${cur === 90 ? ' selected' : ''}>90T</option>
-      <option value="0"${cur === 0 ? ' selected' : ''}>Lifetime</option>
-    </select>`;
+    <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
+    <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${cur === 0 ? 760 : cur}" title="${horizonText(cur, 'title')}">`;
   bindHorizonControls(wrapper);
   return wrapper;
 }
@@ -444,9 +459,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (minPointsWrapper) {
     minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
-  const horizonSelect = document.getElementById('tp-bar-horizon-select');
-  if (horizonSelect && document.activeElement !== horizonSelect) {
-    horizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
+  const horizonRange = document.getElementById('tp-bar-horizon-range');
+  if (horizonRange && document.activeElement !== horizonRange) {
+    const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
+    horizonRange.value = stored === 0 ? 760 : stored;
+    const horizonLabel = document.getElementById('tp-bar-horizon-label');
+    if (horizonLabel) {
+      horizonLabel.textContent = horizonText(stored);
+      horizonLabel.title = horizonText(stored, 'title');
+    }
   }
   const horizonWrapper = document.getElementById('tp-bar-horizon-wrapper');
   if (horizonWrapper) {

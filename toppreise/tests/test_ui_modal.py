@@ -345,8 +345,8 @@ def test_bestpreise_settings_horizon_selection_persistence(page: Page):
     horizon_group = page.locator('#tp-root >> #tp-bestpreise-horizon-group')
     assert horizon_group.is_visible()
 
-    # Change horizon select to 180 days (6 months)
-    page.select_option('#tp-root >> #tp-bestpreise-horizon-select', '180')
+    # Type 180 days into the horizon number input (6 months)
+    page.fill('#tp-root >> #tp-bestpreise-horizon-val', '180')
 
     # Save
     page.click('#tp-root >> #tp-btn-save')
@@ -380,7 +380,7 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
     toggle = page.locator('#tp-root >> #tp-bestpreise-mode-toggle')
     if not toggle.is_checked():
         page.click('#tp-root >> #tp-bestpreise-mode-toggle + .tp-slider')
-    page.select_option('#tp-root >> #tp-bestpreise-horizon-select', '90')
+    page.fill('#tp-root >> #tp-bestpreise-horizon-val', '90')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.166
+// @version      2.18.167
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -785,13 +785,15 @@ const STYLES = `
     margin-right: 8px !important;
     flex-shrink: 0 !important;
   }
-  #tp-bar-horizon-select {
-    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: #475569 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
+  #tp-bar-horizon-range {
+    width: 84px !important;
+    accent-color: #6366f1 !important;
     cursor: pointer !important;
+    height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    align-self: center !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;
@@ -820,7 +822,7 @@ const STYLES = `
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #475569 !important; }
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: #64748b !important; }
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: #059669 !important; }
-  .tp-weight-label {
+  .tp-weight-label, #tp-bar-horizon-label {
     color: #475569 !important;
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     white-space: nowrap !important;
@@ -2214,7 +2216,7 @@ const SHADOW_MODAL_STYLES = `
    */
   function medianHorizonLabel(stats) {
     if (stats && stats.horizonDays > 0 && !stats.medianFallback) {
-      return stats.horizonDays >= 365 ? '1J' : `${stats.horizonDays}T`;
+      return stats.horizonDays === 365 ? '1J' : `${stats.horizonDays}T`;
     }
     return 'Lifetime';
   }
@@ -2587,6 +2589,18 @@ const SHADOW_MODAL_STYLES = `
     return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz ${weightedDiff}`;
   }
 
+  function horizonText(days, style = 'short') {
+    const d = (typeof days !== 'number' || isNaN(days) || days < 0) ? 365 : days;
+    if (style === 'title') {
+      if (d === 0) return 'Median-Berechnungszeitraum: gesamte Historie (Lifetime)';
+      if (d === 365) return 'Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen]';
+      return `Median-Berechnungszeitraum: ${d} Tage`;
+    }
+    if (d === 0) return 'Lifetime';
+    if (d === 365) return '1J';
+    return `${d}T`;
+  }
+
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: true,
     FILTER_MIN_ENABLED: true,
@@ -2824,12 +2838,24 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'BESTPREISE_MEDIAN_HORIZON_DAYS': {
-            const horizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
-            if (horizonSelect) horizonSelect.value = String(val ?? 365);
-            // Toolbar select mirrors the modal control (skip while interacting).
+            const stored = val ?? 365;
+            const horizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
+            if (horizonRange) horizonRange.value = stored === 0 ? 760 : stored;
+            const horizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
+            if (horizonVal) horizonVal.value = stored;
+            const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
+            if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+            // Toolbar range mirrors the modal control (skip while interacting).
             if (typeof document !== 'undefined') {
-              const barSelect = document.getElementById('tp-bar-horizon-select');
-              if (barSelect && document.activeElement !== barSelect) barSelect.value = String(val ?? 365);
+              const barRange = document.getElementById('tp-bar-horizon-range');
+              if (barRange && document.activeElement !== barRange) {
+                barRange.value = stored === 0 ? 760 : stored;
+                const barLabel = document.getElementById('tp-bar-horizon-label');
+                if (barLabel) {
+                  barLabel.textContent = horizonText(stored);
+                  barLabel.title = horizonText(stored, 'title');
+                }
+              }
             }
             break;
           }
@@ -5369,13 +5395,11 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-            <select id="tp-bestpreise-horizon-select" class="tp-select tp-purple tp-field-dark">
-              <option value="365">1 Jahr (365 Tage) [Empfohlen]</option>
-              <option value="180">6 Monate (180 Tage)</option>
-              <option value="90">3 Monate (90 Tage)</option>
-              <option value="0">Gesamte Historie (Lifetime)</option>
-            </select>
-            <span class="tp-switch-desc tp-field-hint">Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
+              <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
+            </div>
+            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
           </div>
           <div class="tp-settings-group">
             <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
@@ -5545,7 +5569,9 @@ const SHADOW_MODAL_STYLES = `
     const bestpreiseMinPointsRange = shadow.getElementById('tp-bestpreise-minpoints-range');
     const bestpreiseMinPointsVal = shadow.getElementById('tp-bestpreise-minpoints-val');
     const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
-    const bestpreiseHorizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
+    const bestpreiseHorizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
+    const bestpreiseHorizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
+    const bestpreiseHorizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
     const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
     const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
     const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
@@ -5608,8 +5634,11 @@ const SHADOW_MODAL_STYLES = `
       if (bestpreiseHorizonGroup) {
         bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
       }
-      if (bestpreiseHorizonSelect) {
-        bestpreiseHorizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
+      {
+        const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
+        if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
+        if (bestpreiseHorizonVal) bestpreiseHorizonVal.value = stored;
+        if (bestpreiseHorizonDesc) bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
       }
 
       if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
@@ -5667,6 +5696,14 @@ const SHADOW_MODAL_STYLES = `
       }
     };
     bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
+    bindDual(bestpreiseHorizonRange, bestpreiseHorizonVal, (raw) => {
+      const v = isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+      if (bestpreiseHorizonDesc) bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+      if (v === 0) {
+        if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = 760;
+        if (bestpreiseHorizonVal && raw > 730) bestpreiseHorizonVal.value = 0;
+      }
+    });
     if (bestpreiseMinPointsRange && bestpreiseMinPointsVal) {
       bestpreiseMinPointsRange.addEventListener('input', e => {
         bestpreiseMinPointsVal.value = minPointsFromIndex(e.target.value);
@@ -5804,9 +5841,10 @@ const SHADOW_MODAL_STYLES = `
       if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
       // Cached analyses bake in the median horizon — recompute them locally
       // from the retained series (no network) before the single repaint below.
-      const rawHorizon = bestpreiseHorizonSelect ? parseInt(bestpreiseHorizonSelect.value, 10) : NaN;
-      const newHorizon = isNaN(rawHorizon) ? 0 : rawHorizon;
-      const horizonChanged = !!bestpreiseHorizonSelect && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
+      const rawHorizon = bestpreiseHorizonVal ? parseInt(bestpreiseHorizonVal.value, 10)
+        : (bestpreiseHorizonRange ? parseInt(bestpreiseHorizonRange.value, 10) : NaN);
+      const newHorizon = isNaN(rawHorizon) ? 365 : (rawHorizon <= 0 || rawHorizon > 730 ? 0 : Math.min(730, Math.max(30, rawHorizon)));
+      const horizonChanged = !!(bestpreiseHorizonVal || bestpreiseHorizonRange) && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
       const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
@@ -5827,7 +5865,7 @@ const SHADOW_MODAL_STYLES = `
           const weightNum = isNaN(rawW) ? 50 : rawW;
           updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
         }
-        if (bestpreiseHorizonSelect) {
+        if (bestpreiseHorizonVal || bestpreiseHorizonRange) {
           updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
         }
         if (bestpreiseMinPointsVal) {
@@ -6070,20 +6108,39 @@ const SHADOW_MODAL_STYLES = `
     return wrapper;
   }
 
-  const HORIZON_SHORT_LABELS = { 365: '1J', 180: '180T', 90: '90T', 0: 'Lifetime' };
-
   function bindHorizonControls(wrapper) {
     if (!wrapper) return;
-    const select = wrapper.querySelector('#tp-bar-horizon-select');
-    if (!select) return;
-    select.onchange = () => {
-      const raw = parseInt(select.value, 10);
-      const v = isNaN(raw) ? 365 : raw;
-      // recompute BEFORE updateConfig: its trailing processListings then
-      // renders the fresh medians in a single pass, zero network.
+    const range = wrapper.querySelector('#tp-bar-horizon-range');
+    const label = wrapper.querySelector('#tp-bar-horizon-label');
+    if (!range) return;
+    const readHorizon = () => {
+      const raw = parseInt(range.value, 10);
+      return isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+    };
+    const paintHorizonLabel = () => {
+      if (!label) return;
+      const v = readHorizon();
+      label.textContent = horizonText(v);
+      label.title = horizonText(v, 'title');
+    };
+    paintHorizonLabel();
+    let deb;
+    range.oninput = () => {
+      paintHorizonLabel();
+      clearTimeout(deb);
+      deb = setTimeout(() => {
+        const v = readHorizon();
+        recomputeCachedMedians(v);
+        updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
+      }, 1000);
+    };
+    range.onchange = () => {
+      clearTimeout(deb);
+      const v = readHorizon();
+      paintHorizonLabel();
       recomputeCachedMedians(v);
       updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-      showToast(`Ø-Vergleichszeitraum: ${HORIZON_SHORT_LABELS[v] || v} — live aktualisiert`);
+      showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
     };
   }
 
@@ -6095,12 +6152,8 @@ const SHADOW_MODAL_STYLES = `
     wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel rechnet gecachte Mediane lokal neu — ohne Netz.';
     wrapper.innerHTML = `
       <span class="tp-stepper-label">Ø-Zeitraum</span>
-      <select id="tp-bar-horizon-select" title="Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen], 6 Monate, 3 Monate, Lifetime">
-        <option value="365"${cur === 365 ? ' selected' : ''}>1J</option>
-        <option value="180"${cur === 180 ? ' selected' : ''}>180T</option>
-        <option value="90"${cur === 90 ? ' selected' : ''}>90T</option>
-        <option value="0"${cur === 0 ? ' selected' : ''}>Lifetime</option>
-      </select>`;
+      <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
+      <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${cur === 0 ? 760 : cur}" title="${horizonText(cur, 'title')}">`;
     bindHorizonControls(wrapper);
     return wrapper;
   }
@@ -6322,9 +6375,15 @@ const SHADOW_MODAL_STYLES = `
     if (minPointsWrapper) {
       minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
-    const horizonSelect = document.getElementById('tp-bar-horizon-select');
-    if (horizonSelect && document.activeElement !== horizonSelect) {
-      horizonSelect.value = String(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365);
+    const horizonRange = document.getElementById('tp-bar-horizon-range');
+    if (horizonRange && document.activeElement !== horizonRange) {
+      const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
+      horizonRange.value = stored === 0 ? 760 : stored;
+      const horizonLabel = document.getElementById('tp-bar-horizon-label');
+      if (horizonLabel) {
+        horizonLabel.textContent = horizonText(stored);
+        horizonLabel.title = horizonText(stored, 'title');
+      }
     }
     const horizonWrapper = document.getElementById('tp-bar-horizon-wrapper');
     if (horizonWrapper) {

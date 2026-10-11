@@ -158,7 +158,7 @@ export function getLevelPct(cardPrice, stats, signed = false) {
  */
 export function medianHorizonLabel(stats) {
   if (stats && stats.horizonDays > 0 && !stats.medianFallback) {
-    return stats.horizonDays >= 365 ? '1J' : `${stats.horizonDays}T`;
+    return stats.horizonDays === 365 ? '1J' : `${stats.horizonDays}T`;
   }
   return 'Lifetime';
 }

@@ -34,6 +34,18 @@ export function weightText(weightRecord, style) {
   return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz ${weightedDiff}`;
 }
 
+export function horizonText(days, style = 'short') {
+  const d = (typeof days !== 'number' || isNaN(days) || days < 0) ? 365 : days;
+  if (style === 'title') {
+    if (d === 0) return 'Median-Berechnungszeitraum: gesamte Historie (Lifetime)';
+    if (d === 365) return 'Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen]';
+    return `Median-Berechnungszeitraum: ${d} Tage`;
+  }
+  if (d === 0) return 'Lifetime';
+  if (d === 365) return '1J';
+  return `${d}T`;
+}
+
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
@@ -271,12 +283,24 @@ export function syncUiControl(key, val) {
           break;
         }
         case 'BESTPREISE_MEDIAN_HORIZON_DAYS': {
-          const horizonSelect = shadow.getElementById('tp-bestpreise-horizon-select');
-          if (horizonSelect) horizonSelect.value = String(val ?? 365);
-          // Toolbar select mirrors the modal control (skip while interacting).
+          const stored = val ?? 365;
+          const horizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
+          if (horizonRange) horizonRange.value = stored === 0 ? 760 : stored;
+          const horizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
+          if (horizonVal) horizonVal.value = stored;
+          const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
+          if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+          // Toolbar range mirrors the modal control (skip while interacting).
           if (typeof document !== 'undefined') {
-            const barSelect = document.getElementById('tp-bar-horizon-select');
-            if (barSelect && document.activeElement !== barSelect) barSelect.value = String(val ?? 365);
+            const barRange = document.getElementById('tp-bar-horizon-range');
+            if (barRange && document.activeElement !== barRange) {
+              barRange.value = stored === 0 ? 760 : stored;
+              const barLabel = document.getElementById('tp-bar-horizon-label');
+              if (barLabel) {
+                barLabel.textContent = horizonText(stored);
+                barLabel.title = horizonText(stored, 'title');
+              }
+            }
           }
           break;
         }

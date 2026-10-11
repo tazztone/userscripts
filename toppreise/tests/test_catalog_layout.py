@@ -1364,8 +1364,8 @@ def test_minpoints_slider_in_filter_bar(page: Page):
 
 def test_horizon_select_in_filter_bar(page: Page):
     """
-    Validates that the Ø-Zeitraum select sits in the Zeitraum row directly after
-    Gewicht when Tiefstpreise mode is active, and changing it recomputes the
+    Validates that the Ø-Zeitraum slider sits in the Zeitraum row directly after
+    Gewicht when Tiefstpreise mode is active, and dragging it recomputes the
     cached median locally (no eviction, no pricechart request) and relabels
     cards live — both surfaces stay synced.
     """
@@ -1395,36 +1395,56 @@ def test_horizon_select_in_filter_bar(page: Page):
     assert horizon_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-weight-wrapper'")
     assert 'Median-Berechnungszeitraum' in (horizon_wrapper.get_attribute('title') or '')
 
-    horizon_select = page.locator('#tp-bar-horizon-select')
-    assert horizon_select.evaluate("e => [...e.options].map(o => o.value)") == ['365', '180', '90', '0']
-    assert horizon_select.input_value() == '365'
+    horizon_range = page.locator('#tp-bar-horizon-range')
+    assert horizon_range.get_attribute('min') == '30'
+    assert horizon_range.get_attribute('max') == '760'
+    assert horizon_range.get_attribute('step') == '30'
+    assert horizon_range.input_value() == '360'  # 365 off-grid: snaps visually, stored stays 365
+    assert page.locator('#tp-bar-horizon-label').inner_text() == '1J'
     assert 'Ø (1J)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
 
     # Any pricechart request from here on is a live-update violation.
     hits = []
     page.route('**/plugins/product/pricechart*', lambda route: (hits.append(route.request.url), route.abort()))
 
-    # Changing the bar select recomputes in place: entry survives with the new
-    # window median, the card relabels without refetch.
-    page.select_option('#tp-bar-horizon-select', '90')
-    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 90")
+    # Dragging the bar slider recomputes in place: entry survives with the new
+    # window horizon, the card relabels without refetch.
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-horizon-range');
+        r.value = '120';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 120")
     entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571'))")
-    assert entry['horizonDays'] == 90
-    assert entry['medianPrice'] == 2000
+    assert entry['horizonDays'] == 120
     assert entry['medianFallback'] is False
-    assert 'Ø (90T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+    assert page.locator('#tp-bar-horizon-label').inner_text() == '120T'
+    assert 'Ø (120T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
     assert hits == []
     toast = page.locator('#tp-root >> .tp-toast').last
     assert 'Ø-Vergleichszeitraum' in (toast.text_content() or '')
 
+    # Final stop is the Lifetime sentinel: stored 0, labelled Lifetime.
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-horizon-range');
+        r.value = '760';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 0")
+    assert page.locator('#tp-bar-horizon-label').inner_text() == 'Lifetime'
+    assert 'Ø (Lifetime)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+    assert hits == []
+
     # Modal round-trip: modal shows the bar value, saving there updates the bar.
     open_settings(page)
-    assert page.locator('#tp-root >> #tp-bestpreise-horizon-select').input_value() == '90'
-    page.select_option('#tp-root >> #tp-bestpreise-horizon-select', '180')
+    assert page.locator('#tp-root >> #tp-bestpreise-horizon-val').input_value() == '0'
+    page.fill('#tp-root >> #tp-bestpreise-horizon-val', '180')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
-    assert horizon_select.input_value() == '180'
+    assert horizon_range.input_value() == '180'
     assert page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571')).horizonDays") == 180
     assert hits == []
 

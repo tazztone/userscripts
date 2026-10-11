@@ -445,6 +445,8 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.equal(medianHorizonLabel({ horizonDays: 365, medianFallback: false }), '1J');
       assert.equal(medianHorizonLabel({ horizonDays: 180, medianFallback: false }), '180T');
       assert.equal(medianHorizonLabel({ horizonDays: 90, medianFallback: false }), '90T');
+      assert.equal(medianHorizonLabel({ horizonDays: 120, medianFallback: false }), '120T');
+      assert.equal(medianHorizonLabel({ horizonDays: 400, medianFallback: false }), '400T');
     });
 
     it('reads Lifetime on lifetime fallback, lifetime setting, or missing horizon', () => {

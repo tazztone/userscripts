@@ -760,13 +760,15 @@ export const STYLES = `
     margin-right: 8px !important;
     flex-shrink: 0 !important;
   }
-  #tp-bar-horizon-select {
-    font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: #475569 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
+  #tp-bar-horizon-range {
+    width: 84px !important;
+    accent-color: #6366f1 !important;
     cursor: pointer !important;
+    height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    align-self: center !important;
   }
   .tp-threshold-wrapper {
     position: relative !important;
@@ -795,7 +797,7 @@ export const STYLES = `
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #475569 !important; }
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: #64748b !important; }
   :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: #059669 !important; }
-  .tp-weight-label {
+  .tp-weight-label, #tp-bar-horizon-label {
     color: #475569 !important;
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     white-space: nowrap !important;
