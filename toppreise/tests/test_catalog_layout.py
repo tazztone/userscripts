@@ -2189,7 +2189,7 @@ def test_heat_chrome_keeps_site_colors_and_spark(page: Page):
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
     subline = page.locator('#card-cheapest .tp-card-historical-price')
     assert subline.count() == 1
-    assert subline.evaluate("el => window.getComputedStyle(el).color") == 'rgb(52, 211, 153)'
+    assert subline.evaluate("el => window.getComputedStyle(el).color") == 'rgb(6, 95, 70)'
     # Heated card keeps site price color (mock green #10b981), same as unheated
     assert page.locator('#card-cheapest .priceContainer.productPrice .Plugin_Price').evaluate(
         "el => window.getComputedStyle(el).color") == 'rgb(16, 185, 129)'

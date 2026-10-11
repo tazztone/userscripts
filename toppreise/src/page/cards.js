@@ -146,8 +146,8 @@ export function extractCardDiscount(card) {
 // badge TEXT (+XX%) carries the markup signal instead.
 const HEAT_STOPS = [
   { t: 0.00, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
-  { t: 0.50, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
-  { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
+  { t: 0.50, base: [75, 42, 12],   acc: [170, 62, 10],   border: [251, 115, 36, 0.88] },
+  { t: 1.00, base: [98, 14, 32],   acc: [210, 20, 55],   border: [244, 63, 94, 0.95] }
 ];
 
 function heatRamp(t) {

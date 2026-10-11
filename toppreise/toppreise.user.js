@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.184
+// @version      2.18.185
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -45,18 +45,18 @@ const TP_TOKEN_VARS = `
   --tp-mut: #64748b;
   --tp-dim: #64748b;
   --tp-acc: #10b981;
-  --tp-acc-deep: #059669;
+  --tp-acc-deep: #047857;
   --tp-acc-soft: rgba(16, 185, 129, 0.2);
   --tp-acc-line: rgba(16, 185, 129, 0.4);
-  --tp-acc-txt: #059669;
-  --tp-acc2: #8b5cf6;
-  --tp-sky: #38bdf8;
+  --tp-acc-txt: #047857;
+  --tp-acc2: #7c3aed;
+  --tp-sky: #0369a1;
   --tp-blue: #3b82f6;
-  --tp-blue-soft: #60a5fa;
+  --tp-blue-soft: #2563eb;
   --tp-rose: #f43f5e;
   --tp-warn: #f59e0b;
   --tp-focus: #34d399;
-  --tp-grad-acc: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --tp-grad-acc: linear-gradient(135deg, #047857 0%, #065f46 100%);
   --tp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --tp-r-sm: 6px;
   --tp-r-md: 8px;
@@ -255,8 +255,8 @@ const STYLES = `
      same green as a -60% one and depth stops being readable. */
   .badge.badge-dif.tp-deal-pill.tp-deal-loading {
     background: rgba(255, 255, 255, 0.95) !important;
-    border-color: #38bdf8 !important;
-    color: #38bdf8 !important;
+    border-color: #0369a1 !important;
+    color: #0369a1 !important;
   }
   .price-availability {
     align-items: center !important;
@@ -385,11 +385,10 @@ const STYLES = `
   }
   .badge.badge-dif.tp-deal-not-low .tp-fake-discount {
     font-size: 9.5px !important;
-    opacity: 0.75 !important;
     display: block !important;
     line-height: 1 !important;
     margin-top: 1px !important;
-    color: #fde68a !important;
+    color: #ffffff !important;
   }
   .tp-card-historical-price {
     font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -405,7 +404,7 @@ const STYLES = `
     pointer-events: auto !important;
   }
   .tp-card-historical-price.tp-is-record-low {
-    color: #34d399 !important;
+    color: #065f46 !important;
     font-weight: 700 !important;
     background: rgba(52, 211, 153, 0.12) !important;
     border: 1px solid rgba(52, 211, 153, 0.35) !important;
@@ -413,13 +412,13 @@ const STYLES = `
     padding: 1px 5px !important;
   }
   .tp-card-historical-price.tp-is-at-low {
-    color: #10b981 !important;
+    color: #047857 !important;
   }
   .tp-card-historical-price.tp-with-prev {
     font-weight: 700 !important;
   }
   .tp-card-historical-price.tp-is-markup {
-    color: #fbbf24 !important;
+    color: #b45309 !important;
   }
   .tp-dealer-name {
     display: inline-block !important;
@@ -835,7 +834,7 @@ const STYLES = `
     transition: all 0.2s ease !important;
   }
   .tp-empty-state-btn:hover {
-    background: var(--tp-blue) !important;
+    background: #1d4ed8 !important;
     border-color: var(--tp-blue-soft) !important;
     color: #ffffff !important;
   }
@@ -852,23 +851,24 @@ const STYLES = `
     user-select: none !important;
   }
   .tp-detail-deal-badge.tp-is-alltime-low {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%) !important;
+    background: linear-gradient(135deg, rgba(4, 120, 87, 0.95) 0%, rgba(6, 95, 70, 0.95) 100%) !important;
     border: 1px solid var(--tp-acc-txt) !important;
     color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.45) !important;
+    box-shadow: 0 2px 10px rgba(4, 120, 87, 0.45) !important;
   }
   .tp-detail-deal-badge.tp-is-not-low {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%) !important;
-    border: 1px solid #fbbf24 !important;
+    background: linear-gradient(135deg, rgba(180, 83, 9, 0.95) 0%, rgba(146, 64, 14, 0.95) 100%) !important;
+    border: 1px solid #b45309 !important;
     color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4) !important;
+    box-shadow: 0 2px 10px rgba(180, 83, 9, 0.4) !important;
   }
   .tp-detail-deal-badge.tp-is-severe-markup {
-    background: linear-gradient(135deg, rgba(225, 29, 72, 0.95) 0%, rgba(190, 18, 60, 0.95)) !important;
+    background: linear-gradient(135deg, rgba(190, 18, 60, 0.95) 0%, rgba(159, 18, 57, 0.95)) !important;
     border: 1px solid var(--tp-rose) !important;
     color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(225, 29, 72, 0.45) !important;
+    box-shadow: 0 2px 10px rgba(190, 18, 60, 0.45) !important;
   }
+
   #tp-suite-filter-bar {
     margin: 8px auto 12px !important;
     width: 100% !important;
@@ -1171,7 +1171,7 @@ const STYLES = `
     gap: 4px !important;
   }
   #tp-floating-check-btn {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
     border: none !important;
     border-radius: 999px !important;
     color: #fff !important;
@@ -1210,7 +1210,7 @@ const STYLES = `
   #tp-floating-dealer-row.tp-active { background: rgba(16, 185, 129, 0.2) !important; border-color: rgba(16, 185, 129, 0.4) !important; color: var(--tp-acc-txt) !important; }
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
   #tp-floating-check-main { font-size: 11.5px !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-sub { font-size: 9.5px !important; font-weight: 500 !important; opacity: 0.85 !important; white-space: nowrap !important; }
+  #tp-floating-check-sub { font-size: 9.5px !important; font-weight: 500 !important; white-space: nowrap !important; }
   #tp-floating-threshold-btn {
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
@@ -1262,7 +1262,7 @@ const STYLES = `
     text-align: left !important;
   }
   #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: var(--tp-txt) !important; }
-  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: var(--tp-acc) !important; color: #fff !important; }
+  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: #047857 !important; color: #fff !important; }
   #tp-floating-cta-collapse {
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
@@ -3215,8 +3215,8 @@ const SHADOW_MODAL_STYLES = `
   // badge TEXT (+XX%) carries the markup signal instead.
   const HEAT_STOPS = [
     { t: 0.00, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
-    { t: 0.50, base: [75, 42, 12],   acc: [215, 85, 18],   border: [251, 115, 36, 0.88] },
-    { t: 1.00, base: [98, 14, 32],   acc: [238, 25, 65],   border: [244, 63, 94, 0.95] }
+    { t: 0.50, base: [75, 42, 12],   acc: [170, 62, 10],   border: [251, 115, 36, 0.88] },
+    { t: 1.00, base: [98, 14, 32],   acc: [210, 20, 55],   border: [244, 63, 94, 0.95] }
   ];
 
   function heatRamp(t) {
@@ -5054,7 +5054,7 @@ const SHADOW_MODAL_STYLES = `
       emptyNotice.innerHTML = `
         <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
         <div class="tp-empty-state-actions">
-          ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #60a5fa;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
+          ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
           ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)">✓ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte anzeigen</button>
           ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
