@@ -66,10 +66,8 @@ function ensureHistPriceEl(card, cardPriceEl) {
   }
   return el;
 }
-// Single-product verify flow, shared by the badge click and its keyboard twin,
-// the adjacent .tp-loupe button. Reads price at click time and re-verifies it
+// Single-product verify flow. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.
-const loupeBtnByBadge = new WeakMap();
 // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
 // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
 // Retry). Fetch per 🏬-Klick oder — opt-in via DEALER_AUTOFETCH — automatisch
@@ -92,7 +90,6 @@ async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;
   const currentPid = getCardProductId(card);
   if (!currentPid) return;
-  loupeBtnByBadge.get(badgeDifEl)?.remove();
   badgeDifEl.classList.add('tp-deal-loading');
   badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
   const requestTimePrice = extractCanonicalPrice(card).price;
@@ -345,8 +342,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       ? (rawDiscount >= 0 ? `-${rawDiscount}%` : `+${-rawDiscount}%`)
       : '';
 
-    // Bind single click handler on badge (mouse path; keyboard users get the
-    // adjacent .tp-loupe button running the same runSingleDealCheck flow).
+    // Single check control: badge handles mouse + keyboard; there is no separate loupe button.
     if (!badgeDifEl.dataset.tpDealBound) {
       badgeDifEl.dataset.tpDealBound = 'true';
       badgeDifEl.addEventListener('click', e => {
@@ -354,6 +350,16 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         e.stopPropagation();
         e.stopImmediatePropagation();
         runSingleDealCheck(card, badgeDifEl);
+      });
+      badgeDifEl.setAttribute('role', 'button');
+      badgeDifEl.setAttribute('tabindex', '0');
+      badgeDifEl.setAttribute('aria-label', 'Differenz prüfen');
+      badgeDifEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          runSingleDealCheck(card, badgeDifEl);
+        }
       });
     }
 
@@ -661,37 +667,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
       }
     }
-    // Loupe button: keyboard-operable twin of the badge click. The badge keeps
-    // its content and mouse click untouched; the button runs the same
-    // runSingleDealCheck flow. Shown only for unscanned cards (loupe states),
-    // never inside the badge. Reused across renders so focus survives.
-    const showLoupe = !!pid && !stats && !badgeDifEl.classList.contains('tp-deal-loading');
-    let loupeBtn = loupeBtnByBadge.get(badgeDifEl);
-    if (showLoupe) {
-      if (!loupeBtn?.isConnected || loupeBtn.previousElementSibling !== badgeDifEl) {
-        loupeBtn?.remove();
-        loupeBtn = document.createElement('button');
-        loupeBtn.type = 'button';
-        loupeBtn.className = 'tp-loupe';
-        loupeBtn.setAttribute('aria-label', 'Differenz prüfen');
-        loupeBtn.textContent = '🔍';
-        loupeBtn.addEventListener('click', e => {
-          e.preventDefault();
-          e.stopPropagation();
-          runSingleDealCheck(card, badgeDifEl);
-        });
-        loupeBtnByBadge.set(badgeDifEl, loupeBtn);
-        badgeDifEl.insertAdjacentElement('afterend', loupeBtn);
-      }
-      loupeBtn.style.display = '';
-    } else {
-      loupeBtn?.remove();
-      loupeBtnByBadge.delete(badgeDifEl);
-    }
   } else {
     card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
     card.querySelector('.tp-card-historical-price')?.remove();
-    card.querySelectorAll('button.tp-loupe').forEach(b => b.remove());
   }
 
   // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.174
+// @version      2.18.175
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -467,39 +467,6 @@ const STYLES = `
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8)) !important;
     pointer-events: none !important;
   }
-  /* Loupe check button: keyboard twin of the badge click. Corner badges are
-     absolute overlays, so the button overlays too (same offset parent as the
-     badge: directly below its 50px box) — never a new layout row. Inline
-     deal pills get an inline button joining the pill row instead. */
-  button.tp-loupe {
-    position: absolute !important;
-    top: 64px !important;
-    right: 10px !important;
-    z-index: 31 !important;
-    min-width: 24px !important;
-    min-height: 24px !important;
-    padding: 2px 4px !important;
-    font-size: 13px !important;
-    line-height: 1 !important;
-    background: rgba(15, 23, 42, 0.88) !important;
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.16) !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-    cursor: pointer !important;
-    transition: all 0.15s ease !important;
-  }
-  .tp-deal-pill + button.tp-loupe {
-    position: static !important;
-    margin-left: 8px !important;
-  }
-  button.tp-loupe:hover {
-    background: rgba(51, 65, 85, 0.95) !important;
-    border-color: rgba(255, 255, 255, 0.3) !important;
-    transform: scale(1.05) !important;
-  }
-  button.tp-loupe:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .badge.badge-dif.tp-deal-loading,
   .badge-dif.tp-deal-loading {
     cursor: wait !important;
@@ -4347,10 +4314,8 @@ const SHADOW_MODAL_STYLES = `
     }
     return el;
   }
-  // Single-product verify flow, shared by the badge click and its keyboard twin,
-  // the adjacent .tp-loupe button. Reads price at click time and re-verifies it
+  // Single-product verify flow. Reads price at click time and re-verifies it
   // after fetch so a stale or swapped card never paints another product's stats.
-  const loupeBtnByBadge = new WeakMap();
   // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
   // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
   // Retry). Fetch per 🏬-Klick oder — opt-in via DEALER_AUTOFETCH — automatisch
@@ -4373,7 +4338,6 @@ const SHADOW_MODAL_STYLES = `
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
     const currentPid = getCardProductId(card);
     if (!currentPid) return;
-    loupeBtnByBadge.get(badgeDifEl)?.remove();
     badgeDifEl.classList.add('tp-deal-loading');
     badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
     const requestTimePrice = extractCanonicalPrice(card).price;
@@ -4626,8 +4590,7 @@ const SHADOW_MODAL_STYLES = `
         ? (rawDiscount >= 0 ? `-${rawDiscount}%` : `+${-rawDiscount}%`)
         : '';
 
-      // Bind single click handler on badge (mouse path; keyboard users get the
-      // adjacent .tp-loupe button running the same runSingleDealCheck flow).
+      // Single check control: badge handles mouse + keyboard; there is no separate loupe button.
       if (!badgeDifEl.dataset.tpDealBound) {
         badgeDifEl.dataset.tpDealBound = 'true';
         badgeDifEl.addEventListener('click', e => {
@@ -4635,6 +4598,16 @@ const SHADOW_MODAL_STYLES = `
           e.stopPropagation();
           e.stopImmediatePropagation();
           runSingleDealCheck(card, badgeDifEl);
+        });
+        badgeDifEl.setAttribute('role', 'button');
+        badgeDifEl.setAttribute('tabindex', '0');
+        badgeDifEl.setAttribute('aria-label', 'Differenz prüfen');
+        badgeDifEl.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            runSingleDealCheck(card, badgeDifEl);
+          }
         });
       }
 
@@ -4942,37 +4915,9 @@ const SHADOW_MODAL_STYLES = `
           }
         }
       }
-      // Loupe button: keyboard-operable twin of the badge click. The badge keeps
-      // its content and mouse click untouched; the button runs the same
-      // runSingleDealCheck flow. Shown only for unscanned cards (loupe states),
-      // never inside the badge. Reused across renders so focus survives.
-      const showLoupe = !!pid && !stats && !badgeDifEl.classList.contains('tp-deal-loading');
-      let loupeBtn = loupeBtnByBadge.get(badgeDifEl);
-      if (showLoupe) {
-        if (!loupeBtn?.isConnected || loupeBtn.previousElementSibling !== badgeDifEl) {
-          loupeBtn?.remove();
-          loupeBtn = document.createElement('button');
-          loupeBtn.type = 'button';
-          loupeBtn.className = 'tp-loupe';
-          loupeBtn.setAttribute('aria-label', 'Differenz prüfen');
-          loupeBtn.textContent = '🔍';
-          loupeBtn.addEventListener('click', e => {
-            e.preventDefault();
-            e.stopPropagation();
-            runSingleDealCheck(card, badgeDifEl);
-          });
-          loupeBtnByBadge.set(badgeDifEl, loupeBtn);
-          badgeDifEl.insertAdjacentElement('afterend', loupeBtn);
-        }
-        loupeBtn.style.display = '';
-      } else {
-        loupeBtn?.remove();
-        loupeBtnByBadge.delete(badgeDifEl);
-      }
     } else {
       card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
       card.querySelector('.tp-card-historical-price')?.remove();
-      card.querySelectorAll('button.tp-loupe').forEach(b => b.remove());
     }
 
     // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
@@ -5558,8 +5503,14 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-section-header">💬 Discord Share</div>
           <div class="tp-settings-group">
             <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-            <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
-            <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+            <div id="tp-discord-webhook-collapsed">
+              <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
+              <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook anzeigen / ändern</button>
+            </div>
+            <div id="tp-discord-webhook-editor" style="display: none;">
+              <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+            </div>
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
@@ -5688,6 +5639,9 @@ const SHADOW_MODAL_STYLES = `
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
+    const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
+    const discordWebhookEditor = shadow.getElementById('tp-discord-webhook-editor');
+    const discordWebhookStatus = shadow.getElementById('tp-discord-webhook-status');
     const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
     const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
 
@@ -5737,7 +5691,10 @@ const SHADOW_MODAL_STYLES = `
         cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
       }
 
-      if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+      if (discordWebhookInput) discordWebhookInput.value = '';
+      if (discordWebhookEditor) discordWebhookEditor.style.display = 'none';
+      if (discordWebhookReveal) { discordWebhookReveal.style.display = ''; discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
+      if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
       if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
       if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
     }
@@ -5822,6 +5779,15 @@ const SHADOW_MODAL_STYLES = `
       processListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
+    discordWebhookReveal?.addEventListener('click', () => {
+      if (!discordWebhookEditor || !discordWebhookInput) return;
+      discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+      discordWebhookEditor.style.display = '';
+      discordWebhookReveal.style.display = 'none';
+      discordWebhookReveal.setAttribute('aria-expanded', 'true');
+      discordWebhookInput.focus();
+    });
+
 
     dataResetBtn?.addEventListener('click', () => {
       if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
@@ -5969,7 +5935,7 @@ const SHADOW_MODAL_STYLES = `
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
-      if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
+      if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
       if (horizonChanged) recomputeCachedMedians(newHorizon);

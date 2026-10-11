@@ -442,39 +442,6 @@ export const STYLES = `
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8)) !important;
     pointer-events: none !important;
   }
-  /* Loupe check button: keyboard twin of the badge click. Corner badges are
-     absolute overlays, so the button overlays too (same offset parent as the
-     badge: directly below its 50px box) — never a new layout row. Inline
-     deal pills get an inline button joining the pill row instead. */
-  button.tp-loupe {
-    position: absolute !important;
-    top: 64px !important;
-    right: 10px !important;
-    z-index: 31 !important;
-    min-width: 24px !important;
-    min-height: 24px !important;
-    padding: 2px 4px !important;
-    font-size: 13px !important;
-    line-height: 1 !important;
-    background: rgba(15, 23, 42, 0.88) !important;
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.16) !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-    cursor: pointer !important;
-    transition: all 0.15s ease !important;
-  }
-  .tp-deal-pill + button.tp-loupe {
-    position: static !important;
-    margin-left: 8px !important;
-  }
-  button.tp-loupe:hover {
-    background: rgba(51, 65, 85, 0.95) !important;
-    border-color: rgba(255, 255, 255, 0.3) !important;
-    transform: scale(1.05) !important;
-  }
-  button.tp-loupe:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .badge.badge-dif.tp-deal-loading,
   .badge-dif.tp-deal-loading {
     cursor: wait !important;

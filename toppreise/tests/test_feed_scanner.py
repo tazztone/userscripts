@@ -1156,12 +1156,10 @@ def test_unscanned_cards_no_stuck_loading_badge(page: Page):
     uncached_badge = page.locator('#card-low-offers .badge-dif')
     assert 'tp-deal-loading' not in (uncached_badge.get_attribute('class') or '')
     assert '🔍' in (uncached_badge.text_content() or '')
-    # Loupe action is a real focusable button adjacent to (never inside) the badge
-    loupe = page.locator('#card-low-offers button.tp-loupe')
-    assert loupe.is_visible()
-    assert loupe.is_enabled()
-    assert loupe.get_attribute('aria-label') == 'Differenz prüfen'
-    assert loupe.evaluate("el => el.previousElementSibling && el.previousElementSibling.matches('.badge-dif')")
+    # Single check control: badge is focusable, no standalone loupe button
+    assert page.locator('#card-low-offers button.tp-loupe').count() == 0
+    assert uncached_badge.get_attribute('role') == 'button'
+    assert uncached_badge.get_attribute('tabindex') == '0'
 
 
 
