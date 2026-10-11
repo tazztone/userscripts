@@ -248,15 +248,20 @@ def test_suite_text_contrast_on_light(page: Page):
     for h in headers:
         assert _pair_ratio(h['color'], 'rgb(255, 255, 255)') >= 4.5, h
 
+    # Keyboard focus ring: dark emerald outline on dialog white (FAB lives in
+    # shadow DOM, so _dump can't reach it; focusVisible forces :focus-visible)
+    fab_ring = page.evaluate("""() => {
+        const fab = document.getElementById('tp-root').shadowRoot.getElementById('tp-settings-fab');
+        fab.focus({focusVisible: true});
+        return getComputedStyle(fab).outlineColor;
+    }""")
+    assert _pair_ratio(fab_ring, 'rgb(255, 255, 255)') >= 3.0, fab_ring
+
     # Bestpreise-empty notice: check-deals button on the white notice card
     page.keyboard.press('Escape')
+    seed_verified_deal(page, '797572', {'tiefstpreis': 500, 'hoechstpreis': 600,
+        'medianPrice': 550, 'isNewAllTimeLow': False, 'dataPointCount': 10})
     page.evaluate("""() => {
-        localStorage.clear();
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        const stats = {tiefstpreis: 500, hoechstpreis: 600, medianPrice: 550,
-            isNewAllTimeLow: false, dataPointCount: 10, time: Date.now()};
-        localStorage.setItem('tp_hist_v1_797572', JSON.stringify(stats));
-        window.ToppreiseSuite.memoryCache.set('797572', stats);
         window.ToppreiseSuite.updateConfig('MODE', 'hide');
         window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true);
