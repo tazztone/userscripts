@@ -104,26 +104,32 @@ def test_price_alarm_automation(page: Page):
 
 
 def test_alarm_bell_three_states_and_cog(page: Page):
+    bells = page.locator('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog')
+    assert bells.count() == 2
     bell = page.locator('#mock-alarm-bell')
     # Default config (enabled + auto-submit): auto state, live numbers in title
-    assert bell.get_attribute('data-tp-alarm-state') == 'auto'
+    for i in range(2):
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'auto'
     assert 'tp-alarm-auto' in (bell.get_attribute('class') or '')
     assert '60%' in (bell.get_attribute('title') or '')
-    cog = page.locator('.tp-alarm-cog')
-    assert cog.count() == 1
+    cogs = page.locator('.tp-alarm-cog')
+    assert cogs.count() == 2
 
     # Cog opens settings scrolled to the Preisalarm section
-    cog.click()
+    cogs.first.click()
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     assert page.locator('#tp-root >> #tp-section-alarm').is_visible()
 
     # Fill-only and off states repaint live via updateConfig (no reload)
     page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', false)")
-    assert bell.get_attribute('data-tp-alarm-state') == 'fill'
+    for i in range(2):
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'fill'
     page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_ENABLED', false)")
-    assert bell.get_attribute('data-tp-alarm-state') == 'off'
+    for i in range(2):
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'off'
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('ALARM_ENABLED', true); window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true); }")
-    assert bell.get_attribute('data-tp-alarm-state') == 'auto'
+    for i in range(2):
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'auto'
 
 
 def test_alarm_fill_clamps_corrupt_config(page: Page):

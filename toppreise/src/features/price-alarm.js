@@ -21,8 +21,10 @@ export const normalizeAlarmDuration = v => {
 };
 // Live bell trigger (confirmed 2026-10-11 on search + product pages):
 // `.Plugin_NewInfoMailButton` container, clickable bell is
-// `a.f_showNewInfoMailFormDialog` with a `TPIcons-alarm` icon. First entry
-// is the test fixture. Silent no-op when absent.
+// `a.f_showNewInfoMailFormDialog` with a `TPIcons-alarm` icon. Every match
+// is painted: product pages render hidden per-offer bells alongside the
+// visible header bell, and first-match-only left the visible ones unpainted.
+// Silent no-op when absent.
 const ALARM_BELL_SELECTORS = [
   '#mock-alarm-bell',
   '.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog',
@@ -36,12 +38,12 @@ const alarmBellState = () => {
   return CONFIG.ALARM_AUTO_SUBMIT === false ? 'fill' : 'auto';
 };
 
-const findAlarmBell = () => {
-  for (const sel of ALARM_BELL_SELECTORS) {
-    const el = document.querySelector(sel);
-    if (el) return el;
-  }
-  return null;
+const findAlarmBells = () => {
+  const seen = new Set();
+  for (const sel of ALARM_BELL_SELECTORS)
+    for (const el of document.querySelectorAll(sel))
+      if (!seen.has(el)) seen.add(el);
+  return [...seen];
 };
 
 function ensureAlarmBellStyle() {
@@ -59,24 +61,20 @@ function ensureAlarmBellStyle() {
 }
 
 function ensureAlarmCog(bell) {
-  let cog = bell.nextElementSibling;
-  if (!cog || !cog.classList?.contains('tp-alarm-cog')) {
-    cog = document.querySelector('.tp-alarm-cog');
-    if (!cog) {
-      cog = document.createElement('button');
-      cog.type = 'button';
-      cog.className = 'tp-alarm-cog';
-      cog.textContent = '⚙';
-      cog.title = 'Preisalarm-Einstellungen';
-      cog.setAttribute('aria-label', 'Preisalarm-Einstellungen');
-      cog.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        openSettingsAt('tp-section-alarm');
-      });
-    }
-    bell.after(cog);
-  }
+  const next = bell.nextElementSibling;
+  if (next?.classList?.contains('tp-alarm-cog')) return next;
+  const cog = document.createElement('button');
+  cog.type = 'button';
+  cog.className = 'tp-alarm-cog';
+  cog.textContent = '⚙';
+  cog.title = 'Preisalarm-Einstellungen';
+  cog.setAttribute('aria-label', 'Preisalarm-Einstellungen');
+  cog.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    openSettingsAt('tp-section-alarm');
+  });
+  bell.after(cog);
   return cog;
 }
 
@@ -84,21 +82,23 @@ export function refreshAlarmBellDecor() {
   try {
     if (typeof document === 'undefined') return;
     ensureAlarmBellStyle();
-    const bell = findAlarmBell();
-    if (!bell) return;
-    const state = alarmBellState();
-    bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
-    bell.classList.add(`tp-alarm-${state}`);
-    bell.setAttribute('data-tp-alarm-state', state);
-    const pct = Math.round(clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT) * 100);
-    const dur = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
-    const durLabel = DURATION_LABELS[dur] || dur;
-    bell.title = state === 'off'
-      ? 'Preisalarm auto-fill AUS — ⚙ für Einstellungen'
-      : state === 'fill'
-        ? `Preisalarm: füllt Ziel ${pct}% / ${durLabel} an — klicken zum Prüfen`
-        : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
-    ensureAlarmCog(bell);
+    const bells = findAlarmBells();
+    if (!bells.length) return;
+    for (const bell of bells) {
+      const state = alarmBellState();
+      bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
+      bell.classList.add(`tp-alarm-${state}`);
+      bell.setAttribute('data-tp-alarm-state', state);
+      const pct = Math.round(clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT) * 100);
+      const dur = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
+      const durLabel = DURATION_LABELS[dur] || dur;
+      bell.title = state === 'off'
+        ? 'Preisalarm auto-fill AUS — ⚙ für Einstellungen'
+        : state === 'fill'
+          ? `Preisalarm: füllt Ziel ${pct}% / ${durLabel} an — klicken zum Prüfen`
+          : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
+      ensureAlarmCog(bell);
+    }
   } catch (err) {
     if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] bell decor error', err);
   }
