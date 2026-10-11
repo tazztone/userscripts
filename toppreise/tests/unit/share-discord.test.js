@@ -537,7 +537,13 @@ describe('postDealImageToDiscord', () => {
 
   it('rejects without multipart transport', async () => {
     delete globalThis.GM_xmlhttpRequest;
-    await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Kein Multipart-Transport/);
+    const realFetch = globalThis.fetch;
+    delete globalThis.fetch;
+    try {
+      await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Kein Multipart-Transport/);
+    } finally {
+      if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch;
+    }
   });
 
   it('uploads payload_json + file via GM and resolves on 2xx', async () => {
