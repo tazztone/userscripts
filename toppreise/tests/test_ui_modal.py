@@ -516,11 +516,13 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     assert page.locator('#tp-root >> label[for="tp-mode-dim"]').is_visible()
     assert page.locator('#tp-root >> #tp-btn-save').is_visible()
 
-    # Discord controls live in their own section
-    for control in ['#tp-discord-webhook-input', '#tp-discord-dealer-embed-toggle', '#tp-discord-product-embed-toggle']:
+    # Discord controls live in their own section; secret stays collapsed until reveal
+    for control in ['#tp-discord-webhook-reveal', '#tp-discord-dealer-embed-toggle', '#tp-discord-product-embed-toggle']:
         assert page.locator(f'#tp-root >> #tp-section-discord >> {control}').count() == 1
+    assert not page.locator('#tp-root >> #tp-discord-webhook-input').is_visible()
 
     # Save roundtrip across sections: webhook + target + weight persist
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
     page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/123/abc')
     page.fill('#tp-root >> #tp-alarm-target-val', '60')
     page.click('#tp-root >> #tp-btn-save')
@@ -528,6 +530,8 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.ALARM_TARGET_PERCENT") == 0.6
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    assert page.locator('#tp-root >> #tp-discord-webhook-status').inner_text() == '✅ Webhook hinterlegt'
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
     assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == 'https://discord.com/api/webhooks/123/abc'
     assert page.locator('#tp-root >> #tp-alarm-target-val').input_value() == '60'
     page.click('#tp-root >> #tp-btn-close')

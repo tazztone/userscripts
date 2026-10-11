@@ -196,8 +196,14 @@ export function setupUI() {
         <div class="tp-section-header">💬 Discord Share</div>
         <div class="tp-settings-group">
           <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-          <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
-          <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+          <div id="tp-discord-webhook-collapsed">
+            <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
+            <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook anzeigen / ändern</button>
+          </div>
+          <div id="tp-discord-webhook-editor" style="display: none;">
+            <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+            <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
+          </div>
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
@@ -326,6 +332,9 @@ export function setupUI() {
   const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
   const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
+  const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
+  const discordWebhookEditor = shadow.getElementById('tp-discord-webhook-editor');
+  const discordWebhookStatus = shadow.getElementById('tp-discord-webhook-status');
   const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
   const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
 
@@ -375,7 +384,10 @@ export function setupUI() {
       cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
     }
 
-    if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+    if (discordWebhookInput) discordWebhookInput.value = '';
+    if (discordWebhookEditor) discordWebhookEditor.style.display = 'none';
+    if (discordWebhookReveal) { discordWebhookReveal.style.display = ''; discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
+    if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
     if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
     if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
   }
@@ -460,6 +472,15 @@ export function setupUI() {
     processListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
   });
+  discordWebhookReveal?.addEventListener('click', () => {
+    if (!discordWebhookEditor || !discordWebhookInput) return;
+    discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+    discordWebhookEditor.style.display = '';
+    discordWebhookReveal.style.display = 'none';
+    discordWebhookReveal.setAttribute('aria-expanded', 'true');
+    discordWebhookInput.focus();
+  });
+
 
   dataResetBtn?.addEventListener('click', () => {
     if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
@@ -607,7 +628,7 @@ export function setupUI() {
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
-    if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
+    if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
     if (horizonChanged) recomputeCachedMedians(newHorizon);
