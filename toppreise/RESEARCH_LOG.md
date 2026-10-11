@@ -161,9 +161,10 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
   `≥ 0.60×M`, or extreme edge (`< 0.25×M` next to `≥ 0.70×M`). Stats derive
   from clean points only; count exposed as `filteredOutliers`
   (`ℹ️ N Ausreisser ignoriert`).
-- Median horizon `BESTPREISE_MEDIAN_HORIZON_DAYS`: `365` default | `180` |
-  `90` | `0` = lifetime; fallback to lifetime median if window has <3 points,
-  flagged via `medianFallback`. True median (even-n averages the middle two,
+- Median horizon `BESTPREISE_MEDIAN_HORIZON_DAYS`: `365` default, freier Bereich
+  `30–730` + `0` = Lifetime (Slider `30–760` Schritt 30, Zahl `0–730` frei;
+  `>730` → Lifetime, Toolbar `760` = Lifetime-Sentinel); fallback to lifetime
+  median if window has <3 points, flagged via `medianFallback`. True median
   no upper bias). Labels via `medianHorizonLabel`: window label only when the
   median really comes from that window, else `Lifetime` (legacy cache without
   the flag keeps the old label until refresh). Sampling is strictly daily &
@@ -179,8 +180,8 @@ Blend = max(0, round((1−W)·D_median + W·D_record))
 D_median  = (P_median − P_curr)/P_median × 100      (everyday savings)
 D_record  = (P_prev_low − P_curr)/P_prev_low × 100  (0 if matching record)
 W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar slider 0–100 step 5
-            with rast ticks at the old presets, labels via `weightShortText` /
-            `weightTitleText`; drag debounced 150ms, flush + toast on release;
+            with rast ticks at the old presets, labels via `weightText` /
+            `horizonText`; drag debounced 1000ms, flush + toast on release;
             modal control two-way synced, skipped mid-drag)
 ```
 
@@ -191,7 +192,7 @@ the blend prints on the badge (`⚖️ −X%`), drives card heat via
 split in the subline (`📉 CHF curr (−X%) · Ø (1J) CHF med (−Y%)`); the
 percent-less star fallback and `Rekord`/`Ø-Preis` ribbon kind words are gone.
 ±5% deadband: tiny blend prints but stays gray. No-blend fallback (thin
-history, no median): `Vortief-Abstand` on the badge + inset edge glow only,
+history, no median): `Vortief-Abstand` on the badge + outer edge glow only,
 never full wash. Toggle `💎 Neue Tiefstpreise` is instant client-side (0
 network); `🔍 Tiefstpreise prüfen` / `≥30%` stay active to stream-threshold-scan into it.
 
@@ -199,15 +200,17 @@ network); `🔍 Tiefstpreise prüfen` / `≥30%` stay active to stream-threshold
 
 - `localStorage tp_hist_v1_{pid}`: valid TTL `REAL_DEAL_CACHE_HOURS` (default
   48; 24/72/7d/14d), negative `{unavailable:true}` TTL `NEGATIVE_CACHE_HOURS`
-  (default 2; 1/6/12/24). Cap 300 entries + 10-min prune throttle (flush on
-  `QuotaExceededError`); in-memory LRU 500. 1-click `🗑️ Cache leeren` in modal.
-- Batch `runBatchDealCheck`: 250–350ms jitter, `Retry-After`-aware backoff on
-  429/503 with live `⏳ Rate-Limit (Pause Ns)… ✕` + `interruptibleSleep`
-  (100ms slices, cancellable). Bestpreise scan: fixed 200ms, priority = feed
-  discount ↓, cancel flag on mode-off. Spinner (`⏳ Prüfe…`) only while that
+  (default 2; 1/6/12/24). In-memory LRU 500 (`MAX_MEMORY_CACHE_ITEMS`);
+  localStorage trims >300 oldest down to 250 on write, prune+setItem in
+  try/catch (no flush-on-quota path). 1-click `🗑️ Cache leeren` in modal.
+- Batch `runBatchDealCheck`: fixed `interruptibleSleep(250)` between targets,
+  `Retry-After`-aware backoff on 429/503 with live `⏳ Rate-Limit (Pause Ns)…
+  ✕` + `interruptibleSleep` (100ms slices, cancellable). No jitter, no
+  200/350ms split; `runScan` sorts by discount only when NOT batch
+  (`sortByDiscount: !isBatch`). Spinner (`⏳ Prüfe…`) only while that
   pid's fetch is in-flight (`currentlyScanningPid`) — never blanket-hide
-  unscanned cards. Sparkline: inline SVG 60×18, `#10b981` down/new-low vs
-  `#ef4444` up.
+  unscanned cards. Sparkline: inline SVG 60×18, single neutral `#3b82f6` —
+  no trend coloring by design.
 
 ## 4. Rendering rules
 

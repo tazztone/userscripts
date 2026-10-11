@@ -11,7 +11,7 @@ import { computeDealScore, getDisplayDelta } from '../domain/deal-score.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { isShippingPriceActive } from './adapter.js';
 
-export const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
 export function getCardDealerRows(card) {
   if (!card._tpDealerRows) {

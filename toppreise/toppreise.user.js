@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.190
+// @version      2.18.191
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4127,9 +4127,6 @@ const SHADOW_MODAL_STYLES = `
     Object.assign(scanState, { batchCancelRequested: true });
   }
 
-  const runBestpreiseScan = (onProgress = null, onComplete = null) =>
-    runScan('bestpreise', { onProgress, onComplete });
-
   function cancelBestpreiseScan() {
     Object.assign(scanState, { bestpreiseScanCancel: true });
   }
@@ -5696,7 +5693,7 @@ const SHADOW_MODAL_STYLES = `
     exportBtn?.addEventListener('click', () => {
       const exportData = {
         _meta: {
-          version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.20',
+          version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.190',
           exported: new Date().toISOString()
         },
         // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
@@ -5850,11 +5847,10 @@ const SHADOW_MODAL_STYLES = `
 
   // Bell-cog entry point: opens settings via the FAB path (identical sync +
   // show behavior), then scrolls to the requested section with a one-shot
-  // flash. Optional anchor keeps all existing open paths untouched.
+  // flash.
   function openSettingsAt(sectionId) {
     const { shadow } = ensureSkeleton();
     shadow.getElementById('tp-settings-fab')?.click();
-    if (!sectionId) return;
     const anchor = shadow.getElementById(sectionId);
     if (!anchor) return;
     anchor.scrollIntoView({ block: 'start' });

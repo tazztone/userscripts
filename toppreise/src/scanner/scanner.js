@@ -13,7 +13,7 @@ import { scanState } from '../state/store.js';
 
 export const activeFetches = new Map();
 
-export async function interruptibleSleep(ms, shouldCancelFn = null) {
+async function interruptibleSleep(ms, shouldCancelFn = null) {
   const step = 100;
   let elapsed = 0;
   while (elapsed < ms) {
@@ -24,7 +24,7 @@ export async function interruptibleSleep(ms, shouldCancelFn = null) {
   }
 }
 
-export async function fetchPriceTimeSeries(productId) {
+async function fetchPriceTimeSeries(productId) {
   if (!productId) return null;
   try {
     const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
@@ -262,9 +262,6 @@ export const runBatchDealCheck = (minDiscount = 30, onProgress = null, onComplet
 export function cancelBatchDealCheck() {
   Object.assign(scanState, { batchCancelRequested: true });
 }
-
-export const runBestpreiseScan = (onProgress = null, onComplete = null) =>
-  runScan('bestpreise', { onProgress, onComplete });
 
 export function cancelBestpreiseScan() {
   Object.assign(scanState, { bestpreiseScanCancel: true });

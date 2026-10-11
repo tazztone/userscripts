@@ -18,8 +18,9 @@ Screenshot review showed three defects sharing one root cause — two controls
 
 - Strictness = mode, one control: `💎 Neue Tiefstpreise` an = nur
   Tiefstpreise, aus = alles zeigen (badges stay truthful). Both the toolbar
-  toggle and its modal twin are removed; `FILTER_BESTPREIS_ENABLED` and
-  `REAL_DEAL_FILTER_ACTIVE` stay as dormant storage keys (never renamed).
+  toggle and its modal twin are removed, and with them `FILTER_BESTPREIS_ENABLED`
+  and `REAL_DEAL_FILTER_ACTIVE` are gone entirely — no dormant storage keys
+  remain (never renamed before removal).
   Behavior delta is explicit: outside the mode, above-low cards always show
   with `Aufschlag +XX%` (default users see no change — nothing was hidden
   for them anyway); inside the mode it is always strict (the old hole where

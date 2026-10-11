@@ -573,7 +573,7 @@ export function setupUI() {
   exportBtn?.addEventListener('click', () => {
     const exportData = {
       _meta: {
-        version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.20',
+        version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.190',
         exported: new Date().toISOString()
       },
       // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
@@ -727,11 +727,10 @@ export function setupUI() {
 
 // Bell-cog entry point: opens settings via the FAB path (identical sync +
 // show behavior), then scrolls to the requested section with a one-shot
-// flash. Optional anchor keeps all existing open paths untouched.
+// flash.
 export function openSettingsAt(sectionId) {
   const { shadow } = ensureSkeleton();
   shadow.getElementById('tp-settings-fab')?.click();
-  if (!sectionId) return;
   const anchor = shadow.getElementById(sectionId);
   if (!anchor) return;
   anchor.scrollIntoView({ block: 'start' });
