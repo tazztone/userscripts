@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.159
+// @version      2.18.160
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2552,6 +2552,7 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
+    DISCORD_SUPPRESS_EMBEDS: true,
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -2669,6 +2670,7 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
+    DISCORD_SUPPRESS_EMBEDS: _getValue('DISCORD_SUPPRESS_EMBEDS', DEFAULTS.DISCORD_SUPPRESS_EMBEDS),
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
     SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
     ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -2777,6 +2779,11 @@ const SHADOW_MODAL_STYLES = `
           case 'DEALER_AUTOFETCH': {
             const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
             if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'DISCORD_SUPPRESS_EMBEDS': {
+            const toggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
+            if (toggle) toggle.checked = val !== false;
             break;
           }
           case 'SHOW_ADVANCED': {
@@ -4913,11 +4920,12 @@ const SHADOW_MODAL_STYLES = `
               ...resolveShareFields(cardPrice, stats)
             });
             let shared = false;
+            const suppress = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
             if (png) {
-              try { await postDealImageToDiscord(hook, content, png); shared = true; }
+              try { await postDealImageToDiscord(hook, content, png, suppress); shared = true; }
               catch { /* Text-Fallback unten */ }
             }
-            if (!shared) await postDealToDiscord(hook, content);
+            if (!shared) await postDealToDiscord(hook, content, suppress);
             showToast('📤 Deal in Discord geteilt');
           } catch {
             showToast('📤 Teilen fehlgeschlagen');
@@ -5243,6 +5251,16 @@ const SHADOW_MODAL_STYLES = `
             <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
             <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
           </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Unterdrückt die automatische Link-Vorschau (Embed) unter Discord-Posts. Das Preisverlauf-Bild wird weiterhin angehängt.">Discord Embeds</label>
+              <span class="tp-switch-desc">AUS = Link-Vorschau unterdrücken (Bild bleibt)</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-discord-suppress-embeds-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
           <div class="tp-settings-group tp-btn-row">
             <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
             <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
@@ -5456,6 +5474,7 @@ const SHADOW_MODAL_STYLES = `
     const dur730 = shadow.getElementById('tp-dur-730');
     const advancedDetails = shadow.getElementById('tp-advanced-details');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
+    const discordSuppressEmbedsToggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -5514,6 +5533,7 @@ const SHADOW_MODAL_STYLES = `
       }
 
       if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+      if (discordSuppressEmbedsToggle) discordSuppressEmbedsToggle.checked = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
     }
 
     const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -5736,6 +5756,7 @@ const SHADOW_MODAL_STYLES = `
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
+      if (discordSuppressEmbedsToggle) updates.DISCORD_SUPPRESS_EMBEDS = discordSuppressEmbedsToggle.checked;
       updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
       updateConfigs(updates);
@@ -6539,14 +6560,14 @@ const SHADOW_MODAL_STYLES = `
 
   // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
   // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
-  function postDealImageToDiscord(webhookUrl, content, pngBlob) {
+  function postDealImageToDiscord(webhookUrl, content, pngBlob, suppressEmbeds = false) {
     return new Promise((resolve, reject) => {
       try {
         if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
         if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
         if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
-        form.append('payload_json', JSON.stringify({ content }));
+        form.append('payload_json', JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content }));
         form.append('file', pngBlob, 'preisverlauf.png');
         GM_xmlhttpRequest({
           method: 'POST',
@@ -6727,11 +6748,11 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // GM_xmlhttpRequest umgeht CORS (Violentmonkey), fetch ist Fallback.
-  function postDealToDiscord(webhookUrl, content) {
+  function postDealToDiscord(webhookUrl, content, suppressEmbeds = false) {
     return new Promise((resolve, reject) => {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       const url = webhookUrl.trim();
-      const payload = JSON.stringify({ content });
+      const payload = JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content });
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         GM_xmlhttpRequest({
           method: 'POST',

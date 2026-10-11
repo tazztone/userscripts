@@ -63,14 +63,14 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
 
 // PNG als Attachment (multipart mit payload_json). Scheitert der Upload,
 // postet der Caller ohne Bild nach (Text-Sparkline trägt den Trend).
-export function postDealImageToDiscord(webhookUrl, content, pngBlob) {
+export function postDealImageToDiscord(webhookUrl, content, pngBlob, suppressEmbeds = false) {
   return new Promise((resolve, reject) => {
     try {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
       if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
       const form = new FormData();
-      form.append('payload_json', JSON.stringify({ content }));
+      form.append('payload_json', JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content }));
       form.append('file', pngBlob, 'preisverlauf.png');
       GM_xmlhttpRequest({
         method: 'POST',
@@ -251,11 +251,11 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
 }
 
 // GM_xmlhttpRequest umgeht CORS (Violentmonkey), fetch ist Fallback.
-export function postDealToDiscord(webhookUrl, content) {
+export function postDealToDiscord(webhookUrl, content, suppressEmbeds = false) {
   return new Promise((resolve, reject) => {
     if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
     const url = webhookUrl.trim();
-    const payload = JSON.stringify({ content });
+    const payload = JSON.stringify(suppressEmbeds ? { content, flags: 4 } : { content });
     if (typeof GM_xmlhttpRequest !== 'undefined') {
       GM_xmlhttpRequest({
         method: 'POST',

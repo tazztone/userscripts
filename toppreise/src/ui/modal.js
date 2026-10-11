@@ -96,6 +96,16 @@ export function setupUI() {
           <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
           <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Unterdrückt die automatische Link-Vorschau (Embed) unter Discord-Posts. Das Preisverlauf-Bild wird weiterhin angehängt.">Discord Embeds</label>
+            <span class="tp-switch-desc">AUS = Link-Vorschau unterdrücken (Bild bleibt)</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-discord-suppress-embeds-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
         <div class="tp-settings-group tp-btn-row">
           <button type="button" id="tp-export-config-btn" title="Einstellungen als JSON-Datei sichern." class="tp-btn tp-btn-secondary">📥 Export (JSON)</button>
           <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
@@ -309,6 +319,7 @@ export function setupUI() {
   const dur730 = shadow.getElementById('tp-dur-730');
   const advancedDetails = shadow.getElementById('tp-advanced-details');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
+  const discordSuppressEmbedsToggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
 
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -367,6 +378,7 @@ export function setupUI() {
     }
 
     if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+    if (discordSuppressEmbedsToggle) discordSuppressEmbedsToggle.checked = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
   }
 
   const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -589,6 +601,7 @@ export function setupUI() {
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
     if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
+    if (discordSuppressEmbedsToggle) updates.DISCORD_SUPPRESS_EMBEDS = discordSuppressEmbedsToggle.checked;
     updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
     updateConfigs(updates);

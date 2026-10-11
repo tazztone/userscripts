@@ -57,6 +57,7 @@ export const DEFAULTS = Object.freeze({
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
+  DISCORD_SUPPRESS_EMBEDS: true,
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -174,6 +175,7 @@ export const CONFIG = {
   DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
+  DISCORD_SUPPRESS_EMBEDS: _getValue('DISCORD_SUPPRESS_EMBEDS', DEFAULTS.DISCORD_SUPPRESS_EMBEDS),
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
   SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
   ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
@@ -282,6 +284,11 @@ export function syncUiControl(key, val) {
         case 'DEALER_AUTOFETCH': {
           const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
           if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'DISCORD_SUPPRESS_EMBEDS': {
+          const toggle = shadow.getElementById('tp-discord-suppress-embeds-toggle');
+          if (toggle) toggle.checked = val !== false;
           break;
         }
         case 'SHOW_ADVANCED': {

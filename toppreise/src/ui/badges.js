@@ -818,11 +818,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
             ...resolveShareFields(cardPrice, stats)
           });
           let shared = false;
+          const suppress = CONFIG.DISCORD_SUPPRESS_EMBEDS !== false;
           if (png) {
-            try { await postDealImageToDiscord(hook, content, png); shared = true; }
+            try { await postDealImageToDiscord(hook, content, png, suppress); shared = true; }
             catch { /* Text-Fallback unten */ }
           }
-          if (!shared) await postDealToDiscord(hook, content);
+          if (!shared) await postDealToDiscord(hook, content, suppress);
           showToast('📤 Deal in Discord geteilt');
         } catch {
           showToast('📤 Teilen fehlgeschlagen');

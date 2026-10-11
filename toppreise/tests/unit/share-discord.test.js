@@ -122,6 +122,12 @@ describe('formatDealMessage', () => {
     assert.ok(msg.length <= 2000);
     assert.equal(msg.split('\n').length, 2);
   });
+
+  it('keeps the trailing link bare (no angle-bracket suppression)', () => {
+    const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: '', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
+    assert.ok(msg.endsWith(PRODUCT_URL));
+    assert.ok(!msg.includes('<' + PRODUCT_URL + '>'));
+  });
 });
 
 describe('resolveShareFields', () => {
@@ -416,6 +422,18 @@ describe('postDealToDiscord', () => {
       globalThis.fetch = realFetch;
     }
   });
+
+  it('sends flags:4 when suppressEmbeds is true, no flags by default', async () => {
+    let seen = null;
+    globalThis.fetch = async (url, opts) => {
+      seen = { url, opts };
+      return { ok: true, status: 204 };
+    };
+    await postDealToDiscord(HOOK, '🔥 deal', true);
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal', flags: 4 });
+    await postDealToDiscord(HOOK, '🔥 deal', false);
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal' });
+  });
 });
 
 describe('postDealImageToDiscord', () => {
@@ -450,5 +468,18 @@ describe('postDealImageToDiscord', () => {
   it('rejects on Discord error status', async () => {
     globalThis.GM_xmlhttpRequest = ({ onload }) => onload({ status: 400 });
     await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Discord 400/);
+  });
+
+  it('sends flags:4 with the file attached when suppressEmbeds is true', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }), true);
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal', flags: 4 });
+    assert.ok(seen.data.get('file') instanceof Blob);
+    await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
   });
 });
