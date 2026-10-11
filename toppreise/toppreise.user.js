@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.161
+// @version      2.18.162
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2788,13 +2788,13 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'DISCORD_SUPPRESS_DEALER_EMBED': {
-            const toggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
-            if (toggle) toggle.checked = val !== false;
+            const toggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
+            if (toggle) toggle.checked = val === false;
             break;
           }
           case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
-            const toggle = shadow.getElementById('tp-discord-suppress-product-toggle');
-            if (toggle) toggle.checked = val !== false;
+            const toggle = shadow.getElementById('tp-discord-product-embed-toggle');
+            if (toggle) toggle.checked = val === false;
             break;
           }
           case 'SHOW_ADVANCED': {
@@ -5269,7 +5269,7 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-switch-desc">AUS = keine Händler-Vorschau</span>
             </div>
             <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-discord-suppress-dealer-toggle">
+              <input type="checkbox" id="tp-discord-dealer-embed-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
@@ -5279,7 +5279,7 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-switch-desc">AUS = keine Produkt-Vorschau (Bild bleibt)</span>
             </div>
             <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-discord-suppress-product-toggle">
+              <input type="checkbox" id="tp-discord-product-embed-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
@@ -5496,8 +5496,8 @@ const SHADOW_MODAL_STYLES = `
     const dur730 = shadow.getElementById('tp-dur-730');
     const advancedDetails = shadow.getElementById('tp-advanced-details');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
-    const discordSuppressDealerToggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
-    const discordSuppressProductToggle = shadow.getElementById('tp-discord-suppress-product-toggle');
+    const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
+    const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
 
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -5556,8 +5556,8 @@ const SHADOW_MODAL_STYLES = `
       }
 
       if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
-      if (discordSuppressDealerToggle) discordSuppressDealerToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false;
-      if (discordSuppressProductToggle) discordSuppressProductToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false;
+      if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
+      if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
     }
 
     const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -5780,8 +5780,8 @@ const SHADOW_MODAL_STYLES = `
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
       if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
-      if (discordSuppressDealerToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = discordSuppressDealerToggle.checked;
-      if (discordSuppressProductToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = discordSuppressProductToggle.checked;
+      if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
+      if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
       updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
       updateConfigs(updates);

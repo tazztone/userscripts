@@ -102,7 +102,7 @@ export function setupUI() {
             <span class="tp-switch-desc">AUS = keine Händler-Vorschau</span>
           </div>
           <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-discord-suppress-dealer-toggle">
+            <input type="checkbox" id="tp-discord-dealer-embed-toggle">
             <span class="tp-slider"></span>
           </label>
         </div>
@@ -112,7 +112,7 @@ export function setupUI() {
             <span class="tp-switch-desc">AUS = keine Produkt-Vorschau (Bild bleibt)</span>
           </div>
           <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-discord-suppress-product-toggle">
+            <input type="checkbox" id="tp-discord-product-embed-toggle">
             <span class="tp-slider"></span>
           </label>
         </div>
@@ -329,8 +329,8 @@ export function setupUI() {
   const dur730 = shadow.getElementById('tp-dur-730');
   const advancedDetails = shadow.getElementById('tp-advanced-details');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
-  const discordSuppressDealerToggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
-  const discordSuppressProductToggle = shadow.getElementById('tp-discord-suppress-product-toggle');
+  const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
+  const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
 
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
@@ -389,8 +389,8 @@ export function setupUI() {
     }
 
     if (discordWebhookInput) discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
-    if (discordSuppressDealerToggle) discordSuppressDealerToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false;
-    if (discordSuppressProductToggle) discordSuppressProductToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false;
+    if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
+    if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
   }
 
   const bindDual = (rangeEl, numEl, onInput = null) => {
@@ -613,8 +613,8 @@ export function setupUI() {
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
     if (discordWebhookInput) updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
-    if (discordSuppressDealerToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = discordSuppressDealerToggle.checked;
-    if (discordSuppressProductToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = discordSuppressProductToggle.checked;
+    if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
+    if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
     updates.SHOW_ADVANCED = !!advancedDetails?.open;
 
     updateConfigs(updates);

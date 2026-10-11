@@ -293,13 +293,13 @@ export function syncUiControl(key, val) {
           break;
         }
         case 'DISCORD_SUPPRESS_DEALER_EMBED': {
-          const toggle = shadow.getElementById('tp-discord-suppress-dealer-toggle');
-          if (toggle) toggle.checked = val !== false;
+          const toggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
+          if (toggle) toggle.checked = val === false;
           break;
         }
         case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
-          const toggle = shadow.getElementById('tp-discord-suppress-product-toggle');
-          if (toggle) toggle.checked = val !== false;
+          const toggle = shadow.getElementById('tp-discord-product-embed-toggle');
+          if (toggle) toggle.checked = val === false;
           break;
         }
         case 'SHOW_ADVANCED': {
