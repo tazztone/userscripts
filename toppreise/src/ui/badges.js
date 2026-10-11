@@ -8,8 +8,8 @@
 import { CONFIG, updateConfig, _getValue, _setValue } from '../state/config.js';
 import {
   getBadgeHeatStyle,
-  getChromeHeatStyle,
-  getEdgeHeatStyle,
+  getOuterHeatStyle,
+  getInsetHeatStyle,
   getCardDealerRows,
   extractCardDiscount,
   getCardProductId
@@ -132,16 +132,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // Regular blend heat (verified): inset inner wash — the prominent signal,
   // clipped to the card's own edges. Vortief fallback heat (mode, verified low
   // without blend): same ramp hue, but only a subtle outer glow-or-none
-  // (getChromeHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
+  // (getOuterHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
   // glow, by design, so the fallback can't pass as a blended deal).
-  // NOTE: getEdgeHeatStyle serves regular here, getChromeHeatStyle the
-  // fallback — names read historically; the ternary below is the swap point.
+  // getInsetHeatStyle serves regular here, getOuterHeatStyle the fallback.
   const isVortiefHeat = heatInfo.kind === 'vortief';
   if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
     const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
-      const heat = isVortiefHeat ? getChromeHeatStyle(effectiveDiff, heatIntensity) : getEdgeHeatStyle(heatInfo.pct, heatIntensity);
+      const heat = isVortiefHeat ? getOuterHeatStyle(effectiveDiff, heatIntensity) : getInsetHeatStyle(heatInfo.pct, heatIntensity);
       card.classList.toggle('tp-heat-vortief', isVortiefHeat);
       card.classList.toggle('tp-heat-blend', !isVortiefHeat);
       card.style.setProperty('--tp-heat-glow', heat.glow);

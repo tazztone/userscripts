@@ -177,26 +177,25 @@ const heatColor = (diff, intensity) => {
   return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
 };
 
-export function getChromeHeatStyle(diffPercent, intensity = 1.0) {
+// Fallback (Vortief) signal: subtle OUTER glow, or 'none' below t 0.55 — no
+// background fill, no border. Shallow fallbacks get no glow by design, so a
+// fallback can never pass as a verified blend deal at a glance.
+export function getOuterHeatStyle(diffPercent, intensity = 1.0) {
   const c = heatColor(diffPercent, intensity);
   if (!c) return null;
-  const { t, acc, borderRgb, borderAlpha, safeInt } = c;
-  const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
+  const { t, acc, safeInt } = c;
   const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
-  return { border, glow };
+  return { glow };
 }
-// Feathered INNER-edge variant for Vortief heat (mode only): NO background
-// fill — the card keeps the site background. Same ramp hue, but the signal
-// lives in an inset glow + tinted border, so a fallback low can never pass
-// as a blended deal at a glance. Inset (never outer): an outer box-shadow
-// paints past the border box and bleeds onto neighboring cards — inset
-// clips at the card's own edge by construction, no per-layout tuning.
-export function getEdgeHeatStyle(dropPct, intensity = 1.0) {
+// Regular (verified blend) signal: prominent INSET wash, no background fill,
+// no border. Inset (never outer): an outer box-shadow paints past the border
+// box and bleeds onto neighboring cards — inset clips at the card's own edge
+// by construction, no per-layout tuning.
+export function getInsetHeatStyle(dropPct, intensity = 1.0) {
   const c = heatColor(-Math.abs(dropPct), intensity);
   if (!c) return null;
-  const { acc, borderRgb, borderAlpha, safeInt } = c;
+  const { acc, safeInt } = c;
   return {
-    border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
     glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
   };
 }

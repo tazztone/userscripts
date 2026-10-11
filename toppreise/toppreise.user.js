@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.188
+// @version      2.18.189
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3237,26 +3237,25 @@ const SHADOW_MODAL_STYLES = `
     return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
   };
 
-  function getChromeHeatStyle(diffPercent, intensity = 1.0) {
+  // Fallback (Vortief) signal: subtle OUTER glow, or 'none' below t 0.55 — no
+  // background fill, no border. Shallow fallbacks get no glow by design, so a
+  // fallback can never pass as a verified blend deal at a glance.
+  function getOuterHeatStyle(diffPercent, intensity = 1.0) {
     const c = heatColor(diffPercent, intensity);
     if (!c) return null;
-    const { t, acc, borderRgb, borderAlpha, safeInt } = c;
-    const border = `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`;
+    const { t, acc, safeInt } = c;
     const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
-    return { border, glow };
+    return { glow };
   }
-  // Feathered INNER-edge variant for Vortief heat (mode only): NO background
-  // fill — the card keeps the site background. Same ramp hue, but the signal
-  // lives in an inset glow + tinted border, so a fallback low can never pass
-  // as a blended deal at a glance. Inset (never outer): an outer box-shadow
-  // paints past the border box and bleeds onto neighboring cards — inset
-  // clips at the card's own edge by construction, no per-layout tuning.
-  function getEdgeHeatStyle(dropPct, intensity = 1.0) {
+  // Regular (verified blend) signal: prominent INSET wash, no background fill,
+  // no border. Inset (never outer): an outer box-shadow paints past the border
+  // box and bleeds onto neighboring cards — inset clips at the card's own edge
+  // by construction, no per-layout tuning.
+  function getInsetHeatStyle(dropPct, intensity = 1.0) {
     const c = heatColor(-Math.abs(dropPct), intensity);
     if (!c) return null;
-    const { acc, borderRgb, borderAlpha, safeInt } = c;
+    const { acc, safeInt } = c;
     return {
-      border: `rgba(${borderRgb.join(',')},${(borderAlpha * safeInt).toFixed(2)})`,
       glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
     };
   }
@@ -4266,16 +4265,15 @@ const SHADOW_MODAL_STYLES = `
     // Regular blend heat (verified): inset inner wash — the prominent signal,
     // clipped to the card's own edges. Vortief fallback heat (mode, verified low
     // without blend): same ramp hue, but only a subtle outer glow-or-none
-    // (getChromeHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
+    // (getOuterHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
     // glow, by design, so the fallback can't pass as a blended deal).
-    // NOTE: getEdgeHeatStyle serves regular here, getChromeHeatStyle the
-    // fallback — names read historically; the ternary below is the swap point.
+    // getInsetHeatStyle serves regular here, getOuterHeatStyle the fallback.
     const isVortiefHeat = heatInfo.kind === 'vortief';
     if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
-        const heat = isVortiefHeat ? getChromeHeatStyle(effectiveDiff, heatIntensity) : getEdgeHeatStyle(heatInfo.pct, heatIntensity);
+        const heat = isVortiefHeat ? getOuterHeatStyle(effectiveDiff, heatIntensity) : getInsetHeatStyle(heatInfo.pct, heatIntensity);
         card.classList.toggle('tp-heat-vortief', isVortiefHeat);
         card.classList.toggle('tp-heat-blend', !isVortiefHeat);
         card.style.setProperty('--tp-heat-glow', heat.glow);

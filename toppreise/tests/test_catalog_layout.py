@@ -1493,6 +1493,9 @@ def test_merged_blend_subline_rendering(page: Page):
     text = subline.inner_text()
     assert '📉 CHF 2000.00 (-10%)' in text
     assert 'Ø (Lifetime) CHF 2400.00 (-25%)' in text
+    # Truncation-safe order: previous-low leg first, Ø leg last — narrow cards
+    # ellipsize from the left, so the Ø leg (the informative one) survives.
+    assert text.index('📉') < text.index('Ø (')
     # Card-level bottom strip: one line, starting right of the share zone
     row = card.locator('.tp-card-subline-row')
     assert row.count() == 1
