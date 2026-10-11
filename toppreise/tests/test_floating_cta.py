@@ -36,7 +36,7 @@ def test_floating_cta_dealer_toggle_syncs_with_settings(page: Page):
     assert 'tp-active' in (row.get_attribute('class') or '')
 
     # Settings modal mirrors the same key without a save round-trip
-    open_settings(page, advanced=True)
+    open_settings(page)
     assert page.locator('#tp-root >> #tp-dealer-autofetch-toggle').is_checked()
 
 

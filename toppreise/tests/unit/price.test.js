@@ -8,7 +8,7 @@ import {
   sanitizeTimeSeries,
   analyzePriceTimeSeries
 } from '../../src/domain/price.js';
-import { CONFIG } from '../../src/state/config.js';
+import { DAY, withConfig } from './helpers.js';
 
 describe('Price Domain Module', () => {
   describe('parsePrice', () => {
@@ -65,17 +65,16 @@ describe('Price Domain Module', () => {
 
     it('filters out transient glitch spikes (< 35% median lasting < 48 hours)', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 10 * dayMs, 1300],
-        [now - 9 * dayMs, 1250],
-        [now - 7 * dayMs, 1200],
-        [now - 6 * dayMs, 15],   // Glitch drop: CHF 15 on a CHF 1200 product
-        [now - 5 * dayMs, 1200],
-        [now - 4 * dayMs, 1180],
-        [now - 3 * dayMs, 1150],
-        [now - 2 * dayMs, 1100],
-        [now - 1 * dayMs, 1050],
+        [now - 10 * DAY, 1300],
+        [now - 9 * DAY, 1250],
+        [now - 7 * DAY, 1200],
+        [now - 6 * DAY, 15],   // Glitch drop: CHF 15 on a CHF 1200 product
+        [now - 5 * DAY, 1200],
+        [now - 4 * DAY, 1180],
+        [now - 3 * DAY, 1150],
+        [now - 2 * DAY, 1100],
+        [now - 1 * DAY, 1050],
         [now, 999]              // Real all-time low
       ];
 
@@ -88,13 +87,12 @@ describe('Price Domain Module', () => {
 
     it('does not filter legitimate sustained drops', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 5 * dayMs, 100],
-        [now - 4 * dayMs, 100],
-        [now - 3 * dayMs, 20],   // Sustained price cut lasting 3 days
-        [now - 2 * dayMs, 20],
-        [now - 1 * dayMs, 20],
+        [now - 5 * DAY, 100],
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 20],   // Sustained price cut lasting 3 days
+        [now - 2 * DAY, 20],
+        [now - 1 * DAY, 20],
         [now, 20]
       ];
 
@@ -105,17 +103,16 @@ describe('Price Domain Module', () => {
 
     it('filters out transient upward spikes (> 2.5x median lasting < 48 hours)', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 10 * dayMs, 1200],
-        [now - 9 * dayMs, 1180],
-        [now - 7 * dayMs, 1150],
-        [now - 6 * dayMs, 5000],  // Glitch spike: CHF 5000 on a CHF 1150 product
-        [now - 5 * dayMs, 1150],
-        [now - 4 * dayMs, 1140],
-        [now - 3 * dayMs, 1130],
-        [now - 2 * dayMs, 1120],
-        [now - 1 * dayMs, 1110],
+        [now - 10 * DAY, 1200],
+        [now - 9 * DAY, 1180],
+        [now - 7 * DAY, 1150],
+        [now - 6 * DAY, 5000],  // Glitch spike: CHF 5000 on a CHF 1150 product
+        [now - 5 * DAY, 1150],
+        [now - 4 * DAY, 1140],
+        [now - 3 * DAY, 1130],
+        [now - 2 * DAY, 1120],
+        [now - 1 * DAY, 1110],
         [now, 1100]
       ];
 
@@ -128,13 +125,12 @@ describe('Price Domain Module', () => {
 
     it('does not filter sustained high price levels', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 5 * dayMs, 1200],
-        [now - 4 * dayMs, 1200],
-        [now - 3 * dayMs, 5000],
-        [now - 2 * dayMs, 5000],
-        [now - 1 * dayMs, 5000],
+        [now - 5 * DAY, 1200],
+        [now - 4 * DAY, 1200],
+        [now - 3 * DAY, 5000],
+        [now - 2 * DAY, 5000],
+        [now - 1 * DAY, 5000],
         [now, 5000]
       ];
 
@@ -153,29 +149,18 @@ describe('Price Domain Module', () => {
 
     it('computes rolling horizon median, previous low, and discount statistics', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 700 * dayMs, 2000],
-        [now - 600 * dayMs, 1900],
-        [now - 500 * dayMs, 1800],
-        [now - 120 * dayMs, 850],
-        [now - 90 * dayMs, 800],
-        [now - 60 * dayMs, 780],
-        [now - 30 * dayMs, 750],
+        [now - 700 * DAY, 2000],
+        [now - 600 * DAY, 1900],
+        [now - 500 * DAY, 1800],
+        [now - 120 * DAY, 850],
+        [now - 90 * DAY, 800],
+        [now - 60 * DAY, 780],
+        [now - 30 * DAY, 750],
         [now, 699]
       ];
 
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 365;
-      CONFIG.OUTLIER_REJECTION_ENABLED = true;
-      let analysis;
-      try {
-        analysis = analyzePriceTimeSeries(series, 699);
-      } finally {
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
-      }
+      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 365, () => withConfig('OUTLIER_REJECTION_ENABLED', true, () => analyzePriceTimeSeries(series, 699)));
       assert.ok(analysis);
       assert.equal(analysis.tiefstpreis, 699);
       assert.equal(analysis.isNewAllTimeLow, true);
@@ -187,26 +172,15 @@ describe('Price Domain Module', () => {
 
     it('uses strict cent comparison for the trailing plateau (no 1% swallow)', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       // -0.5% micro-dip: previous low must stay the adjacent 100.00,
       // not an older higher level.
       const series = [
-        [now - 30 * dayMs, 120.00],
-        [now - 20 * dayMs, 110.00],
-        [now - 10 * dayMs, 100.00],
+        [now - 30 * DAY, 120.00],
+        [now - 20 * DAY, 110.00],
+        [now - 10 * DAY, 100.00],
         [now, 99.50]
       ];
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
-      CONFIG.OUTLIER_REJECTION_ENABLED = false;
-      let analysis;
-      try {
-        analysis = analyzePriceTimeSeries(series, 99.50);
-      } finally {
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
-      }
+      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 99.50)));
       assert.ok(analysis);
       assert.equal(analysis.previousLow, 100.00);
       assert.equal(analysis.realDiscountVsPrevLow, 1); // honest micro-dip, badge renders "Tiefstpreis"
@@ -214,24 +188,13 @@ describe('Price Domain Module', () => {
 
     it('averages the two middle values for even point counts (no upper-median bias)', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 30 * dayMs, 100],
-        [now - 20 * dayMs, 200],
-        [now - 10 * dayMs, 300],
+        [now - 30 * DAY, 100],
+        [now - 20 * DAY, 200],
+        [now - 10 * DAY, 300],
         [now, 400]
       ];
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
-      CONFIG.OUTLIER_REJECTION_ENABLED = false;
-      let analysis;
-      try {
-        analysis = analyzePriceTimeSeries(series, 400);
-      } finally {
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
-      }
+      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 400)));
       assert.ok(analysis);
       assert.equal(analysis.medianPrice, 250); // (200 + 300) / 2, not 300
       assert.equal(analysis.medianFallback, false);
@@ -239,24 +202,13 @@ describe('Price Domain Module', () => {
 
     it('flags lifetime fallback when fewer than 3 points sit inside the horizon', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 700 * dayMs, 2000],
-        [now - 600 * dayMs, 1900],
-        [now - 10 * dayMs, 800],
+        [now - 700 * DAY, 2000],
+        [now - 600 * DAY, 1900],
+        [now - 10 * DAY, 800],
         [now, 750]
       ];
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 365;
-      CONFIG.OUTLIER_REJECTION_ENABLED = false;
-      let analysis;
-      try {
-        analysis = analyzePriceTimeSeries(series, 750);
-      } finally {
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
-      }
+      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 365, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 750)));
       assert.ok(analysis);
       assert.equal(analysis.medianFallback, true);
       // Fallback median spans the full history: [750, 800, 1900, 2000] -> (800 + 1900) / 2
@@ -265,44 +217,28 @@ describe('Price Domain Module', () => {
 
     it('uses the window median without fallback flag once 3+ points qualify', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 700 * dayMs, 2000],
-        [now - 10 * dayMs, 800],
-        [now - 5 * dayMs, 780],
+        [now - 700 * DAY, 2000],
+        [now - 10 * DAY, 800],
+        [now - 5 * DAY, 780],
         [now, 750]
       ];
-      const prevHorizon2 = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlier2 = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 365;
-      CONFIG.OUTLIER_REJECTION_ENABLED = false;
-      let analysis2;
-      try {
-        analysis2 = analyzePriceTimeSeries(series, 750);
-      } finally {
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon2;
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier2;
-      }
-      assert.ok(analysis2);
-      assert.equal(analysis2.medianFallback, false);
-      assert.equal(analysis2.medianPrice, 780); // [750, 780, 800] window median
+      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 365, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 750)));
+      assert.ok(analysis);
+      assert.equal(analysis.medianFallback, false);
+      assert.equal(analysis.medianPrice, 780); // [750, 780, 800] window median
     });
 
     it('accepts an explicit horizon override independent of CONFIG', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 500 * dayMs, 2000],
-        [now - 400 * dayMs, 1900],
-        [now - 60 * dayMs, 800],
-        [now - 30 * dayMs, 780],
+        [now - 500 * DAY, 2000],
+        [now - 400 * DAY, 1900],
+        [now - 60 * DAY, 800],
+        [now - 30 * DAY, 780],
         [now, 750]
       ];
-      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
-      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = 0;
-      CONFIG.OUTLIER_REJECTION_ENABLED = false;
-      try {
+      withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
         const win = analyzePriceTimeSeries(series, null, 90);
         assert.ok(win);
         assert.equal(win.horizonDays, 90);
@@ -321,10 +257,7 @@ describe('Price Domain Module', () => {
         assert.ok(fromConfig);
         assert.equal(fromConfig.horizonDays, 0); // third arg omitted: CONFIG wins
         assert.equal(fromConfig.medianPrice, 800);
-      } finally {
-        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS = prevHorizon;
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
-      }
+      }));
     });
   });
 
@@ -368,18 +301,15 @@ describe('Price Domain Module', () => {
         }
       };
 
-      const prev = CONFIG.USE_SHIPPING_PRICE;
-      try {
-        CONFIG.USE_SHIPPING_PRICE = true;
+      withConfig('USE_SHIPPING_PRICE', true, () => {
         assert.equal(extractCanonicalPrice(mockCard).price, 45.00);
 
         // Memoized container reset for product mode
         delete mockCard._tpPriceInfo;
-        CONFIG.USE_SHIPPING_PRICE = false;
-        assert.equal(extractCanonicalPrice(mockCard).price, 39.00);
-      } finally {
-        CONFIG.USE_SHIPPING_PRICE = prev;
-      }
+        withConfig('USE_SHIPPING_PRICE', false, () => {
+          assert.equal(extractCanonicalPrice(mockCard).price, 39.00);
+        });
+      });
     });
   });
 });

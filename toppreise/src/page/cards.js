@@ -275,7 +275,7 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   return { isNeg, isLowOffers, isBadDeal, isUnchecked, isDealerLoser, isFiltered };
 }
 
-export function dealerLoserFor(card, activeStores, isNeueFeed) {
+export function dealerLoserFor(card, activeStores) {
   if (!activeStores || activeStores.length === 0) return false;
   const dealerRows = getCardDealerRows(card);
   if (dealerRows.length === 0) return false;

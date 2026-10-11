@@ -481,13 +481,6 @@ export function syncUiControl(key, val) {
   }
 }
 
-// Full-form refresh: replays every CONFIG key through the single-control
-// sync above. Used by the settings modal on open/import/reset instead of
-// duplicating per-key assignments for keys syncUiControl already covers.
-export function syncAllUiControls(keys = Object.keys(CONFIG)) {
-  for (const k of keys) syncUiControl(k, CONFIG[k]);
-}
-
 // Alarm-only changes repaint just the bell (via syncUiControl) — a full
 // processListings() re-render would be wasted work on every settings save.
 const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);

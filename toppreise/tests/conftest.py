@@ -78,7 +78,7 @@ def mock_pricechart(page, lows):
     page.route('**/plugins/product/pricechart*', handle_pricechart)
 
 
-def open_settings(page, advanced=False):
-    """Open the settings modal via FAB; `advanced` kept for caller compat (all sections always visible)."""
+def open_settings(page):
+    """Open the settings modal via FAB (all sections always visible)."""
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')

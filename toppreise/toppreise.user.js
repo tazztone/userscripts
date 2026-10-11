@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.189
+// @version      2.18.190
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2912,13 +2912,6 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  // Full-form refresh: replays every CONFIG key through the single-control
-  // sync above. Used by the settings modal on open/import/reset instead of
-  // duplicating per-key assignments for keys syncUiControl already covers.
-  function syncAllUiControls(keys = Object.keys(CONFIG)) {
-    for (const k of keys) syncUiControl(k, CONFIG[k]);
-  }
-
   // Alarm-only changes repaint just the bell (via syncUiControl) — a full
   // processListings() re-render would be wasted work on every settings save.
   const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
@@ -3335,7 +3328,7 @@ const SHADOW_MODAL_STYLES = `
     return { isNeg, isLowOffers, isBadDeal, isUnchecked, isDealerLoser, isFiltered };
   }
 
-  function dealerLoserFor(card, activeStores, isNeueFeed) {
+  function dealerLoserFor(card, activeStores) {
     if (!activeStores || activeStores.length === 0) return false;
     const dealerRows = getCardDealerRows(card);
     if (dealerRows.length === 0) return false;
@@ -4336,7 +4329,7 @@ const SHADOW_MODAL_STYLES = `
       card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
       card.querySelector('.tp-best-price-badge')?.remove();
       filters.isDealerLoser = false;
-    } else if (dealerLoserFor(card, activeStores, isNeueFeed)) {
+    } else if (dealerLoserFor(card, activeStores)) {
       card.classList.add('tp-not-cheapest');
       card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
       card.querySelector('.tp-best-price-badge')?.remove();
@@ -5526,7 +5519,7 @@ const SHADOW_MODAL_STYLES = `
       // Every key syncUiControl covers (radios, toggles, weight, min-points,
       // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
       // through it — toolbar mirrors included. Only modal-only controls below.
-      syncAllUiControls();
+      for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k]);
       syncOpacityVisibility();
 
       marginRange.value = CONFIG.MARGIN_PERCENT;
@@ -6665,7 +6658,8 @@ const SHADOW_MODAL_STYLES = `
     ensureCta();
     syncFloatingCTA();
   }
-  // ─── MODULE: src/features/share-discord.js ────────────────────────────────
+
+  // ─── MODULE: src/features/share-discord.js ──────────────────────────────────
   /**
    * Discord Deal-Sharing
    * 1-Klick-Share verifizierter Tiefstpreise in einen Discord-Channel via
@@ -7076,7 +7070,6 @@ const SHADOW_MODAL_STYLES = `
       }
     });
   }
-
 
   // ─── MODULE: src/features/price-alarm.js ────────────────────────────────────
   /**

@@ -18,7 +18,18 @@ import {
   setSharedDeal,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
-import { CONFIG } from '../../src/state/config.js';
+import { DAY, withConfig } from './helpers.js';
+
+const memStorage = () => {
+  const m = new Map();
+  return {
+    getItem: k => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => { m.set(k, String(v)); },
+    removeItem: k => { m.delete(k); },
+    key: i => [...m.keys()][i] ?? null,
+    get length() { return m.size; },
+  };
+};
 
 describe('Bounded Cache Module', () => {
   beforeEach(() => {
@@ -63,24 +74,18 @@ describe('Bounded Cache Module', () => {
 
   describe('isCacheEntryFresh', () => {
     it('enforces regular cache TTL (default 48h)', () => {
-      const prev = CONFIG.REAL_DEAL_CACHE_HOURS;
-      CONFIG.REAL_DEAL_CACHE_HOURS = 48;
-      try {
+      withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
         const now = Date.now();
         const freshEntry = { tiefstpreis: 100, time: now - 40 * 3600 * 1000 };
         const expiredEntry = { tiefstpreis: 100, time: now - 50 * 3600 * 1000 };
 
         assert.equal(isCacheEntryFresh(freshEntry), true);
         assert.equal(isCacheEntryFresh(expiredEntry), false);
-      } finally {
-        CONFIG.REAL_DEAL_CACHE_HOURS = prev;
-      }
+      });
     });
 
     it('enforces negative cache TTL (default 2h)', () => {
-      const prev = CONFIG.NEGATIVE_CACHE_HOURS;
-      CONFIG.NEGATIVE_CACHE_HOURS = 2;
-      try {
+      withConfig('NEGATIVE_CACHE_HOURS', 2, () => {
         const now = Date.now();
         const freshNeg = { unavailable: true, time: now - 1 * 3600 * 1000 };
         const expiredNeg = { unavailable: true, time: now - 3 * 3600 * 1000 };
@@ -89,9 +94,7 @@ describe('Bounded Cache Module', () => {
         assert.equal(isCacheEntryFresh(expiredNeg), false);
         // ignoreNegativeCache bypasses cache freshness for negative entries
         assert.equal(isCacheEntryFresh(freshNeg, true), false);
-      } finally {
-        CONFIG.NEGATIVE_CACHE_HOURS = prev;
-      }
+      });
     });
   });
 
@@ -133,42 +136,23 @@ describe('Bounded Cache Module', () => {
 
   describe('shipping-mode guard', () => {
     it('serves same-mode entries and legacy entries without a flag', () => {
-      const prev = CONFIG.USE_SHIPPING_PRICE;
-      CONFIG.USE_SHIPPING_PRICE = true; // Node: no document -> mode is the flag
-      try {
+      withConfig('USE_SHIPPING_PRICE', true, () => { // Node: no document -> mode is the flag
         setCachedPriceStats('m1', { tiefstpreis: 100, isShippingPrice: true }, false, null);
         setCachedPriceStats('m2', { tiefstpreis: 100 }, false, null); // legacy, no flag
         assert.equal(getCachedPriceStats('m1', false, null).tiefstpreis, 100);
         assert.equal(getCachedPriceStats('m2', false, null).tiefstpreis, 100);
-      } finally {
-        CONFIG.USE_SHIPPING_PRICE = prev;
-      }
+      });
     });
 
     it('reads cross-mode entries as a miss so the next scan refetches', () => {
-      const prev = CONFIG.USE_SHIPPING_PRICE;
-      CONFIG.USE_SHIPPING_PRICE = false; // product-price mode, entry is shipping
-      try {
+      withConfig('USE_SHIPPING_PRICE', false, () => { // product-price mode, entry is shipping
         setCachedPriceStats('m3', { tiefstpreis: 100, isShippingPrice: true }, false, null);
         assert.equal(getCachedPriceStats('m3', false, null), null);
-      } finally {
-        CONFIG.USE_SHIPPING_PRICE = prev;
-      }
+      });
     });
   });
 
   describe('dealer persistence', () => {
-    const memStorage = () => {
-      const m = new Map();
-      return {
-        getItem: k => (m.has(k) ? m.get(k) : null),
-        setItem: (k, v) => { m.set(k, String(v)); },
-        removeItem: k => { m.delete(k); },
-        key: i => [...m.keys()][i] ?? null,
-        get length() { return m.size; },
-      };
-    };
-
     it('round-trips dealer + url per price basis', () => {
       const s = memStorage();
       setCachedDealer('p1', false, 'Galaxus', 'https://www.toppreise.ch/ext_de?oid=1', s);
@@ -180,16 +164,12 @@ describe('Bounded Cache Module', () => {
 
     it('expires with the price-history TTL', () => {
       const s = memStorage();
-      const prev = CONFIG.REAL_DEAL_CACHE_HOURS;
-      CONFIG.REAL_DEAL_CACHE_HOURS = 48;
-      try {
+      withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
         s.setItem(DEALER_CACHE_PREFIX + 'old', JSON.stringify({ time: Date.now() - 50 * 3600 * 1000, p: { dealer: 'Galaxus', url: '' } }));
         assert.equal(getCachedDealer('old', false, s), null);
         setCachedDealer('fresh', false, 'Galaxus', '', s);
         assert.equal(getCachedDealer('fresh', false, s).dealer, 'Galaxus');
-      } finally {
-        CONFIG.REAL_DEAL_CACHE_HOURS = prev;
-      }
+      });
     });
 
     it('tolerates corrupt entries and needs no storage', () => {
@@ -211,17 +191,6 @@ describe('Bounded Cache Module', () => {
     });
   });
   describe('shared-deal memory', () => {
-    const memStorage = () => {
-      const m = new Map();
-      return {
-        getItem: k => (m.has(k) ? m.get(k) : null),
-        setItem: (k, v) => { m.set(k, String(v)); },
-        removeItem: k => { m.delete(k); },
-        key: i => [...m.keys()][i] ?? null,
-        get length() { return m.size; },
-      };
-    };
-
     it('round-trips same price, re-arms on price change', () => {
       const s = memStorage();
       setSharedDeal('p1', 9999, s);
@@ -231,16 +200,12 @@ describe('Bounded Cache Module', () => {
 
     it('forgets with pricing data (48h TTL)', () => {
       const s = memStorage();
-      const prev = CONFIG.REAL_DEAL_CACHE_HOURS;
-      CONFIG.REAL_DEAL_CACHE_HOURS = 48;
-      try {
+      withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
         s.setItem(SHARED_CACHE_PREFIX + 'old', JSON.stringify({ priceCents: 1000, time: Date.now() - 49 * 3600 * 1000 }));
         assert.equal(getSharedDeal('old', 1000, s), false);
         setSharedDeal('fresh', 1000, s);
         assert.equal(getSharedDeal('fresh', 1000, s), true);
-      } finally {
-        CONFIG.REAL_DEAL_CACHE_HOURS = prev;
-      }
+      });
     });
 
     it('tolerates missing/corrupt/falsy keys, set never throws', () => {
@@ -281,30 +246,16 @@ describe('Bounded Cache Module', () => {
   });
 
   describe('recomputeCachedMedians', () => {
-    const memStorage = () => {
-      const m = new Map();
-      return {
-        getItem: k => (m.has(k) ? m.get(k) : null),
-        setItem: (k, v) => { m.set(k, String(v)); },
-        removeItem: k => { m.delete(k); },
-        key: i => [...m.keys()][i] ?? null,
-        get length() { return m.size; },
-      };
-    };
-
     it('recomputes medians locally, preserves TTL, skips series-less entries', () => {
       const now = Date.now();
-      const dayMs = 86400 * 1000;
       const series = [
-        [now - 500 * dayMs, 2000],
-        [now - 400 * dayMs, 1900],
-        [now - 60 * dayMs, 800],
-        [now - 30 * dayMs, 780],
+        [now - 500 * DAY, 2000],
+        [now - 400 * DAY, 1900],
+        [now - 60 * DAY, 800],
+        [now - 30 * DAY, 780],
         [now, 750]
       ];
-      const prevOutlier = CONFIG.OUTLIER_REJECTION_ENABLED;
-      CONFIG.OUTLIER_REJECTION_ENABLED = false;
-      try {
+      withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
         const seedStats = analyzePriceTimeSeries(series, null, 0);
         assert.equal(seedStats.medianPrice, 800);
         const fixedTime = now - 3600 * 1000;
@@ -326,9 +277,7 @@ describe('Bounded Cache Module', () => {
         assert.equal(e3.horizonDays, 90);
         assert.equal(JSON.parse(s.getItem('tp_hist_v1_p3')).horizonDays, 90);
         assert.equal(JSON.parse(s.getItem('tp_hist_v1_p1')).medianPrice, 780);
-      } finally {
-        CONFIG.OUTLIER_REJECTION_ENABLED = prevOutlier;
-      }
+      });
     });
   });
 });

@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import vm from 'node:vm';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,49 +31,39 @@ function stripModuleSyntax(code) {
     .trim();
 }
 
-function indent(code, spaces = 2) {
-  const pad = ' '.repeat(spaces);
-  return code.split('\n').map(line => line.trim() ? pad + line : line).join('\n');
-}
 
 export function buildBundle() {
   const stylesCode = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, 'ui', 'styles.js'), 'utf-8'));
-  // [relpath, banner] in load-bearing bundle order. Banners padded as before.
+  // Relpaths in load-bearing bundle order.
   const MODULES = [
-    ['page/selectors.js', '// ─── MODULE: src/page/selectors.js ──────────────────────────────────────────'],
-    ['domain/price.js', '// ─── MODULE: src/domain/price.js ────────────────────────────────────────────'],
-    ['domain/deal-score.js', '// ─── MODULE: src/domain/deal-score.js ───────────────────────────────────────'],
-    ['scanner/cache.js', '// ─── MODULE: src/scanner/cache.js ───────────────────────────────────────────'],
-    ['ui/mini-toggle.js', '// ─── MODULE: src/ui/mini-toggle.js ──────────────────────────────────────────'],
-    ['state/config.js', '// ─── MODULE: src/state/config.js ────────────────────────────────────────────'],
-    ['state/store.js', '// ─── MODULE: src/state/store.js ─────────────────────────────────────────────'],
-    ['page/adapter.js', '// ─── MODULE: src/page/adapter.js ────────────────────────────────────────────'],
-    ['page/cards.js', '// ─── MODULE: src/page/cards.js ──────────────────────────────────────────────'],
-    ['ui/sparkline.js', '// ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────'],
-    ['page/sort.js', '// ─── MODULE: src/page/sort.js ───────────────────────────────────────────────'],
-    ['scanner/scanner.js', '// ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────'],
-    ['ui/badges.js', '// ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────'],
-    ['ui/shell.js', '// ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────'],
-    ['ui/modal.js', '// ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────'],
-    ['ui/toast.js', '// ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────'],
-    ['ui/toolbar.js', '// ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────'],
-    ['ui/floating-cta.js', '// ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────'],
-    ['features/share-discord.js', '// ─── MODULE: src/features/share-discord.js ────────────────────────────────'],
-    ['features/price-alarm.js', '// ─── MODULE: src/features/price-alarm.js ────────────────────────────────────'],
-    ['features/product-detail.js', '// ─── MODULE: src/features/product-detail.js ─────────────────────────────────'],
+    'page/selectors.js',
+    'domain/price.js',
+    'domain/deal-score.js',
+    'scanner/cache.js',
+    'ui/mini-toggle.js',
+    'state/config.js',
+    'state/store.js',
+    'page/adapter.js',
+    'page/cards.js',
+    'ui/sparkline.js',
+    'page/sort.js',
+    'scanner/scanner.js',
+    'ui/badges.js',
+    'ui/shell.js',
+    'ui/modal.js',
+    'ui/toast.js',
+    'ui/toolbar.js',
+    'ui/floating-cta.js',
+    'features/share-discord.js',
+    'features/price-alarm.js',
+    'features/product-detail.js',
   ];
-  const modules = MODULES.map(([rel, banner]) => ({
-    banner,
-    code: stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, rel), 'utf-8')),
-  }));
-  const blocks = modules.map(m => `  ${m.banner}\n${indent(m.code, 2)}`);
-  // Legacy whitespace quirks kept byte-identical: no blank line before
-  // share-discord, two blank lines before price-alarm, one elsewhere.
-  let modulesBlock = blocks[0];
-  for (let idx = 1; idx < blocks.length; idx++) {
-    const rel = MODULES[idx][0];
-    modulesBlock += (rel === 'features/share-discord.js' ? '\n' : rel === 'features/price-alarm.js' ? '\n\n\n' : '\n\n') + blocks[idx];
-  }
+  const banner = r => `// ─── MODULE: src/${r} `.padEnd(79, '─');
+  const modulesBlock = MODULES.map(rel => {
+    const code = stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, rel), 'utf-8'));
+    const padded = code.split('\n').map(line => line.trim() ? `  ${line}` : line).join('\n');
+    return `  ${banner(rel)}\n${padded}`;
+  }).join('\n\n');
   const rawAppCode = fs.readFileSync(path.join(SRC_DIR, 'app.js'), 'utf-8');
 
   // Strip top imports from app.js
@@ -123,7 +113,7 @@ ${stylesCode}
 ${modulesBlock}
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
-${indent(iifeBody, 0)}
+${iifeBody}
 `;
 
   return bundle;
@@ -135,19 +125,14 @@ function main() {
   console.log('🔨 Assembling Toppreise Userscript bundle...');
   const bundle = buildBundle();
 
-  // Temporary syntax validation before saving
-  const tmpCheckFile = path.join(TOPPREISE_DIR, '.tmp_bundle_check.js');
-  fs.writeFileSync(tmpCheckFile, bundle, 'utf-8');
-
+  // Syntax validation (no execution, no tmp file, no child process).
   try {
-    execFileSync('node', ['--check', tmpCheckFile], { stdio: 'pipe' });
+    new vm.Script(bundle, { filename: 'toppreise.user.js' });
   } catch (err) {
-    fs.unlinkSync(tmpCheckFile);
     console.error('❌ Syntax validation failed on generated bundle:');
-    console.error(err.stderr ? err.stderr.toString() : err.message);
+    console.error(err.message);
     process.exit(1);
   }
-  fs.unlinkSync(tmpCheckFile);
 
   const bundleSizeKb = (Buffer.byteLength(bundle, 'utf-8') / 1024).toFixed(2);
   const bundleLines = bundle.split('\n').length;

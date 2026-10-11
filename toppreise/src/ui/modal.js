@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncAllUiControls, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from "../features/share-discord.js";
@@ -396,7 +396,7 @@ export function setupUI() {
     // Every key syncUiControl covers (radios, toggles, weight, min-points,
     // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
     // through it — toolbar mirrors included. Only modal-only controls below.
-    syncAllUiControls();
+    for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k]);
     syncOpacityVisibility();
 
     marginRange.value = CONFIG.MARGIN_PERCENT;

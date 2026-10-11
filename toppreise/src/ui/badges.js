@@ -203,7 +203,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
     card.querySelector('.tp-best-price-badge')?.remove();
     filters.isDealerLoser = false;
-  } else if (dealerLoserFor(card, activeStores, isNeueFeed)) {
+  } else if (dealerLoserFor(card, activeStores)) {
     card.classList.add('tp-not-cheapest');
     card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
     card.querySelector('.tp-best-price-badge')?.remove();

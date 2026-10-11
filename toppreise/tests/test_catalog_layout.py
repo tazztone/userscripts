@@ -53,7 +53,7 @@ def test_suite_filter_bar_styles(page: Page):
 
 def test_sort_by_offers(page: Page):
     # Open settings and enable sort by offers desc
-    open_settings(page, advanced=True)
+    open_settings(page)
     page.click('#tp-root >> label[for="tp-sort-desc"]')
     page.click('#tp-root >> #tp-btn-save')
 
@@ -227,7 +227,7 @@ def test_discount_heatmap_settings_modal_controls(page: Page):
 
 
 def test_sort_by_discount(page: Page):
-    open_settings(page, advanced=True)
+    open_settings(page)
     page.click('#tp-root >> label[for="tp-sort-discount"]')
     page.click('#tp-root >> #tp-btn-save')
 
