@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.168
+// @version      2.18.169
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5003,7 +5003,7 @@ const SHADOW_MODAL_STYLES = `
           }
           shareBtn.disabled = true;
           try {
-            const { title, url } = extractShareData(card);
+            const { title, url, imageUrl } = extractShareData(card);
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
             let dealer = extractDealer(card);
             let dealerUrl = extractDealerUrl(card);
@@ -5024,8 +5024,8 @@ const SHADOW_MODAL_STYLES = `
             const threadName = buildThreadName(title);
             const flagKey = discordForumFlagKey(hook);
             const forum = _getValue(flagKey, false) === true;
-            const postText = withThread => postDealToDiscord(hook, content, withThread ? { threadName } : undefined);
-            const postImage = withThread => postDealImageToDiscord(hook, content, png, withThread ? { threadName } : undefined);
+            const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
+            const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
             const tryRound = async withThread => {
               if (png) {
                 try { await postImage(withThread); return; }
@@ -6791,6 +6791,7 @@ const SHADOW_MODAL_STYLES = `
         if (typeof GM_xmlhttpRequest === 'undefined' || typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
         const body = { content };
+        if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
         if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
         form.append('payload_json', JSON.stringify(body));
         form.append('file', pngBlob, 'preisverlauf.png');
@@ -6848,7 +6849,7 @@ const SHADOW_MODAL_STYLES = `
 
   // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).
   function extractShareData(card) {
-    if (!card?.querySelector) return { title: '', url: '' };
+    if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
     const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
     const title = titleEl?.textContent?.trim() || titleEl?.getAttribute?.('title') || '';
     const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
@@ -6857,7 +6858,15 @@ const SHADOW_MODAL_STYLES = `
     if (url && !/^https?:\/\//i.test(url)) {
       try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
     }
-    return { title, url };
+    const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
+    let imageUrl = imgEl?.currentSrc || imgEl?.src
+      || imgEl?.getAttribute?.('data-src') || imgEl?.getAttribute?.('data-original') || '';
+    if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
+      if (/^\s*data:/i.test(imageUrl)) imageUrl = '';
+      else try { imageUrl = new URL(imageUrl, location.href).href; } catch { imageUrl = ''; }
+    }
+    if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
+    return { title, url, imageUrl };
   }
 
   // Angezeigten Händler (günstigste Zeile zuerst) als Klartext.
@@ -6978,6 +6987,7 @@ const SHADOW_MODAL_STYLES = `
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       const url = webhookUrl.trim();
       const body = { content };
+      if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
       if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
       const payload = JSON.stringify(body);
       if (typeof GM_xmlhttpRequest !== 'undefined') {

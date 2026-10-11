@@ -210,7 +210,31 @@ describe('extractShareData / extractDealer', () => {
     assert.equal(title, 'Beamer');
     assert.equal(url, 'https://www.toppreise.ch/preisvergleich/Beamer/x-p9');
     delete globalThis.location;
-    assert.deepEqual(extractShareData(null), { title: '', url: '' });
+    assert.deepEqual(extractShareData(null), { title: '', url: '', imageUrl: '' });
+  });
+
+  it('picks the card product image, empty when absent', () => {
+    const card = stubCard();
+    card.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: 'https://img/u.jpg' });
+    assert.equal(extractShareData(card).imageUrl, 'https://img/u.jpg');
+    assert.equal(extractShareData(stubCard()).imageUrl, '');
+  });
+
+  it('prefers data-src, absolutizes relative src, skips data: URLs', () => {
+    globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
+    try {
+      const lazy = stubCard();
+      lazy.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: '', getAttribute: n => n === 'data-src' ? 'https://img/lazy.jpg' : null });
+      assert.equal(extractShareData(lazy).imageUrl, 'https://img/lazy.jpg');
+      const rel = stubCard();
+      rel.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: '/images/u.jpg' });
+      assert.equal(extractShareData(rel).imageUrl, 'https://www.toppreise.ch/images/u.jpg');
+      const inline = stubCard();
+      inline.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: 'data:image/gif;base64,R0lGOD' });
+      assert.equal(extractShareData(inline).imageUrl, '');
+    } finally {
+      delete globalThis.location;
+    }
   });
 
   it('reads the first dealer row title, empty when absent', () => {
@@ -450,6 +474,26 @@ describe('postDealToDiscord', () => {
     await postDealToDiscord(HOOK, '🔥 deal');
     assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal' });
   });
+
+  it('sends the product image as embed image when passed', async () => {
+    let seen = null;
+    globalThis.fetch = async (url, opts) => {
+      seen = { url, opts };
+      return { ok: true, status: 200 };
+    };
+    await postDealToDiscord(HOOK, 'hi', { productImageUrl: 'https://img/u.jpg' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }] });
+  });
+
+  it('embeds and thread_name coexist', async () => {
+    let seen = null;
+    globalThis.fetch = async (url, opts) => {
+      seen = { url, opts };
+      return { ok: true, status: 200 };
+    };
+    await postDealToDiscord(HOOK, 'hi', { threadName: 'Deal X', productImageUrl: 'https://img/u.jpg' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
+  });
 });
 
 describe('postDealImageToDiscord', () => {
@@ -495,6 +539,26 @@ describe('postDealImageToDiscord', () => {
     await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
     assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
     assert.ok(seen.data.get('file') instanceof Blob);
+  });
+
+  it('sends the product image as embed image when passed', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { productImageUrl: 'https://img/u.jpg' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }] });
+  });
+
+  it('embeds and thread_name coexist', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { threadName: 'Deal X', productImageUrl: 'https://img/u.jpg' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
   });
 });
 

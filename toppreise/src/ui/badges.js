@@ -801,7 +801,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
         shareBtn.disabled = true;
         try {
-          const { title, url } = extractShareData(card);
+          const { title, url, imageUrl } = extractShareData(card);
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
           let dealer = extractDealer(card);
           let dealerUrl = extractDealerUrl(card);
@@ -822,8 +822,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const threadName = buildThreadName(title);
           const flagKey = discordForumFlagKey(hook);
           const forum = _getValue(flagKey, false) === true;
-          const postText = withThread => postDealToDiscord(hook, content, withThread ? { threadName } : undefined);
-          const postImage = withThread => postDealImageToDiscord(hook, content, png, withThread ? { threadName } : undefined);
+          const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
+          const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(imageUrl ? { productImageUrl: imageUrl } : null) });
           const tryRound = async withThread => {
             if (png) {
               try { await postImage(withThread); return; }
