@@ -447,9 +447,10 @@ export function syncUiControl(key, val) {
           case 'BESTPREISE_HIDE_UNCHECKED': {
             const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
             if (uncheckedBtn) {
+              uncheckedBtn.textContent = val === true ? '✓ Nur geprüfte' : 'Nur geprüfte';
               uncheckedBtn.classList.toggle('tp-active', val === true);
               uncheckedBtn.setAttribute('aria-pressed', String(val === true));
-              uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : '✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
+              uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : 'Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
             }
             break;
           }

@@ -66,7 +66,7 @@ export function setupUI() {
         <div class="tp-section-header">🧹 Filtern</div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Filtern entfernt sie.">Nur geprüfte anzeigen</label>
+            <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Filtern entfernt sie.">Nur geprüfte</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-hide-unchecked-toggle">

@@ -197,7 +197,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
 
 def test_suite_filter_bar_grouping(page: Page):
-    assert page.evaluate("() => document.getElementById('tp-bar-reveal-all').closest('.tp-group').classList.contains('tp-group-filter')")
+    assert page.evaluate("() => document.getElementById('tp-bar-reveal-all').closest('.tp-group').classList.contains('tp-group-view')")
     assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
     assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filtergründe'
     assert page.evaluate("() => document.querySelector('.tp-group-deals').getAttribute('aria-label')") == 'Sortieren'
@@ -324,8 +324,8 @@ def test_deal_features_enabled_on_category_page(page: Page):
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-bar-reveal-all').is_visible()
-    assert 'Gefilterte (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
-    assert 'Gefilterte (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
+    assert 'Gefilterte anzeigen (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert 'Ansicht (entfernt nichts): Gefilterte anzeigen (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
@@ -336,6 +336,19 @@ def test_deal_features_enabled_on_category_page(page: Page):
     # Claimed discount threshold dropdown and Neue Tiefstpreise feed toggle remain hidden
     assert not page.locator('#tp-bar-bestpreise-btn').is_visible()
     assert not page.locator('#tp-floating-threshold-btn').is_visible()
+
+def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
+    # Peek is Ansicht (removes nothing), unchecked is Filtergrund (removes cards)
+    assert page.locator('#tp-suite-filter-bar .tp-group-view #tp-bar-reveal-all').count() == 1
+    assert 'Gefilterte anzeigen' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    page.click('#tp-bar-unchecked-btn')
+    assert '✓ Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    assert 'tp-active' in (page.locator('#tp-bar-unchecked-btn').get_attribute('class') or '')
+    page.click('#tp-bar-unchecked-btn')
+    assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
 
 
 
