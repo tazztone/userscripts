@@ -11,6 +11,8 @@ def test_competing_reference_price_resolves_to_verified_low(page: Page):
     'Allzeit-Tiefstpreis' state instead of a markup 'Aufschlag' state.
     (Single color language: color = badge-% heat, text = kind.)
     """
+    # Scope to price logic: drop the store filter so the card stays visible.
+    page.evaluate("() => { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite?.processListings?.(); }")
     # Wait for initial render
     page.wait_for_selector('.badge-dif')
 
@@ -239,9 +241,9 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
 
 
 def test_mode_hides_non_bestpreis(page: Page):
-    """Strictness lives in the Tiefstpreise mode: enabling it hides verified
-    non-deals (.tp-baddeal-hidden) while qualifying Tiefstpreise stay
-    visible — no separate strictness toggle needed."""
+    """💎 sorts only: enabling it sorts qualifying Tiefstpreise first while
+    verified markups stay visible last with a truthful Aufschlag badge —
+    zero display:none on them, no separate strictness toggle needed."""
     # Seed stats directly: card 1 (797571) qualifies with full stats,
     # card 3 (797573) has minimal above-low stats (tiefstpreis 10 < price 15).
     page.evaluate("""() => {
@@ -262,31 +264,35 @@ def test_mode_hides_non_bestpreis(page: Page):
     assert page.locator('#card-cheapest').is_visible()
     assert page.locator('#card-negative').is_visible()
 
-    # Enable Tiefstpreise mode (cause) + Anzeige=hide (presentation) so the
-    # verified non-deal collapses instead of just dimming.
+    # Enable Tiefstpreise mode: deals sort first, verified markups stay visible last.
     page.evaluate("""() => {
-        window.ToppreiseSuite.updateConfig('MODE', 'hide');
         window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 3 (non-bestpreis) is hidden with .tp-baddeal-hidden, but its
-    # badge is still repainted truthfully (no stale verified % survives).
-    page.wait_for_selector('#card-negative.tp-baddeal-hidden', state='attached')
-    badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
-    assert '+50%' in (badge3.text_content() or '')
-    assert not page.locator('#card-negative').is_visible()
-
-    # Card 1 (qualifying Tiefstpreis) stays visible with record badge + heat
+    # Card 1 (qualifying Tiefstpreis) sorts first with record badge + heat
     # (single color language: color = badge-% heat, text = kind).
     assert page.locator('#card-cheapest').is_visible()
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
     assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    first_id = page.evaluate("() => Array.from(document.querySelectorAll('.Plugin_Product')).filter(c => c.offsetParent !== null)[0].id")
+    assert first_id == 'card-cheapest'
 
-    # Single reveal-all preview button toggles the tp-reveal-all display override
+    # Card 3 (verified markup) stays visible last with truthful Aufschlag badge, never display:none.
+    badge3 = page.locator('#card-negative .badge-dif.tp-deal-not-low')
+    assert '+50%' in (badge3.text_content() or '')
+    assert 'Aufschlag' in (badge3.text_content() or '')
+    assert page.locator('#card-negative').is_visible()
+    assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") != 'none'
+
+    # Peek covers real removals: a negative term removes the card, reveal-all previews it.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon')")
+    page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
+    assert not page.locator('#card-negative').is_visible()
     page.click('#tp-bar-reveal-all')
     assert page.locator('#card-negative').is_visible()
     assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '')")
 
 
 
@@ -792,6 +798,8 @@ def test_sparkline_not_rendered_without_timeseries(page: Page):
 def test_sparkline_trending_up_renders_single_color(page: Page):
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
+        // Scope to sparkline: drop the store filter so card-expensive stays visible.
+        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
     }""")
     seed_verified_deal(page, '797572', {'tiefstpreis': 900.0, 'hoechstpreis': 1200.0, 'aktuellerToppreis': 1100.0, 'timeSeries': [[1672531199, 900.0], [1675209599, 1000.0], [1677628799, 1100.0]]})
 
@@ -1618,8 +1626,7 @@ def test_reveal_all_button_shows_active_state(page: Page):
 
 
 def test_bestpreise_button_readable_on_light_background(page: Page):
-    """Aktiver Tiefstpreise-Button ist opak mit weißer Schrift — lesbar auch in
-    der weißen #timeframe-filter-Zeile, nicht nur in der dunklen Bar."""
+    """Aktiver Tiefstpreise-Button ist opak mit weißer Schrift — lesbar in der dunklen Bar."""
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
     page.wait_for_timeout(200)
     btn = page.locator('#tp-bar-bestpreise-btn')

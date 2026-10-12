@@ -1,7 +1,7 @@
 /**
  * Settings Modal & Shadow DOM Component
  * Manages the floating action button, single-page settings dialog,
- * dual-binding input controls, Anzeige display-mode, import/export, and cache controls.
+ * dual-binding input controls, view paint, import/export, and cache controls.
  */
 
 import { showToast } from "./toast.js";
@@ -21,31 +21,39 @@ export function setupUI() {
     tempDiv.innerHTML = `
       <div id="tp-section-unified-suite">
       <section id="tp-section-display" class="tp-section-card tp-section-display">
-        <div class="tp-section-header">🖥️ Anzeige</div>
-        <div class="tp-settings-group">
-          <label title="So werden gefilterte Angebote dargestellt (Negativ, Min-Angebote, Händler-Nicht-Toppreis, Schlechte Deals, Ungeprüfte): farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
-          <div class="tp-segmented-control">
-            <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
-            <label for="tp-mode-highlight-only">Highlight</label>
-            <input type="radio" id="tp-mode-dim" name="tp-mode" value="dim">
-            <label for="tp-mode-dim">Dimmen</label>
-            <input type="radio" id="tp-mode-hide" name="tp-mode" value="hide">
-            <label for="tp-mode-hide">Verbergen</label>
-          </div>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label"><label title="Versandkosten in den Preisvergleich einrechnen.">inkl. Versand</label></div>
-          <label class="tp-switch">
-            <input type="checkbox" id="tp-shipping-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
+        <div class="tp-section-header">🖥️ Ansicht</div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt.">Heatmap</label>
           </div>
           <label class="tp-switch tp-rose">
             <input type="checkbox" id="tp-heatmap-enabled-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group" id="tp-dim-opacity-group">
+          <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
+            <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
+          </div>
+        </div>
+        <div class="tp-settings-group">
+          <label>Heatmap-Intensität (%)</label>
+          <div class="tp-range-container tp-rose">
+            <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
+            <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
+          </div>
+        </div>
+      </section>
+      <section id="tp-section-deals" class="tp-section-card tp-section-deals">
+        <div class="tp-section-header">💎 Sortieren</div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreise Modus</label>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-bestpreise-mode-toggle">
             <span class="tp-slider"></span>
           </label>
         </div>
@@ -62,52 +70,12 @@ export function setupUI() {
             <label for="tp-sort-discount">% Rabatt ⬇</label>
           </div>
         </div>
-        <div class="tp-settings-group">
-          <label>Preis-Toleranz (%)</label>
-          <div class="tp-range-container">
-            <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
-            <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
-          </div>
-        </div>
-        <div class="tp-settings-group" id="tp-dim-opacity-group">
-          <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
-          <div class="tp-range-container">
-            <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
-            <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
-          </div>
-        </div>
-        <div class="tp-settings-group">
-          <label>Heatmap-Intensität (%)</label>
-          <div class="tp-range-container tp-rose">
-            <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
-            <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
-          </div>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-            <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-sparklines-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
       </section>
-      <section id="tp-section-deals" class="tp-section-card tp-section-deals">
-        <div class="tp-section-header">💎 Tiefstpreise & Deals</div>
+      <section id="tp-section-filter" class="tp-section-card tp-section-filter">
+        <div class="tp-section-header">🧹 Filtern</div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-bestpreise-mode-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Darstellung folgt der Anzeige.">Nur geprüfte anzeigen</label>
+            <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Filtern entfernt sie.">Nur geprüfte anzeigen</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-hide-unchecked-toggle">
@@ -116,44 +84,22 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Im Tiefstpreise-Modus ausblenden.">Fallback-Tiefs einschließen</label>
+            <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Fallback-Tiefs entfernen.">Fallback-Tiefs einschließen</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-include-vortief-toggle">
             <span class="tp-slider"></span>
           </label>
         </div>
-        <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-          <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
-          <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
-            <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
+        <div class="tp-settings-group">
+          <label>Preis-Toleranz (%)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
+            <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
           </div>
-          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
-        </div>
-        <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
-          <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
-          <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
-            <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
-          </div>
-          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
-        </div>
-        <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
-          <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-          <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
-            <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
-          </div>
-          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
         </div>
         <div class="tp-settings-group">
-          <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
-          <div class="tp-range-container">
-            <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-            <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
-          </div>
-          <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
+          <span class="tp-switch-desc tp-field-hint">Negativ-Terme und Min-Angebote stehen in der Filterleiste.</span>
         </div>
       </section>
       <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
@@ -264,6 +210,55 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
+          <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+          <div class="tp-range-container tp-purple">
+            <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
+            <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
+          </div>
+          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
+        </div>
+        <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
+          <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
+          <div class="tp-range-container tp-purple">
+            <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
+            <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
+        </div>
+        <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
+          <label>Median-Berechnungszeitraum (Ø-Preis)</label>
+          <div class="tp-range-container tp-purple">
+            <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
+            <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
+          </div>
+          <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+        </div>
+        <div class="tp-settings-group">
+          <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
+            <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label"><label title="Versandkosten in den Preisvergleich einrechnen.">inkl. Versand</label></div>
+          <label class="tp-switch">
+            <input type="checkbox" id="tp-shipping-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+            <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-sparklines-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
         <div class="tp-settings-group tp-cache-row">
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
@@ -308,16 +303,6 @@ export function setupUI() {
   const btnClose = shadow.getElementById('tp-btn-close');
   const btnSave = shadow.getElementById('tp-btn-save');
 
-  const modeHighlight = shadow.getElementById('tp-mode-highlight-only');
-  const modeDim = shadow.getElementById('tp-mode-dim');
-  const modeHide = shadow.getElementById('tp-mode-hide');
-  const dimOpacityGroup = shadow.getElementById('tp-dim-opacity-group');
-  const syncOpacityVisibility = () => {
-    if (!dimOpacityGroup) return;
-    const checked = shadow.querySelector('input[name="tp-mode"]:checked');
-    dimOpacityGroup.style.display = (!checked || checked.value === 'dim') ? '' : 'none';
-  };
-  [modeHighlight, modeDim, modeHide].forEach(el => el?.addEventListener('change', syncOpacityVisibility));
   const marginRange = shadow.getElementById('tp-margin-range');
   const marginVal = shadow.getElementById('tp-margin-val');
   const opacityRange = shadow.getElementById('tp-opacity-range');
@@ -398,7 +383,6 @@ export function setupUI() {
     // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
     // through it — toolbar mirrors included. Only modal-only controls below.
     for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k]);
-    syncOpacityVisibility();
 
     marginRange.value = CONFIG.MARGIN_PERCENT;
     marginVal.value = CONFIG.MARGIN_PERCENT;
@@ -656,8 +640,6 @@ export function setupUI() {
 
   btnSave.addEventListener('click', () => {
     const updates = {};
-    const checkedModeEl = shadow.querySelector('input[name="tp-mode"]:checked');
-    if (checkedModeEl) updates.MODE = checkedModeEl.value;
 
     updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
     updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));

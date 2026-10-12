@@ -199,6 +199,8 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 def test_suite_filter_bar_grouping(page: Page):
     assert page.evaluate("() => document.getElementById('tp-bar-reveal-all').closest('.tp-group').classList.contains('tp-group-filter')")
     assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
+    assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filtergründe'
+    assert page.evaluate("() => document.querySelector('.tp-group-deals').getAttribute('aria-label')") == 'Sortieren'
 
 
 
@@ -241,13 +243,9 @@ def test_sort_by_discount(page: Page):
 
 
 def test_empty_state_notice_and_actions(page: Page):
-    # Empty state fires when the active Anzeige collapses all cards, whatever the cause mix.
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
-    # Initially all 5 cards in mock_toppreise are visible, no empty notice
-    assert not page.locator('#tp-empty-state-notice').is_visible()
-
-    # Filter all 5 cards by setting negative terms
-    page.fill('#tp-inline-negative-input', 'GeForce, Silikon, iPhone, Dell, ENDGAME')
+    # Empty state fires when Filtern removes all cards — here via Nur geprüfte on unscanned cards.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
+    # All 5 mock cards are unscanned, so Nur geprüfte removes them all
     page.wait_for_selector('#tp-empty-state-notice')
 
     notice = page.locator('#tp-empty-state-notice')
@@ -332,7 +330,7 @@ def test_deal_features_enabled_on_category_page(page: Page):
     assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-bar-reveal-all').is_visible()
     assert 'Gefilterte (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
-    assert 'Gefilterte (2) — Neg:0 Min:0 Händler:2 Bad:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
+    assert 'Gefilterte (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
@@ -375,8 +373,7 @@ def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     assert has_heat
 
 def test_hide_unchecked_toggle_filters_unverified(page: Page):
-    # Anzeige-parameterized: hide collapses unchecked (display:none), dim/highlight keep them visible (dimmed/marked).
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('MODE', 'hide')")
+    # Filtern removes unchecked cards (display:none); no display-mode setup needed.
     # Seed card 1 as a verified deal; the rest stay unchecked
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-is-verified')
@@ -390,10 +387,11 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     page.click('#tp-bar-unchecked-btn')
     page.wait_for_selector('#card-negative.tp-unchecked-hidden', state='attached')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
+    assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") == 'none'
     assert 'tp-unchecked-hidden' not in (page.locator('#card-cheapest').get_attribute('class') or '')
-    # Hiding is display-only: hidden candidates still count for verification
+    # Removed-but-unchecked cards stay scan targets: forScan ignores the unchecked cause
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'))") is True
-    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { includeHiddenUnchecked: true })") is False
+    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
     assert 'prüfen' in (page.locator('#tp-floating-check-main').text_content() or '').lower()
 
     # Toggle OFF the same way brings unchecked cards back
@@ -617,10 +615,10 @@ def test_negative_terms_multi_delimiter_support(page: Page):
 
 
 def test_bestpreise_filter_bar_toggle_and_state(page: Page):
-    # Button lives in the native Zeitraum row (moved out of the suite bar)
+    # Button lives in the bar Sortieren group (no evacuation)
     btn = page.locator('#tp-bar-bestpreise-btn')
     assert btn.is_visible()
-    assert btn.evaluate("e => e.closest('#timeframe-filter') !== null")
+    assert btn.evaluate("e => e.closest('.tp-group-deals') !== null")
 
     # Toggle Tiefstpreise mode ON
     btn.click()
@@ -675,11 +673,13 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     card2_subline = page.locator('#card-expensive .tp-card-historical-price.tp-is-at-low')
     assert 'CHF 1500.00 (-27%)' in (card2_subline.text_content() or '')
 
-    # Card 3: Scanned Non-Tiefstpreis -> Hidden in Tiefstpreise mode
-    assert 'tp-baddeal-hidden' in (page.locator('#card-negative').get_attribute('class') or '')
+    # Card 3: Scanned Non-Tiefstpreis -> stays visible with truthful Aufschlag badge (never removed)
+    assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert page.locator('#card-negative').is_visible()
+    assert 'Aufschlag' in (page.locator('#card-negative .badge-dif').text_content() or '')
 
     # Unscanned card: Stays visible with interactive loupe in Tiefstpreise mode (Streaming UI)
-    assert 'tp-baddeal-hidden' not in (page.locator('#card-low-offers').get_attribute('class') or '')
+    assert page.locator('#card-low-offers').is_visible()
     uncached_badge = page.locator('#card-low-offers .badge-dif')
     assert 'tp-deal-loading' not in (uncached_badge.get_attribute('class') or '')
 
@@ -688,7 +688,7 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false;
         window.ToppreiseSuite.processListings();
     }""")
-    assert 'tp-baddeal-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-vortief-excluded' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-unchecked-hidden' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-deal-new-record' not in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
     assert '-22%' in (page.locator('#card-cheapest .badge-dif').text_content() or '')
@@ -857,7 +857,7 @@ def test_bestpreise_mode_visible_deal_count_and_no_false_empty_state(page: Page)
     # 1. Exactly 15 qualifying deal cards must be visible
     visible_deals_count = page.evaluate("""() => {
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
-        return cards.filter(c => !c.classList.contains('tp-baddeal-hidden') && !c.classList.contains('tp-unchecked-hidden') && !c.classList.contains('tp-negative-filtered') && !c.classList.contains('tp-min-offers-filtered')).length;
+        return cards.filter(c => !c.classList.contains('tp-vortief-excluded') && !c.classList.contains('tp-unchecked-hidden') && !c.classList.contains('tp-negative-filtered') && !c.classList.contains('tp-min-offers-filtered')).length;
     }""")
     assert visible_deals_count == 15
 
@@ -1028,17 +1028,16 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
     # Ensure fresh state with no cached price stats
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        window.ToppreiseSuite.updateConfig('MODE', 'hide');
         // Scope to Bestpreise causes: drop the store filter so dealer verdicts stay out.
         document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
 
-    # When Tiefstpreise mode is toggled on with uncached items, cards MUST NOT carry tp-baddeal-hidden/tp-unchecked-hidden
+    # When Tiefstpreise mode is toggled on with uncached items, cards MUST NOT carry removal classes
     hidden_count = page.evaluate("""() => {
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
-        return cards.filter(c => c.classList.contains('tp-baddeal-hidden') || c.classList.contains('tp-unchecked-hidden')).length;
+        return cards.filter(c => c.classList.contains('tp-negative-filtered') || c.classList.contains('tp-min-offers-filtered') || c.classList.contains('tp-vortief-excluded') || c.classList.contains('tp-unchecked-hidden')).length;
     }""")
     assert hidden_count == 0
 
@@ -1046,7 +1045,7 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
     assert page.locator('#card-cheapest').is_visible()
     assert page.locator('#card-expensive').is_visible()
 
-    # Now verify that when 1 card is confirmed as a non-deal, only that specific card hides
+    # A verified markup (non-deal) is never removed: it stays visible with a truthful Aufschlag badge
     page.evaluate("""() => {
         // Seed Card 2 as a verified markup (non-deal)
         localStorage.setItem('tp_hist_v1_797572', JSON.stringify({
@@ -1062,8 +1061,9 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
 
     # Card 1 (uncached) remains visible
     assert page.locator('#card-cheapest').is_visible()
-    # Card 2 (verified non-deal) is hidden
-    assert page.locator('#card-expensive').is_hidden()
+    # Card 2 (verified non-deal) stays visible with Aufschlag badge
+    assert page.locator('#card-expensive').is_visible()
+    assert 'Aufschlag' in (page.locator('#card-expensive .badge-dif').text_content() or '')
 
 
 
@@ -1075,6 +1075,8 @@ def test_bestpreise_mode_all_cards_remain_visible_when_uncached(page: Page):
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        // Scope to non-dealer causes: drop the store filter so dealer verdicts stay out.
+        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1097,7 +1099,7 @@ def test_bestpreise_mode_all_cards_remain_visible_when_uncached(page: Page):
                 id: c.id,
                 hasOffsetParent: c.offsetParent !== null,
                 computedDisplay: window.getComputedStyle(c).display,
-                hasHiddenClass: c.classList.contains('tp-baddeal-hidden') || c.classList.contains('tp-unchecked-hidden'),
+                hasHiddenClass: c.classList.contains('tp-negative-filtered') || c.classList.contains('tp-min-offers-filtered') || c.classList.contains('tp-vortief-excluded') || c.classList.contains('tp-unchecked-hidden'),
                 hiddenAncestor
             };
         });
@@ -1123,13 +1125,12 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
     Visibility Invariant Test 2: Progressive Reveal
     1. Starts uncached: all 5 cards visible.
     2. Seeds 1 verified deal (Card 1, score 67%): Card 1 is top-ranked, visible, and highlighted.
-    3. Seeds 1 verified non-deal (Card 2, markup): only Card 2 hides, remaining 4 cards stay visible.
-    4. Asserts visible count == total cards - verified_non_deals.
+    3. Seeds 1 verified non-deal (Card 2, markup): Card 2 stays visible with Aufschlag badge, all 6 cards visible.
+    4. Asserts verified non-deals never remove cards: visible count stays at total cards.
     """
     # 1. Uncached baseline
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        window.ToppreiseSuite.updateConfig('MODE', 'hide');
         // Scope to Bestpreise causes: drop the store filter so dealer verdicts stay out.
         document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
@@ -1178,13 +1179,13 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
-    # Card 2 is hidden
-    assert page.locator('#card-expensive').is_hidden()
-
-    # Remaining 4 cards (Card 1 Deal + Cards 3, 4, 5 Unscanned) are visible
+    # Card 2 stays visible with truthful Aufschlag badge (verified markups are never removed)
+    assert page.locator('#card-expensive').is_visible()
+    assert 'Aufschlag' in (page.locator('#card-expensive .badge-dif').text_content() or '')
+    # All 6 cards (Card 1 Deal + Card 2 Non-Deal + 4 Unscanned) are visible
     visible_cards = page.evaluate("() => Array.from(document.querySelectorAll('.Plugin_Product')).filter(c => c.offsetParent !== null).map(c => c.id)")
-    assert visible_cards == ['card-cheapest', 'card-competing-reference', 'card-negative', 'card-iphone', 'card-low-offers']
-    assert len(visible_cards) == 5
+    assert len(visible_cards) == 6
+    assert 'card-expensive' in visible_cards
 
     # 4. Seed Card 3 as another verified Non-Deal
     page.evaluate("""() => {
@@ -1201,8 +1202,8 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
     }""")
 
     visible_cards_after = page.evaluate("() => Array.from(document.querySelectorAll('.Plugin_Product')).filter(c => c.offsetParent !== null).map(c => c.id)")
-    assert visible_cards_after == ['card-cheapest', 'card-competing-reference', 'card-iphone', 'card-low-offers']
-    assert len(visible_cards_after) == 4
+    assert len(visible_cards_after) == 6
+    assert 'card-negative' in visible_cards_after
 
 
 
@@ -1211,7 +1212,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     Visibility Invariant Test 3: Column Wrapper Fidelity
     Verifies that when cards are nested inside <div class="col-*"> wrappers:
     1. getCardSortableUnit() targets the column wrapper.
-    2. Hiding a card with .tp-filtered (Anzeige=hide) collapses the parent .col-* container via CSS.
+    2. Removing a card with .tp-filtered (Filtern removes) collapses the parent .col-* container via CSS.
     3. Revealing with .tp-reveal-all displays both card and column wrapper.
     """
     page.evaluate("""() => {
@@ -1235,7 +1236,6 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
             </div>
         `;
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        window.ToppreiseSuite.updateConfig('MODE', 'hide');
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
     }""")
 
@@ -1245,7 +1245,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     assert page.locator('#wrapper-col-1').is_visible()
     assert page.locator('#wrapper-col-2').is_visible()
 
-    # Seed Card 2 as a verified non-deal -> hides Card 2
+    # Seed Card 2 as a verified non-deal -> stays visible (Aufschlag); removal below uses a negative term
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_88802', JSON.stringify({
             tiefstpreis: 100,
@@ -1263,7 +1263,11 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     assert page.locator('#wrap-card-1').is_visible()
     assert page.locator('#wrapper-col-1').is_visible()
 
-    # Card 2 is hidden AND wrapper-col-2 is collapsed (display: none)
+    # Verified non-deal stays visible
+    assert page.locator('#wrap-card-2').is_visible()
+    # A negative term removes Card 2 AND collapses wrapper-col-2 (display: none)
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Product 2')")
+    page.wait_for_selector('#wrap-card-2.tp-negative-filtered', state='attached')
     assert page.locator('#wrap-card-2').is_hidden()
     assert page.evaluate("() => window.getComputedStyle(document.getElementById('wrapper-col-2')).display === 'none'")
 
@@ -1275,12 +1279,14 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
 
     assert page.evaluate("() => window.getComputedStyle(document.getElementById('wrapper-col-2')).display !== 'none'")
     assert page.locator('#wrap-card-2').is_visible()
+    # Cleanup leaked negative terms for later tests
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '')")
 
 
 
 def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
     """
-    Validates that the Gewichtete-Differenz weighting slider appears in the Zeitraum row
+    Validates that the Gewichtete-Differenz weighting slider sits in the bar Sortieren group
     when Tiefstpreise mode is active, and dragging it updates blend weighting.
     """
     page.evaluate("""() => {
@@ -1291,16 +1297,13 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
 
     weight_wrapper = page.locator('#tp-bar-weight-wrapper')
     assert weight_wrapper.is_visible()
-    assert weight_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
+    assert weight_wrapper.evaluate("e => e.closest('.tp-group-deals') !== null")
     assert weight_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-bestpreise-btn'")
-    # Evacuated deals group hides (needs important: .tp-group forces inline-flex).
-    assert page.locator('.tp-group-deals').evaluate("e => getComputedStyle(e).display") == "none"
+    # Deals group stays visible (controls live in-bar now, no evacuation).
+    assert page.locator('.tp-group-deals').evaluate("e => getComputedStyle(e).display") != "none"
 
     weight_label = page.locator('#tp-bar-weight-label')
     assert '50/50' in weight_label.inner_text()
-    # Clean light surface integrated with native timeframe row
-    assert weight_wrapper.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(255, 255, 255)"
-    assert weight_label.evaluate("e => getComputedStyle(e).color") == "rgb(71, 85, 105)"
     # Plain-language hint: order + color emphasis, badge shows the blend
     assert 'Farb-Emphase' in (weight_label.get_attribute('title') or '')
 
@@ -1330,8 +1333,8 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
 
 def test_minpoints_slider_in_filter_bar(page: Page):
     """
-    Validates that the Mindestanzahl-Datenpunkte slider sits in the Zeitraum row
-    after Fallback-Tiefs when Tiefstpreise mode is active, and moving it updates
+    Validates that the Mindestanzahl-Datenpunkte slider sits in the bar Sortieren group
+    after horizon when Tiefstpreise mode is active, and moving it updates
     the blend qualification threshold.
     """
     page.evaluate("""() => {
@@ -1342,8 +1345,8 @@ def test_minpoints_slider_in_filter_bar(page: Page):
 
     minpoints_wrapper = page.locator('#tp-bar-minpoints-wrapper')
     assert minpoints_wrapper.is_visible()
-    assert minpoints_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
-    assert minpoints_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-vortief-wrapper'")
+    assert minpoints_wrapper.evaluate("e => e.closest('.tp-group-deals') !== null")
+    assert minpoints_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-horizon-wrapper'")
 
     minpoints_label = page.locator('#tp-bar-minpoints-label')
     assert 'Pkt' in minpoints_label.inner_text()
@@ -1366,7 +1369,7 @@ def test_minpoints_slider_in_filter_bar(page: Page):
 
 def test_horizon_select_in_filter_bar(page: Page):
     """
-    Validates that the Ø-Zeitraum slider sits in the Zeitraum row directly after
+    Validates that the Ø-Zeitraum slider sits in the bar Sortieren group directly after
     Gewicht when Tiefstpreise mode is active, and dragging it recomputes the
     cached median locally (no eviction, no pricechart request) and relabels
     cards live — both surfaces stay synced.
@@ -1393,7 +1396,7 @@ def test_horizon_select_in_filter_bar(page: Page):
 
     horizon_wrapper = page.locator('#tp-bar-horizon-wrapper')
     assert horizon_wrapper.is_visible()
-    assert horizon_wrapper.evaluate("e => e.closest('#timeframe-filter') !== null")
+    assert horizon_wrapper.evaluate("e => e.closest('.tp-group-deals') !== null")
     assert horizon_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-weight-wrapper'")
     assert 'Median-Berechnungszeitraum' in (horizon_wrapper.get_attribute('title') or '')
 
@@ -1533,7 +1536,7 @@ def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
 
     card = page.locator('#card-cheapest')
     assert card.is_visible()
-    assert 'tp-baddeal-hidden' not in (card.get_attribute('class') or '')
+    assert 'tp-vortief-excluded' not in (card.get_attribute('class') or '')
     # Subtle outer glow, never the regular inset wash
     assert 'tp-heat-vortief' in (card.get_attribute('class') or '')
     assert 'tp-heat-blend' not in (card.get_attribute('class') or '')
@@ -1680,7 +1683,7 @@ def test_shipping_price_mismatch(browser, userscript_content):
     page.goto(f'file://{test_html_path}')
     page.evaluate(userscript_content)
 
-    page.evaluate("() => { if(window.ToppreiseSuite) { window.ToppreiseSuite.CONFIG.USE_SHIPPING_PRICE = true; window.ToppreiseSuite.processListings(); } }")
+    page.evaluate("() => { if(window.ToppreiseSuite) { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite.CONFIG.USE_SHIPPING_PRICE = true; window.ToppreiseSuite.processListings(); } }")
 
     # Mock network request to return both series
     def handle_pricechart(route):
@@ -1846,6 +1849,7 @@ def test_card_memoization_caches_dom_queries_and_text(page: Page):
 
 
 def test_card_layout_prevents_wrapping_and_irregular_heights(page: Page):
+    page.evaluate("() => { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite?.processListings?.(); }")
     res = page.evaluate("""() => {
         const card = document.getElementById('card-expensive');
         // Set long product title and subline similar to Samsung TV in screenshot
@@ -2078,6 +2082,8 @@ def test_showproductprice_vs_showshippingprice_consistency(browser, userscript_c
 
     # 1. Switch body to showproductprice (native Toppreise 'Produktpreis' setting)
     page.evaluate("""() => {
+        // Scope to price logic: drop the store filter so the card stays visible.
+        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         document.body.classList.remove('showshippingprice');
         document.body.classList.add('showproductprice');
 
@@ -2100,6 +2106,7 @@ def test_showproductprice_vs_showshippingprice_consistency(browser, userscript_c
 
         localStorage.clear();
         if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        window.ToppreiseSuite?.processListings?.();
     }""")
 
     # Verify isShippingPriceActive() is false

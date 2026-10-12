@@ -24,14 +24,12 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
 def test_modal_mode_and_settings_in_shadow_dom(page: Page):
     open_settings(page)
 
-    # Toggle mode to 'hide' via segmented control
-    page.click('#tp-root >> label[for="tp-mode-hide"]')
+    # Display-mode radios are gone: Filtern removes, Ansicht paints — zero tp-mode inputs
+    assert page.locator('#tp-root >> input[name="tp-mode"]').count() == 0
     page.click('#tp-root >> #tp-btn-save')
 
-    # Dialog should close and body class updated
+    # Dialog still closes normally
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-    has_mode_hide = page.evaluate("() => document.body.classList.contains('tp-mode-hide')")
-    assert has_mode_hide is True
 
 
 
@@ -120,7 +118,7 @@ def test_config_export_produces_valid_json(page: Page):
     assert exported_data is not None
     assert '_meta' in exported_data
     assert 'config' in exported_data
-    assert 'MODE' in exported_data['config']
+    assert 'BESTPREISE_MODE_ACTIVE' in exported_data['config']
     assert 'MARGIN_PERCENT' in exported_data['config']
     assert 'NEGATIVE_TERMS' in exported_data['config']
 
@@ -139,7 +137,8 @@ def test_config_import_applies_settings(page: Page):
                 MARGIN_PERCENT: 7.5,
                 NEGATIVE_TERMS: 'ImportedNegativeTerm',
                 REAL_DEAL_MIN_DISCOUNT: 45,
-                MODE: 'hide'
+                MODE: 'hide',
+                BESTPREISE_MODE_ACTIVE: true
             }
         };
         const blob = new Blob([JSON.stringify(testPayload)], { type: 'application/json' });
@@ -158,14 +157,14 @@ def test_config_import_applies_settings(page: Page):
         margin: window.ToppreiseSuite?.CONFIG?.MARGIN_PERCENT,
         neg: window.ToppreiseSuite?.CONFIG?.NEGATIVE_TERMS,
         minDiscount: window.ToppreiseSuite?.CONFIG?.REAL_DEAL_MIN_DISCOUNT,
-        mode: window.ToppreiseSuite?.CONFIG?.MODE,
+        mode: window.ToppreiseSuite?.CONFIG?.BESTPREISE_MODE_ACTIVE,
         inlineNegInput: document.getElementById('tp-inline-negative-input')?.value
     })""")
 
     assert config_state['margin'] == 7.5
     assert config_state['neg'] == 'ImportedNegativeTerm'
     assert config_state['minDiscount'] == 45
-    assert config_state['mode'] == 'hide'
+    assert config_state['mode'] is True
     assert config_state['inlineNegInput'] == 'ImportedNegativeTerm'
 
 
@@ -482,16 +481,18 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
-    # Five typed sections, always visible on one page; no disclosure to expand
-    assert page.locator('#tp-root >> .tp-section-header').count() == 5
-    for section in ['display', 'deals', 'alarm', 'discord', 'data']:
+    # Six typed sections, always visible on one page; no disclosure to expand
+    assert page.locator('#tp-root >> .tp-section-header').count() == 6
+    for section in ['display', 'deals', 'filter', 'alarm', 'discord', 'data']:
         assert page.locator(f'#tp-root >> #tp-section-{section}').is_visible()
     assert page.locator('#tp-root >> #tp-advanced-details').count() == 0
 
     # Former Feintuning controls need no expanding
     assert page.locator('#tp-root >> #tp-margin-range').is_visible()
     assert page.locator('#tp-root >> #tp-cache-ttl-select').is_visible()
-    assert page.locator('#tp-root >> label[for="tp-mode-dim"]').is_visible()
+    assert page.locator('#tp-root >> #tp-section-filter >> #tp-margin-range').is_visible()
+    assert page.locator('#tp-root >> #tp-section-deals >> label[for="tp-sort-discount"]').is_visible()
+    assert page.locator('#tp-root >> #tp-section-data >> #tp-real-deal-min-range').is_visible()
     assert page.locator('#tp-root >> #tp-btn-save').is_visible()
 
     # Discord controls live in their own section; secret stays collapsed until reveal

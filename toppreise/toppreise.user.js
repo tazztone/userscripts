@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.194
+// @version      2.18.195
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -576,8 +576,7 @@ const STYLES = `
     flex-shrink: 0 !important;
   }
   .tp-bar-btn.tp-bestpreise-active {
-    /* Opak statt transluzent: der Button hängt auf Feeds in der weißen
-    #timeframe-filter-Zeile (toolbar.js ensureDealControlsPlacement), nicht nur in der dunklen Bar. */
+    /* Opak statt transluzent: der Button sitzt in der dunklen Bar. */
     background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
     border-color: #4338ca !important;
     color: #fff !important;
@@ -590,20 +589,12 @@ const STYLES = `
     border-color: rgba(99, 102, 241, 0.45) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
   }
-  /* Host is #timeframe-filter on most feeds, .Plugin_TimePeriod fallback (see ensureDealControlsPlacement). */
+  /* Deal controls live in the bar deals group; host keeps flex-wrap for the site row. */
   :is(#timeframe-filter, .Plugin_TimePeriod) {
     align-items: center !important;
     gap: 6px 8px !important;
     flex-wrap: wrap !important;
     row-gap: 6px !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-horizon-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
-    margin-right: 8px !important;
-    flex-shrink: 0 !important;
   }
   #tp-bar-horizon-range {
     width: 84px !important;
@@ -632,16 +623,6 @@ const STYLES = `
     line-height: 1 !important;
     flex-shrink: 0 !important;
   }
-  /* Site timeframe-filter element rules beat bare classes — re-assert clean light text at ID specificity. */
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper {
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #334155 !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-weight-label { color: #475569 !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #475569 !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: #64748b !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: #059669 !important; }
   .tp-weight-label, #tp-bar-horizon-label {
     color: #475569 !important;
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -5095,7 +5076,7 @@ const SHADOW_MODAL_STYLES = `
   /**
    * Settings Modal & Shadow DOM Component
    * Manages the floating action button, single-page settings dialog,
-   * dual-binding input controls, Anzeige display-mode, import/export, and cache controls.
+   * dual-binding input controls, view paint, import/export, and cache controls.
    */
 
 
@@ -5114,31 +5095,39 @@ const SHADOW_MODAL_STYLES = `
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
         <section id="tp-section-display" class="tp-section-card tp-section-display">
-          <div class="tp-section-header">🖥️ Anzeige</div>
-          <div class="tp-settings-group">
-            <label title="So werden gefilterte Angebote dargestellt (Negativ, Min-Angebote, Händler-Nicht-Toppreis, Schlechte Deals, Ungeprüfte): farbig markieren, abdunkeln oder ausblenden.">Anzeige</label>
-            <div class="tp-segmented-control">
-              <input type="radio" id="tp-mode-highlight-only" name="tp-mode" value="highlight-only">
-              <label for="tp-mode-highlight-only">Highlight</label>
-              <input type="radio" id="tp-mode-dim" name="tp-mode" value="dim">
-              <label for="tp-mode-dim">Dimmen</label>
-              <input type="radio" id="tp-mode-hide" name="tp-mode" value="hide">
-              <label for="tp-mode-hide">Verbergen</label>
-            </div>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label"><label title="Versandkosten in den Preisvergleich einrechnen.">inkl. Versand</label></div>
-            <label class="tp-switch">
-              <input type="checkbox" id="tp-shipping-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
+          <div class="tp-section-header">🖥️ Ansicht</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt.">Heatmap</label>
             </div>
             <label class="tp-switch tp-rose">
               <input type="checkbox" id="tp-heatmap-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group" id="tp-dim-opacity-group">
+            <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
+              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
+            </div>
+          </div>
+          <div class="tp-settings-group">
+            <label>Heatmap-Intensität (%)</label>
+            <div class="tp-range-container tp-rose">
+              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
+              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
+            </div>
+          </div>
+        </section>
+        <section id="tp-section-deals" class="tp-section-card tp-section-deals">
+          <div class="tp-section-header">💎 Sortieren</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreise Modus</label>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-bestpreise-mode-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
@@ -5155,52 +5144,12 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-sort-discount">% Rabatt ⬇</label>
             </div>
           </div>
-          <div class="tp-settings-group">
-            <label>Preis-Toleranz (%)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
-              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
-            </div>
-          </div>
-          <div class="tp-settings-group" id="tp-dim-opacity-group">
-            <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
-              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
-            </div>
-          </div>
-          <div class="tp-settings-group">
-            <label>Heatmap-Intensität (%)</label>
-            <div class="tp-range-container tp-rose">
-              <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
-              <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
-            </div>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-sparklines-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
         </section>
-        <section id="tp-section-deals" class="tp-section-card tp-section-deals">
-          <div class="tp-section-header">💎 Tiefstpreise & Deals</div>
+        <section id="tp-section-filter" class="tp-section-card tp-section-filter">
+          <div class="tp-section-header">🧹 Filtern</div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; versteckt schlechte Deals je nach Anzeige. Ungeprüfte filtert der Schalter Nur geprüfte.">Tiefstpreise Modus</label>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-bestpreise-mode-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Darstellung folgt der Anzeige.">Nur geprüfte anzeigen</label>
+              <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Filtern entfernt sie.">Nur geprüfte anzeigen</label>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-hide-unchecked-toggle">
@@ -5209,44 +5158,22 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Im Tiefstpreise-Modus ausblenden.">Fallback-Tiefs einschließen</label>
+              <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Fallback-Tiefs entfernen.">Fallback-Tiefs einschließen</label>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-include-vortief-toggle">
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
-            <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
-            <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
-              <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
+          <div class="tp-settings-group">
+            <label>Preis-Toleranz (%)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
+              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
             </div>
-            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
-          </div>
-          <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
-            <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
-            <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
-              <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
-            </div>
-            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
-          </div>
-          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
-            <label>Median-Berechnungszeitraum (Ø-Preis)</label>
-            <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
-              <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
-            </div>
-            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
           </div>
           <div class="tp-settings-group">
-            <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
-            <div class="tp-range-container">
-              <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
-            </div>
-            <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
+            <span class="tp-switch-desc tp-field-hint">Negativ-Terme und Min-Angebote stehen in der Filterleiste.</span>
           </div>
         </section>
         <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
@@ -5357,6 +5284,55 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
+            <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
+              <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
+            </div>
+            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
+          </div>
+          <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
+            <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
+              <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
+          </div>
+          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
+            <label>Median-Berechnungszeitraum (Ø-Preis)</label>
+            <div class="tp-range-container tp-purple">
+              <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
+              <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
+            </div>
+            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+          </div>
+          <div class="tp-settings-group">
+            <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
+              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label"><label title="Versandkosten in den Preisvergleich einrechnen.">inkl. Versand</label></div>
+            <label class="tp-switch">
+              <input type="checkbox" id="tp-shipping-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-sparklines-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
@@ -5401,16 +5377,6 @@ const SHADOW_MODAL_STYLES = `
     const btnClose = shadow.getElementById('tp-btn-close');
     const btnSave = shadow.getElementById('tp-btn-save');
 
-    const modeHighlight = shadow.getElementById('tp-mode-highlight-only');
-    const modeDim = shadow.getElementById('tp-mode-dim');
-    const modeHide = shadow.getElementById('tp-mode-hide');
-    const dimOpacityGroup = shadow.getElementById('tp-dim-opacity-group');
-    const syncOpacityVisibility = () => {
-      if (!dimOpacityGroup) return;
-      const checked = shadow.querySelector('input[name="tp-mode"]:checked');
-      dimOpacityGroup.style.display = (!checked || checked.value === 'dim') ? '' : 'none';
-    };
-    [modeHighlight, modeDim, modeHide].forEach(el => el?.addEventListener('change', syncOpacityVisibility));
     const marginRange = shadow.getElementById('tp-margin-range');
     const marginVal = shadow.getElementById('tp-margin-val');
     const opacityRange = shadow.getElementById('tp-opacity-range');
@@ -5491,7 +5457,6 @@ const SHADOW_MODAL_STYLES = `
       // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
       // through it — toolbar mirrors included. Only modal-only controls below.
       for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k]);
-      syncOpacityVisibility();
 
       marginRange.value = CONFIG.MARGIN_PERCENT;
       marginVal.value = CONFIG.MARGIN_PERCENT;
@@ -5749,8 +5714,6 @@ const SHADOW_MODAL_STYLES = `
 
     btnSave.addEventListener('click', () => {
       const updates = {};
-      const checkedModeEl = shadow.querySelector('input[name="tp-mode"]:checked');
-      if (checkedModeEl) updates.MODE = checkedModeEl.value;
 
       updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
       updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
@@ -5901,41 +5864,6 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function ensureDealControlsPlacement(isDealFeed) {
-    const tf = document.querySelector('#timeframe-filter') || document.querySelector('.Plugin_TimePeriod');
-    const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
-    let btn = document.getElementById('tp-bar-bestpreise-btn');
-    let weight = document.getElementById('tp-bar-weight-wrapper');
-    let horizon = document.getElementById('tp-bar-horizon-wrapper');
-    let vortief = document.getElementById('tp-bar-vortief-wrapper');
-    let minpoints = document.getElementById('tp-bar-minpoints-wrapper');
-    if (!isDealFeed || !tf) {
-      if (home) {
-        if (btn && btn.parentElement !== home) home.prepend(btn);
-        if (weight && weight.parentElement !== home) home.append(weight);
-        if (horizon && horizon.parentElement !== home) home.append(horizon);
-        if (vortief && vortief.parentElement !== home) home.append(vortief);
-      }
-      return;
-    }
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.id = 'tp-bar-bestpreise-btn';
-      btn.type = 'button';
-      btn.className = 'tp-bar-btn';
-      btn.title = 'Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren';
-      bindBestpreiseBtn(btn);
-    }
-    if (!weight) weight = buildWeightWrapper();
-    if (!horizon) horizon = buildHorizonWrapper();
-    if (!vortief) vortief = buildVortiefWrapper();
-    if (!minpoints) minpoints = buildMinPointsWrapper();
-    if (btn.parentElement !== tf) tf.prepend(btn);
-    if (weight.parentElement !== tf || weight.previousElementSibling !== btn) btn.after(weight);
-    if (horizon.parentElement !== tf || horizon.previousElementSibling !== weight) weight.after(horizon);
-    if (vortief.parentElement !== tf || vortief.previousElementSibling !== horizon) horizon.after(vortief);
-    if (minpoints.parentElement !== tf || minpoints.previousElementSibling !== vortief) vortief.after(minpoints);
-  }
 
   function bindWeightControls(wrapper) {
     const weightRange = wrapper.querySelector('#tp-bar-weight-range');
@@ -5966,33 +5894,6 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function bindVortiefControls(wrapper) {
-    if (!wrapper) return;
-    const input = wrapper.querySelector('#tp-toggle-vortief');
-    if (!input) return;
-    syncMiniToggle(input, CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false, 'Fallback-Tiefs');
-    input.onchange = () => {
-      updateConfig('BESTPREISE_INCLUDE_VORTIEF', input.checked);
-      syncMiniToggle(input, input.checked, 'Fallback-Tiefs');
-      showToast(input.checked ? 'Fallback-Tiefs EIN — Deals mit wenig Historie anzeigen' : 'Fallback-Tiefs AUS — Deals mit wenig Historie ausblenden');
-    };
-  }
-
-  function buildVortiefWrapper() {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-    wrapper.id = 'tp-bar-vortief-wrapper';
-    wrapper.title = 'Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar).\nAN: Als Deals mit Kantenmarkierung anzeigen.\nAUS: Im Tiefstpreise-Modus ausblenden.';
-    wrapper.innerHTML = `
-      <span class="tp-stepper-label">Fallback-Tiefs</span>
-      <label class="tp-mini-switch">
-        <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
-        <span class="tp-mini-slider"></span>
-        <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
-      </label>`;
-    bindVortiefControls(wrapper);
-    return wrapper;
-  }
 
   function buildWeightWrapper() {
     const wrapper = document.createElement('div');
@@ -6108,7 +6009,7 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
+  function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
     const placement = getSuiteBarPlacement();
     if (!placement?.container) return;
 
@@ -6116,7 +6017,7 @@ const SHADOW_MODAL_STYLES = `
     const bestpreiseDeals = counts.bestpreiseDeals || 0;
     const negHidden = counts.neg || 0;
     const minHidden = counts.min || 0;
-    const badHidden = counts.badDeals || 0;
+    const vortiefHidden = counts.vortief || 0;
     const uncheckedHiddenCount = counts.uncheckedHidden || 0;
     const dealerHidden = counts.dealer || 0;
 
@@ -6126,7 +6027,7 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.BESTPREISE_MODE_ACTIVE) bar.classList.add('tp-bestpreise-bar');
       bar.innerHTML = `
         <div class="tp-filter-main-row">
-        <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
+        <div class="tp-group tp-group-filter" role="group" aria-label="Filtergründe">
           <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
             <div class="tp-input-field-box">
               <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="">
@@ -6139,8 +6040,8 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Gefilterte anzeigen — klicken zum Ein-/Ausblenden">👁️ Gefilterte (0)</button>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)">✓ Nur geprüfte</button>
-          <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (folgt der Anzeige)">
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">✓ Nur geprüfte</button>
+          <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (entfernt)">
             <span class="tp-stepper-label">Min-Angebote:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
             <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
@@ -6157,15 +6058,15 @@ const SHADOW_MODAL_STYLES = `
           <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
-        <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
+        <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt sortieren (filtert nichts)" style="display: ${isDealFeed ? 'flex' : 'none'};">
             💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
           </button>
          </div>
         </div>
       `;
       // Deal sliders built once via builders below (no duplicated markup).
-      bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildVortiefWrapper(), buildMinPointsWrapper());
+      bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildHorizonWrapper(), buildMinPointsWrapper());
 
       placeBar(bar, placement);
 
@@ -6232,7 +6133,6 @@ const SHADOW_MODAL_STYLES = `
       };
       bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
       bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
-      bindVortiefControls(bar.querySelector('#tp-bar-vortief-wrapper'));
       bindMinPointsControls(bar.querySelector('#tp-bar-minpoints-wrapper'));
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       placeBar(bar, placement);
@@ -6255,7 +6155,7 @@ const SHADOW_MODAL_STYLES = `
       revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
       revealAllBtn.setAttribute('aria-pressed', String(document.body.classList.contains('tp-reveal-all')));
       revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
-      revealAllBtn.title = `Gefilterte (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
+      revealAllBtn.title = `Gefilterte (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
     }
 
     const heatBtn = bar.querySelector('#tp-bar-heat-btn');
@@ -6268,11 +6168,9 @@ const SHADOW_MODAL_STYLES = `
     if (uncheckedBtn) {
       uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
       uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
-      uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)';
+      uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : '✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
     }
 
-    // Place first so the state sync below also covers nodes recreated after a native AJAX wipe.
-    ensureDealControlsPlacement(isDealFeed);
 
     const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
     if (bestpreiseBtn) {
@@ -6285,7 +6183,6 @@ const SHADOW_MODAL_STYLES = `
 
     syncMiniToggle(bar.querySelector('#tp-toggle-neg'), CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
     syncMiniToggle(bar.querySelector('#tp-toggle-min'), CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
-    syncMiniToggle(bar.querySelector('#tp-toggle-vortief'), CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false, 'Fallback-Tiefs');
     // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
     const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
@@ -6302,10 +6199,6 @@ const SHADOW_MODAL_STYLES = `
     const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
     if (weightWrapper) {
       weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
-    }
-    const vortiefWrapper = document.getElementById('tp-bar-vortief-wrapper');
-    if (vortiefWrapper) {
-      vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
     paintMinPoints();
     const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
@@ -6326,9 +6219,7 @@ const SHADOW_MODAL_STYLES = `
     if (horizonWrapper) {
       horizonWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
     }
-    // A group left without visible children (evacuated deals group on deal
-    // feeds, option-less groups on catalog pages) hides; a divider shows only
-    // between two visible groups.
+    // A group left without visible children (option-less groups on catalog pages) hides; a divider shows only between two visible groups.
     for (const group of bar.querySelectorAll('.tp-group')) {
       const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');
       // Plain inline style loses to .tp-group{display:inline-flex !important} — use priority.

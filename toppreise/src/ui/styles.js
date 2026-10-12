@@ -551,8 +551,7 @@ export const STYLES = `
     flex-shrink: 0 !important;
   }
   .tp-bar-btn.tp-bestpreise-active {
-    /* Opak statt transluzent: der Button hängt auf Feeds in der weißen
-    #timeframe-filter-Zeile (toolbar.js ensureDealControlsPlacement), nicht nur in der dunklen Bar. */
+    /* Opak statt transluzent: der Button sitzt in der dunklen Bar. */
     background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
     border-color: #4338ca !important;
     color: #fff !important;
@@ -565,20 +564,12 @@ export const STYLES = `
     border-color: rgba(99, 102, 241, 0.45) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
   }
-  /* Host is #timeframe-filter on most feeds, .Plugin_TimePeriod fallback (see ensureDealControlsPlacement). */
+  /* Deal controls live in the bar deals group; host keeps flex-wrap for the site row. */
   :is(#timeframe-filter, .Plugin_TimePeriod) {
     align-items: center !important;
     gap: 6px 8px !important;
     flex-wrap: wrap !important;
     row-gap: 6px !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-weight-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-horizon-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-vortief-wrapper,
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-minpoints-wrapper {
-    margin-right: 8px !important;
-    flex-shrink: 0 !important;
   }
   #tp-bar-horizon-range {
     width: 84px !important;
@@ -607,16 +598,6 @@ export const STYLES = `
     line-height: 1 !important;
     flex-shrink: 0 !important;
   }
-  /* Site timeframe-filter element rules beat bare classes — re-assert clean light text at ID specificity. */
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper {
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #334155 !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-weight-label { color: #475569 !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-stepper-label { color: #475569 !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-state { color: #64748b !important; }
-  :is(#timeframe-filter, .Plugin_TimePeriod) .tp-threshold-wrapper .tp-mini-switch input:checked ~ .tp-mini-state { color: #059669 !important; }
   .tp-weight-label, #tp-bar-horizon-label {
     color: #475569 !important;
     font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;

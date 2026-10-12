@@ -44,41 +44,6 @@ function bindBestpreiseBtn(btn) {
   };
 }
 
-function ensureDealControlsPlacement(isDealFeed) {
-  const tf = document.querySelector('#timeframe-filter') || document.querySelector('.Plugin_TimePeriod');
-  const home = document.querySelector('#tp-suite-filter-bar .tp-group-deals');
-  let btn = document.getElementById('tp-bar-bestpreise-btn');
-  let weight = document.getElementById('tp-bar-weight-wrapper');
-  let horizon = document.getElementById('tp-bar-horizon-wrapper');
-  let vortief = document.getElementById('tp-bar-vortief-wrapper');
-  let minpoints = document.getElementById('tp-bar-minpoints-wrapper');
-  if (!isDealFeed || !tf) {
-    if (home) {
-      if (btn && btn.parentElement !== home) home.prepend(btn);
-      if (weight && weight.parentElement !== home) home.append(weight);
-      if (horizon && horizon.parentElement !== home) home.append(horizon);
-      if (vortief && vortief.parentElement !== home) home.append(vortief);
-    }
-    return;
-  }
-  if (!btn) {
-    btn = document.createElement('button');
-    btn.id = 'tp-bar-bestpreise-btn';
-    btn.type = 'button';
-    btn.className = 'tp-bar-btn';
-    btn.title = 'Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren';
-    bindBestpreiseBtn(btn);
-  }
-  if (!weight) weight = buildWeightWrapper();
-  if (!horizon) horizon = buildHorizonWrapper();
-  if (!vortief) vortief = buildVortiefWrapper();
-  if (!minpoints) minpoints = buildMinPointsWrapper();
-  if (btn.parentElement !== tf) tf.prepend(btn);
-  if (weight.parentElement !== tf || weight.previousElementSibling !== btn) btn.after(weight);
-  if (horizon.parentElement !== tf || horizon.previousElementSibling !== weight) weight.after(horizon);
-  if (vortief.parentElement !== tf || vortief.previousElementSibling !== horizon) horizon.after(vortief);
-  if (minpoints.parentElement !== tf || minpoints.previousElementSibling !== vortief) vortief.after(minpoints);
-}
 
 function bindWeightControls(wrapper) {
   const weightRange = wrapper.querySelector('#tp-bar-weight-range');
@@ -109,33 +74,6 @@ function bindWeightControls(wrapper) {
   };
 }
 
-function bindVortiefControls(wrapper) {
-  if (!wrapper) return;
-  const input = wrapper.querySelector('#tp-toggle-vortief');
-  if (!input) return;
-  syncMiniToggle(input, CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false, 'Fallback-Tiefs');
-  input.onchange = () => {
-    updateConfig('BESTPREISE_INCLUDE_VORTIEF', input.checked);
-    syncMiniToggle(input, input.checked, 'Fallback-Tiefs');
-    showToast(input.checked ? 'Fallback-Tiefs EIN — Deals mit wenig Historie anzeigen' : 'Fallback-Tiefs AUS — Deals mit wenig Historie ausblenden');
-  };
-}
-
-function buildVortiefWrapper() {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-vortief-wrapper';
-  wrapper.title = 'Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar).\nAN: Als Deals mit Kantenmarkierung anzeigen.\nAUS: Im Tiefstpreise-Modus ausblenden.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Fallback-Tiefs</span>
-    <label class="tp-mini-switch">
-      <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
-      <span class="tp-mini-slider"></span>
-      <span class="tp-mini-state">${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'ON' : 'OFF'}</span>
-    </label>`;
-  bindVortiefControls(wrapper);
-  return wrapper;
-}
 
 function buildWeightWrapper() {
   const wrapper = document.createElement('div');
@@ -251,7 +189,7 @@ function placeBar(bar, placement) {
   }
 }
 
-export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
@@ -259,7 +197,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const bestpreiseDeals = counts.bestpreiseDeals || 0;
   const negHidden = counts.neg || 0;
   const minHidden = counts.min || 0;
-  const badHidden = counts.badDeals || 0;
+  const vortiefHidden = counts.vortief || 0;
   const uncheckedHiddenCount = counts.uncheckedHidden || 0;
   const dealerHidden = counts.dealer || 0;
 
@@ -269,7 +207,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     if (CONFIG.BESTPREISE_MODE_ACTIVE) bar.classList.add('tp-bestpreise-bar');
     bar.innerHTML = `
       <div class="tp-filter-main-row">
-      <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
+      <div class="tp-group tp-group-filter" role="group" aria-label="Filtergründe">
         <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
           <div class="tp-input-field-box">
             <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="">
@@ -282,8 +220,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
           </label>
         </div>
         <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Gefilterte anzeigen — klicken zum Ein-/Ausblenden">👁️ Gefilterte (0)</button>
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)">✓ Nur geprüfte</button>
-        <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (folgt der Anzeige)">
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">✓ Nur geprüfte</button>
+        <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (entfernt)">
           <span class="tp-stepper-label">Min-Angebote:</span>
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
           <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
@@ -300,15 +238,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
-      <div class="tp-group tp-group-deals" role="group" aria-label="Tiefstpreise">
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt filtern und sortieren" style="display: ${isDealFeed ? 'flex' : 'none'};">
+      <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise Modus: Verifizierte Tiefstpreise nach echtem Rabatt sortieren (filtert nichts)" style="display: ${isDealFeed ? 'flex' : 'none'};">
           💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
         </button>
        </div>
       </div>
     `;
     // Deal sliders built once via builders below (no duplicated markup).
-    bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildVortiefWrapper(), buildMinPointsWrapper());
+    bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildHorizonWrapper(), buildMinPointsWrapper());
 
     placeBar(bar, placement);
 
@@ -375,7 +313,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     };
     bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
     bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
-    bindVortiefControls(bar.querySelector('#tp-bar-vortief-wrapper'));
     bindMinPointsControls(bar.querySelector('#tp-bar-minpoints-wrapper'));
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
     placeBar(bar, placement);
@@ -398,7 +335,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
     revealAllBtn.setAttribute('aria-pressed', String(document.body.classList.contains('tp-reveal-all')));
     revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
-    revealAllBtn.title = `Gefilterte (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Bad:${badHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
+    revealAllBtn.title = `Gefilterte (${hiddenTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount} — klicken zum Ein-/Ausblenden`;
   }
 
   const heatBtn = bar.querySelector('#tp-bar-heat-btn');
@@ -411,11 +348,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (uncheckedBtn) {
     uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
     uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
-    uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)';
+    uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : '✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
   }
 
-  // Place first so the state sync below also covers nodes recreated after a native AJAX wipe.
-  ensureDealControlsPlacement(isDealFeed);
 
   const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
   if (bestpreiseBtn) {
@@ -428,7 +363,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
 
   syncMiniToggle(bar.querySelector('#tp-toggle-neg'), CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
   syncMiniToggle(bar.querySelector('#tp-toggle-min'), CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
-  syncMiniToggle(bar.querySelector('#tp-toggle-vortief'), CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false, 'Fallback-Tiefs');
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
@@ -445,10 +379,6 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
   if (weightWrapper) {
     weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
-  }
-  const vortiefWrapper = document.getElementById('tp-bar-vortief-wrapper');
-  if (vortiefWrapper) {
-    vortiefWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
   paintMinPoints();
   const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
@@ -469,9 +399,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (horizonWrapper) {
     horizonWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
   }
-  // A group left without visible children (evacuated deals group on deal
-  // feeds, option-less groups on catalog pages) hides; a divider shows only
-  // between two visible groups.
+  // A group left without visible children (option-less groups on catalog pages) hides; a divider shows only between two visible groups.
   for (const group of bar.querySelectorAll('.tp-group')) {
     const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');
     // Plain inline style loses to .tp-group{display:inline-flex !important} — use priority.
