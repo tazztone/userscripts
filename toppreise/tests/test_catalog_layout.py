@@ -339,6 +339,10 @@ def test_deal_features_enabled_on_category_page(page: Page):
 
     # Category deal check and heatmap features are visible
     assert page.locator('#tp-bar-heat-btn').is_visible()
+    # Berechnungsparameter live here too (browse heat uses them)
+    assert page.locator('#tp-bar-weight-wrapper').is_visible()
+    assert page.locator('#tp-bar-horizon-wrapper').is_visible()
+    assert page.locator('#tp-bar-minpoints-wrapper').is_visible()
     assert page.locator('#tp-floating-check-cta').is_visible()
 
     # Claimed discount threshold dropdown and Neue Tiefstpreise feed toggle remain hidden

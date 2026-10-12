@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.201
+// @version      2.18.202
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6206,14 +6206,17 @@ const SHADOW_MODAL_STYLES = `
       weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
       weightLabel.title = weightText(curWeight, 'title');
     }
+    // Berechnungsparameter shape browse heat too — catalog listings always show
+    // them; the feed keeps the mode gate.
+    const showCalc = isDealFeed ? CONFIG.BESTPREISE_MODE_ACTIVE === true : true;
     const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
     if (weightWrapper) {
-      weightWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+      weightWrapper.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
     }
     paintMinPoints();
     const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
     if (minPointsWrapper) {
-      minPointsWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+      minPointsWrapper.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
     }
     const horizonRange = document.getElementById('tp-bar-horizon-range');
     if (horizonRange && document.activeElement !== horizonRange) {
@@ -6227,7 +6230,7 @@ const SHADOW_MODAL_STYLES = `
     }
     const horizonWrapper = document.getElementById('tp-bar-horizon-wrapper');
     if (horizonWrapper) {
-      horizonWrapper.style.setProperty('display', (isDealFeed && CONFIG.BESTPREISE_MODE_ACTIVE) ? 'inline-flex' : 'none', 'important');
+      horizonWrapper.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
     }
     // A group left without visible children (option-less groups on catalog pages) hides; a divider shows only between two visible groups.
     for (const group of bar.querySelectorAll('.tp-group')) {
