@@ -38,13 +38,17 @@ _Avoid_: Score, Tiefstpreis-Score (in UI-Texten)
 **Vortief-Abstand**:
 Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Im Tiefstpreise-Modus legt er zusätzlich einen dezenten äußeren Glow um die Kartenkante (äußeres Glühen statt Innen-Wasche, bei flachen Abständen gar keiner), damit der Fallback nie als Blend durchgeht.
 
+**Filtergrund**:
+Eine einzelne Filterursache (Negativ, Min-Angebote, Händler, Schlechter Deal, Ungeprüfte, Fallback-Tief).
+_Avoid_: Ursache (in UI-Texten)
+
 **Gefilterte**:
-Karten mit einer Filterursache (Negativ, Min-Angebote, Händler, Schlechter Deal, Ungeprüfte, Fallback-Tief).
-_Avoid_: Ausgeblendete (als Sammelbegriff — nur Verbergen blendet wirklich aus)
+Karten mit einem Filtergrund.
+_Avoid_: Ausgeblendete (nichts wird ausgeblendet — Gefilterte dimmen nur)
 
 **Anzeige**:
-Die Darstellungsart aller Gefilterten: Highlight (bernsteinfarbene Kontur), Dimmen (abgedunkelt) oder Verbergen (ausgeblendet).
-_Avoid_: Modus (für die Darstellung — Tiefstpreise-Modus bleibt Sortierung)
+Die Darstellung aller Gefilterten: Dimmen (abgedunkelt).
+_Avoid_: Modus (für die Darstellung — Neue Tiefstpreise bleibt Sortierung)
 
 **Neue Tiefstpreise**:
 Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts.
