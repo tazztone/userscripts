@@ -4,7 +4,10 @@
 
 All-in-one userscript for Toppreise.ch that highlights best price offers, verifies authentic all-time Tiefstpreise (Allzeit-Tiefstpreise) vs fake discounts, excludes unwanted negative keywords, sorts/filters by offer count, renders dynamic deal discount heatmaps, and automates price alarm creation. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
 
-![Toppreise.ch Suite: Features Walkthrough on neue-toppreise](Screenshot.webp)
+![Toolbar: alle Filter, Heatmap, Batch-CTA](docs/shots/01-toolbar.webp)
+![Feed-Karten: Heat-Deal, Aufschlag-Morph, Fallback-Tief, Share-Hover](docs/shots/02-feed-cards.webp)
+![Such-Karten: Inline-Pill, Pruefen-Pill, guenstigste Variante](docs/shots/03-search-cards.webp)
+![Einstellungen: alle Bereiche auf einer Seite](docs/shots/04-settings-modal.webp)
 
 ## 🚀 Installation
 
