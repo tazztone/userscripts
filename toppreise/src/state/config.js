@@ -448,7 +448,7 @@ export function syncUiControl(key, val) {
             if (uncheckedBtn) {
               uncheckedBtn.classList.toggle('tp-active', val === true);
               uncheckedBtn.setAttribute('aria-pressed', String(val === true));
-              uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)';
+              uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : '✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
             }
             break;
           }

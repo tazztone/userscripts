@@ -204,25 +204,18 @@ def test_suite_filter_bar_grouping(page: Page):
 
 
 
-def test_discount_heatmap_settings_modal_controls(page: Page):
+def test_discount_heatmap_bar_toggle_controls_heat(page: Page):
     # Seed a verified deal so the card heats (unchecked cards never heat)
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
-    open_settings(page)
 
-    # Toggle heatmap switch off inside modal via slider
-    slider = page.locator('#tp-root >> #tp-heatmap-enabled-toggle + .tp-slider')
-    slider.click()
-    page.click('#tp-root >> #tp-btn-save')
-
+    # Heatmap on/off lives in the bar now (canonical home); toggle off
+    page.click('#tp-bar-heat-btn')
     page.wait_for_timeout(200)
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
-    # Re-enable in settings
-    open_settings(page)
-    slider.click()
-    page.click('#tp-root >> #tp-btn-save')
-
+    # Re-enable via the bar button
+    page.click('#tp-bar-heat-btn')
     page.wait_for_timeout(200)
     assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
 

@@ -437,20 +437,20 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
 
-    # 1. Update config via updateConfig for HEATMAP_ENABLED
+    # 1. Update config via updateConfig for HEATMAP_ENABLED (canonical home: bar only)
     res = page.evaluate("""() => {
         window.ToppreiseSuite.updateConfig('HEATMAP_ENABLED', false);
         const barHeatActive = document.getElementById('tp-bar-heat-btn')?.classList.contains('tp-active');
-        const modalHeatChecked = document.getElementById('tp-root').shadowRoot.getElementById('tp-heatmap-enabled-toggle')?.checked;
+        const modalHeatToggle = document.getElementById('tp-root').shadowRoot.getElementById('tp-heatmap-enabled-toggle');
         return {
             config: window.ToppreiseSuite.CONFIG.HEATMAP_ENABLED,
             barHeatActive,
-            modalHeatChecked
+            modalHeatToggleGone: modalHeatToggle === null
         };
     }""")
     assert res['config'] is False
     assert res['barHeatActive'] is False
-    assert res['modalHeatChecked'] is False
+    assert res['modalHeatToggleGone'] is True
 
     # 2. Update config for MIN_OFFERS (toolbar) and REAL_DEAL_MIN_DISCOUNT (toolbar & modal)
     res_sync = page.evaluate("""() => {

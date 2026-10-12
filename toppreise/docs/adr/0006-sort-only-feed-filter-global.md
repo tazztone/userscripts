@@ -1,6 +1,6 @@
 # Sort-only feed; filtering removes, view only paints
 
-💎 Neue Tiefstpreise was filter+sort (`isBadDeal = MODE_ACTIVE && …`, `cards.js:270-271`), so search pages could never filter markups and hiding wore the name Anzeige. Now the split is strict: Filtern removes (`display:none`), Ansicht only paints (dim/heatmap/stripes/glow, never removes). 💎 only sorts the feed by Gewichtete Differenz; verified markups (Schlechte Deals) are never removed — badge marks them, sort puts them last. `MODE` (highlight/dim/hide) and `tp-reveal-all` are deleted; `DIM_OPACITY` survives as Ansicht status-dimmer.
+💎 Neue Tiefstpreise was filter+sort (`isBadDeal = MODE_ACTIVE && …`, `cards.js:270-271`), so search pages could never filter markups and hiding wore the name Anzeige. Now the split is strict: Filtern removes (`display:none`), Ansicht only paints (dim/heatmap/stripes/glow, never removes). 💎 only sorts the feed by Gewichtete Differenz; verified markups (Schlechte Deals) are never removed — badge marks them, sort puts them last. `MODE` (highlight/dim/hide) is deleted while `tp-reveal-all` stays as transient 👁️ peek (pure CSS override, no key); `DIM_OPACITY` survives as Ansicht status-dimmer.
 
 ## Consequences
 

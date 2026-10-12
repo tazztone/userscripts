@@ -22,15 +22,6 @@ export function setupUI() {
       <div id="tp-section-unified-suite">
       <section id="tp-section-display" class="tp-section-card tp-section-display">
         <div class="tp-section-header">🖥️ Ansicht</div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt.">Heatmap</label>
-          </div>
-          <label class="tp-switch tp-rose">
-            <input type="checkbox" id="tp-heatmap-enabled-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
         <div class="tp-settings-group" id="tp-dim-opacity-group">
           <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
           <div class="tp-range-container">
@@ -316,7 +307,6 @@ export function setupUI() {
   const alarmTargetRange = shadow.getElementById('tp-alarm-target-range');
   const alarmTargetVal = shadow.getElementById('tp-alarm-target-val');
   const alarmAutoSubmitToggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
-  const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
   const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
   const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
   const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
@@ -663,7 +653,6 @@ export function setupUI() {
     if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
     updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
-    updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
     updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(heatmapIntensityVal.value) || 100) / 100);
 
     if (bestpreiseModeToggle) {

@@ -275,7 +275,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     bar.querySelector('#tp-bar-unchecked-btn').onclick = () => {
       const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
       updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-      showToast(next ? '✓ Nur geprüfte filtern aktiv (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
+      showToast(next ? '✓ Nur geprüfte filtern aktiv (Filtergrund, entfernt)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
 };
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {

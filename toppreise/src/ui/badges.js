@@ -61,7 +61,7 @@ function ensureHistPriceEl(card, cardPriceEl) {
 }
 // Single-product verify flow. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.
-// Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
+// Händlername (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
 // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
 // Retry). Fetch per 🏬-Klick oder — opt-in via DEALER_AUTOFETCH — automatisch
 // beim Rendern. Persistiert in localStorage (get/setCachedDealer, gleiche TTL

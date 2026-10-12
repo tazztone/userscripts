@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.195
+// @version      2.18.196
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2839,7 +2839,7 @@ const SHADOW_MODAL_STYLES = `
               if (uncheckedBtn) {
                 uncheckedBtn.classList.toggle('tp-active', val === true);
                 uncheckedBtn.setAttribute('aria-pressed', String(val === true));
-                uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)';
+                uncheckedBtn.title = val === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : '✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
               }
               break;
             }
@@ -4150,7 +4150,7 @@ const SHADOW_MODAL_STYLES = `
   }
   // Single-product verify flow. Reads price at click time and re-verifies it
   // after fetch so a stale or swapped card never paints another product's stats.
-  // Händlername-Anzeige (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
+  // Händlername (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
   // Nur echte Namen landen im Cache (leere Treffer nicht: der Button bleibt für
   // Retry). Fetch per 🏬-Klick oder — opt-in via DEALER_AUTOFETCH — automatisch
   // beim Rendern. Persistiert in localStorage (get/setCachedDealer, gleiche TTL
@@ -5096,15 +5096,6 @@ const SHADOW_MODAL_STYLES = `
         <div id="tp-section-unified-suite">
         <section id="tp-section-display" class="tp-section-card tp-section-display">
           <div class="tp-section-header">🖥️ Ansicht</div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Färbt Karten und Badges nach Rabatt-Tiefe: Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt.">Heatmap</label>
-            </div>
-            <label class="tp-switch tp-rose">
-              <input type="checkbox" id="tp-heatmap-enabled-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
           <div class="tp-settings-group" id="tp-dim-opacity-group">
             <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
             <div class="tp-range-container">
@@ -5390,7 +5381,6 @@ const SHADOW_MODAL_STYLES = `
     const alarmTargetRange = shadow.getElementById('tp-alarm-target-range');
     const alarmTargetVal = shadow.getElementById('tp-alarm-target-val');
     const alarmAutoSubmitToggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
-    const heatmapEnabledToggle = shadow.getElementById('tp-heatmap-enabled-toggle');
     const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
     const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
     const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
@@ -5737,7 +5727,6 @@ const SHADOW_MODAL_STYLES = `
       if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
       updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
-      updates.HEATMAP_ENABLED = heatmapEnabledToggle.checked;
       updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(heatmapIntensityVal.value) || 100) / 100);
 
       if (bestpreiseModeToggle) {
@@ -6095,7 +6084,7 @@ const SHADOW_MODAL_STYLES = `
       bar.querySelector('#tp-bar-unchecked-btn').onclick = () => {
         const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
         updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-        showToast(next ? '✓ Nur geprüfte filtern aktiv (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
+        showToast(next ? '✓ Nur geprüfte filtern aktiv (Filtergrund, entfernt)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
   };
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {

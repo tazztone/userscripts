@@ -156,10 +156,10 @@ describe('applyCardFilters split', () => {
       withConfig('BESTPREISE_HIDE_UNCHECKED', false, () =>
         withConfig('BESTPREISE_INCLUDE_VORTIEF', true, fn))));
 
-  it('never removes verified markups and exposes no isBadDeal key', () => {
+  it('never removes verified markups and exposes the five removal causes only', () => {
     const f = quietFlags(() => applyCardFilters(base({}), [], 0, false));
     assert.equal(f.isFiltered, false);
-    assert.ok(!('isBadDeal' in f));
+    assert.deepEqual(Object.keys(f).sort(), ['isDealerLoser', 'isFiltered', 'isLowOffers', 'isNeg', 'isUnchecked', 'isVortiefExcluded']);
   });
 
   it('excludes at-low fallback instead when Fallback-Tiefs are off', () => {
