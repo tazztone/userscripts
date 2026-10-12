@@ -327,6 +327,11 @@ export const STYLES = `
     line-height: 1.1 !important;
     color: #ffffff !important;
   }
+  /* List-view pills sit on a white capsule, so the +XX% needs the dark
+     amber instead of the feed-badge white above. */
+  .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val {
+    color: #b45309 !important;
+  }
   .badge.badge-dif.tp-deal-not-low .tp-fake-discount {
     font-size: 9.5px !important;
     display: block !important;

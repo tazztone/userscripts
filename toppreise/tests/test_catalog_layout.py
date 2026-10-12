@@ -402,6 +402,21 @@ def test_category_page_injects_interactive_deal_badges(page: Page):
     assert '🔍' in first_badge.inner_text() or 'Prüfen' in first_badge.inner_text()
 
 
+def test_markup_pill_shows_percent_text(page: Page):
+    # Screenshot regression: verified-markup pill rendered ⚠️ with a
+    # white-on-white +X% (feed-badge white on the white list-view capsule).
+    seed_verified_deal(page, '797573', {'tiefstpreis': 14, 'hoechstpreis': 20})
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_selector('#card-negative .badge-dif.tp-deal-pill.tp-deal-not-low')
+    pill = page.locator('#card-negative .badge-dif')
+    assert '+' in (pill.inner_text() or '')
+    assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative .tp-markup-val')).color") != 'rgb(255, 255, 255)'
+
+
 
 def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     # Seed a verified deal: only verified cards receive thermal heatmap
