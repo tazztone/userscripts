@@ -460,6 +460,8 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
         const barMinVal = document.getElementById('tp-bar-min-val')?.textContent;
         const barThreshBtn = document.getElementById('tp-floating-threshold-btn')?.textContent;
         const modalThreshVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-real-deal-min-val')?.value;
+        const fallbackCountEl = document.getElementById('tp-bar-fallback-count');
+        const fallbackBtn = document.getElementById('tp-bar-fallback-btn');
         return {
             minConfig: window.ToppreiseSuite.CONFIG.MIN_OFFERS,
             barMinVal,
@@ -467,8 +469,10 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
             barThreshBtn,
             modalThreshVal,
             fallbackLabel: document.querySelector('#tp-bar-fallback-btn .tp-btn-label')?.textContent,
-            fallbackCount: document.getElementById('tp-bar-fallback-count') !== null,
-            fallbackActive: document.getElementById('tp-bar-fallback-btn')?.classList.contains('tp-active')
+            fallbackCountText: fallbackCountEl?.textContent,
+            fallbackCountDisplay: fallbackCountEl ? getComputedStyle(fallbackCountEl).display : null,
+            fallbackTitle: fallbackBtn?.title,
+            fallbackActive: fallbackBtn?.classList.contains('tp-active')
         };
     }""")
     assert res_sync['minConfig'] == 5
@@ -477,7 +481,8 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     assert res_sync['barThreshBtn'] == '≥25% ▾'
     assert res_sync['modalThreshVal'] == '25'
     assert res_sync['fallbackLabel'] == 'Fallback-Tiefs'
-    assert res_sync['fallbackCount'] is True
+    assert res_sync['fallbackCountDisplay'] == 'none'
+    assert 'ausgeblendet' in (res_sync['fallbackTitle'] or '')
     assert res_sync['fallbackActive'] is False
 
     # Close modal

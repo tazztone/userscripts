@@ -564,7 +564,7 @@ export const STYLES = `
     border-radius: var(--tp-r-pill) !important;
     font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center !important;
     justify-content: center !important;
     background: rgba(255, 255, 255, 0.22) !important;
@@ -997,7 +997,7 @@ export const STYLES = `
     border-radius: var(--tp-r-pill) !important;
     font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center !important;
     justify-content: center !important;
     background: rgba(15, 23, 42, 0.08) !important;

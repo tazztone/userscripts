@@ -339,6 +339,9 @@ def test_deal_features_enabled_on_category_page(page: Page):
     assert page.locator('#tp-bar-reveal-all').is_visible()
     assert page.locator('#tp-bar-reveal-all .tp-btn-label').inner_text() == '👁️ Gefilterte einblenden'
     assert page.locator('#tp-bar-reveal-count').inner_text() == '2'
+    # Zero-count badges are hidden (no empty pills); non-zero badge shows
+    assert page.locator('#tp-bar-bestpreise-count').evaluate('el => getComputedStyle(el).display') == 'none'
+    assert page.locator('#tp-bar-reveal-count').evaluate('el => getComputedStyle(el).display') != 'none'
     assert 'Einblenden, entfernt nichts: Gefilterte (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
@@ -400,10 +403,14 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     assert 'tp-tool-dim' in (pill.get_attribute('class') or '')
     assert 'ausgeblendet' in (pill.get_attribute('title') or '')
     assert pill.get_attribute('aria-pressed') == 'false'
+    excluded_count = page.locator('#tp-bar-fallback-count').inner_text()
+    if excluded_count:
+        assert page.locator('#tp-bar-fallback-count').evaluate('el => getComputedStyle(el).display') != 'none'
     page.click('#tp-bar-fallback-btn')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
     assert 'tp-active' in (pill.get_attribute('class') or '')
     assert pill.get_attribute('aria-pressed') == 'true'
+    assert page.locator('#tp-bar-fallback-count').evaluate('el => getComputedStyle(el).display') == 'none'
 
 
 
@@ -2326,6 +2333,7 @@ def test_calc_popover_open_close_and_reset(page: Page):
     calc_btn.click()
     page.click('#tp-bar-calc-reset')
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD === 0.5 && window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 365 && window.ToppreiseSuite.CONFIG.BESTPREISE_MIN_POINTS === 5")
+    page.wait_for_function("() => document.getElementById('tp-bar-calc-summary')?.textContent?.includes('50/50')")
     assert 'tp-show' in (popover.get_attribute('class') or '')
     page.evaluate("() => document.querySelector('#product-list').click()")
     assert 'tp-show' not in (popover.get_attribute('class') or '')
@@ -2337,12 +2345,11 @@ def test_toolbar_single_row_sticky(page: Page):
     assert page.evaluate("() => getComputedStyle(document.getElementById('tp-suite-filter-bar')).position") == 'sticky'
     tops = page.evaluate("() => [...document.querySelectorAll('#tp-suite-filter-bar .tp-group')].map(g => g.getBoundingClientRect().top)")
     assert max(tops) - min(tops) < 2
+    page.evaluate("() => { document.getElementById('product-list').style.minHeight = '2000px'; }")
     scrolled = page.evaluate("""() => {
         window.scrollTo(0, document.body.scrollHeight);
         return window.scrollY;
     }""")
     page.wait_for_timeout(200)
-    if scrolled > 0:
-        assert page.locator('#tp-suite-filter-bar').bounding_box()['y'] <= 10
-    else:
-        assert page.evaluate("() => getComputedStyle(document.getElementById('tp-suite-filter-bar')).top") == '8px'
+    assert scrolled > 0
+    assert page.locator('#tp-suite-filter-bar').bounding_box()['y'] <= 10

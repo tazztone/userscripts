@@ -309,26 +309,34 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     // Calc popover: toggles .tp-show, closes on outside click / Escape.
     const calcBtn = bar.querySelector('#tp-bar-calc-btn');
     const calcPopover = bar.querySelector('#tp-bar-calc-popover');
-    // ponytail: two document listeners per bar creation; bar is created once per page.
+    // ponytail: document listeners registered once per page (bar can be removed + recreated);
+    // handlers re-query by ID so they always hit the live bar, never a detached one.
+    if (!window._tpBarCalcDocBound) {
+      window._tpBarCalcDocBound = true;
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        const pop = document.getElementById('tp-bar-calc-popover');
+        if (!pop || !pop.classList.contains('tp-show')) return;
+        if (!e.target || !e.target.closest || !e.target.closest('#tp-suite-filter-bar')) return;
+        pop.classList.remove('tp-show');
+        const btn = document.getElementById('tp-bar-calc-btn');
+        if (btn) { btn.setAttribute('aria-expanded', 'false'); btn.focus(); }
+      });
+      document.addEventListener('click', e => {
+        const pop = document.getElementById('tp-bar-calc-popover');
+        if (!pop || !pop.classList.contains('tp-show')) return;
+        if (e.target && e.target.closest && e.target.closest('#tp-suite-filter-bar')) return;
+        pop.classList.remove('tp-show');
+        const btn = document.getElementById('tp-bar-calc-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+    }
     if (calcBtn && calcPopover) {
       calcBtn.onclick = e => {
         e.stopPropagation();
         const open = calcPopover.classList.toggle('tp-show');
         calcBtn.setAttribute('aria-expanded', String(open));
       };
-      document.addEventListener('keydown', e => {
-        if (e.key !== 'Escape' || !calcPopover.classList.contains('tp-show')) return;
-        if (!e.target || !e.target.closest || !e.target.closest('#tp-suite-filter-bar')) return;
-        calcPopover.classList.remove('tp-show');
-        calcBtn.setAttribute('aria-expanded', 'false');
-        calcBtn.focus();
-      });
-      document.addEventListener('click', e => {
-        if (!calcPopover.classList.contains('tp-show')) return;
-        if (e.target && e.target.closest && e.target.closest('#tp-suite-filter-bar')) return;
-        calcPopover.classList.remove('tp-show');
-        calcBtn.setAttribute('aria-expanded', 'false');
-      });
       const resetBtn = bar.querySelector('#tp-bar-calc-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
