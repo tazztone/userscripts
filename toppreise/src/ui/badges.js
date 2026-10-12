@@ -18,8 +18,7 @@ import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShar
 import { extractCanonicalPrice, parsePrice, pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../domain/deal-score.js';
 import {
-  fetchSingleProductPriceStats,
-  cancelBestpreiseScan
+  fetchSingleProductPriceStats
 } from '../scanner/scanner.js';
 import { startBatchCheck } from './floating-cta.js';
 import { scanState } from '../state/store.js';
@@ -193,6 +192,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // 2. Filters
   card.classList.toggle('tp-negative-filtered', filters.isNeg);
   card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
+  card.classList.toggle('tp-vortief-excluded', filters.isVortiefExcluded === true);
 
   // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
   // Dealer verdict is single-sourced from dealerLoserFor (cards.js) — no
@@ -219,7 +219,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     filters.isDealerLoser = false;
   }
-  filters.isFiltered = filters.isNeg || filters.isLowOffers || filters.isDealerLoser || filters.isBadDeal || filters.isUnchecked;
+  filters.isFiltered = filters.isNeg || filters.isLowOffers || filters.isDealerLoser || filters.isVortiefExcluded || filters.isUnchecked;
   card.classList.toggle('tp-filtered', filters.isFiltered);
 
   // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
@@ -306,7 +306,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // Qualified Tiefstpreis! The ribbon prints the Gewichtete Differenz
         // (ADR-0005) — NIE die Site-Differenz. Heat and sort follow the same
         // number, so Zahl und Farbe stimmen immer überein.
-        card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
+        card.classList.remove('tp-unchecked-hidden');
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
 
@@ -374,12 +374,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // preserved — so a stats regression can't strand a stale verified-%
         // badge on a card whose heat is gone.
         const ddNow = getDisplayDelta(cardPrice, stats);
-        const vortiefExcludedHere = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && !dealData && (ddNow.kind === 'at-low' || ddNow.kind === 'new-low');
-        if ((CONFIG.BESTPREISE_MODE_ACTIVE === true && ddNow.kind !== 'at-low' && ddNow.kind !== 'new-low') || (CONFIG.BESTPREISE_MODE_ACTIVE === true && vortiefExcludedHere)) {
-          card.classList.add('tp-baddeal-hidden');
-        } else {
-          card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
-        }
+        card.classList.remove('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
         card.querySelector('.tp-card-historical-price')?.remove();
         if (ddNow.kind === 'above-low') {
@@ -429,7 +424,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       } else {
         // Unscanned card (!stats) -> loupe / loading spinner. Hidden only
         // when "Nur Geprüfte" is on; otherwise kept visible for checking.
-        card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
+        card.classList.remove('tp-unchecked-hidden');
         if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
@@ -461,7 +456,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         card.querySelector('.tp-card-historical-price')?.remove();
       }
     } else {
-      card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
+      card.classList.remove('tp-unchecked-hidden');
       badgeDifEl.classList.remove('tp-deal-new-record');
 
       if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
@@ -606,7 +601,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       }
     }
   } else {
-    card.classList.remove('tp-baddeal-hidden', 'tp-unchecked-hidden');
+    card.classList.remove('tp-unchecked-hidden');
     card.querySelector('.tp-card-historical-price')?.remove();
   }
 
@@ -891,11 +886,10 @@ export function renderEmptyState(cards, counts) {
   const revealAll = bodyCls.contains('tp-reveal-all');
   const totalHidden = revealAll ? 0 : (counts.filteredCount || 0);
 
-  const isBestpreiseEmpty = CONFIG.BESTPREISE_MODE_ACTIVE && (counts.bestpreiseHidden || 0) > 0;
-  // Anzeige decides display: only a full collapse (hide) empties the page.
-  if (CONFIG.MODE === 'hide' && cards.length > 0 && totalHidden >= cards.length) {
+  // Filtern removes cards: empty state whenever all cards are removed.
+  if (cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${isBestpreiseEmpty}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${revealAll}`;
+    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${revealAll}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -908,12 +902,11 @@ export function renderEmptyState(cards, counts) {
     }
     const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
     emptyNotice.innerHTML = `
-      <div>🚫 <strong>${isBestpreiseEmpty ? 'Keine verifizierten Tiefstpreise auf dieser Seite gefunden.' : `Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.`}</strong></div>
+      <div>🚫 <strong>Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.</strong></div>
       <div class="tp-empty-state-actions">
-        ${isBestpreiseEmpty && counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
-        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Ursache, folgt der Anzeige)">✓ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
+        ${counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
+        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">✓ ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
         <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte anzeigen</button>
-        ${isBestpreiseEmpty ? '<button class="tp-empty-state-btn" id="tp-empty-disable-bestpreise-btn">💎 Tiefstpreise-Modus ausschalten</button>' : ''}
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
       </div>
     `;
@@ -927,17 +920,12 @@ export function renderEmptyState(cards, counts) {
     emptyNotice.querySelector('#tp-empty-hide-unchecked-btn')?.addEventListener('click', () => {
       const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
       updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-      showToast(next ? '✓ Nur geprüfte filtern aktiv (Ursache, folgt der Anzeige)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
+      showToast(next ? '✓ Nur geprüfte filtern aktiv (Filtergrund, entfernt)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
     });
 
     emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
       document.body.classList.toggle('tp-reveal-all');
       triggerProcessListings();
-    });
-    emptyNotice.querySelector('#tp-empty-disable-bestpreise-btn')?.addEventListener('click', () => {
-      cancelBestpreiseScan();
-      updateConfig('BESTPREISE_MODE_ACTIVE', false);
-      showToast('Tiefstpreise-Modus deaktiviert');
     });
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfig('FILTER_NEG_ENABLED', false);

@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getOuterHeatStyle, getInsetHeatStyle, getBadgeHeatStyle } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getOuterHeatStyle, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut } from '../../src/page/cards.js';
+import { withConfig } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
   describe('getDistinctProductIds', () => {
@@ -138,5 +139,67 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       // Provisional ratio survives intensity scaling.
       assert.notEqual(getBadgeHeatStyle(-58, true, 0.5).background, getBadgeHeatStyle(-58, false, 0.5).background);
     });
+  });
+});
+
+describe('applyCardFilters split', () => {
+  const base = overrides => ({
+    card: {},
+    stats: { tiefstpreis: 100 },
+    displayDelta: { kind: 'above-low', markup: 20 },
+    dealScore: null,
+    offerCount: 0,
+    ...overrides,
+  });
+  const quietFlags = fn => withConfig('FILTER_NEG_ENABLED', false, () =>
+    withConfig('FILTER_MIN_ENABLED', false, () =>
+      withConfig('BESTPREISE_HIDE_UNCHECKED', false, () =>
+        withConfig('BESTPREISE_INCLUDE_VORTIEF', true, fn))));
+
+  it('never removes verified markups and exposes no isBadDeal key', () => {
+    const f = quietFlags(() => applyCardFilters(base({}), [], 0, false));
+    assert.equal(f.isFiltered, false);
+    assert.ok(!('isBadDeal' in f));
+  });
+
+  it('excludes at-low fallback instead when Fallback-Tiefs are off', () => {
+    const f = quietFlags(() => withConfig('BESTPREISE_INCLUDE_VORTIEF', false, () =>
+      applyCardFilters(base({ displayDelta: { kind: 'at-low' } }), [], 0, false)));
+    assert.equal(f.isVortiefExcluded, true);
+    assert.equal(f.isFiltered, true);
+  });
+
+  it('filters unchecked cards when Nur geprüfte is on', () => {
+    const f = quietFlags(() => withConfig('BESTPREISE_HIDE_UNCHECKED', true, () =>
+      applyCardFilters(base({ stats: null }), [], 0, false)));
+    assert.equal(f.isUnchecked, true);
+    assert.equal(f.isFiltered, true);
+  });
+});
+
+describe('isCardFilteredOut forScan', () => {
+  const fakeCard = () => ({
+    hidden: false,
+    offsetParent: undefined,
+    classList: { contains: () => false },
+    closest: () => null,
+  });
+  const uncheckedOnly = { isNeg: false, isLowOffers: false, isDealerLoser: false, isUnchecked: true, isVortiefExcluded: false };
+
+  it('unchecked-only is scan target with forScan, filtered without', () => {
+    assert.equal(isCardFilteredOut(fakeCard(), uncheckedOnly, { forScan: true }), false);
+    assert.equal(isCardFilteredOut(fakeCard(), uncheckedOnly), true);
+  });
+
+  it('neg-only filters even with forScan', () => {
+    assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isNeg: true, isUnchecked: false }, { forScan: true }), true);
+  });
+
+  it('neg+unchecked mixed filters with forScan', () => {
+    assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isNeg: true }, { forScan: true }), true);
+  });
+
+  it('vortief-excluded filters with forScan', () => {
+    assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isUnchecked: false, isVortiefExcluded: true }, { forScan: true }), true);
   });
 });

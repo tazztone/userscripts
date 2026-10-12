@@ -49,7 +49,6 @@ export function horizonText(days, style = 'short') {
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
-  MODE: 'dim',
   MARGIN_PERCENT: 0.0,
   DIM_OPACITY: 0.25,
   USE_SHIPPING_PRICE: true,
@@ -136,7 +135,34 @@ export function migrateLegacyDebug() {
   return true;
 }
 migrateLegacyDebug();
-
+// One-time migration: MODE (highlight/dim/hide) deleted — Filtern removes,
+// Ansicht paints. Clears the stale stored key once so the mode toast fires
+// exactly once per user (marker-guarded, silent afterwards).
+export function migrateFilterSplit() {
+  if (_getValue('MIGRATED_FILTER_SPLIT', false)) return { hadMode: false, modeWasActive: false };
+  let storedMode;
+  let hadMode = false;
+  if (typeof GM_getValue !== 'undefined') {
+    try {
+      storedMode = GM_getValue('MODE');
+      if (typeof storedMode !== 'undefined') hadMode = true;
+    } catch { /* ignore */ }
+  }
+  if (!hadMode) {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('tp_suite_v2_MODE') !== null) hadMode = true;
+    } catch { /* ignore */ }
+  }
+  const modeWasActive = _getValue('BESTPREISE_MODE_ACTIVE', false) === true;
+  try {
+    if (typeof GM_deleteValue !== 'undefined') GM_deleteValue('MODE');
+  } catch { /* ignore */ }
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem('tp_suite_v2_MODE');
+  } catch { /* ignore */ }
+  _setValue('MIGRATED_FILTER_SPLIT', true);
+  return { hadMode, modeWasActive };
+}
 // Shared clamps: single source for the min-points (1–100 data points) and
 // heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
 export const clampMinPoints = v => {
@@ -181,7 +207,6 @@ const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
-  MODE: _getValue('MODE', DEFAULTS.MODE),
   MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
   DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
   USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
@@ -240,8 +265,6 @@ const notifyAlarmConfig = () => {
 
 export function updateBodyClasses() {
   if (typeof document === 'undefined' || !document.body) return;
-  document.body.classList.remove('tp-mode-dim', 'tp-mode-hide', 'tp-mode-highlight-only');
-  document.body.classList.add(`tp-mode-${CONFIG.MODE}`);
   document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
 }
 
@@ -251,11 +274,6 @@ export function syncUiControl(key, val) {
   if (shadow) {
     try {
       switch (key) {
-        case 'MODE': {
-          const el = shadow.querySelector(`input[name="tp-mode"][value="${val}"]`);
-          if (el) el.checked = true;
-          break;
-        }
         case 'DIM_OPACITY': {
           const range = shadow.getElementById('tp-opacity-range');
           const label = shadow.getElementById('tp-opacity-val');
@@ -490,7 +508,7 @@ export function updateConfig(key, val, options = {}) {
   if (!options.skipUiSync) {
     syncUiControl(key, val);
   }
-  if (key === 'MODE' || key === 'DIM_OPACITY') {
+  if (key === 'DIM_OPACITY') {
     updateBodyClasses();
   }
   if (!options.skipRender && !ALARM_ONLY_KEYS.has(key) && typeof processListings === 'function') {

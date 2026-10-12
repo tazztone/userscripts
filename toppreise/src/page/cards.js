@@ -260,19 +260,15 @@ export function extractCardData(card) {
 export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
   const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
   const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-  // "Bad deal" in the mode is a VERIFIED markup only. A verified low without
-  // blend (at-low/new-low, thin history) stays visible with Vortief edge
-  // heat unless Fallback-Tiefs are excluded — then it follows Anzeige like
-  // any bad deal. Unknown kind (no displayDelta on this path, e.g. scanner
-  // targets) keeps the old strictness so the scanner can't waste passes on junk.
+  // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
+  // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
   const kind = cd.displayDelta?.kind;
   const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-  const vortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-  const isBadDeal = CONFIG.BESTPREISE_MODE_ACTIVE === true && !!cd.stats && !cd.dealScore && (vortiefExcluded || (kind !== 'at-low' && kind !== 'new-low'));
+  const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
   const isDealerLoser = false;
-  const isFiltered = isNeg || isLowOffers || isDealerLoser || isBadDeal || isUnchecked;
-  return { isNeg, isLowOffers, isBadDeal, isUnchecked, isDealerLoser, isFiltered };
+  const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
+  return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
 }
 
 export function dealerLoserFor(card, activeStores) {
@@ -301,19 +297,12 @@ export function dealerLoserFor(card, activeStores) {
 
 export function isCardFilteredOut(card, filters = null, opts = null) {
   if (!card) return true;
-  // "Nur geprüfte" is cause-marker-only here: unchecked cards carry
-  // tp-filtered + tp-unchecked-hidden and Anzeige decides display;
-  // scans + counters opt in via includeHiddenUnchecked below.
-  const includeHiddenUnchecked = opts?.includeHiddenUnchecked === true
-    && card.classList?.contains('tp-unchecked-hidden') === true;
-  const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || f.isBadDeal
-  // Display collapses only in Anzeige=hide outside tp-reveal-all.
-  const displayHidden = f => (CONFIG.MODE === 'hide')
-    && document.body?.classList?.contains('tp-reveal-all') !== true;
+  const forScan = opts?.forScan === true;
+  const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || (forScan ? false : f.isUnchecked) || f.isVortiefExcluded;
   const legacyChecks = () => {
     const tab = card.closest?.('.f_tab');
     if (tab && !tab.classList.contains('selected')) return true;
-    if (!includeHiddenUnchecked) {
+    if (!forScan) {
       if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
       if (typeof card.checkVisibility === 'function') {
         if (!card.checkVisibility()) return true;
@@ -325,14 +314,12 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   };
   if (filters) {
     if (!causeHit(filters)) return legacyChecks();
-    // Cause-based path: scanner and counters ignore MODE/reveal.
-    if (opts?.includeHiddenUnchecked === true) return true;
-    return displayHidden(filters);
+    return true;
   }
   const f = {
     isNeg: card.classList?.contains('tp-negative-filtered') === true,
     isLowOffers: card.classList?.contains('tp-min-offers-filtered') === true,
-    isBadDeal: card.classList?.contains('tp-baddeal-hidden') === true,
+    isVortiefExcluded: card.classList?.contains('tp-vortief-excluded') === true,
     isUnchecked: card.classList?.contains('tp-unchecked-hidden') === true,
     isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
       || card.classList?.contains('tp-no-store-offer') === true,
@@ -347,7 +334,6 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   f.isNeg = f.isNeg || recomp.isNeg;
   f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
   if (!causeHit(f)) return legacyChecks();
-  if (opts?.includeHiddenUnchecked === true) return true;
-  return displayHidden(f);
+  return true;
 }
 

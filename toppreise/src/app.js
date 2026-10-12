@@ -28,12 +28,14 @@ import {
 import { renderSuiteFilterBar } from './ui/toolbar.js';
 import { renderFloatingCTA, hideFloatingCTA, startBatchCheck } from './ui/floating-cta.js';
 import { setupUI } from './ui/modal.js';
+import { showToast } from './ui/toast.js';
 import { uiShadowRoot } from './ui/shell.js';
 import {
   CONFIG,
   saveConfigKey,
   updateConfig,
-  updateBodyClasses
+  updateBodyClasses,
+  migrateFilterSplit
 } from './state/config.js';
 import {
   runBatchDealCheck,
@@ -45,7 +47,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.193
+// @version      2.18.194
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -94,48 +96,28 @@ import { processProductDetailPage } from './features/product-detail.js';
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, bestpreiseHidden: 0, badDeals: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 };
+      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
-        const isStandardFiltered = cd.filters.isNeg || cd.filters.isLowOffers;
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { includeHiddenUnchecked: true })) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { includeHiddenUnchecked: true })) {
+          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
-        // nonBest is retired with the removed strictness toggles: outside the
-        // mode nothing hides as non-best (truthful Aufschlag badge instead),
-        // inside the mode it counts as bestpreiseHidden below. Never double-count.
+        // Verified markups are removed nowhere, so counted nowhere.
         cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
-        // "Nur Geprüfte" hides never-checked cards via tp-unchecked-hidden —
-        // count them so empty-state + reveal counts stay truthful (needs no
-        // stats by definition, so it lives outside the chain below).
         if (cd.filters.isUnchecked) counts.uncheckedHidden++;
-        if (cd.dealScore) {
-          counts.bestpreiseDeals++;
-        } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
-          // Verified low without blend: a mode deal with Vortief edge heat, not a bad deal —
-          // unless Fallback-Tiefs are excluded, then it hides like one.
-          if (CONFIG.BESTPREISE_INCLUDE_VORTIEF === false) {
-            if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
-              counts.bestpreiseHidden++;
-              counts.badDeals++;
-            }
-          } else {
-            counts.bestpreiseDeals++;
-          }
-        } else if (CONFIG.BESTPREISE_MODE_ACTIVE === true && cd.stats && !isStandardFiltered) {
-          counts.bestpreiseHidden++;
-          counts.badDeals++;
-        }
+        if (cd.filters.isVortiefExcluded) counts.vortief++;
+        if (cd.dealScore) counts.bestpreiseDeals++;
+        else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) counts.bestpreiseDeals++;
       }
 
       // --- Render ---
@@ -152,6 +134,8 @@ import { processProductDetailPage } from './features/product-detail.js';
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed);
       renderFloatingCTA(counts, isNeueFeed);
+      const mig = migrateFilterSplit();
+      if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');
     } finally {
       isModifyingDOM = false;
       if (mainObserver) {

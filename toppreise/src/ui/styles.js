@@ -90,29 +90,8 @@ export const STYLES = `
     letter-spacing: 0.5px;
     pointer-events: none;
   }
-  body.tp-mode-hide .tp-filtered,
-  body.tp-mode-hide [class*="col-"]:has(> .tp-filtered) {
+  .tp-filtered, [class*="col-"]:has(> .tp-filtered) {
     display: none !important;
-  }
-  body.tp-mode-dim .tp-filtered,
-  body.tp-mode-dim [class*="col-"]:has(> .tp-filtered) {
-    opacity: var(--tp-dim-opacity, 0.25) !important;
-    filter: grayscale(40%) !important;
-    transition: opacity 0.3s ease, filter 0.3s ease !important;
-  }
-  body.tp-mode-dim .tp-filtered:hover,
-  body.tp-mode-dim [class*="col-"]:has(> .tp-filtered):hover {
-    opacity: 0.6 !important;
-    filter: grayscale(10%) !important;
-  }
-  body.tp-mode-highlight-only .tp-filtered,
-  body.tp-mode-highlight-only [class*="col-"]:has(> .tp-filtered) {
-    outline: 2px dashed #f59e0b !important;
-    outline-offset: -2px !important;
-  }
-  body.tp-mode-dim .tp-filtered.tp-is-unverified,
-  body.tp-mode-dim [class*="col-"]:has(> .tp-filtered.tp-is-unverified) {
-    filter: grayscale(40%) saturate(0.55) brightness(0.97) !important;
   }
   /* order matters: equal specificity with hide rule, later wins — do not reorder */
   body.tp-reveal-all .tp-filtered,
@@ -339,10 +318,10 @@ export const STYLES = `
   .Plugin_Product.tp-is-unverified,
   a.Plugin_Product.tp-is-unverified,
   .mixedBrowsingListProduct.tp-is-unverified {
+    opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: saturate(0.55) brightness(0.97) !important;
     border-style: dashed !important;
   }
-
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
      markups stay neutral gray with the +XX% text carrying the signal. */

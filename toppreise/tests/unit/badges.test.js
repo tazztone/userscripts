@@ -1,7 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTextIfChanged, renderEmptyState } from '../../src/ui/badges.js';
-import { CONFIG } from '../../src/state/config.js';
 describe('Badges helpers', () => {
   describe('setTextIfChanged', () => {
     it('sets text when different', () => {
@@ -29,7 +28,7 @@ describe('Badges helpers', () => {
 });
 
 describe('renderEmptyState signature skip', () => {
-  let realDocument, realMode;
+  let realDocument;
 
   const fakeDoc = (notice, created) => {
     globalThis.document = {
@@ -43,33 +42,28 @@ describe('renderEmptyState signature skip', () => {
     };
   };
 
-  // Two cards, both hidden, MODE=hide → sig '2:2:false:0:30:false'.
-  const setup = () => {
-    CONFIG.MODE = 'hide';
-    return {
-      cards: [{ parentElement: { insertBefore: () => {} } }, {}],
-      counts: { bestpreiseDeals: 0, filteredCount: 2, uncheckedHidden: 0, uncheckedDeals: 0 }
-    };
-  };
+  // Two cards, both hidden → sig '2:2:0:30:false'.
+  const setup = () => ({
+    cards: [{ parentElement: { insertBefore: () => {} } }, {}],
+    counts: { bestpreiseDeals: 0, filteredCount: 2, uncheckedHidden: 0, uncheckedDeals: 0 }
+  });
 
   beforeEach(() => {
-    realMode = CONFIG.MODE;
     realDocument = globalThis.document;
   });
 
   afterEach(() => {
-    CONFIG.MODE = realMode;
     if (realDocument === undefined) delete globalThis.document; else globalThis.document = realDocument;
   });
 
   it('skips rebuild when signature matches', () => {
     const { cards, counts } = setup();
-    const notice = { dataset: { tpEmptySig: '2:2:false:0:30:false' } };
+    const notice = { dataset: { tpEmptySig: '2:2:0:30:false' } };
     const created = [];
     fakeDoc(notice, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 0);
-    assert.equal(notice.dataset.tpEmptySig, '2:2:false:0:30:false');
+    assert.equal(notice.dataset.tpEmptySig, '2:2:0:30:false');
   });
 
   it('builds notice and stamps signature on first render', () => {
@@ -78,20 +72,15 @@ describe('renderEmptyState signature skip', () => {
     fakeDoc(null, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 1);
-    assert.equal(created[0].dataset.tpEmptySig, '2:2:false:0:30:false');
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30:false');
   });
 
-  it('builds no notice in dim mode even when all filtered', () => {
+  it('builds notice whenever all cards are removed (no display-mode gate)', () => {
     const { cards, counts } = setup();
-    CONFIG.MODE = 'dim';
-    CONFIG.BESTPREISE_HIDE_UNCHECKED = true;
     const created = [];
-    try {
-      fakeDoc(null, created);
-      renderEmptyState(cards, counts);
-      assert.equal(created.length, 0);
-    } finally {
-      delete CONFIG.BESTPREISE_HIDE_UNCHECKED;
-    }
+    fakeDoc(null, created);
+    renderEmptyState(cards, counts);
+    assert.equal(created.length, 1);
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30:false');
   });
 });
