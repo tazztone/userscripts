@@ -24,7 +24,7 @@ Eine Differenz anhand der Preishistorie verifizieren und dadurch in einen Tiefst
 _Avoid_: Check Deals, checken
 
 **Schlechter Deal**:
-Geprüfter Preis, der kein Tiefstpreis ist (Aufschlag gegenüber dem historischen Tief); folgt der Anzeige wie jede Filterursache.
+Geprüfter Preis, der kein Tiefstpreis ist (Aufschlag gegenüber dem historischen Tief); Badge markiert ihn, Sortierung legt ihn nach hinten — kein Filtergrund, wird nie entfernt.
 _Avoid_: Non-Deal
 
 **Berechnungsparameter**:
@@ -38,26 +38,30 @@ _Avoid_: Score, Tiefstpreis-Score (in UI-Texten)
 **Vortief-Abstand**:
 Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Im Tiefstpreise-Modus legt er zusätzlich einen dezenten äußeren Glow um die Kartenkante (äußeres Glühen statt Innen-Wasche, bei flachen Abständen gar keiner), damit der Fallback nie als Blend durchgeht.
 
+**Filtern**:
+Entfernen von Karten aus der Liste (`display:none`). Nur Filtern entfernt — Ansicht dimmt oder färbt bloß.
+_Avoid_: Dimmen (als Filter), Anzeige (für Entfernen)
+
 **Filtergrund**:
-Eine einzelne Filterursache (Negativ, Min-Angebote, Händler, Schlechter Deal, Ungeprüfte, Fallback-Tief).
+Eine einzelne Entfernungsursache (Negativ, Min-Angebote, Händler, Ungeprüfte, Fallback-Tief).
 _Avoid_: Ursache (in UI-Texten)
 
 **Gefilterte**:
-Karten mit einem Filtergrund.
-_Avoid_: Ausgeblendete (nichts wird ausgeblendet — Gefilterte dimmen nur)
+Durch einen Filtergrund entfernte Karten.
+_Avoid_: Gedimmte (Dimmen entfernt nichts)
 
-**Anzeige**:
-Die Darstellung aller Gefilterten: Dimmen (abgedunkelt).
-_Avoid_: Modus (für die Darstellung — Neue Tiefstpreise bleibt Sortierung)
+**Ansicht**:
+Rein visuelle Darstellung ohne Entfernen: Dimmen (Status-Deemphasis für Ungeprüfte/Fallback per Deckkraft), Heatmap-Farbe, Streifen, Kanten-Glow, Badge-Texte.
+_Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung)
 
 **Neue Tiefstpreise**:
 Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts.
 _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
-Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; folgt der Anzeige wie jede Filterursache.
+Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; Kanten-Glow in der Ansicht, entfernt nur wenn Fallback-Tiefs ausgeschlossen sind.
 _Avoid_: Vortief (als Schalterlabel), dünne Historie
 
 **Nur geprüfte**:
-Eine Filterursache wie jede andere: ungeprüfte Karten werden Gefilterte und folgen der Anzeige.
+Filtergrund: entfernt ungeprüfte Karten wenn aktiv; Ansicht streift/dimmt sie sonst nur.
 _Avoid_: separater Modus, Sonderverhalten
