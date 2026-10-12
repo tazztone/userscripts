@@ -30,6 +30,16 @@ def page(browser, userscript_content):
 DEFAULT_DEAL_STATS = {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 3600}
 
 
+def drop_store_filter(page):
+    """Remove the dealer store-filter chip so dealer verdicts stay out, then reprocess.
+
+    Scopes a test to the non-dealer removal causes (Negativ, Min-Angebote,
+    Ungeprüfte, Fallback): dealer-filtered cards would otherwise vanish under
+    the unconditional dealer removal and hide the behavior under test.
+    """
+    page.evaluate("() => { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite?.processListings?.(); }")
+
+
 def seed_verified_deal(page, pid='797571', stats=None, clear=True):
     """Seed verified history for one pid, then reprocess.
 

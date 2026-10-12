@@ -1,6 +1,6 @@
 from playwright.sync_api import Page, expect
 
-from conftest import seed_verified_deal, mock_pricechart
+from conftest import seed_verified_deal, mock_pricechart, drop_store_filter
 
 
 
@@ -11,8 +11,7 @@ def test_competing_reference_price_resolves_to_verified_low(page: Page):
     'Allzeit-Tiefstpreis' state instead of a markup 'Aufschlag' state.
     (Single color language: color = badge-% heat, text = kind.)
     """
-    # Scope to price logic: drop the store filter so the card stays visible.
-    page.evaluate("() => { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite?.processListings?.(); }")
+    drop_store_filter(page)
     # Wait for initial render
     page.wait_for_selector('.badge-dif')
 
@@ -796,11 +795,8 @@ def test_sparkline_not_rendered_without_timeseries(page: Page):
 
 
 def test_sparkline_trending_up_renders_single_color(page: Page):
-    page.evaluate("""() => {
-        window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
-        // Scope to sparkline: drop the store filter so card-expensive stays visible.
-        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
-    }""")
+    page.evaluate("() => { window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true; }")
+    drop_store_filter(page)
     seed_verified_deal(page, '797572', {'tiefstpreis': 900.0, 'hoechstpreis': 1200.0, 'aktuellerToppreis': 1100.0, 'timeSeries': [[1672531199, 900.0], [1675209599, 1000.0], [1677628799, 1100.0]]})
 
     sparkline = page.locator('#card-expensive .tp-sparkline')

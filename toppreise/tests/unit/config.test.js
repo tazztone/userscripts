@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, DEFAULTS, migrateLegacyDebug } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, DEFAULTS, CONFIG, migrateLegacyDebug } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -48,6 +48,11 @@ describe('Config dual-layer storage', () => {
     assert.equal(_getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED), false);
     _setValue('BESTPREISE_HIDE_UNCHECKED', true);
     assert.equal(_getValue('BESTPREISE_HIDE_UNCHECKED', false), true);
+  });
+
+  it('has no display-mode key (filter-split removed MODE)', () => {
+    assert.ok(!('MODE' in DEFAULTS));
+    assert.ok(!('MODE' in CONFIG));
   });
 
   it('one-time migration silences stored DEBUG=true without clobbering re-enable', () => {

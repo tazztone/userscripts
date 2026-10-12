@@ -1,7 +1,7 @@
 import os
 from playwright.sync_api import Page, expect
 
-from conftest import open_settings, seed_verified_deal, mock_pricechart
+from conftest import open_settings, seed_verified_deal, mock_pricechart, drop_store_filter
 
 
 
@@ -1021,10 +1021,9 @@ def test_bestpreise_cross_row_sorting_and_natural_order_restoration(page: Page):
 
 def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
     # Ensure fresh state with no cached price stats
+    drop_store_filter(page)
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        // Scope to Bestpreise causes: drop the store filter so dealer verdicts stay out.
-        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1068,10 +1067,9 @@ def test_bestpreise_mode_all_cards_remain_visible_when_uncached(page: Page):
     When Tiefstpreise mode is enabled with zero cache, 100% of cards on the page
     MUST remain computed-visible (offsetParent !== null, display !== 'none', and no ancestor hidden).
     """
+    drop_store_filter(page)
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        // Scope to non-dealer causes: drop the store filter so dealer verdicts stay out.
-        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1124,10 +1122,9 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
     4. Asserts verified non-deals never remove cards: visible count stays at total cards.
     """
     # 1. Uncached baseline
+    drop_store_filter(page)
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
-        // Scope to Bestpreise causes: drop the store filter so dealer verdicts stay out.
-        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1678,7 +1675,8 @@ def test_shipping_price_mismatch(browser, userscript_content):
     page.goto(f'file://{test_html_path}')
     page.evaluate(userscript_content)
 
-    page.evaluate("() => { if(window.ToppreiseSuite) { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite.CONFIG.USE_SHIPPING_PRICE = true; window.ToppreiseSuite.processListings(); } }")
+    drop_store_filter(page)
+    page.evaluate("() => { if(window.ToppreiseSuite) { window.ToppreiseSuite.CONFIG.USE_SHIPPING_PRICE = true; window.ToppreiseSuite.processListings(); } }")
 
     # Mock network request to return both series
     def handle_pricechart(route):
@@ -1844,7 +1842,7 @@ def test_card_memoization_caches_dom_queries_and_text(page: Page):
 
 
 def test_card_layout_prevents_wrapping_and_irregular_heights(page: Page):
-    page.evaluate("() => { document.querySelectorAll('.filters .f_remove_filter[data-target-type=\"df\"]').forEach(el => el.remove()); window.ToppreiseSuite?.processListings?.(); }")
+    drop_store_filter(page)
     res = page.evaluate("""() => {
         const card = document.getElementById('card-expensive');
         // Set long product title and subline similar to Samsung TV in screenshot
@@ -2076,9 +2074,8 @@ def test_showproductprice_vs_showshippingprice_consistency(browser, userscript_c
     page.route("**/plugins/product/pricechart*", handle_pricechart)
 
     # 1. Switch body to showproductprice (native Toppreise 'Produktpreis' setting)
+    drop_store_filter(page)
     page.evaluate("""() => {
-        // Scope to price logic: drop the store filter so the card stays visible.
-        document.querySelectorAll('.filters .f_remove_filter[data-target-type="df"]').forEach(el => el.remove());
         document.body.classList.remove('showshippingprice');
         document.body.classList.add('showproductprice');
 
