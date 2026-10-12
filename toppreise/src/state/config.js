@@ -300,6 +300,13 @@ export function syncUiControl(key, val) {
         case 'BESTPREISE_INCLUDE_VORTIEF': {
           const toggle = shadow.getElementById('tp-include-vortief-toggle');
           if (toggle) toggle.checked = val !== false;
+          const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
+          if (fallbackBtn) {
+            const excluded = val === false;
+            fallbackBtn.classList.toggle('tp-active', excluded);
+            fallbackBtn.setAttribute('aria-pressed', String(!excluded));
+            fallbackBtn.title = excluded ? 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt) — klicken zum Einschließen' : 'Fallback-Tiefs eingeschlossen — klicken zum Ausschließen (Filtergrund, entfernt)';
+          }
           break;
         }
         case 'BESTPREISE_WEIGHT_RECORD': {

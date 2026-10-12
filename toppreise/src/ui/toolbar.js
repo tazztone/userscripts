@@ -219,7 +219,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
           </label>
         </div>
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">${CONFIG.BESTPREISE_HIDE_UNCHECKED ? '✓ ' : ''}Nur geprüfte</button>
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" style="display: ${isDealFeed ? 'flex' : 'none'};" title="Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">${CONFIG.BESTPREISE_HIDE_UNCHECKED ? '✓ ' : ''}Nur geprüfte</button>
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'tp-active' : ''}" id="tp-bar-fallback-btn" style="display: ${isDealFeed ? 'flex' : 'none'};" title="${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt) — klicken zum Einschließen' : 'Fallback-Tiefs eingeschlossen — klicken zum Ausschließen (Filtergrund, entfernt)'}">Fallback-Tiefs</button>
         <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (entfernt)">
           <span class="tp-stepper-label">Min-Angebote:</span>
           <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -276,7 +277,12 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
       updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
       showToast(next ? '✓ Nur geprüfte filtern aktiv (Filtergrund, entfernt)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
-};
+    };
+    bar.querySelector('#tp-bar-fallback-btn').onclick = () => {
+      const next = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false;
+      updateConfig('BESTPREISE_INCLUDE_VORTIEF', next);
+      showToast(next ? 'Fallback-Tiefs eingeschlossen' : 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt)');
+    };
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
       const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -343,6 +349,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
     uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
     uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : 'Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
+    uncheckedBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+  }
+  const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
+  if (fallbackBtn) {
+    const excluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false;
+    fallbackBtn.classList.toggle('tp-active', excluded);
+    fallbackBtn.setAttribute('aria-pressed', String(!excluded));
+    fallbackBtn.title = excluded ? 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt) — klicken zum Einschließen' : 'Fallback-Tiefs eingeschlossen — klicken zum Ausschließen (Filtergrund, entfernt)';
+    fallbackBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
   }
 
 

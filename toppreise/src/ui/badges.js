@@ -177,17 +177,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       heatBadgeEl.style.removeProperty('box-shadow');
     }
   }
-  // 1b. Geprüft vs ungeprüft card cue (always on, independent of Heatmap):
-  // no stats = never checked. Loading cards get neither class.
-  if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
-    card.classList.remove('tp-is-unverified', 'tp-is-verified');
-  } else if (!stats) {
-    card.classList.add('tp-is-unverified');
-    card.classList.remove('tp-is-verified');
-  } else {
-    card.classList.add('tp-is-verified');
-    card.classList.remove('tp-is-unverified');
-  }
+  // 1b. Geprüft vs ungeprüft card cue: verified cards carry tp-is-verified.
+  // Unchecked cards stay at full opacity — the badge-level striped ribbon
+  // (step 6) is the only ungeprüft signal. Loading cards get neither class.
+   if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+     card.classList.remove('tp-is-unverified', 'tp-is-verified');
+   } else if (stats) {
+     card.classList.add('tp-is-verified');
+     card.classList.remove('tp-is-unverified');
+   } else {
+     card.classList.remove('tp-is-unverified', 'tp-is-verified');
+   }
 
   // 2. Filters
   card.classList.toggle('tp-negative-filtered', filters.isNeg);
@@ -583,7 +583,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
       } else {
         // 1A: Unchecked State (Subtle Mini Loupe + Hover Scale + Tooltip)
-        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
+        if (filters.isUnchecked === true) card.classList.add('tp-unchecked-hidden');
 
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
@@ -905,7 +905,7 @@ export function renderEmptyState(cards, counts) {
       <div>🚫 <strong>Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.</strong></div>
       <div class="tp-empty-state-actions">
         ${counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
-        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
+        ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : 'Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)'}">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
         <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte anzeigen</button>
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
       </div>
@@ -931,6 +931,7 @@ export function renderEmptyState(cards, counts) {
       updateConfig('FILTER_NEG_ENABLED', false);
       updateConfig('FILTER_MIN_ENABLED', false);
       updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
+      updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
       document.body.classList.add('tp-reveal-all');
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });

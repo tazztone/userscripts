@@ -134,9 +134,10 @@ def test_filter_bar_mounting_safety_and_interaction(page: Page):
 
 
 def test_discount_heatmap_rendering(page: Page):
-    # Unchecked cards never heat: striped-gray ribbons, no thermal styling
+    # Unchecked cards never heat and never dim: striped-gray badge ribbons at
+    # full card opacity, no thermal styling
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
-    assert 'tp-is-unverified' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-is-unverified' not in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert 'tp-is-unverified' in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
 
     # Seed verified deals: card 1 deep (-50% vs median), card 2 shallow (-12%)
@@ -237,10 +238,15 @@ def test_sort_by_discount(page: Page):
 
 def test_empty_state_notice_and_actions(page: Page):
     # No notice on an unfiltered page, then empty state once Filtern removes
-    # all cards — here via Nur geprüfte on unscanned cards.
+    # all cards — Nur geprüfte (engages only when the page holds a check)
+    # plus Min-Angebote for the one verified card.
     assert not page.locator('#tp-empty-state-notice').is_visible()
+    prev_min = page.evaluate("() => window.ToppreiseSuite.CONFIG.MIN_OFFERS")
+    prev_min_enabled = page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_MIN_ENABLED")
+    seed_verified_deal(page, '797571', {'tiefstpreis': 100, 'hoechstpreis': 200})
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
-    # All 5 mock cards are unscanned, so Nur geprüfte removes them all
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_MIN_ENABLED', true); window.ToppreiseSuite.updateConfig('MIN_OFFERS', 99); }")
+    # 4 unscanned cards via Nur geprüfte, the verified card via Min-Angebote
     page.wait_for_selector('#tp-empty-state-notice')
 
     notice = page.locator('#tp-empty-state-notice')
@@ -262,6 +268,8 @@ def test_empty_state_notice_and_actions(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_ENABLED") is False
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_MIN_ENABLED") is False
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
+    page.evaluate(f"() => {{ window.ToppreiseSuite.updateConfig('MIN_OFFERS', {prev_min}); window.ToppreiseSuite.updateConfig('FILTER_MIN_ENABLED', {str(prev_min_enabled).lower()}); }}")
 
 
 
@@ -350,6 +358,29 @@ def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
     assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
 
+def test_unchecked_filter_stays_passive_without_checks(page: Page):
+    # No card on the fresh mock page was ever checked: Nur geprüfte must
+    # mark nothing unchecked instead of emptying the page.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
+    page.wait_for_timeout(300)
+    assert page.locator('.tp-unchecked-hidden').count() == 0
+    assert not page.locator('#tp-empty-state-notice').is_visible()
+    assert page.locator('#card-cheapest').is_visible()
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', false)")
+
+
+def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
+    pill = page.locator('#tp-bar-fallback-btn')
+    assert pill.is_visible()
+    assert 'tp-active' not in (pill.get_attribute('class') or '')
+    page.click('#tp-bar-fallback-btn')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
+    assert 'tp-active' in (pill.get_attribute('class') or '')
+    assert 'ausgeschlossen' in (pill.get_attribute('title') or '')
+    page.click('#tp-bar-fallback-btn')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
+    assert 'tp-active' not in (pill.get_attribute('class') or '')
+
 
 
 def test_category_page_injects_interactive_deal_badges(page: Page):
@@ -385,7 +416,8 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     # Seed card 1 as a verified deal; the rest stay unchecked
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-is-verified')
-    assert 'tp-is-unverified' in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-is-unverified' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-is-unverified' in (page.locator('#card-negative .badge-dif').get_attribute('class') or '')
     # Toggle faces: toolbar button + settings toggle (persisted pref)
     open_settings(page)
     assert page.locator('#tp-root >> #tp-hide-unchecked-toggle').is_checked() is False

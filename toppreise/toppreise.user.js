@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.199
+// @version      2.18.200
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -325,8 +325,10 @@ const STYLES = `
     cursor: wait !important;
     opacity: 0.85 !important;
   }
-  /* Geprüft vs ungeprüft: unchecked ribbons read striped-gray + dashed at a
-     glance, verified ribbons stay solid heat. Always on, no heat dependency. */
+  /* Geprüft vs ungeprüft: unchecked badges read striped-gray + dashed at a
+     glance, verified badges stay solid heat. Cards stay at full opacity —
+     dimming applies only to the peek-preview of Gefilterten (see
+     body.tp-reveal-all above). Always on, no heat dependency. */
   .badge.badge-dif.tp-is-unverified,
   .badge-dif.tp-is-unverified {
     background: repeating-linear-gradient(135deg, #e2e8f0 0 6px, #cbd5e1 6px 12px) !important;
@@ -339,13 +341,6 @@ const STYLES = `
     border-style: solid !important;
     border-width: 1.5px !important;
     box-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
-  }
-  .Plugin_Product.tp-is-unverified,
-  a.Plugin_Product.tp-is-unverified,
-  .mixedBrowsingListProduct.tp-is-unverified {
-    opacity: var(--tp-dim-opacity, 0.25) !important;
-    filter: saturate(0.55) brightness(0.97) !important;
-    border-style: dashed !important;
   }
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
@@ -2691,6 +2686,13 @@ const SHADOW_MODAL_STYLES = `
           case 'BESTPREISE_INCLUDE_VORTIEF': {
             const toggle = shadow.getElementById('tp-include-vortief-toggle');
             if (toggle) toggle.checked = val !== false;
+            const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
+            if (fallbackBtn) {
+              const excluded = val === false;
+              fallbackBtn.classList.toggle('tp-active', excluded);
+              fallbackBtn.setAttribute('aria-pressed', String(!excluded));
+              fallbackBtn.title = excluded ? 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt) — klicken zum Einschließen' : 'Fallback-Tiefs eingeschlossen — klicken zum Ausschließen (Filtergrund, entfernt)';
+            }
             break;
           }
           case 'BESTPREISE_WEIGHT_RECORD': {
@@ -3291,18 +3293,20 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
-    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
-    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-    // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
-    // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
-    const kind = cd.displayDelta?.kind;
-    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-    const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-    const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
-    const isDealerLoser = false;
-    const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
-    return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers, pageHasChecks = true) {
+     const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
+     const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
+     // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
+     // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
+     // Ungeprüfte hides only when the page holds at least one check: with zero
+     // stats the filter would remove the whole page, so it stays passive.
+     const kind = cd.displayDelta?.kind;
+     const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
+     const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats && pageHasChecks === true;
+     const isDealerLoser = false;
+     const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
+     return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
   }
 
   function dealerLoserFor(card, activeStores) {
@@ -4268,17 +4272,17 @@ const SHADOW_MODAL_STYLES = `
         heatBadgeEl.style.removeProperty('box-shadow');
       }
     }
-    // 1b. Geprüft vs ungeprüft card cue (always on, independent of Heatmap):
-    // no stats = never checked. Loading cards get neither class.
-    if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
-      card.classList.remove('tp-is-unverified', 'tp-is-verified');
-    } else if (!stats) {
-      card.classList.add('tp-is-unverified');
-      card.classList.remove('tp-is-verified');
-    } else {
-      card.classList.add('tp-is-verified');
-      card.classList.remove('tp-is-unverified');
-    }
+    // 1b. Geprüft vs ungeprüft card cue: verified cards carry tp-is-verified.
+    // Unchecked cards stay at full opacity — the badge-level striped ribbon
+    // (step 6) is the only ungeprüft signal. Loading cards get neither class.
+     if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+       card.classList.remove('tp-is-unverified', 'tp-is-verified');
+     } else if (stats) {
+       card.classList.add('tp-is-verified');
+       card.classList.remove('tp-is-unverified');
+     } else {
+       card.classList.remove('tp-is-unverified', 'tp-is-verified');
+     }
 
     // 2. Filters
     card.classList.toggle('tp-negative-filtered', filters.isNeg);
@@ -4674,7 +4678,7 @@ const SHADOW_MODAL_STYLES = `
           }
         } else {
           // 1A: Unchecked State (Subtle Mini Loupe + Hover Scale + Tooltip)
-          if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
+          if (filters.isUnchecked === true) card.classList.add('tp-unchecked-hidden');
 
           badgeDifEl.classList.add('tp-deal-badge-interactive');
           badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
@@ -4996,7 +5000,7 @@ const SHADOW_MODAL_STYLES = `
         <div>🚫 <strong>Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.</strong></div>
         <div class="tp-empty-state-actions">
           ${counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
-          ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="✓ Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
+          ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : 'Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)'}">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte anzeigen</button>
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
         </div>
@@ -5022,6 +5026,7 @@ const SHADOW_MODAL_STYLES = `
         updateConfig('FILTER_NEG_ENABLED', false);
         updateConfig('FILTER_MIN_ENABLED', false);
         updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
+        updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
         document.body.classList.add('tp-reveal-all');
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
@@ -6030,7 +6035,8 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
           </div>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" title="Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">${CONFIG.BESTPREISE_HIDE_UNCHECKED ? '✓ ' : ''}Nur geprüfte</button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" style="display: ${isDealFeed ? 'flex' : 'none'};" title="Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)">${CONFIG.BESTPREISE_HIDE_UNCHECKED ? '✓ ' : ''}Nur geprüfte</button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'tp-active' : ''}" id="tp-bar-fallback-btn" style="display: ${isDealFeed ? 'flex' : 'none'};" title="${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt) — klicken zum Einschließen' : 'Fallback-Tiefs eingeschlossen — klicken zum Ausschließen (Filtergrund, entfernt)'}">Fallback-Tiefs</button>
           <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (entfernt)">
             <span class="tp-stepper-label">Min-Angebote:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
@@ -6087,7 +6093,12 @@ const SHADOW_MODAL_STYLES = `
         const next = CONFIG.BESTPREISE_HIDE_UNCHECKED !== true;
         updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
         showToast(next ? '✓ Nur geprüfte filtern aktiv (Filtergrund, entfernt)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
-  };
+      };
+      bar.querySelector('#tp-bar-fallback-btn').onclick = () => {
+        const next = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false;
+        updateConfig('BESTPREISE_INCLUDE_VORTIEF', next);
+        showToast(next ? 'Fallback-Tiefs eingeschlossen' : 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt)');
+      };
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
         const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -6154,6 +6165,15 @@ const SHADOW_MODAL_STYLES = `
       uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
       uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
       uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ Nur geprüfte aktiv — klicken zum Aufheben (Filtergrund, entfernt)' : 'Nur geprüfte: ungeprüfte filtern (Filtergrund, entfernt)';
+      uncheckedBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+    }
+    const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
+    if (fallbackBtn) {
+      const excluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false;
+      fallbackBtn.classList.toggle('tp-active', excluded);
+      fallbackBtn.setAttribute('aria-pressed', String(!excluded));
+      fallbackBtn.title = excluded ? 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt) — klicken zum Einschließen' : 'Fallback-Tiefs eingeschlossen — klicken zum Ausschließen (Filtergrund, entfernt)';
+      fallbackBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
     }
 
 
@@ -7202,9 +7222,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // --- Filter ---
       const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
+      const pageHasChecks = cardDataList.some(cd => !!cd.stats);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, pageHasChecks);
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {

@@ -50,9 +50,9 @@ _Avoid_: Ursache (in UI-Texten)
 Durch einen Filtergrund entfernte Karten.
 _Avoid_: Gedimmte (Dimmen entfernt nichts)
 
-**Ansicht**:
-Rein visuelle Darstellung ohne Entfernen: Dimmen (Status-Deemphasis für Ungeprüfte/Fallback per Deckkraft), Heatmap-Farbe, Streifen, Kanten-Glow, Badge-Texte.
-_Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung)
+ **Ansicht**:
+ Rein visuelle Darstellung ohne Entfernen: Heatmap-Farbe, Streifen, Kanten-Glow, Badge-Texte sowie die Peek-Vorschau Gefilterter (abgeblendet per 👁️). Ungeprüfte Karten dimmen nie — sie lesen sich an voller Deckkraft mit grau gestreiftem Badge.
+ _Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung), Dimmen (für Ungeprüfte)
 
 **Neue Tiefstpreise**:
 Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts.
@@ -62,6 +62,6 @@ _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; Kanten-Glow in der Ansicht, entfernt nur wenn Fallback-Tiefs ausgeschlossen sind.
 _Avoid_: Vortief (als Schalterlabel), dünne Historie
 
-**Nur geprüfte**:
-Filtergrund: entfernt ungeprüfte Karten wenn aktiv; Ansicht streift/dimmt sie sonst nur.
-_Avoid_: separater Modus, Sonderverhalten
+ **Nur geprüfte**:
+ Filtergrund: entfernt ungeprüfte Karten wenn aktiv — greift aber nur, wenn die Seite mindestens eine geprüfte Karte hat. Ohne Checks bleibt der Filter passiv, damit er keine Seite komplett leert; Ansicht streift sie sonst nur.
+ _Avoid_: separater Modus, Sonderverhalten

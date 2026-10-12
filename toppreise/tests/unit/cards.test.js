@@ -175,6 +175,13 @@ describe('applyCardFilters split', () => {
     assert.equal(f.isUnchecked, true);
     assert.equal(f.isFiltered, true);
   });
+
+  it('stays passive without checks: Nur geprüfte removes nothing on a checkless page', () => {
+    const f = quietFlags(() => withConfig('BESTPREISE_HIDE_UNCHECKED', true, () =>
+      applyCardFilters(base({ stats: null }), [], 0, false, false)));
+    assert.equal(f.isUnchecked, false);
+    assert.equal(f.isFiltered, false);
+  });
 });
 
 describe('isCardFilteredOut forScan', () => {

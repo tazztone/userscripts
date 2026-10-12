@@ -300,8 +300,10 @@ export const STYLES = `
     cursor: wait !important;
     opacity: 0.85 !important;
   }
-  /* Geprüft vs ungeprüft: unchecked ribbons read striped-gray + dashed at a
-     glance, verified ribbons stay solid heat. Always on, no heat dependency. */
+  /* Geprüft vs ungeprüft: unchecked badges read striped-gray + dashed at a
+     glance, verified badges stay solid heat. Cards stay at full opacity —
+     dimming applies only to the peek-preview of Gefilterten (see
+     body.tp-reveal-all above). Always on, no heat dependency. */
   .badge.badge-dif.tp-is-unverified,
   .badge-dif.tp-is-unverified {
     background: repeating-linear-gradient(135deg, #e2e8f0 0 6px, #cbd5e1 6px 12px) !important;
@@ -314,13 +316,6 @@ export const STYLES = `
     border-style: solid !important;
     border-width: 1.5px !important;
     box-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
-  }
-  .Plugin_Product.tp-is-unverified,
-  a.Plugin_Product.tp-is-unverified,
-  .mixedBrowsingListProduct.tp-is-unverified {
-    opacity: var(--tp-dim-opacity, 0.25) !important;
-    filter: saturate(0.55) brightness(0.97) !important;
-    border-style: dashed !important;
   }
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
