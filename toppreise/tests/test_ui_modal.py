@@ -21,7 +21,7 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
 
 
 
-def test_modal_mode_and_settings_in_shadow_dom(page: Page):
+def test_modal_has_no_display_mode_radios(page: Page):
     open_settings(page)
 
     # Display-mode radios are gone: Filtern removes, Ansicht paints — zero tp-mode inputs

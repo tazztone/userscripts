@@ -137,7 +137,8 @@ export function migrateLegacyDebug() {
 migrateLegacyDebug();
 // One-time migration: MODE (highlight/dim/hide) deleted — Filtern removes,
 // Ansicht paints. Clears the stale stored key once so the mode toast fires
-// exactly once per user (marker-guarded, silent afterwards).
+// exactly once per user (marker-guarded, silent afterwards). The 'MODE'
+// literals below are that intentional cleanup — exempt from the MODE-zero sweep.
 export function migrateFilterSplit() {
   if (_getValue('MIGRATED_FILTER_SPLIT', false)) return { hadMode: false, modeWasActive: false };
   let storedMode;

@@ -240,7 +240,7 @@ def test_real_deal_on_demand_check_and_badges(page: Page):
 
 
 
-def test_mode_hides_non_bestpreis(page: Page):
+def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     """💎 sorts only: enabling it sorts qualifying Tiefstpreise first while
     verified markups stay visible last with a truthful Aufschlag badge —
     zero display:none on them, no separate strictness toggle needed."""

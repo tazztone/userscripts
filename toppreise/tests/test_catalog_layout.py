@@ -236,7 +236,9 @@ def test_sort_by_discount(page: Page):
 
 
 def test_empty_state_notice_and_actions(page: Page):
-    # Empty state fires when Filtern removes all cards — here via Nur geprüfte on unscanned cards.
+    # No notice on an unfiltered page, then empty state once Filtern removes
+    # all cards — here via Nur geprüfte on unscanned cards.
+    assert not page.locator('#tp-empty-state-notice').is_visible()
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
     # All 5 mock cards are unscanned, so Nur geprüfte removes them all
     page.wait_for_selector('#tp-empty-state-notice')

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.196
+// @version      2.18.197
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2528,7 +2528,8 @@ const SHADOW_MODAL_STYLES = `
   migrateLegacyDebug();
   // One-time migration: MODE (highlight/dim/hide) deleted — Filtern removes,
   // Ansicht paints. Clears the stale stored key once so the mode toast fires
-  // exactly once per user (marker-guarded, silent afterwards).
+  // exactly once per user (marker-guarded, silent afterwards). The 'MODE'
+  // literals below are that intentional cleanup — exempt from the MODE-zero sweep.
   function migrateFilterSplit() {
     if (_getValue('MIGRATED_FILTER_SPLIT', false)) return { hadMode: false, modeWasActive: false };
     let storedMode;
