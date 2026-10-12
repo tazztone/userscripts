@@ -63,5 +63,5 @@ Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; Kanten-Glow in der A
 _Avoid_: Vortief (als Schalterlabel), dünne Historie
 
  **Nur geprüfte**:
- Filtergrund: entfernt ungeprüfte Karten wenn aktiv — greift aber nur, wenn die Seite mindestens eine geprüfte Karte hat. Ohne Checks bleibt der Filter passiv, damit er keine Seite komplett leert; Ansicht streift sie sonst nur.
+Filtergrund: entfernt ungeprüfte Karten wenn aktiv — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
  _Avoid_: separater Modus, Sonderverhalten

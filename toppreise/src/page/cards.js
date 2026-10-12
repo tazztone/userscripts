@@ -257,17 +257,17 @@ export function extractCardData(card) {
   };
 }
 
-export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, pageHasChecks = true) {
+export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-   // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
-   // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
-   // Ungeprüfte hides only when the page holds at least one check: with zero
-   // stats the filter would remove the whole page, so it stays passive.
+  // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
+  // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
+  // Ungeprüfte is config-only: it must not depend on scan state, otherwise the
+  // first check on a checkless page hides everything as a side effect.
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
    const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats && pageHasChecks === true;
+  const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
    const isDealerLoser = false;
    const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
    return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };

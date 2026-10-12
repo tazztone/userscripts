@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.202
+// @version      2.18.203
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3298,17 +3298,17 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function applyCardFilters(cd, termsList, minOffers, pageHasOffers, pageHasChecks = true) {
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
      const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
      const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-     // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
-     // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
-     // Ungeprüfte hides only when the page holds at least one check: with zero
-     // stats the filter would remove the whole page, so it stays passive.
+    // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
+    // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
+    // Ungeprüfte is config-only: it must not depend on scan state, otherwise the
+    // first check on a checkless page hides everything as a side effect.
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
      const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats && pageHasChecks === true;
+    const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
      const isDealerLoser = false;
      const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
      return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
@@ -7230,10 +7230,9 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // --- Filter ---
       const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
-      const pageHasChecks = cardDataList.some(cd => !!cd.stats);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, pageHasChecks);
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {

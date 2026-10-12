@@ -238,8 +238,7 @@ def test_sort_by_discount(page: Page):
 
 def test_empty_state_notice_and_actions(page: Page):
     # No notice on an unfiltered page, then empty state once Filtern removes
-    # all cards — Nur geprüfte (engages only when the page holds a check)
-    # plus Min-Angebote for the one verified card.
+    # all cards — Nur geprüfte plus Min-Angebote for the one verified card.
     assert not page.locator('#tp-empty-state-notice').is_visible()
     prev_min = page.evaluate("() => window.ToppreiseSuite.CONFIG.MIN_OFFERS")
     prev_min_enabled = page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_MIN_ENABLED")
@@ -362,15 +361,20 @@ def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
     assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
 
-def test_unchecked_filter_stays_passive_without_checks(page: Page):
-    # No card on the fresh mock page was ever checked: Nur geprüfte must
-    # mark nothing unchecked instead of emptying the page.
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
-    page.wait_for_timeout(300)
-    assert page.locator('.tp-unchecked-hidden').count() == 0
-    assert not page.locator('#tp-empty-state-notice').is_visible()
-    assert page.locator('#card-cheapest').is_visible()
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', false)")
+def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
+ # Loupe-click regression: enabling Nur geprüfte on a checkless page hides
+ # unchecked cards immediately (with the empty-state off-ramp), and adding
+ # a check later changes nothing about the others' visibility.
+ page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
+ page.wait_for_selector('#tp-empty-state-notice')
+ assert page.locator('#card-cheapest').evaluate("e => getComputedStyle(e).display") == 'none'
+ seed_verified_deal(page, '797571', {'tiefstpreis': 100, 'hoechstpreis': 200})
+ page.wait_for_selector('#card-cheapest.tp-is-verified')
+ assert page.locator('#card-cheapest').is_visible()
+ assert page.locator('#card-negative').evaluate("e => getComputedStyle(e).display") == 'none'
+ assert not page.locator('#tp-empty-state-notice').is_visible()
+ page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', false)")
+ assert page.locator('#card-negative').is_visible()
 
 
 def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
