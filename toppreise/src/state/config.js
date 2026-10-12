@@ -300,14 +300,6 @@ export function syncUiControl(key, val) {
         case 'BESTPREISE_INCLUDE_VORTIEF': {
           const toggle = shadow.getElementById('tp-include-vortief-toggle');
           if (toggle) toggle.checked = val !== false;
-          const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
-          if (fallbackBtn) {
-            const excluded = val === false;
-            fallbackBtn.classList.toggle('tp-active', excluded);
-            fallbackBtn.setAttribute('aria-pressed', String(excluded));
-            const n = /(\d+)/.exec(fallbackBtn.textContent || '')?.[1] || 0;
-            fallbackBtn.title = excluded ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
-          }
           break;
         }
         case 'BESTPREISE_WEIGHT_RECORD': {
@@ -455,8 +447,8 @@ export function syncUiControl(key, val) {
           case 'BESTPREISE_HIDE_UNCHECKED': {
             const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
             if (uncheckedBtn) {
-              const n = /(\d+)/.exec(uncheckedBtn.textContent || '')?.[1] || 0;
-              uncheckedBtn.textContent = `${val === true ? '✓ ' : ''}Nur geprüfte${n > 0 ? ` (${n})` : ''}`;
+              const badge = bar.querySelector('#tp-bar-unchecked-count');
+              const n = badge ? /(\d+)/.exec(badge.textContent || '')?.[1] || 0 : 0;
               uncheckedBtn.classList.toggle('tp-active', val === true);
               uncheckedBtn.setAttribute('aria-pressed', String(val === true));
               uncheckedBtn.title = val === true ? `✓ Nur geprüfte aktiv (${n} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${n}) – entfernt sie aus der Liste`;
@@ -466,12 +458,13 @@ export function syncUiControl(key, val) {
           case 'BESTPREISE_INCLUDE_VORTIEF': {
             const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
             if (fallbackBtn) {
-              const excluded = val === false;
-              fallbackBtn.classList.toggle('tp-active', excluded);
-              fallbackBtn.setAttribute('aria-pressed', String(excluded));
-              const n = /(\d+)/.exec(fallbackBtn.textContent || '')?.[1] || 0;
-              if (Number(n) > 0) fallbackBtn.textContent = `Fallback-Tiefs (${n})`;
-              fallbackBtn.title = excluded ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
+              const included = val !== false;
+              const badge = bar.querySelector('#tp-bar-fallback-count');
+              const n = badge ? /(\d+)/.exec(badge.textContent || '')?.[1] || 0 : 0;
+              fallbackBtn.classList.toggle('tp-active', included);
+              fallbackBtn.classList.toggle('tp-tool-dim', !included);
+              fallbackBtn.setAttribute('aria-pressed', String(included));
+              fallbackBtn.title = !included ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
             }
             break;
           }

@@ -456,6 +456,7 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     res_sync = page.evaluate("""() => {
         window.ToppreiseSuite.updateConfig('MIN_OFFERS', 5);
         window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 25);
+        window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', false);
         const barMinVal = document.getElementById('tp-bar-min-val')?.textContent;
         const barThreshBtn = document.getElementById('tp-floating-threshold-btn')?.textContent;
         const modalThreshVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-real-deal-min-val')?.value;
@@ -464,7 +465,10 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
             barMinVal,
             threshConfig: window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT,
             barThreshBtn,
-            modalThreshVal
+            modalThreshVal,
+            fallbackLabel: document.querySelector('#tp-bar-fallback-btn .tp-btn-label')?.textContent,
+            fallbackCount: document.getElementById('tp-bar-fallback-count') !== null,
+            fallbackActive: document.getElementById('tp-bar-fallback-btn')?.classList.contains('tp-active')
         };
     }""")
     assert res_sync['minConfig'] == 5
@@ -472,6 +476,9 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     assert res_sync['threshConfig'] == 25
     assert res_sync['barThreshBtn'] == '≥25% ▾'
     assert res_sync['modalThreshVal'] == '25'
+    assert res_sync['fallbackLabel'] == 'Fallback-Tiefs'
+    assert res_sync['fallbackCount'] is True
+    assert res_sync['fallbackActive'] is False
 
     # Close modal
     page.click('#tp-root >> #tp-btn-close')

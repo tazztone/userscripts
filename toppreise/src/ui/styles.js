@@ -558,7 +558,19 @@ export const STYLES = `
     box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
   }
   #tp-bar-bestpreise-count {
-    opacity: 1 !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: var(--tp-r-pill) !important;
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+    font-variant-numeric: tabular-nums !important;
+    box-sizing: border-box !important;
   }
   #tp-suite-filter-bar.tp-bestpreise-bar {
     border-color: rgba(99, 102, 241, 0.45) !important;
@@ -804,68 +816,63 @@ export const STYLES = `
     -webkit-backdrop-filter: blur(14px) !important;
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-lg) !important;
-    padding: 8px 12px !important;
+    padding: 6px 8px !important;
     color: var(--tp-txt) !important;
     font-family: var(--tp-font) !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
     display: flex !important;
-    flex-direction: column !important;
-    gap: 8px !important;
-    z-index: 10 !important;
-    position: relative !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    z-index: 100 !important;
+    position: sticky !important;
+    top: 8px !important;
   }
   .tp-filter-main-row {
     display: flex !important;
-    align-items: stretch !important;
-    gap: 8px !important;
-    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 1 !important;
+    flex-wrap: nowrap !important;
+    min-width: 0 !important;
   }
   .tp-group {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 8px !important;
-    background: rgba(15, 23, 42, 0.04) !important;
-    border: 1px solid rgba(15, 23, 42, 0.08) !important;
-    border-radius: var(--tp-r-md) !important;
-    padding: 4px 8px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
     min-width: 0 !important;
   }
   .tp-group-filter {
-    flex: 1 1 340px !important;
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
   }
   .tp-group-view, .tp-group-deals {
-    flex: 0 1 auto !important;
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
+    flex: 0 0 auto !important;
+  }
+  .tp-group-deals {
+    margin-left: auto !important;
   }
   .tp-divider {
     width: 1px !important;
-    align-self: stretch !important;
+    height: 20px !important;
+    align-self: center !important;
     background: rgba(15,23,42,0.10) !important;
     border-radius: 1px !important;
     flex-shrink: 0 !important;
-    margin: 2px 0 !important;
-  }
-  /* Berechnung sub-separator: calc sliders share the Sortieren group, the left
-  border marks where sorting ends and Wertung begins. Hides with its wrapper. */
-  #tp-bar-weight-wrapper {
-    border-left: 1px solid rgba(15,23,42,0.10) !important;
-    padding-left: 8px !important;
   }
   .tp-stepper-label {
     font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: var(--tp-mut) !important;
     white-space: nowrap !important;
   }
-  @media (max-width: 900px) {
-    .tp-divider { display: none !important; }
-    .tp-group { width: 100% !important; }
-  }
   .tp-input-wrapper {
     flex: 1 1 200px !important;
-    max-width: 420px !important;
+    max-width: 340px !important;
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
@@ -880,6 +887,7 @@ export const STYLES = `
   }
   #tp-inline-negative-input {
     width: 100% !important;
+    height: 32px !important;
     background: rgba(255,255,255,0.95) !important;
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
@@ -904,8 +912,8 @@ export const STYLES = `
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
     color: var(--tp-txt-dim) !important;
-    padding: 0 11px !important;
-    height: 28px !important;
+    padding: 0 10px !important;
+    height: 32px !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
     font-weight: 600 !important;
@@ -982,25 +990,83 @@ export const STYLES = `
     outline: 2px solid var(--tp-focus) !important;
     outline-offset: 2px !important;
   }
-  .tp-mini-state {
+  .tp-count-badge {
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: var(--tp-r-pill) !important;
     font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
-    min-width: 22px !important;
-    margin-left: 2px !important;
-    flex-shrink: 0 !important;
-    color: var(--tp-dim) !important;
     display: inline-flex !important;
     align-items: center !important;
-    line-height: 1 !important;
-    vertical-align: middle !important;
+    justify-content: center !important;
+    background: rgba(15, 23, 42, 0.08) !important;
+    color: var(--tp-txt-dim) !important;
+    font-variant-numeric: tabular-nums !important;
+    box-sizing: border-box !important;
   }
-  .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
+  .tp-bar-btn.tp-active .tp-count-badge {
+    background: var(--tp-acc) !important;
+    color: #fff !important;
+  }
+  .tp-count-badge.tp-count-warn {
+    background: var(--tp-warn) !important;
+    color: #fff !important;
+  }
   /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
   .tp-tool-dim {
     opacity: 0.45 !important;
     filter: saturate(0.4) !important;
     transition: opacity 0.2s ease !important;
   }
+  .tp-calc-wrap {
+    position: relative !important;
+    display: inline-flex !important;
+  }
+  #tp-bar-calc-popover {
+    position: absolute !important;
+    right: 0 !important;
+    top: calc(100% + 8px) !important;
+    width: 320px !important;
+    display: none !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    background: var(--tp-panel) !important;
+    backdrop-filter: blur(14px) !important;
+    border: 1px solid var(--tp-line) !important;
+    border-radius: var(--tp-r-lg) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
+    padding: 12px !important;
+    z-index: 120 !important;
+  }
+  #tp-bar-calc-popover.tp-show { display: flex !important; }
+  .tp-calc-head {
+    font-weight: 700 !important;
+    font-size: var(--tp-fs-lg) !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-calc-head span {
+    display: block !important;
+    font-weight: 500 !important;
+    font-size: var(--tp-fs-xs) !important;
+    color: var(--tp-mut) !important;
+  }
+  #tp-bar-calc-popover .tp-threshold-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  #tp-bar-calc-popover .tp-threshold-wrapper input[type="range"] {
+    flex: 1 !important;
+    width: auto !important;
+  }
+  #tp-bar-calc-popover #tp-bar-horizon-range { width: auto !important; }
+  #tp-bar-calc-popover #tp-bar-weight-range { width: auto !important; }
+  .tp-calc-reset { align-self: flex-end !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
@@ -1008,7 +1074,7 @@ export const STYLES = `
     background: rgba(15,23,42,0.04) !important;
     border: 1px solid var(--tp-line) !important;
     padding: 0 6px !important;
-    height: 28px !important;
+    height: 32px !important;
     box-sizing: border-box !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
@@ -1038,6 +1104,16 @@ export const STYLES = `
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
   .tp-stepper-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
+  @media (max-width: 1100px) {
+    #tp-suite-filter-bar { flex-wrap: wrap !important; }
+    .tp-filter-main-row { flex-wrap: wrap !important; }
+    .tp-group-deals { margin-left: 0 !important; }
+    .tp-divider { display: none !important; }
+    #tp-bar-calc-popover { width: min(320px, 92vw) !important; }
+  }
+  @media (max-width: 700px) {
+    .tp-input-wrapper { flex: 1 1 100% !important; max-width: none !important; }
+  }
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;

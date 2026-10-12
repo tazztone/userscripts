@@ -75,6 +75,8 @@ def test_filter_toggles_preserve_settings(page: Page):
 
     filter_toggle = page.locator('#tp-toggle-neg')
     assert filter_toggle.is_checked()
+    assert page.locator('#tp-toggle-min').is_checked()
+    assert page.locator('#tp-suite-filter-bar .tp-mini-state').count() == 0
     # Co-located next to respective setting, not far-right cluster
     assert page.evaluate("() => document.getElementById('tp-toggle-neg').closest('.tp-input-wrapper') !== null")
     assert page.evaluate("() => document.getElementById('tp-toggle-min').closest('#tp-bar-min-offers-group') !== null")
@@ -203,7 +205,9 @@ def test_suite_filter_bar_grouping(page: Page):
     assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filter – blendet aus'
     assert page.evaluate("() => document.querySelector('.tp-group-view').getAttribute('aria-label')") == 'Ansicht – entfernt nichts'
     assert page.evaluate("() => document.querySelector('.tp-group-deals').getAttribute('aria-label')") == 'Sortieren'
-    assert page.evaluate("() => ['#tp-bar-weight-wrapper', '#tp-bar-horizon-wrapper', '#tp-bar-minpoints-wrapper'].every(s => document.querySelector(s).closest('.tp-group-deals') !== null)")
+    assert page.evaluate("() => ['#tp-bar-weight-wrapper', '#tp-bar-horizon-wrapper', '#tp-bar-minpoints-wrapper'].every(s => document.querySelector(s).closest('#tp-bar-calc-popover') !== null)")
+    assert page.evaluate("() => document.getElementById('tp-bar-calc-popover').closest('.tp-group-deals') !== null")
+    assert page.evaluate("() => document.getElementById('tp-bar-calc-btn').closest('.tp-group-deals') !== null")
 
 
 
@@ -333,14 +337,19 @@ def test_deal_features_enabled_on_category_page(page: Page):
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-bar-reveal-all').is_visible()
-    assert 'Gefilterte einblenden (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert page.locator('#tp-bar-reveal-all .tp-btn-label').inner_text() == '👁️ Gefilterte einblenden'
+    assert page.locator('#tp-bar-reveal-count').inner_text() == '2'
     assert 'Einblenden, entfernt nichts: Gefilterte (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
+    assert page.locator('#tp-suite-filter-bar .tp-mini-state').count() == 0
 
     # Category deal check and heatmap features are visible
     assert page.locator('#tp-bar-heat-btn').is_visible()
-    # Berechnungsparameter live here too (browse heat uses them)
+    # Berechnungsparameter live behind the calc popover (browse heat uses them)
+    assert page.locator('#tp-bar-calc-btn').is_visible()
+    assert 'Pkt' in (page.locator('#tp-bar-calc-summary').inner_text() or '')
+    page.click('#tp-bar-calc-btn')
     assert page.locator('#tp-bar-weight-wrapper').is_visible()
     assert page.locator('#tp-bar-horizon-wrapper').is_visible()
     assert page.locator('#tp-bar-minpoints-wrapper').is_visible()
@@ -353,15 +362,15 @@ def test_deal_features_enabled_on_category_page(page: Page):
 def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     # Peek is Ansicht (removes nothing), unchecked is Filtergrund (removes cards)
     assert page.locator('#tp-suite-filter-bar .tp-group-view #tp-bar-reveal-all').count() == 1
-    assert 'Gefilterte einblenden' in (page.locator('#tp-bar-reveal-all').text_content() or '')
-    assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    assert page.locator('#tp-bar-reveal-all .tp-btn-label').inner_text() == '👁️ Gefilterte einblenden'
+    assert page.locator('#tp-bar-unchecked-btn .tp-btn-label').inner_text() == 'Nur geprüfte'
     assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
     page.click('#tp-bar-unchecked-btn')
-    assert '✓ Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    assert page.locator('#tp-bar-unchecked-btn .tp-btn-label').inner_text() == 'Nur geprüfte'
     assert 'tp-active' in (page.locator('#tp-bar-unchecked-btn').get_attribute('class') or '')
     page.click('#tp-bar-unchecked-btn')
     assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
-    assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
+    assert page.locator('#tp-bar-unchecked-btn .tp-btn-label').inner_text() == 'Nur geprüfte'
 
 def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
  # Loupe-click regression: enabling Nur geprüfte on a checkless page hides
@@ -382,15 +391,19 @@ def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
 def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     pill = page.locator('#tp-bar-fallback-btn')
     assert pill.is_visible()
-    assert 'tp-active' not in (pill.get_attribute('class') or '')
+    assert 'tp-active' in (pill.get_attribute('class') or '')
+    assert pill.get_attribute('aria-pressed') == 'true'
+    assert page.locator('#tp-bar-fallback-btn .tp-btn-label').inner_text() == 'Fallback-Tiefs'
     page.click('#tp-bar-fallback-btn')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
-    assert 'tp-active' in (pill.get_attribute('class') or '')
+    assert 'tp-active' not in (pill.get_attribute('class') or '')
+    assert 'tp-tool-dim' in (pill.get_attribute('class') or '')
     assert 'ausgeblendet' in (pill.get_attribute('title') or '')
-    assert pill.get_attribute('aria-pressed') == 'true'
+    assert pill.get_attribute('aria-pressed') == 'false'
     page.click('#tp-bar-fallback-btn')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
-    assert 'tp-active' not in (pill.get_attribute('class') or '')
+    assert 'tp-active' in (pill.get_attribute('class') or '')
+    assert pill.get_attribute('aria-pressed') == 'true'
 
 
 
@@ -1358,10 +1371,11 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
+    page.click('#tp-bar-calc-btn')
     weight_wrapper = page.locator('#tp-bar-weight-wrapper')
     assert weight_wrapper.is_visible()
-    assert weight_wrapper.evaluate("e => e.closest('.tp-group-deals') !== null")
-    assert weight_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-bestpreise-btn'")
+    assert weight_wrapper.evaluate("e => e.closest('#tp-bar-calc-popover') !== null")
+    assert page.locator('#tp-bar-calc-popover').evaluate("e => e.closest('.tp-group-deals') !== null")
     # Deals group stays visible (controls live in-bar now, no evacuation).
     assert page.locator('.tp-group-deals').evaluate("e => getComputedStyle(e).display") != "none"
 
@@ -1406,9 +1420,10 @@ def test_minpoints_slider_in_filter_bar(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
+    page.click('#tp-bar-calc-btn')
     minpoints_wrapper = page.locator('#tp-bar-minpoints-wrapper')
     assert minpoints_wrapper.is_visible()
-    assert minpoints_wrapper.evaluate("e => e.closest('.tp-group-deals') !== null")
+    assert minpoints_wrapper.evaluate("e => e.closest('#tp-bar-calc-popover') !== null")
     assert minpoints_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-horizon-wrapper'")
 
     minpoints_label = page.locator('#tp-bar-minpoints-label')
@@ -1457,9 +1472,10 @@ def test_horizon_select_in_filter_bar(page: Page):
         window.ToppreiseSuite.processListings();
     }""")
 
+    page.click('#tp-bar-calc-btn')
     horizon_wrapper = page.locator('#tp-bar-horizon-wrapper')
     assert horizon_wrapper.is_visible()
-    assert horizon_wrapper.evaluate("e => e.closest('.tp-group-deals') !== null")
+    assert horizon_wrapper.evaluate("e => e.closest('#tp-bar-calc-popover') !== null")
     assert horizon_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-weight-wrapper'")
     assert 'Median-Berechnungszeitraum' in (horizon_wrapper.get_attribute('title') or '')
 
@@ -2283,3 +2299,50 @@ def test_heat_chrome_keeps_site_colors_and_spark(page: Page):
         return s.right <= r.right + 1 ? 'clipped' : `bleed:${s.right - r.right}`;
     }""")
     assert clip in ('clipped', 'no-spark'), clip
+
+
+def test_calc_popover_open_close_and_reset(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.processListings();
+    }""")
+    calc_btn = page.locator('#tp-bar-calc-btn')
+    popover = page.locator('#tp-bar-calc-popover')
+    assert calc_btn.is_visible()
+    assert 'tp-show' not in (popover.get_attribute('class') or '')
+    calc_btn.click()
+    assert 'tp-show' in (popover.get_attribute('class') or '')
+    assert calc_btn.get_attribute('aria-expanded') == 'true'
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-weight-range');
+        r.value = '100';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.getElementById('tp-bar-calc-summary')?.textContent?.includes('100% Rek')")
+    page.keyboard.press('Escape')
+    assert 'tp-show' not in (popover.get_attribute('class') or '')
+    assert page.evaluate("() => document.activeElement?.id") == 'tp-bar-calc-btn'
+    calc_btn.click()
+    page.click('#tp-bar-calc-reset')
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD === 0.5 && window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 365 && window.ToppreiseSuite.CONFIG.BESTPREISE_MIN_POINTS === 5")
+    assert 'tp-show' in (popover.get_attribute('class') or '')
+    page.evaluate("() => document.querySelector('#product-list').click()")
+    assert 'tp-show' not in (popover.get_attribute('class') or '')
+
+
+def test_toolbar_single_row_sticky(page: Page):
+    page.set_viewport_size({'width': 1280, 'height': 800})
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => getComputedStyle(document.getElementById('tp-suite-filter-bar')).position") == 'sticky'
+    tops = page.evaluate("() => [...document.querySelectorAll('#tp-suite-filter-bar .tp-group')].map(g => g.getBoundingClientRect().top)")
+    assert max(tops) - min(tops) < 2
+    scrolled = page.evaluate("""() => {
+        window.scrollTo(0, document.body.scrollHeight);
+        return window.scrollY;
+    }""")
+    page.wait_for_timeout(200)
+    if scrolled > 0:
+        assert page.locator('#tp-suite-filter-bar').bounding_box()['y'] <= 10
+    else:
+        assert page.evaluate("() => getComputedStyle(document.getElementById('tp-suite-filter-bar')).top") == '8px'

@@ -1329,6 +1329,7 @@ def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
     assert 'CHF 2400.00 (-25%)' in (subline.text_content() or '')
 
     # Switch to 100% Ø: ribbon moves to the Ø leg, CHF legs stay put
+    page.click('#tp-bar-calc-btn')
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-weight-range');
         r.value = '0';
@@ -1630,4 +1631,5 @@ def test_bestpreise_button_readable_on_light_background(page: Page):
     assert 'tp-bestpreise-active' in (btn.get_attribute('class') or '')
     assert btn.evaluate("el => window.getComputedStyle(el).color") == 'rgb(255, 255, 255)'
     assert 'gradient' in btn.evaluate("el => window.getComputedStyle(el).backgroundImage")
+    assert '(' not in (page.locator('#tp-bar-bestpreise-count').text_content() or '')
 

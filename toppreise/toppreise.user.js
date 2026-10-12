@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.204
+// @version      2.18.205
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -583,7 +583,19 @@ const STYLES = `
     box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
   }
   #tp-bar-bestpreise-count {
-    opacity: 1 !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: var(--tp-r-pill) !important;
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+    font-variant-numeric: tabular-nums !important;
+    box-sizing: border-box !important;
   }
   #tp-suite-filter-bar.tp-bestpreise-bar {
     border-color: rgba(99, 102, 241, 0.45) !important;
@@ -829,68 +841,63 @@ const STYLES = `
     -webkit-backdrop-filter: blur(14px) !important;
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-lg) !important;
-    padding: 8px 12px !important;
+    padding: 6px 8px !important;
     color: var(--tp-txt) !important;
     font-family: var(--tp-font) !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
     display: flex !important;
-    flex-direction: column !important;
-    gap: 8px !important;
-    z-index: 10 !important;
-    position: relative !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    z-index: 100 !important;
+    position: sticky !important;
+    top: 8px !important;
   }
   .tp-filter-main-row {
     display: flex !important;
-    align-items: stretch !important;
-    gap: 8px !important;
-    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 1 !important;
+    flex-wrap: nowrap !important;
+    min-width: 0 !important;
   }
   .tp-group {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 8px !important;
-    background: rgba(15, 23, 42, 0.04) !important;
-    border: 1px solid rgba(15, 23, 42, 0.08) !important;
-    border-radius: var(--tp-r-md) !important;
-    padding: 4px 8px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
     min-width: 0 !important;
   }
   .tp-group-filter {
-    flex: 1 1 340px !important;
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
   }
   .tp-group-view, .tp-group-deals {
-    flex: 0 1 auto !important;
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
+    flex: 0 0 auto !important;
+  }
+  .tp-group-deals {
+    margin-left: auto !important;
   }
   .tp-divider {
     width: 1px !important;
-    align-self: stretch !important;
+    height: 20px !important;
+    align-self: center !important;
     background: rgba(15,23,42,0.10) !important;
     border-radius: 1px !important;
     flex-shrink: 0 !important;
-    margin: 2px 0 !important;
-  }
-  /* Berechnung sub-separator: calc sliders share the Sortieren group, the left
-  border marks where sorting ends and Wertung begins. Hides with its wrapper. */
-  #tp-bar-weight-wrapper {
-    border-left: 1px solid rgba(15,23,42,0.10) !important;
-    padding-left: 8px !important;
   }
   .tp-stepper-label {
     font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: var(--tp-mut) !important;
     white-space: nowrap !important;
   }
-  @media (max-width: 900px) {
-    .tp-divider { display: none !important; }
-    .tp-group { width: 100% !important; }
-  }
   .tp-input-wrapper {
     flex: 1 1 200px !important;
-    max-width: 420px !important;
+    max-width: 340px !important;
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
@@ -905,6 +912,7 @@ const STYLES = `
   }
   #tp-inline-negative-input {
     width: 100% !important;
+    height: 32px !important;
     background: rgba(255,255,255,0.95) !important;
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
@@ -929,8 +937,8 @@ const STYLES = `
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
     color: var(--tp-txt-dim) !important;
-    padding: 0 11px !important;
-    height: 28px !important;
+    padding: 0 10px !important;
+    height: 32px !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
     font-weight: 600 !important;
@@ -1007,25 +1015,83 @@ const STYLES = `
     outline: 2px solid var(--tp-focus) !important;
     outline-offset: 2px !important;
   }
-  .tp-mini-state {
+  .tp-count-badge {
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: var(--tp-r-pill) !important;
     font-size: var(--tp-fs-xs) !important;
     font-weight: 700 !important;
-    min-width: 22px !important;
-    margin-left: 2px !important;
-    flex-shrink: 0 !important;
-    color: var(--tp-dim) !important;
     display: inline-flex !important;
     align-items: center !important;
-    line-height: 1 !important;
-    vertical-align: middle !important;
+    justify-content: center !important;
+    background: rgba(15, 23, 42, 0.08) !important;
+    color: var(--tp-txt-dim) !important;
+    font-variant-numeric: tabular-nums !important;
+    box-sizing: border-box !important;
   }
-  .tp-mini-switch input:checked ~ .tp-mini-state { color: var(--tp-acc-txt) !important; }
+  .tp-bar-btn.tp-active .tp-count-badge {
+    background: var(--tp-acc) !important;
+    color: #fff !important;
+  }
+  .tp-count-badge.tp-count-warn {
+    background: var(--tp-warn) !important;
+    color: #fff !important;
+  }
   /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
   .tp-tool-dim {
     opacity: 0.45 !important;
     filter: saturate(0.4) !important;
     transition: opacity 0.2s ease !important;
   }
+  .tp-calc-wrap {
+    position: relative !important;
+    display: inline-flex !important;
+  }
+  #tp-bar-calc-popover {
+    position: absolute !important;
+    right: 0 !important;
+    top: calc(100% + 8px) !important;
+    width: 320px !important;
+    display: none !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    background: var(--tp-panel) !important;
+    backdrop-filter: blur(14px) !important;
+    border: 1px solid var(--tp-line) !important;
+    border-radius: var(--tp-r-lg) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
+    padding: 12px !important;
+    z-index: 120 !important;
+  }
+  #tp-bar-calc-popover.tp-show { display: flex !important; }
+  .tp-calc-head {
+    font-weight: 700 !important;
+    font-size: var(--tp-fs-lg) !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-calc-head span {
+    display: block !important;
+    font-weight: 500 !important;
+    font-size: var(--tp-fs-xs) !important;
+    color: var(--tp-mut) !important;
+  }
+  #tp-bar-calc-popover .tp-threshold-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  #tp-bar-calc-popover .tp-threshold-wrapper input[type="range"] {
+    flex: 1 !important;
+    width: auto !important;
+  }
+  #tp-bar-calc-popover #tp-bar-horizon-range { width: auto !important; }
+  #tp-bar-calc-popover #tp-bar-weight-range { width: auto !important; }
+  .tp-calc-reset { align-self: flex-end !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
@@ -1033,7 +1099,7 @@ const STYLES = `
     background: rgba(15,23,42,0.04) !important;
     border: 1px solid var(--tp-line) !important;
     padding: 0 6px !important;
-    height: 28px !important;
+    height: 32px !important;
     box-sizing: border-box !important;
     border-radius: var(--tp-r-md) !important;
     font-size: var(--tp-fs-sm) !important;
@@ -1063,6 +1129,16 @@ const STYLES = `
   }
   .tp-stepper-btn:hover { background: rgba(16,185,129,0.5) !important; }
   .tp-stepper-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
+  @media (max-width: 1100px) {
+    #tp-suite-filter-bar { flex-wrap: wrap !important; }
+    .tp-filter-main-row { flex-wrap: wrap !important; }
+    .tp-group-deals { margin-left: 0 !important; }
+    .tp-divider { display: none !important; }
+    #tp-bar-calc-popover { width: min(320px, 92vw) !important; }
+  }
+  @media (max-width: 700px) {
+    .tp-input-wrapper { flex: 1 1 100% !important; max-width: none !important; }
+  }
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;
@@ -2697,14 +2773,6 @@ const SHADOW_MODAL_STYLES = `
           case 'BESTPREISE_INCLUDE_VORTIEF': {
             const toggle = shadow.getElementById('tp-include-vortief-toggle');
             if (toggle) toggle.checked = val !== false;
-            const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
-            if (fallbackBtn) {
-              const excluded = val === false;
-              fallbackBtn.classList.toggle('tp-active', excluded);
-              fallbackBtn.setAttribute('aria-pressed', String(excluded));
-              const n = /(\d+)/.exec(fallbackBtn.textContent || '')?.[1] || 0;
-              fallbackBtn.title = excluded ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
-            }
             break;
           }
           case 'BESTPREISE_WEIGHT_RECORD': {
@@ -2852,8 +2920,8 @@ const SHADOW_MODAL_STYLES = `
             case 'BESTPREISE_HIDE_UNCHECKED': {
               const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
               if (uncheckedBtn) {
-                const n = /(\d+)/.exec(uncheckedBtn.textContent || '')?.[1] || 0;
-                uncheckedBtn.textContent = `${val === true ? '✓ ' : ''}Nur geprüfte${n > 0 ? ` (${n})` : ''}`;
+                const badge = bar.querySelector('#tp-bar-unchecked-count');
+                const n = badge ? /(\d+)/.exec(badge.textContent || '')?.[1] || 0 : 0;
                 uncheckedBtn.classList.toggle('tp-active', val === true);
                 uncheckedBtn.setAttribute('aria-pressed', String(val === true));
                 uncheckedBtn.title = val === true ? `✓ Nur geprüfte aktiv (${n} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${n}) – entfernt sie aus der Liste`;
@@ -2863,12 +2931,13 @@ const SHADOW_MODAL_STYLES = `
             case 'BESTPREISE_INCLUDE_VORTIEF': {
               const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
               if (fallbackBtn) {
-                const excluded = val === false;
-                fallbackBtn.classList.toggle('tp-active', excluded);
-                fallbackBtn.setAttribute('aria-pressed', String(excluded));
-                const n = /(\d+)/.exec(fallbackBtn.textContent || '')?.[1] || 0;
-                if (Number(n) > 0) fallbackBtn.textContent = `Fallback-Tiefs (${n})`;
-                fallbackBtn.title = excluded ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
+                const included = val !== false;
+                const badge = bar.querySelector('#tp-bar-fallback-count');
+                const n = badge ? /(\d+)/.exec(badge.textContent || '')?.[1] || 0 : 0;
+                fallbackBtn.classList.toggle('tp-active', included);
+                fallbackBtn.classList.toggle('tp-tool-dim', !included);
+                fallbackBtn.setAttribute('aria-pressed', String(included));
+                fallbackBtn.title = !included ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
               }
               break;
             }
@@ -6051,44 +6120,58 @@ const SHADOW_MODAL_STYLES = `
         <div class="tp-group tp-group-filter" role="group" aria-label="Filter – blendet aus">
           <div class="tp-input-wrapper" title="Kommagetrennte Begriffe eingeben">
             <div class="tp-input-field-box">
-              <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter" placeholder="Wörter ausschließen..." value="">
+              <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter (Text)" placeholder="Wörter ausschließen..." value="">
               <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
             </div>
             <label class="tp-mini-switch" title="Negativ-Filter (Text) ${CONFIG.FILTER_NEG_ENABLED ? 'AN' : 'AUS'}">
               <input type="checkbox" id="tp-toggle-neg" ${CONFIG.FILTER_NEG_ENABLED ? 'checked' : ''}>
               <span class="tp-mini-slider"></span>
-              <span class="tp-mini-state">${CONFIG.FILTER_NEG_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
           </div>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" style="display: ${isDealFeed ? 'flex' : 'none'};" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED ? `✓ Nur geprüfte aktiv (${uncheckedHiddenCount} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${uncheckedHiddenCount}) – entfernt sie aus der Liste`}">${CONFIG.BESTPREISE_HIDE_UNCHECKED ? '✓ ' : ''}Nur geprüfte${uncheckedHiddenCount > 0 ? ` (${uncheckedHiddenCount})` : ''}</button>
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'tp-active' : ''}" id="tp-bar-fallback-btn" aria-pressed="${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false}" style="display: ${isDealFeed ? 'flex' : 'none'};" title="${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? `Fallback-Tiefs ausgeblendet (${vortiefHidden}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${vortiefHidden})`}">Fallback-Tiefs${vortiefHidden > 0 ? ` (${vortiefHidden})` : ''}</button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_HIDE_UNCHECKED ? 'tp-active' : ''}" id="tp-bar-unchecked-btn" aria-pressed="${CONFIG.BESTPREISE_HIDE_UNCHECKED === true}" style="display: ${isDealFeed ? 'flex' : 'none'};" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED ? `✓ Nur geprüfte aktiv (${uncheckedHiddenCount} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${uncheckedHiddenCount}) – entfernt sie aus der Liste`}"><span class="tp-btn-label">Nur geprüfte</span><span class="tp-count-badge" id="tp-bar-unchecked-count" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span></button>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'tp-active' : ''}" id="tp-bar-fallback-btn" aria-pressed="${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false}" style="display: ${isDealFeed ? 'flex' : 'none'};" title="${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? `Fallback-Tiefs ausgeblendet (${vortiefHidden}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${vortiefHidden})`}"><span class="tp-btn-label">Fallback-Tiefs</span><span class="tp-count-badge tp-count-warn" id="tp-bar-fallback-count" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span></button>
           <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: ${pageHasOffers ? 'flex' : 'none'};" title="Produkte mit weniger als N Angeboten filtern (entfernt)">
             <span class="tp-stepper-label">Min-Angebote:</span>
             <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
             <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
             <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
-            <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}">
+            <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}" aria-label="Min-Angebote-Filter">
               <input type="checkbox" id="tp-toggle-min" ${CONFIG.FILTER_MIN_ENABLED ? 'checked' : ''}>
               <span class="tp-mini-slider"></span>
-              <span class="tp-mini-state">${CONFIG.FILTER_MIN_ENABLED ? 'ON' : 'OFF'}</span>
             </label>
           </div>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
-          <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Einblenden, entfernt nichts: Gefilterte (0) — Neg:0 Min:0 Händler:0 Fallback:0 Ungeprüft:0 — klicken zum Ein-/Ausblenden">👁️ Gefilterte einblenden (0)</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn" id="tp-bar-reveal-all" title="Einblenden, entfernt nichts: Gefilterte (0) — Neg:0 Min:0 Händler:0 Fallback:0 Ungeprüft:0 — klicken zum Ein-/Ausblenden"><span class="tp-btn-label">👁️ Gefilterte einblenden</span><span class="tp-count-badge" id="tp-bar-reveal-count" style="display: none;"></span></button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
           <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isDealFeed ? 'flex' : 'none'};">
-            💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>
+            💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
           </button>
+          <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
+            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — Sortierung + Farb-Emphase, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
+            <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
+              <div class="tp-calc-head">Berechnungsparameter<span>Sortierung + Farb-Emphase — filtert nichts</span></div>
+              <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset">Zurücksetzen</button>
+            </div>
+          </div>
          </div>
         </div>
       `;
-      // Deal sliders built once via builders below (no duplicated markup).
-      bar.querySelector('.tp-group-deals')?.append(buildWeightWrapper(), buildHorizonWrapper(), buildMinPointsWrapper());
+      // Deal sliders built once via builders; reset button stays last in the popover.
+      {
+        const popover = bar.querySelector('#tp-bar-calc-popover');
+        const resetBtn = bar.querySelector('#tp-bar-calc-reset');
+        const weight = buildWeightWrapper();
+        const horizon = buildHorizonWrapper();
+        const minpoints = buildMinPointsWrapper();
+        if (popover && resetBtn) popover.insertBefore(weight, resetBtn);
+        if (popover && resetBtn) popover.insertBefore(horizon, resetBtn);
+        if (popover && resetBtn) popover.insertBefore(minpoints, resetBtn);
+      }
 
       placeBar(bar, placement);
 
@@ -6133,11 +6216,37 @@ const SHADOW_MODAL_STYLES = `
       const bestpreiseToggleBtn = bar.querySelector('#tp-bar-bestpreise-btn');
       if (bestpreiseToggleBtn) bindBestpreiseBtn(bestpreiseToggleBtn);
 
-
-      // Weight slider: live label on drag, debounced config write (each write
-      // re-sorts the feed), immediate flush + toast on release.
-      const weightWrapperInit = bar.querySelector('#tp-bar-weight-wrapper');
-      if (weightWrapperInit) bindWeightControls(weightWrapperInit);
+      // Calc popover: toggles .tp-show, closes on outside click / Escape.
+      const calcBtn = bar.querySelector('#tp-bar-calc-btn');
+      const calcPopover = bar.querySelector('#tp-bar-calc-popover');
+      // ponytail: two document listeners per bar creation; bar is created once per page.
+      if (calcBtn && calcPopover) {
+        calcBtn.onclick = e => {
+          e.stopPropagation();
+          const open = calcPopover.classList.toggle('tp-show');
+          calcBtn.setAttribute('aria-expanded', String(open));
+        };
+        document.addEventListener('keydown', e => {
+          if (e.key !== 'Escape' || !calcPopover.classList.contains('tp-show')) return;
+          if (!e.target || !e.target.closest || !e.target.closest('#tp-suite-filter-bar')) return;
+          calcPopover.classList.remove('tp-show');
+          calcBtn.setAttribute('aria-expanded', 'false');
+          calcBtn.focus();
+        });
+        document.addEventListener('click', e => {
+          if (!calcPopover.classList.contains('tp-show')) return;
+          if (e.target && e.target.closest && e.target.closest('#tp-suite-filter-bar')) return;
+          calcPopover.classList.remove('tp-show');
+          calcBtn.setAttribute('aria-expanded', 'false');
+        });
+        const resetBtn = bar.querySelector('#tp-bar-calc-reset');
+        if (resetBtn) {
+          resetBtn.onclick = () => {
+            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5 });
+            showToast('Berechnungsparameter zurückgesetzt');
+          };
+        }
+      }
 
       const updateMinOffers = delta => {
         const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
@@ -6160,7 +6269,6 @@ const SHADOW_MODAL_STYLES = `
       };
       bindMiniToggle('tp-toggle-neg', 'FILTER_NEG_ENABLED', 'Negativ-Filter (Text)', '📝 Negativ-Filter AN', '📝 Negativ-Filter AUS');
       bindMiniToggle('tp-toggle-min', 'FILTER_MIN_ENABLED', 'Min-Angebote-Filter', '🔢 Min-Angebote-Filter AN', '🔢 Min-Angebote-Filter AUS');
-      bindMinPointsControls(bar.querySelector('#tp-bar-minpoints-wrapper'));
     } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
       placeBar(bar, placement);
     }
@@ -6176,9 +6284,18 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const hiddenTotal = counts.filteredCount || 0;
+    const heatBtn = bar.querySelector('#tp-bar-heat-btn');
+    if (heatBtn) {
+      heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
+      heatBtn.setAttribute('aria-pressed', String(CONFIG.HEATMAP_ENABLED !== false));
+    }
     const revealAllBtn = bar.querySelector('#tp-bar-reveal-all');
     if (revealAllBtn) {
-      setTextIfChanged(revealAllBtn, `👁️ Gefilterte einblenden (${hiddenTotal})`);
+      const revealCount = bar.querySelector('#tp-bar-reveal-count');
+      if (revealCount) {
+        setTextIfChanged(revealCount, hiddenTotal > 0 ? String(hiddenTotal) : '');
+        revealCount.style.display = hiddenTotal > 0 ? 'inline-flex' : 'none';
+      }
       revealAllBtn.classList.toggle('tp-active', document.body.classList.contains('tp-reveal-all'));
       revealAllBtn.setAttribute('aria-pressed', String(document.body.classList.contains('tp-reveal-all')));
       revealAllBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0);
@@ -6186,7 +6303,11 @@ const SHADOW_MODAL_STYLES = `
     }
     const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
     if (uncheckedBtn) {
-      setTextIfChanged(uncheckedBtn, `${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? '✓ ' : ''}Nur geprüfte${uncheckedHiddenCount > 0 ? ` (${uncheckedHiddenCount})` : ''}`);
+      const uncheckedCount = bar.querySelector('#tp-bar-unchecked-count');
+      if (uncheckedCount) {
+        setTextIfChanged(uncheckedCount, uncheckedHiddenCount > 0 ? String(uncheckedHiddenCount) : '');
+        uncheckedCount.style.display = uncheckedHiddenCount > 0 ? 'inline-flex' : 'none';
+      }
       uncheckedBtn.classList.toggle('tp-active', CONFIG.BESTPREISE_HIDE_UNCHECKED === true);
       uncheckedBtn.setAttribute('aria-pressed', String(CONFIG.BESTPREISE_HIDE_UNCHECKED === true));
       uncheckedBtn.title = CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `✓ Nur geprüfte aktiv (${uncheckedHiddenCount} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${uncheckedHiddenCount}) – entfernt sie aus der Liste`;
@@ -6194,11 +6315,17 @@ const SHADOW_MODAL_STYLES = `
     }
     const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
     if (fallbackBtn) {
-      const excluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false;
-      fallbackBtn.classList.toggle('tp-active', excluded);
-      fallbackBtn.setAttribute('aria-pressed', String(excluded));
-      setTextIfChanged(fallbackBtn, vortiefHidden > 0 ? `Fallback-Tiefs (${vortiefHidden})` : 'Fallback-Tiefs');
-      fallbackBtn.title = excluded ? `Fallback-Tiefs ausgeblendet (${vortiefHidden}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${vortiefHidden})`;
+      const included = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
+      const fallbackCount = bar.querySelector('#tp-bar-fallback-count');
+      if (fallbackCount) {
+        const showBadge = !included && vortiefHidden > 0;
+        setTextIfChanged(fallbackCount, showBadge ? String(vortiefHidden) : '');
+        fallbackCount.style.display = showBadge ? 'inline-flex' : 'none';
+      }
+      fallbackBtn.classList.toggle('tp-active', included);
+      fallbackBtn.classList.toggle('tp-tool-dim', !included);
+      fallbackBtn.setAttribute('aria-pressed', String(included));
+      fallbackBtn.title = !included ? `Fallback-Tiefs ausgeblendet (${vortiefHidden}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${vortiefHidden})`;
       fallbackBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
     }
 
@@ -6208,7 +6335,11 @@ const SHADOW_MODAL_STYLES = `
       bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
       bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
       if (!scanState.isBestpreiseScanning) {
-        bestpreiseBtn.innerHTML = `💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline' : 'none'}; font-size: 10px; opacity: 0.85;">(${bestpreiseDeals})</span>`;
+        const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
+        if (bpCount) {
+          setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
+          bpCount.style.display = bestpreiseDeals > 0 ? 'inline-flex' : 'none';
+        }
       }
     }
 
@@ -6227,31 +6358,33 @@ const SHADOW_MODAL_STYLES = `
       weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
       weightLabel.title = weightText(curWeight, 'title');
     }
+    paintMinPoints();
+    const horizonRange = document.getElementById('tp-bar-horizon-range');
+    const curHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
+    if (horizonRange && document.activeElement !== horizonRange) {
+      horizonRange.value = curHorizon === 0 ? 760 : curHorizon;
+      const horizonLabel = document.getElementById('tp-bar-horizon-label');
+      if (horizonLabel) {
+        horizonLabel.textContent = horizonText(curHorizon);
+        horizonLabel.title = horizonText(curHorizon, 'title');
+      }
+    }
+    const calcSummary = document.getElementById('tp-bar-calc-summary');
+    if (calcSummary) {
+      setTextIfChanged(calcSummary, `${weightText(curWeight, 'short')} · ${horizonText(curHorizon)} · ${clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS)} Pkt`);
+    }
     // Berechnungsparameter shape browse heat too — catalog listings always show
     // them; the feed keeps the mode gate.
     const showCalc = isDealFeed ? CONFIG.BESTPREISE_MODE_ACTIVE === true : true;
-    const weightWrapper = document.getElementById('tp-bar-weight-wrapper');
-    if (weightWrapper) {
-      weightWrapper.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
-    }
-    paintMinPoints();
-    const minPointsWrapper = document.getElementById('tp-bar-minpoints-wrapper');
-    if (minPointsWrapper) {
-      minPointsWrapper.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
-    }
-    const horizonRange = document.getElementById('tp-bar-horizon-range');
-    if (horizonRange && document.activeElement !== horizonRange) {
-      const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-      horizonRange.value = stored === 0 ? 760 : stored;
-      const horizonLabel = document.getElementById('tp-bar-horizon-label');
-      if (horizonLabel) {
-        horizonLabel.textContent = horizonText(stored);
-        horizonLabel.title = horizonText(stored, 'title');
+    const calcWrapEl = document.getElementById('tp-bar-calc-wrap');
+    if (calcWrapEl) {
+      calcWrapEl.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
+      if (!showCalc) {
+        const pop = document.getElementById('tp-bar-calc-popover');
+        if (pop) pop.classList.remove('tp-show');
+        const btn = document.getElementById('tp-bar-calc-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
       }
-    }
-    const horizonWrapper = document.getElementById('tp-bar-horizon-wrapper');
-    if (horizonWrapper) {
-      horizonWrapper.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
     }
     // A group left without visible children (option-less groups on catalog pages) hides; a divider shows only between two visible groups.
     for (const group of bar.querySelectorAll('.tp-group')) {
