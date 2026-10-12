@@ -848,6 +848,12 @@ export const STYLES = `
     flex-shrink: 0 !important;
     margin: 2px 0 !important;
   }
+  /* Berechnung sub-separator: calc sliders share the Sortieren group, the left
+  border marks where sorting ends and Wertung begins. Hides with its wrapper. */
+  #tp-bar-weight-wrapper {
+    border-left: 1px solid rgba(15,23,42,0.10) !important;
+    padding-left: 8px !important;
+  }
   .tp-stepper-label {
     font: 600 var(--tp-fs-sm) -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     color: var(--tp-mut) !important;

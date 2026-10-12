@@ -200,8 +200,10 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 def test_suite_filter_bar_grouping(page: Page):
     assert page.evaluate("() => document.getElementById('tp-bar-reveal-all').closest('.tp-group').classList.contains('tp-group-view')")
     assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
-    assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filtergründe'
+    assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filter – blendet aus'
+    assert page.evaluate("() => document.querySelector('.tp-group-view').getAttribute('aria-label')") == 'Ansicht – entfernt nichts'
     assert page.evaluate("() => document.querySelector('.tp-group-deals').getAttribute('aria-label')") == 'Sortieren'
+    assert page.evaluate("() => ['#tp-bar-weight-wrapper', '#tp-bar-horizon-wrapper', '#tp-bar-minpoints-wrapper'].every(s => document.querySelector(s).closest('.tp-group-deals') !== null)")
 
 
 
@@ -252,7 +254,7 @@ def test_empty_state_notice_and_actions(page: Page):
     assert notice.is_visible()
     assert f'Alle {page.locator("#product-list .Plugin_Product").count()} Angebote' in (notice.text_content() or '')
 
-    # Clicking "👁️ Gefilterte anzeigen" reveals previews
+    # Clicking "👁️ Gefilterte einblenden" reveals previews
     page.click('#tp-empty-reveal-btn')
     assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
     assert not page.locator('#tp-empty-state-notice').is_visible()
@@ -331,8 +333,8 @@ def test_deal_features_enabled_on_category_page(page: Page):
     # Listing features are visible
     assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-bar-reveal-all').is_visible()
-    assert 'Gefilterte anzeigen (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
-    assert 'Ansicht (entfernt nichts): Gefilterte anzeigen (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
+    assert 'Gefilterte einblenden (2)' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert 'Einblenden, entfernt nichts: Gefilterte (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
 
@@ -351,7 +353,7 @@ def test_deal_features_enabled_on_category_page(page: Page):
 def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     # Peek is Ansicht (removes nothing), unchecked is Filtergrund (removes cards)
     assert page.locator('#tp-suite-filter-bar .tp-group-view #tp-bar-reveal-all').count() == 1
-    assert 'Gefilterte anzeigen' in (page.locator('#tp-bar-reveal-all').text_content() or '')
+    assert 'Gefilterte einblenden' in (page.locator('#tp-bar-reveal-all').text_content() or '')
     assert 'Nur geprüfte' in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
     assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
     page.click('#tp-bar-unchecked-btn')
@@ -384,7 +386,8 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     page.click('#tp-bar-fallback-btn')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
     assert 'tp-active' in (pill.get_attribute('class') or '')
-    assert 'ausgeschlossen' in (pill.get_attribute('title') or '')
+    assert 'ausgeblendet' in (pill.get_attribute('title') or '')
+    assert pill.get_attribute('aria-pressed') == 'true'
     page.click('#tp-bar-fallback-btn')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
     assert 'tp-active' not in (pill.get_attribute('class') or '')

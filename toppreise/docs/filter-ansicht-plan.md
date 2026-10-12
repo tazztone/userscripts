@@ -2,7 +2,7 @@
 
 ## Filter-Ansicht-Split (shipped)
 
-Filtern entfernt Karten (`display:none`), Ansicht malt nur (dim/heatmap/stripes/glow), 💎 sortiert nur.
+Bar-Gruppen: Filter (blendet aus) / Ansicht (entfernt nichts) / Sortieren (💎-Button plus Rechen-Slider ⚖️/Ø/Pkt, per Border getrennt).
 
 Removal causes (5):
 - Negativ-Terme
