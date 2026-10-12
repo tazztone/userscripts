@@ -74,9 +74,10 @@ export const DEFAULTS = Object.freeze({
   // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
   DISCORD_LAYOUT: `## {title}
 # {price}
--# {dealer} · {offers}
+# {dealer} +{offers}
 {spark}
-{prevlow} · {median}
+{prevlow}
+{median}
 {link}`,
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',

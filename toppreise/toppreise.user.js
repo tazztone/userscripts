@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.192
+// @version      2.18.193
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2505,9 +2505,10 @@ const SHADOW_MODAL_STYLES = `
     // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
     DISCORD_LAYOUT: `## {title}
   # {price}
-  -# {dealer} · {offers}
+  # {dealer} +{offers}
   {spark}
-  {prevlow} · {median}
+  {prevlow}
+  {median}
   {link}`,
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
@@ -5365,7 +5366,7 @@ const SHADOW_MODAL_STYLES = `
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
             </div>
             <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · blendet leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
             <pre id="tp-discord-layout-preview"></pre>
             <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -6810,8 +6811,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
-  // Zeilenanfang. · blendet leere Nachbarn aus, {link} nur bei aktivem Embed.
-  const DEFAULT_LAYOUT = '## {title}\n# {price}\n-# {dealer} · {offers}\n{spark}\n{prevlow} · {median}\n{link}';
+  // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
+  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}';
   const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
   function validateLayoutRecipe(recipe) {
     const value = String(recipe ?? '');
@@ -6885,7 +6886,7 @@ const SHADOW_MODAL_STYLES = `
     };
     const out = [];
     for (const rawLine of recipe.split('\n')) {
-      const line = rawLine.replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '');
+      const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ').replace(/\s\+(?!\d)\s*$/g, '');
       if (line.replace(/^[#\s-]+/, '').trim() === '') continue;
       out.push(line);
     }

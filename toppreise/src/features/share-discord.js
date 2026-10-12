@@ -155,8 +155,8 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
 }
 
 // Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
-// Zeilenanfang. · blendet leere Nachbarn aus, {link} nur bei aktivem Embed.
-export const DEFAULT_LAYOUT = '## {title}\n# {price}\n-# {dealer} · {offers}\n{spark}\n{prevlow} · {median}\n{link}';
+// Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
+export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}';
 export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
 export function validateLayoutRecipe(recipe) {
   const value = String(recipe ?? '');
@@ -230,7 +230,7 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
   };
   const out = [];
   for (const rawLine of recipe.split('\n')) {
-    const line = rawLine.replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '');
+    const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ').replace(/\s\+(?!\d)\s*$/g, '');
     if (line.replace(/^[#\s-]+/, '').trim() === '') continue;
     out.push(line);
   }

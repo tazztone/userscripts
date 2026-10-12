@@ -103,16 +103,17 @@ describe('formatDealMessage', () => {
     assert.deepEqual(msg.split('\n'), [
       `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`,
       '# 💰 CHF 31.90',
-      '-# 🏬 [Digitec](https://www.toppreise.ch/ext_d-aUS0) · 🛒 3 Angebote',
+      '# 🏬 [Digitec](https://www.toppreise.ch/ext_d-aUS0) +3',
       '📊 █▁▁',
-      '📉 **CHF 44.95** **-29%** · 📈 Ø-Preis (1J): **CHF 54.05** **-41%**',
+      '📉 **CHF 44.95** **-29%**',
+      '📈 Ø-Preis (1J): **CHF 54.05** **-41%**',
       PRODUCT_URL
     ]);
   });
 
   it('falls back to plain dealer name without dealerUrl', () => {
     const msg = formatDealMessage({ title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: 'Digitec', offerCount: 0, spark: '', prevLowText: '', medianText: '' });
-    assert.ok(msg.includes('-# 🏬 Digitec'));
+    assert.ok(msg.includes('# 🏬 Digitec'));
     assert.ok(!msg.includes('[Digitec]('));
   });
 
@@ -135,7 +136,7 @@ describe('formatDealMessage', () => {
     const base = { title: 'Belkin Test', url: PRODUCT_URL, priceText: 'CHF 16.95', dealer: 'Digitec', dealerUrl: DEALER_URL, offerCount: 0, spark: '', prevLowText: '', medianText: '' };
     const neither = formatDealMessage(base);
     assert.ok(neither.endsWith(PRODUCT_URL));
-    assert.ok(neither.includes(`-# 🏬 [Digitec](${DEALER_URL})`));
+    assert.ok(neither.includes(`# 🏬 [Digitec](${DEALER_URL})`));
     assert.ok(!neither.includes('<'));
     const dealerOnly = formatDealMessage({ ...base, suppressDealerEmbed: true });
     assert.ok(dealerOnly.includes(`](<${DEALER_URL}>)`));
@@ -143,7 +144,7 @@ describe('formatDealMessage', () => {
     const productOnly = formatDealMessage({ ...base, suppressProductEmbed: true });
     assert.ok(productOnly.includes(`## [Belkin Test](<${PRODUCT_URL}>)`));
     assert.ok(!productOnly.split('\n').some(l => l === PRODUCT_URL || l === `<${PRODUCT_URL}>`));
-    assert.ok(productOnly.endsWith(`-# 🏬 [Digitec](${DEALER_URL})`));
+    assert.ok(productOnly.endsWith(`# 🏬 [Digitec](${DEALER_URL})`));
     const both = formatDealMessage({ ...base, suppressDealerEmbed: true, suppressProductEmbed: true });
     assert.ok(both.includes(`](<${DEALER_URL}>)`));
     assert.ok(both.includes(`## [Belkin Test](<${PRODUCT_URL}>)`));
@@ -180,13 +181,14 @@ describe('resolveShareFields', () => {
     assert.deepEqual(msg.split('\n'), [
       `## [PHILIPS 5000 Series 34E1C5600AM](${PRODUCT_URL})`,
       '# 💰 CHF 271.38',
-      '-# 🛒 4 Angebote',
-      '📉 **CHF 387.00** **-30%** · 📈 Ø-Preis (1J): **CHF 403.00** **-33%**',
+      '# +4',
+      '📉 **CHF 387.00** **-30%**',
+      '📈 Ø-Preis (1J): **CHF 403.00** **-33%**',
       PRODUCT_URL
     ]);
   });
 
-  it('posts four lines on the default caller path (both previews suppressed)', () => {
+  it('posts five lines on the default caller path (both previews suppressed)', () => {
     const msg = formatDealMessage({
       title: 'Belkin Test',
       url: PRODUCT_URL,
@@ -205,8 +207,9 @@ describe('resolveShareFields', () => {
     assert.deepEqual(msg.split('\n'), [
       `## [Belkin Test](<${PRODUCT_URL}>)`,
       '# 💰 CHF 16.95',
-      `-# 🏬 [Digitec](<${DEALER_URL}>) · 🛒 2 Angebote`,
-      '📉 **CHF 10.00** **-5%** · 📈 Ø-Preis (1J): **CHF 20.00** **-10%**'
+      `# 🏬 [Digitec](<${DEALER_URL}>) +2`,
+      '📉 **CHF 10.00** **-5%**',
+      '📈 Ø-Preis (1J): **CHF 20.00** **-10%**'
     ]);
   });
 
@@ -776,6 +779,18 @@ describe('layout recipe', () => {
   });
   it('· drops empty neighbors', () => {
     assert.equal(renderLayout({ ...base, dealer: '', dealerUrl: '' }, '-# {dealer} · {offers}'), '-# 🛒 3 Angebote');
+  });
+  it('+{offers} renders compact +N', () => {
+    assert.equal(renderLayout(base, '# {dealer} +{offers}'), `# 🏬 [Digitec](${DEALER_URL}) +3`);
+  });
+  it('+{offers} vanishes without trace when offerCount is 0', () => {
+    assert.equal(renderLayout({ ...base, offerCount: 0 }, '# {dealer} +{offers}'), `# 🏬 [Digitec](${DEALER_URL})`);
+  });
+  it('standalone {offers} keeps the long form', () => {
+    assert.equal(renderLayout(base, '-# {offers}'), '-# 🛒 3 Angebote');
+  });
+  it('+{offers} survives an empty dealer', () => {
+    assert.equal(renderLayout({ ...base, dealer: '', dealerUrl: '' }, '# {dealer} +{offers}'), '# +3');
   });
   it('marker-only lines drop when the token is empty', () => {
     assert.equal(renderLayout({ ...base, priceText: '' }, '# {price}\n## {title}'), `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`);
