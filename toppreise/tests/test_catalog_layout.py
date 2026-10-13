@@ -2469,7 +2469,7 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     assert 1 <= float(opaque['borderTop'].replace('px', '')) <= 2
     assert page.locator('#tp-bar-weight-wrapper .tp-stepper-label').inner_text() == 'Gewichtung'
     assert page.locator('#tp-bar-minpoints-wrapper .tp-stepper-label').inner_text() == 'Mindestpunkte'
-    assert 'im Fenster' in page.locator('#tp-preview-key').inner_text()
+    assert 'Verlauf' in page.locator('#tp-preview-key').inner_text()
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-minpoints-range');
         r.value = '14';
@@ -2484,7 +2484,9 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('input', {bubbles: true}));
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
-    page.wait_for_function("() => document.querySelectorAll('#tp-preview-svg rect.tp-pv-dim').length > 0")
+    page.wait_for_function("() => document.querySelectorAll('#tp-preview-svg polyline').length === 1")
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-main').points.numberOfItems") == 31
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-cut')") is None
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-weight-range');
         r.value = '100';

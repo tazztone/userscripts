@@ -92,6 +92,14 @@ export function previewStats(points, o) {
   return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, recordLow, cutoffTs };
 }
 
+export function cropPreviewWindow(clean, dropped, cutoffTs) {
+  if (cutoffTs === null || cutoffTs === undefined) return { visible: clean || [], visibleDropped: dropped || [] };
+  return {
+    visible: (clean || []).filter(p => p[0] >= cutoffTs),
+    visibleDropped: (dropped || []).filter(g => g.timestamp >= cutoffTs),
+  };
+}
+
 const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 34 };
 
 export function previewCoords(clean, o = {}) {
@@ -106,7 +114,7 @@ export function previewCoords(clean, o = {}) {
   const vals = [...prices];
   for (const g of (o.dropped || [])) if (typeof g.price === 'number' && g.price > 0) vals.push(g.price);
   if (typeof o.cardPrice === 'number' && o.cardPrice > 0) vals.push(o.cardPrice);
-  if (o.band > 0 && o.median > 0) vals.push(o.median * (1 - o.band), o.median * (1 + o.band));
+  if (typeof o.median === 'number' && o.median > 0) vals.push(o.median);
   let lo = vals.length ? Math.min(...vals) : 0;
   let hi = vals.length ? Math.max(...vals) : 1;
   if (!(hi > lo)) hi = lo + 1;
@@ -114,17 +122,16 @@ export function previewCoords(clean, o = {}) {
   const y = v => m.top + (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad))) * innerH;
   const x = i => m.left + (n > 1 ? (i / (n - 1)) * innerW : 0);
   const f1 = v => v.toFixed(1);
-  const wc = o.windowCount;
-  const splitActive = typeof wc === 'number' && wc > 0 && wc < n;
-  const startIdx = splitActive ? n - wc : 0;
   const pt = (p, i) => `${f1(x(i))},${f1(y(p[1]))}`;
-  const pointsAttr = pts.slice(startIdx).map((p, k) => pt(p, startIdx + k)).join(' ');
-  const dimPointsAttr = splitActive ? pts.slice(0, startIdx).map((p, i) => pt(p, i)).join(' ') : '';
-  const splitX = splitActive ? x(startIdx) : null;
+  const pointsAttr = pts.map(pt).join(' ');
   const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
-  const bandRect = (o.band > 0 && o.median > 0)
-    ? { x: m.left, y: y(o.median * (1 + o.band)), width: innerW, height: y(o.median * (1 - o.band)) - y(o.median * (1 + o.band)) }
-    : null;
+  let bandRect = null;
+  if (o.band > 0 && o.median > 0) {
+    const top = m.top, bot = m.top + innerH;
+    const y1 = Math.max(top, Math.min(bot, y(o.median * (1 + o.band))));
+    const y2 = Math.max(top, Math.min(bot, y(o.median * (1 - o.band))));
+    bandRect = y2 >= y1 ? { x: m.left, y: y1, width: innerW, height: y2 - y1 } : null;
+  }
   const medianY = o.median > 0 ? y(o.median) : null;
   const t0 = n ? pts[0][0] : 0;
   const t1 = n ? pts[n - 1][0] : 0;
@@ -137,7 +144,7 @@ export function previewCoords(clean, o = {}) {
     : null;
   const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
   if (o.median > 0) ticks.splice(1, 0, { y: y(o.median), label: fmtPreviewMedian(o.median) });
-  return { pointsAttr, bandRect, medianY, glitchXY, anchor, ticks, dimPointsAttr, splitX, recordY };
+  return { pointsAttr, bandRect, medianY, glitchXY, anchor, ticks, recordY };
 }
 
 let activePresetId = 's26';
@@ -147,7 +154,7 @@ export function buildCalcPreview() {
   box.id = 'tp-calc-preview';
   const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
   box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
-    + `<div id="tp-preview-key"><span><span class="tp-pv-key-in">■</span> im Fenster</span><span><span class="tp-pv-key-out">■</span> älter</span></div>`
+    + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-g">×</span> Glitch</span></div>`
     + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
     + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
   const sel = box.querySelector('#tp-preview-preset-select');
@@ -185,16 +192,14 @@ export function refreshCalcPreview() {
   const band = Math.min(90, Math.max(20, num('tp-bar-outlier-band-range', 60))) / 100;
   const hours = Math.min(168, Math.max(12, num('tp-bar-outlier-hours-range', 48)));
   const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice: preset.cardPrice, now });
-  const co = previewCoords(st.clean, { median: st.median, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: st.dropped, windowCount: st.cutoffTs !== null ? st.windowCount : undefined, recordLow: st.recordLow });
+  const { visible, visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
+  const co = previewCoords(visible, { median: st.median, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: visibleDropped, recordLow: st.recordLow });
   const f1 = v => v.toFixed(1);
   const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
   let s = '';
   if (co.bandRect) {
     const r = co.bandRect;
     s += `<rect x="${f1(r.x)}" y="${f1(r.y)}" width="${f1(r.width)}" height="${f1(r.height)}" fill="rgba(59,130,246,0.08)" stroke="#3b82f6" stroke-opacity="0.45" stroke-dasharray="3 2"/>`;
-  }
-  if (co.splitX !== null) {
-    s += `<rect class="tp-pv-dim" x="${f1(PV_MARGIN.left)}" y="${f1(PV_MARGIN.top)}" width="${f1(co.splitX - PV_MARGIN.left)}" height="${f1(110 - PV_MARGIN.top - PV_MARGIN.bottom)}" fill="rgba(100,116,139,0.12)"/>`;
   }
   for (const t of co.ticks) {
     s += `<text x="2" y="${f1(t.y + 3)}" font-size="9" fill="#64748b">${t.label}</text>`;
@@ -205,14 +210,8 @@ export function refreshCalcPreview() {
   if (co.medianY !== null) {
     s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
   }
-  if (co.dimPointsAttr) {
-    s += `<polyline class="tp-pv-dim" points="${co.dimPointsAttr}" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.6"/>`;
-  }
   if (co.pointsAttr) {
     s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5"/>`;
-  }
-  if (co.splitX !== null) {
-    s += `<line class="tp-pv-cut" x1="${f1(co.splitX)}" x2="${f1(co.splitX)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#94a3b8" stroke-dasharray="3 2" stroke-width="1"/>`;
   }
   for (const g of co.glitchXY) {
     s += `<text x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
@@ -222,9 +221,11 @@ export function refreshCalcPreview() {
     s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="${mainStroke}" stroke="#fff" stroke-width="1"/>`;
   }
   svg.innerHTML = s;
-  legend.textContent = `${st.dropped.length} Glitches gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
+  const n = st.dropped.length;
+  legend.textContent = `${n} Glitch${n === 1 ? '' : 'es'} gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
   blend.textContent = st.qualifies
     ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
     : 'kein Tiefstpreis zum Demo-Preis \u2013 kein Badge';
-  status.textContent = `\u00d8 ${fmtPreviewMedian(st.median)} \u00b7 ${horizonText(horizonDays)} \u00b7 ${st.windowCount} im Fenster \u00b7 ${st.activeCount} aktiv (min. ${minPoints} ${st.activeCount >= minPoints ? '\u2713' : '\u2717'})`;
+  const windowPart = horizonDays === 0 ? `${st.windowCount} Punkte` : `${st.windowCount} im Fenster`;
+  status.textContent = `\u00d8 ${fmtPreviewMedian(st.median)} \u00b7 ${horizonText(horizonDays)} \u00b7 ${windowPart} \u00b7 ${st.activeCount} aktiv (min. ${minPoints} ${st.activeCount >= minPoints ? '\u2713' : '\u2717'})`;
 }

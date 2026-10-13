@@ -5,6 +5,7 @@ import {
   getPreset,
   previewStats,
   previewCoords,
+  cropPreviewWindow,
   PRESETS,
 } from '../../src/ui/calc-preview.js';
 
@@ -98,19 +99,23 @@ describe('calc-preview', () => {
     const co = previewCoords(st.clean, { median: st.median, band: 0, cardPrice: 400, dropped: st.dropped });
     assert.equal(co.bandRect, null);
   });
-
-  it('splits coords at the window edge with dimmed history', () => {
+  it('crops to the window via cropPreviewWindow, full history at null', () => {
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
     const st = previewStats(pts, { ...DEF, cardPrice: 799 });
-    const full = previewCoords(st.clean, { median: st.median, band: 0.60, cardPrice: 799, dropped: st.dropped });
-    assert.equal(full.splitX, null);
-    assert.equal(full.dimPointsAttr, '');
-    assert.equal(full.recordY, null);
-    const split = previewCoords(st.clean, { median: st.median, band: 0.60, cardPrice: 799, dropped: st.dropped, windowCount: 30 });
-    assert.ok(split.splitX > 34 && split.splitX < 286);
-    assert.equal(split.dimPointsAttr.split(' ').length, 200);
-    assert.equal(split.pointsAttr.split(' ').length, 30);
-    assert.ok(split.pointsAttr.length < full.pointsAttr.length);
+    const { visible, visibleDropped } = cropPreviewWindow(st.clean, st.dropped, NOW - 30 * 86400000);
+    assert.equal(visible.length, 31);
+    assert.ok(visibleDropped.every(g => g.timestamp >= NOW - 30 * 86400000));
+    const full = cropPreviewWindow(st.clean, st.dropped, null);
+    assert.equal(full.visible.length, st.clean.length);
+    assert.equal(full.visibleDropped.length, st.dropped.length);
+  });
+
+  it('keeps the y-domain invariant under band changes', () => {
+    const pts = expandRleSeries(PRESETS.s26.rle, NOW);
+    const st = previewStats(pts, { ...DEF, cardPrice: 799 });
+    const a = previewCoords(st.clean, { median: st.median, band: 0.20, cardPrice: 799, dropped: st.dropped });
+    const b = previewCoords(st.clean, { median: st.median, band: 0.90, cardPrice: 799, dropped: st.dropped });
+    assert.deepEqual(a.ticks, b.ticks);
   });
 
   it('maps recordLow onto the price scale', () => {

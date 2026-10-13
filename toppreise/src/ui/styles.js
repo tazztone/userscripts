@@ -1137,8 +1137,10 @@ export const STYLES = `
   #tp-preview-svg { width: 100% !important; height: auto !important; display: block !important; }
   #tp-preview-legend, #tp-preview-blend, #tp-preview-status { font-size: 11px !important; color: var(--tp-txt-dim) !important; }
   #tp-preview-key { font-size: 11px !important; color: var(--tp-txt-dim) !important; display: flex !important; gap: 10px !important; }
-  #tp-preview-key .tp-pv-key-in { color: #3b82f6 !important; font-weight: 700 !important; }
-  #tp-preview-key .tp-pv-key-out { color: #94a3b8 !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-main { color: #3b82f6 !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-med { color: #64748b !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-rec { color: #f59e0b !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
