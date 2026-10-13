@@ -21,6 +21,7 @@ def userscript_content():
 def page(browser, userscript_content):
     page = browser.new_page()
     page.goto(MOCK_HTML)
+    page.evaluate("() => localStorage.clear()")
     page.evaluate(userscript_content)
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     yield page
