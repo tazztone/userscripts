@@ -8,7 +8,6 @@
 import { CONFIG, updateConfig, _getValue, _setValue } from '../state/config.js';
 import {
   getBadgeHeatStyle,
-  getOuterHeatStyle,
   getInsetHeatStyle,
   getCardDealerRows,
   extractCardDiscount,
@@ -116,51 +115,44 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
   const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
 
-  // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0005: badge
-  // shows the blend, heat/sort follow it). One computation (getHeatInput)
-  // feeds BOTH the card heat here and the badge number below, so the ribbon
-  // number always matches its color. The blend sorts too.
-  // Unverified site discounts never heat: the badge-level tp-is-unverified
-  // ribbon (step 6 below) is their only striped-gray cue; verified cards heat as before.
+  // Heatmap (blind): gray (no deal) -> red (max savings), single hue
+  // (ADR-0005: badge shows the blend, heat/sort follow it). One computation
+  // (getHeatInput) feeds BOTH the card heat here and the badge number below,
+  // so the ribbon number always matches its color. The blend sorts too.
+  // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
+  // unverified site-%. Verified-state differentiation lives in badge
+  // text/tooltip + Verbergen/Dimmen, never in the wash. Heated unverified
+  // badges show the solid heat color via the inline override below (inline
+  // important beats the striped-class rule); unheated cards keep the stripe.
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
   const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
-  const heatProvisional = heatInfo.provisional;
   const heatIntensity = CONFIG.HEATMAP_INTENSITY;
 
-  // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
-  // site Differenzen stay neutral — no heat here, so the state scans without
-  // comparing saturation.
-  // Regular blend heat (verified): inset inner wash — the prominent signal,
-  // clipped to the card's own edges. Vortief fallback heat (mode, verified low
-  // without blend): same ramp hue, but only a subtle outer glow-or-none
-  // (getOuterHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
-  // glow, by design, so the fallback can't pass as a blended deal).
-  // getInsetHeatStyle serves regular here, getOuterHeatStyle the fallback.
-  const isVortiefHeat = heatInfo.kind === 'vortief';
-  if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-    const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
+  // Blind inset wash: every heatable card gets the same prominent signal,
+  // clipped to the card's own edges.
+  if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+    const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
-      const heat = isVortiefHeat ? getOuterHeatStyle(effectiveDiff, heatIntensity) : getInsetHeatStyle(heatInfo.pct, heatIntensity);
-      card.classList.toggle('tp-heat-vortief', isVortiefHeat);
-      card.classList.toggle('tp-heat-blend', !isVortiefHeat);
+      const heat = getInsetHeatStyle(heatInfo.pct, heatIntensity);
+      card.classList.toggle('tp-heat-blend', true);
       card.style.setProperty('--tp-heat-glow', heat.glow);
       card.style.setProperty('box-shadow', heat.glow, 'important');
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
     // render (not only on heatKey change) so re-rendered badge nodes can't
-    // desync from the card. Provisional input never reaches this path (see
-    // the !heatProvisional gate above) — unverified ribbons are class-painted.
+    // desync from the card. Provisional input never gates this path —
+    // verified and unverified badges with equal % render identically.
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     if (heatBadgeEl) {
-      const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional, CONFIG.HEATMAP_INTENSITY);
+      const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
       heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
       heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
       heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
       heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
     }
-  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.classList.contains('tp-heat-vortief')) {
+  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend')) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
     if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
@@ -169,7 +161,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     delete card.dataset.tpAppliedHeat;
     card.style.removeProperty('box-shadow');
-    card.classList.remove('tp-heat-blend', 'tp-heat-vortief');
+    card.classList.remove('tp-heat-blend');
     card.style.removeProperty('--tp-heat-glow');
     // Undo the badge heat coupling from the apply path above
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');

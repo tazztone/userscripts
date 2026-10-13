@@ -354,13 +354,12 @@ def test_real_deal_dom_memoization_and_cache_pruning(page: Page):
 
 
 def test_real_deal_neutral_heatmap_on_markup(page: Page):
-    # Unchecked cards never heat and never dim: striped-gray tp-is-unverified
-    # badge ribbons at full card opacity instead of the old pale site-Differenz
-    # warmth. Card 1 (-67%) and card 3 (-35%).
+    # Blind heatmap: unchecked cards heat by site-% (same inset wash as
+    # verified %). Card 1 (-67%) and card 3 (-35%).
     card1 = page.locator('#card-cheapest')
     card3 = page.locator('#card-negative')
-    assert 'tp-heat-blend' not in (card1.get_attribute('class') or '')
-    assert 'tp-heat-blend' not in (card3.get_attribute('class') or '')
+    assert 'tp-heat-blend' in (card1.get_attribute('class') or '')
+    assert 'tp-heat-blend' in (card3.get_attribute('class') or '')
     assert 'tp-is-unverified' not in (card1.get_attribute('class') or '')
     assert 'tp-is-unverified' not in (card3.get_attribute('class') or '')
     assert 'tp-is-unverified' in (card1.locator('.badge-dif').get_attribute('class') or '')

@@ -57,13 +57,6 @@ export const STYLES = `
   .mixedBrowsingListProduct.tp-heat-blend {
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
   }
-  /* Vortief fallback heat (mode, verified low without blend): subtle outer
-  glow only — never the regular inset wash, never a solid border. Inset is
-  reserved for verified blend heat. Glow arrives inline via --tp-heat-glow;
-  this keeps only the transition. */
-  .tp-heat-vortief {
-    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-  }
   /* Fresh-deal glow (transient, post-verification): outline-only so the heat
   box-shadow underneath keeps showing the deal color. "Neu" pill is a
   pseudo-element — zero DOM bookkeeping, auto-cleans with the class. */

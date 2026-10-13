@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getOuterHeatStyle, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut } from '../../src/page/cards.js';
 import { withConfig } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
@@ -68,44 +68,8 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
     });
   });
 
-  describe('getOuterHeatStyle fallback signal (outer glow or none, no fill, no border)', () => {
-    it('returns glow-only, no bg, no border, for deep discount (-100% or more)', () => {
-      const styles = getOuterHeatStyle(-100);
-      assert.ok(!('bg' in styles));
-      assert.ok(!('border' in styles));
-      assert.ok(styles.glow !== 'none');
-      assert.ok(!styles.glow.includes('inset'));
-    });
-
-    it('renders no glow for markups and parity (no cold blue)', () => {
-      const markup = getOuterHeatStyle(100);
-      const parity = getOuterHeatStyle(0);
-      assert.strictEqual(markup.glow, 'none');
-      assert.strictEqual(parity.glow, 'none');
-    });
-
-    it('returns glow-only for parity (0%)', () => {
-      const styles = getOuterHeatStyle(0);
-      assert.ok(!('border' in styles));
-      assert.strictEqual(styles.glow, 'none');
-    });
-
-    it('clamps beyond -100 to max red and beyond +100 to neutral gray', () => {
-      const styles1 = getOuterHeatStyle(-150);
-      const styles2 = getOuterHeatStyle(-100);
-      assert.deepStrictEqual(styles1, styles2);
-
-      const styles3 = getOuterHeatStyle(200);
-      const styles4 = getOuterHeatStyle(0);
-      assert.deepStrictEqual(styles3, styles4);
-    });
-
-    it('renders visibly distinct glow for distinct deal sizes (PIMAX vs TRUST)', () => {
-      const pim = getOuterHeatStyle(-58, 1.0);
-      const tru = getOuterHeatStyle(-52, 1.0);
-      assert.notEqual(pim.glow, tru.glow);
-    });
-  });
+  // Blind heatmap: no fallback-specific visual remains — every heatable card
+  // gets the inset wash (getInsetHeatStyle); kind only labels the badge source.
   describe('getInsetHeatStyle regular-deal signal (prominent inset wash, no fill, no border)', () => {
     it('returns an inset glow for a deep drop (positive magnitude)', () => {
       const styles = getInsetHeatStyle(50);
@@ -167,6 +131,13 @@ describe('applyCardFilters split', () => {
       applyCardFilters(base({ displayDelta: { kind: 'at-low' } }), [], 0, false)));
     assert.equal(f.isVortiefExcluded, true);
     assert.equal(f.isFiltered, true);
+  });
+
+  it('never excludes fallbacks off the deal feed (no switch there)', () => {
+    const f = quietFlags(() => withConfig('BESTPREISE_INCLUDE_VORTIEF', false, () =>
+      applyCardFilters(base({ displayDelta: { kind: 'at-low' } }), [], 0, false, false)));
+    assert.equal(f.isVortiefExcluded, false);
+    assert.equal(f.isFiltered, false);
   });
 
   it('filters unchecked cards when Nur geprüfte is on', () => {

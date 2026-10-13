@@ -164,18 +164,18 @@ export function medianHorizonLabel(stats) {
 }
 
 /**
- * Single heat driver (ADR-0005: badge shows the blend, heat/sort follow it).
- * One computation feeds BOTH the card heat and the badge number, so the
- * ribbon number always matches its color. Returns
- * { value, provisional, pct, kind }:
+ * Blind heat driver (ADR-0005: badge shows the blend, heat/sort follow it).
+ * Heat follows the badge % only (blend, Vortief-Abstand, or site-%), never
+ * the verification state. Returns { value, provisional, pct, kind }:
  * - verified deal   -> blend % the badge shows (weight-blended Ø-discount +
  *                      record-margin at the slider mix), null inside the ±5%
  *                      deadband (number still prints, card stays gray)
  * - verified markup -> null (no deal, no color — the +XX% badge text
  *                      carries the markup signal)
- * - verified but unqualified (thin/flat history, no dealData) -> null in
- *   browse (gray; ribbon number only), Vortief-Abstand edge-heat in the mode
- * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
+ * - verified but unqualified (thin/flat history, no dealData) -> Vortief-Abstand
+ *   in every mode (browse included); excluded fallbacks stay null
+ * - unverified deal -> site Differenz, provisional always false (blind heat;
+ *   the striped-gray cue lives in the badge class, not the heat flag)
  * - unverified markup / unknown -> null (neutral)
  * Callers pass the mode positionally so the heat reuses the exact mode of the
  * badge branch (no parallel formulas). The optional 5th parameter takes an
@@ -195,12 +195,12 @@ export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = und
     const recordRaw = (display && typeof display.dRecordRaw === 'number')
       ? display.dRecordRaw : (display.dRecord || 0);
     const dealData = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
-    // Unqualified history: no blend to show. In the mode the Vortief-Abstand
-    // still heats — edge-feathered by the renderer (kind 'vortief'), so the
-    // fallback never passes as a blend. Browse stays gray; the ribbon number
-    // is the whole signal there.
+    // Unqualified history: no blend to show. The Vortief-Abstand still heats —
+    // blind inset wash like every other heat (kind 'vortief' only labels the
+    // source for badge text/tooltip, not the visual). Excluded fallbacks stay
+    // gray; dim/hide is their signal.
     if (!dealData) {
-      if (mode === 'bestpreise' && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
+      if (CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
         const vortief = vortiefDropPct(cardPrice, stats);
         if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
       }
@@ -215,11 +215,13 @@ export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = und
   }
   if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
     // Unverified markup (positive) -> neutral; only real discounts heat.
+    // Blind heat: site-% heats with provisional false; deadband-edge keeps
+    // value null with provisional false (plain gray, not striped-by-heat).
     if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) {
       const pct = siteDiff < 0 ? -siteDiff : 0;
-      return { value: null, provisional: siteDiff < 0, pct, kind: siteDiff < 0 ? 'unverified' : 'unknown' };
+      return { value: null, provisional: false, pct, kind: siteDiff < 0 ? 'unverified' : 'unknown' };
     }
-    return { value: siteDiff, provisional: true, pct: -siteDiff, kind: 'unverified' };
+    return { value: siteDiff, provisional: false, pct: -siteDiff, kind: 'unverified' };
   }
   return { value: null, provisional: false, pct: 0, kind: 'unknown' };
 }

@@ -151,9 +151,9 @@ def test_filter_bar_mounting_safety_and_interaction(page: Page):
 
 
 def test_discount_heatmap_rendering(page: Page):
-    # Unchecked cards never heat and never dim: striped-gray badge ribbons at
-    # full card opacity, no thermal styling
-    assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    # Blind heatmap: unchecked cards heat by site-% too (same inset wash as
+    # verified %); the striped-gray badge class stays the ungeprüft cue.
+    assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert 'tp-is-unverified' not in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert 'tp-is-unverified' in (page.locator('#card-cheapest .badge-dif').get_attribute('class') or '')
 
@@ -191,7 +191,7 @@ def test_discount_heatmap_rendering(page: Page):
 
 
 def test_discount_heatmap_toolbar_toggle(page: Page):
-    # Seed a verified deal so the card heats (unchecked cards never heat)
+    # Seed a verified deal so the card heats deterministically by its blend
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
     heat_btn = page.locator('#tp-bar-heat-btn')
@@ -227,7 +227,7 @@ def test_suite_filter_bar_grouping(page: Page):
 
 
 def test_discount_heatmap_bar_toggle_controls_heat(page: Page):
-    # Seed a verified deal so the card heats (unchecked cards never heat)
+    # Seed a verified deal so the card heats deterministically by its blend
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
 
@@ -417,19 +417,32 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     vortief_toggle = page.locator('#tp-toggle-vortief')
     # ON = filter active (excluded); default includes fallbacks, so starts OFF
     assert vortief_toggle.is_checked() is False
-    assert 'Fallback-Tiefs' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
-    assert 'Fallback-Tiefs anzeigen' not in (page.locator('[data-filter-row="vortief"]').text_content() or '')
+    assert 'Fallback-Tiefs aus' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
     page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
     assert vortief_toggle.is_checked() is True
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
     _open_filter_popover(page)
-    excluded_count = page.locator('[data-row-count="vortief"]').inner_text()
-    if excluded_count:
-        assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
     assert vortief_toggle.is_checked() is False
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
+
+
+def test_fallback_row_badge_counts_hidden_only(page: Page):
+    # Suspect-C regression: the row badge counts hidden fallbacks only; dimmed
+    # fallbacks surface via the dim counter, never the row badge.
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'previousLow': 2000, 'dataPointCount': 3})
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', false)")
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'hide')")
+    page.wait_for_timeout(250)
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
+    assert page.locator('#card-cheapest').evaluate('e => getComputedStyle(e).display') == 'none'
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim')")
+    page.wait_for_timeout(250)
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
+    assert 'tp-dimmed' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert page.locator('#card-cheapest').is_visible()
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', true); window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim'); }")
 
 
 def test_filter_popover_dim_mode(page: Page):
@@ -1657,8 +1670,8 @@ def test_merged_blend_subline_rendering(page: Page):
 def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
     """
     A verified Tiefstpreis WITHOUT a blend (thin history, no median) is a mode
-    deal, not a bad deal: the card stays visible with a subtle outer glow
-    (.tp-heat-vortief, never the regular inset wash) and the Vortief-Abstand
+    deal, not a bad deal: the card stays visible with the same blind inset
+    wash (.tp-heat-blend) as any other heat and the Vortief-Abstand
     on the ribbon.
     """
     page.set_viewport_size({'width': 1600, 'height': 900})
@@ -1679,14 +1692,14 @@ def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
     card = page.locator('#card-cheapest')
     assert card.is_visible()
     assert 'tp-vortief-excluded' not in (card.get_attribute('class') or '')
-    # Subtle outer glow, never the regular inset wash
-    assert 'tp-heat-vortief' in (card.get_attribute('class') or '')
-    assert 'tp-heat-blend' not in (card.get_attribute('class') or '')
+    # Blind heatmap: fallback lows get the regular inset wash, no special class
+    assert 'tp-heat-blend' in (card.get_attribute('class') or '')
+    assert 'tp-heat-vortief' not in (card.get_attribute('class') or '')
     bg = card.evaluate('el => getComputedStyle(el).backgroundImage')
     assert 'linear-gradient' not in bg
-    # Outer glow (or none for shallow drops) — inset is reserved for verified blend heat
+    # Inset wash (never an outer glow) — one shared visual for every heat
     shadow = card.evaluate('el => getComputedStyle(el).boxShadow')
-    assert 'inset' not in shadow
+    assert 'inset' in shadow
     # Ribbon prints the shared Vortief-Abstand (-10% vs CHF 2000.00)
     badge = card.locator('.badge-dif')
     assert '-10%' in badge.inner_text()
@@ -2645,7 +2658,7 @@ def test_filter_rows_toggle_first_with_tooltips(page: Page):
     assert labels == ['Negativ-Begriffe im Produktnamen filtern (Wortgrenzen)',
                       'Produkte mit weniger als N Angeboten filtern',
                       'Ungeprüfte Deals ohne verifizierten Tiefstpreis filtern',
-                      'Fallback-Tiefstpreise (Höchstpreis als Ersatz) ausschließen',
+                      'An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen',
                       'Produkte des gewählten Händlers filtern']
     modes = page.evaluate("() => [...document.querySelectorAll('.tp-filter-mode-btn')].map(el => el.title)")
     assert modes and set(modes) == {'Zwischen Verbergen und Dimmen wechseln'}

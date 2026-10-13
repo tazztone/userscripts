@@ -247,10 +247,11 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.deepEqual(getHeatInput(341.93, { tiefstpreis: 309.00 }, 11), { value: null, provisional: false, pct: 0, kind: 'markup' });
     });
 
-    it('marks unverified site diffs as provisional (striped-gray, never heated)', () => {
+    it('heats unverified site diffs blind (same wash as verified %)', () => {
       const heat = getHeatInput(100, null, -51);
-      assert.deepEqual(heat, { value: -51, provisional: true, pct: 51, kind: 'unverified' });
+      assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'unverified' });
       assert.equal(getHeatInput(100, null, 2).value, null); // deadband
+      assert.equal(getHeatInput(100, null, -2).provisional, false); // deadband-edge: plain gray
     });
   });
 
@@ -308,9 +309,9 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
 
-    it('heats the Vortief-Abstand (edge, not blend) when the mode cannot qualify the history', () => {
-      // Thin history: no blend to print — the mode falls back to the
-      // previous-low drop (kind 'vortief': feathered edge, never a wash).
+    it('heats the Vortief-Abstand (blind wash) when the history cannot qualify', () => {
+      // Thin history: no blend to print — the Vortief-Abstand heats with the
+      // same inset wash as every other heat; kind only labels the source.
       const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
       const heat = getHeatInput(23.56, thinStats, -51, 'bestpreise');
       assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'vortief' });
@@ -324,10 +325,10 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
 
-    it('stays neutral in browse when the history cannot qualify (gray; ribbon only)', () => {
+    it('heats the Vortief-Abstand in browse too (blind heatmap)', () => {
       const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
       const heat = getHeatInput(23.56, thinStats, -51, 'browse');
-      assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
+      assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'vortief' });
     });
 
     it('honors an explicitly passed blend instead of recomputing', () => {

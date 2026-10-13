@@ -177,16 +177,6 @@ const heatColor = (diff, intensity) => {
   return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
 };
 
-// Fallback (Vortief) signal: subtle OUTER glow, or 'none' below t 0.55 — no
-// background fill, no border. Shallow fallbacks get no glow by design, so a
-// fallback can never pass as a verified blend deal at a glance.
-export function getOuterHeatStyle(diffPercent, intensity = 1.0) {
-  const c = heatColor(diffPercent, intensity);
-  if (!c) return null;
-  const { t, acc, safeInt } = c;
-  const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
-  return { glow };
-}
 // Regular (verified blend) signal: prominent INSET wash, no background fill,
 // no border. Inset (never outer): an outer box-shadow paints past the border
 // box and bleeds onto neighboring cards — inset clips at the card's own edge
@@ -257,22 +247,23 @@ export function extractCardData(card) {
   };
 }
 
-export function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
+export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
   // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
   // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
   // Ungeprüfte is config-only: it must not depend on scan state, otherwise the
   // first check on a checkless page hides everything as a side effect.
+  // Fallback exclusion is deal-feed-only: the toolbar row (the only control)
+  // renders solely there, so browse pages must never dim/hide with no switch.
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-   const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+   const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
    const isDealerLoser = false;
    const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
    return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
 }
-
 export function dealerLoserFor(card, activeStores) {
   if (!activeStores || activeStores.length === 0) return false;
   const dealerRows = getCardDealerRows(card);

@@ -20,7 +20,7 @@ def _site_colors(page: Page):
 
 
 def test_heatmap_chrome_preserves_light_site(page: Page):
-    # Seed a verified -50% deal so the card heats (unchecked cards never heat)
+    # Seed a verified -50% deal so the card heats deterministically by its blend
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
     heat_btn = page.locator('#tp-bar-heat-btn')

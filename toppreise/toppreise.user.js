@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.225
+// @version      2.18.226
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -81,13 +81,6 @@ const STYLES = `
   .Plugin_Product.tp-heat-blend,
   .mixedBrowsingListProduct.tp-heat-blend {
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
-  }
-  /* Vortief fallback heat (mode, verified low without blend): subtle outer
-  glow only — never the regular inset wash, never a solid border. Inset is
-  reserved for verified blend heat. Glow arrives inline via --tp-heat-glow;
-  this keeps only the transition. */
-  .tp-heat-vortief {
-    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
   }
   /* Fresh-deal glow (transient, post-verification): outline-only so the heat
   box-shadow underneath keeps showing the deal color. "Neu" pill is a
@@ -2194,18 +2187,18 @@ const SHADOW_MODAL_STYLES = `
   }
 
   /**
-   * Single heat driver (ADR-0005: badge shows the blend, heat/sort follow it).
-   * One computation feeds BOTH the card heat and the badge number, so the
-   * ribbon number always matches its color. Returns
-   * { value, provisional, pct, kind }:
+   * Blind heat driver (ADR-0005: badge shows the blend, heat/sort follow it).
+   * Heat follows the badge % only (blend, Vortief-Abstand, or site-%), never
+   * the verification state. Returns { value, provisional, pct, kind }:
    * - verified deal   -> blend % the badge shows (weight-blended Ø-discount +
    *                      record-margin at the slider mix), null inside the ±5%
    *                      deadband (number still prints, card stays gray)
    * - verified markup -> null (no deal, no color — the +XX% badge text
    *                      carries the markup signal)
-   * - verified but unqualified (thin/flat history, no dealData) -> null in
-   *   browse (gray; ribbon number only), Vortief-Abstand edge-heat in the mode
-   * - unverified deal -> site Differenz, flagged provisional (striped-gray via tp-is-unverified, never heated)
+   * - verified but unqualified (thin/flat history, no dealData) -> Vortief-Abstand
+   *   in every mode (browse included); excluded fallbacks stay null
+   * - unverified deal -> site Differenz, provisional always false (blind heat;
+   *   the striped-gray cue lives in the badge class, not the heat flag)
    * - unverified markup / unknown -> null (neutral)
    * Callers pass the mode positionally so the heat reuses the exact mode of the
    * badge branch (no parallel formulas). The optional 5th parameter takes an
@@ -2225,12 +2218,12 @@ const SHADOW_MODAL_STYLES = `
       const recordRaw = (display && typeof display.dRecordRaw === 'number')
         ? display.dRecordRaw : (display.dRecord || 0);
       const dealData = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
-      // Unqualified history: no blend to show. In the mode the Vortief-Abstand
-      // still heats — edge-feathered by the renderer (kind 'vortief'), so the
-      // fallback never passes as a blend. Browse stays gray; the ribbon number
-      // is the whole signal there.
+      // Unqualified history: no blend to show. The Vortief-Abstand still heats —
+      // blind inset wash like every other heat (kind 'vortief' only labels the
+      // source for badge text/tooltip, not the visual). Excluded fallbacks stay
+      // gray; dim/hide is their signal.
       if (!dealData) {
-        if (mode === 'bestpreise' && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
+        if (CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
           const vortief = vortiefDropPct(cardPrice, stats);
           if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
         }
@@ -2245,11 +2238,13 @@ const SHADOW_MODAL_STYLES = `
     }
     if (typeof siteDiff === 'number' && !isNaN(siteDiff)) {
       // Unverified markup (positive) -> neutral; only real discounts heat.
+      // Blind heat: site-% heats with provisional false; deadband-edge keeps
+      // value null with provisional false (plain gray, not striped-by-heat).
       if (siteDiff > -HEAT_NEUTRAL_DEADBAND_PCT) {
         const pct = siteDiff < 0 ? -siteDiff : 0;
-        return { value: null, provisional: siteDiff < 0, pct, kind: siteDiff < 0 ? 'unverified' : 'unknown' };
+        return { value: null, provisional: false, pct, kind: siteDiff < 0 ? 'unverified' : 'unknown' };
       }
-      return { value: siteDiff, provisional: true, pct: -siteDiff, kind: 'unverified' };
+      return { value: siteDiff, provisional: false, pct: -siteDiff, kind: 'unverified' };
     }
     return { value: null, provisional: false, pct: 0, kind: 'unknown' };
   }
@@ -3434,16 +3429,6 @@ const SHADOW_MODAL_STYLES = `
     return { t, ...heatRamp(t), safeInt: clampIntensity01(intensity) };
   };
 
-  // Fallback (Vortief) signal: subtle OUTER glow, or 'none' below t 0.55 — no
-  // background fill, no border. Shallow fallbacks get no glow by design, so a
-  // fallback can never pass as a verified blend deal at a glance.
-  function getOuterHeatStyle(diffPercent, intensity = 1.0) {
-    const c = heatColor(diffPercent, intensity);
-    if (!c) return null;
-    const { t, acc, safeInt } = c;
-    const glow = t >= 0.55 ? `0 4px 18px rgba(${acc.join(',')},${(0.32 * safeInt).toFixed(2)})` : 'none';
-    return { glow };
-  }
   // Regular (verified blend) signal: prominent INSET wash, no background fill,
   // no border. Inset (never outer): an outer box-shadow paints past the border
   // box and bleeds onto neighboring cards — inset clips at the card's own edge
@@ -3514,22 +3499,23 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function applyCardFilters(cd, termsList, minOffers, pageHasOffers) {
+  function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
      const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
      const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
     // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
     // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
     // Ungeprüfte is config-only: it must not depend on scan state, otherwise the
     // first check on a checkless page hides everything as a side effect.
+    // Fallback exclusion is deal-feed-only: the toolbar row (the only control)
+    // renders solely there, so browse pages must never dim/hide with no switch.
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-     const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+     const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
      const isDealerLoser = false;
      const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
      return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
   }
-
   function dealerLoserFor(card, activeStores) {
     if (!activeStores || activeStores.length === 0) return false;
     const dealerRows = getCardDealerRows(card);
@@ -4494,51 +4480,44 @@ const SHADOW_MODAL_STYLES = `
     const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
     const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
 
-    // Heatmap: gray (no deal) -> red (max savings), single hue (ADR-0005: badge
-    // shows the blend, heat/sort follow it). One computation (getHeatInput)
-    // feeds BOTH the card heat here and the badge number below, so the ribbon
-    // number always matches its color. The blend sorts too.
-    // Unverified site discounts never heat: the badge-level tp-is-unverified
-    // ribbon (step 6 below) is their only striped-gray cue; verified cards heat as before.
+    // Heatmap (blind): gray (no deal) -> red (max savings), single hue
+    // (ADR-0005: badge shows the blend, heat/sort follow it). One computation
+    // (getHeatInput) feeds BOTH the card heat here and the badge number below,
+    // so the ribbon number always matches its color. The blend sorts too.
+    // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
+    // unverified site-%. Verified-state differentiation lives in badge
+    // text/tooltip + Verbergen/Dimmen, never in the wash. Heated unverified
+    // badges show the solid heat color via the inline override below (inline
+    // important beats the striped-class rule); unheated cards keep the stripe.
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
-    const heatProvisional = heatInfo.provisional;
     const heatIntensity = CONFIG.HEATMAP_INTENSITY;
 
-    // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
-    // site Differenzen stay neutral — no heat here, so the state scans without
-    // comparing saturation.
-    // Regular blend heat (verified): inset inner wash — the prominent signal,
-    // clipped to the card's own edges. Vortief fallback heat (mode, verified low
-    // without blend): same ramp hue, but only a subtle outer glow-or-none
-    // (getOuterHeatStyle yields 'none' below t 0.55 — shallow fallbacks get no
-    // glow, by design, so the fallback can't pass as a blended deal).
-    // getInsetHeatStyle serves regular here, getOuterHeatStyle the fallback.
-    const isVortiefHeat = heatInfo.kind === 'vortief';
-    if (CONFIG.HEATMAP_ENABLED && !heatProvisional && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-      const heatKey = `${heatInfo.kind}:${effectiveDiff}_${heatIntensity.toFixed(2)}`;
+    // Blind inset wash: every heatable card gets the same prominent signal,
+    // clipped to the card's own edges.
+    if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+      const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
-        const heat = isVortiefHeat ? getOuterHeatStyle(effectiveDiff, heatIntensity) : getInsetHeatStyle(heatInfo.pct, heatIntensity);
-        card.classList.toggle('tp-heat-vortief', isVortiefHeat);
-        card.classList.toggle('tp-heat-blend', !isVortiefHeat);
+        const heat = getInsetHeatStyle(heatInfo.pct, heatIntensity);
+        card.classList.toggle('tp-heat-blend', true);
         card.style.setProperty('--tp-heat-glow', heat.glow);
         card.style.setProperty('box-shadow', heat.glow, 'important');
       }
       // Badge follows the card heat: same ramp, solid swatch. Synced on every
       // render (not only on heatKey change) so re-rendered badge nodes can't
-      // desync from the card. Provisional input never reaches this path (see
-      // the !heatProvisional gate above) — unverified ribbons are class-painted.
+      // desync from the card. Provisional input never gates this path —
+      // verified and unverified badges with equal % render identically.
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
       if (heatBadgeEl) {
-        const badgeHeat = getBadgeHeatStyle(effectiveDiff, heatProvisional, CONFIG.HEATMAP_INTENSITY);
+        const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
         heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
         heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
         heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
         heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
       }
-    } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.classList.contains('tp-heat-vortief')) {
+    } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend')) {
       // Tripwire: heat stripped while the badge still claims a verified % means
       // a stats regression slipped through — enable DEBUG to catch it live.
       if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
@@ -4547,7 +4526,7 @@ const SHADOW_MODAL_STYLES = `
       }
       delete card.dataset.tpAppliedHeat;
       card.style.removeProperty('box-shadow');
-      card.classList.remove('tp-heat-blend', 'tp-heat-vortief');
+      card.classList.remove('tp-heat-blend');
       card.style.removeProperty('--tp-heat-glow');
       // Undo the badge heat coupling from the apply path above
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
@@ -6682,12 +6661,12 @@ const SHADOW_MODAL_STYLES = `
                 <button class="tp-filter-mode-btn tp-active" data-mode-key="HIDE_UNCHECKED_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.HIDE_UNCHECKED_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
               </div>
               <div class="tp-filter-row" data-filter-row="vortief" style="display: ${isDealFeed ? 'flex' : 'none'};">
-                <label class="tp-mini-switch" title="Fallback-Tiefs">
+                <label class="tp-mini-switch" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">
                   <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'checked' : ''}>
                   <span class="tp-mini-slider"></span>
                 </label>
-                <span class="tp-filter-label" title="Fallback-Tiefstpreise (Höchstpreis als Ersatz) ausschließen">Fallback-Tiefs</span>
-                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span>
+                <span class="tp-filter-label" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">Fallback-Tiefs aus</span>
+                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? vortiefHidden : ''}</span>
                 <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
               </div>
               <div class="tp-filter-row" data-filter-row="dealer">
@@ -6933,7 +6912,7 @@ const SHADOW_MODAL_STYLES = `
     setRowCount('neg', negHidden, negHidden > 0);
     setRowCount('min', minHidden, minHidden > 0);
     setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
-    setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0);
+    setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0);
     setRowCount('dealer', dealerHidden, dealerHidden > 0);
     for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
       const mode = CONFIG[key] === 'dim' ? 'dim' : 'hide';
@@ -8029,7 +8008,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
-        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
+        cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {

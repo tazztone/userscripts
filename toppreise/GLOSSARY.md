@@ -36,7 +36,7 @@ Die eine Kennzahl des Tiefstpreise-Feeds: Gewichtungs-Blended Ø-Rabatt und Reko
 _Avoid_: Score, Tiefstpreis-Score (in UI-Texten)
 
 **Vortief-Abstand**:
-Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Im Tiefstpreise-Modus legt er zusätzlich einen dezenten äußeren Glow um die Kartenkante (äußeres Glühen statt Innen-Wasche, bei flachen Abständen gar keiner), damit der Fallback nie als Blend durchgeht.
+Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Die Heatmap ist blind: gleiche Badge-% → gleiche Innen-Wasche, egal ob Blend, Vortief-Abstand oder ungeprüfte Site-%.
 
 **Filtern**:
 Entfernen von Karten aus der Liste (`display:none`) oder Abblenden (`tp-dimmed`) — je Ursache per Verbergen/Dimmen im Filter-Popover wählbar.
@@ -59,7 +59,7 @@ Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts.
 _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
-Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; Kanten-Glow in der Ansicht, entfernt oder gedimmt nur wenn Fallback-Tiefs ausgeschlossen sind (Modus je Ursache). Schalter AUS = Filtergrund aktiv.
+Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; heizt wie jeder andere Deal (blinde Heatmap), entfernt oder gedimmt nur im Tiefstpreise-Feed wenn „Fallback-Tiefs aus" an ist (Modus je Ursache). Schalter AN = Filtergrund aktiv.
 _Avoid_: Vortief (als Schalterlabel), dünne Historie
 
  **Nur geprüfte**:
