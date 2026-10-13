@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.222
+// @version      2.18.223
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6193,7 +6193,7 @@ const SHADOW_MODAL_STYLES = `
       const top = m.top, bot = m.top + innerH;
       const y1 = Math.max(top, Math.min(bot, y(o.median * (1 + o.band))));
       const y2 = Math.max(top, Math.min(bot, y(o.median * (1 - o.band))));
-      bandRect = y2 >= y1 ? { x: m.left, y: y1, width: innerW, height: y2 - y1 } : null;
+      bandRect = y2 > y1 ? { x: m.left, y: y1, width: innerW, height: y2 - y1 } : null;
     }
     const medianY = o.median > 0 ? y(o.median) : null;
     const t0 = n ? pts[0][0] : 0;
@@ -6284,7 +6284,7 @@ const SHADOW_MODAL_STYLES = `
       s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="${mainStroke}" stroke="#fff" stroke-width="1"/>`;
     }
     svg.innerHTML = s;
-    const n = st.dropped.length;
+    const n = visibleDropped.length;
     legend.textContent = `${n} Glitch${n === 1 ? '' : 'es'} gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
     blend.textContent = st.qualifies
       ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
@@ -7129,7 +7129,8 @@ const SHADOW_MODAL_STYLES = `
         // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
         const fresh = document.querySelectorAll('.tp-deal-fresh').length;
-        if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : `Keine Tiefstpreise dabei · ${completed} geprüft`);
+        const checked = (newlyVerified || []).length;
+        if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : checked > 0 ? `Keine Tiefstpreise dabei · ${checked} geprüft` : 'Keine Prüfung möglich');
         else showToast('Keine ungeprüften Deals vorhanden');
       }
     );
