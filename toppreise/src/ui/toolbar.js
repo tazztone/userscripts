@@ -183,10 +183,12 @@ function bindOutlierControls(wrapper) {
   const toggle = wrapper.querySelector('#tp-bar-outlier-toggle');
   if (!toggle) return;
   syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
+  paintOutlierDim();
   toggle.onchange = () => {
     recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
     updateConfig('OUTLIER_REJECTION_ENABLED', toggle.checked);
     syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
+    paintOutlierDim();
     showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
   };
 }
@@ -195,7 +197,7 @@ function buildOutlierWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-outlier-wrapper';
-  wrapper.title = 'Kurze Preissprünge (>60% vom Median, <48h) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
+  wrapper.title = 'Kurze Preissprünge (Band und Fenster unten einstellbar) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
   wrapper.innerHTML = `
     <label class="tp-mini-switch" title="Ausreißer-Filter">
       <input type="checkbox" id="tp-bar-outlier-toggle" ${CONFIG.OUTLIER_REJECTION_ENABLED !== false ? 'checked' : ''}>
@@ -203,6 +205,102 @@ function buildOutlierWrapper() {
     </label>
     <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreißer filtern</span>`;
   bindOutlierControls(wrapper);
+  return wrapper;
+}
+
+function paintOutlierDim() {
+  const dim = CONFIG.OUTLIER_REJECTION_ENABLED === false;
+  for (const id of ['tp-bar-outlier-band-wrapper', 'tp-bar-outlier-hours-wrapper']) {
+    const wrap = document.getElementById(id);
+    if (wrap) wrap.classList.toggle('tp-tool-dim', dim);
+  }
+}
+
+function bindOutlierBandControls(wrapper) {
+  if (!wrapper) return;
+  const range = wrapper.querySelector('#tp-bar-outlier-band-range');
+  const label = wrapper.querySelector('#tp-bar-outlier-band-label');
+  if (!range) return;
+  const readBandPct = () => {
+    const raw = parseInt(range.value, 10);
+    return isNaN(raw) ? 60 : Math.min(90, Math.max(20, raw));
+  };
+  const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
+  paintBandLabel();
+  let deb;
+  range.oninput = () => {
+    paintBandLabel();
+    clearTimeout(deb);
+    deb = setTimeout(() => {
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      updateConfig('OUTLIER_DEVIATION_BAND', readBandPct() / 100);
+    }, 1000);
+  };
+  range.onchange = () => {
+    clearTimeout(deb);
+    const pct = readBandPct();
+    paintBandLabel();
+    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    updateConfig('OUTLIER_DEVIATION_BAND', pct / 100);
+    showToast(`Ausreißer-Band: ±${pct} % — live aktualisiert`);
+  };
+}
+
+function buildOutlierBandWrapper() {
+  const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 60;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+  wrapper.id = 'tp-bar-outlier-band-wrapper';
+  wrapper.title = 'Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.';
+  wrapper.innerHTML = `
+    <span class="tp-stepper-label">Glitch-Band</span>
+    <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
+    <input type="range" id="tp-bar-outlier-band-range" min="20" max="90" step="5" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
+  bindOutlierBandControls(wrapper);
+  return wrapper;
+}
+
+function bindOutlierHoursControls(wrapper) {
+  if (!wrapper) return;
+  const range = wrapper.querySelector('#tp-bar-outlier-hours-range');
+  const label = wrapper.querySelector('#tp-bar-outlier-hours-label');
+  if (!range) return;
+  const readHours = () => {
+    const raw = parseInt(range.value, 10);
+    return isNaN(raw) ? 48 : Math.min(168, Math.max(12, raw));
+  };
+  const paintHoursLabel = () => { if (label) label.textContent = `${readHours()} h`; };
+  paintHoursLabel();
+  let deb;
+  range.oninput = () => {
+    paintHoursLabel();
+    clearTimeout(deb);
+    deb = setTimeout(() => {
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      updateConfig('OUTLIER_MAX_GLITCH_HOURS', readHours());
+    }, 1000);
+  };
+  range.onchange = () => {
+    clearTimeout(deb);
+    const hrs = readHours();
+    paintHoursLabel();
+    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs);
+    showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
+  };
+}
+
+function buildOutlierHoursWrapper() {
+  const cur = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+  wrapper.id = 'tp-bar-outlier-hours-wrapper';
+  wrapper.title = 'Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.';
+  wrapper.innerHTML = `
+    <span class="tp-stepper-label">Glitch-Fenster</span>
+    <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>
+    <input type="range" id="tp-bar-outlier-hours-range" min="12" max="168" step="12" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
+  bindOutlierHoursControls(wrapper);
   return wrapper;
 }
 
@@ -319,10 +417,14 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const horizon = buildHorizonWrapper();
       const minpoints = buildMinPointsWrapper();
       const outlier = buildOutlierWrapper();
+      const outlierBand = buildOutlierBandWrapper();
+      const outlierHours = buildOutlierHoursWrapper();
       if (popover && resetBtn) popover.insertBefore(weight, resetBtn);
       if (popover && resetBtn) popover.insertBefore(horizon, resetBtn);
       if (popover && resetBtn) popover.insertBefore(minpoints, resetBtn);
       if (popover && resetBtn) popover.insertBefore(outlier, resetBtn);
+      if (popover && resetBtn) popover.insertBefore(outlierBand, resetBtn);
+      if (popover && resetBtn) popover.insertBefore(outlierHours, resetBtn);
     }
 
     placeBar(bar, placement);
@@ -436,7 +538,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       if (resetBtn) {
         resetBtn.onclick = () => {
           recomputeCachedMedians(365);
-          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true });
+          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 });
           showToast('Berechnungsparameter zurückgesetzt');
         };
       }
@@ -576,6 +678,21 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       horizonLabel.title = horizonText(curHorizon, 'title');
     }
   }
+  const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.60;
+  const bandRange = document.getElementById('tp-bar-outlier-band-range');
+  if (bandRange && document.activeElement !== bandRange) {
+    bandRange.value = Math.round(curBand * 100);
+    const bandLabel = document.getElementById('tp-bar-outlier-band-label');
+    if (bandLabel) bandLabel.textContent = `±${Math.round(curBand * 100)} %`;
+  }
+  const curHours = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
+  const hoursRange = document.getElementById('tp-bar-outlier-hours-range');
+  if (hoursRange && document.activeElement !== hoursRange) {
+    hoursRange.value = curHours;
+    const hoursLabel = document.getElementById('tp-bar-outlier-hours-label');
+    if (hoursLabel) hoursLabel.textContent = `${curHours} h`;
+  }
+  paintOutlierDim();
   const calcSummary = document.getElementById('tp-bar-calc-summary');
   if (calcSummary) {
     setTextIfChanged(calcSummary, `${weightText(curWeight, 'short')} · ${horizonText(curHorizon)} · ${clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS)} Pkt`);

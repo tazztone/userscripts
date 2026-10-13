@@ -2395,6 +2395,37 @@ def test_calc_popover_open_close_and_reset(page: Page):
     assert 'tp-show' not in (popover.get_attribute('class') or '')
 
 
+def test_outlier_sliders_in_calc_popover(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.locator('#tp-bar-calc-btn').click()
+    popover = page.locator('#tp-bar-calc-popover')
+    assert 'tp-show' in (popover.get_attribute('class') or '')
+    band = page.locator('#tp-bar-outlier-band-range')
+    hours = page.locator('#tp-bar-outlier-hours-range')
+    assert band.is_visible()
+    assert hours.is_visible()
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-outlier-band-range');
+        r.value = '20';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.OUTLIER_DEVIATION_BAND === 0.2")
+    page.wait_for_function("() => document.getElementById('tp-bar-outlier-band-label')?.textContent?.includes('±20')")
+    toggle = page.locator('#tp-bar-outlier-toggle')
+    assert toggle.is_checked()
+    page.click('#tp-bar-outlier-toggle + .tp-mini-slider')
+    assert not toggle.is_checked()
+    assert 'tp-tool-dim' in (page.locator('#tp-bar-outlier-band-wrapper').get_attribute('class') or '')
+    assert 'tp-tool-dim' in (page.locator('#tp-bar-outlier-hours-wrapper').get_attribute('class') or '')
+    page.click('#tp-bar-calc-reset')
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.OUTLIER_DEVIATION_BAND === 0.6 && window.ToppreiseSuite.CONFIG.OUTLIER_MAX_GLITCH_HOURS === 48 && window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED === true")
+    assert toggle.is_checked()
+
+
 def test_toolbar_single_row_sticky(page: Page):
     page.set_viewport_size({'width': 1280, 'height': 800})
     page.wait_for_timeout(200)

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.212
+// @version      2.18.213
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1799,7 +1799,9 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function sanitizeTimeSeries(points) {
+  function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS) {
+    if (!(band > 0 && band < 1)) band = 0.60;
+    if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
     if (!points || points.length < 3) {
       return { cleanPoints: points || [], filteredOutliers: [] };
     }
@@ -1818,22 +1820,22 @@ const SHADOW_MODAL_STYLES = `
 
     for (let i = 0; i < n; i++) {
       const [ts, price] = sorted[i];
-      // Symmetric glitch band: a point >60% off the median is a feed glitch
-      // iff it is brief (<48h) with normal neighbours on both sides; a
-      // sustained level shifts the regime and is kept. Edges need only the
-      // single adjacent neighbour (no duration context).
+      // Symmetric glitch band: a point more than `band` off the median is a feed
+      // glitch iff it is brief (< maxGlitchHours) with normal neighbours on both
+      // sides; a sustained level shifts the regime and is kept. Edges need only
+      // the single adjacent neighbour (no duration context).
       const dev = Math.abs(price - rawMedian) / rawMedian;
-      if (dev <= 0.6) {
+      if (dev <= band) {
         cleanPoints.push(sorted[i]);
         continue;
       }
 
-      const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= 0.6;
+      const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
       let isGlitch = false;
       if (i > 0 && i < n - 1) {
         const nextTs = sorted[i + 1][0];
         const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
-        if (durationHours < 48 && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
+        if (durationHours < maxGlitchHours && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
           isGlitch = true;
         }
       } else if (i === 0 && n > 1) {
@@ -2569,6 +2571,8 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_MIN_POINTS: 5,
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
+    OUTLIER_DEVIATION_BAND: 0.60,
+    OUTLIER_MAX_GLITCH_HOURS: 48,
     ENABLE_SPARKLINES: true,
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
@@ -2748,6 +2752,8 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_MIN_POINTS: parseInt(_getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
     BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
     OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
+    OUTLIER_DEVIATION_BAND: parseFloat(_getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
+    OUTLIER_MAX_GLITCH_HOURS: parseInt(_getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
     DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
@@ -2770,6 +2776,10 @@ const SHADOW_MODAL_STYLES = `
   if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
   else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
+  if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
+  else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
+  if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
+  else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(12, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
   const saveConfigKey = (key, val) => {
     CONFIG[key] = val;
@@ -2971,6 +2981,27 @@ const SHADOW_MODAL_STYLES = `
             }
             case 'OUTLIER_REJECTION_ENABLED': {
               syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), val !== false, 'Ausreißer-Filter');
+              const dim = val === false;
+              for (const id of ['tp-bar-outlier-band-wrapper', 'tp-bar-outlier-hours-wrapper']) {
+                const wrap = bar.querySelector('#' + id);
+                if (wrap) wrap.classList.toggle('tp-tool-dim', dim);
+              }
+              break;
+            }
+            case 'OUTLIER_DEVIATION_BAND': {
+              const pct = Math.min(90, Math.max(20, Math.round((val ?? 0.6) * 100)));
+              const bandRange = bar.querySelector('#tp-bar-outlier-band-range');
+              if (bandRange && document.activeElement !== bandRange) bandRange.value = pct;
+              const bandLabel = bar.querySelector('#tp-bar-outlier-band-label');
+              if (bandLabel) bandLabel.textContent = `±${pct} %`;
+              break;
+            }
+            case 'OUTLIER_MAX_GLITCH_HOURS': {
+              const hrs = Math.min(168, Math.max(12, parseInt(val ?? 48, 10) || 48));
+              const hoursRange = bar.querySelector('#tp-bar-outlier-hours-range');
+              if (hoursRange && document.activeElement !== hoursRange) hoursRange.value = hrs;
+              const hoursLabel = bar.querySelector('#tp-bar-outlier-hours-label');
+              if (hoursLabel) hoursLabel.textContent = `${hrs} h`;
               break;
             }
             case 'FILTER_NEG_MODE':
@@ -6123,10 +6154,12 @@ const SHADOW_MODAL_STYLES = `
     const toggle = wrapper.querySelector('#tp-bar-outlier-toggle');
     if (!toggle) return;
     syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
+    paintOutlierDim();
     toggle.onchange = () => {
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
       updateConfig('OUTLIER_REJECTION_ENABLED', toggle.checked);
       syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
+      paintOutlierDim();
       showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
     };
   }
@@ -6135,7 +6168,7 @@ const SHADOW_MODAL_STYLES = `
     const wrapper = document.createElement('div');
     wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
     wrapper.id = 'tp-bar-outlier-wrapper';
-    wrapper.title = 'Kurze Preissprünge (>60% vom Median, <48h) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
+    wrapper.title = 'Kurze Preissprünge (Band und Fenster unten einstellbar) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
     wrapper.innerHTML = `
       <label class="tp-mini-switch" title="Ausreißer-Filter">
         <input type="checkbox" id="tp-bar-outlier-toggle" ${CONFIG.OUTLIER_REJECTION_ENABLED !== false ? 'checked' : ''}>
@@ -6143,6 +6176,102 @@ const SHADOW_MODAL_STYLES = `
       </label>
       <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreißer filtern</span>`;
     bindOutlierControls(wrapper);
+    return wrapper;
+  }
+
+  function paintOutlierDim() {
+    const dim = CONFIG.OUTLIER_REJECTION_ENABLED === false;
+    for (const id of ['tp-bar-outlier-band-wrapper', 'tp-bar-outlier-hours-wrapper']) {
+      const wrap = document.getElementById(id);
+      if (wrap) wrap.classList.toggle('tp-tool-dim', dim);
+    }
+  }
+
+  function bindOutlierBandControls(wrapper) {
+    if (!wrapper) return;
+    const range = wrapper.querySelector('#tp-bar-outlier-band-range');
+    const label = wrapper.querySelector('#tp-bar-outlier-band-label');
+    if (!range) return;
+    const readBandPct = () => {
+      const raw = parseInt(range.value, 10);
+      return isNaN(raw) ? 60 : Math.min(90, Math.max(20, raw));
+    };
+    const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
+    paintBandLabel();
+    let deb;
+    range.oninput = () => {
+      paintBandLabel();
+      clearTimeout(deb);
+      deb = setTimeout(() => {
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+        updateConfig('OUTLIER_DEVIATION_BAND', readBandPct() / 100);
+      }, 1000);
+    };
+    range.onchange = () => {
+      clearTimeout(deb);
+      const pct = readBandPct();
+      paintBandLabel();
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      updateConfig('OUTLIER_DEVIATION_BAND', pct / 100);
+      showToast(`Ausreißer-Band: ±${pct} % — live aktualisiert`);
+    };
+  }
+
+  function buildOutlierBandWrapper() {
+    const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 60;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+    wrapper.id = 'tp-bar-outlier-band-wrapper';
+    wrapper.title = 'Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.';
+    wrapper.innerHTML = `
+      <span class="tp-stepper-label">Glitch-Band</span>
+      <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
+      <input type="range" id="tp-bar-outlier-band-range" min="20" max="90" step="5" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
+    bindOutlierBandControls(wrapper);
+    return wrapper;
+  }
+
+  function bindOutlierHoursControls(wrapper) {
+    if (!wrapper) return;
+    const range = wrapper.querySelector('#tp-bar-outlier-hours-range');
+    const label = wrapper.querySelector('#tp-bar-outlier-hours-label');
+    if (!range) return;
+    const readHours = () => {
+      const raw = parseInt(range.value, 10);
+      return isNaN(raw) ? 48 : Math.min(168, Math.max(12, raw));
+    };
+    const paintHoursLabel = () => { if (label) label.textContent = `${readHours()} h`; };
+    paintHoursLabel();
+    let deb;
+    range.oninput = () => {
+      paintHoursLabel();
+      clearTimeout(deb);
+      deb = setTimeout(() => {
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+        updateConfig('OUTLIER_MAX_GLITCH_HOURS', readHours());
+      }, 1000);
+    };
+    range.onchange = () => {
+      clearTimeout(deb);
+      const hrs = readHours();
+      paintHoursLabel();
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs);
+      showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
+    };
+  }
+
+  function buildOutlierHoursWrapper() {
+    const cur = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+    wrapper.id = 'tp-bar-outlier-hours-wrapper';
+    wrapper.title = 'Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.';
+    wrapper.innerHTML = `
+      <span class="tp-stepper-label">Glitch-Fenster</span>
+      <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>
+      <input type="range" id="tp-bar-outlier-hours-range" min="12" max="168" step="12" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
+    bindOutlierHoursControls(wrapper);
     return wrapper;
   }
 
@@ -6259,10 +6388,14 @@ const SHADOW_MODAL_STYLES = `
         const horizon = buildHorizonWrapper();
         const minpoints = buildMinPointsWrapper();
         const outlier = buildOutlierWrapper();
+        const outlierBand = buildOutlierBandWrapper();
+        const outlierHours = buildOutlierHoursWrapper();
         if (popover && resetBtn) popover.insertBefore(weight, resetBtn);
         if (popover && resetBtn) popover.insertBefore(horizon, resetBtn);
         if (popover && resetBtn) popover.insertBefore(minpoints, resetBtn);
         if (popover && resetBtn) popover.insertBefore(outlier, resetBtn);
+        if (popover && resetBtn) popover.insertBefore(outlierBand, resetBtn);
+        if (popover && resetBtn) popover.insertBefore(outlierHours, resetBtn);
       }
 
       placeBar(bar, placement);
@@ -6376,7 +6509,7 @@ const SHADOW_MODAL_STYLES = `
         if (resetBtn) {
           resetBtn.onclick = () => {
             recomputeCachedMedians(365);
-            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true });
+            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 });
             showToast('Berechnungsparameter zurückgesetzt');
           };
         }
@@ -6516,6 +6649,21 @@ const SHADOW_MODAL_STYLES = `
         horizonLabel.title = horizonText(curHorizon, 'title');
       }
     }
+    const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.60;
+    const bandRange = document.getElementById('tp-bar-outlier-band-range');
+    if (bandRange && document.activeElement !== bandRange) {
+      bandRange.value = Math.round(curBand * 100);
+      const bandLabel = document.getElementById('tp-bar-outlier-band-label');
+      if (bandLabel) bandLabel.textContent = `±${Math.round(curBand * 100)} %`;
+    }
+    const curHours = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
+    const hoursRange = document.getElementById('tp-bar-outlier-hours-range');
+    if (hoursRange && document.activeElement !== hoursRange) {
+      hoursRange.value = curHours;
+      const hoursLabel = document.getElementById('tp-bar-outlier-hours-label');
+      if (hoursLabel) hoursLabel.textContent = `${curHours} h`;
+    }
+    paintOutlierDim();
     const calcSummary = document.getElementById('tp-bar-calc-summary');
     if (calcSummary) {
       setTextIfChanged(calcSummary, `${weightText(curWeight, 'short')} · ${horizonText(curHorizon)} · ${clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS)} Pkt`);

@@ -69,6 +69,8 @@ export const DEFAULTS = Object.freeze({
   BESTPREISE_MIN_POINTS: 5,
   BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
   OUTLIER_REJECTION_ENABLED: true,
+  OUTLIER_DEVIATION_BAND: 0.60,
+  OUTLIER_MAX_GLITCH_HOURS: 48,
   ENABLE_SPARKLINES: true,
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
@@ -248,6 +250,8 @@ export const CONFIG = {
   BESTPREISE_MIN_POINTS: parseInt(_getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
   BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
   OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
+  OUTLIER_DEVIATION_BAND: parseFloat(_getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
+  OUTLIER_MAX_GLITCH_HOURS: parseInt(_getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
   DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
@@ -270,6 +274,10 @@ export const CONFIG = {
 if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
 else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
 if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
+if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
+else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
+if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
+else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(12, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
 export const saveConfigKey = (key, val) => {
   CONFIG[key] = val;
@@ -471,6 +479,27 @@ export function syncUiControl(key, val) {
           }
           case 'OUTLIER_REJECTION_ENABLED': {
             syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), val !== false, 'Ausreißer-Filter');
+            const dim = val === false;
+            for (const id of ['tp-bar-outlier-band-wrapper', 'tp-bar-outlier-hours-wrapper']) {
+              const wrap = bar.querySelector('#' + id);
+              if (wrap) wrap.classList.toggle('tp-tool-dim', dim);
+            }
+            break;
+          }
+          case 'OUTLIER_DEVIATION_BAND': {
+            const pct = Math.min(90, Math.max(20, Math.round((val ?? 0.6) * 100)));
+            const bandRange = bar.querySelector('#tp-bar-outlier-band-range');
+            if (bandRange && document.activeElement !== bandRange) bandRange.value = pct;
+            const bandLabel = bar.querySelector('#tp-bar-outlier-band-label');
+            if (bandLabel) bandLabel.textContent = `±${pct} %`;
+            break;
+          }
+          case 'OUTLIER_MAX_GLITCH_HOURS': {
+            const hrs = Math.min(168, Math.max(12, parseInt(val ?? 48, 10) || 48));
+            const hoursRange = bar.querySelector('#tp-bar-outlier-hours-range');
+            if (hoursRange && document.activeElement !== hoursRange) hoursRange.value = hrs;
+            const hoursLabel = bar.querySelector('#tp-bar-outlier-hours-label');
+            if (hoursLabel) hoursLabel.textContent = `${hrs} h`;
             break;
           }
           case 'FILTER_NEG_MODE':

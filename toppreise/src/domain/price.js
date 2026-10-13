@@ -150,7 +150,9 @@ export function parsePriceStatsFromHtml(html) {
   return null;
 }
 
-export function sanitizeTimeSeries(points) {
+export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS) {
+  if (!(band > 0 && band < 1)) band = 0.60;
+  if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
   if (!points || points.length < 3) {
     return { cleanPoints: points || [], filteredOutliers: [] };
   }
@@ -169,22 +171,22 @@ export function sanitizeTimeSeries(points) {
 
   for (let i = 0; i < n; i++) {
     const [ts, price] = sorted[i];
-    // Symmetric glitch band: a point >60% off the median is a feed glitch
-    // iff it is brief (<48h) with normal neighbours on both sides; a
-    // sustained level shifts the regime and is kept. Edges need only the
-    // single adjacent neighbour (no duration context).
+    // Symmetric glitch band: a point more than `band` off the median is a feed
+    // glitch iff it is brief (< maxGlitchHours) with normal neighbours on both
+    // sides; a sustained level shifts the regime and is kept. Edges need only
+    // the single adjacent neighbour (no duration context).
     const dev = Math.abs(price - rawMedian) / rawMedian;
-    if (dev <= 0.6) {
+    if (dev <= band) {
       cleanPoints.push(sorted[i]);
       continue;
     }
 
-    const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= 0.6;
+    const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
     let isGlitch = false;
     if (i > 0 && i < n - 1) {
       const nextTs = sorted[i + 1][0];
       const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
-      if (durationHours < 48 && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
+      if (durationHours < maxGlitchHours && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
         isGlitch = true;
       }
     } else if (i === 0 && n > 1) {

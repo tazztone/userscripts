@@ -28,7 +28,7 @@ Geprüfter Preis, der kein Tiefstpreis ist (Aufschlag gegenüber dem historische
 _Avoid_: Non-Deal
 
 **Berechnungsparameter**:
-Gewichtung, Ø-Zeitraum, Mindest-Datenpunkte und Ausreißer-Filter als Eingaben der Gewichteten Differenz; keine Sortierung, kein Filter.
+Gewichtung, Ø-Zeitraum, Mindest-Datenpunkte, Ausreißer-Filter, Glitch-Band und Glitch-Fenster als Eingaben der Gewichteten Differenz; keine Sortierung, kein Filter.
 _Avoid_: Sortier-Slider (für ⚖️/Ø), Filter-Slider
 
 **Gewichtete Differenz**:

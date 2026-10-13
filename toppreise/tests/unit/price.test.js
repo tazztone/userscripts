@@ -138,6 +138,50 @@ describe('Price Domain Module', () => {
       // Sustained level shifts the median, so no spike candidates exist
       assert.ok(result.cleanPoints.some(p => p[1] === 5000));
     });
+
+    it('honours OUTLIER_DEVIATION_BAND: 50% dip kept at 60%, filtered at 40%', () => {
+      const now = Date.now();
+      const series = [
+        [now - 9 * DAY, 100],
+        [now - 8 * DAY, 100],
+        [now - 7 * DAY, 100],
+        [now - 6 * DAY, 100],
+        [now - 5 * DAY, 150],   // 50% above median, 24h duration, normal neighbours
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 100],
+        [now - 2 * DAY, 100],
+        [now - 1 * DAY, 100],
+        [now, 100]
+      ];
+
+      const kept = withConfig('OUTLIER_DEVIATION_BAND', 0.60, () => sanitizeTimeSeries(series));
+      assert.equal(kept.filteredOutliers.length, 0);
+      assert.ok(kept.cleanPoints.some(p => p[1] === 150));
+      const dropped = withConfig('OUTLIER_DEVIATION_BAND', 0.40, () => sanitizeTimeSeries(series));
+      assert.equal(dropped.filteredOutliers.length, 1);
+      assert.equal(dropped.filteredOutliers[0].price, 150);
+    });
+
+    it('honours OUTLIER_MAX_GLITCH_HOURS: 72h deviation kept at 48h, filtered at 96h', () => {
+      const now = Date.now();
+      const series = [
+        [now - 9 * DAY, 100],
+        [now - 8 * DAY, 100],
+        [now - 7 * DAY, 100],
+        [now - 6 * DAY, 100],
+        [now - 5 * DAY, 200],   // 100% above median, 72h until next point
+        [now - 2 * DAY, 100],
+        [now - 1 * DAY, 100],
+        [now, 100]
+      ];
+
+      const kept = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series));
+      assert.equal(kept.filteredOutliers.length, 0);
+      assert.ok(kept.cleanPoints.some(p => p[1] === 200));
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 96, () => sanitizeTimeSeries(series));
+      assert.equal(dropped.filteredOutliers.length, 1);
+      assert.equal(dropped.filteredOutliers[0].price, 200);
+    });
   });
 
   describe('analyzePriceTimeSeries', () => {
