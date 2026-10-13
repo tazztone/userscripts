@@ -195,19 +195,27 @@ describe('isCardFilteredOut forScan', () => {
 
   it('unchecked-only is scan target with forScan, filtered without', () => {
     assert.equal(isCardFilteredOut(fakeCard(), uncheckedOnly, { forScan: true }), false);
-    assert.equal(isCardFilteredOut(fakeCard(), uncheckedOnly), true);
+    withConfig('HIDE_UNCHECKED_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), uncheckedOnly), true);
+    });
   });
 
   it('neg-only filters even with forScan', () => {
-    assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isNeg: true, isUnchecked: false }, { forScan: true }), true);
+    withConfig('FILTER_NEG_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isNeg: true, isUnchecked: false }, { forScan: true }), true);
+    });
   });
 
   it('neg+unchecked mixed filters with forScan', () => {
-    assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isNeg: true }, { forScan: true }), true);
+    withConfig('FILTER_NEG_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isNeg: true }, { forScan: true }), true);
+    });
   });
 
   it('vortief-excluded filters with forScan', () => {
-    assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isUnchecked: false, isVortiefExcluded: true }, { forScan: true }), true);
+    withConfig('VORTIEF_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), { ...uncheckedOnly, isUnchecked: false, isVortiefExcluded: true }, { forScan: true }), true);
+    });
   });
 
   it('neg-hit with dim mode is not filtered out (scan or not)', () => {

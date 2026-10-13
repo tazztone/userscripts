@@ -91,7 +91,7 @@ def test_filter_toggles_preserve_settings(page: Page):
     assert page.locator('#tp-suite-filter-bar .tp-mini-state').count() == 0
     # Co-located next to respective setting, not far-right cluster
     assert page.evaluate("() => document.getElementById('tp-toggle-neg').closest('[data-filter-row=\"neg\"]') !== null")
-    assert page.evaluate("() => document.getElementById('tp-toggle-min').closest('#tp-bar-min-offers-group') !== null")
+    assert page.evaluate("() => document.getElementById('tp-toggle-min').closest('[data-filter-row=\"min\"]') !== null")
     # No separate strictness toggle anymore: strictness lives in the Tiefstpreise mode.
     assert page.evaluate("() => document.getElementById('tp-toggle-bestpreis') === null")
     assert page.locator('#tp-suite-filter-bar .tp-filter-toggles-group').count() == 0
@@ -264,6 +264,7 @@ def test_empty_state_notice_and_actions(page: Page):
     prev_min = page.evaluate("() => window.ToppreiseSuite.CONFIG.MIN_OFFERS")
     prev_min_enabled = page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_MIN_ENABLED")
     seed_verified_deal(page, '797571', {'tiefstpreis': 100, 'hoechstpreis': 200})
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('HIDE_UNCHECKED_MODE', 'hide'); window.ToppreiseSuite.updateConfig('FILTER_MIN_MODE', 'hide'); }")
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_MIN_ENABLED', true); window.ToppreiseSuite.updateConfig('MIN_OFFERS', 99); }")
     # 4 unscanned cards via Nur geprüfte, the verified card via Min-Angebote
@@ -333,6 +334,8 @@ def test_filter_bar_hidden_on_product_detail_page(page: Page):
 
 
 def test_deal_features_enabled_on_category_page(page: Page):
+    # Hide-pins: count/title asserts below assume Verbergen removal, not Dimmen
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('DEALER_MODE', 'hide'); }")
     # Simulate standard category/search listing page
     page.evaluate('''() => {
         document.body.className = 'color_bg Page_Browsing';
@@ -395,6 +398,7 @@ def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
  # Loupe-click regression: enabling Nur geprüfte on a checkless page hides
  # unchecked cards immediately (with the empty-state off-ramp), and adding
  # a check later changes nothing about the others' visibility.
+ page.evaluate("() => window.ToppreiseSuite.updateConfig('HIDE_UNCHECKED_MODE', 'hide')")
  page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
  page.wait_for_selector('#tp-empty-state-notice')
  assert page.locator('#card-cheapest').evaluate("e => getComputedStyle(e).display") == 'none'
@@ -508,8 +512,9 @@ def test_category_page_applies_thermal_heatmap_based_on_score(page: Page):
     assert has_heat
 
 def test_hide_unchecked_toggle_filters_unverified(page: Page):
-    # Filtern removes unchecked cards (display:none); no display-mode setup needed.
+    # Filtern removes unchecked cards (display:none); hide-pin: dim default would only dim.
     # Seed card 1 as a verified deal; the rest stay unchecked
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('HIDE_UNCHECKED_MODE', 'hide')")
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-is-verified')
     assert 'tp-is-unverified' not in (page.locator('#card-negative').get_attribute('class') or '')
@@ -1402,7 +1407,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     # Verified non-deal stays visible
     assert page.locator('#wrap-card-2').is_visible()
     # A negative term removes Card 2 AND collapses wrapper-col-2 (display: none)
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Product 2')")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Product 2'); }")
     page.wait_for_selector('#wrap-card-2.tp-negative-filtered', state='attached')
     assert page.locator('#wrap-card-2').is_hidden()
     assert page.evaluate("() => window.getComputedStyle(document.getElementById('wrapper-col-2')).display === 'none'")
@@ -2455,3 +2460,52 @@ def test_toolbar_stacks_below_site_dropdown(page: Page):
         return el.id || el.className || el.tagName;
     }""")
     assert hit == 'dropdown'
+
+
+def test_filter_modes_default_to_dim_on_fresh_install(page: Page, userscript_content):
+    from conftest import MOCK_HTML
+    page.evaluate("() => localStorage.clear()")
+    page.goto(MOCK_HTML)
+    page.evaluate(userscript_content)
+    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+    modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
+    assert modes == ['dim'] * 5
+    _open_filter_popover(page)
+    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Dimmen'] * 5
+
+
+def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):
+    from conftest import MOCK_HTML
+    page.evaluate("""() => {
+        localStorage.clear();
+        for (const k of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'])
+            localStorage.setItem('tp_suite_v2_' + k, JSON.stringify('hide'));
+    }""")
+    page.goto(MOCK_HTML)
+    page.evaluate(userscript_content)
+    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_MODE") == 'dim'
+    assert page.evaluate("() => JSON.parse(localStorage.getItem('tp_suite_v2_MIGRATED_DIM_DEFAULT'))") is True
+    # Second load is a no-op: an explicit hide choice survives once the flag is set
+    page.evaluate("() => localStorage.setItem('tp_suite_v2_FILTER_NEG_MODE', JSON.stringify('hide'))")
+    page.goto(MOCK_HTML)
+    page.evaluate(userscript_content)
+    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_MODE") == 'hide'
+
+
+def test_filter_rows_toggle_first_with_tooltips(page: Page):
+    _open_filter_popover(page)
+    firsts = page.evaluate("""() => Object.fromEntries(
+        [...document.querySelectorAll('.tp-filter-row')].map(r => [r.dataset.filterRow,
+            r.firstElementChild.matches('label.tp-mini-switch') ? 'switch' : r.firstElementChild.className]))""")
+    assert firsts == {'neg': 'switch', 'min': 'switch', 'unchecked': 'switch',
+                      'vortief': 'switch', 'dealer': 'tp-filter-label'}
+    labels = page.evaluate("() => [...document.querySelectorAll('.tp-filter-label')].map(el => el.title)")
+    assert labels == ['Negativ-Begriffe im Produktnamen filtern (Wortgrenzen)',
+                      'Produkte mit weniger als N Angeboten filtern',
+                      'Ungeprüfte Deals ohne verifizierten Tiefstpreis filtern',
+                      'Fallback-Tiefstpreise (Höchstpreis als Ersatz) ausschließen',
+                      'Produkte des gewählten Händlers filtern']
+    modes = page.evaluate("() => [...document.querySelectorAll('.tp-filter-mode-btn')].map(el => el.title)")
+    assert modes and set(modes) == {'Zwischen Verbergen und Dimmen wechseln'}

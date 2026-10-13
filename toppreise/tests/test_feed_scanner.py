@@ -420,6 +420,8 @@ def test_real_deal_batch_check_button_counter_and_run(page: Page):
 def test_check_deals_skips_ignored_invisible_products(page: Page):
     cta = page.locator('#tp-floating-check-cta')
     cta_main = page.locator('#tp-floating-check-main')
+    # Hide-pin: CTA counts below assume Verbergen removal, not Dimmen
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide')")
     assert cta.is_visible()
 
     # In mock_toppreise.html without filters, 3 cards qualify (-67%, -35%, -50%)
@@ -1265,6 +1267,8 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
     "Keine ungeprüften Deals vorhanden".
     """
     # Fresh state: no cached stats, no negative terms, Min=2 like the bug report
+    # Min-Angebote row exists and is visible while offer signals are intact
+    assert page.evaluate("() => getComputedStyle(document.querySelector('[data-filter-row=\"min\"]')).display") != 'none'
     page.evaluate("""() => {
         Object.keys(localStorage).filter(k => k.startsWith('tp_hist_v1_')).forEach(k => localStorage.removeItem(k));
         window.ToppreiseSuite.memoryCache.clear();
@@ -1281,6 +1285,8 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
     # Counter sees 3 unchecked deals (-67%, -35%, -50%) despite Min=2:
     # offer-less feed => pageHasOffers False => no low-offers filtering
     page.wait_for_function("() => document.querySelector('#tp-floating-check-main').textContent.includes('3 Tiefstpreise prüfen')")
+    # Offer signals stripped above => pageHasOffers False => row hides (dead control otherwise)
+    assert page.evaluate("() => getComputedStyle(document.querySelector('[data-filter-row=\"min\"]')).display") == 'none'
 
     # The exact predicate the scanner uses (no-arg recompute) must agree
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-cheapest'))") is False
@@ -1627,7 +1633,7 @@ def test_dealer_button_retry_on_product_page_error(page: Page):
 
 def test_filter_button_shows_hidden_count(page: Page):
     """Filter-Button zeigt die Zahl verborgener Karten in #tp-filter-count."""
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon')")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     count = page.locator('#tp-filter-count')
     assert int((count.text_content() or '').strip()) >= 1

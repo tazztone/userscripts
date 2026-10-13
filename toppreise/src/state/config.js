@@ -49,11 +49,11 @@ export function horizonText(days, style = 'short') {
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
-  FILTER_NEG_MODE: 'hide',
-  FILTER_MIN_MODE: 'hide',
-  HIDE_UNCHECKED_MODE: 'hide',
-  VORTIEF_MODE: 'hide',
-  DEALER_MODE: 'hide',
+  FILTER_NEG_MODE: 'dim',
+  FILTER_MIN_MODE: 'dim',
+  HIDE_UNCHECKED_MODE: 'dim',
+  VORTIEF_MODE: 'dim',
+  DEALER_MODE: 'dim',
   MARGIN_PERCENT: 0.0,
   DIM_OPACITY: 0.25,
   USE_SHIPPING_PRICE: true,
@@ -139,6 +139,18 @@ export function migrateLegacyDebug() {
   _setValue('MIGRATED_DEBUG_OFF', true);
   return true;
 }
+// One-time migration: filter-mode defaults flipped hide→dim. Stored 'hide'
+// (silent default or explicit choice) moves to 'dim' once; the toggle stays
+// one click away. Marker keeps this a single pass per profile afterwards.
+export function migrateHideToDimDefaults() {
+  if (_getValue('MIGRATED_DIM_DEFAULT', false)) return false;
+  for (const k of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
+    if (_getValue(k, DEFAULTS[k]) !== 'dim') _setValue(k, 'dim');
+  }
+  _setValue('MIGRATED_DIM_DEFAULT', true);
+  return true;
+}
+migrateHideToDimDefaults();
 migrateLegacyDebug();
 // One-time migration: MODE (highlight/dim/hide) deleted — Filtern removes,
 // Ansicht paints. Clears the stale stored key once so the mode toast fires

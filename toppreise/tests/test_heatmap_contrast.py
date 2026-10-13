@@ -262,6 +262,8 @@ def test_suite_text_contrast_on_light(page: Page):
     seed_verified_deal(page, '797572', {'tiefstpreis': 500, 'hoechstpreis': 600,
         'medianPrice': 550, 'isNewAllTimeLow': False, 'dataPointCount': 10})
     page.evaluate("""() => {
+        window.ToppreiseSuite.updateConfig('HIDE_UNCHECKED_MODE', 'hide');
+        window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide');
         window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true);
         window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '4080');

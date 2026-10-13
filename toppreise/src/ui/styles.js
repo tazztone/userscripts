@@ -85,7 +85,7 @@ export const STYLES = `
     padding: 4px 10px;
     border-radius: 20px;
     text-transform: uppercase;
-    z-index: 10;
+    z-index: 5;
     box-shadow: 0 2px 8px rgba(16,185,129,0.4);
     letter-spacing: 0.5px;
     pointer-events: none;
@@ -112,7 +112,7 @@ export const STYLES = `
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    z-index: 15 !important;
+    z-index: 5 !important;
     box-sizing: border-box !important;
     background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(8px) !important;
@@ -240,7 +240,7 @@ export const STYLES = `
     position: absolute !important;
     bottom: 6px !important;
     left: 6px !important;
-    z-index: 6 !important;
+    z-index: 5 !important;
     width: 26px !important;
     height: 26px !important;
     display: inline-flex !important;
@@ -273,7 +273,7 @@ export const STYLES = `
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;
-    z-index: 30 !important;
+    z-index: 5 !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive:active,
   .badge-dif.tp-deal-badge-interactive:active {
@@ -820,7 +820,7 @@ export const STYLES = `
     align-items: center !important;
     flex-wrap: nowrap !important;
     gap: 6px !important;
-    z-index: 50 !important;
+    z-index: 30 !important; /* below live header stacking root (z=31, measured 2026-10-13); card chrome ≤5 */
     position: sticky !important;
     top: 8px !important;
   }
@@ -875,7 +875,7 @@ export const STYLES = `
   }
   .tp-input-field-box {
     flex: 1 !important;
-    min-width: 0 !important;
+    min-width: 110px !important;
     position: relative !important;
     display: flex !important;
     align-items: center !important;
@@ -1039,7 +1039,7 @@ export const STYLES = `
     position: absolute !important;
     left: 0 !important;
     top: calc(100% + 8px) !important;
-    width: 340px !important;
+    width: 360px !important;
     max-height: min(70vh, 560px) !important;
     overflow-y: auto !important;
     display: none !important;

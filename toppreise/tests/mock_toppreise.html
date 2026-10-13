@@ -171,9 +171,11 @@
     .priceContainer.productPrice { font-size: 12px; color: #64748b; }
     .shippingText { font-size: 11px; color: #64748b; }
     .offersContainer { font-size: 12px; color: #64748b; }
-    /* Site-dropdown overlap fixture: live header/nav dropdowns paint at z≈1000
-       (unreachable from file://, so D=1000 fallback); the bar must stay below. */
-    #mock-site-dropdown { position: absolute; width: 220px; height: 64px; background: #fff; border: 1px solid #0f172a; z-index: 1000; display: none; }
+    /* Site-dropdown overlap fixture: measured live 2026-10-13 via scratch/menu_z.py —
+       open nav chain is UL.categoryMenuItem z=1 < DIV.Plugin_CategoryMenu z=2 <
+       DIV.Plugin_MainHead z=31 (root-level stacking root). Fixture pins z=31;
+       the bar (z=30) must stay below. */
+    #mock-site-dropdown { position: absolute; width: 220px; height: 64px; background: #fff; border: 1px solid #0f172a; z-index: 31; display: none; }
   </style>
 </head>
 <body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-lng="de" data-current_url="/neue-toppreise">

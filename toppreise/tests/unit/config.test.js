@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, DEFAULTS, CONFIG, migrateLegacyDebug } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -63,6 +63,23 @@ describe('Config dual-layer storage', () => {
     gmStore['DEBUG'] = true;
     assert.equal(migrateLegacyDebug(), false);
     assert.equal(gmStore['DEBUG'], true);
+  });
+  it('one-time migration moves stored hide modes to dim once', () => {
+    gmStore['FILTER_NEG_MODE'] = 'hide';
+    gmStore['VORTIEF_MODE'] = 'hide';
+    assert.equal(migrateHideToDimDefaults(), true);
+    assert.equal(gmStore['FILTER_NEG_MODE'], 'dim');
+    assert.equal(gmStore['VORTIEF_MODE'], 'dim');
+    assert.equal(gmStore['MIGRATED_DIM_DEFAULT'], true);
+    gmStore['FILTER_NEG_MODE'] = 'hide';
+    assert.equal(migrateHideToDimDefaults(), false);
+    assert.equal(gmStore['FILTER_NEG_MODE'], 'hide');
+  });
+
+  it('filter modes default to dim fresh', () => {
+    for (const k of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
+      assert.equal(DEFAULTS[k], 'dim');
+    }
   });
 
 });
