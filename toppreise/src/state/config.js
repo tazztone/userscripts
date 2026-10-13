@@ -49,6 +49,11 @@ export function horizonText(days, style = 'short') {
 export const DEFAULTS = Object.freeze({
   FILTER_NEG_ENABLED: true,
   FILTER_MIN_ENABLED: true,
+  FILTER_NEG_MODE: 'hide',
+  FILTER_MIN_MODE: 'hide',
+  HIDE_UNCHECKED_MODE: 'hide',
+  VORTIEF_MODE: 'hide',
+  DEALER_MODE: 'hide',
   MARGIN_PERCENT: 0.0,
   DIM_OPACITY: 0.25,
   USE_SHIPPING_PRICE: true,
@@ -204,10 +209,18 @@ export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 // product keys. Stored old value seeds both new keys once; stale key unread.
 const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
 const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
+// Filter hide/dim modes: only 'dim' opts into dimming, everything else hides.
+const _modeValue = k => _getValue(k, DEFAULTS[k]) === 'dim' ? 'dim' : 'hide';
+
 
 export const CONFIG = {
   FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
   FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
+  FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
+  FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
+  HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
+  VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
+  DEALER_MODE: _modeValue('DEALER_MODE'),
   MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
   DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
   USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
@@ -290,16 +303,6 @@ export function syncUiControl(key, val) {
         case 'BESTPREISE_MODE_ACTIVE': {
           const toggle = shadow.getElementById('tp-bestpreise-mode-toggle');
           if (toggle) toggle.checked = !!val;
-          break;
-        }
-        case 'BESTPREISE_HIDE_UNCHECKED': {
-          const toggle = shadow.getElementById('tp-hide-unchecked-toggle');
-          if (toggle) toggle.checked = !!val;
-          break;
-        }
-        case 'BESTPREISE_INCLUDE_VORTIEF': {
-          const toggle = shadow.getElementById('tp-include-vortief-toggle');
-          if (toggle) toggle.checked = val !== false;
           break;
         }
         case 'BESTPREISE_WEIGHT_RECORD': {
@@ -445,27 +448,24 @@ export function syncUiControl(key, val) {
             break;
           }
           case 'BESTPREISE_HIDE_UNCHECKED': {
-            const uncheckedBtn = bar.querySelector('#tp-bar-unchecked-btn');
-            if (uncheckedBtn) {
-              const badge = bar.querySelector('#tp-bar-unchecked-count');
-              const n = badge ? /(\d+)/.exec(badge.textContent || '')?.[1] || 0 : 0;
-              uncheckedBtn.classList.toggle('tp-active', val === true);
-              uncheckedBtn.setAttribute('aria-pressed', String(val === true));
-              uncheckedBtn.title = val === true ? `✓ Nur geprüfte aktiv (${n} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${n}) – entfernt sie aus der Liste`;
-            }
+            const toggle = bar.querySelector('#tp-toggle-unchecked');
+            if (toggle) toggle.checked = val === true;
             break;
           }
           case 'BESTPREISE_INCLUDE_VORTIEF': {
-            const fallbackBtn = bar.querySelector('#tp-bar-fallback-btn');
-            if (fallbackBtn) {
-              const included = val !== false;
-              const badge = bar.querySelector('#tp-bar-fallback-count');
-              const n = badge ? /(\d+)/.exec(badge.textContent || '')?.[1] || 0 : 0;
-              fallbackBtn.classList.toggle('tp-active', included);
-              fallbackBtn.classList.toggle('tp-tool-dim', !included);
-              fallbackBtn.setAttribute('aria-pressed', String(included));
-              fallbackBtn.title = !included ? `Fallback-Tiefs ausgeblendet (${n}) – klicken zum Einblenden` : `Fallback-Tiefs werden gezeigt – klicken zum Ausblenden (entfernt aktuell ${n})`;
-            }
+            const toggle = bar.querySelector('#tp-toggle-vortief');
+            if (toggle) toggle.checked = val !== false;
+            break;
+          }
+          case 'FILTER_NEG_MODE':
+          case 'FILTER_MIN_MODE':
+          case 'HIDE_UNCHECKED_MODE':
+          case 'VORTIEF_MODE':
+          case 'DEALER_MODE': {
+            const mode = val === 'dim' ? 'dim' : 'hide';
+            bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
+              btn.classList.toggle('tp-active', btn.dataset.modeValue === mode);
+            });
             break;
           }
           case 'FILTER_NEG_ENABLED': {

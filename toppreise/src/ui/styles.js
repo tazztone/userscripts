@@ -93,14 +93,9 @@ export const STYLES = `
   .tp-filtered, [class*="col-"]:has(> .tp-filtered) {
     display: none !important;
   }
-  /* order matters: equal specificity with hide rule, later wins — do not reorder */
-  body.tp-reveal-all .tp-filtered,
-  body.tp-reveal-all [class*="col-"]:has(> .tp-filtered) {
-    display: block !important;
+  .tp-dimmed {
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
-    outline: 2px dashed #f59e0b !important;
-    outline-offset: -2px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
@@ -302,8 +297,8 @@ export const STYLES = `
   }
   /* Geprüft vs ungeprüft: unchecked badges read striped-gray + dashed at a
      glance, verified badges stay solid heat. Cards stay at full opacity —
-     dimming applies only to the peek-preview of Gefilterten (see
-     body.tp-reveal-all above). Always on, no heat dependency. */
+     dimming applies only to .tp-dimmed (per-cause Dimmen-Modus).
+     Always on, no heat dependency. */
   .badge.badge-dif.tp-is-unverified,
   .badge-dif.tp-is-unverified {
     background: repeating-linear-gradient(135deg, #e2e8f0 0 6px, #cbd5e1 6px 12px) !important;
@@ -1040,6 +1035,36 @@ export const STYLES = `
     z-index: 120 !important;
   }
   #tp-bar-calc-popover.tp-show { display: flex !important; }
+  #tp-bar-filter-popover {
+    position: absolute !important;
+    left: 0 !important;
+    top: calc(100% + 8px) !important;
+    width: 340px !important;
+    max-height: min(70vh, 560px) !important;
+    overflow-y: auto !important;
+    display: none !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    background: var(--tp-panel) !important;
+    backdrop-filter: blur(14px) !important;
+    border: 1px solid var(--tp-line) !important;
+    border-radius: var(--tp-r-lg) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
+    padding: 12px !important;
+    z-index: 120 !important;
+  }
+  #tp-bar-filter-popover.tp-show { display: flex !important; }
+  .tp-filter-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .tp-filter-mode-btn.tp-active {
+    background: var(--tp-acc-soft) !important;
+    border-color: var(--tp-acc-line) !important;
+    color: var(--tp-acc-txt) !important;
+  }
   .tp-calc-head {
     font-weight: 700 !important;
     font-size: var(--tp-fs-lg) !important;

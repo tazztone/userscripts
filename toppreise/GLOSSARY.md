@@ -39,29 +39,29 @@ _Avoid_: Score, Tiefstpreis-Score (in UI-Texten)
 Der gemessene Abstand zum vorherigen Tief; Ersatzkennzahl auf dem Badge, wenn kein Blend existiert. Im Tiefstpreise-Modus legt er zusätzlich einen dezenten äußeren Glow um die Kartenkante (äußeres Glühen statt Innen-Wasche, bei flachen Abständen gar keiner), damit der Fallback nie als Blend durchgeht.
 
 **Filtern**:
-Entfernen von Karten aus der Liste (`display:none`). Nur Filtern entfernt — Ansicht dimmt oder färbt bloß.
+Entfernen von Karten aus der Liste (`display:none`) oder Abblenden (`tp-dimmed`) — je Ursache per Verbergen/Dimmen im Filter-Popover wählbar.
 _Avoid_: Dimmen (als Filter), Anzeige (für Entfernen)
 
 **Filtergrund**:
-Eine einzelne Entfernungsursache (Negativ, Min-Angebote, Händler, Ungeprüfte, Fallback-Tief).
+Eine einzelne Ursache (Negativ, Min-Angebote, Händler, Ungeprüfte, Fallback-Tief) — je mit Ein-Schalter und Verbergen/Dimmen-Modus.
 _Avoid_: Ursache (in UI-Texten)
 
 **Gefilterte**:
-Durch einen Filtergrund entfernte Karten.
-_Avoid_: Gedimmte (Dimmen entfernt nichts)
+Durch einen Filtergrund verborgene Karten (`tp-filtered`). Gedimmte Karten (`tp-dimmed`) bleiben sichtbar.
+_Avoid_: Gedimmte (für Entfernte)
 
  **Ansicht**:
- Rein visuelle Darstellung ohne Entfernen: Heatmap-Farbe, Streifen, Kanten-Glow, Badge-Texte sowie die Peek-Vorschau Gefilterter (abgeblendet per 👁️ Gefilterte einblenden). Ungeprüfte Karten dimmen nie — sie lesen sich an voller Deckkraft mit grau gestreiftem Badge.
- _Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung), Dimmen (für Ungeprüfte)
+ Rein visuelle Darstellung ohne Entfernen: Heatmap-Farbe, Streifen, Kanten-Glow, Badge-Texte sowie per-cause Dimmen (`tp-dimmed`, Deckkraft per Dimmer-Einstellung). Ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge, solange ihr Filtergrund nicht auf Dimmen steht.
+ _Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung)
 
 **Neue Tiefstpreise**:
 Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts.
 _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
-Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; Kanten-Glow in der Ansicht, entfernt nur wenn Fallback-Tiefs ausgeschlossen sind. Schalter AN = ausgeblendet.
+Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; Kanten-Glow in der Ansicht, entfernt oder gedimmt nur wenn Fallback-Tiefs ausgeschlossen sind (Modus je Ursache). Schalter AUS = Filtergrund aktiv.
 _Avoid_: Vortief (als Schalterlabel), dünne Historie
 
  **Nur geprüfte**:
-Filtergrund: entfernt ungeprüfte Karten wenn aktiv (Schalter AN = Ungeprüfte ausgeblendet) — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
+Filtergrund: verbirgt oder dimmt ungeprüfte Karten wenn aktiv (je Modus) — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
  _Avoid_: separater Modus, Sonderverhalten

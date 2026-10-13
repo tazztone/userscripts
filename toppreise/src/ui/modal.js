@@ -64,23 +64,8 @@ export function setupUI() {
       </section>
       <section id="tp-section-filter" class="tp-section-card tp-section-filter">
         <div class="tp-section-header">🧹 Filtern</div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label title="Markiert alle noch ungeprüften Angebote als Gefilterte (grau gestreifte Ribbons); Filtern entfernt sie.">Nur geprüfte</label>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-hide-unchecked-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label title="Produkte mit neuem Tiefstpreis, aber noch wenig Preishistorie (kein Durchschnittswert verfügbar). AN: Als Deals mit Kantenmarkierung anzeigen. AUS: Fallback-Tiefs entfernen.">Fallback-Tiefs einschließen</label>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-include-vortief-toggle">
-            <span class="tp-slider"></span>
-          </label>
+        <div class="tp-settings-group">
+          <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, Ungeprüfte, Fallback-Tiefs und Händler stehen im Filter-Popover der Filterleiste.</span>
         </div>
         <div class="tp-settings-group">
           <label>Preis-Toleranz (%)</label>
@@ -88,9 +73,6 @@ export function setupUI() {
             <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
             <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
           </div>
-        </div>
-        <div class="tp-settings-group">
-          <span class="tp-switch-desc tp-field-hint">Negativ-Terme und Min-Angebote stehen in der Filterleiste.</span>
         </div>
       </section>
       <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
@@ -310,8 +292,6 @@ export function setupUI() {
   const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
   const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
   const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
-  const hideUncheckedToggle = shadow.getElementById('tp-hide-unchecked-toggle');
-  const includeVortiefToggle = shadow.getElementById('tp-include-vortief-toggle');
   const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
   const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
   const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
@@ -669,8 +649,6 @@ export function setupUI() {
         updates.BESTPREISE_MIN_POINTS = clampMinPoints(bestpreiseMinPointsVal.value);
       }
     }
-    if (hideUncheckedToggle) updates.BESTPREISE_HIDE_UNCHECKED = hideUncheckedToggle.checked;
-    if (includeVortiefToggle) updates.BESTPREISE_INCLUDE_VORTIEF = includeVortiefToggle.checked;
     if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
     if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 

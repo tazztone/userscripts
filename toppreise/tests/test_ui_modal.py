@@ -64,12 +64,14 @@ def test_slash_key_focuses_negative_filter(page: Page):
     page.evaluate("() => document.body.focus()")
     page.keyboard.press('/')
 
+    assert 'tp-show' in (page.locator('#tp-bar-filter-popover').get_attribute('class') or '')
     is_focused = page.evaluate("() => document.activeElement?.id === 'tp-inline-negative-input'")
     assert is_focused
 
 
 
 def test_escape_blurs_negative_filter(page: Page):
+    page.evaluate("() => document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show')")
     input_el = page.locator('#tp-inline-negative-input')
     input_el.focus()
     assert page.evaluate("() => document.activeElement?.id === 'tp-inline-negative-input'")
@@ -460,19 +462,16 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
         const barMinVal = document.getElementById('tp-bar-min-val')?.textContent;
         const barThreshBtn = document.getElementById('tp-floating-threshold-btn')?.textContent;
         const modalThreshVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-real-deal-min-val')?.value;
-        const fallbackCountEl = document.getElementById('tp-bar-fallback-count');
-        const fallbackBtn = document.getElementById('tp-bar-fallback-btn');
+        const vortiefToggle = document.getElementById('tp-toggle-vortief');
+        const vortiefRowCount = document.querySelector('[data-row-count="vortief"]');
         return {
             minConfig: window.ToppreiseSuite.CONFIG.MIN_OFFERS,
             barMinVal,
             threshConfig: window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT,
             barThreshBtn,
             modalThreshVal,
-            fallbackLabel: document.querySelector('#tp-bar-fallback-btn .tp-btn-label')?.textContent,
-            fallbackCountText: fallbackCountEl?.textContent,
-            fallbackCountDisplay: fallbackCountEl ? getComputedStyle(fallbackCountEl).display : null,
-            fallbackTitle: fallbackBtn?.title,
-            fallbackActive: fallbackBtn?.classList.contains('tp-active')
+            vortiefChecked: vortiefToggle?.checked,
+            vortiefRowCountPresent: vortiefRowCount !== null
         };
     }""")
     assert res_sync['minConfig'] == 5
@@ -480,10 +479,9 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     assert res_sync['threshConfig'] == 25
     assert res_sync['barThreshBtn'] == '≥25% ▾'
     assert res_sync['modalThreshVal'] == '25'
-    assert res_sync['fallbackLabel'] == 'Fallback-Tiefs'
-    assert res_sync['fallbackCountDisplay'] == 'none'
-    assert 'ausgeblendet' in (res_sync['fallbackTitle'] or '')
-    assert res_sync['fallbackActive'] is False
+    assert res_sync['vortiefChecked'] is False
+    assert res_sync['vortiefRowCountPresent'] is True
+    assert page.locator('#tp-toggle-vortief').is_checked() is False
 
     # Close modal
     page.click('#tp-root >> #tp-btn-close')

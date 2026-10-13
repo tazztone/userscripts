@@ -300,7 +300,11 @@ export function dealerLoserFor(card, activeStores) {
 export function isCardFilteredOut(card, filters = null, opts = null) {
   if (!card) return true;
   const forScan = opts?.forScan === true;
-  const causeHit = f => f.isNeg || f.isLowOffers || f.isDealerLoser || (forScan ? false : f.isUnchecked) || f.isVortiefExcluded;
+  const causeHit = f => (f.isNeg && CONFIG.FILTER_NEG_MODE !== 'dim')
+    || (f.isLowOffers && CONFIG.FILTER_MIN_MODE !== 'dim')
+    || (f.isDealerLoser && CONFIG.DEALER_MODE !== 'dim')
+    || (forScan ? false : (f.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE !== 'dim'))
+    || (f.isVortiefExcluded && CONFIG.VORTIEF_MODE !== 'dim');
   const legacyChecks = () => {
     const tab = card.closest?.('.f_tab');
     if (tab && !tab.classList.contains('selected')) return true;

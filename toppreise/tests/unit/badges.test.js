@@ -42,7 +42,7 @@ describe('renderEmptyState signature skip', () => {
     };
   };
 
-  // Two cards, both hidden → sig '2:2:0:30:false'.
+  // Two cards, both hidden → sig '2:2:0:30'.
   const setup = () => ({
     cards: [{ parentElement: { insertBefore: () => {} } }, {}],
     counts: { bestpreiseDeals: 0, filteredCount: 2, uncheckedHidden: 0, uncheckedDeals: 0 }
@@ -58,12 +58,12 @@ describe('renderEmptyState signature skip', () => {
 
   it('skips rebuild when signature matches', () => {
     const { cards, counts } = setup();
-    const notice = { dataset: { tpEmptySig: '2:2:0:30:false' } };
+    const notice = { dataset: { tpEmptySig: '2:2:0:30' } };
     const created = [];
     fakeDoc(notice, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 0);
-    assert.equal(notice.dataset.tpEmptySig, '2:2:0:30:false');
+    assert.equal(notice.dataset.tpEmptySig, '2:2:0:30');
   });
 
   it('builds notice and stamps signature on first render', () => {
@@ -72,7 +72,7 @@ describe('renderEmptyState signature skip', () => {
     fakeDoc(null, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 1);
-    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30:false');
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30');
   });
 
   it('builds notice whenever all cards are removed (no display-mode gate)', () => {
@@ -81,6 +81,6 @@ describe('renderEmptyState signature skip', () => {
     fakeDoc(null, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 1);
-    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30:false');
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30');
   });
 });

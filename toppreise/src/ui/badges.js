@@ -219,8 +219,20 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     filters.isDealerLoser = false;
   }
-  filters.isFiltered = filters.isNeg || filters.isLowOffers || filters.isDealerLoser || filters.isVortiefExcluded || filters.isUnchecked;
-  card.classList.toggle('tp-filtered', filters.isFiltered);
+  const hide = (filters.isNeg && CONFIG.FILTER_NEG_MODE !== 'dim')
+    || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE !== 'dim')
+    || (filters.isDealerLoser && CONFIG.DEALER_MODE !== 'dim')
+    || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE !== 'dim')
+    || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE !== 'dim');
+  const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
+    || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
+    || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
+    || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
+    || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
+  filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
+  filters.isDimmed = dim;
+  card.classList.toggle('tp-filtered', hide);
+  card.classList.toggle('tp-dimmed', dim);
 
   // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
   let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
@@ -882,14 +894,12 @@ export function renderEmptyState(cards, counts) {
     return;
   }
 
-  const bodyCls = document.body.classList;
-  const revealAll = bodyCls.contains('tp-reveal-all');
-  const totalHidden = revealAll ? 0 : (counts.filteredCount || 0);
+  const totalHidden = counts.filteredCount || 0;
 
   // Filtern removes cards: empty state whenever all cards are removed.
   if (cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}:${revealAll}`;
+    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -906,7 +916,6 @@ export function renderEmptyState(cards, counts) {
       <div class="tp-empty-state-actions">
         ${counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
         ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `✓ Nur geprüfte aktiv (${counts.uncheckedHidden || 0} ausgeblendet) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${counts.uncheckedHidden || 0}) – entfernt sie aus der Liste`}">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Nur geprüfte'}</button>` : ''}
-        <button class="tp-empty-state-btn" id="tp-empty-reveal-btn">👁️ Gefilterte einblenden</button>
         <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
       </div>
     `;
@@ -923,16 +932,11 @@ export function renderEmptyState(cards, counts) {
       showToast(next ? '✓ Nur geprüfte filtern aktiv (Filtergrund, entfernt)' : '✓ Nur geprüfte aus — ungeprüfte werden wieder angezeigt');
     });
 
-    emptyNotice.querySelector('#tp-empty-reveal-btn')?.addEventListener('click', () => {
-      document.body.classList.toggle('tp-reveal-all');
-      triggerProcessListings();
-    });
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
       updateConfig('FILTER_NEG_ENABLED', false);
       updateConfig('FILTER_MIN_ENABLED', false);
       updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
       updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
-      document.body.classList.add('tp-reveal-all');
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

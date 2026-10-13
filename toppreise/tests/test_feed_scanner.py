@@ -284,13 +284,15 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert page.locator('#card-negative').is_visible()
     assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") != 'none'
 
-    # Peek covers real removals: a negative term removes the card, reveal-all previews it.
+    # Peek covers real removals: a negative term hides the card, per-cause Dimmen previews it.
     page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon')")
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     assert not page.locator('#card-negative').is_visible()
-    page.click('#tp-bar-reveal-all')
+    page.click('#tp-bar-filter-btn')
+    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="dim"]')
+    page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
     assert page.locator('#card-negative').is_visible()
-    assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
+    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
     page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '')")
 
 
@@ -420,7 +422,8 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     # card-competing-reference has Aufschlag +26%, so it is not counted
     assert '3 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
-    # 1. Filter out card-negative (-35%) using negative keyword
+    # 1. Filter out card-negative (-35%) using negative keyword (input lives in the popover)
+    page.evaluate("() => document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show')")
     page.fill('#tp-inline-negative-input', 'Silikon')
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
 
@@ -472,14 +475,16 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
     assert cta.is_visible()
 
-    # 5. Reveal-all preview flags the ignored products, but the cause-based
-    # scanner path still skips them -> CTA stays at 0.
-    page.click('#tp-bar-reveal-all')
-    page.wait_for_selector('body.tp-reveal-all')
+    # 5. Per-cause Dimmen previews the ignored products as dimmed scan targets.
+    # The two previously skipped (unchecked) cards count again -> CTA back to 2.
+    page.click('#tp-bar-filter-btn')
+    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="dim"]')
+    page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
     assert page.locator('#card-negative').is_visible()
     assert page.locator('#card-iphone').is_visible()
+    assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
     assert cta.is_visible()
-    assert '0 Tiefstpreise prüfen' in (cta_main.text_content() or '')
+    assert '2 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
 
 
@@ -1171,10 +1176,9 @@ def test_check_deals_active_in_bestpreise_mode(page: Page):
 
 
 def test_unscanned_cards_no_stuck_loading_badge(page: Page):
-    # In Bestpreise mode, reveal filtered cards
+    # In Bestpreise mode with plain visible cards (no reveal-all class)
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        document.body.classList.add('tp-reveal-all');
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1612,15 +1616,14 @@ def test_dealer_button_retry_on_product_page_error(page: Page):
     assert page.locator('#card-cheapest a.tp-dealer-name').count() == 0
 
 
-def test_reveal_all_button_shows_active_state(page: Page):
-    """Ein-/Ausblenden-Toggle braucht sichtbaren Zustand (tp-active), nicht nur Dimmen."""
-    btn = page.locator('#tp-bar-reveal-all')
-    page.click('#tp-bar-reveal-all')
-    page.wait_for_timeout(200)
-    assert 'tp-active' in (btn.get_attribute('class') or '')
-    page.click('#tp-bar-reveal-all')
-    page.wait_for_timeout(200)
-    assert 'tp-active' not in (btn.get_attribute('class') or '')
+def test_filter_button_shows_hidden_count(page: Page):
+    """Filter-Button zeigt die Zahl verborgener Karten in #tp-filter-count."""
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon')")
+    page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
+    count = page.locator('#tp-filter-count')
+    assert int((count.text_content() or '').strip()) >= 1
+    assert count.is_visible()
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '')")
 
 
 def test_bestpreise_button_readable_on_light_background(page: Page):

@@ -4,6 +4,15 @@ from playwright.sync_api import Page, expect
 from conftest import open_settings, seed_verified_deal, mock_pricechart, drop_store_filter
 
 
+def _open_filter_popover(page: Page):
+    # Filter controls live in the popover; opening toggles, so only click when closed.
+    # (A one-shot alarm auto-submit timer (~300ms after load) can close it via a
+    # synthetic document click — re-ensure instead of assuming it stayed open.)
+    if 'tp-show' not in (page.locator('#tp-bar-filter-popover').get_attribute('class') or ''):
+        page.click('#tp-bar-filter-btn')
+        page.wait_for_selector('#tp-bar-filter-popover.tp-show')
+
+
 
 def test_best_price_highlighting_and_dimming(page: Page):
     # Card 1 is cheapest store price -> highlighted
@@ -17,7 +26,7 @@ def test_best_price_highlighting_and_dimming(page: Page):
 
 
 def test_negative_keywords_filtering(page: Page):
-    # Set negative keyword via inline filter bar input
+    _open_filter_popover(page)
     page.fill('#tp-inline-negative-input', 'Case, Hülle')
     page.dispatch_event('#tp-inline-negative-input', 'input')
 
@@ -43,6 +52,7 @@ def test_suite_filter_bar_styles(page: Page):
     page.wait_for_selector('#tp-suite-filter-bar')
     assert filter_bar.is_visible()
 
+    _open_filter_popover(page)
     # Verify inline negative input is present and styled
     neg_input = page.locator('#tp-inline-negative-input')
     assert neg_input.is_visible()
@@ -65,6 +75,8 @@ def test_sort_by_offers(page: Page):
 
 
 def test_filter_toggles_preserve_settings(page: Page):
+    # Neg/min controls live in the filter popover — open it first
+    _open_filter_popover(page)
     # Add negative term and min offers filter
     page.fill('#tp-inline-negative-input', 'Case')
     page.dispatch_event('#tp-inline-negative-input', 'input')
@@ -78,12 +90,13 @@ def test_filter_toggles_preserve_settings(page: Page):
     assert page.locator('#tp-toggle-min').is_checked()
     assert page.locator('#tp-suite-filter-bar .tp-mini-state').count() == 0
     # Co-located next to respective setting, not far-right cluster
-    assert page.evaluate("() => document.getElementById('tp-toggle-neg').closest('.tp-input-wrapper') !== null")
+    assert page.evaluate("() => document.getElementById('tp-toggle-neg').closest('[data-filter-row=\"neg\"]') !== null")
     assert page.evaluate("() => document.getElementById('tp-toggle-min').closest('#tp-bar-min-offers-group') !== null")
     # No separate strictness toggle anymore: strictness lives in the Tiefstpreise mode.
     assert page.evaluate("() => document.getElementById('tp-toggle-bestpreis') === null")
     assert page.locator('#tp-suite-filter-bar .tp-filter-toggles-group').count() == 0
 
+    _open_filter_popover(page)
     page.locator('#tp-toggle-neg + .tp-mini-slider').click()
     page.locator('#tp-toggle-min + .tp-mini-slider').click()
     page.wait_for_function("() => document.getElementById('tp-toggle-neg').checked === false")
@@ -104,6 +117,7 @@ def test_filter_toggles_preserve_settings(page: Page):
     assert config['MIN_OFFERS'] == 10
 
     # Click filter toggles again to re-enable
+    _open_filter_popover(page)
     page.locator('#tp-toggle-neg + .tp-mini-slider').click()
     page.locator('#tp-toggle-min + .tp-mini-slider').click()
     page.wait_for_function("() => document.getElementById('tp-toggle-neg').checked === true")
@@ -127,7 +141,8 @@ def test_filter_bar_mounting_safety_and_interaction(page: Page):
     }""")
     assert is_safe_placement is True
 
-    # Test negative input interaction
+    # Neg input lives in the filter popover — open it first
+    _open_filter_popover(page)
     neg_input = page.locator('#tp-inline-negative-input')
     neg_input.fill('Adapter')
     page.wait_for_timeout(250)
@@ -200,9 +215,9 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
 
 def test_suite_filter_bar_grouping(page: Page):
-    assert page.evaluate("() => document.getElementById('tp-bar-reveal-all').closest('.tp-group').classList.contains('tp-group-view')")
+    assert page.evaluate("() => document.getElementById('tp-bar-filter-btn').closest('.tp-group').classList.contains('tp-group-filter')")
     assert page.evaluate("() => document.getElementById('tp-bar-heat-btn').closest('.tp-group').classList.contains('tp-group-view')")
-    assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filter – blendet aus'
+    assert page.evaluate("() => document.querySelector('.tp-group-filter').getAttribute('aria-label')") == 'Filter'
     assert page.evaluate("() => document.querySelector('.tp-group-view').getAttribute('aria-label')") == 'Ansicht – entfernt nichts'
     assert page.evaluate("() => document.querySelector('.tp-group-deals').getAttribute('aria-label')") == 'Sortieren'
     assert page.evaluate("() => ['#tp-bar-weight-wrapper', '#tp-bar-horizon-wrapper', '#tp-bar-minpoints-wrapper'].every(s => document.querySelector(s).closest('#tp-bar-calc-popover') !== null)")
@@ -258,14 +273,10 @@ def test_empty_state_notice_and_actions(page: Page):
     assert notice.is_visible()
     assert f'Alle {page.locator("#product-list .Plugin_Product").count()} Angebote' in (notice.text_content() or '')
 
-    # Clicking "👁️ Gefilterte einblenden" reveals previews
-    page.click('#tp-empty-reveal-btn')
-    assert 'tp-reveal-all' in (page.locator('body').get_attribute('class') or '')
-    assert not page.locator('#tp-empty-state-notice').is_visible()
-
-    # Toggle reveal off again -> notice comes back
-    page.click('#tp-bar-reveal-all')
-    page.wait_for_selector('#tp-empty-state-notice')
+    # Hidden-only empty state (no reveal button): notice stays until filters are toggled off
+    assert page.locator('#tp-empty-reveal-btn').count() == 0
+    assert 'tp-reveal-all' not in (page.locator('body').get_attribute('class') or '')
+    assert notice.is_visible()
     # Clicking "⚡ Filter ausschalten" disables all suite filter toggles safely and restores cards
     page.click('#tp-empty-toggle-filters-btn')
     assert not page.locator('#tp-empty-state-notice').is_visible()
@@ -334,15 +345,17 @@ def test_deal_features_enabled_on_category_page(page: Page):
     filter_bar = page.locator('#tp-suite-filter-bar')
     assert filter_bar.is_visible()
 
-    # Listing features are visible
-    assert page.locator('#tp-inline-negative-input').is_visible()
-    assert page.locator('#tp-bar-reveal-all').is_visible()
-    assert page.locator('#tp-bar-reveal-all .tp-btn-label').inner_text() == '👁️ Gefilterte einblenden'
-    assert page.locator('#tp-bar-reveal-count').inner_text() == '2'
+    # Filter controls live in the unified popover — open it first
+    _open_filter_popover(page)
+    assert page.locator('#tp-bar-filter-btn').is_visible()
+    assert page.locator('#tp-bar-filter-btn .tp-btn-label').inner_text() == '🧹 Filter'
+    assert page.locator('#tp-filter-count').inner_text() == '2'
     # Zero-count badges are hidden (no empty pills); non-zero badge shows
     assert page.locator('#tp-bar-bestpreise-count').evaluate('el => getComputedStyle(el).display') == 'none'
-    assert page.locator('#tp-bar-reveal-count').evaluate('el => getComputedStyle(el).display') != 'none'
-    assert 'Einblenden, entfernt nichts: Gefilterte (2) — Neg:0 Min:0 Händler:2 Fallback:0 Ungeprüft:0' in (page.locator('#tp-bar-reveal-all').get_attribute('title') or '')
+    assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') != 'none'
+    assert 'Filter – Verbergen (2)' in (page.locator('#tp-bar-filter-btn').get_attribute('title') or '')
+    _open_filter_popover(page)
+    assert page.locator('#tp-inline-negative-input').is_visible()
     assert page.locator('#tp-toggle-neg').is_checked()
     assert page.locator('#tp-toggle-neg + .tp-mini-slider').is_visible()
     assert page.locator('#tp-suite-filter-bar .tp-mini-state').count() == 0
@@ -363,17 +376,20 @@ def test_deal_features_enabled_on_category_page(page: Page):
     assert not page.locator('#tp-floating-threshold-btn').is_visible()
 
 def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
-    # Peek is Ansicht (removes nothing), unchecked is Filtergrund (removes cards)
-    assert page.locator('#tp-suite-filter-bar .tp-group-view #tp-bar-reveal-all').count() == 1
-    assert page.locator('#tp-bar-reveal-all .tp-btn-label').inner_text() == '👁️ Gefilterte einblenden'
-    assert page.locator('#tp-bar-unchecked-btn .tp-btn-label').inner_text() == 'Nur geprüfte'
-    assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
-    page.click('#tp-bar-unchecked-btn')
-    assert page.locator('#tp-bar-unchecked-btn .tp-btn-label').inner_text() == 'Nur geprüfte'
-    assert 'tp-active' in (page.locator('#tp-bar-unchecked-btn').get_attribute('class') or '')
-    page.click('#tp-bar-unchecked-btn')
-    assert '✓' not in (page.locator('#tp-bar-unchecked-btn').text_content() or '')
-    assert page.locator('#tp-bar-unchecked-btn .tp-btn-label').inner_text() == 'Nur geprüfte'
+    # Unified filter popover: the single filter button owns per-cause rows;
+    # the unchecked row switch toggles the Nur-geprüfte filter state.
+    _open_filter_popover(page)
+    assert page.locator('#tp-suite-filter-bar #tp-bar-filter-btn').count() == 1
+    unchecked_row = page.locator('[data-filter-row="unchecked"]')
+    assert 'Nur geprüfte' in (unchecked_row.text_content() or '')
+    assert page.locator('#tp-toggle-unchecked').is_checked() is False
+    _open_filter_popover(page)
+    page.locator('#tp-toggle-unchecked + .tp-mini-slider').click()
+    assert page.locator('#tp-toggle-unchecked').is_checked() is True
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
+    page.locator('#tp-toggle-unchecked + .tp-mini-slider').click()
+    assert page.locator('#tp-toggle-unchecked').is_checked() is False
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
 def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
  # Loupe-click regression: enabling Nur geprüfte on a checkless page hides
@@ -392,25 +408,49 @@ def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
 
 
 def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
-    pill = page.locator('#tp-bar-fallback-btn')
-    assert pill.is_visible()
-    assert 'tp-active' in (pill.get_attribute('class') or '')
-    assert pill.get_attribute('aria-pressed') == 'true'
-    assert page.locator('#tp-bar-fallback-btn .tp-btn-label').inner_text() == 'Fallback-Tiefs'
-    page.click('#tp-bar-fallback-btn')
-    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
-    assert 'tp-active' not in (pill.get_attribute('class') or '')
-    assert 'tp-tool-dim' in (pill.get_attribute('class') or '')
-    assert 'ausgeblendet' in (pill.get_attribute('title') or '')
-    assert pill.get_attribute('aria-pressed') == 'false'
-    excluded_count = page.locator('#tp-bar-fallback-count').inner_text()
+    _open_filter_popover(page)
+    vortief_toggle = page.locator('#tp-toggle-vortief')
+    assert vortief_toggle.is_checked() is True
+    assert 'Fallback-Tiefs anzeigen' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
+    page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
+    assert vortief_toggle.is_checked() is False
+    _open_filter_popover(page)
+    excluded_count = page.locator('[data-row-count="vortief"]').inner_text()
     if excluded_count:
-        assert page.locator('#tp-bar-fallback-count').evaluate('el => getComputedStyle(el).display') != 'none'
-    page.click('#tp-bar-fallback-btn')
+        assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
+    page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
+    assert vortief_toggle.is_checked() is True
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
-    assert 'tp-active' in (pill.get_attribute('class') or '')
-    assert pill.get_attribute('aria-pressed') == 'true'
-    assert page.locator('#tp-bar-fallback-count').evaluate('el => getComputedStyle(el).display') == 'none'
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
+
+
+def test_filter_popover_dim_mode(page: Page):
+    # Neg term matching 1 card hides it; per-cause Dimmen keeps it visible but dimmed
+    _open_filter_popover(page)
+    drop_store_filter(page)
+    page.fill('#tp-inline-negative-input', 'Silikon')
+    page.dispatch_event('#tp-inline-negative-input', 'input')
+    page.wait_for_selector('#card-negative.tp-filtered', state='attached')
+    assert 'tp-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
+    assert page.locator('#tp-filter-count').inner_text() == '1'
+    assert page.locator('#tp-filter-count').is_visible()
+    # Switch Negativ to Dimmen via the popover segmented pair
+    _open_filter_popover(page)
+    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="dim"]')
+    page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
+    assert 'tp-dimmed' in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert page.locator('#card-negative').is_visible()
+    assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') == 'none'
+    assert page.locator('#tp-filter-dim-count').inner_text() == '+1 gedimmt'
+    assert page.locator('#tp-filter-dim-count').is_visible()
+    # Back to Verbergen: hidden again, badge restored
+    _open_filter_popover(page)
+    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="hide"]')
+    page.wait_for_selector('#card-negative.tp-filtered', state='attached')
+    assert 'tp-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
+    assert page.locator('#tp-filter-count').inner_text() == '1'
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
 
 
 
@@ -464,13 +504,12 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     page.wait_for_selector('#card-cheapest.tp-is-verified')
     assert 'tp-is-unverified' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-is-unverified' in (page.locator('#card-negative .badge-dif').get_attribute('class') or '')
-    # Toggle faces: toolbar button + settings toggle (persisted pref)
-    open_settings(page)
-    assert page.locator('#tp-root >> #tp-hide-unchecked-toggle').is_checked() is False
-    page.click('#tp-root >> #tp-btn-close')
+    # The popover row switch is the toolbar face of this filter (no modal mirror)
+    assert page.locator('#tp-hide-unchecked-toggle').count() == 0
+    _open_filter_popover(page)
 
-    # Toggle ON via the toolbar button hides unchecked cards, verified card stays visible
-    page.click('#tp-bar-unchecked-btn')
+    # Toggle ON via the popover row switch hides unchecked cards, verified card stays visible
+    page.locator('#tp-toggle-unchecked + .tp-mini-slider').click()
     page.wait_for_selector('#card-negative.tp-unchecked-hidden', state='attached')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
     assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") == 'none'
@@ -481,7 +520,7 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     assert 'prüfen' in (page.locator('#tp-floating-check-main').text_content() or '').lower()
 
     # Toggle OFF the same way brings unchecked cards back
-    page.click('#tp-bar-unchecked-btn')
+    page.locator('#tp-toggle-unchecked + .tp-mini-slider').click()
     page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-unchecked-hidden')")
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
@@ -642,6 +681,8 @@ def test_grid_card_title_and_best_price_badge_clearance(page: Page):
 
 
 def test_filter_bar_stepper_buttons(page: Page):
+    # Stepper lives in the filter popover — open it first
+    _open_filter_popover(page)
     # Reset min offers
     page.evaluate("""() => {
         window.ToppreiseSuite.CONFIG.MIN_OFFERS = 0;
@@ -669,6 +710,8 @@ def test_filter_bar_stepper_buttons(page: Page):
 
 
 def test_inline_negative_input_clear_button(page: Page):
+    # Neg input lives in the filter popover — open it first
+    _open_filter_popover(page)
     inp = page.locator('#tp-inline-negative-input')
     clear_btn = page.locator('#tp-clear-neg-btn')
 
@@ -1296,7 +1339,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     Verifies that when cards are nested inside <div class="col-*"> wrappers:
     1. getCardSortableUnit() targets the column wrapper.
     2. Removing a card with .tp-filtered (Filtern removes) collapses the parent .col-* container via CSS.
-    3. Revealing with .tp-reveal-all displays both card and column wrapper.
+    3. Per-cause Dimmen (.tp-dimmed) keeps both card and column wrapper displayed.
     """
     page.evaluate("""() => {
         const list = document.getElementById('product-list');
@@ -1354,16 +1397,14 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     assert page.locator('#wrap-card-2').is_hidden()
     assert page.evaluate("() => window.getComputedStyle(document.getElementById('wrapper-col-2')).display === 'none'")
 
-    # Toggle reveal filtered -> wrapper-col-2 and wrap-card-2 are both displayed with dashed border
-    page.evaluate("""() => {
-        document.body.classList.add('tp-reveal-all');
-        window.ToppreiseSuite.processListings();
-    }""")
+    # Per-cause Dimmen keeps the card in layout: wrapper-col-2 and wrap-card-2 stay displayed, dimmed
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'dim')")
 
     assert page.evaluate("() => window.getComputedStyle(document.getElementById('wrapper-col-2')).display !== 'none'")
     assert page.locator('#wrap-card-2').is_visible()
-    # Cleanup leaked negative terms for later tests
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '')")
+    assert 'tp-dimmed' in (page.locator('#wrap-card-2').get_attribute('class') or '')
+    # Cleanup leaked negative terms and dim mode for later tests
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
 
 
 
