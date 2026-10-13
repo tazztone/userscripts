@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.210
+// @version      2.18.212
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2547,8 +2547,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   const DEFAULTS = Object.freeze({
-    FILTER_NEG_ENABLED: true,
-    FILTER_MIN_ENABLED: true,
+    FILTER_NEG_ENABLED: false,
+    FILTER_MIN_ENABLED: false,
     FILTER_NEG_MODE: 'dim',
     FILTER_MIN_MODE: 'dim',
     HIDE_UNCHECKED_MODE: 'dim',
@@ -2967,6 +2967,10 @@ const SHADOW_MODAL_STYLES = `
             case 'BESTPREISE_INCLUDE_VORTIEF': {
               const toggle = bar.querySelector('#tp-toggle-vortief');
               if (toggle) toggle.checked = val === false;
+              break;
+            }
+            case 'OUTLIER_REJECTION_ENABLED': {
+              syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), val !== false, 'Ausreißer-Filter');
               break;
             }
             case 'FILTER_NEG_MODE':
@@ -6115,6 +6119,33 @@ const SHADOW_MODAL_STYLES = `
     return wrapper;
   }
 
+  function bindOutlierControls(wrapper) {
+    const toggle = wrapper.querySelector('#tp-bar-outlier-toggle');
+    if (!toggle) return;
+    syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
+    toggle.onchange = () => {
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      updateConfig('OUTLIER_REJECTION_ENABLED', toggle.checked);
+      syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
+      showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
+    };
+  }
+
+  function buildOutlierWrapper() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+    wrapper.id = 'tp-bar-outlier-wrapper';
+    wrapper.title = 'Kurze Preissprünge (>60% vom Median, <48h) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
+    wrapper.innerHTML = `
+      <label class="tp-mini-switch" title="Ausreißer-Filter">
+        <input type="checkbox" id="tp-bar-outlier-toggle" ${CONFIG.OUTLIER_REJECTION_ENABLED !== false ? 'checked' : ''}>
+        <span class="tp-mini-slider"></span>
+      </label>
+      <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreißer filtern</span>`;
+    bindOutlierControls(wrapper);
+    return wrapper;
+  }
+
 
   function placeBar(bar, placement) {
     if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
@@ -6227,9 +6258,11 @@ const SHADOW_MODAL_STYLES = `
         const weight = buildWeightWrapper();
         const horizon = buildHorizonWrapper();
         const minpoints = buildMinPointsWrapper();
+        const outlier = buildOutlierWrapper();
         if (popover && resetBtn) popover.insertBefore(weight, resetBtn);
         if (popover && resetBtn) popover.insertBefore(horizon, resetBtn);
         if (popover && resetBtn) popover.insertBefore(minpoints, resetBtn);
+        if (popover && resetBtn) popover.insertBefore(outlier, resetBtn);
       }
 
       placeBar(bar, placement);
@@ -6342,7 +6375,8 @@ const SHADOW_MODAL_STYLES = `
         const resetBtn = bar.querySelector('#tp-bar-calc-reset');
         if (resetBtn) {
           resetBtn.onclick = () => {
-            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5 });
+            recomputeCachedMedians(365);
+            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true });
             showToast('Berechnungsparameter zurückgesetzt');
           };
         }
@@ -6457,6 +6491,7 @@ const SHADOW_MODAL_STYLES = `
 
     syncMiniToggle(bar.querySelector('#tp-toggle-neg'), CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
     syncMiniToggle(bar.querySelector('#tp-toggle-min'), CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
+    syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
     // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
     const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;

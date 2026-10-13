@@ -47,8 +47,8 @@ export function horizonText(days, style = 'short') {
 }
 
 export const DEFAULTS = Object.freeze({
-  FILTER_NEG_ENABLED: true,
-  FILTER_MIN_ENABLED: true,
+  FILTER_NEG_ENABLED: false,
+  FILTER_MIN_ENABLED: false,
   FILTER_NEG_MODE: 'dim',
   FILTER_MIN_MODE: 'dim',
   HIDE_UNCHECKED_MODE: 'dim',
@@ -467,6 +467,10 @@ export function syncUiControl(key, val) {
           case 'BESTPREISE_INCLUDE_VORTIEF': {
             const toggle = bar.querySelector('#tp-toggle-vortief');
             if (toggle) toggle.checked = val === false;
+            break;
+          }
+          case 'OUTLIER_REJECTION_ENABLED': {
+            syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), val !== false, 'Ausreißer-Filter');
             break;
           }
           case 'FILTER_NEG_MODE':

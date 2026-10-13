@@ -179,6 +179,33 @@ function buildHorizonWrapper() {
   return wrapper;
 }
 
+function bindOutlierControls(wrapper) {
+  const toggle = wrapper.querySelector('#tp-bar-outlier-toggle');
+  if (!toggle) return;
+  syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
+  toggle.onchange = () => {
+    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    updateConfig('OUTLIER_REJECTION_ENABLED', toggle.checked);
+    syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
+    showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
+  };
+}
+
+function buildOutlierWrapper() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
+  wrapper.id = 'tp-bar-outlier-wrapper';
+  wrapper.title = 'Kurze Preissprünge (>60% vom Median, <48h) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
+  wrapper.innerHTML = `
+    <label class="tp-mini-switch" title="Ausreißer-Filter">
+      <input type="checkbox" id="tp-bar-outlier-toggle" ${CONFIG.OUTLIER_REJECTION_ENABLED !== false ? 'checked' : ''}>
+      <span class="tp-mini-slider"></span>
+    </label>
+    <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreißer filtern</span>`;
+  bindOutlierControls(wrapper);
+  return wrapper;
+}
+
 
 function placeBar(bar, placement) {
   if (placement.reference && placement.reference.parentElement === placement.container && placement.reference !== bar) {
@@ -291,9 +318,11 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const weight = buildWeightWrapper();
       const horizon = buildHorizonWrapper();
       const minpoints = buildMinPointsWrapper();
+      const outlier = buildOutlierWrapper();
       if (popover && resetBtn) popover.insertBefore(weight, resetBtn);
       if (popover && resetBtn) popover.insertBefore(horizon, resetBtn);
       if (popover && resetBtn) popover.insertBefore(minpoints, resetBtn);
+      if (popover && resetBtn) popover.insertBefore(outlier, resetBtn);
     }
 
     placeBar(bar, placement);
@@ -406,7 +435,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const resetBtn = bar.querySelector('#tp-bar-calc-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
-          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5 });
+          recomputeCachedMedians(365);
+          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true });
           showToast('Berechnungsparameter zurückgesetzt');
         };
       }
@@ -521,6 +551,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
 
   syncMiniToggle(bar.querySelector('#tp-toggle-neg'), CONFIG.FILTER_NEG_ENABLED, 'Negativ-Filter (Text)');
   syncMiniToggle(bar.querySelector('#tp-toggle-min'), CONFIG.FILTER_MIN_ENABLED, 'Min-Angebote-Filter');
+  syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
 
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
