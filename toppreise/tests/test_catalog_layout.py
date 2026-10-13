@@ -2461,6 +2461,14 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     page.select_option('#tp-preview-preset-select', 'synthetic')
     page.click('#tp-bar-outlier-toggle + .tp-mini-slider')
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('kein Badge')")
+    assert 'Rohhistorie' in page.locator('#tp-preview-legend').inner_text()
+    page.evaluate("""() => {
+        const t = document.querySelector('#tp-bar-outlier-toggle');
+        t.checked = true;
+        t.dispatchEvent(new Event('input', {bubbles: true}));
+        t.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('Glitches gefiltert')")
     opaque = page.evaluate("""() => {
         const cs = getComputedStyle(document.getElementById('tp-bar-calc-popover'));
         return { bg: cs.backgroundColor, borderTop: cs.borderTopWidth };
@@ -2508,6 +2516,19 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
+    assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg text[fill=\"#f43f5e\"]').length") == 0
+    page.evaluate("() => document.getElementById('tp-bar-calc-reset').click()")
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-outlier-band-range');
+        r.value = '20';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('(48 h, ±20 %)')")
+    assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-band').length") == 1
+    assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-kept').length") == 8
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg text[fill=\"#f43f5e\"]').length") == 0
 
 

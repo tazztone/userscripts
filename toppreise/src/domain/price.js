@@ -154,7 +154,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   if (!(band > 0 && band < 1)) band = 0.60;
   if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
   if (!points || points.length < 3) {
-    return { cleanPoints: points || [], filteredOutliers: [] };
+    return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0 };
   }
 
   const sorted = [...points].sort((a, b) => a[0] - b[0]);
@@ -162,7 +162,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   const rawMedian = prices[Math.floor(prices.length / 2)];
 
   if (rawMedian <= 0) {
-    return { cleanPoints: sorted, filteredOutliers: [] };
+    return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0 };
   }
 
   const cleanPoints = [];
@@ -204,7 +204,8 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
 
   return {
     cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
-    filteredOutliers
+    filteredOutliers,
+    rawMedian
   };
 }
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.223
+// @version      2.18.224
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1166,6 +1166,8 @@ const STYLES = `
   #tp-preview-key .tp-pv-k-med { color: #64748b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-rec { color: #f59e0b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-kept { color: #a855f7 !important; font-weight: 700 !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
@@ -1850,7 +1852,7 @@ const SHADOW_MODAL_STYLES = `
     if (!(band > 0 && band < 1)) band = 0.60;
     if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
     if (!points || points.length < 3) {
-      return { cleanPoints: points || [], filteredOutliers: [] };
+      return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0 };
     }
 
     const sorted = [...points].sort((a, b) => a[0] - b[0]);
@@ -1858,7 +1860,7 @@ const SHADOW_MODAL_STYLES = `
     const rawMedian = prices[Math.floor(prices.length / 2)];
 
     if (rawMedian <= 0) {
-      return { cleanPoints: sorted, filteredOutliers: [] };
+      return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0 };
     }
 
     const cleanPoints = [];
@@ -1900,7 +1902,8 @@ const SHADOW_MODAL_STYLES = `
 
     return {
       cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
-      filteredOutliers
+      filteredOutliers,
+      rawMedian
     };
   }
 
@@ -6152,7 +6155,7 @@ const SHADOW_MODAL_STYLES = `
     const recordLow = live.previousLow ?? 0;
     const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
 
-    return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, recordLow, cutoffTs };
+    return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
   }
 
   function cropPreviewWindow(clean, dropped, cutoffTs) {
@@ -6188,12 +6191,14 @@ const SHADOW_MODAL_STYLES = `
     const pt = (p, i) => `${f1(x(i))},${f1(y(p[1]))}`;
     const pointsAttr = pts.map(pt).join(' ');
     const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
-    let bandRect = null;
-    if (o.band > 0 && o.median > 0) {
+    const ref = o.refMedian > 0 ? o.refMedian : o.median;
+    let bandEdges = { top: null, bot: null };
+    if (o.band > 0 && ref > 0) {
       const top = m.top, bot = m.top + innerH;
-      const y1 = Math.max(top, Math.min(bot, y(o.median * (1 + o.band))));
-      const y2 = Math.max(top, Math.min(bot, y(o.median * (1 - o.band))));
-      bandRect = y2 > y1 ? { x: m.left, y: y1, width: innerW, height: y2 - y1 } : null;
+      const e1 = y(ref * (1 + o.band));
+      const e2 = y(ref * (1 - o.band));
+      if (e1 > top && e1 < bot) bandEdges.top = e1;
+      if (e2 > top && e2 < bot) bandEdges.bot = e2;
     }
     const medianY = o.median > 0 ? y(o.median) : null;
     const t0 = n ? pts[0][0] : 0;
@@ -6202,12 +6207,18 @@ const SHADOW_MODAL_STYLES = `
       const frac = t1 > t0 ? Math.max(0, Math.min(1, (g.timestamp - t0) / (t1 - t0))) : 0;
       return { x: m.left + frac * innerW, y: y(g.price) };
     });
+    const keptXY = (o.band > 0 && ref > 0)
+      ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => {
+          const frac = t1 > t0 ? Math.max(0, Math.min(1, (p[0] - t0) / (t1 - t0))) : 0;
+          return { x: m.left + frac * innerW, y: y(p[1]) };
+        })
+      : [];
     const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
       ? { x: m.left + innerW, y: y(o.cardPrice) }
       : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) ticks.splice(1, 0, { y: y(o.median), label: fmtPreviewMedian(o.median) });
-    return { pointsAttr, bandRect, medianY, glitchXY, anchor, ticks, recordY };
+    return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY };
   }
 
   let activePresetId = 's26';
@@ -6217,7 +6228,7 @@ const SHADOW_MODAL_STYLES = `
     box.id = 'tp-calc-preview';
     const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
     box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
-      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-g">×</span> Glitch</span></div>`
+      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">···</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span><span><span class="tp-pv-k-kept">○</span> Regime</span></div>`
       + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
       + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
     const sel = box.querySelector('#tp-preview-preset-select');
@@ -6256,13 +6267,13 @@ const SHADOW_MODAL_STYLES = `
     const hours = Math.min(168, Math.max(12, num('tp-bar-outlier-hours-range', 48)));
     const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice: preset.cardPrice, now });
     const { visible, visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
-    const co = previewCoords(visible, { median: st.median, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: visibleDropped, recordLow: st.recordLow });
+    const co = previewCoords(visible, { median: st.median, refMedian: st.filterMedian, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: visibleDropped, recordLow: st.recordLow });
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
-    if (co.bandRect) {
-      const r = co.bandRect;
-      s += `<rect x="${f1(r.x)}" y="${f1(r.y)}" width="${f1(r.width)}" height="${f1(r.height)}" fill="rgba(59,130,246,0.08)" stroke="#3b82f6" stroke-opacity="0.45" stroke-dasharray="3 2"/>`;
+    for (const e of [co.bandEdges?.top, co.bandEdges?.bot]) {
+      if (e === null || e === undefined) continue;
+      s += `<line class="tp-pv-band" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(e)}" y2="${f1(e)}" stroke="#3b82f6" stroke-dasharray="1 3" stroke-linecap="round" stroke-width="1.5" opacity="0.8"/>`;
     }
     for (const t of co.ticks) {
       s += `<text x="2" y="${f1(t.y + 3)}" font-size="9" fill="#64748b">${t.label}</text>`;
@@ -6279,13 +6290,19 @@ const SHADOW_MODAL_STYLES = `
     for (const g of co.glitchXY) {
       s += `<text x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
     }
+    for (const k of (co.keptXY || [])) {
+      s += `<circle class="tp-pv-kept" cx="${f1(k.x)}" cy="${f1(k.y)}" r="2.5" fill="none" stroke="#a855f7" stroke-width="1.5"/>`;
+    }
     if (co.anchor) {
       s += `<line x1="${PV_MARGIN.left}" x2="${f1(co.anchor.x)}" y1="${f1(co.anchor.y)}" y2="${f1(co.anchor.y)}" stroke="${mainStroke}" stroke-dasharray="2 2" stroke-width="1"/>`;
       s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="${mainStroke}" stroke="#fff" stroke-width="1"/>`;
     }
     svg.innerHTML = s;
     const n = visibleDropped.length;
-    legend.textContent = `${n} Glitch${n === 1 ? '' : 'es'} gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
+    const k = (co.keptXY || []).length;
+    legend.textContent = !enabled
+      ? 'Ausreißer-Filter aus — Rohhistorie'
+      : `${n} Glitch${n === 1 ? '' : 'es'} gefiltert (${hours} h, ±${Math.round(band * 100)} %)${k > 0 ? ` · ${k} außerhalb behalten` : ''}`;
     blend.textContent = st.qualifies
       ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
       : 'kein Tiefstpreis zum Demo-Preis \u2013 kein Badge';

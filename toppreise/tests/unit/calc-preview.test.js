@@ -81,8 +81,8 @@ describe('calc-preview', () => {
   it('keeps all coords inside the 296x110 viewBox with a visible anchor', () => {
     const pts = expandRleSeries(PRESETS.synthetic.rle, NOW);
     const st = previewStats(pts, { ...DEF, cardPrice: 400 });
-    const co = previewCoords(st.clean, { median: st.median, band: 0.60, cardPrice: 400, dropped: st.dropped });
-    assert.ok(co.bandRect !== null);
+    const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.60, cardPrice: 400, dropped: st.dropped });
+    assert.ok(co.bandEdges.top !== null || co.bandEdges.bot !== null);
     assert.ok(co.anchor.x >= 34 && co.anchor.x <= 286);
     assert.ok(co.anchor.y >= 8 && co.anchor.y <= 102);
     assert.equal(co.glitchXY.length, 2);
@@ -93,11 +93,13 @@ describe('calc-preview', () => {
     assert.equal(co.ticks.length, 3);
   });
 
-  it('omits the band rect when the filter is off', () => {
+  it('omits band edges and markers when the filter is off', () => {
     const pts = expandRleSeries(PRESETS.synthetic.rle, NOW);
     const st = previewStats(pts, { ...DEF, enabled: false, cardPrice: 400 });
-    const co = previewCoords(st.clean, { median: st.median, band: 0, cardPrice: 400, dropped: st.dropped });
-    assert.equal(co.bandRect, null);
+    const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0, cardPrice: 400, dropped: st.dropped });
+    assert.equal(co.bandEdges.top, null);
+    assert.equal(co.bandEdges.bot, null);
+    assert.deepEqual(co.keptXY, []);
   });
   it('crops to the window via cropPreviewWindow, full history at null', () => {
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
@@ -136,12 +138,24 @@ describe('calc-preview', () => {
     assert.equal(tiny.medianFallback, true);
     assert.equal(tiny.cutoffTs, null);
   });
-  it('keeps the band rect visible when the median sits below the window', () => {
-    // median joins the domain (previewCoords pushes o.median into vals), so the
-    // rect never collapses; the y2 > y1 guard is defense-in-depth only.
+  it('hides band edges that fall outside the plot instead of clamping', () => {
+    // ref 100 sits far below the s26 window (domain lo = cardPrice 799):
+    // both ±20 % edges hide instead of clamping to the border.
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
     const st = previewStats(pts, { ...DEF, cardPrice: 799 });
-    const co = previewCoords(st.clean, { median: 100, band: 0.20, cardPrice: 799, dropped: st.dropped });
-    assert.ok(co.bandRect !== null && co.bandRect.height > 0);
+    const co = previewCoords(st.clean, { median: st.median, refMedian: 100, band: 0.20, cardPrice: 799, dropped: st.dropped });
+    assert.equal(co.bandEdges.top, null);
+    assert.equal(co.bandEdges.bot, null);
+  });
+  it('exposes the filter reference median and kept out-of-band points on s26', () => {
+    const pts = expandRleSeries(PRESETS.s26.rle, NOW);
+    const prices = pts.map(p => p[1]).sort((a, b) => a - b);
+    const st = previewStats(pts, { ...DEF, band: 0.20, cardPrice: 799 });
+    assert.equal(st.filterMedian, prices[Math.floor(prices.length / 2)]);
+    assert.equal(st.dropped.length, 0);
+    const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.20, cardPrice: 799, dropped: st.dropped });
+    assert.ok(co.bandEdges.top !== null);
+    assert.equal(co.bandEdges.bot, null);
+    assert.equal(co.keptXY.length, 8);
   });
 });
