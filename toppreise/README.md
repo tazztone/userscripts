@@ -1,4 +1,4 @@
-![Toppreise.ch Suite banner](banner.webp)
+![Toppreise.ch Suite banner](banner.jpg)
 
 # Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 
