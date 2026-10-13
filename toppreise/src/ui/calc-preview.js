@@ -147,6 +147,7 @@ export function buildCalcPreview() {
   box.id = 'tp-calc-preview';
   const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
   box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
+    + `<div id="tp-preview-key"><span><span class="tp-pv-key-in">■</span> im Fenster</span><span><span class="tp-pv-key-out">■</span> älter</span></div>`
     + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
     + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
   const sel = box.querySelector('#tp-preview-preset-select');
@@ -223,7 +224,7 @@ export function refreshCalcPreview() {
   svg.innerHTML = s;
   legend.textContent = `${st.dropped.length} Glitches gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
   blend.textContent = st.qualifies
-    ? `Ø \u2212${st.dMedian}% \u00b7 Rek \u2212${st.dRecord}% \u2192 Badge \u2212${st.badge}% (${Math.round(weightRecord * 100)}% Rek)`
-    : 'kein Tiefstpreis zum Demo-Preis – kein Badge';
-  status.textContent = `Ø (${horizonText(horizonDays)}) ${fmtPreviewMedian(st.median)} \u00b7 ${st.windowCount} Pkt im Fenster \u00b7 ${st.activeCount}/${minPoints} Pkt ${st.activeCount >= minPoints ? '\u2713' : '\u2717'}`;
+    ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
+    : 'kein Tiefstpreis zum Demo-Preis \u2013 kein Badge';
+  status.textContent = `\u00d8 ${fmtPreviewMedian(st.median)} \u00b7 ${horizonText(horizonDays)} \u00b7 ${st.windowCount} im Fenster \u00b7 ${st.activeCount} aktiv (min. ${minPoints} ${st.activeCount >= minPoints ? '\u2713' : '\u2717'})`;
 }

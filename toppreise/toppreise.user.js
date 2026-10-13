@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.218
+// @version      2.18.219
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -464,8 +464,15 @@ const STYLES = `
     border: none !important;
     cursor: pointer !important;
     padding: 0 !important;
-    opacity: 0.75 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
     flex: 0 0 auto !important;
+  }
+  .tp-show-share button.tp-dealer-name.tp-dealer-btn,
+  button.tp-dealer-name.tp-dealer-btn:hover,
+  button.tp-dealer-name.tp-dealer-btn:focus-visible {
+    opacity: 0.75 !important;
+    pointer-events: auto !important;
   }
   button.tp-dealer-name.tp-dealer-btn:hover {
     opacity: 1 !important;
@@ -473,6 +480,7 @@ const STYLES = `
   button.tp-dealer-name.tp-dealer-btn:disabled {
     cursor: wait !important;
     opacity: 0.4 !important;
+    pointer-events: auto !important;
   }
   .tp-card-subline-row {
     position: absolute !important;
@@ -1140,6 +1148,7 @@ const STYLES = `
     justify-content: space-between !important;
     width: 100% !important;
   }
+  #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
   #tp-bar-calc-popover .tp-threshold-wrapper input[type="range"] {
     flex: 1 !important;
     width: auto !important;
@@ -1152,6 +1161,9 @@ const STYLES = `
   .tp-preview-select { font-size: 11px !important; max-width: 190px !important; }
   #tp-preview-svg { width: 100% !important; height: auto !important; display: block !important; }
   #tp-preview-legend, #tp-preview-blend, #tp-preview-status { font-size: 11px !important; color: var(--tp-txt-dim) !important; }
+  #tp-preview-key { font-size: 11px !important; color: var(--tp-txt-dim) !important; display: flex !important; gap: 10px !important; }
+  #tp-preview-key .tp-pv-key-in { color: #3b82f6 !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-key-out { color: #94a3b8 !important; font-weight: 700 !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
@@ -6221,6 +6233,7 @@ const SHADOW_MODAL_STYLES = `
     box.id = 'tp-calc-preview';
     const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
     box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
+      + `<div id="tp-preview-key"><span><span class="tp-pv-key-in">■</span> im Fenster</span><span><span class="tp-pv-key-out">■</span> älter</span></div>`
       + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
       + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
     const sel = box.querySelector('#tp-preview-preset-select');
@@ -6297,9 +6310,9 @@ const SHADOW_MODAL_STYLES = `
     svg.innerHTML = s;
     legend.textContent = `${st.dropped.length} Glitches gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
     blend.textContent = st.qualifies
-      ? `Ø \u2212${st.dMedian}% \u00b7 Rek \u2212${st.dRecord}% \u2192 Badge \u2212${st.badge}% (${Math.round(weightRecord * 100)}% Rek)`
-      : 'kein Tiefstpreis zum Demo-Preis – kein Badge';
-    status.textContent = `Ø (${horizonText(horizonDays)}) ${fmtPreviewMedian(st.median)} \u00b7 ${st.windowCount} Pkt im Fenster \u00b7 ${st.activeCount}/${minPoints} Pkt ${st.activeCount >= minPoints ? '\u2713' : '\u2717'}`;
+      ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
+      : 'kein Tiefstpreis zum Demo-Preis \u2013 kein Badge';
+    status.textContent = `\u00d8 ${fmtPreviewMedian(st.median)} \u00b7 ${horizonText(horizonDays)} \u00b7 ${st.windowCount} im Fenster \u00b7 ${st.activeCount} aktiv (min. ${minPoints} ${st.activeCount >= minPoints ? '\u2713' : '\u2717'})`;
   }
 
   // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
@@ -6383,6 +6396,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.id = 'tp-bar-weight-wrapper';
     wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
     wrapper.innerHTML = `
+      <span class="tp-stepper-label">Gewichtung</span>
       <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
       <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
       <datalist id="tp-bar-weight-ticks">
@@ -6426,6 +6440,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.id = 'tp-bar-minpoints-wrapper';
     wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
     wrapper.innerHTML = `
+      <span class="tp-stepper-label">Mindestpunkte</span>
       <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
       <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
     bindMinPointsControls(wrapper);

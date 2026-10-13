@@ -2435,7 +2435,7 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     preview = page.locator('#tp-calc-preview')
     assert preview.is_visible()
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('Badge') && document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
-    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('230/5 Pkt')")
+    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('230 aktiv (min. 5 ✓)')")
     page.select_option('#tp-preview-preset-select', 'r5')
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('28%')")
     page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('2556')")
@@ -2467,6 +2467,9 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     }""")
     assert opaque['bg'].startswith('rgb(') and 'rgba' not in opaque['bg']
     assert 1 <= float(opaque['borderTop'].replace('px', '')) <= 2
+    assert page.locator('#tp-bar-weight-wrapper .tp-stepper-label').inner_text() == 'Gewichtung'
+    assert page.locator('#tp-bar-minpoints-wrapper .tp-stepper-label').inner_text() == 'Mindestpunkte'
+    assert 'im Fenster' in page.locator('#tp-preview-key').inner_text()
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-minpoints-range');
         r.value = '14';

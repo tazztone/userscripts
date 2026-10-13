@@ -81,6 +81,7 @@ function buildWeightWrapper() {
   wrapper.id = 'tp-bar-weight-wrapper';
   wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
   wrapper.innerHTML = `
+    <span class="tp-stepper-label">Gewichtung</span>
     <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
     <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
     <datalist id="tp-bar-weight-ticks">
@@ -124,6 +125,7 @@ function buildMinPointsWrapper() {
   wrapper.id = 'tp-bar-minpoints-wrapper';
   wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
   wrapper.innerHTML = `
+    <span class="tp-stepper-label">Mindestpunkte</span>
     <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
     <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
   bindMinPointsControls(wrapper);

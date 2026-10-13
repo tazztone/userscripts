@@ -439,8 +439,15 @@ export const STYLES = `
     border: none !important;
     cursor: pointer !important;
     padding: 0 !important;
-    opacity: 0.75 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
     flex: 0 0 auto !important;
+  }
+  .tp-show-share button.tp-dealer-name.tp-dealer-btn,
+  button.tp-dealer-name.tp-dealer-btn:hover,
+  button.tp-dealer-name.tp-dealer-btn:focus-visible {
+    opacity: 0.75 !important;
+    pointer-events: auto !important;
   }
   button.tp-dealer-name.tp-dealer-btn:hover {
     opacity: 1 !important;
@@ -448,6 +455,7 @@ export const STYLES = `
   button.tp-dealer-name.tp-dealer-btn:disabled {
     cursor: wait !important;
     opacity: 0.4 !important;
+    pointer-events: auto !important;
   }
   .tp-card-subline-row {
     position: absolute !important;
@@ -1115,6 +1123,7 @@ export const STYLES = `
     justify-content: space-between !important;
     width: 100% !important;
   }
+  #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
   #tp-bar-calc-popover .tp-threshold-wrapper input[type="range"] {
     flex: 1 !important;
     width: auto !important;
@@ -1127,6 +1136,9 @@ export const STYLES = `
   .tp-preview-select { font-size: 11px !important; max-width: 190px !important; }
   #tp-preview-svg { width: 100% !important; height: auto !important; display: block !important; }
   #tp-preview-legend, #tp-preview-blend, #tp-preview-status { font-size: 11px !important; color: var(--tp-txt-dim) !important; }
+  #tp-preview-key { font-size: 11px !important; color: var(--tp-txt-dim) !important; display: flex !important; gap: 10px !important; }
+  #tp-preview-key .tp-pv-key-in { color: #3b82f6 !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-key-out { color: #94a3b8 !important; font-weight: 700 !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
