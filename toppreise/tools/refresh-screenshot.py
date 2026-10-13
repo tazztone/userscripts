@@ -154,6 +154,13 @@ def css_box(page, selector):
     return box
 
 
+def try_box(page, selector):
+    try:
+        return page.locator(selector).first.bounding_box(timeout=2000)
+    except Exception:
+        return None
+
+
 def union(boxes, pad=24):
     x0 = min(b["x"] for b in boxes) - pad
     y0 = min(b["y"] for b in boxes) - pad
@@ -209,15 +216,18 @@ def scene_toolbar(page):
     page.evaluate("window.scrollTo(0, 0)")
     page.locator("#tp-bar-calc-btn").click()
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
+    # Click handlers keep the popovers exclusive; force both open so one
+    # shot covers every callout (calc left via click, filter via class).
+    page.evaluate("document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show')")
     page.wait_for_timeout(400)
     raw = os.path.join(OUT_DIR, ".raw-toolbar.png")
     page.screenshot(path=raw)
     controls = [
-        ("#tp-inline-negative-input", "Negativ-Filter (Text, leiste)"),
-        ("#tp-bar-min-offers-group", "Min-Angebote stepper (entfernt)"),
-        ("#tp-bar-reveal-all", "Gefilterte einblenden (Vorschau, entfernt nichts)"),
-        ("#tp-bar-unchecked-btn", "Nur gepruefte (Filtergrund, entfernt)"),
-        ("#tp-bar-fallback-btn", "Fallback-Tiefs ein-/ausschliessen"),
+        ("#tp-bar-filter-btn", "Filter-Button (Verbergen oder Dimmen je Ursache)"),
+        ("#tp-inline-negative-input", "Negativ-Filter (Text, Wortgrenzen)"),
+        ("#tp-bar-min-offers-group", "Min-Angebote stepper"),
+        ("[data-filter-row='unchecked']", "Nur gepruefte (ohne verifizierten Tiefstpreis)"),
+        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschliessen"),
         ("#tp-bar-heat-btn", "Heatmap toggle (Farbe = Badge-%)"),
         ("#tp-bar-bestpreise-btn", "Neue-Tiefstpreise-Modus (Feed)"),
         ("#tp-bar-calc-btn", "Berechnungsparameter-Popover (filtert nichts)"),
@@ -226,14 +236,21 @@ def scene_toolbar(page):
         ("#tp-bar-minpoints-wrapper", "Mindestpunkte Slider (duenne Historie -> Fallback)"),
         ("#tp-floating-check-cta", "Tiefstpreise-pruefen CTA (Batch-Check, floating)"),
     ]
-    callouts = [(i + 1, css_box(page, sel), cap) for i, (sel, cap) in enumerate(controls)]
+    callouts = []
+    for sel, cap in controls:
+        box = try_box(page, sel)
+        if box is None:
+            print(f"skip callout: {sel}")
+            continue
+        callouts.append((len(callouts) + 1, box, cap))
     annotate(raw, {"x": 0, "y": 0}, callouts, os.path.join(OUT_DIR, "01-toolbar.webp"))
     os.unlink(raw)
 
 
 def scene_feed_cards(page, pids):
-    page.locator("#tp-bar-calc-btn").click()  # close toolbar popover from scene 01
-    page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
+    if page.locator("#tp-bar-calc-popover.tp-show").count() > 0:
+        page.locator("#tp-bar-calc-btn").click()
+        page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
     anchors = [f'a[href*="-p{pid}"]' for pid in pids[:3]]
     boxes = [css_box(page, sel) for sel in anchors]
     badge = page.locator(f"{anchors[1]} .badge-dif").first
@@ -322,12 +339,22 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch()
             try:
+                # Toolbar scene runs narrow (720px, half width) to pin the
+                # wrapped/responsive site layout; cards keep full width.
+                narrow, _ = open_snapshot(
+                    browser, base, "feed", ["deep", "markup", "fallback"],
+                    {"BESTPREISE_MODE_ACTIVE": True, "BESTPREISE_WEIGHT_RECORD": 0.50,
+                     "BESTPREISE_HIDE_UNCHECKED": True},
+                    viewport={"width": 720, "height": 900})
+                try:
+                    scene_toolbar(narrow)
+                finally:
+                    narrow.context.close()
                 feed, feed_pids = open_snapshot(
                     browser, base, "feed", ["deep", "markup", "fallback"],
                     {"BESTPREISE_MODE_ACTIVE": True, "BESTPREISE_WEIGHT_RECORD": 0.50,
                      "BESTPREISE_HIDE_UNCHECKED": True})
                 try:
-                    scene_toolbar(feed)
                     scene_feed_cards(feed, feed_pids)
                 finally:
                     feed.context.close()
