@@ -384,7 +384,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
                 <span class="tp-mini-slider"></span>
               </label>
               <span class="tp-filter-label" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">Fallback-Tiefs aus</span>
-              <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? vortiefHidden : ''}</span>
+              <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span>
               <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="dealer">
@@ -631,7 +631,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   setRowCount('neg', negHidden, negHidden > 0);
   setRowCount('min', minHidden, minHidden > 0);
   setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
-  setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0);
+  setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0);
   setRowCount('dealer', dealerHidden, dealerHidden > 0);
   for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
     const mode = CONFIG[key] === 'dim' ? 'dim' : 'hide';

@@ -430,9 +430,10 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
 
 
-def test_fallback_row_badge_counts_hidden_only(page: Page):
-    # Suspect-C regression: the row badge counts hidden fallbacks only; dimmed
-    # fallbacks surface via the dim counter, never the row badge.
+def test_fallback_row_badge_shows_excluded_in_dim_mode(page: Page):
+    # Row badge mirrors the neg/min rows: visible whenever fallbacks are
+    # excluded (hidden or dimmed); the dim counter covers dimmed cards
+    # additionally, never instead of the row badge.
     seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'previousLow': 2000, 'dataPointCount': 3})
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', false)")
     page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'hide')")
@@ -441,7 +442,7 @@ def test_fallback_row_badge_counts_hidden_only(page: Page):
     assert page.locator('#card-cheapest').evaluate('e => getComputedStyle(e).display') == 'none'
     page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim')")
     page.wait_for_timeout(250)
-    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     assert 'tp-dimmed' in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert page.locator('#card-cheapest').is_visible()
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', true); window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim'); }")

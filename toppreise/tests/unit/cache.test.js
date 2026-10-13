@@ -152,13 +152,29 @@ describe('Bounded Cache Module', () => {
     });
   });
 
+  describe('recompute horizon', () => {
+    it('skips cross-mode entries instead of recomputing them', () => {
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        const now = Date.now();
+        const series = [[now - 3 * DAY, 100], [now - 2 * DAY, 100], [now - 1 * DAY, 90], [now, 90]];
+        const stats = analyzePriceTimeSeries(series, 90);
+        stats.isShippingPrice = true;
+        setCachedPriceStats('xmode', stats);
+        const before = memoryCache.get('xmode');
+        recomputeCachedMedians(30);
+        assert.equal(memoryCache.get('xmode'), before);
+      });
+      memoryCache.delete('xmode');
+    });
+  });
+
   describe('dealer persistence', () => {
-    it('round-trips dealer + url per price basis', () => {
+    it('round-trips dealer + url + offers per price basis', () => {
       const s = memStorage();
       setCachedDealer('p1', false, 'Galaxus', 'https://www.toppreise.ch/ext_de?oid=1', s);
-      setCachedDealer('p1', true, 'Brack', '', s);
-      assert.deepEqual(getCachedDealer('p1', false, s), { dealer: 'Galaxus', url: 'https://www.toppreise.ch/ext_de?oid=1' });
-      assert.deepEqual(getCachedDealer('p1', true, s), { dealer: 'Brack', url: '' });
+      setCachedDealer('p1', true, 'Brack', '', s, 7);
+      assert.deepEqual(getCachedDealer('p1', false, s), { dealer: 'Galaxus', url: 'https://www.toppreise.ch/ext_de?oid=1', offers: 0 });
+      assert.deepEqual(getCachedDealer('p1', true, s), { dealer: 'Brack', url: '', offers: 7 });
       assert.equal(getCachedDealer('p2', false, s), null);
     });
 

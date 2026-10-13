@@ -110,7 +110,9 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
     const parsed = JSON.parse(raw);
 
     if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
-      if (!isModeMatch(parsed)) return null;
+      // Cross-mode stale entry: evict from storage too, else every render
+      // re-parses localStorage for an entry that always misses.
+      if (!isModeMatch(parsed)) { try { storage?.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} return null; }
       lruSet(memoryCache, productId, parsed);
       return parsed;
     }
@@ -188,12 +190,16 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
 export function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   let count = 0;
   const rewrite = entry => {
+    // Cross-mode entries are left alone (not reinserted); their key slot is
+    // evicted on next read, so a stale basis never recomputes into memory.
+    if (typeof entry?.isShippingPrice === 'boolean') {
+      try { if (entry.isShippingPrice !== isShippingPriceActive()) return null; } catch (e) {}
+    }
     const src = Array.isArray(entry?.rawTimeSeries) ? entry.rawTimeSeries : entry?.timeSeries;
     if (!Array.isArray(src)) return null;
     const fresh = analyzePriceTimeSeries(src, null, horizonDays);
     if (!fresh) return null;
-    if (fresh.rawTimeSeries === undefined) delete fresh.rawTimeSeries;
-    return { ...entry, ...fresh };
+    return { ...entry, ...fresh, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
   };
   const seen = new Set();
   for (const [productId, entry] of memoryCache) {
@@ -236,17 +242,17 @@ export function getCachedDealer(productId, useShipping, storage = (typeof window
     if (!isCacheEntryFresh(parsed)) return null;
     const entry = useShipping ? parsed?.s : parsed?.p;
     if (!entry?.dealer) return null;
-    return { dealer: entry.dealer, url: entry.url || '' };
+    return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0 };
   } catch (e) {}
   return null;
 }
 
-export function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null), offers = 0) {
   if (!productId || !dealer) return;
   try {
     let prev = {};
     try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
-    const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '' } };
+    const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0 } };
     storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
   } catch (e) {}
 }

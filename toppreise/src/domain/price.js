@@ -24,8 +24,7 @@ const medianOf = sorted => {
 
 export const parsePrice = str => {
   if (!str) return 0;
-  let clean = str.replace(/[.–\-]\s*$/g, '.00');
-  clean = clean.replace(/[^\d,.]/g, '').replace(/['’\s]/g, '');
+  let clean = str.replace(/\.(?:–|-)|\s*[.–\-]\s*$/g, '.00').replace(/[^\d,.]/g, '');
 
   const lastComma = clean.lastIndexOf(',');
   const lastDot = clean.lastIndexOf('.');
@@ -150,7 +149,8 @@ export function parsePriceStatsFromHtml(html) {
   return null;
 }
 
-export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS) {
+export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
+  const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
   if (!(band > 0 && band < 1)) band = 0.60;
   if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
   if (!points || points.length < 3) {
@@ -181,7 +181,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     while (k < n && !isNormal(sorted[k][1])) k++;
     if (j > 0 && k < n) {
       const durH = (sorted[k][0] - sorted[j][0]) / 3.6e6;
-      const isGlitch = durH < maxGlitchHours;
+      const isGlitch = durH <= maxGlitchHours + 0.5;
       for (let m = j; m < k; m++) {
         const [ts, price] = sorted[m];
         if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
@@ -191,7 +191,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
       let isGlitch = false;
       if (k - j === 1) {
         if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
-        else if (k === n && n > 1 && isNormal(sorted[n - 2][1])) isGlitch = true;
+        else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
       }
       for (let m = j; m < k; m++) {
         const [ts, price] = sorted[m];
@@ -217,14 +217,18 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     rawPoints = series[0];
   }
 
+  const toMs = tsRaw => {
+    const ts = typeof tsRaw === 'number' ? tsRaw : parseInt(tsRaw, 10);
+    return ts < 1e12 ? ts * 1000 : ts;
+  };
   const rawParsedPoints = rawPoints.map(p => {
     if (Array.isArray(p) && p.length >= 2) {
-      const ts = typeof p[0] === 'number' ? p[0] : parseInt(p[0], 10);
+      const ts = toMs(p[0]);
       const pr = typeof p[1] === 'number' ? p[1] : parsePrice(String(p[1]));
       return pr > 0 ? [ts, pr] : null;
     }
     if (p && typeof p.price === 'number' && p.price > 0) {
-      return [p.timestamp || p.time || 0, p.price];
+      return [toMs(p.timestamp || p.time || 0), p.price];
     }
     return null;
   }).filter(Boolean);
@@ -233,7 +237,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
 
   const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
   const sanitizeResult = outlierRejectionEnabled
-    ? sanitizeTimeSeries(rawParsedPoints)
+    ? sanitizeTimeSeries(rawParsedPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
     : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
 
   const points = sanitizeResult.cleanPoints;

@@ -198,7 +198,7 @@ export function setupUI() {
             <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
             <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
           </div>
-          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
+          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (einfache Fläche, kein Blend).</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
           <label>Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -583,7 +583,9 @@ export function setupUI() {
 
   fabButton.addEventListener('click', openModal);
   btnClose.addEventListener('click', closeModal);
-  shadow.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
+  // closeModal and the shadow keydown handler — reset the preview anyway.
+  dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
 
   btnSave.addEventListener('click', () => {
     const updates = {};

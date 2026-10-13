@@ -183,6 +183,55 @@ describe('Price Domain Module', () => {
       assert.equal(dropped.filteredOutliers[0].price, 200);
     });
 
+    it('treats an exact 24h single-point dip as a glitch at 24h, not at 23h', () => {
+      const now = Date.now();
+      const series = [
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 100],
+        [now - 2 * DAY, 20],
+        [now - 1 * DAY, 100],
+        [now, 100]
+      ];
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(series));
+      assert.equal(dropped.filteredOutliers.length, 1);
+      assert.equal(dropped.filteredOutliers[0].price, 20);
+      const kept = withConfig('OUTLIER_MAX_GLITCH_HOURS', 23, () => sanitizeTimeSeries(series));
+      assert.equal(kept.filteredOutliers.length, 0);
+      assert.ok(kept.cleanPoints.some(p => p[1] === 20));
+    });
+
+    it('treats an exact 48h two-point dip as a glitch at 48h', () => {
+      const now = Date.now();
+      const series = [
+        [now - 5 * DAY, 100],
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 20],
+        [now - 2 * DAY, 20],
+        [now - 1 * DAY, 100],
+        [now, 100]
+      ];
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series));
+      assert.equal(dropped.filteredOutliers.length, 2);
+      assert.ok(!dropped.cleanPoints.some(p => p[1] === 20));
+    });
+
+    it('keeps a live-anchored tail drop, strips a non-anchored one', () => {
+      const now = Date.now();
+      const series = [
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 100],
+        [now - 2 * DAY, 100],
+        [now - 1 * DAY, 100],
+        [now, 35]
+      ];
+      const anchored = sanitizeTimeSeries(series, 0.60, 48, 35);
+      assert.equal(anchored.filteredOutliers.length, 0);
+      assert.ok(anchored.cleanPoints.some(p => p[1] === 35));
+      const stripped = sanitizeTimeSeries(series, 0.60, 48, 99.99);
+      assert.equal(stripped.filteredOutliers.length, 1);
+      assert.equal(stripped.filteredOutliers[0].price, 35);
+    });
+
     it('filters a two-point 30h glitch run with a 72h window', () => {
       const now = Date.now();
       const series = [
@@ -238,6 +287,22 @@ describe('Price Domain Module', () => {
       assert.equal(analyzePriceTimeSeries([]), null);
       assert.equal(analyzePriceTimeSeries(null), null);
       assert.equal(analyzePriceTimeSeries('invalid'), null);
+    });
+
+    it('parses second-based timestamps equal to millisecond ones', () => {
+      const now = Date.now();
+      const ms = [
+        [now - 3 * DAY, 100],
+        [now - 2 * DAY, 100],
+        [now - 1 * DAY, 90],
+        [now, 90]
+      ];
+      const sec = ms.map(([ts, pr]) => [Math.floor(ts / 1000), pr]);
+      const a = analyzePriceTimeSeries(ms, 90);
+      const b = analyzePriceTimeSeries(sec, 90);
+      assert.ok(a && b);
+      assert.equal(b.tiefstpreis, a.tiefstpreis);
+      assert.equal(b.medianPrice, a.medianPrice);
     });
 
     it('computes rolling horizon median, previous low, and discount statistics', () => {

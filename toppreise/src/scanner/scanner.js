@@ -4,7 +4,7 @@
  * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
  */
 
-import { getCachedPriceStats, setCachedPriceStats, memoryCache, STATS_CACHE_PREFIX } from './cache.js';
+import { getCachedPriceStats, setCachedPriceStats } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price.js';
 import { getProductCards, getCardProductId, extractCardDiscount, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
@@ -68,14 +68,13 @@ async function fetchPriceTimeSeries(productId) {
 
 export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null) {
   if (!productId) return null;
-  // Refresh bypass: evict any cached entry (positive or negative) so the
-  // manual "Aktualisieren" click always hits the network. Without this,
-  // forceFresh only skipped negative entries and served stale positives.
-  if (forceFresh) { memoryCache.delete(productId); try { if (typeof localStorage !== 'undefined') localStorage.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} }
-  const cached = getCachedPriceStats(productId, forceFresh);
-  if (cached) {
-    if (cached.unavailable) return null;
-    return cached;
+  // Refresh bypass: always hit the network, but keep the good entry in
+  // memory/localStorage until the fetch succeeds — a failed refresh must
+  // not downgrade a full analysis to an unavailable marker.
+  const prev = getCachedPriceStats(productId);
+  if (!forceFresh && prev) {
+    if (prev.unavailable) return null;
+    return prev;
   }
 
   if (activeFetches.has(productId)) {
@@ -138,7 +137,7 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       }
 
       if (!resHtml || !resHtml.ok) {
-        setCachedPriceStats(productId, null, true);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
         return null;
       }
       const html = await resHtml.text();
@@ -148,11 +147,11 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
         setCachedPriceStats(productId, stats);
         return stats;
       } else {
-        setCachedPriceStats(productId, null, true);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
       }
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-      setCachedPriceStats(productId, null, true);
+      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
     } finally {
       activeFetches.delete(productId);
     }
@@ -218,7 +217,8 @@ export async function runProductScanner(options = {}) {
       completed++;
       Object.assign(scanState, { progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
-      triggerProcessListings();
+      // No render here: progress paints its own DOM (syncFloatingCTA), and the
+      // verified card paints on the next pre-fetch render (or the final one).
       await interruptibleSleep(250, shouldCancelFn);
     }
   } finally {

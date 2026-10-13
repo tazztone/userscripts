@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchSingleProductPriceStats } from '../../src/scanner/scanner.js';
-import { setCachedPriceStats, memoryCache } from '../../src/scanner/cache.js';
+import { setCachedPriceStats, getCachedPriceStats, memoryCache } from '../../src/scanner/cache.js';
 import { DAY } from './helpers.js';
 
 const PID = 'test-pid-refresh';
@@ -52,5 +52,16 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     const stats = await fetchSingleProductPriceStats(PID, 1, true);
     assert.equal(fetchCalls, 1);
     assert.equal(stats.tiefstpreis, 75);
+  });
+
+  it('forceFresh keeps the good entry when the refresh fails', async () => {
+    setCachedPriceStats(PID, { tiefstpreis: 50, medianPrice: 100, hoechstpreis: 120 });
+    globalThis.fetch = async () => { fetchCalls++; throw new Error('offline'); };
+    const stats = await fetchSingleProductPriceStats(PID, 1, true);
+    assert.equal(stats, null);
+    assert.ok(fetchCalls > 0);
+    const kept = getCachedPriceStats(PID);
+    assert.equal(kept.medianPrice, 100);
+    assert.ok(!kept.unavailable);
   });
 });

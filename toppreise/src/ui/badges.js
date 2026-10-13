@@ -24,7 +24,7 @@ import { scanState } from '../state/store.js';
 import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline, openSparklinePopout } from './sparkline.js';
-import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
+import { isShippingPriceActive, triggerProcessListings, scheduleProcessListings } from '../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from './fresh-dismiss.js';
 
 function setHtmlIfChanged(el, newHtml) {
@@ -121,9 +121,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // so the ribbon number always matches its color. The blend sorts too.
   // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
   // unverified site-%. Verified-state differentiation lives in badge
-  // text/tooltip + Verbergen/Dimmen, never in the wash. Heated unverified
-  // badges show the solid heat color via the inline override below (inline
-  // important beats the striped-class rule); unheated cards keep the stripe.
+  // text/tooltip + Verbergen/Dimmen, never in the card wash. The badge paint
+  // below is verified-only, so heated unverified badges keep the striped
+  // `.tp-is-unverified` cue while the card body still glows.
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
   const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
@@ -142,10 +142,10 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
     // render (not only on heatKey change) so re-rendered badge nodes can't
-    // desync from the card. Provisional input never gates this path —
-    // verified and unverified badges with equal % render identically.
+    // desync from the card. Verified-only: unverified cards keep the striped
+    // `.tp-is-unverified` cue on the badge while the card body still glows.
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-    if (heatBadgeEl) {
+    if (heatBadgeEl && stats) {
       const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
       heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
       heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
@@ -404,7 +404,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const dropVsPrev = vortiefDropPct(cardPrice, stats);
           const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice);
           if (dropVsPrev > 0 && hasPrevLowBase) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (Kante statt Fläche)\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (einfache Fläche, kein Blend)\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);
             } else {
@@ -723,7 +723,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
           const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
           let dealer = extractDealer(card);
           let dealerUrl = extractDealerUrl(card);
-          let offers = cd.offerCount || 0;
+          let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
           if ((!dealer || !dealerUrl || !offers) && url) {
             const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
             if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
@@ -839,11 +839,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         dealerPending.add(dKey);
         try {
           const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-          if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
+          if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0 }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0); }
         } finally {
           dealerPending.delete(dKey);
         }
-        triggerProcessListings();
+        scheduleProcessListings();
       };
       let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
       if (!btn) {
@@ -886,12 +886,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
 
 export function renderEmptyState(cards, counts) {
   let emptyNotice = document.getElementById('tp-empty-state-notice');
-
-  // If qualifying bestpreise deals exist on page, NEVER render empty state
-  if (counts.bestpreiseDeals > 0) {
-    if (emptyNotice) emptyNotice.remove();
-    return;
-  }
 
   const totalHidden = counts.filteredCount || 0;
 
@@ -936,6 +930,7 @@ export function renderEmptyState(cards, counts) {
       updateConfig('FILTER_MIN_ENABLED', false);
       updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
       updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
+      updateConfig('DEALER_MODE', 'dim');
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

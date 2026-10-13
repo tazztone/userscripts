@@ -315,9 +315,24 @@ export function syncUiControl(key, val) {
           if (label) label.value = Math.round(val * 100);
           break;
         }
-        case 'HEATMAP_ENABLED': {
-          const toggle = shadow.getElementById('tp-heatmap-enabled-toggle');
-          if (toggle) toggle.checked = !!val;
+        case 'HEATMAP_INTENSITY': {
+          const range = shadow.getElementById('tp-heatmap-intensity-range');
+          const valEl = shadow.getElementById('tp-heatmap-intensity-val');
+          const pct = Math.round((val ?? 1.0) * 100);
+          if (range) range.value = pct;
+          if (valEl) valEl.value = pct;
+          break;
+        }
+        case 'MARGIN_PERCENT': {
+          const range = shadow.getElementById('tp-margin-range');
+          const valEl = shadow.getElementById('tp-margin-val');
+          if (range) range.value = val;
+          if (valEl) valEl.value = val;
+          break;
+        }
+        case 'SORT_BY_OFFERS': {
+          const radio = shadow.querySelector(`input[name="tp-sort-offers"][value="${val}"]`);
+          if (radio) radio.checked = true;
           break;
         }
         case 'BESTPREISE_MODE_ACTIVE': {

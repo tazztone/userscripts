@@ -70,7 +70,12 @@ export function getDetailProductId() {
 export function getDetailLowestPrice() {
   // Ordered single queries: a grouped selector would return the first match in
   // document order, not priority order, so a stray early .Plugin_Price could win.
-  const selectors = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
+  // Basis must match the cached history series (scanner.js picks data[1] when
+  // shipping is active), else a live-vs-history mismatch fakes a record low.
+  const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
+  const selectors = isShippingPriceActive()
+    ? ['.shippingPrice .Plugin_Price', ...productFirst]
+    : productFirst;
   for (const sel of selectors) {
     const priceEl = document.querySelector(sel);
     if (priceEl) return parsePrice(priceEl.textContent);
@@ -94,5 +99,14 @@ export function triggerProcessListings() {
   } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
     window.ToppreiseSuite.processListings();
   }
+}
+
+// Trailing 50 ms debounce (not rAF: rAF stalls in background tabs). Parallel
+// completions (dealer autofetch) collapse into one render.
+let tpRenderPending = false;
+export function scheduleProcessListings() {
+  if (tpRenderPending) return;
+  tpRenderPending = true;
+  setTimeout(() => { tpRenderPending = false; triggerProcessListings(); }, 50);
 }
 

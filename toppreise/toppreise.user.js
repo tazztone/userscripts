@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.227
+// @version      2.18.228
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1717,8 +1717,7 @@ const SHADOW_MODAL_STYLES = `
 
   const parsePrice = str => {
     if (!str) return 0;
-    let clean = str.replace(/[.–\-]\s*$/g, '.00');
-    clean = clean.replace(/[^\d,.]/g, '').replace(/['’\s]/g, '');
+    let clean = str.replace(/\.(?:–|-)|\s*[.–\-]\s*$/g, '.00').replace(/[^\d,.]/g, '');
 
     const lastComma = clean.lastIndexOf(',');
     const lastDot = clean.lastIndexOf('.');
@@ -1843,7 +1842,8 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS) {
+  function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
+    const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
     if (!(band > 0 && band < 1)) band = 0.60;
     if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
     if (!points || points.length < 3) {
@@ -1874,7 +1874,7 @@ const SHADOW_MODAL_STYLES = `
       while (k < n && !isNormal(sorted[k][1])) k++;
       if (j > 0 && k < n) {
         const durH = (sorted[k][0] - sorted[j][0]) / 3.6e6;
-        const isGlitch = durH < maxGlitchHours;
+        const isGlitch = durH <= maxGlitchHours + 0.5;
         for (let m = j; m < k; m++) {
           const [ts, price] = sorted[m];
           if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
@@ -1884,7 +1884,7 @@ const SHADOW_MODAL_STYLES = `
         let isGlitch = false;
         if (k - j === 1) {
           if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
-          else if (k === n && n > 1 && isNormal(sorted[n - 2][1])) isGlitch = true;
+          else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
         }
         for (let m = j; m < k; m++) {
           const [ts, price] = sorted[m];
@@ -1910,14 +1910,18 @@ const SHADOW_MODAL_STYLES = `
       rawPoints = series[0];
     }
 
+    const toMs = tsRaw => {
+      const ts = typeof tsRaw === 'number' ? tsRaw : parseInt(tsRaw, 10);
+      return ts < 1e12 ? ts * 1000 : ts;
+    };
     const rawParsedPoints = rawPoints.map(p => {
       if (Array.isArray(p) && p.length >= 2) {
-        const ts = typeof p[0] === 'number' ? p[0] : parseInt(p[0], 10);
+        const ts = toMs(p[0]);
         const pr = typeof p[1] === 'number' ? p[1] : parsePrice(String(p[1]));
         return pr > 0 ? [ts, pr] : null;
       }
       if (p && typeof p.price === 'number' && p.price > 0) {
-        return [p.timestamp || p.time || 0, p.price];
+        return [toMs(p.timestamp || p.time || 0), p.price];
       }
       return null;
     }).filter(Boolean);
@@ -1926,7 +1930,7 @@ const SHADOW_MODAL_STYLES = `
 
     const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
     const sanitizeResult = outlierRejectionEnabled
-      ? sanitizeTimeSeries(rawParsedPoints)
+      ? sanitizeTimeSeries(rawParsedPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
       : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
 
     const points = sanitizeResult.cleanPoints;
@@ -2364,7 +2368,9 @@ const SHADOW_MODAL_STYLES = `
       const parsed = JSON.parse(raw);
 
       if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
-        if (!isModeMatch(parsed)) return null;
+        // Cross-mode stale entry: evict from storage too, else every render
+        // re-parses localStorage for an entry that always misses.
+        if (!isModeMatch(parsed)) { try { storage?.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} return null; }
         lruSet(memoryCache, productId, parsed);
         return parsed;
       }
@@ -2442,12 +2448,16 @@ const SHADOW_MODAL_STYLES = `
   function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     let count = 0;
     const rewrite = entry => {
+      // Cross-mode entries are left alone (not reinserted); their key slot is
+      // evicted on next read, so a stale basis never recomputes into memory.
+      if (typeof entry?.isShippingPrice === 'boolean') {
+        try { if (entry.isShippingPrice !== isShippingPriceActive()) return null; } catch (e) {}
+      }
       const src = Array.isArray(entry?.rawTimeSeries) ? entry.rawTimeSeries : entry?.timeSeries;
       if (!Array.isArray(src)) return null;
       const fresh = analyzePriceTimeSeries(src, null, horizonDays);
       if (!fresh) return null;
-      if (fresh.rawTimeSeries === undefined) delete fresh.rawTimeSeries;
-      return { ...entry, ...fresh };
+      return { ...entry, ...fresh, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
     };
     const seen = new Set();
     for (const [productId, entry] of memoryCache) {
@@ -2490,17 +2500,17 @@ const SHADOW_MODAL_STYLES = `
       if (!isCacheEntryFresh(parsed)) return null;
       const entry = useShipping ? parsed?.s : parsed?.p;
       if (!entry?.dealer) return null;
-      return { dealer: entry.dealer, url: entry.url || '' };
+      return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0 };
     } catch (e) {}
     return null;
   }
 
-  function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null), offers = 0) {
     if (!productId || !dealer) return;
     try {
       let prev = {};
       try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
-      const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '' } };
+      const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0 } };
       storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
     } catch (e) {}
   }
@@ -2873,9 +2883,24 @@ const SHADOW_MODAL_STYLES = `
             if (label) label.value = Math.round(val * 100);
             break;
           }
-          case 'HEATMAP_ENABLED': {
-            const toggle = shadow.getElementById('tp-heatmap-enabled-toggle');
-            if (toggle) toggle.checked = !!val;
+          case 'HEATMAP_INTENSITY': {
+            const range = shadow.getElementById('tp-heatmap-intensity-range');
+            const valEl = shadow.getElementById('tp-heatmap-intensity-val');
+            const pct = Math.round((val ?? 1.0) * 100);
+            if (range) range.value = pct;
+            if (valEl) valEl.value = pct;
+            break;
+          }
+          case 'MARGIN_PERCENT': {
+            const range = shadow.getElementById('tp-margin-range');
+            const valEl = shadow.getElementById('tp-margin-val');
+            if (range) range.value = val;
+            if (valEl) valEl.value = val;
+            break;
+          }
+          case 'SORT_BY_OFFERS': {
+            const radio = shadow.querySelector(`input[name="tp-sort-offers"][value="${val}"]`);
+            if (radio) radio.checked = true;
             break;
           }
           case 'BESTPREISE_MODE_ACTIVE': {
@@ -3233,7 +3258,12 @@ const SHADOW_MODAL_STYLES = `
   function getDetailLowestPrice() {
     // Ordered single queries: a grouped selector would return the first match in
     // document order, not priority order, so a stray early .Plugin_Price could win.
-    const selectors = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
+    // Basis must match the cached history series (scanner.js picks data[1] when
+    // shipping is active), else a live-vs-history mismatch fakes a record low.
+    const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
+    const selectors = isShippingPriceActive()
+      ? ['.shippingPrice .Plugin_Price', ...productFirst]
+      : productFirst;
     for (const sel of selectors) {
       const priceEl = document.querySelector(sel);
       if (priceEl) return parsePrice(priceEl.textContent);
@@ -3257,6 +3287,15 @@ const SHADOW_MODAL_STYLES = `
     } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
       window.ToppreiseSuite.processListings();
     }
+  }
+
+  // Trailing 50 ms debounce (not rAF: rAF stalls in background tabs). Parallel
+  // completions (dealer autofetch) collapse into one render.
+  let tpRenderPending = false;
+  function scheduleProcessListings() {
+    if (tpRenderPending) return;
+    tpRenderPending = true;
+    setTimeout(() => { tpRenderPending = false; triggerProcessListings(); }, 50);
   }
 
   // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
@@ -4127,14 +4166,13 @@ const SHADOW_MODAL_STYLES = `
 
   async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null) {
     if (!productId) return null;
-    // Refresh bypass: evict any cached entry (positive or negative) so the
-    // manual "Aktualisieren" click always hits the network. Without this,
-    // forceFresh only skipped negative entries and served stale positives.
-    if (forceFresh) { memoryCache.delete(productId); try { if (typeof localStorage !== 'undefined') localStorage.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} }
-    const cached = getCachedPriceStats(productId, forceFresh);
-    if (cached) {
-      if (cached.unavailable) return null;
-      return cached;
+    // Refresh bypass: always hit the network, but keep the good entry in
+    // memory/localStorage until the fetch succeeds — a failed refresh must
+    // not downgrade a full analysis to an unavailable marker.
+    const prev = getCachedPriceStats(productId);
+    if (!forceFresh && prev) {
+      if (prev.unavailable) return null;
+      return prev;
     }
 
     if (activeFetches.has(productId)) {
@@ -4197,7 +4235,7 @@ const SHADOW_MODAL_STYLES = `
         }
 
         if (!resHtml || !resHtml.ok) {
-          setCachedPriceStats(productId, null, true);
+          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
           return null;
         }
         const html = await resHtml.text();
@@ -4207,11 +4245,11 @@ const SHADOW_MODAL_STYLES = `
           setCachedPriceStats(productId, stats);
           return stats;
         } else {
-          setCachedPriceStats(productId, null, true);
+          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
         }
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-        setCachedPriceStats(productId, null, true);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
       } finally {
         activeFetches.delete(productId);
       }
@@ -4277,7 +4315,8 @@ const SHADOW_MODAL_STYLES = `
         completed++;
         Object.assign(scanState, { progress: { completed, total } });
         if (onProgress) onProgress(completed, total);
-        triggerProcessListings();
+        // No render here: progress paints its own DOM (syncFloatingCTA), and the
+        // verified card paints on the next pre-fetch render (or the final one).
         await interruptibleSleep(250, shouldCancelFn);
       }
     } finally {
@@ -4488,9 +4527,9 @@ const SHADOW_MODAL_STYLES = `
     // so the ribbon number always matches its color. The blend sorts too.
     // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
     // unverified site-%. Verified-state differentiation lives in badge
-    // text/tooltip + Verbergen/Dimmen, never in the wash. Heated unverified
-    // badges show the solid heat color via the inline override below (inline
-    // important beats the striped-class rule); unheated cards keep the stripe.
+    // text/tooltip + Verbergen/Dimmen, never in the card wash. The badge paint
+    // below is verified-only, so heated unverified badges keep the striped
+    // `.tp-is-unverified` cue while the card body still glows.
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
@@ -4509,10 +4548,10 @@ const SHADOW_MODAL_STYLES = `
       }
       // Badge follows the card heat: same ramp, solid swatch. Synced on every
       // render (not only on heatKey change) so re-rendered badge nodes can't
-      // desync from the card. Provisional input never gates this path —
-      // verified and unverified badges with equal % render identically.
+      // desync from the card. Verified-only: unverified cards keep the striped
+      // `.tp-is-unverified` cue on the badge while the card body still glows.
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-      if (heatBadgeEl) {
+      if (heatBadgeEl && stats) {
         const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
         heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
         heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
@@ -4771,7 +4810,7 @@ const SHADOW_MODAL_STYLES = `
             const dropVsPrev = vortiefDropPct(cardPrice, stats);
             const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice);
             if (dropVsPrev > 0 && hasPrevLowBase) {
-              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (Kante statt Fläche)\n[Klicken: erneut prüfen]`);
+              setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (einfache Fläche, kein Blend)\n[Klicken: erneut prüfen]`);
               if (isListView) {
                 setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);
               } else {
@@ -5090,7 +5129,7 @@ const SHADOW_MODAL_STYLES = `
             const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
             let dealer = extractDealer(card);
             let dealerUrl = extractDealerUrl(card);
-            let offers = cd.offerCount || 0;
+            let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
             if ((!dealer || !dealerUrl || !offers) && url) {
               const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
               if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
@@ -5206,11 +5245,11 @@ const SHADOW_MODAL_STYLES = `
           dealerPending.add(dKey);
           try {
             const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '' }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || ''); }
+            if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0 }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0); }
           } finally {
             dealerPending.delete(dKey);
           }
-          triggerProcessListings();
+          scheduleProcessListings();
         };
         let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
         if (!btn) {
@@ -5253,12 +5292,6 @@ const SHADOW_MODAL_STYLES = `
 
   function renderEmptyState(cards, counts) {
     let emptyNotice = document.getElementById('tp-empty-state-notice');
-
-    // If qualifying bestpreise deals exist on page, NEVER render empty state
-    if (counts.bestpreiseDeals > 0) {
-      if (emptyNotice) emptyNotice.remove();
-      return;
-    }
 
     const totalHidden = counts.filteredCount || 0;
 
@@ -5303,6 +5336,7 @@ const SHADOW_MODAL_STYLES = `
         updateConfig('FILTER_MIN_ENABLED', false);
         updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
         updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
+        updateConfig('DEALER_MODE', 'dim');
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
     } else if (emptyNotice) {
@@ -5554,7 +5588,7 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
               <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
             </div>
-            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
+            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (einfache Fläche, kein Blend).</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -5939,7 +5973,9 @@ const SHADOW_MODAL_STYLES = `
 
     fabButton.addEventListener('click', openModal);
     btnClose.addEventListener('click', closeModal);
-    shadow.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
+    // closeModal and the shadow keydown handler — reset the preview anyway.
+    dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
 
     btnSave.addEventListener('click', () => {
       const updates = {};
@@ -6675,7 +6711,7 @@ const SHADOW_MODAL_STYLES = `
                   <span class="tp-mini-slider"></span>
                 </label>
                 <span class="tp-filter-label" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">Fallback-Tiefs aus</span>
-                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? vortiefHidden : ''}</span>
+                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span>
                 <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
               </div>
               <div class="tp-filter-row" data-filter-row="dealer">
@@ -6922,7 +6958,7 @@ const SHADOW_MODAL_STYLES = `
     setRowCount('neg', negHidden, negHidden > 0);
     setRowCount('min', minHidden, minHidden > 0);
     setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
-    setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0);
+    setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0);
     setRowCount('dealer', dealerHidden, dealerHidden > 0);
     for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
       const mode = CONFIG[key] === 'dim' ? 'dim' : 'hide';
@@ -7852,8 +7888,9 @@ const SHADOW_MODAL_STYLES = `
     if (!modalContainer || modalContainer.dataset.tpAlarmProcessed === 'true') return;
     clearAlarmTimers(modalContainer);
 
-    const priceEl = modalContainer.querySelector('.shippingPrice .Plugin_Price') ||
-                    modalContainer.querySelector('.productPrice .Plugin_Price') ||
+    const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
+    const productFirst = modalContainer.querySelector('.productPrice .Plugin_Price');
+    const priceEl = (isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst)) ||
                     document.querySelector('.pageContent .priceContainer .Plugin_Price');
     if (!priceEl) return;
 

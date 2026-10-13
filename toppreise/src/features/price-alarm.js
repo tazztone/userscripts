@@ -9,7 +9,7 @@
 
 import { CONFIG, setAlarmConfigListener } from '../state/config.js';
 import { parsePrice } from '../domain/price.js';
-import { openSettingsAt } from '../ui/modal.js';
+import { isShippingPriceActive } from '../page/adapter.js';
 
 const ALARM_DURATIONS = ['90', '180', '365', '730'];
 const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
@@ -118,8 +118,9 @@ export function processPriceAlarmModal() {
   if (!modalContainer || modalContainer.dataset.tpAlarmProcessed === 'true') return;
   clearAlarmTimers(modalContainer);
 
-  const priceEl = modalContainer.querySelector('.shippingPrice .Plugin_Price') ||
-                  modalContainer.querySelector('.productPrice .Plugin_Price') ||
+  const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
+  const productFirst = modalContainer.querySelector('.productPrice .Plugin_Price');
+  const priceEl = (isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst)) ||
                   document.querySelector('.pageContent .priceContainer .Plugin_Price');
   if (!priceEl) return;
 
