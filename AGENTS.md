@@ -1,84 +1,79 @@
-# Userscripts Agent Guidelines
+# Repository Guidelines
 
-## Testing & Verification
+## Project Overview
 
-> [!IMPORTANT]
-> **Prefer targeted testing!** Always run the most specific/targeted test command for the area you are working on.
+Violentmonkey/Tampermonkey userscripts, one directory per script. `toppreise/` is flagship (Toppreise.ch deal suite: Tiefstpreis verification, discount heatmap, filtering, batch price-history scanner, sparklines, price alarms, Discord share). `huggingface/`, `perplexity/` are single-file scripts. `fastlog-watcher/` is research-only (`RESEARCH_LOG.md`).
 
-- **Fast Node & Domain Unit Tests (<100ms):**
-  ```bash
-  node toppreise/tools/build.js --check
-  node --test toppreise/tests/unit/*.test.js
-  ```
+## Architecture & Data Flow
 
-- **Targeted Userscript Playwright Tests:**
-  ```bash
-  PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_ui_modal.py -o addopts="--import-mode=importlib"
-  PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_feed_scanner.py -o addopts="--import-mode=importlib"
-  PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_catalog_layout.py -o addopts="--import-mode=importlib"
-  PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_price_logic.py -o addopts="--import-mode=importlib"
-  ```
+Toppreise only modular script: `toppreise/src/` (~21 ES modules) → `node toppreise/tools/build.js` → committed bundle `toppreise/toppreise.user.js` (~359 KB, do not hand-edit).
 
-- **All Playwright Tests:**
-  ```bash
-  PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest -o addopts="--import-mode=importlib"
-  ```
+Pipeline in `toppreise/src/app.js` (`processListings()`): Extract → Filter → Render → Sort → chrome. Card-centric: `page/cards.js` extracts per-card data → `domain/` pure price/deal math → `scanner/` fetches + verifies history (fetch → `cache.js` → re-render) → `ui/` decorates cards + filter bar + CTA. Re-entry via `processListings()` after every scan batch, filtered + debounced `MutationObserver`, `navigation.navigatesuccess` hook.
 
----
+State split: `state/config.js` = persistent settings (live `CONFIG` object, GM + localStorage mirror); `state/store.js` = ephemeral `scanState` session flags/progress. No framework, modules import `CONFIG` directly. UI shell: `#tp-root` Shadow DOM host (`ui/shell.js`), native top-layer `dialog` modal (`ui/modal.js`).
 
-## Userscript Bundling & Development
+## Key Directories
 
-- **Building Bundles:**
-  When editing modular code in `<script>/src/`, compile the bundled artifact before testing or committing:
-  ```bash
-  node toppreise/tools/build.js
-  ```
-- **Verifying Bundles (Pre-commit Quality Check):**
-  ```bash
-  node toppreise/tools/build.js --check
-  ```
-- **Pre-commit Quality Gates:**
-  The repository pre-commit hook automatically rebuilds the bundle, executes unit tests, and increments the bundle version patch level upon commit.
-  - **Deletion checklist:** when deleting files, run the grep literally — `rg '<deleted-name>' bump_version_precommit.py <script>/tools/ AGENTS.md` — a stale gate fails the commit.
-  - **Commit hygiene:** review full `git status` before staging; never stage unrelated pre-existing changes or untracked home dotfiles (e.g. `.env`).
-  > [!NOTE]
-  > When executing `git commit` via agent commands, `BypassSandbox: true` is required to allow write access to `.git/index.lock` and permit the pre-commit script to update bundle versions.
+```text
+toppreise/src/{state,page,domain,scanner,ui}/  # modular source
+toppreise/src/app.js                            # IIFE entry, header source of truth
+toppreise/tools/build.js                        # zero-dep bundler
+toppreise/tests/unit/*.test.js                  # 14 files, 1:1 vs src modules
+toppreise/tests/test_*.py + mock_toppreise.html # Playwright suite (68 KB fixture)
+toppreise/docs/adr/ + GLOSSARY.md               # binding UI vocabulary, ADRs
+huggingface/ perplexity/                        # single .user.js + tests/test_userscript.py + mock_*.html
+scratch/                                        # exploratory scripts (gitignored)
+.playwright-browsers/ venv/                     # vendored browsers + Python env (gitignored)
+```
 
----
+## Development Commands
 
-## Development & Mock Testing Patterns
+```bash
+node toppreise/tools/build.js          # rebuild bundle after src/ edits (required before test/commit)
+node toppreise/tools/build.js --check  # drift gate, must pass pre/post edit
+node --test toppreise/tests/unit/*.test.js
+npm run build | npm run check | npm run test:unit  # same, cwd toppreise/
+PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_ui_modal.py -o addopts="--import-mode=importlib"
+# same pattern for test_feed_scanner.py, test_catalog_layout.py, test_price_logic.py, test_floating_cta.py, test_heatmap_contrast.py
+PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest -o addopts="--import-mode=importlib"  # all
+node --test huggingface/tests/test_logic.js  # HF gate
+bash toppreise/tools/refresh-screenshot.sh
+firefox "https://raw.githubusercontent.com/tazztone/userscripts/<branch>/<script>/<script>.user.js"  # Violentmonkey install/update
+```
 
-- **AJAX Absolute URL Fallback:**
-  Always construct userscript `fetch()` URLs with an origin fallback so requests don't fail with `Failed to fetch` on `file://` Playwright test pages:
-  ```javascript
-  const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.target-domain.com';
-  const url = `${baseUrl}/endpoint`;
-  ```
-- **Playwright Mock Route CORS:**
-  Always pass `headers={'access-control-allow-origin': '*'}` in `route.fulfill(...)` when intercepting userscript network calls from `file://` test origins.
-- **Styled Switch Assertions:**
-  Zero-opacity `<input type="checkbox">` elements inside custom toggle switches fail `is_visible()`. Assert state with `locator('input').is_checked()` and trigger clicks on the visible `.tp-slider` label.
-- **Defensive Shadow DOM Binding:**
-  Helper functions attaching event listeners to dual/linked inputs (e.g. range + number input) must null-check elements before binding to keep modal initialization resilient against template changes.
+Pre-commit hook (`.git/hooks/pre-commit` → `bump_version_precommit.py`) rebuilds bundle, runs `--check` + unit tests, patch-bumps `@version` in `*.user.js` + `src/app.js` + `package.json` + `README.md (v…)`. Fail = commit aborts. Deletion checklist: `rg '<deleted-name>' bump_version_precommit.py <script>/tools/ AGENTS.md`. Commit hygiene: review full `git status`, never stage unrelated changes or home dotfiles.
 
----
+## Code Conventions & Common Patterns
 
-## Userscript UI/UX & Architecture Invariants
+- Frozen `SELECTORS` registry: all DOM queries via `toppreise/src/page/selectors.js`, never inline selectors.
+- Pure `domain/`: `price.js` (`parsePrice` CH formats, `analyzePriceTimeSeries` outlier sanitize), `deal-score.js` (`computeDealScore`, `weightedDiff`, heat deadband). Keep pure, unit-tested in Node.
+- Bounded async cache: `scanner/cache.js` in-memory LRU (cap 500) + localStorage (`tp_hist/dealer/shared_v1_`, 48h/2h TTL, 14-day prune, upgrade-only writes). Dedup via `activeFetches` map, 429 backoff in `scanner.js`.
+- `fetch()` origin fallback (required for `file://` tests): `const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';`
+- Playwright `route.fulfill(..., headers={'access-control-allow-origin': '*'})` for `file://` CORS.
+- Styled switches: zero-opacity `input` + visible `.tp-slider`; assert `locator('input').is_checked()`, click `.tp-slider`.
+- Defensive Shadow DOM binding: null-check dual range+number inputs before listener attach (`state/config.js`, `ui/modal.js`).
+- UI invariants: single scrollable settings page (no tabs); no controls duplicated between filter bar and modal; continuous heat scale (neutral ±5%); `GLOSSARY.md` binds UI strings, code identifiers stay legacy, storage keys never renamed without migration.
+- Userscript header source of truth: `toppreise/src/app.js:47-62`; `@namespace https://github.com/tazztone/userscripts`, `@updateURL/@downloadURL` = `https://raw.githubusercontent.com/tazztone/userscripts/main/<script>/<script>.user.js`. Branch testing: point at branch raw URL.
 
-- **No Redundant Controls:** Avoid duplicating controls that are already directly accessible in the top filter bar (such as negative terms or min-offers steppers) inside the settings modal.
-- **Single-Page Visibility over Tabs:** Keep settings modals on a single scrollable page with colored section groupings rather than multi-tab layouts that conceal options.
-- **Continuous Scales:** When rendering heatmaps or relative price differences, prefer a continuous scale (e.g., -100% hot to +100% cold with neutral parity at 0%) over fragmented discrete tiers.
-- **Feature Graduation:** When moving a feature out of Beta, sweep across `README.md`, UI strings, comments, and test names (`_beta_`) to keep terminology consistent.
-- **Test & Scratch Hygiene:** Never leave empty or untracked placeholder files in test suites (e.g., `tests/unit/`). Place exploratory scripts in `scratch/`.
+## Important Files
 
----
+- `toppreise/src/app.js` — entry, pipeline, header, `window.ToppreiseSuite` debug handle
+- `toppreise/src/state/config.js`, `state/store.js` — persistent vs ephemeral state
+- `toppreise/src/page/cards.js`, `adapter.js`, `sort.js` — host-DOM boundary
+- `toppreise/src/scanner/scanner.js`, `cache.js` — I/O + cache
+- `toppreise/src/ui/shell.js`, `modal.js`, `toolbar.js`, `badges.js`, `floating-cta.js`, `sparkline.js`, `styles.js` — injected chrome
+- `toppreise/tools/build.js`, `toppreise/package.json`, `bump_version_precommit.py`, `.git/hooks/pre-commit`, `pytest.ini`
+- `toppreise/GLOSSARY.md`, `toppreise/docs/adr/0001-*.md`, `toppreise/docs/filter-ansicht-plan.md`, `toppreise/README.md`
 
-## Violentmonkey & Firefox Testing
+## Runtime/Tooling Preferences
 
-- **Branch Testing URLs:**
-  When testing changes on a branch other than `main` (e.g. `testing`), ensure `@updateURL` and `@downloadURL` in `src/app.js` point to the raw GitHub branch URL.
-- **Dispatching Updates to Firefox:**
-  To prompt Violentmonkey to install or update the script in Firefox:
-  ```bash
-  firefox "https://raw.githubusercontent.com/tazztone/userscripts/<branch>/<script>/<script>.user.js"
-  ```
+Stock `node` (bundler via `node:vm` syntax check + `node --test`), `venv/bin/python|pytest` (CPython 3.14, `toppreise/tests/requirements.txt`: `pytest>=8`, `pytest-playwright>=0.5`, `playwright>=1.40`). No root `package.json`, no lockfiles, no bun/npm deps, no ESLint/Prettier/Husky. `PLAYWRIGHT_BROWSERS_PATH` must point at repo-local `.playwright-browsers/`; always override `pytest.ini --browser-channel=chrome` with `-o addopts="--import-mode=importlib"`. `perplexity/tests/conftest.py` self-sets the browsers path.
+
+## Testing & QA
+
+> Prefer targeted testing: most specific file first; `--check` before/after every `src/` edit.
+
+- Fast layer: `node --test tests/unit/<name>.test.js` (<100ms, `node:test` + `node:assert/strict`, `unit/helpers.js` `withConfig`), plus pytest→node bridge `test_price_logic.py`.
+- Browser layer: `pytest` + `pytest-playwright`, real Chromium on `file://mock_*.html` + `page.evaluate(bundle)`. Single test: `venv/bin/pytest toppreise/tests/test_catalog_layout.py::test_name -o addopts="--import-mode=importlib"`. Single node case: `node --test --test-name-pattern="<name>" tests/unit/<f>.test.js`.
+- Mocks hand-rolled, no mock lib: JS stub objects with `querySelector` lambdas + `Map` storage; Python `page.route('**/plugins/product/pricechart*', …)` + `localStorage`/`ToppreiseSuite` seeding via `page.evaluate`.
+- Hygiene: never placeholder files in `tests/`; exploration in `scratch/`. Feature graduation: sweep `README.md`, UI strings, comments, test names (`_beta_`). Terminology per `GLOSSARY.md` (Tiefstpreis vs Differenz (ungeprüft)).
