@@ -72,7 +72,7 @@ export function getProductCards() {
 
 export function extractOfferCount(card) {
   if (card.dataset?.tpOfferCount) return parseInt(card.dataset.tpOfferCount, 10);
-  const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote|Angebot)/i)?.[1] || card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').length, 10);
+  const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote?|offres?|offert[ae]|offers?)/i)?.[1] || card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').length, 10);
   if (card.dataset) card.dataset.tpOfferCount = String(count);
   return count;
 }

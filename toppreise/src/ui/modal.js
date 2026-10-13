@@ -9,7 +9,8 @@ import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
-import { triggerProcessListings } from "../page/adapter.js";
+import { triggerProcessListings, clearCardCache } from "../page/adapter.js";
+import { getProductCards } from "../page/cards.js";
 import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from "../features/share-discord.js";
 
 export function setupUI() {
@@ -504,7 +505,7 @@ export function setupUI() {
   exportBtn?.addEventListener('click', () => {
     const exportData = {
       _meta: {
-        version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.190',
+        version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev',
         exported: new Date().toISOString()
       },
       // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
@@ -643,9 +644,9 @@ export function setupUI() {
       }
       updates.DISCORD_LAYOUT = value;
     }
+    if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
     if (horizonChanged) recomputeCachedMedians(newHorizon);
     updateConfigs(updates);
-    if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();
   });

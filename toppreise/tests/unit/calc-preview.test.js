@@ -155,7 +155,7 @@ describe('calc-preview', () => {
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
     const prices = pts.map(p => p[1]).sort((a, b) => a - b);
     const st = previewStats(pts, { ...DEF, band: 0.20, cardPrice: 799 });
-    assert.equal(st.filterMedian, prices[Math.floor(prices.length / 2)]);
+    assert.equal(st.filterMedian, prices.length % 2 ? prices[prices.length >> 1] : (prices[(prices.length >> 1) - 1] + prices[prices.length >> 1]) / 2);
     assert.equal(st.dropped.length, 0);
     const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.20, cardPrice: 799, dropped: st.dropped });
     assert.ok(co.bandEdges.top !== null);

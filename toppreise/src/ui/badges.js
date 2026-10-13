@@ -490,8 +490,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // Strictness lives in the mode now: outside it, verified non-deals
         // stay visible with a truthful Aufschlag badge.
 
-        const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
         if (isAllTimeLow) {
           // 3B: Verified All-Time Low (Glowing Emerald Halo)
           // Ribbon prints the Gewichtete Differenz (ADR-0005); without a
@@ -562,7 +560,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // The previous low is always shown when known & distinct — never
         // dropped in favour of the Ø line.
         const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
-        const showMedianLine = !isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice;
+        const showMedianLine = stats.medianPrice && stats.medianPrice > cardPrice;
         const horizonLabel = medianHorizonLabel(stats);
         let histPriceEl = card.querySelector('.tp-card-historical-price');
         if (isNonBest) {
@@ -623,6 +621,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     // Click pops the full Discord-style chart (same series incl. live price).
     sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
+    const sig = stats.timeSeries.length + ':' + priceToCents(cardPrice) + ':' + priceToCents(stats.medianPrice ?? 0);
     sparkContainer.style.cursor = 'pointer';
     sparkContainer.setAttribute('role', 'button');
     sparkContainer.setAttribute('tabindex', '0');
@@ -642,7 +641,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
       });
     }
-    if (!sparkContainer.querySelector('.tp-sparkline')) {
+    if (sparkContainer.dataset.tpSparkSig !== sig) {
+      sparkContainer.dataset.tpSparkSig = sig;
       const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
       if (svg) {
         sparkContainer.replaceChildren();
@@ -868,7 +868,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
       // parallele Fetches — fertige lösen per triggerProcessListings die
       // nächste Staffel aus (Kaskade statt Request-Sturm).
-      if (CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
+      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
         dealerAutoTried.add(dKey);
         btn.disabled = true;
         loadDealer();

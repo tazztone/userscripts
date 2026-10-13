@@ -6,8 +6,6 @@
 export const scanState = {
   isBatchChecking: false,
   batchCancelRequested: false,
-  isBestpreiseScanning: false,
-  bestpreiseScanCancel: false,
   currentlyScanningPid: null,
   progress: { completed: 0, total: 0 },
   freshPids: new Set(),

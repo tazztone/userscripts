@@ -84,3 +84,118 @@ describe('renderEmptyState signature skip', () => {
     assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30');
   });
 });
+
+describe('renderCardEffects median line + sparkline signature', () => {
+  let realDocument;
+
+  const mockEl = (tag = 'div') => {
+    const el = {
+      tagName: tag.toUpperCase(),
+      children: [],
+      dataset: {},
+      attributes: {},
+      className: '',
+      textContent: '',
+      title: '',
+      parentElement: null,
+      style: { position: '', setProperty() {}, removeProperty() {} },
+      classList: {
+        add: (...cs) => { el.className += ' ' + cs.join(' '); },
+        remove: () => {},
+        toggle: () => {},
+        contains: () => false,
+      },
+      setAttribute(k, v) { el.attributes[k] = v; },
+      getAttribute(k) { return el.attributes[k] ?? null; },
+      addEventListener() {},
+      appendChild(ch) { ch.parentElement = el; el.children.push(ch); return ch; },
+      insertBefore(ch) { ch.parentElement = el; el.children.unshift(ch); return ch; },
+      replaceChildren(...chs) { el.children = []; for (const ch of chs) el.appendChild(ch); },
+      remove() { if (el.parentElement) el.parentElement.children = el.parentElement.children.filter(c => c !== el); },
+      closest: () => null,
+      contains: () => false,
+      querySelectorAll: () => [],
+      querySelector(sel) {
+        const toks = String(sel).split(',').map(s => s.trim()).filter(s => s.startsWith('.') || s.startsWith(':scope') || s.startsWith('['));
+        const pool = [];
+        const walk = n => { for (const c of n.children) { pool.push(c); walk(c); } };
+        walk(el);
+        for (const t of toks) {
+          const m = t.match(/\.([A-Za-z0-9_-]+)/);
+          if (!m) continue;
+          const hit = pool.find(c => ` ${c.className} `.includes(` ${m[1]} `) || ` ${c.className} `.includes(` ${m[1].replace(/\]$/, '')} `));
+          if (hit) return hit;
+          const sub = pool.find(c => (c.className || '').includes(m[1]));
+          if (sub) return sub;
+        }
+        return null;
+      },
+    };
+    return el;
+  };
+
+  const mockCard = () => {
+    const card = mockEl('div');
+    card.textContent = 'Test Product CHF 1’000.00';
+    return card;
+  };
+
+  const stats = medianPrice => ({
+    tiefstpreis: 900,
+    hoechstpreis: 1500,
+    previousLow: 1100,
+    medianPrice,
+    realDiscountVsPrevLow: 0,
+    timeSeries: [[Date.now() - 86400000, 1100], [Date.now(), 1000]],
+  });
+
+  const cd = medianPrice => ({
+    card: mockCard(),
+    pid: '123',
+    cardPriceEl: mockEl('span'),
+    cardPrice: 900,
+    stats: stats(medianPrice),
+    diffVal: 0,
+    dealScore: false,
+  });
+
+  beforeEach(() => {
+    realDocument = globalThis.document;
+    globalThis.document = {
+      createElement: tag => mockEl(tag),
+      createElementNS: (ns, tag) => mockEl(tag),
+      getElementById: () => null,
+      body: { classList: { contains: () => false } },
+    };
+    globalThis.getComputedStyle = () => ({ position: 'static' });
+  });
+
+  afterEach(() => {
+    if (realDocument === undefined) delete globalThis.document; else globalThis.document = realDocument;
+    delete globalThis.getComputedStyle;
+  });
+
+  it('renders the Ø subline on feed cards when the median beats the price', async () => {
+    const { renderCardEffects } = await import('../../src/ui/badges.js');
+    const c = cd(1200);
+    renderCardEffects(c, {}, true, []);
+    const hist = c.card.querySelector('.tp-card-historical-price');
+    assert.ok(hist);
+    assert.ok(hist.textContent.includes('Ø'));
+    assert.ok(hist.textContent.includes('1200.00'));
+  });
+
+  it('re-renders the sparkline SVG when the series/price/median signature changes', async () => {
+    const { renderCardEffects } = await import('../../src/ui/badges.js');
+    const c = cd(1200);
+    renderCardEffects(c, {}, true, []);
+    const box = c.card.querySelector('.tp-sparkline-container');
+    assert.ok(box);
+    const first = box.children[0];
+    assert.ok(first);
+    renderCardEffects({ ...c, stats: stats(1200) }, {}, true, []);
+    assert.equal(box.children[0], first);
+    renderCardEffects({ ...c, stats: stats(1100) }, {}, true, []);
+    assert.notEqual(box.children[0], first);
+  });
+});

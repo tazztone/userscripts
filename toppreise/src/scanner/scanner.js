@@ -230,42 +230,31 @@ export async function runProductScanner(options = {}) {
   return { completed, total, newlyVerified };
 }
 
-async function runScan(mode, { minDiscount = 30, onProgress = null, onComplete = null } = {}) {
-  const isBatch = mode === 'batch';
-  if (isBatch ? scanState.isBatchChecking : scanState.isBestpreiseScanning) {
-    Object.assign(scanState, isBatch ? { batchCancelRequested: true } : { bestpreiseScanCancel: true });
+async function runScan({ minDiscount = 30, onProgress = null, onComplete = null } = {}) {
+  if (scanState.isBatchChecking) {
+    Object.assign(scanState, { batchCancelRequested: true });
     return;
   }
-  Object.assign(scanState, isBatch
-    ? { isBatchChecking: true, batchCancelRequested: false }
-    : { isBestpreiseScanning: true, bestpreiseScanCancel: false });
+  Object.assign(scanState, { isBatchChecking: true, batchCancelRequested: false });
 
   try {
-    const isFeed = isBatch && isNeueToppreisePage();
+    const isFeed = isNeueToppreisePage();
     await runProductScanner({
-      filterFn: isBatch ? (item => isFeed ? (item.discount >= minDiscount) : true) : (() => true),
-      sortByDiscount: !isBatch,
-      shouldCancelFn: isBatch
-        ? (() => scanState.batchCancelRequested)
-        : (() => scanState.bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE),
+      filterFn: (item => isFeed ? (item.discount >= minDiscount) : true),
+      sortByDiscount: false,
+      shouldCancelFn: (() => scanState.batchCancelRequested),
       onProgress,
       onComplete
     });
   } finally {
-    Object.assign(scanState, isBatch
-      ? { isBatchChecking: false, batchCancelRequested: false }
-      : { isBestpreiseScanning: false, bestpreiseScanCancel: false });
+    Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
     triggerProcessListings();
   }
 }
 
 export const runBatchDealCheck = (minDiscount = 30, onProgress = null, onComplete = null) =>
-  runScan('batch', { minDiscount, onProgress, onComplete });
+  runScan({ minDiscount, onProgress, onComplete });
 
 export function cancelBatchDealCheck() {
   Object.assign(scanState, { batchCancelRequested: true });
-}
-
-export function cancelBestpreiseScan() {
-  Object.assign(scanState, { bestpreiseScanCancel: true });
 }

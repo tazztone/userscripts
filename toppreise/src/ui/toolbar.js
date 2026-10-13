@@ -6,11 +6,8 @@
 
 import { SELECTORS } from "../page/selectors.js";
 import { CONFIG, updateConfig, updateConfigs, weightText, horizonText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, paintMinPoints } from "../state/config.js";
-import {
-  cancelBestpreiseScan
-} from "../scanner/scanner.js";
 import { recomputeCachedMedians } from "../scanner/cache.js";
-import { scanState } from "../state/store.js";
+import { triggerProcessListings } from "../page/adapter.js";
 import { showToast } from "./toast.js";
 import { buildCalcPreview, refreshCalcPreview } from "./calc-preview.js";
 import { setTextIfChanged } from "./badges.js";
@@ -38,7 +35,6 @@ function getSuiteBarPlacement() {
 function bindBestpreiseBtn(btn) {
   btn.onclick = () => {
     const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
-    cancelBestpreiseScan();
     updateConfig('BESTPREISE_MODE_ACTIVE', next);
     showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
   };
@@ -188,8 +184,10 @@ function bindOutlierControls(wrapper) {
   syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
   paintOutlierDim();
   toggle.onchange = () => {
+    const v = toggle.checked;
+    updateConfig('OUTLIER_REJECTION_ENABLED', v, { skipRender: true });
     recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    updateConfig('OUTLIER_REJECTION_ENABLED', toggle.checked);
+    triggerProcessListings();
     syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
     paintOutlierDim();
     showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
@@ -235,16 +233,19 @@ function bindOutlierBandControls(wrapper) {
     paintBandLabel();
     clearTimeout(deb);
     deb = setTimeout(() => {
+      const pct = readBandPct();
+      updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      updateConfig('OUTLIER_DEVIATION_BAND', readBandPct() / 100);
+      triggerProcessListings();
     }, 1000);
   };
   range.onchange = () => {
     clearTimeout(deb);
     const pct = readBandPct();
     paintBandLabel();
+    updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
     recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    updateConfig('OUTLIER_DEVIATION_BAND', pct / 100);
+    triggerProcessListings();
     showToast(`Ausreißer-Band: ±${pct} % — live aktualisiert`);
   };
 }
@@ -279,16 +280,19 @@ function bindOutlierHoursControls(wrapper) {
     paintHoursLabel();
     clearTimeout(deb);
     deb = setTimeout(() => {
+      const hrs = readHours();
+      updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      updateConfig('OUTLIER_MAX_GLITCH_HOURS', readHours());
+      triggerProcessListings();
     }, 1000);
   };
   range.onchange = () => {
     clearTimeout(deb);
     const hrs = readHours();
     paintHoursLabel();
+    updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
     recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs);
+    triggerProcessListings();
     showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
   };
 }
@@ -480,7 +484,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const resetBtn = bar.querySelector('#tp-filter-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
-          updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: true, FILTER_MIN_ENABLED: true, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true });
+          updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, NEGATIVE_TERMS: '' });
           showToast('Filter zurückgesetzt');
         };
       }
@@ -550,8 +554,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const resetBtn = bar.querySelector('#tp-bar-calc-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
+          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
           recomputeCachedMedians(365);
-          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 });
+          triggerProcessListings();
           const previewSel = document.getElementById('tp-preview-preset-select');
           if (previewSel) previewSel.value = 's26';
           refreshCalcPreview();
@@ -658,12 +663,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
     bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-    if (!scanState.isBestpreiseScanning) {
-      const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
-      if (bpCount) {
-        setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
-        bpCount.style.display = bestpreiseDeals > 0 ? 'inline-flex' : 'none';
-      }
+    const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
+    if (bpCount) {
+      setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
+      bpCount.style.display = bestpreiseDeals > 0 ? 'inline-flex' : 'none';
     }
   }
 

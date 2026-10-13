@@ -159,7 +159,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
 
   const sorted = [...points].sort((a, b) => a[0] - b[0]);
   const prices = sorted.map(p => p[1]).sort((a, b) => a - b);
-  const rawMedian = prices[Math.floor(prices.length / 2)];
+  const rawMedian = medianOf(prices);
 
   if (rawMedian <= 0) {
     return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0 };
@@ -168,38 +168,38 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   const cleanPoints = [];
   const filteredOutliers = [];
   const n = sorted.length;
-
-  for (let i = 0; i < n; i++) {
-    const [ts, price] = sorted[i];
-    // Symmetric glitch band: a point more than `band` off the median is a feed
-    // glitch iff it is brief (< maxGlitchHours) with normal neighbours on both
-    // sides; a sustained level shifts the regime and is kept. Edges need only
-    // the single adjacent neighbour (no duration context).
-    const dev = Math.abs(price - rawMedian) / rawMedian;
-    if (dev <= band) {
+  const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
+  let i = 0;
+  while (i < n) {
+    if (isNormal(sorted[i][1])) {
       cleanPoints.push(sorted[i]);
+      i++;
       continue;
     }
-
-    const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
-    let isGlitch = false;
-    if (i > 0 && i < n - 1) {
-      const nextTs = sorted[i + 1][0];
-      const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
-      if (durationHours < maxGlitchHours && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
-        isGlitch = true;
+    const j = i;
+    let k = j;
+    while (k < n && !isNormal(sorted[k][1])) k++;
+    if (j > 0 && k < n) {
+      const durH = (sorted[k][0] - sorted[j][0]) / 3.6e6;
+      const isGlitch = durH < maxGlitchHours;
+      for (let m = j; m < k; m++) {
+        const [ts, price] = sorted[m];
+        if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
+        else cleanPoints.push(sorted[m]);
       }
-    } else if (i === 0 && n > 1) {
-      if (isNormal(sorted[1][1])) isGlitch = true;
-    } else if (i === n - 1 && n > 1) {
-      if (isNormal(sorted[n - 2][1])) isGlitch = true;
-    }
-
-    if (isGlitch) {
-      filteredOutliers.push({ timestamp: ts, price, rawMedian });
     } else {
-      cleanPoints.push(sorted[i]);
+      let isGlitch = false;
+      if (k - j === 1) {
+        if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
+        else if (k === n && n > 1 && isNormal(sorted[n - 2][1])) isGlitch = true;
+      }
+      for (let m = j; m < k; m++) {
+        const [ts, price] = sorted[m];
+        if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
+        else cleanPoints.push(sorted[m]);
+      }
     }
+    i = k;
   }
 
   return {
@@ -303,7 +303,8 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     realDiscountVsPrevLow,
     realDiscountVsMedian,
     dataPointCount: points.length,
-    timeSeries: points
+    timeSeries: points,
+    ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: rawParsedPoints } : null)
   };
 }
 

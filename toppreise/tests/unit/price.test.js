@@ -182,6 +182,55 @@ describe('Price Domain Module', () => {
       assert.equal(dropped.filteredOutliers.length, 1);
       assert.equal(dropped.filteredOutliers[0].price, 200);
     });
+
+    it('filters a two-point 30h glitch run with a 72h window', () => {
+      const now = Date.now();
+      const series = [
+        [now - 10 * DAY, 100],
+        [now - 9 * DAY, 100],
+        [now - 8 * DAY, 100],
+        [now - 6 * DAY, 20],
+        [now - 6 * DAY + 6 * 3600 * 1000, 20],
+        [now - 5 * DAY, 100],
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 100],
+        [now, 100]
+      ];
+      const result = withConfig('OUTLIER_MAX_GLITCH_HOURS', 72, () => sanitizeTimeSeries(series));
+      assert.equal(result.filteredOutliers.length, 2);
+      assert.ok(result.filteredOutliers.every(o => o.price === 20));
+      assert.ok(!result.cleanPoints.some(p => p[1] === 20));
+    });
+
+    it('keeps a sustained two-point shift lasting longer than the window', () => {
+      const now = Date.now();
+      const series = [
+        [now - 20 * DAY, 100],
+        [now - 19 * DAY, 100],
+        [now - 18 * DAY, 100],
+        [now - 17 * DAY, 100],
+        [now - 10 * DAY, 20],
+        [now - 9 * DAY, 20],
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 100],
+        [now, 100]
+      ];
+      const result = withConfig('OUTLIER_MAX_GLITCH_HOURS', 72, () => sanitizeTimeSeries(series));
+      assert.equal(result.filteredOutliers.length, 0);
+      assert.equal(result.cleanPoints.filter(p => p[1] === 20).length, 2);
+    });
+
+    it('uses the true median for even-length series (no upper-median bias)', () => {
+      const now = Date.now();
+      const series = [
+        [now - 3 * DAY, 10],
+        [now - 2 * DAY, 20],
+        [now - 1 * DAY, 30],
+        [now, 40]
+      ];
+      const result = sanitizeTimeSeries(series);
+      assert.equal(result.rawMedian, 25);
+    });
   });
 
   describe('analyzePriceTimeSeries', () => {
@@ -302,6 +351,31 @@ describe('Price Domain Module', () => {
         assert.equal(fromConfig.horizonDays, 0); // third arg omitted: CONFIG wins
         assert.equal(fromConfig.medianPrice, 800);
       }));
+    });
+
+    it('exposes rawTimeSeries only when points were filtered', () => {
+      const now = Date.now();
+      const glitchy = [
+        [now - 10 * DAY, 1300],
+        [now - 9 * DAY, 1250],
+        [now - 7 * DAY, 1200],
+        [now - 6 * DAY, 15],
+        [now - 5 * DAY, 1200],
+        [now - 4 * DAY, 1180],
+        [now - 3 * DAY, 1150],
+        [now - 2 * DAY, 1100],
+        [now - 1 * DAY, 1050],
+        [now, 999]
+      ];
+      const hit = withConfig('OUTLIER_REJECTION_ENABLED', true, () => analyzePriceTimeSeries(glitchy));
+      assert.ok(hit);
+      assert.equal(hit.filteredOutliers.length, 1);
+      assert.ok(Array.isArray(hit.rawTimeSeries));
+      assert.equal(hit.rawTimeSeries.length, glitchy.length);
+      const clean = withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(glitchy));
+      assert.ok(clean);
+      assert.equal(clean.filteredOutliers.length, 0);
+      assert.equal(clean.rawTimeSeries, undefined);
     });
   });
 

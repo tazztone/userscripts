@@ -181,8 +181,11 @@ export function renderDiscordChart(timeSeries, width = 360, height = 100) {
   return svg;
 }
 
+let activePopoutCleanup = null;
+
 export function closeSparklinePopout() {
   if (typeof document === 'undefined') return;
+  if (activePopoutCleanup) { const fn = activePopoutCleanup; activePopoutCleanup = null; fn(); return; }
   document.getElementById('tp-sparkline-popout')?.remove();
 }
 
@@ -214,7 +217,8 @@ export function openSparklinePopout(timeSeries) {
   closeBtn.setAttribute('aria-label', 'Schliessen');
   closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
   const onKey = e => { if (e.key === 'Escape') close(); };
-  function close() { document.removeEventListener('keydown', onKey); closeSparklinePopout(); }
+  function close() { document.removeEventListener('keydown', onKey); activePopoutCleanup = null; closeSparklinePopout(); }
+  activePopoutCleanup = close;
   document.addEventListener('keydown', onKey);
   closeBtn.addEventListener('click', close);
   header.appendChild(title);

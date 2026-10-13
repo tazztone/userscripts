@@ -25,6 +25,7 @@ export function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
 
 export const memoryCache = new Map();
 
+let statsWriteCount = 0;
 export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
   if (!parsed) return false;
   const ageMs = Date.now() - (parsed.time || 0);
@@ -134,9 +135,14 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   lruSet(memoryCache, productId, payload);
 
   try {
-    prunePriceStatsCache(storage);
+    statsWriteCount++;
+    if (statsWriteCount % 25 === 1) prunePriceStatsCache(storage);
     storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload));
-  } catch (e) {}
+  } catch (e) {
+    if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+      try { prunePriceStatsCache(storage); storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload)); } catch (_) {}
+    }
+  }
 }
 
 export function countCachedPriceStats(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
@@ -182,9 +188,11 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
 export function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   let count = 0;
   const rewrite = entry => {
-    if (!entry || !Array.isArray(entry.timeSeries)) return null;
-    const fresh = analyzePriceTimeSeries(entry.timeSeries, null, horizonDays);
+    const src = Array.isArray(entry?.rawTimeSeries) ? entry.rawTimeSeries : entry?.timeSeries;
+    if (!Array.isArray(src)) return null;
+    const fresh = analyzePriceTimeSeries(src, null, horizonDays);
     if (!fresh) return null;
+    if (fresh.rawTimeSeries === undefined) delete fresh.rawTimeSeries;
     return { ...entry, ...fresh };
   };
   const seen = new Set();

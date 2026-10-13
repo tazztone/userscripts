@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.226
+// @version      2.18.227
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -10,8 +10,10 @@
 // @run-at       document-idle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
 // @connect      discord.com
+// @connect      toppreise.ch
 // @noframes
 // ==/UserScript==
 
@@ -1850,7 +1852,7 @@ const SHADOW_MODAL_STYLES = `
 
     const sorted = [...points].sort((a, b) => a[0] - b[0]);
     const prices = sorted.map(p => p[1]).sort((a, b) => a - b);
-    const rawMedian = prices[Math.floor(prices.length / 2)];
+    const rawMedian = medianOf(prices);
 
     if (rawMedian <= 0) {
       return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0 };
@@ -1859,38 +1861,38 @@ const SHADOW_MODAL_STYLES = `
     const cleanPoints = [];
     const filteredOutliers = [];
     const n = sorted.length;
-
-    for (let i = 0; i < n; i++) {
-      const [ts, price] = sorted[i];
-      // Symmetric glitch band: a point more than `band` off the median is a feed
-      // glitch iff it is brief (< maxGlitchHours) with normal neighbours on both
-      // sides; a sustained level shifts the regime and is kept. Edges need only
-      // the single adjacent neighbour (no duration context).
-      const dev = Math.abs(price - rawMedian) / rawMedian;
-      if (dev <= band) {
+    const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
+    let i = 0;
+    while (i < n) {
+      if (isNormal(sorted[i][1])) {
         cleanPoints.push(sorted[i]);
+        i++;
         continue;
       }
-
-      const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
-      let isGlitch = false;
-      if (i > 0 && i < n - 1) {
-        const nextTs = sorted[i + 1][0];
-        const durationHours = (nextTs && ts && nextTs > ts) ? (nextTs - ts) / (3600 * 1000) : 24;
-        if (durationHours < maxGlitchHours && isNormal(sorted[i - 1][1]) && isNormal(sorted[i + 1][1])) {
-          isGlitch = true;
+      const j = i;
+      let k = j;
+      while (k < n && !isNormal(sorted[k][1])) k++;
+      if (j > 0 && k < n) {
+        const durH = (sorted[k][0] - sorted[j][0]) / 3.6e6;
+        const isGlitch = durH < maxGlitchHours;
+        for (let m = j; m < k; m++) {
+          const [ts, price] = sorted[m];
+          if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
+          else cleanPoints.push(sorted[m]);
         }
-      } else if (i === 0 && n > 1) {
-        if (isNormal(sorted[1][1])) isGlitch = true;
-      } else if (i === n - 1 && n > 1) {
-        if (isNormal(sorted[n - 2][1])) isGlitch = true;
-      }
-
-      if (isGlitch) {
-        filteredOutliers.push({ timestamp: ts, price, rawMedian });
       } else {
-        cleanPoints.push(sorted[i]);
+        let isGlitch = false;
+        if (k - j === 1) {
+          if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
+          else if (k === n && n > 1 && isNormal(sorted[n - 2][1])) isGlitch = true;
+        }
+        for (let m = j; m < k; m++) {
+          const [ts, price] = sorted[m];
+          if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
+          else cleanPoints.push(sorted[m]);
+        }
       }
+      i = k;
     }
 
     return {
@@ -1994,7 +1996,8 @@ const SHADOW_MODAL_STYLES = `
       realDiscountVsPrevLow,
       realDiscountVsMedian,
       dataPointCount: points.length,
-      timeSeries: points
+      timeSeries: points,
+      ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: rawParsedPoints } : null)
     };
   }
 
@@ -2276,6 +2279,7 @@ const SHADOW_MODAL_STYLES = `
 
   const memoryCache = new Map();
 
+  let statsWriteCount = 0;
   function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
     if (!parsed) return false;
     const ageMs = Date.now() - (parsed.time || 0);
@@ -2385,9 +2389,14 @@ const SHADOW_MODAL_STYLES = `
     lruSet(memoryCache, productId, payload);
 
     try {
-      prunePriceStatsCache(storage);
+      statsWriteCount++;
+      if (statsWriteCount % 25 === 1) prunePriceStatsCache(storage);
       storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload));
-    } catch (e) {}
+    } catch (e) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+        try { prunePriceStatsCache(storage); storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload)); } catch (_) {}
+      }
+    }
   }
 
   function countCachedPriceStats(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
@@ -2433,9 +2442,11 @@ const SHADOW_MODAL_STYLES = `
   function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     let count = 0;
     const rewrite = entry => {
-      if (!entry || !Array.isArray(entry.timeSeries)) return null;
-      const fresh = analyzePriceTimeSeries(entry.timeSeries, null, horizonDays);
+      const src = Array.isArray(entry?.rawTimeSeries) ? entry.rawTimeSeries : entry?.timeSeries;
+      if (!Array.isArray(src)) return null;
+      const fresh = analyzePriceTimeSeries(src, null, horizonDays);
       if (!fresh) return null;
+      if (fresh.rawTimeSeries === undefined) delete fresh.rawTimeSeries;
       return { ...entry, ...fresh };
     };
     const seen = new Set();
@@ -3144,8 +3155,6 @@ const SHADOW_MODAL_STYLES = `
   const scanState = {
     isBatchChecking: false,
     batchCancelRequested: false,
-    isBestpreiseScanning: false,
-    bestpreiseScanCancel: false,
     currentlyScanningPid: null,
     progress: { completed: 0, total: 0 },
     freshPids: new Set(),
@@ -3324,7 +3333,7 @@ const SHADOW_MODAL_STYLES = `
 
   function extractOfferCount(card) {
     if (card.dataset?.tpOfferCount) return parseInt(card.dataset.tpOfferCount, 10);
-    const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote|Angebot)/i)?.[1] || card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').length, 10);
+    const count = parseInt(card.textContent.match(/(\d+)\s*(?:Angebote?|offres?|offert[ae]|offers?)/i)?.[1] || card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').length, 10);
     if (card.dataset) card.dataset.tpOfferCount = String(count);
     return count;
   }
@@ -3770,8 +3779,11 @@ const SHADOW_MODAL_STYLES = `
     return svg;
   }
 
+  let activePopoutCleanup = null;
+
   function closeSparklinePopout() {
     if (typeof document === 'undefined') return;
+    if (activePopoutCleanup) { const fn = activePopoutCleanup; activePopoutCleanup = null; fn(); return; }
     document.getElementById('tp-sparkline-popout')?.remove();
   }
 
@@ -3803,7 +3815,8 @@ const SHADOW_MODAL_STYLES = `
     closeBtn.setAttribute('aria-label', 'Schliessen');
     closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
     const onKey = e => { if (e.key === 'Escape') close(); };
-    function close() { document.removeEventListener('keydown', onKey); closeSparklinePopout(); }
+    function close() { document.removeEventListener('keydown', onKey); activePopoutCleanup = null; closeSparklinePopout(); }
+    activePopoutCleanup = close;
     document.addEventListener('keydown', onKey);
     closeBtn.addEventListener('click', close);
     header.appendChild(title);
@@ -4276,44 +4289,33 @@ const SHADOW_MODAL_STYLES = `
     return { completed, total, newlyVerified };
   }
 
-  async function runScan(mode, { minDiscount = 30, onProgress = null, onComplete = null } = {}) {
-    const isBatch = mode === 'batch';
-    if (isBatch ? scanState.isBatchChecking : scanState.isBestpreiseScanning) {
-      Object.assign(scanState, isBatch ? { batchCancelRequested: true } : { bestpreiseScanCancel: true });
+  async function runScan({ minDiscount = 30, onProgress = null, onComplete = null } = {}) {
+    if (scanState.isBatchChecking) {
+      Object.assign(scanState, { batchCancelRequested: true });
       return;
     }
-    Object.assign(scanState, isBatch
-      ? { isBatchChecking: true, batchCancelRequested: false }
-      : { isBestpreiseScanning: true, bestpreiseScanCancel: false });
+    Object.assign(scanState, { isBatchChecking: true, batchCancelRequested: false });
 
     try {
-      const isFeed = isBatch && isNeueToppreisePage();
+      const isFeed = isNeueToppreisePage();
       await runProductScanner({
-        filterFn: isBatch ? (item => isFeed ? (item.discount >= minDiscount) : true) : (() => true),
-        sortByDiscount: !isBatch,
-        shouldCancelFn: isBatch
-          ? (() => scanState.batchCancelRequested)
-          : (() => scanState.bestpreiseScanCancel || !CONFIG.BESTPREISE_MODE_ACTIVE),
+        filterFn: (item => isFeed ? (item.discount >= minDiscount) : true),
+        sortByDiscount: false,
+        shouldCancelFn: (() => scanState.batchCancelRequested),
         onProgress,
         onComplete
       });
     } finally {
-      Object.assign(scanState, isBatch
-        ? { isBatchChecking: false, batchCancelRequested: false }
-        : { isBestpreiseScanning: false, bestpreiseScanCancel: false });
+      Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
       triggerProcessListings();
     }
   }
 
   const runBatchDealCheck = (minDiscount = 30, onProgress = null, onComplete = null) =>
-    runScan('batch', { minDiscount, onProgress, onComplete });
+    runScan({ minDiscount, onProgress, onComplete });
 
   function cancelBatchDealCheck() {
     Object.assign(scanState, { batchCancelRequested: true });
-  }
-
-  function cancelBestpreiseScan() {
-    Object.assign(scanState, { bestpreiseScanCancel: true });
   }
 
   // ─── MODULE: src/ui/fresh-dismiss.js ────────────────────────────────────────
@@ -4855,8 +4857,6 @@ const SHADOW_MODAL_STYLES = `
           // Strictness lives in the mode now: outside it, verified non-deals
           // stay visible with a truthful Aufschlag badge.
 
-          const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
           if (isAllTimeLow) {
             // 3B: Verified All-Time Low (Glowing Emerald Halo)
             // Ribbon prints the Gewichtete Differenz (ADR-0005); without a
@@ -4927,7 +4927,7 @@ const SHADOW_MODAL_STYLES = `
           // The previous low is always shown when known & distinct — never
           // dropped in favour of the Ø line.
           const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
-          const showMedianLine = !isNeueFeed && stats.medianPrice && stats.medianPrice > cardPrice;
+          const showMedianLine = stats.medianPrice && stats.medianPrice > cardPrice;
           const horizonLabel = medianHorizonLabel(stats);
           let histPriceEl = card.querySelector('.tp-card-historical-price');
           if (isNonBest) {
@@ -4988,6 +4988,7 @@ const SHADOW_MODAL_STYLES = `
       }
       // Click pops the full Discord-style chart (same series incl. live price).
       sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
+      const sig = stats.timeSeries.length + ':' + priceToCents(cardPrice) + ':' + priceToCents(stats.medianPrice ?? 0);
       sparkContainer.style.cursor = 'pointer';
       sparkContainer.setAttribute('role', 'button');
       sparkContainer.setAttribute('tabindex', '0');
@@ -5007,7 +5008,8 @@ const SHADOW_MODAL_STYLES = `
           }
         });
       }
-      if (!sparkContainer.querySelector('.tp-sparkline')) {
+      if (sparkContainer.dataset.tpSparkSig !== sig) {
+        sparkContainer.dataset.tpSparkSig = sig;
         const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
         if (svg) {
           sparkContainer.replaceChildren();
@@ -5233,7 +5235,7 @@ const SHADOW_MODAL_STYLES = `
         // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
         // parallele Fetches — fertige lösen per triggerProcessListings die
         // nächste Staffel aus (Kaskade statt Request-Sturm).
-        if (CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
+        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
           dealerAutoTried.add(dKey);
           btn.disabled = true;
           loadDealer();
@@ -5358,6 +5360,7 @@ const SHADOW_MODAL_STYLES = `
    * Manages the floating action button, single-page settings dialog,
    * dual-binding input controls, view paint, import/export, and cache controls.
    */
+
 
 
 
@@ -5858,7 +5861,7 @@ const SHADOW_MODAL_STYLES = `
     exportBtn?.addEventListener('click', () => {
       const exportData = {
         _meta: {
-          version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.190',
+          version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev',
           exported: new Date().toISOString()
         },
         // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
@@ -5997,9 +6000,9 @@ const SHADOW_MODAL_STYLES = `
         }
         updates.DISCORD_LAYOUT = value;
       }
+      if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
       if (horizonChanged) recomputeCachedMedians(newHorizon);
       updateConfigs(updates);
-      if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); }
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });
@@ -6301,7 +6304,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
     const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -6324,7 +6326,6 @@ const SHADOW_MODAL_STYLES = `
   function bindBestpreiseBtn(btn) {
     btn.onclick = () => {
       const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
-      cancelBestpreiseScan();
       updateConfig('BESTPREISE_MODE_ACTIVE', next);
       showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
     };
@@ -6474,8 +6475,10 @@ const SHADOW_MODAL_STYLES = `
     syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
     paintOutlierDim();
     toggle.onchange = () => {
+      const v = toggle.checked;
+      updateConfig('OUTLIER_REJECTION_ENABLED', v, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      updateConfig('OUTLIER_REJECTION_ENABLED', toggle.checked);
+      triggerProcessListings();
       syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
       paintOutlierDim();
       showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
@@ -6521,16 +6524,19 @@ const SHADOW_MODAL_STYLES = `
       paintBandLabel();
       clearTimeout(deb);
       deb = setTimeout(() => {
+        const pct = readBandPct();
+        updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
         recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-        updateConfig('OUTLIER_DEVIATION_BAND', readBandPct() / 100);
+        triggerProcessListings();
       }, 1000);
     };
     range.onchange = () => {
       clearTimeout(deb);
       const pct = readBandPct();
       paintBandLabel();
+      updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      updateConfig('OUTLIER_DEVIATION_BAND', pct / 100);
+      triggerProcessListings();
       showToast(`Ausreißer-Band: ±${pct} % — live aktualisiert`);
     };
   }
@@ -6565,16 +6571,19 @@ const SHADOW_MODAL_STYLES = `
       paintHoursLabel();
       clearTimeout(deb);
       deb = setTimeout(() => {
+        const hrs = readHours();
+        updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
         recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-        updateConfig('OUTLIER_MAX_GLITCH_HOURS', readHours());
+        triggerProcessListings();
       }, 1000);
     };
     range.onchange = () => {
       clearTimeout(deb);
       const hrs = readHours();
       paintHoursLabel();
+      updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs);
+      triggerProcessListings();
       showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
     };
   }
@@ -6766,7 +6775,7 @@ const SHADOW_MODAL_STYLES = `
         const resetBtn = bar.querySelector('#tp-filter-reset');
         if (resetBtn) {
           resetBtn.onclick = () => {
-            updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: true, FILTER_MIN_ENABLED: true, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true });
+            updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, NEGATIVE_TERMS: '' });
             showToast('Filter zurückgesetzt');
           };
         }
@@ -6836,8 +6845,9 @@ const SHADOW_MODAL_STYLES = `
         const resetBtn = bar.querySelector('#tp-bar-calc-reset');
         if (resetBtn) {
           resetBtn.onclick = () => {
+            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
             recomputeCachedMedians(365);
-            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 });
+            triggerProcessListings();
             const previewSel = document.getElementById('tp-preview-preset-select');
             if (previewSel) previewSel.value = 's26';
             refreshCalcPreview();
@@ -6944,12 +6954,10 @@ const SHADOW_MODAL_STYLES = `
     if (bestpreiseBtn) {
       bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
       bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-      if (!scanState.isBestpreiseScanning) {
-        const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
-        if (bpCount) {
-          setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
-          bpCount.style.display = bestpreiseDeals > 0 ? 'inline-flex' : 'none';
-        }
+      const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
+      if (bpCount) {
+        setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
+        bpCount.style.display = bestpreiseDeals > 0 ? 'inline-flex' : 'none';
       }
     }
 
@@ -8110,6 +8118,19 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   });
 
   mainObserver.observe(document.documentElement, { childList: true, subtree: true });
+
+  // Host price-basis toggle (product vs shipping): attribute-only observer on
+  // body, separate from the main subtree observer. Rare event, no debounce.
+  let lastPriceBasis = document.body?.classList.contains('showproductprice') ? 'p'
+    : document.body?.classList.contains('showshippingprice') ? 's' : 'x';
+  new MutationObserver(() => {
+    const cur = document.body?.classList.contains('showproductprice') ? 'p'
+      : document.body?.classList.contains('showshippingprice') ? 's' : 'x';
+    if (cur === lastPriceBasis) return;
+    lastPriceBasis = cur;
+    getProductCards().forEach(clearCardCache);
+    processListings();
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   document.addEventListener('keydown', e => {
     // Skip if modifier keys other than none

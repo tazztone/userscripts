@@ -210,3 +210,23 @@ describe('isCardFilteredOut forScan', () => {
     });
   });
 });
+
+describe('extractOfferCount languages', () => {
+  const fakeOfferCard = text => ({ textContent: text, dataset: {}, querySelectorAll: () => [] });
+
+  it('parses DE/FR/IT/EN offer labels', async () => {
+    const { extractOfferCount } = await import('../../src/page/cards.js');
+    assert.equal(extractOfferCount(fakeOfferCard('7 Angebote vergleichen')), 7);
+    assert.equal(extractOfferCount(fakeOfferCard('1 Angebot')), 1);
+    assert.equal(extractOfferCount(fakeOfferCard('3 offres')), 3);
+    assert.equal(extractOfferCount(fakeOfferCard('12 offerta')), 12);
+    assert.equal(extractOfferCount(fakeOfferCard('9 offerte')), 9);
+    assert.equal(extractOfferCount(fakeOfferCard('5 offers')), 5);
+    assert.equal(extractOfferCount(fakeOfferCard('2 offer')), 2);
+  });
+
+  it('falls back to the dealer-row count', async () => {
+    const { extractOfferCount } = await import('../../src/page/cards.js');
+    assert.equal(extractOfferCount({ textContent: 'kein Treffer', dataset: {}, querySelectorAll: () => [1, 2, 3] }), 3);
+  });
+});

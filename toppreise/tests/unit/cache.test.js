@@ -279,5 +279,87 @@ describe('Bounded Cache Module', () => {
         assert.equal(JSON.parse(s.getItem('tp_hist_v1_p1')).medianPrice, 780);
       });
     });
+
+    it('restores filtered points via rawTimeSeries when rejection is off', () => {
+      const now = Date.now();
+      const glitchy = [
+        [now - 10 * DAY, 1300],
+        [now - 9 * DAY, 1250],
+        [now - 7 * DAY, 1200],
+        [now - 6 * DAY, 15],
+        [now - 5 * DAY, 1200],
+        [now - 4 * DAY, 1180],
+        [now - 3 * DAY, 1150],
+        [now - 2 * DAY, 1100],
+        [now - 1 * DAY, 1050],
+        [now, 999]
+      ];
+      const seed = withConfig('OUTLIER_REJECTION_ENABLED', true, () => analyzePriceTimeSeries(glitchy, null, 0));
+      assert.equal(seed.filteredOutliers.length, 1);
+      assert.ok(Array.isArray(seed.rawTimeSeries));
+      const fixedTime = now - HOUR;
+      setCachedPriceStats('raw1', seed, false, null);
+      memoryCache.get('raw1').time = fixedTime;
+      withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
+        assert.equal(recomputeCachedMedians(0, null), 1);
+      });
+      const e = memoryCache.get('raw1');
+      assert.equal(e.filteredOutliers.length, 0);
+      assert.equal(e.timeSeries.length, glitchy.length);
+      assert.equal(e.time, fixedTime);
+      assert.ok(Array.isArray(e.rawTimeSeries));
+    });
+
+    it('falls back to timeSeries for entries without rawTimeSeries', () => {
+      const now = Date.now();
+      const series = [
+        [now - 500 * DAY, 2000],
+        [now - 400 * DAY, 1900],
+        [now - 60 * DAY, 800],
+        [now - 30 * DAY, 780],
+        [now, 750]
+      ];
+      withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
+        const seed = analyzePriceTimeSeries(series, null, 0);
+        assert.equal(seed.rawTimeSeries, undefined);
+        setCachedPriceStats('legacy', seed, false, null);
+        assert.equal(recomputeCachedMedians(90, null), 1);
+        assert.equal(memoryCache.get('legacy').medianPrice, 780);
+      });
+    });
+
+    it('writes every entry while prune is throttled', () => {
+      const s = memStorage();
+      let setCalls = 0;
+      const counting = {
+        ...s,
+        setItem: (k, v) => { setCalls++; s.setItem(k, v); },
+      };
+      for (let i = 0; i < 50; i++) {
+        setCachedPriceStats('w' + i, { tiefstpreis: 100 + i, timeSeries: [[Date.now(), 100 + i]] }, false, counting);
+      }
+      assert.equal(setCalls, 50);
+      assert.equal(counting.getItem('tp_hist_v1_w0') !== null, true);
+      assert.equal(counting.getItem('tp_hist_v1_w49') !== null, true);
+    });
+
+    it('prunes once and retries on quota error', () => {
+      const s = memStorage();
+      let attempts = 0;
+      const flaky = {
+        ...s,
+        setItem: (k, v) => {
+          attempts++;
+          if (attempts === 1) {
+            const e = new Error('quota');
+            e.name = 'QuotaExceededError';
+            throw e;
+          }
+          s.setItem(k, v);
+        },
+      };
+      setCachedPriceStats('q1', { tiefstpreis: 100, timeSeries: [[Date.now(), 100]] }, false, flaky);
+      assert.equal(flaky.getItem('tp_hist_v1_q1') !== null, true);
+    });
   });
 });

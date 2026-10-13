@@ -27,8 +27,8 @@ def test_best_price_highlighting_and_dimming(page: Page):
 
 def test_negative_keywords_filtering(page: Page):
     _open_filter_popover(page)
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true)")
     page.fill('#tp-inline-negative-input', 'Case, Hülle')
-    page.dispatch_event('#tp-inline-negative-input', 'input')
 
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     assert 'tp-negative-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
@@ -38,8 +38,8 @@ def test_negative_keywords_filtering(page: Page):
 
 def test_min_offers_filter(page: Page):
     # Set min offers to 3 via updateConfig
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_MIN_ENABLED', true)")
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 3)")
-
     page.wait_for_selector('#card-low-offers.tp-min-offers-filtered', state='attached')
     assert 'tp-min-offers-filtered' in (page.locator('#card-low-offers').get_attribute('class') or '')
     assert 'tp-min-offers-filtered' not in (page.locator('#card-cheapest').get_attribute('class') or '')
@@ -78,6 +78,8 @@ def test_filter_toggles_preserve_settings(page: Page):
     # Neg/min controls live in the filter popover — open it first
     _open_filter_popover(page)
     # Add negative term and min offers filter
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true)")
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_MIN_ENABLED', true)")
     page.fill('#tp-inline-negative-input', 'Case')
     page.dispatch_event('#tp-inline-negative-input', 'input')
     page.evaluate("() => window.ToppreiseSuite.updateConfig('MIN_OFFERS', 10)")
@@ -335,7 +337,7 @@ def test_filter_bar_hidden_on_product_detail_page(page: Page):
 
 def test_deal_features_enabled_on_category_page(page: Page):
     # Hide-pins: count/title asserts below assume Verbergen removal, not Dimmen
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('DEALER_MODE', 'hide'); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('DEALER_MODE', 'hide'); window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); }")
     # Simulate standard category/search listing page
     page.evaluate('''() => {
         document.body.className = 'color_bg Page_Browsing';
