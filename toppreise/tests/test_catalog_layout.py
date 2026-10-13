@@ -448,7 +448,7 @@ def test_fallback_row_badge_counts_hidden_only(page: Page):
 
 
 def test_filter_popover_dim_mode(page: Page):
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); }")
     # Neg term matching 1 card hides it; single toggle flips Verbergen<->Dimmen
     _open_filter_popover(page)
     drop_store_filter(page)
@@ -479,7 +479,7 @@ def test_filter_popover_dim_mode(page: Page):
     page.wait_for_selector('#card-negative.tp-filtered', state='attached')
     assert 'tp-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
     assert page.locator('#tp-filter-count').inner_text() == '1'
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', false); }")
 
 
 
@@ -760,6 +760,7 @@ def test_inline_negative_input_clear_button(page: Page):
 def test_negative_terms_multi_delimiter_support(page: Page):
     # Test combination of newline, semicolon, and comma delimiters
     page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.FILTER_NEG_ENABLED = true;
         window.ToppreiseSuite.CONFIG.NEGATIVE_TERMS = "GeForce;\\n4080, NonExistentTerm";
         window.ToppreiseSuite.processListings();
     }""")
@@ -1009,6 +1010,7 @@ def test_bestpreise_mode_visible_deal_count_and_no_false_empty_state(page: Page)
         }
 
         window.ToppreiseSuite.CONFIG.NEGATIVE_TERMS = 'refurbished, hülle, case';
+        window.ToppreiseSuite.CONFIG.FILTER_NEG_ENABLED = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1422,7 +1424,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     # Verified non-deal stays visible
     assert page.locator('#wrap-card-2').is_visible()
     # A negative term removes Card 2 AND collapses wrapper-col-2 (display: none)
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Product 2'); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Product 2'); }")
     page.wait_for_selector('#wrap-card-2.tp-negative-filtered', state='attached')
     assert page.locator('#wrap-card-2').is_hidden()
     assert page.evaluate("() => window.getComputedStyle(document.getElementById('wrapper-col-2')).display === 'none'")
@@ -1434,7 +1436,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
     assert page.locator('#wrap-card-2').is_visible()
     assert 'tp-dimmed' in (page.locator('#wrap-card-2').get_attribute('class') or '')
     # Cleanup leaked negative terms and dim mode for later tests
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', false); }")
 
 
 
@@ -1974,6 +1976,7 @@ def test_card_memoization_caches_dom_queries_and_text(page: Page):
         const dealerRows = window.ToppreiseSuite.getCardDealerRows(card);
 
         // Trigger negative terms check to populate _tpTextLower
+        window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true);
         window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'randomtestterm');
 
         const afterDealer = card._tpDealerRows;
@@ -1986,6 +1989,7 @@ def test_card_memoization_caches_dom_queries_and_text(page: Page):
 
         // Reset negative terms
         window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '');
+        window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', false);
 
         return {
             beforeDealer: beforeDealer === undefined,
@@ -2352,6 +2356,9 @@ def test_heat_chrome_keeps_site_colors_and_spark(page: Page):
         };
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
         if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        const aufschlag = { tiefstpreis: 900, hoechstpreis: 1300, medianPrice: 1000, previousLow: 950, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() };
+        localStorage.setItem('tp_hist_v1_797572', JSON.stringify(aufschlag));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', aufschlag);
         window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.processListings();
     }""")
