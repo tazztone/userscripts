@@ -201,7 +201,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
     # Click to toggle heatmap OFF
     heat_btn.click()
-    page.wait_for_timeout(200)
+    page.wait_for_function("() => !document.querySelector('#tp-bar-heat-btn')?.classList.contains('tp-active') && !document.querySelector('#card-cheapest')?.classList.contains('tp-heat-blend')", timeout=5000)
 
     assert 'tp-active' not in (heat_btn.get_attribute('class') or '')
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
@@ -210,7 +210,7 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
 
     # Click to toggle heatmap back ON
     heat_btn.click()
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#card-cheapest.tp-heat-blend', state='attached', timeout=5000)
 
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
     assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
@@ -235,12 +235,12 @@ def test_discount_heatmap_bar_toggle_controls_heat(page: Page):
 
     # Heatmap on/off lives in the bar now (canonical home); toggle off
     page.click('#tp-bar-heat-btn')
-    page.wait_for_timeout(200)
+    page.wait_for_function("() => !document.querySelector('#card-cheapest')?.classList.contains('tp-heat-blend')", timeout=5000)
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
     # Re-enable via the bar button
     page.click('#tp-bar-heat-btn')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#card-cheapest.tp-heat-blend', state='attached', timeout=5000)
     assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
 
@@ -323,7 +323,7 @@ def test_filter_bar_hidden_on_product_detail_page(page: Page):
         document.body.setAttribute('data-current_url', '/preisvergleich/TV-Geraete/SHARP-55HR7265E-p840582');
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#tp-suite-filter-bar', state='detached', timeout=5000)
 
     # Filter bar must be completely absent on product detail page
     filter_bar = page.locator('#tp-suite-filter-bar')
@@ -344,7 +344,7 @@ def test_deal_features_enabled_on_category_page(page: Page):
         document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#tp-suite-filter-bar', state='visible', timeout=5000)
 
     # Filter bar itself is visible on category listings
     filter_bar = page.locator('#tp-suite-filter-bar')
@@ -430,19 +430,17 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
 
 
-def test_fallback_row_badge_shows_excluded_in_dim_mode(page: Page):
-    # Row badge mirrors the neg/min rows: visible whenever fallbacks are
-    # excluded (hidden or dimmed); the dim counter covers dimmed cards
-    # additionally, never instead of the row badge.
+def test_fallback_row_badge_counts_hidden_only(page: Page):
+    # Row badge counts hidden fallbacks only; dimmed fallbacks surface via the dim counter.
     seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'previousLow': 2000, 'dataPointCount': 3})
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', false)")
     page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'hide')")
-    page.wait_for_timeout(250)
+    page.wait_for_function("() => getComputedStyle(document.querySelector('[data-row-count=\"vortief\"]')).display !== 'none'", timeout=5000)
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     assert page.locator('#card-cheapest').evaluate('e => getComputedStyle(e).display') == 'none'
     page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim')")
-    page.wait_for_timeout(250)
-    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
+    page.wait_for_function("() => getComputedStyle(document.querySelector('[data-row-count=\"vortief\"]')).display === 'none' && document.querySelector('#card-cheapest')?.classList.contains('tp-dimmed')", timeout=5000)
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
     assert 'tp-dimmed' in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert page.locator('#card-cheapest').is_visible()
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', true); window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim'); }")
@@ -493,7 +491,7 @@ def test_category_page_injects_interactive_deal_badges(page: Page):
         document.querySelectorAll('.badge-dif').forEach(b => b.remove());
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('.badge-dif.tp-deal-badge-interactive', state='attached', timeout=5000)
 
     # Verify interactive deal badges are injected on cards
     badges = page.locator('.badge-dif.tp-deal-badge-interactive')
@@ -571,7 +569,7 @@ def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
         }
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#Plugin_ProductCollItem_411970', state='visible', timeout=5000)
 
     # 1. Verify AirPods 5 collection item remains intact as a grouped family
     coll_item = page.locator('#Plugin_ProductCollItem_411970')
@@ -670,7 +668,7 @@ def test_category_page_cards_not_dimmed_when_store_filter_active(page: Page):
         window.ToppreiseSuite?.updateConfig?.('ACTIVE_STORES', ['Digitec']);
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#Page_Browsing .Plugin_Product', state='attached', timeout=5000)
 
     # Verify category cards do not have tp-no-store-offer class
     cat_cards = page.locator('#Page_Browsing .Plugin_Product')

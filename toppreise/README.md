@@ -15,7 +15,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.228)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.229)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
@@ -37,7 +37,7 @@ Requires Violentmonkey (or a compatible userscript manager):
    - **Batch-Checker mit Live-Zähler (`🔍 Tiefstpreise prüfen (N)`)**: Prüft auf Knopfdruck nacheinander alle Deals ab dem Schwellenwert mit Live-Fortschrittszähler und Abbruch-Option.
    - **Neu-Geprüft-Glow (`Neu`-Puls)**: Frisch verifizierte Tiefstpreise pulsen mind. 5s mit Kontur + `Neu`-Markierung und erlöschen bei der nächsten Interaktion (Klick/Scroll/Taste); bereits früher geprüfte Karten bleiben statisch. Der Abschluss-Toast nennt die Zahl echter Deals (`N Tiefstpreise verifiziert`) und zählt sonst nur erfolgreiche Prüfungen (`Keine Tiefstpreise dabei · M geprüft`, bei null Treffern `Keine Prüfung möglich`).
    - **Differenz-Vorauswahl (`≥30% ▾` im Prüf-CTA)**: Prüf-Vorauswahl für den Batch-Scan (20%, 30%, 40%, 50%, 60%): Nur Differenzen ab diesem Wert (ungeprüfte Differenz, z.B. vs UVP) werden automatisch geprüft — die Prüfung ersetzt sie durch den echten Rabatt.
-  - **Selektive, ehrliche Heatmap**: Die Farbe folgt der Gewichteten Differenz auf einer Grau→Rot-Skala, nicht der Differenz (ungeprüft). Verifizierte Aufschläge zeigen `+XX%` (Badge) und bleiben grau; ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge + 🔍 und heizen nie. Per `Nur geprüfte`-Zeile im Filter-Popover (Filterleiste) lassen sich ungeprüfte Angebote verbergen oder dimmen — der Filter greift nur, wenn die Seite mindestens eine geprüfte Karte hat, und leert nie eine ungeprüfte Seite.
+  - **Selektive, ehrliche Heatmap**: Die Farbe folgt der Gewichteten Differenz auf einer Grau→Rot-Skala, nicht der Differenz (ungeprüft). Verifizierte Aufschläge zeigen `+XX%` (Badge) und bleiben grau; ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge + 🔍; die Karte heizt dezent weiter (provisorische Differenz-Farbe), nur das Badge bleibt grau. Per `Nur geprüfte`-Zeile im Filter-Popover (Filterleiste) lassen sich ungeprüfte Angebote verbergen oder dimmen — der Filter greift nur, wenn die Seite mindestens eine geprüfte Karte hat, und leert nie eine ungeprüfte Seite.
   - **Fallback-Tiefs (Vortief, dünne Historie)**: Verifizierte Tiefstpreise ohne qualifizierte Historie (kein Ø-Vergleich) heizen dezent von außen (äußerer Glow, bei flachen Differenzen gar nicht) statt der prominenten Innen-Wasche verifizierter Deals mit Ø-Vergleich; der Badge-Tooltip weist sie als Fallback aus. Per `Fallback-Tiefs`-Zeile im Filter-Popover (Filterleiste) lassen sie sich ein-/ausschließen — Schalter AN schließt sie aus (Filtergrund: verborgen oder gedimmt, je Modus). Die Schwelle dafür setzt der `📊`-Slider im `⚖️`-Popover (Mindestanzahl Datenpunkte in der Preishistorie, 1–5 fein dann 10er-Schritte bis 100, Punkte ≈ Tage): darunter kein Blend — Karte wird Fallback-Tief.
    - **Detailseiten-Badge (`/preisvergleich/...-p...`)**: Zeigt direkt auf Produktseiten neben dem Haupttitel/Hauptpreis, ob das Angebot ein Allzeit-Tiefstpreis ist.
   - **Leere-Feed-Hinweis (Empty State)**: Blendet bei komplett verborgener Seite einen eleganten Hinweis mit Schnellaktionen ein (`[ ⚡ Filter ausschalten ]`, dazu je nach Lage `[ 🔍 Tiefstpreise prüfen (≥N%) ]` und `[ Alle anzeigen / Nur geprüfte ]`).
@@ -53,7 +53,7 @@ Requires Violentmonkey (or a compatible userscript manager):
    - Grosser Rabatt (z.B. −58%): Tiefes Rubinrot 🔥 (Karte + Badge)
    - Kleiner Rabatt (z.B. −8%): Helles Warmbraun
    - `±5%` und Aufschläge (z.B. +53%): Neutrales Grau ⚖️ (kein Signal; `+XX%` steht im Badge)
-  - Ungeprüft (Differenz (ungeprüft)): grau gestreift + 🔍, keine Heat-Farbe (Differenz ≠ Tiefstpreis)
+  - Ungeprüft (Differenz (ungeprüft)): grau gestreift + 🔍, keine Badge-Farbe (Differenz ≠ Tiefstpreis); die Karte trägt vorläufige Differenz-Wärme.
    - 1-Klick-Toggle (`[ 🔥 Heatmap ]`) direkt in der oberen Filterleiste mit stufenloser Intensitätsregelung.
 6. **🛡️ Encapsulated Shadow DOM Settings Modal (`#tp-root`)**: Floating action button (FAB) and settings dialog are isolated inside an open Shadow Root, elevated to the browser Top Layer via native `<dialog>` (`showModal()`) to bypass host site z-index and CSS reset collisions.
 7. **⌨️ Tastatur-Shortcuts**:

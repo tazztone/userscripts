@@ -185,7 +185,7 @@ def test_config_import_invalid_json_shows_error_toast(page: Page):
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     }""")
 
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#tp-root >> .tp-toast', state='attached', timeout=5000)
     toast = page.locator('#tp-root >> .tp-toast')
     assert toast.is_visible()
     assert 'Import fehlgeschlagen' in (toast.text_content() or '')
@@ -214,7 +214,7 @@ def test_config_import_ignores_unknown_and_debug_keys(page: Page):
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     }""")
 
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#tp-root >> .tp-toast', state='attached', timeout=5000)
     res = page.evaluate("""() => ({
         margin: window.ToppreiseSuite?.CONFIG?.MARGIN_PERCENT,
         unknown: window.ToppreiseSuite?.CONFIG?.UNRECOGNIZED_SECURITY_KEY,

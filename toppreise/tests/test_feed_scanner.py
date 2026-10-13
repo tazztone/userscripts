@@ -68,8 +68,8 @@ def test_exact_cent_boundary_badge_states(page: Page):
         # Seed a cached history where tiefstpreis = 37.95 (Python-side `<`, not `<=`: 37.95 is at-low, not new-low)
         seed_verified_deal(page, '1003795', {'tiefstpreis': 37.95, 'hoechstpreis': 55.00, 'medianPrice': 45.00, 'previousLow': 47.82, 'isNewAllTimeLow': curr_price < 37.95, 'dataPointCount': 10})
 
-        # Wait a tick for mutations
-        page.wait_for_timeout(100)
+        # Wait for badge render
+        page.wait_for_selector('#card-competing-reference .badge-dif', state='attached', timeout=5000)
         badge = page.locator('#card-competing-reference .badge-dif')
 
         # Verify classes
@@ -712,7 +712,7 @@ def test_category_page_single_card_on_demand_check_renders_percentage_and_halo(p
 
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-badge-interactive', state='visible', timeout=5000)
 
     card = page.locator('#card-cheapest')
     badge = card.locator('.badge-dif.tp-deal-badge-interactive')
@@ -720,7 +720,7 @@ def test_category_page_single_card_on_demand_check_renders_percentage_and_halo(p
 
     # Click badge to trigger on-demand check
     badge.click()
-    page.wait_for_timeout(300)
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record, #card-cheapest .badge-dif.tp-deal-alltime-low', state='attached', timeout=5000)
 
     # Badge transforms to Real Deal percentage with halo ring
     assert badge.locator('.tp-deal-new-record, .tp-deal-alltime-low').count() > 0 or 'tp-deal-new-record' in (badge.get_attribute('class') or '') or 'tp-deal-alltime-low' in (badge.get_attribute('class') or '')
@@ -765,7 +765,7 @@ def test_category_page_batch_check_scans_visible_cards(page: Page):
 
         window.ToppreiseSuite?.processListings?.();
     }''')
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#tp-floating-check-cta', state='visible', timeout=5000)
 
     cta = page.locator('#tp-floating-check-cta')
     assert cta.is_visible()
@@ -1643,7 +1643,9 @@ def test_filter_button_shows_hidden_count(page: Page):
 def test_bestpreise_button_readable_on_light_background(page: Page):
     """Aktiver Tiefstpreise-Button ist opak mit weißer Schrift — lesbar in der dunklen Bar."""
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
-    page.wait_for_timeout(200)
+    page.wait_for_selector('#tp-bar-bestpreise-btn.tp-bestpreise-active', state='attached', timeout=5000)
+    # Active restyle transitions color over 0.15s; assert only once settled white.
+    page.wait_for_function("() => window.getComputedStyle(document.querySelector('#tp-bar-bestpreise-btn')).color === 'rgb(255, 255, 255)'", timeout=5000)
     btn = page.locator('#tp-bar-bestpreise-btn')
     assert 'tp-bestpreise-active' in (btn.get_attribute('class') or '')
     assert btn.evaluate("el => window.getComputedStyle(el).color") == 'rgb(255, 255, 255)'

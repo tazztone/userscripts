@@ -260,9 +260,10 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
    const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
-   const isDealerLoser = false;
-   const isFiltered = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
-   return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isFiltered };
+  const isDealerLoser = false;
+  // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
+  const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
+  return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isExcluded };
 }
 export function dealerLoserFor(card, activeStores) {
   if (!activeStores || activeStores.length === 0) return false;

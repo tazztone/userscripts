@@ -29,14 +29,13 @@ def test_heatmap_chrome_preserves_light_site(page: Page):
 
     # Toggle heat off: card must fall back to the untouched site skin
     heat_btn.click()
-    page.wait_for_timeout(200)
+    page.wait_for_function("() => !document.querySelector('#card-cheapest')?.classList.contains('tp-heat-blend')", timeout=5000)
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
     plain = _site_colors(page)
 
     # Toggle heat back on
     heat_btn.click()
-    page.wait_for_timeout(200)
-    page.wait_for_selector('#card-cheapest.tp-heat-blend')
+    page.wait_for_selector('#card-cheapest.tp-heat-blend', state='attached', timeout=5000)
 
     # Chrome-only heat: no fill, so site text colors are byte-identical on/off
     assert heated['title'] == plain['title']

@@ -47,7 +47,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.228
+// @version      2.18.229
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -103,8 +103,6 @@ import { processProductDetailPage } from './features/product-detail.js';
 
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
-        if (cd.filters.isNeg) counts.neg++;
-        if (cd.filters.isLowOffers) counts.min++;
         if (isNeueFeed) {
           if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
@@ -116,8 +114,6 @@ import { processProductDetailPage } from './features/product-detail.js';
         }
         // Verified markups are removed nowhere, so counted nowhere.
         cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
-        if (cd.filters.isUnchecked) counts.uncheckedHidden++;
-        if (cd.filters.isVortiefExcluded) counts.vortief++;
         // bestpreiseDeals feeds the empty-state "deals exist" guard: dealScore blends plus included Vortief lows; excluded-fallback lows count under vortief only.
         if (cd.dealScore) counts.bestpreiseDeals++;
         else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) counts.bestpreiseDeals++;
@@ -126,9 +122,15 @@ import { processProductDetailPage } from './features/product-detail.js';
       // --- Render ---
       for (const cd of cardDataList) {
         renderCardEffects(cd, cd.filters, isNeueFeed, activeStores);
-        if (cd.filters.isDealerLoser) counts.dealer++;
         if (cd.filters.isDimmed) counts.dimmed++;
-        if (cd.filters.isFiltered) counts.filteredCount++;
+        if (cd.filters.isFiltered) {
+          counts.filteredCount++;
+          if (cd.filters.isNeg) counts.neg++;
+          if (cd.filters.isLowOffers) counts.min++;
+          if (cd.filters.isUnchecked) counts.uncheckedHidden++;
+          if (cd.filters.isVortiefExcluded) counts.vortief++;
+          if (cd.filters.isDealerLoser) counts.dealer++;
+        }
       }
 
       // --- Sort ---
