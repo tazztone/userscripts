@@ -2494,6 +2494,21 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => document.querySelector('#tp-preview-svg .tp-pv-rec')?.getAttribute('opacity') === '1'")
+    page.select_option('#tp-preview-preset-select', 'r5')
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-outlier-band-range');
+        r.value = '40';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-horizon-range');
+        r.value = '30';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
+    assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg text[fill=\"#f43f5e\"]').length") == 0
 
 
 def test_toolbar_single_row_sticky(page: Page):

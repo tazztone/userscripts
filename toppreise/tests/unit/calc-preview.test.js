@@ -136,4 +136,12 @@ describe('calc-preview', () => {
     assert.equal(tiny.medianFallback, true);
     assert.equal(tiny.cutoffTs, null);
   });
+  it('keeps the band rect visible when the median sits below the window', () => {
+    // median joins the domain (previewCoords pushes o.median into vals), so the
+    // rect never collapses; the y2 > y1 guard is defense-in-depth only.
+    const pts = expandRleSeries(PRESETS.s26.rle, NOW);
+    const st = previewStats(pts, { ...DEF, cardPrice: 799 });
+    const co = previewCoords(st.clean, { median: 100, band: 0.20, cardPrice: 799, dropped: st.dropped });
+    assert.ok(co.bandRect !== null && co.bandRect.height > 0);
+  });
 });

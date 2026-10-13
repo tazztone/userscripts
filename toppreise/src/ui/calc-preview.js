@@ -130,7 +130,7 @@ export function previewCoords(clean, o = {}) {
     const top = m.top, bot = m.top + innerH;
     const y1 = Math.max(top, Math.min(bot, y(o.median * (1 + o.band))));
     const y2 = Math.max(top, Math.min(bot, y(o.median * (1 - o.band))));
-    bandRect = y2 >= y1 ? { x: m.left, y: y1, width: innerW, height: y2 - y1 } : null;
+    bandRect = y2 > y1 ? { x: m.left, y: y1, width: innerW, height: y2 - y1 } : null;
   }
   const medianY = o.median > 0 ? y(o.median) : null;
   const t0 = n ? pts[0][0] : 0;
@@ -221,7 +221,7 @@ export function refreshCalcPreview() {
     s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="${mainStroke}" stroke="#fff" stroke-width="1"/>`;
   }
   svg.innerHTML = s;
-  const n = st.dropped.length;
+  const n = visibleDropped.length;
   legend.textContent = `${n} Glitch${n === 1 ? '' : 'es'} gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
   blend.textContent = st.qualifies
     ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
