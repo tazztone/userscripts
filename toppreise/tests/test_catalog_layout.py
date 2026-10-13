@@ -2458,6 +2458,9 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     page.click('#tp-bar-calc-reset')
     page.wait_for_function("() => document.getElementById('tp-preview-preset-select')?.value === 's26'")
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
+    page.select_option('#tp-preview-preset-select', 'synthetic')
+    page.click('#tp-bar-outlier-toggle + .tp-mini-slider')
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('kein Badge')")
 
 
 def test_toolbar_single_row_sticky(page: Page):
