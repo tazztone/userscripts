@@ -713,19 +713,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (calcSummary) {
     setTextIfChanged(calcSummary, `${weightText(curWeight, 'short')} · ${horizonText(curHorizon)} · ${clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS)} Pkt`);
   }
-  // Berechnungsparameter shape browse heat too — catalog listings always show
-  // them; the feed keeps the mode gate.
-  const showCalc = isDealFeed ? CONFIG.BESTPREISE_MODE_ACTIVE === true : true;
+  // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
   const calcWrapEl = document.getElementById('tp-bar-calc-wrap');
-  if (calcWrapEl) {
-    calcWrapEl.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
-    if (!showCalc) {
-      const pop = document.getElementById('tp-bar-calc-popover');
-      if (pop) pop.classList.remove('tp-show');
-      const btn = document.getElementById('tp-bar-calc-btn');
-      if (btn) btn.setAttribute('aria-expanded', 'false');
-    }
-  }
+  if (calcWrapEl) calcWrapEl.style.setProperty('display', 'inline-flex', 'important');
   // A group left without visible children (option-less groups on catalog pages) hides; a divider shows only between two visible groups.
   for (const group of bar.querySelectorAll('.tp-group')) {
     const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');

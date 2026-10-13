@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.219
+// @version      2.18.220
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5554,7 +5554,7 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-weight-group" style="display: none;">
+          <div class="tp-settings-group" id="tp-bestpreise-weight-group">
             <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
@@ -5562,7 +5562,7 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-minpoints-group" style="display: none;">
+          <div class="tp-settings-group" id="tp-bestpreise-minpoints-group">
             <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
@@ -5570,7 +5570,7 @@ const SHADOW_MODAL_STYLES = `
             </div>
             <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (Kante statt Fläche).</span>
           </div>
-          <div class="tp-settings-group" id="tp-bestpreise-horizon-group" style="display: none;">
+          <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
@@ -5663,14 +5663,11 @@ const SHADOW_MODAL_STYLES = `
     const heatmapIntensityRange = shadow.getElementById('tp-heatmap-intensity-range');
     const heatmapIntensityVal = shadow.getElementById('tp-heatmap-intensity-val');
     const bestpreiseModeToggle = shadow.getElementById('tp-bestpreise-mode-toggle');
-    const bestpreiseWeightGroup = shadow.getElementById('tp-bestpreise-weight-group');
     const bestpreiseWeightRange = shadow.getElementById('tp-bestpreise-weight-range');
     const bestpreiseWeightVal = shadow.getElementById('tp-bestpreise-weight-val');
     const bestpreiseWeightDesc = shadow.getElementById('tp-bestpreise-weight-desc');
-    const bestpreiseMinPointsGroup = shadow.getElementById('tp-bestpreise-minpoints-group');
     const bestpreiseMinPointsRange = shadow.getElementById('tp-bestpreise-minpoints-range');
     const bestpreiseMinPointsVal = shadow.getElementById('tp-bestpreise-minpoints-val');
-    const bestpreiseHorizonGroup = shadow.getElementById('tp-bestpreise-horizon-group');
     const bestpreiseHorizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
     const bestpreiseHorizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
     const bestpreiseHorizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
@@ -5737,15 +5734,7 @@ const SHADOW_MODAL_STYLES = `
       heatmapIntensityRange.value = heatIntensityPct;
       heatmapIntensityVal.value = heatIntensityPct;
 
-      if (bestpreiseWeightGroup) {
-        bestpreiseWeightGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
-      }
-      if (bestpreiseMinPointsGroup) {
-        bestpreiseMinPointsGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
-      }
-      if (bestpreiseHorizonGroup) {
-        bestpreiseHorizonGroup.style.display = (CONFIG.BESTPREISE_MODE_ACTIVE === true) ? 'block' : 'none';
-      }
+      // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
       {
         const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
         if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
@@ -5830,19 +5819,6 @@ const SHADOW_MODAL_STYLES = `
         if (!isNaN(typed)) bestpreiseMinPointsRange.value = minPointsToIndex(clampMinPoints(typed));
       });
     }
-
-    bestpreiseModeToggle?.addEventListener('change', () => {
-      if (bestpreiseWeightGroup) {
-        bestpreiseWeightGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
-      }
-      if (bestpreiseMinPointsGroup) {
-        bestpreiseMinPointsGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
-      }
-      if (bestpreiseHorizonGroup) {
-        bestpreiseHorizonGroup.style.display = bestpreiseModeToggle.checked ? 'block' : 'none';
-      }
-    });
-
     cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
       clearDealerMemory();
@@ -7028,19 +7004,9 @@ const SHADOW_MODAL_STYLES = `
     if (calcSummary) {
       setTextIfChanged(calcSummary, `${weightText(curWeight, 'short')} · ${horizonText(curHorizon)} · ${clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS)} Pkt`);
     }
-    // Berechnungsparameter shape browse heat too — catalog listings always show
-    // them; the feed keeps the mode gate.
-    const showCalc = isDealFeed ? CONFIG.BESTPREISE_MODE_ACTIVE === true : true;
+    // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
     const calcWrapEl = document.getElementById('tp-bar-calc-wrap');
-    if (calcWrapEl) {
-      calcWrapEl.style.setProperty('display', showCalc ? 'inline-flex' : 'none', 'important');
-      if (!showCalc) {
-        const pop = document.getElementById('tp-bar-calc-popover');
-        if (pop) pop.classList.remove('tp-show');
-        const btn = document.getElementById('tp-bar-calc-btn');
-        if (btn) btn.setAttribute('aria-expanded', 'false');
-      }
-    }
+    if (calcWrapEl) calcWrapEl.style.setProperty('display', 'inline-flex', 'important');
     // A group left without visible children (option-less groups on catalog pages) hides; a divider shows only between two visible groups.
     for (const group of bar.querySelectorAll('.tp-group')) {
       const hasVisibleChild = [...group.children].some(el => el.style.display !== 'none');
