@@ -285,15 +285,19 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") != 'none'
 
     # Peek covers real removals: a negative term hides the card, per-cause Dimmen previews it.
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon')")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     assert not page.locator('#card-negative').is_visible()
     page.click('#tp-bar-filter-btn')
-    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="dim"]')
+    mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
+    assert mode_btn.count() == 1
+    assert mode_btn.inner_text() == 'Verbergen'
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Dimmen'
     page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
     assert page.locator('#card-negative').is_visible()
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', '')")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
 
 
 
@@ -477,8 +481,13 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
 
     # 5. Per-cause Dimmen previews the ignored products as dimmed scan targets.
     # The two previously skipped (unchecked) cards count again -> CTA back to 2.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide')")
     page.click('#tp-bar-filter-btn')
-    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="dim"]')
+    mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
+    assert mode_btn.count() == 1
+    assert mode_btn.inner_text() == 'Verbergen'
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Dimmen'
     page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
     assert page.locator('#card-negative').is_visible()
     assert page.locator('#card-iphone').is_visible()

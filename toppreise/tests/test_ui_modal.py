@@ -479,9 +479,9 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     assert res_sync['threshConfig'] == 25
     assert res_sync['barThreshBtn'] == '≥25% ▾'
     assert res_sync['modalThreshVal'] == '25'
-    assert res_sync['vortiefChecked'] is False
+    assert res_sync['vortiefChecked'] is True
     assert res_sync['vortiefRowCountPresent'] is True
-    assert page.locator('#tp-toggle-vortief').is_checked() is False
+    assert page.locator('#tp-toggle-vortief').is_checked() is True
 
     # Close modal
     page.click('#tp-root >> #tp-btn-close')

@@ -47,7 +47,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.208
+// @version      2.18.209
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -96,7 +96,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0, dimmed: 0 };
+      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {

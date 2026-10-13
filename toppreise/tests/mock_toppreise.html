@@ -171,10 +171,13 @@
     .priceContainer.productPrice { font-size: 12px; color: #64748b; }
     .shippingText { font-size: 11px; color: #64748b; }
     .offersContainer { font-size: 12px; color: #64748b; }
-    .price-availability { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    /* Site-dropdown overlap fixture: live header/nav dropdowns paint at z≈1000
+       (unreachable from file://, so D=1000 fallback); the bar must stay below. */
+    #mock-site-dropdown { position: absolute; width: 220px; height: 64px; background: #fff; border: 1px solid #0f172a; z-index: 1000; display: none; }
   </style>
 </head>
 <body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-lng="de" data-current_url="/neue-toppreise">
+  <div id="mock-site-dropdown" aria-hidden="true">Site-Navigation</div>
   <div class="breadcrumb" style="margin-bottom: 12px; font-size: 13px; color: #64748b;">
     <span>Home</span> &gt; <span>Neue Toppreise</span>
   </div>

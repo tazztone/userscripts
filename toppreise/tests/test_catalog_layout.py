@@ -408,24 +408,29 @@ def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
 
 
 def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', true)")
     _open_filter_popover(page)
     vortief_toggle = page.locator('#tp-toggle-vortief')
-    assert vortief_toggle.is_checked() is True
-    assert 'Fallback-Tiefs anzeigen' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
-    page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
+    # ON = filter active (excluded); default includes fallbacks, so starts OFF
     assert vortief_toggle.is_checked() is False
+    assert 'Fallback-Tiefs' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
+    assert 'Fallback-Tiefs anzeigen' not in (page.locator('[data-filter-row="vortief"]').text_content() or '')
+    page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
+    assert vortief_toggle.is_checked() is True
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
     _open_filter_popover(page)
     excluded_count = page.locator('[data-row-count="vortief"]').inner_text()
     if excluded_count:
         assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
-    assert vortief_toggle.is_checked() is True
+    assert vortief_toggle.is_checked() is False
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
 
 
 def test_filter_popover_dim_mode(page: Page):
-    # Neg term matching 1 card hides it; per-cause Dimmen keeps it visible but dimmed
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); }")
+    # Neg term matching 1 card hides it; single toggle flips Verbergen<->Dimmen
     _open_filter_popover(page)
     drop_store_filter(page)
     page.fill('#tp-inline-negative-input', 'Silikon')
@@ -434,9 +439,13 @@ def test_filter_popover_dim_mode(page: Page):
     assert 'tp-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
     assert page.locator('#tp-filter-count').inner_text() == '1'
     assert page.locator('#tp-filter-count').is_visible()
-    # Switch Negativ to Dimmen via the popover segmented pair
+    # hide -> dim: button text flips, card dims, dim badge shows
     _open_filter_popover(page)
-    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="dim"]')
+    mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
+    assert mode_btn.count() == 1
+    assert mode_btn.inner_text() == 'Verbergen'
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Dimmen'
     page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
     assert 'tp-dimmed' in (page.locator('#card-negative').get_attribute('class') or '')
     assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
@@ -444,9 +453,10 @@ def test_filter_popover_dim_mode(page: Page):
     assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') == 'none'
     assert page.locator('#tp-filter-dim-count').inner_text() == '+1 gedimmt'
     assert page.locator('#tp-filter-dim-count').is_visible()
-    # Back to Verbergen: hidden again, badge restored
+    # dim -> hide: full cycle back on the same row
     _open_filter_popover(page)
-    page.click('button[data-mode-key="FILTER_NEG_MODE"][data-mode-value="hide"]')
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Verbergen'
     page.wait_for_selector('#card-negative.tp-filtered', state='attached')
     assert 'tp-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
     assert page.locator('#tp-filter-count').inner_text() == '1'
@@ -2394,3 +2404,54 @@ def test_toolbar_single_row_sticky(page: Page):
     page.wait_for_timeout(200)
     assert scrolled > 0
     assert page.locator('#tp-suite-filter-bar').bounding_box()['y'] <= 10
+
+
+def test_filter_popover_rows_do_not_wrap(page: Page):
+    _open_filter_popover(page)
+    heights = page.evaluate("""() => [...document.querySelectorAll('#tp-bar-filter-popover .tp-filter-row')]
+        .filter(el => getComputedStyle(el).display !== 'none')
+        .map(el => ({ scroll: el.scrollHeight, client: el.clientHeight }))""")
+    assert heights, 'expected at least one visible filter row'
+    for h in heights:
+        assert h['scroll'] == h['client']
+
+
+def test_filter_popover_is_opaque_with_visible_border(page: Page):
+    _open_filter_popover(page)
+    style = page.evaluate("""() => {
+        const cs = getComputedStyle(document.getElementById('tp-bar-filter-popover'));
+        return { bg: cs.backgroundColor, border: cs.borderColor };
+    }""")
+    assert style['bg'] == 'rgb(255, 255, 255)'
+    alpha = page.evaluate("(c) => parseFloat(c.split(',').pop().replace(')', '').trim())", style['border'])
+    assert alpha >= 0.2
+
+
+def test_dealer_row_inactive_without_store_filter(page: Page):
+    _open_filter_popover(page)
+    row = page.locator('[data-filter-row="dealer"]')
+    assert 'greift bei gewähltem Händler' in (row.text_content() or '')
+    drop_store_filter(page)
+    _open_filter_popover(page)
+    assert 'inaktiv' in (row.text_content() or '')
+    assert 'tp-row-inactive' in (row.get_attribute('class') or '')
+    assert page.locator('button[data-mode-key="DEALER_MODE"]').is_disabled()
+
+
+def test_toolbar_stacks_below_site_dropdown(page: Page):
+    hit = page.evaluate("""() => {
+        const bar = document.getElementById('tp-suite-filter-bar');
+        const r = bar.getBoundingClientRect();
+        const dd = document.getElementById('mock-site-dropdown');
+        dd.style.display = 'block';
+        dd.style.left = (r.left + window.scrollX + 10) + 'px';
+        dd.style.top = (r.top + window.scrollY + 4) + 'px';
+        const x = r.left + 20, y = r.top + 10;
+        const el = document.elementFromPoint(x, y);
+        dd.style.display = 'none';
+        if (!el) return 'none';
+        if (el.closest('#mock-site-dropdown')) return 'dropdown';
+        if (el.closest('#tp-suite-filter-bar')) return 'bar';
+        return el.id || el.className || el.tagName;
+    }""")
+    assert hit == 'dropdown'

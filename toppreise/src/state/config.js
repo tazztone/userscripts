@@ -454,7 +454,7 @@ export function syncUiControl(key, val) {
           }
           case 'BESTPREISE_INCLUDE_VORTIEF': {
             const toggle = bar.querySelector('#tp-toggle-vortief');
-            if (toggle) toggle.checked = val !== false;
+            if (toggle) toggle.checked = val === false;
             break;
           }
           case 'FILTER_NEG_MODE':
@@ -464,7 +464,8 @@ export function syncUiControl(key, val) {
           case 'DEALER_MODE': {
             const mode = val === 'dim' ? 'dim' : 'hide';
             bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
-              btn.classList.toggle('tp-active', btn.dataset.modeValue === mode);
+              btn.classList.toggle('tp-active', true);
+              btn.textContent = mode === 'dim' ? 'Dimmen' : 'Verbergen';
             });
             break;
           }

@@ -820,7 +820,7 @@ export const STYLES = `
     align-items: center !important;
     flex-wrap: nowrap !important;
     gap: 6px !important;
-    z-index: 100 !important;
+    z-index: 50 !important;
     position: sticky !important;
     top: 8px !important;
   }
@@ -1045,9 +1045,9 @@ export const STYLES = `
     display: none !important;
     flex-direction: column !important;
     gap: 10px !important;
-    background: var(--tp-panel) !important;
+    background: var(--tp-bg) !important;
     backdrop-filter: blur(14px) !important;
-    border: 1px solid var(--tp-line) !important;
+    border: 1px solid rgba(15,23,42,0.25) !important;
     border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
     padding: 12px !important;
@@ -1056,10 +1056,12 @@ export const STYLES = `
   #tp-bar-filter-popover.tp-show { display: flex !important; }
   .tp-filter-row {
     display: flex !important;
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;
     align-items: center !important;
     gap: 8px !important;
   }
+  .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
+  .tp-row-inactive { opacity: .55 !important; }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;

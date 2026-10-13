@@ -13,7 +13,6 @@ import { recomputeCachedMedians } from "../scanner/cache.js";
 import { scanState } from "../state/store.js";
 import { showToast } from "./toast.js";
 import { setTextIfChanged } from "./badges.js";
-import { triggerProcessListings } from "../page/adapter.js";
 import { syncMiniToggle } from "./mini-toggle.js";
 
 function getSuiteBarPlacement() {
@@ -189,7 +188,7 @@ function placeBar(bar, placement) {
   }
 }
 
-export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, filteredCount: 0, dimmed: 0 }, pageHasOffers = false, isDealFeed = false) {
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: false, filteredCount: 0, dimmed: 0 }, pageHasOffers = false, isDealFeed = false) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
@@ -222,7 +221,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
                 <span class="tp-mini-slider"></span>
               </label>
               <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
-              <button class="tp-filter-mode-btn ${CONFIG.FILTER_NEG_MODE !== 'dim' ? 'tp-active' : ''}" data-mode-key="FILTER_NEG_MODE" data-mode-value="hide">Verbergen</button><button class="tp-filter-mode-btn ${CONFIG.FILTER_NEG_MODE === 'dim' ? 'tp-active' : ''}" data-mode-key="FILTER_NEG_MODE" data-mode-value="dim">Dimmen</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="FILTER_NEG_MODE">${CONFIG.FILTER_NEG_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="min" style="display: ${pageHasOffers ? 'flex' : 'none'};">
               <span class="tp-filter-label">Min-Angebote</span>
@@ -236,7 +235,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
                 </label>
               </div>
               <span class="tp-count-badge" data-row-count="min" style="display: ${minHidden > 0 ? 'inline-flex' : 'none'};">${minHidden > 0 ? minHidden : ''}</span>
-              <button class="tp-filter-mode-btn ${CONFIG.FILTER_MIN_MODE !== 'dim' ? 'tp-active' : ''}" data-mode-key="FILTER_MIN_MODE" data-mode-value="hide">Verbergen</button><button class="tp-filter-mode-btn ${CONFIG.FILTER_MIN_MODE === 'dim' ? 'tp-active' : ''}" data-mode-key="FILTER_MIN_MODE" data-mode-value="dim">Dimmen</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="FILTER_MIN_MODE">${CONFIG.FILTER_MIN_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="unchecked" style="display: ${isDealFeed ? 'flex' : 'none'};">
               <span class="tp-filter-label">Nur geprüfte</span>
@@ -245,22 +244,22 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
                 <span class="tp-mini-slider"></span>
               </label>
               <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
-              <button class="tp-filter-mode-btn ${CONFIG.HIDE_UNCHECKED_MODE !== 'dim' ? 'tp-active' : ''}" data-mode-key="HIDE_UNCHECKED_MODE" data-mode-value="hide">Verbergen</button><button class="tp-filter-mode-btn ${CONFIG.HIDE_UNCHECKED_MODE === 'dim' ? 'tp-active' : ''}" data-mode-key="HIDE_UNCHECKED_MODE" data-mode-value="dim">Dimmen</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="HIDE_UNCHECKED_MODE">${CONFIG.HIDE_UNCHECKED_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="vortief" style="display: ${isDealFeed ? 'flex' : 'none'};">
-              <span class="tp-filter-label">Fallback-Tiefs anzeigen</span>
-              <label class="tp-mini-switch" title="Fallback-Tiefs anzeigen">
-                <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false ? 'checked' : ''}>
+              <span class="tp-filter-label">Fallback-Tiefs</span>
+              <label class="tp-mini-switch" title="Fallback-Tiefs">
+                <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'checked' : ''}>
                 <span class="tp-mini-slider"></span>
               </label>
               <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span>
-              <button class="tp-filter-mode-btn ${CONFIG.VORTIEF_MODE !== 'dim' ? 'tp-active' : ''}" data-mode-key="VORTIEF_MODE" data-mode-value="hide">Verbergen</button><button class="tp-filter-mode-btn ${CONFIG.VORTIEF_MODE === 'dim' ? 'tp-active' : ''}" data-mode-key="VORTIEF_MODE" data-mode-value="dim">Dimmen</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="dealer">
               <span class="tp-filter-label">Händler</span>
-              <span class="tp-filter-note">automatisch, wenn Händler-Filter aktiv</span>
+              <span class="tp-filter-note" data-dealer-note>greift bei gewähltem Händler</span>
               <span class="tp-count-badge" data-row-count="dealer" style="display: ${dealerHidden > 0 ? 'inline-flex' : 'none'};">${dealerHidden > 0 ? dealerHidden : ''}</span>
-              <button class="tp-filter-mode-btn ${CONFIG.DEALER_MODE !== 'dim' ? 'tp-active' : ''}" data-mode-key="DEALER_MODE" data-mode-value="hide">Verbergen</button><button class="tp-filter-mode-btn ${CONFIG.DEALER_MODE === 'dim' ? 'tp-active' : ''}" data-mode-key="DEALER_MODE" data-mode-value="dim">Dimmen</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="DEALER_MODE">${CONFIG.DEALER_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset">Zurücksetzen</button>
           </div>
@@ -332,7 +331,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       filterPopover.onclick = e => {
         const btn = e.target?.closest?.('.tp-filter-mode-btn');
         if (!btn) return;
-        updateConfig(btn.dataset.modeKey, btn.dataset.modeValue);
+        updateConfig(btn.dataset.modeKey, CONFIG[btn.dataset.modeKey] === 'dim' ? 'hide' : 'dim');
       };
       const resetBtn = bar.querySelector('#tp-filter-reset');
       if (resetBtn) {
@@ -351,8 +350,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const vortiefToggle = bar.querySelector('#tp-toggle-vortief');
       if (vortiefToggle) {
         vortiefToggle.onchange = () => {
-          updateConfig('BESTPREISE_INCLUDE_VORTIEF', vortiefToggle.checked);
-          showToast(vortiefToggle.checked ? 'Fallback-Tiefs eingeschlossen' : 'Fallback-Tiefs ausgeschlossen (Filtergrund, entfernt)');
+          updateConfig('BESTPREISE_INCLUDE_VORTIEF', !vortiefToggle.checked);
+          showToast(vortiefToggle.checked ? 'Fallback-Tiefs ausgeschlossen (Filtergrund)' : 'Fallback-Tiefs eingeschlossen');
         };
       }
     }
@@ -481,20 +480,30 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
   setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0);
   setRowCount('dealer', dealerHidden, dealerHidden > 0);
-  for (const [rowName, key] of [['neg', 'FILTER_NEG_MODE'], ['min', 'FILTER_MIN_MODE'], ['unchecked', 'HIDE_UNCHECKED_MODE'], ['vortief', 'VORTIEF_MODE'], ['dealer', 'DEALER_MODE']]) {
+  for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
     const mode = CONFIG[key] === 'dim' ? 'dim' : 'hide';
     bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
-      btn.classList.toggle('tp-active', btn.dataset.modeValue === mode);
+      btn.classList.toggle('tp-active', true);
+      setTextIfChanged(btn, mode === 'dim' ? 'Dimmen' : 'Verbergen');
     });
   }
   const uncheckedToggle = bar.querySelector('#tp-toggle-unchecked');
   if (uncheckedToggle) uncheckedToggle.checked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true;
   const vortiefToggle = bar.querySelector('#tp-toggle-vortief');
-  if (vortiefToggle) vortiefToggle.checked = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
+  if (vortiefToggle) vortiefToggle.checked = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false;
   const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
   if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
   const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
   if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+  const dealerActive = counts.dealerActive === true;
+  const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
+  if (dealerRow) {
+    dealerRow.classList.toggle('tp-row-inactive', !dealerActive);
+    const note = dealerRow.querySelector('[data-dealer-note]');
+    if (note) setTextIfChanged(note, dealerActive ? 'greift bei gewähltem Händler' : 'inaktiv – kein Händler gewählt');
+    const dealerBtn = dealerRow.querySelector('[data-mode-key="DEALER_MODE"]');
+    if (dealerBtn) dealerBtn.disabled = !dealerActive;
+  }
 
 
   const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
@@ -570,7 +579,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   }
 
   const minRow = bar.querySelector('[data-filter-row="min"]');
-  if (minRow) minRow.style.display = pageHasOffers ? 'flex' : 'none';
+  if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
 }
