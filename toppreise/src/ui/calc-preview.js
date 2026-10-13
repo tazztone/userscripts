@@ -86,8 +86,10 @@ export function previewStats(points, o) {
   const badge = qualifies
     ? Math.max(1, Math.round((1 - weightRecord) * dMedian + weightRecord * dRecord))
     : null;
+  const recordLow = live.previousLow ?? 0;
+  const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
 
-  return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean };
+  return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, recordLow, cutoffTs };
 }
 
 const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 34 };
@@ -112,7 +114,14 @@ export function previewCoords(clean, o = {}) {
   const y = v => m.top + (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad))) * innerH;
   const x = i => m.left + (n > 1 ? (i / (n - 1)) * innerW : 0);
   const f1 = v => v.toFixed(1);
-  const pointsAttr = pts.map((p, i) => `${f1(x(i))},${f1(y(p[1]))}`).join(' ');
+  const wc = o.windowCount;
+  const splitActive = typeof wc === 'number' && wc > 0 && wc < n;
+  const startIdx = splitActive ? n - wc : 0;
+  const pt = (p, i) => `${f1(x(i))},${f1(y(p[1]))}`;
+  const pointsAttr = pts.slice(startIdx).map((p, k) => pt(p, startIdx + k)).join(' ');
+  const dimPointsAttr = splitActive ? pts.slice(0, startIdx).map((p, i) => pt(p, i)).join(' ') : '';
+  const splitX = splitActive ? x(startIdx) : null;
+  const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
   const bandRect = (o.band > 0 && o.median > 0)
     ? { x: m.left, y: y(o.median * (1 + o.band)), width: innerW, height: y(o.median * (1 - o.band)) - y(o.median * (1 + o.band)) }
     : null;
@@ -128,7 +137,7 @@ export function previewCoords(clean, o = {}) {
     : null;
   const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
   if (o.median > 0) ticks.splice(1, 0, { y: y(o.median), label: fmtPreviewMedian(o.median) });
-  return { pointsAttr, bandRect, medianY, glitchXY, anchor, ticks };
+  return { pointsAttr, bandRect, medianY, glitchXY, anchor, ticks, dimPointsAttr, splitX, recordY };
 }
 
 let activePresetId = 's26';
@@ -175,31 +184,44 @@ export function refreshCalcPreview() {
   const band = Math.min(90, Math.max(20, num('tp-bar-outlier-band-range', 60))) / 100;
   const hours = Math.min(168, Math.max(12, num('tp-bar-outlier-hours-range', 48)));
   const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice: preset.cardPrice, now });
-  const co = previewCoords(st.clean, { median: st.median, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: st.dropped });
+  const co = previewCoords(st.clean, { median: st.median, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: st.dropped, windowCount: st.cutoffTs !== null ? st.windowCount : undefined, recordLow: st.recordLow });
   const f1 = v => v.toFixed(1);
+  const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
   let s = '';
   if (co.bandRect) {
     const r = co.bandRect;
-    s += `<rect x="${f1(r.x)}" y="${f1(r.y)}" width="${f1(r.width)}" height="${f1(r.height)}" fill="rgba(59,130,246,0.08)"/>`;
+    s += `<rect x="${f1(r.x)}" y="${f1(r.y)}" width="${f1(r.width)}" height="${f1(r.height)}" fill="rgba(59,130,246,0.08)" stroke="#3b82f6" stroke-opacity="0.45" stroke-dasharray="3 2"/>`;
+  }
+  if (co.splitX !== null) {
+    s += `<rect class="tp-pv-dim" x="${f1(PV_MARGIN.left)}" y="${f1(PV_MARGIN.top)}" width="${f1(co.splitX - PV_MARGIN.left)}" height="${f1(110 - PV_MARGIN.top - PV_MARGIN.bottom)}" fill="rgba(100,116,139,0.12)"/>`;
   }
   for (const t of co.ticks) {
     s += `<text x="2" y="${f1(t.y + 3)}" font-size="9" fill="#64748b">${t.label}</text>`;
   }
+  if (st.recordLow > 0 && st.dRecord > 0 && co.recordY !== null) {
+    s += `<line class="tp-pv-rec" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.recordY)}" y2="${f1(co.recordY)}" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * weightRecord}"/>`;
+  }
   if (co.medianY !== null) {
-    s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1"/>`;
+    s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
+  }
+  if (co.dimPointsAttr) {
+    s += `<polyline class="tp-pv-dim" points="${co.dimPointsAttr}" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.6"/>`;
   }
   if (co.pointsAttr) {
-    s += `<polyline points="${co.pointsAttr}" fill="none" stroke="#3b82f6" stroke-width="1.5"/>`;
+    s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5"/>`;
+  }
+  if (co.splitX !== null) {
+    s += `<line class="tp-pv-cut" x1="${f1(co.splitX)}" x2="${f1(co.splitX)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#94a3b8" stroke-dasharray="3 2" stroke-width="1"/>`;
   }
   for (const g of co.glitchXY) {
     s += `<text x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
   }
   if (co.anchor) {
-    s += `<line x1="${PV_MARGIN.left}" x2="${f1(co.anchor.x)}" y1="${f1(co.anchor.y)}" y2="${f1(co.anchor.y)}" stroke="#3b82f6" stroke-dasharray="2 2" stroke-width="1"/>`;
-    s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="#3b82f6" stroke="#fff" stroke-width="1"/>`;
+    s += `<line x1="${PV_MARGIN.left}" x2="${f1(co.anchor.x)}" y1="${f1(co.anchor.y)}" y2="${f1(co.anchor.y)}" stroke="${mainStroke}" stroke-dasharray="2 2" stroke-width="1"/>`;
+    s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="${mainStroke}" stroke="#fff" stroke-width="1"/>`;
   }
   svg.innerHTML = s;
-  legend.textContent = `${st.dropped.length} Glitches gefiltert (${st.activeCount} Punkte aktiv)`;
+  legend.textContent = `${st.dropped.length} Glitches gefiltert (${hours} h, ±${Math.round(band * 100)} %)`;
   blend.textContent = st.qualifies
     ? `Ø \u2212${st.dMedian}% \u00b7 Rek \u2212${st.dRecord}% \u2192 Badge \u2212${st.badge}% (${Math.round(weightRecord * 100)}% Rek)`
     : 'kein Tiefstpreis zum Demo-Preis – kein Badge';

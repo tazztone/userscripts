@@ -1055,9 +1055,8 @@ export const STYLES = `
     display: none !important;
     flex-direction: column !important;
     gap: 10px !important;
-    background: var(--tp-panel) !important;
-    backdrop-filter: blur(14px) !important;
-    border: 1px solid var(--tp-line) !important;
+    background: var(--tp-bg) !important;
+    border: 1.5px solid var(--tp-line-soft) !important;
     border-radius: var(--tp-r-lg) !important;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
     padding: 12px !important;

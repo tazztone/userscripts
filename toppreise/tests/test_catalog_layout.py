@@ -2461,6 +2461,34 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     page.select_option('#tp-preview-preset-select', 'synthetic')
     page.click('#tp-bar-outlier-toggle + .tp-mini-slider')
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('kein Badge')")
+    opaque = page.evaluate("""() => {
+        const cs = getComputedStyle(document.getElementById('tp-bar-calc-popover'));
+        return { bg: cs.backgroundColor, borderTop: cs.borderTopWidth };
+    }""")
+    assert opaque['bg'].startswith('rgb(') and 'rgba' not in opaque['bg']
+    assert 1 <= float(opaque['borderTop'].replace('px', '')) <= 2
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-minpoints-range');
+        r.value = '14';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.querySelector('#tp-preview-svg .tp-pv-main')?.getAttribute('stroke') === '#94a3b8'")
+    page.select_option('#tp-preview-preset-select', 's26')
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-horizon-range');
+        r.value = '30';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.querySelectorAll('#tp-preview-svg rect.tp-pv-dim').length > 0")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-weight-range');
+        r.value = '100';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.querySelector('#tp-preview-svg .tp-pv-rec')?.getAttribute('opacity') === '1'")
 
 
 def test_toolbar_single_row_sticky(page: Page):
