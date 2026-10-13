@@ -2528,6 +2528,9 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
     page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('(48 h, ±20 %)')")
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-band').length") == 1
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').tagName") == 'rect'
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').getAttribute('fill')") == '#3b82f6'
+    assert page.evaluate("() => parseFloat(document.querySelector('#tp-preview-svg .tp-pv-band').getAttribute('height'))") > 0
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-kept').length") == 8
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg text[fill=\"#f43f5e\"]').length") == 0
 

@@ -81,7 +81,7 @@ describe('calc-preview', () => {
   it('keeps all coords inside the 296x110 viewBox with a visible anchor', () => {
     const pts = expandRleSeries(PRESETS.synthetic.rle, NOW);
     const st = previewStats(pts, { ...DEF, cardPrice: 400 });
-    const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.60, cardPrice: 400, dropped: st.dropped });
+    const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.60, cardPrice: 400, dropped: st.dropped, raw: pts });
     assert.ok(co.bandEdges.top !== null || co.bandEdges.bot !== null);
     assert.ok(co.anchor.x >= 34 && co.anchor.x <= 286);
     assert.ok(co.anchor.y >= 8 && co.anchor.y <= 102);
@@ -91,6 +91,8 @@ describe('calc-preview', () => {
       assert.ok(g.y >= 8 && g.y <= 102);
     }
     assert.equal(co.ticks.length, 3);
+    assert.equal(co.rawAttr.split(' ').length, pts.length);
+    assert.notEqual(co.rawAttr, co.pointsAttr);
   });
 
   it('omits band edges and markers when the filter is off', () => {
@@ -100,6 +102,7 @@ describe('calc-preview', () => {
     assert.equal(co.bandEdges.top, null);
     assert.equal(co.bandEdges.bot, null);
     assert.deepEqual(co.keptXY, []);
+    assert.equal(co.rawAttr, null);
   });
   it('crops to the window via cropPreviewWindow, full history at null', () => {
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
@@ -138,14 +141,15 @@ describe('calc-preview', () => {
     assert.equal(tiny.medianFallback, true);
     assert.equal(tiny.cutoffTs, null);
   });
-  it('hides band edges that fall outside the plot instead of clamping', () => {
+  it('exposes unclamped band edges (svg clips)', () => {
     // ref 100 sits far below the s26 window (domain lo = cardPrice 799):
-    // both ±20 % edges hide instead of clamping to the border.
+    // both ±20 % edges stay non-null; the SVG clips them.
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
     const st = previewStats(pts, { ...DEF, cardPrice: 799 });
     const co = previewCoords(st.clean, { median: st.median, refMedian: 100, band: 0.20, cardPrice: 799, dropped: st.dropped });
-    assert.equal(co.bandEdges.top, null);
-    assert.equal(co.bandEdges.bot, null);
+    assert.ok(co.bandEdges.top !== null);
+    assert.ok(co.bandEdges.bot !== null);
+    assert.ok(co.bandEdges.top > 94 && co.bandEdges.bot > 94 && co.bandEdges.bot > co.bandEdges.top);
   });
   it('exposes the filter reference median and kept out-of-band points on s26', () => {
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
@@ -155,7 +159,8 @@ describe('calc-preview', () => {
     assert.equal(st.dropped.length, 0);
     const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.20, cardPrice: 799, dropped: st.dropped });
     assert.ok(co.bandEdges.top !== null);
-    assert.equal(co.bandEdges.bot, null);
+    assert.ok(co.bandEdges.bot !== null);
+    assert.ok(co.bandEdges.bot > 94);
     assert.equal(co.keptXY.length, 8);
   });
 });

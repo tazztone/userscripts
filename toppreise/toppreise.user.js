@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.224
+// @version      2.18.225
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1166,7 +1166,7 @@ const STYLES = `
   #tp-preview-key .tp-pv-k-med { color: #64748b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-rec { color: #f59e0b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
-  #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; opacity: 0.8 !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-kept { color: #a855f7 !important; font-weight: 700 !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
@@ -6194,11 +6194,8 @@ const SHADOW_MODAL_STYLES = `
     const ref = o.refMedian > 0 ? o.refMedian : o.median;
     let bandEdges = { top: null, bot: null };
     if (o.band > 0 && ref > 0) {
-      const top = m.top, bot = m.top + innerH;
-      const e1 = y(ref * (1 + o.band));
-      const e2 = y(ref * (1 - o.band));
-      if (e1 > top && e1 < bot) bandEdges.top = e1;
-      if (e2 > top && e2 < bot) bandEdges.bot = e2;
+      bandEdges.top = y(ref * (1 + o.band));
+      bandEdges.bot = y(ref * (1 - o.band));
     }
     const medianY = o.median > 0 ? y(o.median) : null;
     const t0 = n ? pts[0][0] : 0;
@@ -6216,9 +6213,10 @@ const SHADOW_MODAL_STYLES = `
     const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
       ? { x: m.left + innerW, y: y(o.cardPrice) }
       : null;
+    const rawAttr = o.raw?.length ? o.raw.map(p => { const frac = t1 > t0 ? Math.max(0, Math.min(1, (p[0] - t0) / (t1 - t0))) : 0; return `${f1(m.left + frac * innerW)},${f1(y(p[1]))}`; }).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) ticks.splice(1, 0, { y: y(o.median), label: fmtPreviewMedian(o.median) });
-    return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY };
+    return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY, rawAttr };
   }
 
   let activePresetId = 's26';
@@ -6228,7 +6226,7 @@ const SHADOW_MODAL_STYLES = `
     box.id = 'tp-calc-preview';
     const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
     box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
-      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">···</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span><span><span class="tp-pv-k-kept">○</span> Regime</span></div>`
+      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span><span><span class="tp-pv-k-kept">○</span> Regime</span></div>`
       + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
       + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
     const sel = box.querySelector('#tp-preview-preset-select');
@@ -6267,14 +6265,13 @@ const SHADOW_MODAL_STYLES = `
     const hours = Math.min(168, Math.max(12, num('tp-bar-outlier-hours-range', 48)));
     const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice: preset.cardPrice, now });
     const { visible, visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
-    const co = previewCoords(visible, { median: st.median, refMedian: st.filterMedian, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: visibleDropped, recordLow: st.recordLow });
+    const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
+    const co = previewCoords(visible, { median: st.median, refMedian: st.filterMedian, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
-    for (const e of [co.bandEdges?.top, co.bandEdges?.bot]) {
-      if (e === null || e === undefined) continue;
-      s += `<line class="tp-pv-band" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(e)}" y2="${f1(e)}" stroke="#3b82f6" stroke-dasharray="1 3" stroke-linecap="round" stroke-width="1.5" opacity="0.8"/>`;
-    }
+    if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45"/>`;
+    if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = Math.min(co.bandEdges.top, co.bandEdges.bot), yB = Math.max(co.bandEdges.top, co.bandEdges.bot); s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(yB - yT)}" fill="#3b82f6" opacity="0.18"/>`; }
     for (const t of co.ticks) {
       s += `<text x="2" y="${f1(t.y + 3)}" font-size="9" fill="#64748b">${t.label}</text>`;
     }
