@@ -285,7 +285,7 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") != 'none'
 
     # Peek covers real removals: a negative term hides the card, per-cause Dimmen previews it.
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     assert not page.locator('#card-negative').is_visible()
     page.click('#tp-bar-filter-btn')
@@ -421,7 +421,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     cta = page.locator('#tp-floating-check-cta')
     cta_main = page.locator('#tp-floating-check-main')
     # Hide-pin: CTA counts below assume Verbergen removal, not Dimmen
-    page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide')")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
     assert cta.is_visible()
 
     # In mock_toppreise.html without filters, 3 cards qualify (-67%, -35%, -50%)
@@ -1633,7 +1633,7 @@ def test_dealer_button_retry_on_product_page_error(page: Page):
 
 def test_filter_button_shows_hidden_count(page: Page):
     """Filter-Button zeigt die Zahl verborgener Karten in #tp-filter-count."""
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     count = page.locator('#tp-filter-count')
     assert int((count.text_content() or '').strip()) >= 1

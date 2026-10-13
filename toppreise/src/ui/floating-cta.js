@@ -98,7 +98,7 @@ export function startBatchCheck() {
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
       const fresh = document.querySelectorAll('.tp-deal-fresh').length;
-      if (total > 0) showToast(fresh > 0 ? `${completed} Tiefstpreise verifiziert · ${fresh} neu` : `${completed} Tiefstpreise verifiziert`);
+      if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : `Keine Tiefstpreise dabei · ${completed} geprüft`);
       else showToast('Keine ungeprüften Deals vorhanden');
     }
   );

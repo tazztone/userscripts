@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.220
+// @version      2.18.221
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4493,8 +4493,8 @@ const SHADOW_MODAL_STYLES = `
     // shows the blend, heat/sort follow it). One computation (getHeatInput)
     // feeds BOTH the card heat here and the badge number below, so the ribbon
     // number always matches its color. The blend sorts too.
-    // Unverified site discounts never heat: they read striped-gray via
-    // tp-is-unverified (step 1b/6 below), verified cards heat as before.
+    // Unverified site discounts never heat: the badge-level tp-is-unverified
+    // ribbon (step 6 below) is their only striped-gray cue; verified cards heat as before.
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
@@ -4502,8 +4502,8 @@ const SHADOW_MODAL_STYLES = `
     const heatIntensity = CONFIG.HEATMAP_INTENSITY;
 
     // Geprüft vs ungeprüft: only verified stats heat the card/badge. Provisional
-    // site Differenzen stay neutral — the tp-is-unverified class below paints
-    // them gray-striped instead, so the state scans without comparing saturation.
+    // site Differenzen stay neutral — no heat here, so the state scans without
+    // comparing saturation.
     // Regular blend heat (verified): inset inner wash — the prominent signal,
     // clipped to the card's own edges. Vortief fallback heat (mode, verified low
     // without blend): same ramp hue, but only a subtle outer glow-or-none
@@ -4557,12 +4557,11 @@ const SHADOW_MODAL_STYLES = `
     // Unchecked cards stay at full opacity — the badge-level striped ribbon
     // (step 6) is the only ungeprüft signal. Loading cards get neither class.
      if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
-       card.classList.remove('tp-is-unverified', 'tp-is-verified');
+      card.classList.remove('tp-is-verified');
      } else if (stats) {
        card.classList.add('tp-is-verified');
-       card.classList.remove('tp-is-unverified');
      } else {
-       card.classList.remove('tp-is-unverified', 'tp-is-verified');
+      card.classList.remove('tp-is-verified');
      }
 
     // 2. Filters
@@ -7127,7 +7126,7 @@ const SHADOW_MODAL_STYLES = `
         // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
         const fresh = document.querySelectorAll('.tp-deal-fresh').length;
-        if (total > 0) showToast(fresh > 0 ? `${completed} Tiefstpreise verifiziert · ${fresh} neu` : `${completed} Tiefstpreise verifiziert`);
+        if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : `Keine Tiefstpreise dabei · ${completed} geprüft`);
         else showToast('Keine ungeprüften Deals vorhanden');
       }
     );

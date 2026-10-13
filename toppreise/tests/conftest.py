@@ -65,6 +65,12 @@ def mock_pricechart(page, lows):
 
     lows maps pid -> low, or pid -> (low, high). Unlisted pids get a 404 so
     tests never hang on an unmocked fetch.
+
+    Verdict rule (no median/series is synthesized, so getDisplayDelta compares
+    card price P against tiefstpreis L only): P <= L is a deal, P > L is a
+    markup (severe at P >= 1.5*L). The tuple's high only toggles peak-tooltip
+    context, never the kind — e.g. (500, 2400) on the 1800-CHF card is a
+    +260% severe markup (tp-deal-not-low), not a deal, even though 1800 < 2400.
     """
     def handle_pricechart(route):
         url = route.request.url
