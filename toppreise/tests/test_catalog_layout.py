@@ -2425,6 +2425,40 @@ def test_outlier_sliders_in_calc_popover(page: Page):
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.OUTLIER_DEVIATION_BAND === 0.6 && window.ToppreiseSuite.CONFIG.OUTLIER_MAX_GLITCH_HOURS === 48 && window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED === true")
     assert toggle.is_checked()
 
+def test_calc_preview_live_in_calc_popover(page: Page):
+    page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.locator('#tp-bar-calc-btn').click()
+    assert 'tp-show' in (page.locator('#tp-bar-calc-popover').get_attribute('class') or '')
+    preview = page.locator('#tp-calc-preview')
+    assert preview.is_visible()
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('Badge') && document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
+    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('230/5 Pkt')")
+    page.select_option('#tp-preview-preset-select', 'r5')
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('28%')")
+    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('2556')")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-outlier-band-range');
+        r.value = '40';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('3 Glitches gefiltert')")
+    page.select_option('#tp-preview-preset-select', 'ssd990')
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('37%')")
+    page.evaluate("""() => {
+        const r = document.querySelector('#tp-bar-horizon-range');
+        r.value = '760';
+        r.dispatchEvent(new Event('input', {bubbles: true}));
+        r.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('155.63')")
+    page.click('#tp-bar-calc-reset')
+    page.wait_for_function("() => document.getElementById('tp-preview-preset-select')?.value === 's26'")
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
+
 
 def test_toolbar_single_row_sticky(page: Page):
     page.set_viewport_size({'width': 1280, 'height': 800})

@@ -1123,6 +1123,11 @@ export const STYLES = `
   #tp-bar-calc-popover #tp-bar-horizon-range { width: auto !important; }
   #tp-bar-calc-popover #tp-bar-weight-range { width: auto !important; }
   .tp-calc-reset { align-self: flex-end !important; }
+  #tp-bar-calc-popover { max-height: min(70vh, 560px) !important; overflow-y: auto !important; }
+  #tp-calc-preview { border-top: 1px solid var(--tp-line) !important; margin-top: 6px !important; padding-top: 6px !important; display: flex !important; flex-direction: column !important; gap: 4px !important; }
+  .tp-preview-select { font-size: 11px !important; max-width: 190px !important; }
+  #tp-preview-svg { width: 100% !important; height: auto !important; display: block !important; }
+  #tp-preview-legend, #tp-preview-blend, #tp-preview-status { font-size: 11px !important; color: var(--tp-txt-dim) !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;

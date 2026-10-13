@@ -53,6 +53,7 @@ export function buildBundle() {
     'ui/shell.js',
     'ui/modal.js',
     'ui/toast.js',
+    'ui/calc-preview.js',
     'ui/toolbar.js',
     'ui/floating-cta.js',
     'features/share-discord.js',

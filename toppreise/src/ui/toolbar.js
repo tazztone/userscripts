@@ -12,6 +12,7 @@ import {
 import { recomputeCachedMedians } from "../scanner/cache.js";
 import { scanState } from "../state/store.js";
 import { showToast } from "./toast.js";
+import { buildCalcPreview, refreshCalcPreview } from "./calc-preview.js";
 import { setTextIfChanged } from "./badges.js";
 import { syncMiniToggle } from "./mini-toggle.js";
 
@@ -425,6 +426,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       if (popover && resetBtn) popover.insertBefore(outlier, resetBtn);
       if (popover && resetBtn) popover.insertBefore(outlierBand, resetBtn);
       if (popover && resetBtn) popover.insertBefore(outlierHours, resetBtn);
+      if (popover && resetBtn) popover.insertBefore(buildCalcPreview(), resetBtn);
+    }
+    // Preview follows slider drags live (DOM values, not debounced CONFIG).
+    {
+      for (const id of ['tp-bar-weight-range', 'tp-bar-horizon-range', 'tp-bar-minpoints-range', 'tp-bar-outlier-toggle', 'tp-bar-outlier-band-range', 'tp-bar-outlier-hours-range']) {
+        const el = bar.querySelector('#' + id);
+        if (!el) continue;
+        el.addEventListener('input', refreshCalcPreview);
+        el.addEventListener('change', refreshCalcPreview);
+      }
     }
 
     placeBar(bar, placement);
@@ -539,6 +550,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         resetBtn.onclick = () => {
           recomputeCachedMedians(365);
           updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 });
+          const previewSel = document.getElementById('tp-preview-preset-select');
+          if (previewSel) previewSel.value = 's26';
+          refreshCalcPreview();
           showToast('Berechnungsparameter zurückgesetzt');
         };
       }
@@ -730,4 +744,5 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
+  if (document.getElementById('tp-preview-svg')) refreshCalcPreview();
 }
