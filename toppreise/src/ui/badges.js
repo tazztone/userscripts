@@ -26,6 +26,7 @@ import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet, getShare
 import { showToast } from './toast.js';
 import { renderSparkline, openSparklinePopout } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings } from '../page/adapter.js';
+import { markFreshVerified, armFreshDismiss } from './fresh-dismiss.js';
 
 function setHtmlIfChanged(el, newHtml) {
   if (el && el.innerHTML !== newHtml) {
@@ -95,6 +96,8 @@ async function runSingleDealCheck(card, badgeDifEl) {
   }
   badgeDifEl.classList.remove('tp-deal-loading');
   if (fetchedStats) {
+    armFreshDismiss();
+    markFreshVerified(currentPid);
     triggerProcessListings();
   } else {
     badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
@@ -883,6 +886,11 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       dealerEl?.remove();
     }
   }
+  // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
+  // above is the single source of truth for "good deal" — no duplicate math.
+  const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
+  const isFresh = !!stats && scanState.freshPids.has(pid) && !!freshBadge;
+  card.classList.toggle('tp-deal-fresh', isFresh);
 }
 
 export function renderEmptyState(cards, counts) {

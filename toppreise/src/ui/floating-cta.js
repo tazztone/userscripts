@@ -28,6 +28,7 @@ import {
 import { setTextIfChanged } from "./badges.js";
 import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
+import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 export const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
@@ -91,11 +92,14 @@ export function startBatchCheck() {
   runBatchDealCheck(
     minDisc,
     () => syncFloatingCTA(),
-    (completed, total) => {
-      if (total > 0) showToast(`${completed} Tiefstpreise verifiziert`);
-      else showToast('Keine ungeprüften Deals vorhanden');
+    (completed, total, newlyVerified) => {
+      armFreshDismiss();
+      for (const item of newlyVerified || []) markFreshVerified(item.pid);
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
+      const fresh = document.querySelectorAll('.tp-deal-fresh').length;
+      if (total > 0) showToast(fresh > 0 ? `${completed} Tiefstpreise verifiziert · ${fresh} neu` : `${completed} Tiefstpreise verifiziert`);
+      else showToast('Keine ungeprüften Deals vorhanden');
     }
   );
   syncFloatingCTA();

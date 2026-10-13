@@ -9,5 +9,7 @@ export const scanState = {
   isBestpreiseScanning: false,
   bestpreiseScanCancel: false,
   currentlyScanningPid: null,
-  progress: { completed: 0, total: 0 }
+  progress: { completed: 0, total: 0 },
+  freshPids: new Set(),
+  freshUntil: 0
 };

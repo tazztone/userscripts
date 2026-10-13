@@ -64,6 +64,35 @@ export const STYLES = `
   .tp-heat-vortief {
     transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
   }
+  /* Fresh-deal glow (transient, post-verification): outline-only so the heat
+  box-shadow underneath keeps showing the deal color. "Neu" pill is a
+  pseudo-element — zero DOM bookkeeping, auto-cleans with the class. */
+  .tp-deal-fresh {
+    position: relative;
+    outline: 2px solid var(--tp-acc) !important;
+    outline-offset: 2px;
+    animation: tp-fresh-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes tp-fresh-pulse {
+    0%, 100% { outline-width: 2px; outline-color: var(--tp-acc); }
+    50% { outline-width: 4px; outline-color: var(--tp-acc-deep); }
+  }
+  .tp-deal-fresh::after {
+    content: "Neu";
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: var(--tp-grad-acc);
+    color: #fff;
+    font: 700 var(--tp-fs-xs)/1.4 var(--tp-font);
+    padding: 2px 8px;
+    border-radius: var(--tp-r-pill);
+    pointer-events: none;
+    z-index: 5;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tp-deal-fresh { animation: none; }
+  }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest {
     border: 2px solid var(--tp-acc) !important;
     border-color: var(--tp-acc) !important;

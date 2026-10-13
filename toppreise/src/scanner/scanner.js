@@ -198,6 +198,7 @@ export async function runProductScanner(options = {}) {
 
   const total = targets.length;
   let completed = 0;
+  const newlyVerified = [];
 
   try {
     for (let i = 0; i < targets.length; i++) {
@@ -206,8 +207,10 @@ export async function runProductScanner(options = {}) {
       Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
       triggerProcessListings();
 
+      let stats = null;
       try {
-        await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn);
+        stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn);
+        if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
       } finally {
         Object.assign(scanState, { currentlyScanningPid: null });
       }
@@ -223,8 +226,8 @@ export async function runProductScanner(options = {}) {
   }
 
   triggerProcessListings();
-  if (onComplete) onComplete(completed, total);
-  return { completed, total };
+  if (onComplete) onComplete(completed, total, newlyVerified);
+  return { completed, total, newlyVerified };
 }
 
 async function runScan(mode, { minDiscount = 30, onProgress = null, onComplete = null } = {}) {

@@ -48,6 +48,7 @@ export function buildBundle() {
     'ui/sparkline.js',
     'page/sort.js',
     'scanner/scanner.js',
+    'ui/fresh-dismiss.js',
     'ui/badges.js',
     'ui/shell.js',
     'ui/modal.js',
