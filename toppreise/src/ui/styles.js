@@ -70,7 +70,7 @@ export const STYLES = `
   .tp-deal-fresh {
     position: relative;
     outline: 2px solid var(--tp-acc) !important;
-    outline-offset: 2px;
+    outline-offset: -2px;
     animation: tp-fresh-pulse 1.2s ease-in-out infinite;
   }
   @keyframes tp-fresh-pulse {
