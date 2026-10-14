@@ -61,8 +61,24 @@ function ensureAlarmBellStyle() {
 }
 
 function ensureAlarmCog(bell) {
-  const next = bell.nextElementSibling;
-  if (next?.classList?.contains('tp-alarm-cog')) return next;
+  // One cog per bell: the site may insert nodes between bell and cog on
+  // re-render, so a next-sibling check alone stacks duplicates flanking
+  // the newcomer. Scan to the next bell, keep the first cog, drop extras.
+  const BELL_SEL = ALARM_BELL_SELECTORS.join(',');
+  let first = null;
+  let sib = bell.nextElementSibling;
+  while (sib && !sib.matches?.(BELL_SEL)) {
+    const nxt = sib.nextElementSibling;
+    if (sib.classList?.contains('tp-alarm-cog')) {
+      if (!first) first = sib;
+      else sib.remove();
+    }
+    sib = nxt;
+  }
+  if (first) {
+    if (first !== bell.nextElementSibling) bell.after(first);
+    return first;
+  }
   const cog = document.createElement('button');
   cog.type = 'button';
   cog.className = 'tp-alarm-cog';

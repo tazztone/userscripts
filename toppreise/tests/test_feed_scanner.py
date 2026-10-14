@@ -147,6 +147,21 @@ def test_alarm_bell_ajax_injected(page: Page):
     assert bells.nth(2).get_attribute('data-tp-alarm-state') == 'auto'
     assert page.locator('.tp-alarm-cog').count() == 3
 
+def test_alarm_cog_stays_single_when_site_inserts_nodes(page: Page):
+    # Site re-render wedging a node between bell and cog (plus a stray
+    # duplicate) must not stack a second cog: one per bell, parked
+    # directly after it.
+    page.evaluate("""() => {
+      const bell = document.querySelector('#mock-alarm-bell');
+      bell.insertAdjacentHTML('afterend', '<span id="tp-test-intruder">🔍</span><button type="button" class="tp-alarm-cog">⚙</button>');
+      window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', false);
+      window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true);
+    }""")
+    container = page.locator('#Plugin_NewInfoMailButton_mock')
+    assert container.locator('.tp-alarm-cog').count() == 1
+    assert page.evaluate("() => document.querySelector('#mock-alarm-bell').nextElementSibling.classList.contains('tp-alarm-cog')")
+    assert page.locator('#tp-test-intruder').count() == 1
+
 
 def test_alarm_fill_clamps_corrupt_config(page: Page):
     # Fill-only mode: no auto-submit timers, deterministic asserts
