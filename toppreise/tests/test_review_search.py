@@ -26,10 +26,14 @@ def test_review_icon_per_card_default_testbericht(page: Page):
     ) == 'tp-review-search-btn'
 
 
-def test_review_toggle_and_keyword_persist(page: Page, userscript_content):
+def test_review_section_visible(page: Page):
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-section-review').is_visible()
+
+
+def test_review_toggle_removes_buttons(page: Page):
     open_settings(page)
     assert page.locator('#tp-root >> #tp-review-search-toggle').is_checked()
-    assert page.locator('#tp-root >> #tp-review-keyword-testbericht').is_checked()
 
     # Disable -> icons gone without reload
     page.click('#tp-root >> #tp-review-search-toggle + .tp-slider')
@@ -37,33 +41,66 @@ def test_review_toggle_and_keyword_persist(page: Page, userscript_content):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('a.tp-review-search-btn').count() == 0
 
-    # Re-enable with Review keyword -> hrefs switch
+
+def test_review_custom_keyword_persists(page: Page, userscript_content):
     open_settings(page)
-    page.click('#tp-root >> #tp-review-search-toggle + .tp-slider')
-    page.click('#tp-root >> label[for="tp-review-keyword-review"]')
+    page.fill('#tp-root >> #tp-review-keyword-input', 'Erfahrungen')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-    first = page.locator('#card-cheapest a.tp-review-search-btn')
-    assert first.count() == 1
-    assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Review')
+    assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Erfahrungen')
 
-    # Reload: setting + keyword persist via the localStorage mirror
+    # Reload: keyword persists via the localStorage mirror
     page.reload()
     page.evaluate(userscript_content)
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Review')
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Erfahrungen')
     open_settings(page)
-    assert page.locator('#tp-root >> #tp-review-search-toggle').is_checked()
-    assert page.locator('#tp-root >> #tp-review-keyword-review').is_checked()
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Erfahrungen'
     page.click('#tp-root >> #tp-btn-close')
 
-def test_review_ai_mode_appends_udm50(page: Page):
-    """KI-Modus radio keeps the Testbericht suffix and opens Google AI Mode."""
+
+def test_review_empty_keyword_falls_back_to_default(page: Page):
     open_settings(page)
-    page.click('#tp-root >> label[for="tp-review-keyword-ai"]')
+    page.fill('#tp-root >> #tp-review-keyword-input', '')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht')
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht'
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_review_ai_mode_appends_udm50(page: Page):
+    """AI checkbox keeps the keyword suffix and opens Google AI Mode."""
+    open_settings(page)
+    page.click('#tp-root >> #tp-review-ai-mode-toggle + .tp-slider')
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     first = page.locator('#card-cheapest a.tp-review-search-btn')
     assert first.get_attribute('href') == \
         _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht') + '&udm=50'
+
+    # Uncheck -> suffix gone
+    open_settings(page)
+    page.click('#tp-root >> #tp-review-ai-mode-toggle + .tp-slider')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht')
+
+
+def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
+    """Stored legacy 'KI-Modus' migrates to checkbox-on plus keyword Testbericht."""
+    page.evaluate("localStorage.setItem('tp_suite_v2_REVIEW_SEARCH_KEYWORD', '\"KI-Modus\"')")
+    page.reload()
+    page.evaluate(userscript_content)
+    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+    assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht') + '&udm=50'
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-review-ai-mode-toggle').is_checked()
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht'
+    page.click('#tp-root >> #tp-btn-close')

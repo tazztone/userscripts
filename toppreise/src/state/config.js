@@ -74,6 +74,7 @@ export const DEFAULTS = Object.freeze({
   ENABLE_SPARKLINES: true,
   REVIEW_SEARCH_ENABLED: true,
   REVIEW_SEARCH_KEYWORD: 'Testbericht',
+  REVIEW_SEARCH_AI_MODE: false,
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
@@ -275,6 +276,7 @@ export const CONFIG = {
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
   REVIEW_SEARCH_ENABLED: _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED),
   REVIEW_SEARCH_KEYWORD: String(_getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
+  REVIEW_SEARCH_AI_MODE: _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE),
   DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -290,12 +292,15 @@ export const CONFIG = {
   OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
   DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
 };
+export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
 // Corrupt storage must never silently break fills: clamp percent to the
 // modal save bounds, fall back to defaults on NaN/unknown durations.
 if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
 else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
 if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
-if (!['Review', 'Testbericht', 'KI-Modus'].includes(CONFIG.REVIEW_SEARCH_KEYWORD)) CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
+CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
 else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
 if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
@@ -439,8 +444,13 @@ export function syncUiControl(key, val, opts = {}) {
           break;
         }
         case 'REVIEW_SEARCH_KEYWORD': {
-          const radio = shadow.querySelector(`input[name="tp-review-keyword"][value="${val}"]`);
-          if (radio) radio.checked = true;
+          const input = shadow.getElementById('tp-review-keyword-input');
+          if (input) input.value = val;
+          break;
+        }
+        case 'REVIEW_SEARCH_AI_MODE': {
+          const toggle = shadow.getElementById('tp-review-ai-mode-toggle');
+          if (toggle) toggle.checked = !!val;
           break;
         }
         case 'DISCORD_SUPPRESS_DEALER_EMBED': {

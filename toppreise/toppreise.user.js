@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.242
+// @version      2.18.243
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2695,6 +2695,7 @@ const SHADOW_MODAL_STYLES = `
     ENABLE_SPARKLINES: true,
     REVIEW_SEARCH_ENABLED: true,
     REVIEW_SEARCH_KEYWORD: 'Testbericht',
+    REVIEW_SEARCH_AI_MODE: false,
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -2896,6 +2897,7 @@ const SHADOW_MODAL_STYLES = `
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
     REVIEW_SEARCH_ENABLED: _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED),
     REVIEW_SEARCH_KEYWORD: String(_getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
+    REVIEW_SEARCH_AI_MODE: _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE),
     DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -2911,12 +2913,15 @@ const SHADOW_MODAL_STYLES = `
     OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
     DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
   };
+  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
   // Corrupt storage must never silently break fills: clamp percent to the
   // modal save bounds, fall back to defaults on NaN/unknown durations.
   if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
   else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
-  if (!['Review', 'Testbericht', 'KI-Modus'].includes(CONFIG.REVIEW_SEARCH_KEYWORD)) CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
+  CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+  if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
   if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
   else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
   if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
@@ -3060,8 +3065,13 @@ const SHADOW_MODAL_STYLES = `
             break;
           }
           case 'REVIEW_SEARCH_KEYWORD': {
-            const radio = shadow.querySelector(`input[name="tp-review-keyword"][value="${val}"]`);
-            if (radio) radio.checked = true;
+            const input = shadow.getElementById('tp-review-keyword-input');
+            if (input) input.value = val;
+            break;
+          }
+          case 'REVIEW_SEARCH_AI_MODE': {
+            const toggle = shadow.getElementById('tp-review-ai-mode-toggle');
+            if (toggle) toggle.checked = !!val;
             break;
           }
           case 'DISCORD_SUPPRESS_DEALER_EMBED': {
@@ -5429,8 +5439,8 @@ const SHADOW_MODAL_STYLES = `
     // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
     const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
-      const reviewKw = CONFIG.REVIEW_SEARCH_KEYWORD === 'Review' ? 'Review' : 'Testbericht';
-      const aiMode = CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus';
+      const reviewKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+      const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -5589,6 +5599,34 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
               <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
             </div>
+          </div>
+        </section>
+        <section id="tp-section-review" class="tp-section-card tp-section-review">
+          <div class="tp-section-header">🌐 Review-Suche</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Review-Suche (🌐) anzeigen</label>
+              <span class="tp-switch-desc">Google-Suche pro Produktname in neuem Tab</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-review-search-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Dieser Begriff wird an den Produktnamen angehängt.">Review-Suchbegriff</label>
+            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
+            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht).</span>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im KI-Modus suchen</label>
+              <span class="tp-switch-desc">Google AI Mode statt klassischer Trefferliste</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-review-ai-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
           </div>
         </section>
         <section id="tp-section-deals" class="tp-section-card tp-section-deals">
@@ -5789,27 +5827,6 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label>Review-Suche (🌐) anzeigen</label>
-              <span class="tp-switch-desc">Google-Suche pro Produktnamen</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-review-search-toggle">
-              <span class="tp-slider"></span>
-            </label>
-          </div>
-          <div class="tp-settings-group">
-            <label>Review-Suchbegriff</label>
-            <div class="tp-segmented-control">
-              <input type="radio" id="tp-review-keyword-review" name="tp-review-keyword" value="Review">
-              <label for="tp-review-keyword-review">Review</label>
-              <input type="radio" id="tp-review-keyword-testbericht" name="tp-review-keyword" value="Testbericht">
-              <label for="tp-review-keyword-testbericht">Testbericht</label>
-              <input type="radio" id="tp-review-keyword-ai" name="tp-review-keyword" value="KI-Modus">
-              <label for="tp-review-keyword-ai">KI-Modus</label>
-            </div>
-          </div>
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
@@ -5843,6 +5860,7 @@ const SHADOW_MODAL_STYLES = `
             <input type="file" id="tp-import-config-file" accept=".json">
           </div>
         </section>
+
         </div>
       `;
       section = tempDiv.firstElementChild;
@@ -5887,6 +5905,8 @@ const SHADOW_MODAL_STYLES = `
     const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
     const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
+    const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
+    const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -6251,8 +6271,8 @@ const SHADOW_MODAL_STYLES = `
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
       if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
-      const checkedReviewKw = shadow.querySelector('input[name="tp-review-keyword"]:checked');
-      if (checkedReviewKw && ['Review', 'Testbericht', 'KI-Modus'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
+      if (reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(reviewKeywordInput.value);
+      if (reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = reviewAiModeToggle.checked;
       if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;

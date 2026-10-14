@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, sanitizeReviewKeyword } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 import { triggerProcessListings, clearCardCache } from "../page/adapter.js";
@@ -36,6 +36,34 @@ export function setupUI() {
             <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
             <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
           </div>
+        </div>
+      </section>
+      <section id="tp-section-review" class="tp-section-card tp-section-review">
+        <div class="tp-section-header">🌐 Review-Suche</div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Review-Suche (🌐) anzeigen</label>
+            <span class="tp-switch-desc">Google-Suche pro Produktname in neuem Tab</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-review-search-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group">
+          <label title="Dieser Begriff wird an den Produktnamen angehängt.">Review-Suchbegriff</label>
+          <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
+          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht).</span>
+        </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im KI-Modus suchen</label>
+            <span class="tp-switch-desc">Google AI Mode statt klassischer Trefferliste</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-review-ai-mode-toggle">
+            <span class="tp-slider"></span>
+          </label>
         </div>
       </section>
       <section id="tp-section-deals" class="tp-section-card tp-section-deals">
@@ -236,27 +264,6 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label>Review-Suche (🌐) anzeigen</label>
-            <span class="tp-switch-desc">Google-Suche pro Produktnamen</span>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-review-search-toggle">
-            <span class="tp-slider"></span>
-          </label>
-        </div>
-        <div class="tp-settings-group">
-          <label>Review-Suchbegriff</label>
-          <div class="tp-segmented-control">
-            <input type="radio" id="tp-review-keyword-review" name="tp-review-keyword" value="Review">
-            <label for="tp-review-keyword-review">Review</label>
-            <input type="radio" id="tp-review-keyword-testbericht" name="tp-review-keyword" value="Testbericht">
-            <label for="tp-review-keyword-testbericht">Testbericht</label>
-            <input type="radio" id="tp-review-keyword-ai" name="tp-review-keyword" value="KI-Modus">
-            <label for="tp-review-keyword-ai">KI-Modus</label>
-          </div>
-        </div>
         <div class="tp-settings-group tp-cache-row">
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
@@ -290,6 +297,7 @@ export function setupUI() {
           <input type="file" id="tp-import-config-file" accept=".json">
         </div>
       </section>
+
       </div>
     `;
     section = tempDiv.firstElementChild;
@@ -334,6 +342,8 @@ export function setupUI() {
   const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
   const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
   const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
+  const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
+  const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
   const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
   const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -698,8 +708,8 @@ export function setupUI() {
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
     if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
-    const checkedReviewKw = shadow.querySelector('input[name="tp-review-keyword"]:checked');
-    if (checkedReviewKw && ['Review', 'Testbericht', 'KI-Modus'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
+    if (reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(reviewKeywordInput.value);
+    if (reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = reviewAiModeToggle.checked;
     if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;

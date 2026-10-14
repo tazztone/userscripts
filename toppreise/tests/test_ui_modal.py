@@ -450,9 +450,9 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
 def test_settings_grouped_sections_visible_without_expanding(page: Page):
     open_settings(page)
 
-    # Six typed sections, always visible on one page; no disclosure to expand
-    assert page.locator('#tp-root >> .tp-section-header').count() == 6
-    for section in ['display', 'deals', 'filter', 'alarm', 'discord', 'data']:
+    # Seven typed sections, always visible on one page; no disclosure to expand
+    assert page.locator('#tp-root >> .tp-section-header').count() == 7
+    for section in ['display', 'review', 'deals', 'filter', 'alarm', 'discord', 'data']:
         assert page.locator(f'#tp-root >> #tp-section-{section}').is_visible()
     assert page.locator('#tp-root >> #tp-advanced-details').count() == 0
 

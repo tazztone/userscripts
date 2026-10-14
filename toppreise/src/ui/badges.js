@@ -5,7 +5,7 @@
  * mini sparklines, and empty-state messaging.
  */
 
-import { CONFIG, updateConfig, updateConfigs, _getValue, _setValue } from '../state/config.js';
+import { CONFIG, updateConfig, updateConfigs, _getValue, _setValue, sanitizeReviewKeyword } from '../state/config.js';
 import {
   getBadgeHeatStyle,
   getInsetHeatStyle,
@@ -902,8 +902,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
   const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
-    const reviewKw = CONFIG.REVIEW_SEARCH_KEYWORD === 'Review' ? 'Review' : 'Testbericht';
-    const aiMode = CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus';
+    const reviewKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+    const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');
