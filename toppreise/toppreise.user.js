@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.244
+// @version      2.18.245
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5455,7 +5455,13 @@ const SHADOW_MODAL_STYLES = `
       reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
       const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
       if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
-      else if (titleEl && titleEl.tagName === 'A' && reviewBtn.previousElementSibling !== titleEl) titleEl.insertAdjacentElement('afterend', reviewBtn);
+      else if (titleEl && titleEl.tagName === 'A') {
+        // The variant deal pill owns the slot directly after the title
+        // (.bold + .tp-deal-pill); park the review button behind it so the
+        // two inserters settle instead of ping-ponging every render pass.
+        const anchor = titleEl.nextElementSibling?.classList?.contains('tp-deal-pill') ? titleEl.nextElementSibling : titleEl;
+        if (reviewBtn.previousElementSibling !== anchor) anchor.insertAdjacentElement('afterend', reviewBtn);
+      }
       else if (!titleEl && reviewBtn.parentElement !== card) card.appendChild(reviewBtn);
     } else {
       card.querySelector('.tp-review-search-btn')?.remove();
