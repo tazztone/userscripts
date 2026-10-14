@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.237
+// @version      2.18.238
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2685,6 +2685,8 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_DEVIATION_BAND: 0.60,
     OUTLIER_MAX_GLITCH_HOURS: 48,
     ENABLE_SPARKLINES: true,
+    REVIEW_SEARCH_ENABLED: true,
+    REVIEW_SEARCH_KEYWORD: 'Testbericht',
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -2884,6 +2886,8 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_DEVIATION_BAND: parseFloat(_getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
     OUTLIER_MAX_GLITCH_HOURS: parseInt(_getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
     ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
+    REVIEW_SEARCH_ENABLED: _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED),
+    REVIEW_SEARCH_KEYWORD: String(_getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
     DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
     NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -2904,6 +2908,7 @@ const SHADOW_MODAL_STYLES = `
   if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
   else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
+  if (!['Review', 'Testbericht'].includes(CONFIG.REVIEW_SEARCH_KEYWORD)) CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
   if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
   else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
   if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
@@ -3039,6 +3044,16 @@ const SHADOW_MODAL_STYLES = `
           case 'DEALER_AUTOFETCH': {
             const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
             if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'REVIEW_SEARCH_ENABLED': {
+            const toggle = shadow.getElementById('tp-review-search-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'REVIEW_SEARCH_KEYWORD': {
+            const radio = shadow.querySelector(`input[name="tp-review-keyword"][value="${val}"]`);
+            if (radio) radio.checked = true;
             break;
           }
           case 'DISCORD_SUPPRESS_DEALER_EMBED': {
@@ -4191,12 +4206,12 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null) {
+  async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null) {
     if (!productId) return null;
     const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
     const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
     const pickSeries = data => {
-      const shippingActive = isShippingPriceActive();
+      const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
       if (Array.isArray(data)) {
         if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
           if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
@@ -4250,6 +4265,10 @@ const SHADOW_MODAL_STYLES = `
 
   async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null) {
     if (!productId) return null;
+    // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
+    // the wrong series into the wrong slot, and each mode dedups independently.
+    const useShipping = isShippingPriceActive();
+    const fetchKey = `${productId}_${useShipping ? 's' : 'p'}`;
     // Refresh bypass: always hit the network, but keep the good entry in
     // memory/localStorage until the fetch succeeds — a failed refresh must
     // not downgrade a full analysis to an unavailable marker.
@@ -4259,8 +4278,8 @@ const SHADOW_MODAL_STYLES = `
       return prev;
     }
 
-    if (activeFetches.has(productId)) {
-      return activeFetches.get(productId);
+    if (activeFetches.has(fetchKey)) {
+      return activeFetches.get(fetchKey);
     }
 
     const fetchPromise = (async () => {
@@ -4269,12 +4288,12 @@ const SHADOW_MODAL_STYLES = `
       
         // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
         try {
-          const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn);
+          const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping);
           if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
             const analysis = analyzePriceTimeSeries(timeSeries, currentPrice);
             if (analysis && analysis.tiefstpreis > 0) {
-              analysis.isShippingPrice = isShippingPriceActive();
-              setCachedPriceStats(productId, analysis);
+              analysis.isShippingPrice = useShipping;
+              setCachedPriceStats(productId, analysis, false, undefined, useShipping);
               return analysis;
             }
           }
@@ -4319,29 +4338,29 @@ const SHADOW_MODAL_STYLES = `
         }
 
         if (!resHtml || !resHtml.ok) {
-          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
+          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
           return null;
         }
         const html = await resHtml.text();
         const stats = parsePriceStatsFromHtml(html);
         if (stats) {
-          stats.isShippingPrice = isShippingPriceActive();
+          stats.isShippingPrice = useShipping;
           if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
-          setCachedPriceStats(productId, stats);
+          setCachedPriceStats(productId, stats, false, undefined, useShipping);
           return stats;
         } else {
-          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
+          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
         }
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
       } finally {
-        activeFetches.delete(productId);
+        activeFetches.delete(fetchKey);
       }
       return null;
     })();
 
-    activeFetches.set(productId, fetchPromise);
+    activeFetches.set(fetchKey, fetchPromise);
     return fetchPromise;
   }
 
@@ -5729,13 +5748,22 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
-              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+              <label>Review-Suche (🔍) anzeigen</label>
+              <span class="tp-switch-desc">Google-Suche pro Produktname</span>
             </div>
             <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-sparklines-toggle">
+              <input type="checkbox" id="tp-review-search-toggle">
               <span class="tp-slider"></span>
             </label>
+          </div>
+          <div class="tp-settings-group">
+            <label>Review-Suchbegriff</label>
+            <div class="tp-segmented-control">
+              <input type="radio" id="tp-review-keyword-review" name="tp-review-keyword" value="Review">
+              <label for="tp-review-keyword-review">Review</label>
+              <input type="radio" id="tp-review-keyword-testbericht" name="tp-review-keyword" value="Testbericht">
+              <label for="tp-review-keyword-testbericht">Testbericht</label>
+            </div>
           </div>
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>

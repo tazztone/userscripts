@@ -24,12 +24,12 @@ async function interruptibleSleep(ms, shouldCancelFn = null) {
   }
 }
 
-async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null) {
+async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null) {
   if (!productId) return null;
   const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
   const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
   const pickSeries = data => {
-    const shippingActive = isShippingPriceActive();
+    const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
     if (Array.isArray(data)) {
       if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
         if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
@@ -83,6 +83,10 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
 
 export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null) {
   if (!productId) return null;
+  // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
+  // the wrong series into the wrong slot, and each mode dedups independently.
+  const useShipping = isShippingPriceActive();
+  const fetchKey = `${productId}_${useShipping ? 's' : 'p'}`;
   // Refresh bypass: always hit the network, but keep the good entry in
   // memory/localStorage until the fetch succeeds — a failed refresh must
   // not downgrade a full analysis to an unavailable marker.
@@ -92,8 +96,8 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
     return prev;
   }
 
-  if (activeFetches.has(productId)) {
-    return activeFetches.get(productId);
+  if (activeFetches.has(fetchKey)) {
+    return activeFetches.get(fetchKey);
   }
 
   const fetchPromise = (async () => {
@@ -102,12 +106,12 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       
       // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
       try {
-        const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn);
+        const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping);
         if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
           const analysis = analyzePriceTimeSeries(timeSeries, currentPrice);
           if (analysis && analysis.tiefstpreis > 0) {
-            analysis.isShippingPrice = isShippingPriceActive();
-            setCachedPriceStats(productId, analysis);
+            analysis.isShippingPrice = useShipping;
+            setCachedPriceStats(productId, analysis, false, undefined, useShipping);
             return analysis;
           }
         }
@@ -152,29 +156,29 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       }
 
       if (!resHtml || !resHtml.ok) {
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
         return null;
       }
       const html = await resHtml.text();
       const stats = parsePriceStatsFromHtml(html);
       if (stats) {
-        stats.isShippingPrice = isShippingPriceActive();
+        stats.isShippingPrice = useShipping;
         if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
-        setCachedPriceStats(productId, stats);
+        setCachedPriceStats(productId, stats, false, undefined, useShipping);
         return stats;
       } else {
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
       }
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true);
+      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
     } finally {
-      activeFetches.delete(productId);
+      activeFetches.delete(fetchKey);
     }
     return null;
   })();
 
-  activeFetches.set(productId, fetchPromise);
+  activeFetches.set(fetchKey, fetchPromise);
   return fetchPromise;
 }
 
