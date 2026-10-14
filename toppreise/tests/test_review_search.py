@@ -57,3 +57,13 @@ def test_review_toggle_and_keyword_persist(page: Page, userscript_content):
     assert page.locator('#tp-root >> #tp-review-search-toggle').is_checked()
     assert page.locator('#tp-root >> #tp-review-keyword-review').is_checked()
     page.click('#tp-root >> #tp-btn-close')
+
+def test_review_ai_mode_appends_udm50(page: Page):
+    """KI-Modus radio keeps the Testbericht suffix and opens Google AI Mode."""
+    open_settings(page)
+    page.click('#tp-root >> label[for="tp-review-keyword-ai"]')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    first = page.locator('#card-cheapest a.tp-review-search-btn')
+    assert first.get_attribute('href') == \
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht') + '&udm=50'

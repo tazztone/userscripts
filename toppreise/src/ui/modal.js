@@ -253,6 +253,8 @@ export function setupUI() {
             <label for="tp-review-keyword-review">Review</label>
             <input type="radio" id="tp-review-keyword-testbericht" name="tp-review-keyword" value="Testbericht">
             <label for="tp-review-keyword-testbericht">Testbericht</label>
+            <input type="radio" id="tp-review-keyword-ai" name="tp-review-keyword" value="KI-Modus">
+            <label for="tp-review-keyword-ai">KI-Modus</label>
           </div>
         </div>
         <div class="tp-settings-group tp-cache-row">
@@ -697,7 +699,7 @@ export function setupUI() {
     if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
     if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
     const checkedReviewKw = shadow.querySelector('input[name="tp-review-keyword"]:checked');
-    if (checkedReviewKw && ['Review', 'Testbericht'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
+    if (checkedReviewKw && ['Review', 'Testbericht', 'KI-Modus'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
     if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;

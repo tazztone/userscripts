@@ -903,6 +903,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
     const reviewKw = CONFIG.REVIEW_SEARCH_KEYWORD === 'Review' ? 'Review' : 'Testbericht';
+    const aiMode = CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus';
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');
@@ -912,9 +913,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       reviewBtn.rel = 'noopener';
       reviewBtn.addEventListener('click', e => e.stopPropagation());
     }
-    reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`);
-    setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}`);
-    reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}`);
+    reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`) + (aiMode ? '&udm=50' : '');
+    setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
+    reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
     const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
     if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
     else if (titleEl && titleEl.tagName === 'A' && reviewBtn.previousElementSibling !== titleEl) titleEl.insertAdjacentElement('afterend', reviewBtn);

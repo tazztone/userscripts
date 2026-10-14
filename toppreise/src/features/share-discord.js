@@ -282,7 +282,14 @@ export function resolveShareFields(cardPrice, stats) {
 export function extractShareData(card) {
   if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
   const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
-  const title = titleEl?.textContent?.trim() || titleEl?.getAttribute?.('title') || '';
+  // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
+  // sonst frisst sich sein Emoji bei jedem Re-Render in Titel, Query und Share-Text.
+  let title = '';
+  if (titleEl) {
+    const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
+    clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
+    title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
+  }
   const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
     || (card.tagName?.toLowerCase() === 'a' ? card : null);
   let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';

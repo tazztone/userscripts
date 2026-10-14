@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.241
+// @version      2.18.242
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2916,7 +2916,7 @@ const SHADOW_MODAL_STYLES = `
   if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
   else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
-  if (!['Review', 'Testbericht'].includes(CONFIG.REVIEW_SEARCH_KEYWORD)) CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  if (!['Review', 'Testbericht', 'KI-Modus'].includes(CONFIG.REVIEW_SEARCH_KEYWORD)) CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
   if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
   else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
   if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
@@ -5430,6 +5430,7 @@ const SHADOW_MODAL_STYLES = `
     const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
       const reviewKw = CONFIG.REVIEW_SEARCH_KEYWORD === 'Review' ? 'Review' : 'Testbericht';
+      const aiMode = CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus';
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -5439,9 +5440,9 @@ const SHADOW_MODAL_STYLES = `
         reviewBtn.rel = 'noopener';
         reviewBtn.addEventListener('click', e => e.stopPropagation());
       }
-      reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`);
-      setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}`);
-      reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}`);
+      reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`) + (aiMode ? '&udm=50' : '');
+      setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
+      reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
       const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
       if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
       else if (titleEl && titleEl.tagName === 'A' && reviewBtn.previousElementSibling !== titleEl) titleEl.insertAdjacentElement('afterend', reviewBtn);
@@ -5805,6 +5806,8 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-review-keyword-review">Review</label>
               <input type="radio" id="tp-review-keyword-testbericht" name="tp-review-keyword" value="Testbericht">
               <label for="tp-review-keyword-testbericht">Testbericht</label>
+              <input type="radio" id="tp-review-keyword-ai" name="tp-review-keyword" value="KI-Modus">
+              <label for="tp-review-keyword-ai">KI-Modus</label>
             </div>
           </div>
           <div class="tp-settings-group tp-cache-row">
@@ -6249,7 +6252,7 @@ const SHADOW_MODAL_STYLES = `
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
       if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
       const checkedReviewKw = shadow.querySelector('input[name="tp-review-keyword"]:checked');
-      if (checkedReviewKw && ['Review', 'Testbericht'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
+      if (checkedReviewKw && ['Review', 'Testbericht', 'KI-Modus'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
       if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
@@ -7857,7 +7860,14 @@ const SHADOW_MODAL_STYLES = `
   function extractShareData(card) {
     if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
     const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
-    const title = titleEl?.textContent?.trim() || titleEl?.getAttribute?.('title') || '';
+    // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
+    // sonst frisst sich sein Emoji bei jedem Re-Render in Titel, Query und Share-Text.
+    let title = '';
+    if (titleEl) {
+      const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
+      clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
+      title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
+    }
     const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
       || (card.tagName?.toLowerCase() === 'a' ? card : null);
     let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
