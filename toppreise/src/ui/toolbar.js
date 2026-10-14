@@ -353,7 +353,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
                 <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
               </div>
               <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
-              <button class="tp-filter-mode-btn tp-active" data-mode-key="FILTER_NEG_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.FILTER_NEG_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="FILTER_NEG_MODE" title="${CONFIG.FILTER_NEG_MODE === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen'}">${CONFIG.FILTER_NEG_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="min" style="display: ${pageHasOffers ? 'flex' : 'none'};">
               <label class="tp-mini-switch" title="Min-Angebote-Filter ${CONFIG.FILTER_MIN_ENABLED ? 'AN' : 'AUS'}" aria-label="Min-Angebote-Filter">
@@ -367,7 +367,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
                 <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
               </div>
               <span class="tp-count-badge" data-row-count="min" style="display: ${minHidden > 0 ? 'inline-flex' : 'none'};">${minHidden > 0 ? minHidden : ''}</span>
-              <button class="tp-filter-mode-btn tp-active" data-mode-key="FILTER_MIN_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.FILTER_MIN_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="FILTER_MIN_MODE" title="${CONFIG.FILTER_MIN_MODE === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen'}">${CONFIG.FILTER_MIN_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="unchecked" style="display: ${isDealFeed ? 'flex' : 'none'};">
               <label class="tp-mini-switch" title="Nur geprüfte">
@@ -376,22 +376,22 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               </label>
               <span class="tp-filter-label" title="Ungeprüfte Deals ohne verifizierten Tiefstpreis filtern">Nur geprüfte</span>
               <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
-              <button class="tp-filter-mode-btn tp-active" data-mode-key="HIDE_UNCHECKED_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.HIDE_UNCHECKED_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="HIDE_UNCHECKED_MODE" title="${CONFIG.HIDE_UNCHECKED_MODE === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen'}">${CONFIG.HIDE_UNCHECKED_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="vortief" style="display: ${isDealFeed ? 'flex' : 'none'};">
-              <label class="tp-mini-switch" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">
+              <label class="tp-mini-switch" title="An = Fallback-Tiefs dimmen/verbergen; Aus = Fallback-Tiefs zeigen">
                 <input type="checkbox" id="tp-toggle-vortief" ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false ? 'checked' : ''}>
                 <span class="tp-mini-slider"></span>
               </label>
-              <span class="tp-filter-label" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">Fallback-Tiefs aus</span>
-              <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? vortiefHidden : ''}</span>
-              <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
+              <span class="tp-filter-label" title="An = Fallback-Tiefs dimmen/verbergen; Aus = Fallback-Tiefs zeigen">Fallback-Tiefs filtern</span>
+              <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE" title="${CONFIG.VORTIEF_MODE === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen'}">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <div class="tp-filter-row" data-filter-row="dealer">
               <span class="tp-filter-label" title="Produkte des gewählten Händlers filtern">Händler</span>
               <span class="tp-filter-note" data-dealer-note>greift bei gewähltem Händler</span>
               <span class="tp-count-badge" data-row-count="dealer" style="display: ${dealerHidden > 0 ? 'inline-flex' : 'none'};">${dealerHidden > 0 ? dealerHidden : ''}</span>
-              <button class="tp-filter-mode-btn tp-active" data-mode-key="DEALER_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.DEALER_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
+              <button class="tp-filter-mode-btn tp-active" data-mode-key="DEALER_MODE" title="${CONFIG.DEALER_MODE === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen'}">${CONFIG.DEALER_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
             </div>
             <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset">Zurücksetzen</button>
           </div>
@@ -634,13 +634,14 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   setRowCount('neg', negHidden, negHidden > 0);
   setRowCount('min', minHidden, minHidden > 0);
   setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
-  setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0);
+  setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0);
   setRowCount('dealer', dealerHidden, dealerHidden > 0);
   for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
     const mode = CONFIG[key] === 'dim' ? 'dim' : 'hide';
     bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
       btn.classList.toggle('tp-active', true);
       setTextIfChanged(btn, mode === 'dim' ? 'Dimmen' : 'Verbergen');
+      btn.title = mode === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen';
     });
   }
   const uncheckedToggle = bar.querySelector('#tp-toggle-unchecked');
@@ -650,7 +651,12 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
   if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
   const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
-  if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+  if (vortiefRow) {
+    vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+    vortiefRow.classList.toggle('tp-row-inactive', CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false);
+    const vortiefBtn = vortiefRow.querySelector('[data-mode-key="VORTIEF_MODE"]');
+    if (vortiefBtn) vortiefBtn.disabled = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
+  }
   const dealerActive = counts.dealerActive === true;
   const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
   if (dealerRow) {

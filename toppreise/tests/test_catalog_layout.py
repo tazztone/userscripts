@@ -419,7 +419,7 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     vortief_toggle = page.locator('#tp-toggle-vortief')
     # ON = filter active (excluded); default includes fallbacks, so starts OFF
     assert vortief_toggle.is_checked() is False
-    assert 'Fallback-Tiefs aus' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
+    assert 'Fallback-Tiefs filtern' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
     page.locator('#tp-toggle-vortief + .tp-mini-slider').click()
     assert vortief_toggle.is_checked() is True
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
@@ -430,8 +430,8 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
 
 
-def test_fallback_row_badge_counts_hidden_only(page: Page):
-    # Row badge counts hidden fallbacks only; dimmed fallbacks surface via the dim counter.
+def test_fallback_row_badge_counts_hidden_and_dimmed(page: Page):
+    # Row badge shows the fallback count in both modes; dimmed fallbacks also surface via the dim counter.
     seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'previousLow': 2000, 'dataPointCount': 3})
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', false)")
     page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'hide')")
@@ -439,8 +439,8 @@ def test_fallback_row_badge_counts_hidden_only(page: Page):
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     assert page.locator('#card-cheapest').evaluate('e => getComputedStyle(e).display') == 'none'
     page.evaluate("() => window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim')")
-    page.wait_for_function("() => getComputedStyle(document.querySelector('[data-row-count=\"vortief\"]')).display === 'none' && document.querySelector('#card-cheapest')?.classList.contains('tp-dimmed')", timeout=5000)
-    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
+    page.wait_for_function("() => getComputedStyle(document.querySelector('[data-row-count=\"vortief\"]')).display !== 'none' && document.querySelector('#card-cheapest')?.classList.contains('tp-dimmed')", timeout=5000)
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     assert 'tp-dimmed' in (page.locator('#card-cheapest').get_attribute('class') or '')
     assert page.locator('#card-cheapest').is_visible()
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', true); window.ToppreiseSuite.updateConfig('VORTIEF_MODE', 'dim'); }")
@@ -2666,7 +2666,7 @@ def test_filter_rows_toggle_first_with_tooltips(page: Page):
     assert labels == ['Negativ-Begriffe im Produktnamen filtern (Wortgrenzen)',
                       'Produkte mit weniger als N Angeboten filtern',
                       'Ungeprüfte Deals ohne verifizierten Tiefstpreis filtern',
-                      'An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen',
+                      'An = Fallback-Tiefs dimmen/verbergen; Aus = Fallback-Tiefs zeigen',
                       'Produkte des gewählten Händlers filtern']
     modes = page.evaluate("() => [...document.querySelectorAll('.tp-filter-mode-btn')].map(el => el.title)")
-    assert modes and set(modes) == {'Zwischen Verbergen und Dimmen wechseln'}
+    assert modes and set(modes) == {'Modus: Dimmen — klicken für Verbergen'}
