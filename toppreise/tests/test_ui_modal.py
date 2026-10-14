@@ -450,10 +450,13 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
 def test_settings_grouped_sections_visible_without_expanding(page: Page):
     open_settings(page)
 
-    # Seven typed sections, always visible on one page; no disclosure to expand
-    assert page.locator('#tp-root >> .tp-section-header').count() == 7
+    # Seven toggle-button headers, all expanded on first open (fresh localStorage)
+    assert page.locator('#tp-root >> button.tp-section-header').count() == 7
     for section in ['display', 'review', 'deals', 'filter', 'alarm', 'discord', 'data']:
-        assert page.locator(f'#tp-root >> #tp-section-{section}').is_visible()
+        header = page.locator(f'#tp-root >> #tp-section-{section} >> button.tp-section-header')
+        assert header.count() == 1
+        assert header.get_attribute('aria-expanded') == 'true'
+        assert page.locator(f'#tp-root >> #tp-section-{section} >> .tp-section-body').is_visible()
     assert page.locator('#tp-root >> #tp-advanced-details').count() == 0
 
     # Former Feintuning controls need no expanding
@@ -481,6 +484,57 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     page.click('#tp-root >> #tp-discord-webhook-reveal')
     assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == 'https://discord.com/api/webhooks/123/abc'
     assert page.locator('#tp-root >> #tp-alarm-target-val').input_value() == '60'
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_settings_sections_collapse_and_remember(page: Page):
+    open_settings(page)
+    data_header = page.locator('#tp-root >> #tp-section-data >> button.tp-section-header')
+    data_body = page.locator('#tp-root >> #tp-section-data >> .tp-section-body')
+    assert data_body.is_visible()
+
+    data_header.click()
+    assert not data_body.is_visible()
+    assert data_header.get_attribute('aria-expanded') == 'false'
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    # Collapse survives close/reopen via the localStorage mirror
+    open_settings(page)
+    assert not page.locator('#tp-root >> #tp-section-data >> .tp-section-body').is_visible()
+    assert page.locator('#tp-root >> #tp-section-data >> button.tp-section-header').get_attribute('aria-expanded') == 'false'
+    assert 'tp-section-data' in page.evaluate("() => localStorage.getItem('tp_suite_v2_tp_modal_collapsed')")
+
+    # Save while discord is collapsed still collects its hidden inputs
+    page.locator('#tp-root >> #tp-section-discord >> button.tp-section-header').click()
+    assert not page.locator('#tp-root >> #tp-section-discord >> .tp-section-body').is_visible()
+    page.fill('#tp-root >> #tp-alarm-target-val', '70')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.ALARM_TARGET_PERCENT") == 0.7
+
+    # Expand persists expanded
+    open_settings(page)
+    page.locator('#tp-root >> #tp-section-data >> button.tp-section-header').click()
+    assert page.locator('#tp-root >> #tp-section-data >> .tp-section-body').is_visible()
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-section-data >> .tp-section-body').is_visible()
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_open_settings_at_expands_collapsed_section(page: Page):
+    open_settings(page)
+    page.locator('#tp-root >> #tp-section-alarm >> button.tp-section-header').click()
+    assert not page.locator('#tp-root >> #tp-section-alarm >> .tp-section-body').is_visible()
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    page.evaluate("() => window.ToppreiseSuite.openSettingsAt('tp-section-alarm')")
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    assert page.locator('#tp-root >> #tp-section-alarm >> .tp-section-body').is_visible()
+    assert page.locator('#tp-root >> #tp-section-alarm.tp-flash').count() == 1
     page.click('#tp-root >> #tp-btn-close')
 
 

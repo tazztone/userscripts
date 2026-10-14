@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.246
+// @version      2.18.247
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1492,7 +1492,13 @@ const SHADOW_MODAL_STYLES = `
   .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
-  .tp-section-header { font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .tp-section-header { background:none; border:none; padding:4px 0; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; font-family:inherit; }
+  .tp-section-header:focus-visible { outline:2px solid var(--tp-focus); outline-offset:2px; border-radius:6px; }
+  .tp-section-header .tp-chevron::after { content:"▾"; display:inline-block; transition:transform .15s ease; }
+  section.tp-collapsed .tp-section-header .tp-chevron::after { transform:rotate(-90deg); }
+  section.tp-collapsed .tp-section-body { display:none; }
+  .tp-danger-zone { border:1px solid rgba(239,68,68,.45); border-radius:10px; padding:10px 12px; }
+  .tp-btn-danger { border:1px solid rgba(239,68,68,.6); color:#b91c1c; background:rgba(239,68,68,.08); }
   .tp-section-display { border-color: rgba(16, 185, 129, 0.35); }
   .tp-section-display .tp-section-header { color: var(--tp-acc-txt); }
   .tp-section-deals { border-color: rgba(139, 92, 246, 0.35); }
@@ -5591,7 +5597,8 @@ const SHADOW_MODAL_STYLES = `
       tempDiv.innerHTML = `
         <div id="tp-section-unified-suite">
         <section id="tp-section-display" class="tp-section-card tp-section-display">
-          <div class="tp-section-header">🖥️ Ansicht</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-display-body" data-collapse="tp-section-display"><span class="tp-section-title">🖥️ Ansicht</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-display-body">
           <div class="tp-settings-group" id="tp-dim-opacity-group">
             <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
             <div class="tp-range-container">
@@ -5606,9 +5613,11 @@ const SHADOW_MODAL_STYLES = `
               <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
             </div>
           </div>
+  </div>
         </section>
         <section id="tp-section-review" class="tp-section-card tp-section-review">
-          <div class="tp-section-header">🌐 Review-Suche</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Review-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-review-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Review-Suche (🌐) anzeigen</label>
@@ -5634,9 +5643,11 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+  </div>
         </section>
         <section id="tp-section-deals" class="tp-section-card tp-section-deals">
-          <div class="tp-section-header">💎 Sortieren</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-deals-body" data-collapse="tp-section-deals"><span class="tp-section-title">💎 Sortieren</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-deals-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreise Modus</label>
@@ -5659,9 +5670,11 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-sort-discount">% Rabatt ⬇</label>
             </div>
           </div>
+  </div>
         </section>
         <section id="tp-section-filter" class="tp-section-card tp-section-filter">
-          <div class="tp-section-header">🧹 Filtern</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-filter-body">
           <div class="tp-settings-group">
             <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, Ungeprüfte, Fallback-Tiefs und Händler stehen im Filter-Popover der Filterleiste.</span>
           </div>
@@ -5672,9 +5685,11 @@ const SHADOW_MODAL_STYLES = `
               <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
             </div>
           </div>
+  </div>
         </section>
         <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
-          <div class="tp-section-header">🔔 Preisalarm</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-alarm-body" data-collapse="tp-section-alarm"><span class="tp-section-title">🔔 Preisalarm</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-alarm-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
@@ -5710,9 +5725,11 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+  </div>
         </section>
         <section id="tp-section-discord" class="tp-section-card tp-section-discord">
-          <div class="tp-section-header">💬 Discord Share</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-discord-body">
           <div class="tp-settings-group">
             <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
             <div id="tp-discord-webhook-collapsed">
@@ -5768,9 +5785,11 @@ const SHADOW_MODAL_STYLES = `
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
             <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary">Layout zurücksetzen</button>
           </div>
+  </div>
         </section>
         <section id="tp-section-data" class="tp-section-card tp-section-data">
-          <div class="tp-section-header">💾 Daten & Cache</div>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-data-body" data-collapse="tp-section-data"><span class="tp-section-title">💾 Daten & Cache</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <div class="tp-section-body" id="tp-section-data-body">
           <div class="tp-settings-group">
             <span class="tp-switch-desc tp-field-hint">Ausreißer-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
           </div>
@@ -5836,7 +5855,10 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
-            <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-secondary" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
+          </div>
+          <div class="tp-settings-group tp-danger-zone">
+            <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
+            <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
           </div>
           <div class="tp-settings-group">
             <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
@@ -5865,12 +5887,62 @@ const SHADOW_MODAL_STYLES = `
             <button type="button" id="tp-import-config-btn" title="Einstellungen aus einer JSON-Datei wiederherstellen." class="tp-btn tp-btn-secondary">📤 Import (JSON)</button>
             <input type="file" id="tp-import-config-file" accept=".json">
           </div>
+  </div>
         </section>
 
         </div>
       `;
       section = tempDiv.firstElementChild;
       sectionsHolder.appendChild(section);
+    }
+    // Independent per-section collapse, remembered outside CONFIG so it never
+    // leaks into export/import/reset. GM primary, localStorage mirror.
+    const COLLAPSE_KEY = 'tp_modal_collapsed';
+    const COLLAPSE_IDS = ['tp-section-display', 'tp-section-review', 'tp-section-deals', 'tp-section-filter', 'tp-section-alarm', 'tp-section-discord', 'tp-section-data'];
+    const readCollapsed = () => {
+      try {
+        if (typeof GM_getValue !== 'undefined') {
+          const gv = GM_getValue('tp_suite_v2_' + COLLAPSE_KEY);
+          if (Array.isArray(gv)) return gv.filter(id => COLLAPSE_IDS.includes(id));
+        }
+      } catch {}
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem('tp_suite_v2_' + COLLAPSE_KEY);
+          if (raw !== null) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed.filter(id => COLLAPSE_IDS.includes(id));
+          }
+        }
+      } catch {}
+      return [];
+    };
+    const writeCollapsed = (ids) => {
+      const clean = ids.filter(id => COLLAPSE_IDS.includes(id));
+      try { if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_' + COLLAPSE_KEY, clean); } catch {}
+      try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + COLLAPSE_KEY, JSON.stringify(clean)); } catch {}
+    };
+    const applyCollapsed = () => {
+      for (const id of readCollapsed()) {
+        const card = shadow.getElementById(id);
+        if (!card) continue;
+        card.classList.add('tp-collapsed');
+        card.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'false');
+      }
+    };
+    applyCollapsed();
+    const sectionsEl = shadow.getElementById('tp-settings-sections');
+    if (sectionsEl && !sectionsEl.dataset.collapseBound) {
+      sectionsEl.dataset.collapseBound = '1';
+      sectionsEl.addEventListener('click', (e) => {
+        const header = e.target?.closest?.('[data-collapse]');
+        if (!header || !sectionsEl.contains(header)) return;
+        const card = shadow.getElementById(header.dataset.collapse);
+        if (!card) return;
+        const collapsed = card.classList.toggle('tp-collapsed');
+        header.setAttribute('aria-expanded', String(!collapsed));
+        writeCollapsed([...sectionsEl.querySelectorAll('section.tp-collapsed')].map(s => s.id));
+      });
     }
 
     const dialog = shadow.getElementById('tp-settings-dialog');
@@ -6287,6 +6359,9 @@ const SHADOW_MODAL_STYLES = `
         const err = validateLayoutRecipe(value);
         if (err) {
           if (discordLayoutError) discordLayoutError.textContent = err;
+          shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
+          shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+          discordLayoutInput.focus();
           return;
         }
         updates.DISCORD_LAYOUT = value;
@@ -6307,6 +6382,18 @@ const SHADOW_MODAL_STYLES = `
     shadow.getElementById('tp-settings-fab')?.click();
     const anchor = shadow.getElementById(sectionId);
     if (!anchor) return;
+    if (anchor.classList.contains('tp-collapsed')) {
+      anchor.classList.remove('tp-collapsed');
+      anchor.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'true');
+      try {
+        const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
+        if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_tp_modal_collapsed', current);
+      } catch {}
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_tp_modal_collapsed', JSON.stringify(
+          [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id)));
+      } catch {}
+    }
     anchor.scrollIntoView({ block: 'start' });
     anchor.classList.add('tp-flash');
     setTimeout(() => anchor.classList.remove('tp-flash'), 2000);
@@ -8539,6 +8626,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       processPriceAlarmModal,
       processProductDetailPage,
       updateConfig,
+      openSettingsAt,
       saveConfigKey,
       startBatchCheck,
       runBatchDealCheck,

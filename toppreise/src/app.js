@@ -28,7 +28,7 @@ import {
 } from './ui/badges.js';
 import { renderSuiteFilterBar } from './ui/toolbar.js';
 import { renderFloatingCTA, hideFloatingCTA, startBatchCheck } from './ui/floating-cta.js';
-import { setupUI } from './ui/modal.js';
+import { setupUI, openSettingsAt } from './ui/modal.js';
 import { showToast } from './ui/toast.js';
 import { uiShadowRoot } from './ui/shell.js';
 import {
@@ -49,7 +49,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.246
+// @version      2.18.247
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -271,6 +271,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       processPriceAlarmModal,
       processProductDetailPage,
       updateConfig,
+      openSettingsAt,
       saveConfigKey,
       startBatchCheck,
       runBatchDealCheck,
