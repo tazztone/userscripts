@@ -54,6 +54,10 @@ export function isNeueToppreisePage() {
          document.body?.classList.contains('Page_ListTopPriceReductionProducts') ||
          document.body?.classList.contains('Page_ListTop100Products');
 }
+export function isSearchPage() {
+  const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? location.href;
+  return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
+}
 
 export function getDetailProductId() {
   const match = location.href.match(/-p(\d+)/i) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);

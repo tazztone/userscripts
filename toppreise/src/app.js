@@ -17,6 +17,7 @@ import {
 import {
   isShippingPriceActive,
   isNeueToppreisePage,
+  isSearchPage,
   isProductDetailPage,
   clearCardCache
 } from './page/adapter.js';
@@ -49,7 +50,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.247
+// @version      2.18.248
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -96,6 +97,7 @@ import { processProductDetailPage } from './features/product-detail.js';
       const activeStores = extractActiveStores();
       const termsList = parseNegativeTerms();
       const isNeueFeed = isNeueToppreisePage();
+      const isSortPage = isNeueFeed || isSearchPage();
       const minDealDiscount = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       const cardDataList = cards.map(extractCardData);
 
@@ -138,7 +140,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
-      renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed);
+      renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed, isSortPage);
       renderFloatingCTA(counts, isNeueFeed);
       const mig = migrateFilterSplit();
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');

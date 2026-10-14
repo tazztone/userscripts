@@ -376,8 +376,8 @@ def test_deal_features_enabled_on_category_page(page: Page):
     assert page.locator('#tp-bar-minpoints-wrapper').is_visible()
     assert page.locator('#tp-floating-check-cta').is_visible()
 
-    # Claimed discount threshold dropdown and Neue Tiefstpreise feed toggle remain hidden
-    assert not page.locator('#tp-bar-bestpreise-btn').is_visible()
+    # Claimed discount threshold dropdown remains hidden; Tiefstpreis-Sortierung is visible on produktsuche
+    assert page.locator('#tp-bar-bestpreise-btn').is_visible()
     assert not page.locator('#tp-floating-threshold-btn').is_visible()
 
 def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
@@ -951,6 +951,41 @@ def test_bestpreise_sorting_nested_wrappers(page: Page):
     assert wrapper_ids[0] == 'card-negative'   # Card 3 (blend 52%)
     assert wrapper_ids[1] == 'card-expensive'  # Card 2 (blend 30%)
     assert wrapper_ids[2] == 'card-cheapest'   # Card 1 (blend 9%)
+
+
+def test_tiefstpreis_sort_visible_on_search_page(page: Page):
+    # Search context: Page_Browsing class (shared with katalog) + produktsuche URL (the discriminator)
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_selector('#tp-suite-filter-bar', state='visible', timeout=5000)
+
+    # Same blends as test_bestpreise_sorting_by_blend: 797573 (38) > 797572 (34) > 797571 (22)
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10})
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 3500, 'medianPrice': 3437, 'isNewAllTimeLow': False, 'dataPointCount': 15}, clear=False)
+    seed_verified_deal(page, '797573', {'tiefstpreis': 15, 'hoechstpreis': 40, 'medianPrice': 30, 'previousLow': 20, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 25, 'dataPointCount': 12}, clear=False)
+
+    natural = page.evaluate("() => Array.from(document.querySelectorAll('#product-list .Plugin_Product')).map(c => c.id)")
+    assert natural.index('card-cheapest') < natural.index('card-expensive') < natural.index('card-negative')
+
+    # Sort button visible under action name; feed-only filter rows stay hidden
+    btn = page.locator('#tp-bar-bestpreise-btn')
+    assert btn.is_visible()
+    assert 'Tiefstpreis-Sortierung' in (btn.inner_text() or '')
+    assert page.evaluate("() => document.querySelector('[data-filter-row=\"unchecked\"]').style.display") == 'none'
+    assert page.evaluate("() => document.querySelector('[data-filter-row=\"vortief\"]').style.display") == 'none'
+
+    # Mode on overrides site order with badge-% order
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
+    ordered = page.evaluate("() => Array.from(document.querySelectorAll('#product-list .Plugin_Product')).map(c => c.id)")
+    assert ordered[:3] == ['card-negative', 'card-expensive', 'card-cheapest']
+
+    # Mode off restores natural (site) order
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', false)")
+    restored = page.evaluate("() => Array.from(document.querySelectorAll('#product-list .Plugin_Product')).map(c => c.id)")
+    assert restored.index('card-cheapest') < restored.index('card-expensive') < restored.index('card-negative')
 
 
 

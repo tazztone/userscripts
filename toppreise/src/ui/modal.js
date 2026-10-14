@@ -75,7 +75,7 @@ export function setupUI() {
 <div class="tp-section-body" id="tp-section-deals-body">
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreise Modus</label>
+            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreis-Sortierung</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-bestpreise-mode-toggle">

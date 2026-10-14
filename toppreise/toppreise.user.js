@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.247
+// @version      2.18.248
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3330,6 +3330,10 @@ const SHADOW_MODAL_STYLES = `
            document.body?.classList.contains('Page_ListTopPriceReductionProducts') ||
            document.body?.classList.contains('Page_ListTop100Products');
   }
+  function isSearchPage() {
+    const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? location.href;
+    return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
+  }
 
   function getDetailProductId() {
     const match = location.href.match(/-p(\d+)/i) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
@@ -5650,7 +5654,7 @@ const SHADOW_MODAL_STYLES = `
   <div class="tp-section-body" id="tp-section-deals-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreise Modus</label>
+              <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreis-Sortierung</label>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -6735,7 +6739,7 @@ const SHADOW_MODAL_STYLES = `
     btn.onclick = () => {
       const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
       updateConfig('BESTPREISE_MODE_ACTIVE', next);
-      showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
+      showToast(next ? '💎 Tiefstpreis-Sortierung aktiviert' : 'Tiefstpreis-Sortierung deaktiviert');
     };
   }
 
@@ -7019,7 +7023,7 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: false, filteredCount: 0, dimmed: 0 }, pageHasOffers = false, isDealFeed = false) {
+  function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: false, filteredCount: 0, dimmed: 0 }, pageHasOffers = false, isDealFeed = false, isSortPage = isDealFeed) {
     const placement = getSuiteBarPlacement();
     if (!placement?.container) return;
 
@@ -7086,8 +7090,8 @@ const SHADOW_MODAL_STYLES = `
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isDealFeed ? 'flex' : 'none'};">
-            💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Tiefstpreis-Sortierung: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isSortPage ? 'flex' : 'none'};">
+            💎 Tiefstpreis-Sortierung <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
           </button>
           <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
             <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — Sortierung + Farb-Emphase, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
@@ -7334,7 +7338,7 @@ const SHADOW_MODAL_STYLES = `
     const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
     if (bestpreiseBtn) {
       bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
-      bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+      bestpreiseBtn.style.setProperty('display', isSortPage ? 'flex' : 'none', 'important');
       const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
       if (bpCount) {
         setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
@@ -8451,6 +8455,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const activeStores = extractActiveStores();
       const termsList = parseNegativeTerms();
       const isNeueFeed = isNeueToppreisePage();
+      const isSortPage = isNeueFeed || isSearchPage();
       const minDealDiscount = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
       const cardDataList = cards.map(extractCardData);
 
@@ -8493,7 +8498,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
-      renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed);
+      renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed, isSortPage);
       renderFloatingCTA(counts, isNeueFeed);
       const mig = migrateFilterSplit();
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');

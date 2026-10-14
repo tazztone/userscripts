@@ -65,7 +65,7 @@ function bindBestpreiseBtn(btn) {
   btn.onclick = () => {
     const next = !CONFIG.BESTPREISE_MODE_ACTIVE;
     updateConfig('BESTPREISE_MODE_ACTIVE', next);
-    showToast(next ? '💎 Neue Tiefstpreise-Modus aktiviert' : 'Tiefstpreise-Modus deaktiviert');
+    showToast(next ? '💎 Tiefstpreis-Sortierung aktiviert' : 'Tiefstpreis-Sortierung deaktiviert');
   };
 }
 
@@ -349,7 +349,7 @@ function placeBar(bar, placement) {
   }
 }
 
-export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: false, filteredCount: 0, dimmed: 0 }, pageHasOffers = false, isDealFeed = false) {
+export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: false, filteredCount: 0, dimmed: 0 }, pageHasOffers = false, isDealFeed = false, isSortPage = isDealFeed) {
   const placement = getSuiteBarPlacement();
   if (!placement?.container) return;
 
@@ -416,8 +416,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Neue Tiefstpreise: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isDealFeed ? 'flex' : 'none'};">
-          💎 Neue Tiefstpreise <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Tiefstpreis-Sortierung: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isSortPage ? 'flex' : 'none'};">
+          💎 Tiefstpreis-Sortierung <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
         </button>
         <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
           <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — Sortierung + Farb-Emphase, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
@@ -664,7 +664,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
   if (bestpreiseBtn) {
     bestpreiseBtn.classList.toggle('tp-bestpreise-active', CONFIG.BESTPREISE_MODE_ACTIVE === true);
-    bestpreiseBtn.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
+    bestpreiseBtn.style.setProperty('display', isSortPage ? 'flex' : 'none', 'important');
     const bpCount = bestpreiseBtn.querySelector('#tp-bar-bestpreise-count');
     if (bpCount) {
       setTextIfChanged(bpCount, bestpreiseDeals > 0 ? String(bestpreiseDeals) : '');
