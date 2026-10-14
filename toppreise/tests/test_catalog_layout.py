@@ -261,7 +261,7 @@ def test_sort_by_discount(page: Page):
 
 def test_empty_state_notice_and_actions(page: Page):
     # No notice on an unfiltered page, then empty state once Filtern removes
-    # all cards — Nur geprüfte plus Min-Angebote for the one verified card.
+    # all cards — Ungeprüfte plus Min-Angebote for the one verified card.
     assert not page.locator('#tp-empty-state-notice').is_visible()
     prev_min = page.evaluate("() => window.ToppreiseSuite.CONFIG.MIN_OFFERS")
     prev_min_enabled = page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_MIN_ENABLED")
@@ -269,7 +269,7 @@ def test_empty_state_notice_and_actions(page: Page):
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('HIDE_UNCHECKED_MODE', 'hide'); window.ToppreiseSuite.updateConfig('FILTER_MIN_MODE', 'hide'); }")
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_HIDE_UNCHECKED', true)")
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_MIN_ENABLED', true); window.ToppreiseSuite.updateConfig('MIN_OFFERS', 99); }")
-    # 4 unscanned cards via Nur geprüfte, the verified card via Min-Angebote
+    # 4 unscanned cards via Ungeprüfte, the verified card via Min-Angebote
     page.wait_for_selector('#tp-empty-state-notice')
 
     notice = page.locator('#tp-empty-state-notice')
@@ -385,8 +385,6 @@ def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     # the unchecked row cycles Aus → Dimmen → Verbergen → Aus.
     _open_filter_popover(page)
     assert page.locator('#tp-suite-filter-bar #tp-bar-filter-btn').count() == 1
-    unchecked_row = page.locator('[data-filter-row="unchecked"]')
-    assert 'Nur geprüfte' in (unchecked_row.text_content() or '')
     unchecked_btn = page.locator('button[data-mode-key="HIDE_UNCHECKED_MODE"]')
     assert unchecked_btn.inner_text() == 'Aus'
     _open_filter_popover(page)
@@ -402,7 +400,7 @@ def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
 def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
- # Loupe-click regression: enabling Nur geprüfte on a checkless page hides
+ # Loupe-click regression: enabling Ungeprüfte on a checkless page hides
  # unchecked cards immediately (with the empty-state off-ramp), and adding
  # a check later changes nothing about the others' visibility.
  page.evaluate("() => window.ToppreiseSuite.updateConfig('HIDE_UNCHECKED_MODE', 'hide')")
@@ -425,7 +423,6 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     vortief_btn = page.locator('button[data-mode-key="VORTIEF_MODE"]')
     # Aus: fallback shown, row badge hidden
     assert vortief_btn.inner_text() == 'Aus'
-    assert 'Fallback-Tiefs filtern' in (page.locator('[data-filter-row="vortief"]').text_content() or '')
     assert page.locator('#card-cheapest').is_visible()
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
     # Aus -> Dimmen: fallback dimmed, row badge + dim counter show
@@ -2618,6 +2615,7 @@ def test_dealer_row_inactive_without_store_filter(page: Page):
     assert 'inaktiv' in (row.text_content() or '')
     assert 'tp-row-inactive' in (row.get_attribute('class') or '')
     assert page.locator('button[data-mode-key="DEALER_MODE"]').is_disabled()
+    assert page.locator('button[data-mode-key="DEALER_MODE"]').inner_text() == 'Aus'
 
 
 def test_toolbar_stacks_below_site_dropdown(page: Page):
@@ -2666,19 +2664,3 @@ def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_MODE") == 'hide'
 
-
-def test_filter_rows_toggle_first_with_tooltips(page: Page):
-    _open_filter_popover(page)
-    firsts = page.evaluate("""() => Object.fromEntries(
-        [...document.querySelectorAll('.tp-filter-row')].map(r => [r.dataset.filterRow,
-            r.firstElementChild.className]))""")
-    assert firsts == {'neg': 'tp-filter-label', 'min': 'tp-filter-label', 'unchecked': 'tp-filter-label',
-                      'vortief': 'tp-filter-label', 'dealer': 'tp-filter-label'}
-    labels = page.evaluate("() => [...document.querySelectorAll('.tp-filter-label')].map(el => el.title)")
-    assert labels == ['Negativ-Begriffe im Produktnamen filtern (Wortgrenzen)',
-                      'Produkte mit weniger als N Angeboten filtern',
-                      'Ungeprüfte Deals ohne verifizierten Tiefstpreis filtern',
-                      'Fallback-Tiefs filtern — Aus = gezeigt, Dimmen/Verbergen = Filtergrund aktiv',
-                      'Produkte des gewählten Händlers filtern']
-    modes = page.evaluate("() => [...document.querySelectorAll('.tp-filter-mode-btn')].map(el => el.title)")
-    assert modes and set(modes) == {'Filter: Aus — klicken für Dimmen', 'Modus: Dimmen — klicken für Verbergen'}

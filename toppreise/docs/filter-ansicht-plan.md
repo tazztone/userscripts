@@ -8,7 +8,7 @@ Removal causes (5):
 - Negativ-Terme
 - Min-Angebote
 - Händler (nicht Toppreis)
-- Ungeprüfte (Nur geprüfte)
+- Ungeprüfte
 - Fallback-ausgeschlossen
 
 👁️ peek stays as transient reveal-all (pure CSS override, no key).

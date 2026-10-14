@@ -156,7 +156,7 @@ describe('applyCardFilters split', () => {
     assert.equal(f.isExcluded, false);
   });
 
-  it('filters unchecked cards when Nur geprüfte is on', () => {
+  it('filters unchecked cards when Ungeprüfte is on', () => {
     const f = quietFlags(() => withConfig('BESTPREISE_HIDE_UNCHECKED', true, () =>
       applyCardFilters(base({ stats: null }), [], 0, false)));
     assert.equal(f.isUnchecked, true);
