@@ -500,14 +500,10 @@ export function syncUiControl(key, val) {
             break;
           }
           case 'BESTPREISE_HIDE_UNCHECKED': {
-            const toggle = bar.querySelector('#tp-toggle-unchecked');
-            if (toggle) toggle.checked = val === true;
             paintCycleButtons(bar, 'HIDE_UNCHECKED_MODE');
             break;
           }
           case 'BESTPREISE_INCLUDE_VORTIEF': {
-            const toggle = bar.querySelector('#tp-toggle-vortief');
-            if (toggle) toggle.checked = val === false;
             paintCycleButtons(bar, 'VORTIEF_MODE');
             break;
           }
@@ -552,31 +548,11 @@ export function syncUiControl(key, val) {
             break;
           }
           case 'FILTER_NEG_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-neg');
-            if (toggle) {
-              if (toggle.tagName === 'INPUT') {
-                syncMiniToggle(toggle, !!val, 'Negativ-Filter (Text)');
-              } else {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
-              }
-            }
             paintCycleButtons(bar, 'FILTER_NEG_MODE');
             bar.querySelector('.tp-input-field-box')?.classList.toggle('tp-tool-dim', !val);
             break;
           }
           case 'FILTER_MIN_ENABLED': {
-            const toggle = bar.querySelector('#tp-toggle-min');
-            if (toggle) {
-              if (toggle.tagName === 'INPUT') {
-                syncMiniToggle(toggle, !!val, 'Min-Angebote-Filter');
-              } else {
-                toggle.classList.toggle('tp-active', !!val);
-                toggle.classList.toggle('tp-filter-off', !val);
-                toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-              }
-            }
             paintCycleButtons(bar, 'FILTER_MIN_MODE');
             bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !val);
             break;

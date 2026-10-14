@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.233
+// @version      2.18.234
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2555,15 +2555,9 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/ui/mini-toggle.js ──────────────────────────────────────────
   /**
    * Shared mini-toggle sync (single dialect for checkbox toggles with ON/OFF
-   * caption and dimming of the tools they own). Imported by toolbar.js and
-   * state/config.js — lives here because toolbar imports config (cycle).
+   * caption). Imported by toolbar.js and state/config.js — lives here because
+   * toolbar imports config (cycle).
    */
-
-  // Tools dimmed when their mini-toggle is OFF (the toggle itself stays bright).
-  const DIM_TARGETS_BY_TOGGLE = {
-    'tp-toggle-neg': ['.tp-input-field-box'],
-    'tp-toggle-min': ['.tp-stepper-btn', '#tp-bar-min-val', '.tp-stepper-label'],
-  };
 
   function syncMiniToggle(input, enabled, titleBase) {
     if (!input) return;
@@ -2576,9 +2570,6 @@ const SHADOW_MODAL_STYLES = `
     const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
     const caption = scope?.querySelector('.tp-mini-caption');
     if (caption) caption.title = title;
-    for (const sel of (DIM_TARGETS_BY_TOGGLE[input.id] || [])) {
-      scope?.querySelectorAll(sel).forEach(node => node.classList.toggle('tp-tool-dim', !enabled));
-    }
   }
 
   // ─── MODULE: src/state/config.js ────────────────────────────────────────────
@@ -3083,14 +3074,10 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'BESTPREISE_HIDE_UNCHECKED': {
-              const toggle = bar.querySelector('#tp-toggle-unchecked');
-              if (toggle) toggle.checked = val === true;
               paintCycleButtons(bar, 'HIDE_UNCHECKED_MODE');
               break;
             }
             case 'BESTPREISE_INCLUDE_VORTIEF': {
-              const toggle = bar.querySelector('#tp-toggle-vortief');
-              if (toggle) toggle.checked = val === false;
               paintCycleButtons(bar, 'VORTIEF_MODE');
               break;
             }
@@ -3135,31 +3122,11 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'FILTER_NEG_ENABLED': {
-              const toggle = bar.querySelector('#tp-toggle-neg');
-              if (toggle) {
-                if (toggle.tagName === 'INPUT') {
-                  syncMiniToggle(toggle, !!val, 'Negativ-Filter (Text)');
-                } else {
-                  toggle.classList.toggle('tp-active', !!val);
-                  toggle.classList.toggle('tp-filter-off', !val);
-                  toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
-                }
-              }
               paintCycleButtons(bar, 'FILTER_NEG_MODE');
               bar.querySelector('.tp-input-field-box')?.classList.toggle('tp-tool-dim', !val);
               break;
             }
             case 'FILTER_MIN_ENABLED': {
-              const toggle = bar.querySelector('#tp-toggle-min');
-              if (toggle) {
-                if (toggle.tagName === 'INPUT') {
-                  syncMiniToggle(toggle, !!val, 'Min-Angebote-Filter');
-                } else {
-                  toggle.classList.toggle('tp-active', !!val);
-                  toggle.classList.toggle('tp-filter-off', !val);
-                  toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
-                }
-              }
               paintCycleButtons(bar, 'FILTER_MIN_MODE');
               bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !val);
               break;

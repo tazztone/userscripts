@@ -60,7 +60,7 @@ _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
 Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; heizt wie jeder andere Deal (blinde Heatmap), entfernt oder gedimmt nur im Tiefstpreise-Feed wenn „Fallback-Tiefs filtern" an ist (Modus je Ursache). Aus = gezeigt, Dimmen/Verbergen = Filtergrund aktiv.
-_Avoid_: Vortief (als Schalterlabel), dünne Historie
+_Avoid_: Vortief (als UI-Text), dünne Historie
 
  **Nur geprüfte**:
 Filtergrund: verbirgt oder dimmt ungeprüfte Karten wenn aktiv (je Modus) — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
