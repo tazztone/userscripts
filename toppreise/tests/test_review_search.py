@@ -10,13 +10,13 @@ def _google_url(name, keyword):
 
 
 def test_review_icon_per_card_default_testbericht(page: Page):
-    """Every card ends its product name with 🔍 linking to '<name> Testbericht'."""
+    """Every card ends its product name with 🌐 linking to '<name> Testbericht'."""
     btns = page.locator('a.tp-review-search-btn')
     assert btns.count() >= 2
 
     first = page.locator('#card-cheapest a.tp-review-search-btn')
     assert first.count() == 1
-    assert first.text_content() == '🔍'
+    assert first.text_content() == '🌐'
     assert first.get_attribute('target') == '_blank'
     assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht')
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.239
+// @version      2.18.240
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5425,7 +5425,7 @@ const SHADOW_MODAL_STYLES = `
         dealerEl?.remove();
       }
     }
-    // 9. Review-Suche (🔍) am Produktnamen: Ansicht, immer wenn aktiviert.
+    // 9. Review-Suche (🌐) am Produktnamen: Ansicht, immer wenn aktiviert.
     // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
     const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
@@ -5434,7 +5434,7 @@ const SHADOW_MODAL_STYLES = `
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
         reviewBtn.className = 'tp-review-search-btn';
-        reviewBtn.textContent = '🔍';
+        reviewBtn.textContent = '🌐';
         reviewBtn.target = '_blank';
         reviewBtn.rel = 'noopener';
         reviewBtn.addEventListener('click', e => e.stopPropagation());
@@ -5790,8 +5790,8 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label>Review-Suche (🔍) anzeigen</label>
-              <span class="tp-switch-desc">Google-Suche pro Produktname</span>
+              <label>Review-Suche (🌐) anzeigen</label>
+              <span class="tp-switch-desc">Google-Suche pro Produktnamen</span>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-review-search-toggle">

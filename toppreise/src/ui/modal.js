@@ -238,8 +238,8 @@ export function setupUI() {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label>Review-Suche (🔍) anzeigen</label>
-            <span class="tp-switch-desc">Google-Suche pro Produktname</span>
+            <label>Review-Suche (🌐) anzeigen</label>
+            <span class="tp-switch-desc">Google-Suche pro Produktnamen</span>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-review-search-toggle">

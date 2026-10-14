@@ -898,7 +898,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       dealerEl?.remove();
     }
   }
-  // 9. Review-Suche (🔍) am Produktnamen: Ansicht, immer wenn aktiviert.
+  // 9. Review-Suche (🌐) am Produktnamen: Ansicht, immer wenn aktiviert.
   // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
   const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
@@ -907,7 +907,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');
       reviewBtn.className = 'tp-review-search-btn';
-      reviewBtn.textContent = '🔍';
+      reviewBtn.textContent = '🌐';
       reviewBtn.target = '_blank';
       reviewBtn.rel = 'noopener';
       reviewBtn.addEventListener('click', e => e.stopPropagation());

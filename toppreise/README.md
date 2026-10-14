@@ -15,7 +15,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.239)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.240)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
@@ -69,7 +69,7 @@ Requires Violentmonkey (or a compatible userscript manager):
     - **Catalog / Search Listings (`/produktsuche/...`)**: Streamlined toolbar with the same `🧹 Filter (N)` button (Negativ- und Min-Angebote- sowie Händler-Zeilen; `Nur geprüfte` und `Fallback-Tiefs` leben nur im Feed), `🔥 Heatmap` toggle — plus the `⚖️` Berechnungsparameter popover (`⚖️` Gewichtung, `Ø`-Horizont, `📊` Mindestpunkte, `🧹` Ausreißer-Filter mit Glitch-Band/Fenster), since browse heat uses them.
     - **Product Detail Pages (`/preisvergleich/...-p...`)**: Filter bar is cleanly suppressed so single-product pages remain uncluttered.
 14. **📤 Discord 1-Klick-Share**: Verifizierte Tiefstpreis-Karten tragen einen `📤`-Button, der den Deal per eigenem Webhook in den Discord Deals-Channel postet — Größenhierarchie: `##`-Titel mit Produktlink, `#`-Preis, `#`-Händlerzeile (verlinkter Händlername + kompakter Angebotszahl `+N`), bisheriger Best- und Ø-Preis mit je eigenem Rabatt-% in je eigener Zeile, Produktlink nur bei aktivem Embed zuletzt, plus Produktbild als erster Attachment-Datei (Thread-Vorschau) und Preisverlauf-Bild als zweiter darunter (Text-Sparkline als Fallback). Das Chart-Bild trägt Preis-/Monatsraster mit Endpunkt-Markierung. Webhook-URL in den Einstellungen (⚙️) hinterlegen — GM-privat gespeichert, nie committet oder exportiert. Forum-/Media-Channel werden erkannt: Pro Share entsteht ein neuer Forenpost mit Deal-Titel. Die Schalter `Händler-Link Embed` und `Toppreise-Link Embed` blenden je Link die automatische Vorschau aus (Standard: AUS, Bild bleibt). Das Nachrichten-Layout ist ein Baukasten in den Einstellungen: Template-String mit Tokens (`{title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}`, je Zeile ein Baustein, Größe via `#`/`##`/`-#`, `·` blendet leere Nachbarn aus, `+{offers}` rendert kompakt `+N`), mit Presets, gerenderter Markdown-Live-Vorschau (entprellt, mit Umbruch) und Validierung. Geteilte Deals behalten einen leuchtenden `📤`-Button (bleibt bis Preisänderung, Cache-Leerung oder TTL-Ablauf); erneutes Teilen bleibt möglich.
-15. **🔍 Review-Suche pro Produkt**: Jede Karte trägt am Ende des Produktnamens ein `🔍`-Icon, das eine Google-Suche nach `<Produktname> Testbericht` (oder `Review`) in einem neuen Tab öffnet — in den Einstellungen (Ansicht) ein-/ausschaltbar inkl. Suchbegriff-Wahl (`Review`/`Testbericht`).
+15. **🌐 Review-Suche pro Produkt**: Jede Karte trägt am Ende des Produktnamens ein `🌐`-Icon, das eine Google-Suche nach `<Produktname> Testbericht` (oder `Review`) in einem neuen Tab öffnet — in den Einstellungen (Ansicht) ein-/ausschaltbar inkl. Suchbegriff-Wahl (`Review`/`Testbericht`).
 
 ---
 
