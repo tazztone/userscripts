@@ -156,6 +156,12 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
       heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
     }
+    else if (heatBadgeEl) {
+      heatBadgeEl.style.removeProperty('background');
+      heatBadgeEl.style.removeProperty('border-color');
+      heatBadgeEl.style.removeProperty('color');
+      heatBadgeEl.style.removeProperty('box-shadow');
+    }
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend')) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
@@ -447,7 +453,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         // Unscanned card (!stats) -> loupe / loading spinner. Hidden only
         // when "Nur Geprüfte" is on; otherwise kept visible for checking.
         card.classList.remove('tp-unchecked-hidden');
-        if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
+        if (filters.isUnchecked === true) card.classList.add('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
         if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {

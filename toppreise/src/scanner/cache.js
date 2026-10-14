@@ -9,8 +9,8 @@ import { CONFIG } from '../state/config.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
-export const statsKey = productId => {
-  try { return `${STATS_CACHE_PREFIX}${productId}_${isShippingPriceActive() ? 's' : 'p'}`; }
+export const statsKey = (productId, useShippingOverride) => {
+  try { const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive(); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
   catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
 };
 export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
@@ -32,6 +32,15 @@ export const memoryCache = new Map();
 let statsWriteCount = 0;
 export function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
   return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
+}
+function fullSeries(entry) {
+  if (!entry) return null;
+  if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
+  const base = entry.timeSeries;
+  if (!Array.isArray(base)) return null;
+  const extra = Array.isArray(entry.filteredOutliers) ? entry.filteredOutliers.map(o => [o.timestamp, o.price]) : [];
+  if (!extra.length) return base;
+  return [...base, ...extra].sort((a, b) => a[0] - b[0]);
 }
 export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
   if (!parsed) return false;
@@ -143,10 +152,10 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
       // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
       // stale-sig entries with a series recompute synchronously, no refetch.
       if (!parsed.unavailable && parsed.medianSig !== currentMedianSig()) {
-        const src = Array.isArray(parsed.rawTimeSeries) ? parsed.rawTimeSeries : parsed.timeSeries;
+        const src = fullSeries(parsed);
         if (Array.isArray(src)) {
           try {
-            const fresh = analyzePriceTimeSeries(src, null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+            const fresh = analyzePriceTimeSeries(src, parsed?.anchorPrice ?? null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
             if (fresh) parsed = { ...parsed, ...fresh, time: parsed.time, medianSig: currentMedianSig() };
           } catch (e) {}
         }
@@ -162,9 +171,9 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
   return null;
 }
 
-export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null), useShippingOverride) {
   if (!productId) return;
-  const key = statsKey(productId);
+  const key = statsKey(productId, useShippingOverride);
   // Upgrade-only: never replace median-bearing stats with median-less
   // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
   // only) must not regress a full analysis — the badge would keep its old %
@@ -245,9 +254,9 @@ export function recomputeCachedMedians(horizonDays, storage = (typeof window !==
     if (typeof entry?.isShippingPrice === 'boolean') {
       try { if (entry.isShippingPrice !== isShippingPriceActive()) return null; } catch (e) {}
     }
-    const src = Array.isArray(entry?.rawTimeSeries) ? entry.rawTimeSeries : entry?.timeSeries;
+    const src = fullSeries(entry);
     if (!Array.isArray(src)) return null;
-    const fresh = analyzePriceTimeSeries(src, null, horizonDays);
+    const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, horizonDays);
     if (!fresh) return null;
     return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
   };

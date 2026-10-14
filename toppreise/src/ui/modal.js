@@ -577,6 +577,9 @@ export function setupUI() {
             else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.20, coerced));
             else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(12, Math.round(coerced)));
             else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
+            else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
+            else if (key === 'NEGATIVE_CACHE_HOURS') coerced = Math.max(1, Math.min(24, Math.round(coerced)));
+            else if (key === 'OBSERVER_DEBOUNCE_MS') coerced = Math.max(50, Math.min(2000, Math.round(coerced)));
           } else if (typeof def === 'boolean') {
             if (val === true || val === 'true') coerced = true;
             else if (val === false || val === 'false') coerced = false;
@@ -585,6 +588,8 @@ export function setupUI() {
             coerced = String(val);
             if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(coerced)) continue;
             if (key === 'ALARM_DURATION_DAYS' && !['90', '180', '365', '730'].includes(coerced)) continue;
+            if ((key === 'FILTER_NEG_MODE' || key === 'FILTER_MIN_MODE' || key === 'HIDE_UNCHECKED_MODE' || key === 'VORTIEF_MODE' || key === 'DEALER_MODE') && !['dim', 'hide'].includes(coerced)) continue;
+            if (key === 'SORT_BY_OFFERS' && !['none', 'desc', 'asc', 'discount-desc'].includes(coerced)) continue;
           } else {
             continue;
           }

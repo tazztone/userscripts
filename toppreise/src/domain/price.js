@@ -193,7 +193,8 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
         if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
         else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
       } else if (j === 0 || k === n) {
-        isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
+        const spanEnd = (j === 0 && k < n) ? sorted[k][0] : sorted[k - 1][0];
+        isGlitch = (spanEnd - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
         if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
       }
       for (let m = j; m < k; m++) {
@@ -311,6 +312,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     realDiscountVsMedian,
     dataPointCount: points.length,
     timeSeries: points,
+    anchorPrice: curr,
     ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: rawParsedPoints } : null)
   };
 }

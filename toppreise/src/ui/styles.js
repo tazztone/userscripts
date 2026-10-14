@@ -349,6 +349,10 @@ export const STYLES = `
   .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val {
     color: #b45309 !important;
   }
+  .badge.badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val,
+  .badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val { color: #b45309 !important; }
+  .badge.badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount,
+  .badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount { color: #64748b !important; }
   .badge.badge-dif.tp-deal-not-low .tp-fake-discount {
     font-size: 9.5px !important;
     display: block !important;
@@ -1238,7 +1242,7 @@ export const STYLES = `
     .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
   }
   @media (prefers-contrast: more) {
-    .badge-dif, .tp-deal-pill { color: #fff !important; border-width: 2px !important; }
+    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { color: #fff !important; border-width: 2px !important; }
     .tp-tool-dim { opacity: 0.75 !important; }
   }
   #tp-floating-check-col {

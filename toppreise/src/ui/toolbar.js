@@ -556,6 +556,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         if (filterBtnEl) filterBtnEl.setAttribute('aria-expanded', 'false');
         const open = calcPopover.classList.toggle('tp-show');
         calcBtn.setAttribute('aria-expanded', String(open));
+        if (open) refreshCalcPreview();
       };
       const resetBtn = bar.querySelector('#tp-bar-calc-reset');
       if (resetBtn) {
@@ -734,5 +735,5 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
-  if (document.getElementById('tp-preview-svg')) refreshCalcPreview();
+  if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview();
 }

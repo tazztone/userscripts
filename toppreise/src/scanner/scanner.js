@@ -220,7 +220,15 @@ export async function runProductScanner(options = {}) {
       if (shouldCancelFn()) break;
       const item = targets[i];
       Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
-      try { item.card.querySelector('.tp-deal-badge')?.classList.add('tp-deal-loading'); } catch {}
+      try {
+        const badgeEl = item.card.querySelector('.badge-dif, [class*="badge-dif"]');
+        if (badgeEl) {
+          badgeEl.classList.add('tp-deal-loading');
+          badgeEl.innerHTML = badgeEl.classList.contains('tp-deal-pill')
+            ? '<span>⏳</span><p>Prüfe...</p>'
+            : '<div class="text">Prüfe...</div><p>⏳</p>';
+        }
+      } catch {}
 
       let stats = null;
       try {

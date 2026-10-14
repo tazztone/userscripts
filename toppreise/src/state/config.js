@@ -297,6 +297,7 @@ if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH
 else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(12, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
 export const saveConfigKey = (key, val) => {
+  if (SECRET_KEYS.has(key)) return;
   CONFIG[key] = val;
   _setValue(key, val);
 };
@@ -583,7 +584,8 @@ export function syncUiControl(key, val, opts = {}) {
 // processListings() re-render would be wasted work on every settings save.
 const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
 export function updateConfig(key, val, options = {}) {
-  saveConfigKey(key, val);
+  if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
+  else saveConfigKey(key, val);
   if (!options.skipUiSync) {
     syncUiControl(key, val);
   }

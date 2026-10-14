@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.236
+// @version      2.18.237
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -376,6 +376,10 @@ const STYLES = `
   .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val {
     color: #b45309 !important;
   }
+  .badge.badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val,
+  .badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val { color: #b45309 !important; }
+  .badge.badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount,
+  .badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount { color: #64748b !important; }
   .badge.badge-dif.tp-deal-not-low .tp-fake-discount {
     font-size: 9.5px !important;
     display: block !important;
@@ -1265,7 +1269,7 @@ const STYLES = `
     .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
   }
   @media (prefers-contrast: more) {
-    .badge-dif, .tp-deal-pill { color: #fff !important; border-width: 2px !important; }
+    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { color: #fff !important; border-width: 2px !important; }
     .tp-tool-dim { opacity: 0.75 !important; }
   }
   #tp-floating-check-col {
@@ -1886,7 +1890,8 @@ const SHADOW_MODAL_STYLES = `
           if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
           else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
         } else if (j === 0 || k === n) {
-          isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
+          const spanEnd = (j === 0 && k < n) ? sorted[k][0] : sorted[k - 1][0];
+          isGlitch = (spanEnd - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
           if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
         }
         for (let m = j; m < k; m++) {
@@ -2004,6 +2009,7 @@ const SHADOW_MODAL_STYLES = `
       realDiscountVsMedian,
       dataPointCount: points.length,
       timeSeries: points,
+      anchorPrice: curr,
       ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: rawParsedPoints } : null)
     };
   }
@@ -2270,8 +2276,8 @@ const SHADOW_MODAL_STYLES = `
 
 
   const STATS_CACHE_PREFIX = 'tp_hist_v1_';
-  const statsKey = productId => {
-    try { return `${STATS_CACHE_PREFIX}${productId}_${isShippingPriceActive() ? 's' : 'p'}`; }
+  const statsKey = (productId, useShippingOverride) => {
+    try { const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive(); return `${STATS_CACHE_PREFIX}${productId}_${s ? 's' : 'p'}`; }
     catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
   };
   const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
@@ -2293,6 +2299,15 @@ const SHADOW_MODAL_STYLES = `
   let statsWriteCount = 0;
   function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
     return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
+  }
+  function fullSeries(entry) {
+    if (!entry) return null;
+    if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
+    const base = entry.timeSeries;
+    if (!Array.isArray(base)) return null;
+    const extra = Array.isArray(entry.filteredOutliers) ? entry.filteredOutliers.map(o => [o.timestamp, o.price]) : [];
+    if (!extra.length) return base;
+    return [...base, ...extra].sort((a, b) => a[0] - b[0]);
   }
   function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
     if (!parsed) return false;
@@ -2404,10 +2419,10 @@ const SHADOW_MODAL_STYLES = `
         // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
         // stale-sig entries with a series recompute synchronously, no refetch.
         if (!parsed.unavailable && parsed.medianSig !== currentMedianSig()) {
-          const src = Array.isArray(parsed.rawTimeSeries) ? parsed.rawTimeSeries : parsed.timeSeries;
+          const src = fullSeries(parsed);
           if (Array.isArray(src)) {
             try {
-              const fresh = analyzePriceTimeSeries(src, null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+              const fresh = analyzePriceTimeSeries(src, parsed?.anchorPrice ?? null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
               if (fresh) parsed = { ...parsed, ...fresh, time: parsed.time, medianSig: currentMedianSig() };
             } catch (e) {}
           }
@@ -2423,9 +2438,9 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null), useShippingOverride) {
     if (!productId) return;
-    const key = statsKey(productId);
+    const key = statsKey(productId, useShippingOverride);
     // Upgrade-only: never replace median-bearing stats with median-less
     // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
     // only) must not regress a full analysis — the badge would keep its old %
@@ -2506,9 +2521,9 @@ const SHADOW_MODAL_STYLES = `
       if (typeof entry?.isShippingPrice === 'boolean') {
         try { if (entry.isShippingPrice !== isShippingPriceActive()) return null; } catch (e) {}
       }
-      const src = Array.isArray(entry?.rawTimeSeries) ? entry.rawTimeSeries : entry?.timeSeries;
+      const src = fullSeries(entry);
       if (!Array.isArray(src)) return null;
-      const fresh = analyzePriceTimeSeries(src, null, horizonDays);
+      const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, horizonDays);
       if (!fresh) return null;
       return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
     };
@@ -2895,6 +2910,7 @@ const SHADOW_MODAL_STYLES = `
   else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(12, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
   const saveConfigKey = (key, val) => {
+    if (SECRET_KEYS.has(key)) return;
     CONFIG[key] = val;
     _setValue(key, val);
   };
@@ -3181,7 +3197,8 @@ const SHADOW_MODAL_STYLES = `
   // processListings() re-render would be wasted work on every settings save.
   const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
   function updateConfig(key, val, options = {}) {
-    saveConfigKey(key, val);
+    if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
+    else saveConfigKey(key, val);
     if (!options.skipUiSync) {
       syncUiControl(key, val);
     }
@@ -3431,15 +3448,19 @@ const SHADOW_MODAL_STYLES = `
     if (!termsList || termsList.length === 0) return false;
     let text = card._tpTextLower;
     if (text === undefined) {
-      const native = card.querySelector?.('.bold, .product-name, .Plugin_ProductHeading, [class*="title" i], [class*="details" i]');
-      if (native?.textContent) {
-        text = native.textContent.toLowerCase();
-      } else if (typeof card.cloneNode === 'function') {
-        const clone = card.cloneNode(true);
-        clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
-        text = (clone.textContent || '').toLowerCase();
-      } else {
-        text = (card.textContent || '').toLowerCase();
+      const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
+      const joined = [...(nodes ?? [])].map(el => el.textContent).join(' ');
+      if (joined.trim()) text = joined.toLowerCase();
+      else {
+        const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
+        if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
+        else if (typeof card.cloneNode === 'function') {
+          const clone = card.cloneNode(true);
+          clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
+          text = (clone.textContent || '').toLowerCase();
+        } else {
+          text = (card.textContent || '').toLowerCase();
+        }
       }
       card._tpTextLower = text;
     }
@@ -3450,7 +3471,7 @@ const SHADOW_MODAL_STYLES = `
       const term = typeof entry === 'string' ? entry : entry.term;
       if (!term) return false;
       if (term.length <= 3) {
-        return new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
+        return new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu').test(text);
       }
       return text.includes(term);
     });
@@ -3563,7 +3584,7 @@ const SHADOW_MODAL_STYLES = `
 
   function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
     return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
-      .map(term => ({ term, re: term.length <= 3 ? new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') : null }));
+      .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
   }
 
   function extractCardData(card) {
@@ -3606,7 +3627,7 @@ const SHADOW_MODAL_STYLES = `
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
      const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-    const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
+    const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
     const isDealerLoser = false;
     // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
     const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
@@ -4366,7 +4387,15 @@ const SHADOW_MODAL_STYLES = `
         if (shouldCancelFn()) break;
         const item = targets[i];
         Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
-        try { item.card.querySelector('.tp-deal-badge')?.classList.add('tp-deal-loading'); } catch {}
+        try {
+          const badgeEl = item.card.querySelector('.badge-dif, [class*="badge-dif"]');
+          if (badgeEl) {
+            badgeEl.classList.add('tp-deal-loading');
+            badgeEl.innerHTML = badgeEl.classList.contains('tp-deal-pill')
+              ? '<span>⏳</span><p>Prüfe...</p>'
+              : '<div class="text">Prüfe...</div><p>⏳</p>';
+          }
+        } catch {}
 
         let stats = null;
         try {
@@ -4626,6 +4655,12 @@ const SHADOW_MODAL_STYLES = `
         heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
         heatBadgeEl.style.setProperty('color', '#ffffff', 'important');
         heatBadgeEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+      }
+      else if (heatBadgeEl) {
+        heatBadgeEl.style.removeProperty('background');
+        heatBadgeEl.style.removeProperty('border-color');
+        heatBadgeEl.style.removeProperty('color');
+        heatBadgeEl.style.removeProperty('box-shadow');
       }
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend')) {
       // Tripwire: heat stripped while the badge still claims a verified % means
@@ -4918,7 +4953,7 @@ const SHADOW_MODAL_STYLES = `
           // Unscanned card (!stats) -> loupe / loading spinner. Hidden only
           // when "Nur Geprüfte" is on; otherwise kept visible for checking.
           card.classList.remove('tp-unchecked-hidden');
-          if (CONFIG.BESTPREISE_HIDE_UNCHECKED === true) card.classList.add('tp-unchecked-hidden');
+          if (filters.isUnchecked === true) card.classList.add('tp-unchecked-hidden');
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
           if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
@@ -6043,6 +6078,9 @@ const SHADOW_MODAL_STYLES = `
               else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.20, coerced));
               else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(12, Math.round(coerced)));
               else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
+              else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
+              else if (key === 'NEGATIVE_CACHE_HOURS') coerced = Math.max(1, Math.min(24, Math.round(coerced)));
+              else if (key === 'OBSERVER_DEBOUNCE_MS') coerced = Math.max(50, Math.min(2000, Math.round(coerced)));
             } else if (typeof def === 'boolean') {
               if (val === true || val === 'true') coerced = true;
               else if (val === false || val === 'false') coerced = false;
@@ -6051,6 +6089,8 @@ const SHADOW_MODAL_STYLES = `
               coerced = String(val);
               if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(coerced)) continue;
               if (key === 'ALARM_DURATION_DAYS' && !['90', '180', '365', '730'].includes(coerced)) continue;
+              if ((key === 'FILTER_NEG_MODE' || key === 'FILTER_MIN_MODE' || key === 'HIDE_UNCHECKED_MODE' || key === 'VORTIEF_MODE' || key === 'DEALER_MODE') && !['dim', 'hide'].includes(coerced)) continue;
+              if (key === 'SORT_BY_OFFERS' && !['none', 'desc', 'asc', 'discount-desc'].includes(coerced)) continue;
             } else {
               continue;
             }
@@ -6996,6 +7036,7 @@ const SHADOW_MODAL_STYLES = `
           if (filterBtnEl) filterBtnEl.setAttribute('aria-expanded', 'false');
           const open = calcPopover.classList.toggle('tp-show');
           calcBtn.setAttribute('aria-expanded', String(open));
+          if (open) refreshCalcPreview();
         };
         const resetBtn = bar.querySelector('#tp-bar-calc-reset');
         if (resetBtn) {
@@ -7174,7 +7215,7 @@ const SHADOW_MODAL_STYLES = `
     if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
     const minVal = bar.querySelector('#tp-bar-min-val');
     if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
-    if (document.getElementById('tp-preview-svg')) refreshCalcPreview();
+    if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview();
   }
 
   // ─── MODULE: src/ui/floating-cta.js ─────────────────────────────────────────
@@ -7671,7 +7712,7 @@ const SHADOW_MODAL_STYLES = `
   }
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-  const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
+  const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim().replace(/\[/g, '(').replace(/\]/g, ')');
   function tokenText(name, ctx) {
     switch (name) {
       case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
@@ -7695,7 +7736,7 @@ const SHADOW_MODAL_STYLES = `
       link,
       titleTarget: link ? (((fields || {}).suppressProductEmbed && link) ? `<${link}>` : link) : '',
       priceText: (fields || {}).priceText || '',
-      dealer: (fields || {}).dealer || '',
+      dealer: String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')'),
       dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
       offerCount: (fields || {}).offerCount || 0,
       spark: (fields || {}).spark || '',
@@ -8150,13 +8191,16 @@ const SHADOW_MODAL_STYLES = `
         badge.title = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
         badge.textContent = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
       }
-    } else if (!activeFetches.has(pid)) {
-      await fetchSingleProductPriceStats(pid);
+    } else if (!activeFetches.has(`${pid}_${isShippingPriceActive() ? 's' : 'p'}`)) {
+      await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
       const fetchedStats = getCachedPriceStats(pid);
       if (fetchedStats && !fetchedStats.unavailable && fetchedStats.tiefstpreis > 0) {
         processProductDetailPage();
+      } else {
+        document.getElementById('tp-detail-deal-badge')?.remove();
+        return;
       }
-    }
+  }
   }
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
@@ -8381,6 +8425,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
         getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
         defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
+        deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
       }),
       memoryCache,
       statsKey

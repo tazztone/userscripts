@@ -211,7 +211,7 @@ export function renderDiscordMarkdownPreview(markdown) {
 }
 const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
 const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
-const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim();
+const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim().replace(/\[/g, '(').replace(/\]/g, ')');
 function tokenText(name, ctx) {
   switch (name) {
     case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
@@ -235,7 +235,7 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     link,
     titleTarget: link ? (((fields || {}).suppressProductEmbed && link) ? `<${link}>` : link) : '',
     priceText: (fields || {}).priceText || '',
-    dealer: (fields || {}).dealer || '',
+    dealer: String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')'),
     dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
     offerCount: (fields || {}).offerCount || 0,
     spark: (fields || {}).spark || '',

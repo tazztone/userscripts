@@ -98,15 +98,19 @@ export function matchesNegativeTerms(card, termsList) {
   if (!termsList || termsList.length === 0) return false;
   let text = card._tpTextLower;
   if (text === undefined) {
-    const native = card.querySelector?.('.bold, .product-name, .Plugin_ProductHeading, [class*="title" i], [class*="details" i]');
-    if (native?.textContent) {
-      text = native.textContent.toLowerCase();
-    } else if (typeof card.cloneNode === 'function') {
-      const clone = card.cloneNode(true);
-      clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
-      text = (clone.textContent || '').toLowerCase();
-    } else {
-      text = (card.textContent || '').toLowerCase();
+    const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
+    const joined = [...(nodes ?? [])].map(el => el.textContent).join(' ');
+    if (joined.trim()) text = joined.toLowerCase();
+    else {
+      const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
+      if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
+      else if (typeof card.cloneNode === 'function') {
+        const clone = card.cloneNode(true);
+        clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
+        text = (clone.textContent || '').toLowerCase();
+      } else {
+        text = (card.textContent || '').toLowerCase();
+      }
     }
     card._tpTextLower = text;
   }
@@ -117,7 +121,7 @@ export function matchesNegativeTerms(card, termsList) {
     const term = typeof entry === 'string' ? entry : entry.term;
     if (!term) return false;
     if (term.length <= 3) {
-      return new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
+      return new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu').test(text);
     }
     return text.includes(term);
   });
@@ -230,7 +234,7 @@ export function extractActiveStores() {
 
 export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
   return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
-    .map(term => ({ term, re: term.length <= 3 ? new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') : null }));
+    .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
 }
 
 export function extractCardData(card) {
@@ -273,7 +277,7 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
    const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-  const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
+  const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
   const isDealerLoser = false;
   // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
   const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
