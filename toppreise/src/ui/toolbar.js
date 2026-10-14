@@ -651,12 +651,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
   if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
   const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
-  if (vortiefRow) {
-    vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-    vortiefRow.classList.toggle('tp-row-inactive', CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false);
-    const vortiefBtn = vortiefRow.querySelector('[data-mode-key="VORTIEF_MODE"]');
-    if (vortiefBtn) vortiefBtn.disabled = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
-  }
+  if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
   const dealerActive = counts.dealerActive === true;
   const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
   if (dealerRow) {

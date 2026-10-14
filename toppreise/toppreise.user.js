@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.231
+// @version      2.18.232
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -7066,12 +7066,7 @@ const SHADOW_MODAL_STYLES = `
     const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
     if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
     const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
-    if (vortiefRow) {
-      vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-      vortiefRow.classList.toggle('tp-row-inactive', CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false);
-      const vortiefBtn = vortiefRow.querySelector('[data-mode-key="VORTIEF_MODE"]');
-      if (vortiefBtn) vortiefBtn.disabled = CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false;
-    }
+    if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
     const dealerActive = counts.dealerActive === true;
     const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
     if (dealerRow) {
