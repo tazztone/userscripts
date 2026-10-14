@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.238
+// @version      2.18.239
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -318,6 +318,14 @@ const STYLES = `
     opacity: 1 !important;
     pointer-events: auto !important;
     box-shadow: 0 0 10px var(--tp-acc) !important;
+  }
+  .tp-review-search-btn {
+    display: inline-block !important;
+    margin-left: 6px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
@@ -5417,6 +5425,30 @@ const SHADOW_MODAL_STYLES = `
         dealerEl?.remove();
       }
     }
+    // 9. Review-Suche (🔍) am Produktnamen: Ansicht, immer wenn aktiviert.
+    // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
+    const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
+    if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
+      const reviewKw = CONFIG.REVIEW_SEARCH_KEYWORD === 'Review' ? 'Review' : 'Testbericht';
+      let reviewBtn = card.querySelector('.tp-review-search-btn');
+      if (!reviewBtn) {
+        reviewBtn = document.createElement('a');
+        reviewBtn.className = 'tp-review-search-btn';
+        reviewBtn.textContent = '🔍';
+        reviewBtn.target = '_blank';
+        reviewBtn.rel = 'noopener';
+        reviewBtn.addEventListener('click', e => e.stopPropagation());
+      }
+      reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`);
+      setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}`);
+      reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}`);
+      const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
+      if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
+      else if (titleEl && titleEl.tagName === 'A' && reviewBtn.previousElementSibling !== titleEl) titleEl.insertAdjacentElement('afterend', reviewBtn);
+      else if (!titleEl && reviewBtn.parentElement !== card) card.appendChild(reviewBtn);
+    } else {
+      card.querySelector('.tp-review-search-btn')?.remove();
+    }
     // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
     // above is the single source of truth for "good deal" — no duplicate math.
     const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
@@ -5748,6 +5780,16 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
+              <label>Mini-Preiskurven (Sparklines) anzeigen</label>
+              <span class="tp-switch-desc">Erfordert zusätzliche Server-Abfragen pro Produkt</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-sparklines-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
               <label>Review-Suche (🔍) anzeigen</label>
               <span class="tp-switch-desc">Google-Suche pro Produktname</span>
             </div>
@@ -5841,6 +5883,7 @@ const SHADOW_MODAL_STYLES = `
     const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
     const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
+    const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -6204,6 +6247,9 @@ const SHADOW_MODAL_STYLES = `
       if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
       if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
       if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
+      if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
+      const checkedReviewKw = shadow.querySelector('input[name="tp-review-keyword"]:checked');
+      if (checkedReviewKw && ['Review', 'Testbericht'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
       if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;

@@ -236,6 +236,25 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label>Review-Suche (🔍) anzeigen</label>
+            <span class="tp-switch-desc">Google-Suche pro Produktname</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-review-search-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group">
+          <label>Review-Suchbegriff</label>
+          <div class="tp-segmented-control">
+            <input type="radio" id="tp-review-keyword-review" name="tp-review-keyword" value="Review">
+            <label for="tp-review-keyword-review">Review</label>
+            <input type="radio" id="tp-review-keyword-testbericht" name="tp-review-keyword" value="Testbericht">
+            <label for="tp-review-keyword-testbericht">Testbericht</label>
+          </div>
+        </div>
         <div class="tp-settings-group tp-cache-row">
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
@@ -312,6 +331,7 @@ export function setupUI() {
   const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
   const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
   const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
+  const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
   const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
   const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -675,6 +695,9 @@ export function setupUI() {
     if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
     if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
     if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
+    if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
+    const checkedReviewKw = shadow.querySelector('input[name="tp-review-keyword"]:checked');
+    if (checkedReviewKw && ['Review', 'Testbericht'].includes(checkedReviewKw.value)) updates.REVIEW_SEARCH_KEYWORD = checkedReviewKw.value;
     if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;

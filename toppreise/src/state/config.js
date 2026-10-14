@@ -72,6 +72,8 @@ export const DEFAULTS = Object.freeze({
   OUTLIER_DEVIATION_BAND: 0.60,
   OUTLIER_MAX_GLITCH_HOURS: 48,
   ENABLE_SPARKLINES: true,
+  REVIEW_SEARCH_ENABLED: true,
+  REVIEW_SEARCH_KEYWORD: 'Testbericht',
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
@@ -271,6 +273,8 @@ export const CONFIG = {
   OUTLIER_DEVIATION_BAND: parseFloat(_getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
   OUTLIER_MAX_GLITCH_HOURS: parseInt(_getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
   ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
+  REVIEW_SEARCH_ENABLED: _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED),
+  REVIEW_SEARCH_KEYWORD: String(_getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
   DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
   NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -291,6 +295,7 @@ export const CONFIG = {
 if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
 else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
 if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
+if (!['Review', 'Testbericht'].includes(CONFIG.REVIEW_SEARCH_KEYWORD)) CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
 if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
 else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
 if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
@@ -426,6 +431,16 @@ export function syncUiControl(key, val, opts = {}) {
         case 'DEALER_AUTOFETCH': {
           const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
           if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'REVIEW_SEARCH_ENABLED': {
+          const toggle = shadow.getElementById('tp-review-search-toggle');
+          if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'REVIEW_SEARCH_KEYWORD': {
+          const radio = shadow.querySelector(`input[name="tp-review-keyword"][value="${val}"]`);
+          if (radio) radio.checked = true;
           break;
         }
         case 'DISCORD_SUPPRESS_DEALER_EMBED': {

@@ -292,6 +292,14 @@ export const STYLES = `
     pointer-events: auto !important;
     box-shadow: 0 0 10px var(--tp-acc) !important;
   }
+  .tp-review-search-btn {
+    display: inline-block !important;
+    margin-left: 6px !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+  }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;

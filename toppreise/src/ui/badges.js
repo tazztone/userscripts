@@ -898,6 +898,30 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
       dealerEl?.remove();
     }
   }
+  // 9. Review-Suche (🔍) am Produktnamen: Ansicht, immer wenn aktiviert.
+  // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
+  const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
+  if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
+    const reviewKw = CONFIG.REVIEW_SEARCH_KEYWORD === 'Review' ? 'Review' : 'Testbericht';
+    let reviewBtn = card.querySelector('.tp-review-search-btn');
+    if (!reviewBtn) {
+      reviewBtn = document.createElement('a');
+      reviewBtn.className = 'tp-review-search-btn';
+      reviewBtn.textContent = '🔍';
+      reviewBtn.target = '_blank';
+      reviewBtn.rel = 'noopener';
+      reviewBtn.addEventListener('click', e => e.stopPropagation());
+    }
+    reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`);
+    setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}`);
+    reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}`);
+    const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
+    if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
+    else if (titleEl && titleEl.tagName === 'A' && reviewBtn.previousElementSibling !== titleEl) titleEl.insertAdjacentElement('afterend', reviewBtn);
+    else if (!titleEl && reviewBtn.parentElement !== card) card.appendChild(reviewBtn);
+  } else {
+    card.querySelector('.tp-review-search-btn')?.remove();
+  }
   // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
   // above is the single source of truth for "good deal" — no duplicate math.
   const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
