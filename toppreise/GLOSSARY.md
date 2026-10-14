@@ -43,7 +43,7 @@ Entfernen von Karten aus der Liste (`display:none`) oder Abblenden (`tp-dimmed`)
 _Avoid_: Dimmen (als Filter), Anzeige (für Entfernen)
 
 **Filtergrund**:
-Eine einzelne Ursache (Negativ, Min-Angebote, Händler, Ungeprüfte, Fallback-Tief) — je mit Ein-Schalter und Verbergen/Dimmen-Modus.
+Eine einzelne Ursache (Negativ, Min-Angebote, Händler, Ungeprüfte, Fallback-Tief) — je mit Aus/Dimmen/Verbergen je Ursache.
 _Avoid_: Ursache (in UI-Texten)
 
 **Gefilterte**:
@@ -59,7 +59,7 @@ Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts.
 _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
-Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; heizt wie jeder andere Deal (blinde Heatmap), entfernt oder gedimmt nur im Tiefstpreise-Feed wenn „Fallback-Tiefs filtern" an ist (Modus je Ursache). Schalter AN = Filtergrund aktiv.
+Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; heizt wie jeder andere Deal (blinde Heatmap), entfernt oder gedimmt nur im Tiefstpreise-Feed wenn „Fallback-Tiefs filtern" an ist (Modus je Ursache). Aus = gezeigt, Dimmen/Verbergen = Filtergrund aktiv.
 _Avoid_: Vortief (als Schalterlabel), dünne Historie
 
  **Nur geprüfte**:

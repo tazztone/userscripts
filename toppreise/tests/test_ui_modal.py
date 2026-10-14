@@ -464,7 +464,7 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
         const barMinVal = document.getElementById('tp-bar-min-val')?.textContent;
         const barThreshBtn = document.getElementById('tp-floating-threshold-btn')?.textContent;
         const modalThreshVal = document.getElementById('tp-root').shadowRoot.getElementById('tp-real-deal-min-val')?.value;
-        const vortiefToggle = document.getElementById('tp-toggle-vortief');
+        const vortiefBtn = document.querySelector('button[data-mode-key="VORTIEF_MODE"]');
         const vortiefRowCount = document.querySelector('[data-row-count="vortief"]');
         return {
             minConfig: window.ToppreiseSuite.CONFIG.MIN_OFFERS,
@@ -472,7 +472,7 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
             threshConfig: window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT,
             barThreshBtn,
             modalThreshVal,
-            vortiefChecked: vortiefToggle?.checked,
+            vortiefText: vortiefBtn?.textContent,
             vortiefRowCountPresent: vortiefRowCount !== null
         };
     }""")
@@ -481,9 +481,9 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     assert res_sync['threshConfig'] == 25
     assert res_sync['barThreshBtn'] == '≥25% ▾'
     assert res_sync['modalThreshVal'] == '25'
-    assert res_sync['vortiefChecked'] is True
+    assert res_sync['vortiefText'] == 'Dimmen'
     assert res_sync['vortiefRowCountPresent'] is True
-    assert page.locator('#tp-toggle-vortief').is_checked() is True
+    assert page.locator('button[data-mode-key="VORTIEF_MODE"]').inner_text() == 'Dimmen'
 
     # Close modal
     page.click('#tp-root >> #tp-btn-close')

@@ -218,6 +218,31 @@ const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
 const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
 // Filter hide/dim modes: only 'dim' opts into dimming, everything else hides.
 const _modeValue = k => _getValue(k, DEFAULTS[k]) === 'dim' ? 'dim' : 'hide';
+// 3-state filter cycle: each cause row pairs an enable key with a dim/hide
+// mode key. The cycle button derives Aus/Dimmen/Verbergen from the pair —
+// storage keys unchanged, no migration. Dealer row excluded (2-state preset).
+export const FILTER_CYCLE = Object.freeze({
+  FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
+  FILTER_MIN_MODE: { enable: 'FILTER_MIN_ENABLED', on: true },
+  HIDE_UNCHECKED_MODE: { enable: 'BESTPREISE_HIDE_UNCHECKED', on: true },
+  VORTIEF_MODE: { enable: 'BESTPREISE_INCLUDE_VORTIEF', on: false },
+});
+export const cycleStateOf = modeKey => {
+  const pair = FILTER_CYCLE[modeKey];
+  if (!pair) return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
+  if (CONFIG[pair.enable] !== pair.on) return 'off';
+  return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
+};
+// Toolbar owns the cycle button element; config owns the state mapping.
+// Duplicate of the toolbar paint (config→toolbar imports only, never reverse).
+const paintCycleButtons = (bar, modeKey) => {
+  const s = cycleStateOf(modeKey);
+  bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
+    btn.textContent = s === 'off' ? 'Aus' : s === 'dim' ? 'Dimmen' : 'Verbergen';
+    btn.classList.toggle('tp-active', s !== 'off');
+    btn.title = s === 'off' ? 'Filter: Aus — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Aus';
+  });
+};
 
 
 export const CONFIG = {
@@ -477,11 +502,13 @@ export function syncUiControl(key, val) {
           case 'BESTPREISE_HIDE_UNCHECKED': {
             const toggle = bar.querySelector('#tp-toggle-unchecked');
             if (toggle) toggle.checked = val === true;
+            paintCycleButtons(bar, 'HIDE_UNCHECKED_MODE');
             break;
           }
           case 'BESTPREISE_INCLUDE_VORTIEF': {
             const toggle = bar.querySelector('#tp-toggle-vortief');
             if (toggle) toggle.checked = val === false;
+            paintCycleButtons(bar, 'VORTIEF_MODE');
             break;
           }
           case 'OUTLIER_REJECTION_ENABLED': {
@@ -512,7 +539,10 @@ export function syncUiControl(key, val) {
           case 'FILTER_NEG_MODE':
           case 'FILTER_MIN_MODE':
           case 'HIDE_UNCHECKED_MODE':
-          case 'VORTIEF_MODE':
+          case 'VORTIEF_MODE': {
+            paintCycleButtons(bar, key);
+            break;
+          }
           case 'DEALER_MODE': {
             const mode = val === 'dim' ? 'dim' : 'hide';
             bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
@@ -532,6 +562,8 @@ export function syncUiControl(key, val) {
                 toggle.title = `Negativ-Filter (Text) ${val ? 'AN' : 'AUS'}`;
               }
             }
+            paintCycleButtons(bar, 'FILTER_NEG_MODE');
+            bar.querySelector('.tp-input-field-box')?.classList.toggle('tp-tool-dim', !val);
             break;
           }
           case 'FILTER_MIN_ENABLED': {
@@ -545,6 +577,8 @@ export function syncUiControl(key, val) {
                 toggle.title = `Min-Angebote-Filter ${val ? 'AN' : 'AUS'}`;
               }
             }
+            paintCycleButtons(bar, 'FILTER_MIN_MODE');
+            bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !val);
             break;
           }
           case 'MIN_OFFERS': {

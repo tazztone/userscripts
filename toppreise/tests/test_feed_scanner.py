@@ -284,7 +284,7 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert page.locator('#card-negative').is_visible()
     assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") != 'none'
 
-    # Peek covers real removals: a negative term hides the card, per-cause Dimmen previews it.
+    # Peek covers real removals: a negative term hides the card, the 3-click cycle previews each state.
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', 'Silikon'); }")
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
     assert not page.locator('#card-negative').is_visible()
@@ -293,10 +293,18 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
     mode_btn.click()
+    assert mode_btn.inner_text() == 'Aus'
+    page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
+    assert page.locator('#card-negative').is_visible()
+    mode_btn.click()
     assert mode_btn.inner_text() == 'Dimmen'
     page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
     assert page.locator('#card-negative').is_visible()
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Verbergen'
+    page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
+    assert not page.locator('#card-negative').is_visible()
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
 
 
@@ -480,13 +488,19 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
     assert cta.is_visible()
 
-    # 5. Per-cause Dimmen previews the ignored products as dimmed scan targets.
-    # The two previously skipped (unchecked) cards count again -> CTA back to 2.
+    # 5. The 3-click cycle previews the ignored products: Aus shows them plain,
+    # Dimmen shows them as dimmed scan targets (counted again -> CTA back to 2),
+    # Verbergen removes them again.
     page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide')")
     page.click('#tp-bar-filter-btn')
     mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Aus'
+    page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
+    assert page.locator('#card-negative').is_visible()
+    assert page.locator('#card-iphone').is_visible()
     mode_btn.click()
     assert mode_btn.inner_text() == 'Dimmen'
     page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
@@ -495,6 +509,10 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
     assert cta.is_visible()
     assert '2 Tiefstpreise prüfen' in (cta_main.text_content() or '')
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Verbergen'
+    page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
+    assert not page.locator('#card-negative').is_visible()
 
 
 
