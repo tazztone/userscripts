@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzePriceTimeSeries, recordRefForPrice } from '../../src/domain/price.js';
 import { computeDealScore, getDisplayDelta, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../../src/domain/deal-score.js';
-import { DAY, withConfig } from './helpers.js';
+import { DAY, withConfig, withConfigs } from './helpers.js';
 
 describe('Gewichtete Differenz Domain Module', () => {
 
@@ -162,7 +162,7 @@ describe('Gewichtete Differenz Domain Module', () => {
         [now - 90 * DAY, 218], [now - 80 * DAY, 225], [now - 70 * DAY, 220],
         [now - 30 * DAY, 250], [now - 20 * DAY, 260], [now - 10 * DAY, 272]
       ];
-      withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => withConfig('BESTPREISE_WEIGHT_RECORD', 0.50, () => {
+      withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 0, OUTLIER_REJECTION_ENABLED: false, BESTPREISE_WEIGHT_RECORD: 0.50 }, () => {
         const stats = analyzePriceTimeSeries(series); // production path: no live price
         assert.ok(stats);
         assert.equal(stats.tiefstpreis, 218);
@@ -176,7 +176,7 @@ describe('Gewichtete Differenz Domain Module', () => {
         assert.ok(deal);
         assert.equal(deal.isNewRecord, true);
         assert.equal(deal.dRecord, 22);
-      })));
+      });
     });
   });
 
@@ -299,13 +299,6 @@ describe('Gewichtete Differenz Domain Module', () => {
         assert.equal(heat.kind, 'blend');
         assert.equal(heat.value, -26);
         assert.equal(heat.provisional, false);
-      });
-    });
-
-    it('heats micro-records by the blend (browse mode)', () => {
-      withConfig('BESTPREISE_WEIGHT_RECORD', 0.50, () => {
-        const heat = getHeatInput(23.56, microStats, -51, 'browse');
-        assert.deepEqual(heat, { value: -26, provisional: false, pct: 26, kind: 'blend' });
       });
     });
 

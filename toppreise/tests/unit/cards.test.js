@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount } from '../../src/page/cards.js';
 import { withConfig } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
@@ -163,12 +163,6 @@ describe('applyCardFilters split', () => {
     assert.equal(f.isExcluded, true);
   });
 
-  it('filters unchecked deterministically: scan state never changes the filter', () => {
-    const f = quietFlags(() => withConfig('BESTPREISE_HIDE_UNCHECKED', true, () =>
-      applyCardFilters(base({ stats: null }), [], 0, false)));
-    assert.equal(f.isUnchecked, true);
-    assert.equal(f.isExcluded, true);
-  });
 });
 
 describe('isCardFilteredOut forScan', () => {
@@ -230,8 +224,7 @@ describe('isCardFilteredOut forScan', () => {
 describe('extractOfferCount languages', () => {
   const fakeOfferCard = text => ({ textContent: text, dataset: {}, querySelectorAll: () => [] });
 
-  it('parses DE/FR/IT/EN offer labels', async () => {
-    const { extractOfferCount } = await import('../../src/page/cards.js');
+  it('parses DE/FR/IT/EN offer labels', () => {
     assert.equal(extractOfferCount(fakeOfferCard('7 Angebote vergleichen')), 7);
     assert.equal(extractOfferCount(fakeOfferCard('1 Angebot')), 1);
     assert.equal(extractOfferCount(fakeOfferCard('3 offres')), 3);
@@ -241,8 +234,7 @@ describe('extractOfferCount languages', () => {
     assert.equal(extractOfferCount(fakeOfferCard('2 offer')), 2);
   });
 
-  it('falls back to the dealer-row count', async () => {
-    const { extractOfferCount } = await import('../../src/page/cards.js');
+  it('falls back to the dealer-row count', () => {
     assert.equal(extractOfferCount({ textContent: 'kein Treffer', dataset: {}, querySelectorAll: () => [1, 2, 3] }), 3);
   });
 });

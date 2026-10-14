@@ -1,6 +1,6 @@
 from playwright.sync_api import Page, expect
 
-from conftest import open_settings, seed_verified_deal
+from conftest import open_settings, seed_verified_deal, open_filter_popover, import_config
 
 
 
@@ -71,7 +71,7 @@ def test_slash_key_focuses_negative_filter(page: Page):
 
 
 def test_escape_blurs_negative_filter(page: Page):
-    page.evaluate("() => document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show')")
+    open_filter_popover(page)
     input_el = page.locator('#tp-inline-negative-input')
     input_el.focus()
     assert page.evaluate("() => document.activeElement?.id === 'tp-inline-negative-input'")
@@ -130,26 +130,16 @@ def test_config_import_applies_settings(page: Page):
     open_settings(page)
 
     # Trigger file import via DataTransfer / File
-    page.evaluate("""() => {
-        const shadow = document.getElementById('tp-root').shadowRoot;
-        const fileInput = shadow.getElementById('tp-import-config-file');
-        const testPayload = {
-            _meta: { version: '2.13.0' },
-            config: {
-                MARGIN_PERCENT: 7.5,
-                NEGATIVE_TERMS: 'ImportedNegativeTerm',
-                REAL_DEAL_MIN_DISCOUNT: 45,
-                MODE: 'hide',
-                BESTPREISE_MODE_ACTIVE: true
-            }
-        };
-        const blob = new Blob([JSON.stringify(testPayload)], { type: 'application/json' });
-        const file = new File([blob], 'config.json', { type: 'application/json' });
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        fileInput.files = dt.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }""")
+    import_config(page, {
+        '_meta': {'version': '2.13.0'},
+        'config': {
+            'MARGIN_PERCENT': 7.5,
+            'NEGATIVE_TERMS': 'ImportedNegativeTerm',
+            'REAL_DEAL_MIN_DISCOUNT': 45,
+            'MODE': 'hide',
+            'BESTPREISE_MODE_ACTIVE': True,
+        },
+    })
 
     # Give FileReader a tick
     page.wait_for_timeout(200)
@@ -174,16 +164,7 @@ def test_config_import_applies_settings(page: Page):
 def test_config_import_invalid_json_shows_error_toast(page: Page):
     open_settings(page)
 
-    page.evaluate("""() => {
-        const shadow = document.getElementById('tp-root').shadowRoot;
-        const fileInput = shadow.getElementById('tp-import-config-file');
-        const blob = new Blob(['{ this is not valid json...'], { type: 'application/json' });
-        const file = new File([blob], 'corrupt.json', { type: 'application/json' });
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        fileInput.files = dt.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }""")
+    import_config(page, '{ this is not valid json...', filename='corrupt.json')
 
     page.wait_for_selector('#tp-root >> .tp-toast', state='attached', timeout=5000)
     toast = page.locator('#tp-root >> .tp-toast')
@@ -195,24 +176,8 @@ def test_config_import_invalid_json_shows_error_toast(page: Page):
 def test_config_import_ignores_unknown_and_debug_keys(page: Page):
     open_settings(page)
 
-    page.evaluate("""() => {
-        if (window.ToppreiseSuite) window.ToppreiseSuite.CONFIG.DEBUG = true;
-        const shadow = document.getElementById('tp-root').shadowRoot;
-        const fileInput = shadow.getElementById('tp-import-config-file');
-        const payload = {
-            config: {
-                UNRECOGNIZED_SECURITY_KEY: 'exploit',
-                DEBUG: false,
-                MARGIN_PERCENT: 4.2
-            }
-        };
-        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-        const file = new File([blob], 'safe_config.json', { type: 'application/json' });
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        fileInput.files = dt.files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }""")
+    page.evaluate("() => { if (window.ToppreiseSuite) window.ToppreiseSuite.CONFIG.DEBUG = true; }")
+    import_config(page, {'config': {'UNRECOGNIZED_SECURITY_KEY': 'exploit', 'DEBUG': False, 'MARGIN_PERCENT': 4.2}}, filename='safe_config.json')
 
     page.wait_for_selector('#tp-root >> .tp-toast', state='attached', timeout=5000)
     res = page.evaluate("""() => ({
@@ -262,10 +227,8 @@ def test_dealer_autofetch_settings_toggle(page: Page):
 
 
 def test_data_reset_clears_cache_and_settings(page: Page):
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_item1', JSON.stringify({ tiefstpreis: 100, time: Date.now() }));
-        window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 40, {skipRender: true});
-    }""")
+    seed_verified_deal(page, 'item1', {'tiefstpreis': 100})
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 40, {skipRender: true})")
     open_settings(page)
 
     page.on('dialog', lambda dialog: dialog.accept())
@@ -374,12 +337,8 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
 
 def test_cache_settings_and_clear_button(page: Page):
     # Seed local storage with 2 fake cache items
-    page.evaluate("""() => {
-        localStorage.setItem('tp_hist_v1_item1', JSON.stringify({ tiefstpreis: 100, time: Date.now() }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('item1'), JSON.parse(localStorage.getItem('tp_hist_v1_item1')));
-        localStorage.setItem('tp_hist_v1_item2', JSON.stringify({ tiefstpreis: 200, time: Date.now() }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('item2'), JSON.parse(localStorage.getItem('tp_hist_v1_item2')));
-    }""")
+    seed_verified_deal(page, 'item1', {'tiefstpreis': 100})
+    seed_verified_deal(page, 'item2', {'tiefstpreis': 200}, clear=False)
 
     # Open settings modal
     open_settings(page)
@@ -438,8 +397,7 @@ def test_gewichtete_differenz_weight_slider_zero_persistence(page: Page):
 
 def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
     # Ensure modal is constructed by opening it
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     # 1. Update config via updateConfig for HEATMAP_ENABLED (canonical home: bar only)
     res = page.evaluate("""() => {
@@ -490,8 +448,7 @@ def test_config_dispatcher_syncs_toolbar_and_modal(page: Page):
 
 
 def test_settings_grouped_sections_visible_without_expanding(page: Page):
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
 
     # Six typed sections, always visible on one page; no disclosure to expand
     assert page.locator('#tp-root >> .tp-section-header').count() == 6
@@ -519,8 +476,7 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.ALARM_TARGET_PERCENT") == 0.6
-    page.click('#tp-root >> #tp-settings-fab')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    open_settings(page)
     assert page.locator('#tp-root >> #tp-discord-webhook-status').inner_text() == '✅ Webhook hinterlegt'
     page.click('#tp-root >> #tp-discord-webhook-reveal')
     assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == 'https://discord.com/api/webhooks/123/abc'

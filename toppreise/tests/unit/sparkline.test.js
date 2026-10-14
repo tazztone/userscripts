@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderSparkline } from '../../src/ui/sparkline.js';
 
-const DAY_S = 86400; // seconds-based timestamps; ms DAY does not apply
+const DAY_S = 86400; // seconds, not helpers.js DAY (ms) — do not "fix"
 
 describe('Interactive SVG Sparkline Component', () => {
   beforeEach(() => {

@@ -12,3 +12,13 @@ export function withConfig(k, v, fn) {
     CONFIG[k] = prev;
   }
 }
+
+export function withConfigs(obj, fn) {
+  const prev = {};
+  for (const k of Object.keys(obj)) { prev[k] = CONFIG[k]; CONFIG[k] = obj[k]; }
+  try {
+    return fn();
+  } finally {
+    Object.assign(CONFIG, prev);
+  }
+}

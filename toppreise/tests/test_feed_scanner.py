@@ -1,6 +1,6 @@
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page
 
-from conftest import seed_verified_deal, mock_pricechart, drop_store_filter
+from conftest import seed_verified_deal, mock_pricechart, drop_store_filter, open_filter_popover
 
 
 
@@ -451,7 +451,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert '3 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
     # 1. Filter out card-negative (-35%) using negative keyword (input lives in the popover)
-    page.evaluate("() => document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show')")
+    open_filter_popover(page)
     page.fill('#tp-inline-negative-input', 'Silikon')
     page.wait_for_selector('#card-negative.tp-negative-filtered', state='attached')
 
@@ -1415,12 +1415,7 @@ def test_dealer_name_on_demand_button_on_feed_card(page: Page):
         card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
         window.ToppreiseSuite.clearCardCache(card);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     product_hits = []
     def handle_product(route):
         product_hits.append(route.request.url)
@@ -1465,12 +1460,7 @@ def test_dealer_name_links_directly_to_shop_offer(page: Page):
         card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
         window.ToppreiseSuite.clearCardCache(card);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     page.route('**/preisvergleich/**', lambda route: route.fulfill(
         status=200,
         headers={'access-control-allow-origin': '*'},
@@ -1506,12 +1496,7 @@ def test_dealer_autofetch_loads_without_click(page: Page):
         window.ToppreiseSuite.clearCardCache(card);
         window.ToppreiseSuite.updateConfig('DEALER_AUTOFETCH', true);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     page.route('**/preisvergleich/**', lambda route: route.fulfill(
         status=200,
         headers={'access-control-allow-origin': '*'},
@@ -1540,12 +1525,7 @@ def test_dealer_name_survives_reload_without_refetch(page: Page, userscript_cont
         card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
         window.ToppreiseSuite.clearCardCache(card);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     product_hits = []
     def handle_product(route):
         product_hits.append(route.request.url)
@@ -1599,12 +1579,7 @@ def test_dealer_name_gets_full_row_width(page: Page):
         card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
         window.ToppreiseSuite.clearCardCache(card);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     page.route('**/preisvergleich/**', lambda route: route.fulfill(
         status=200,
         headers={'access-control-allow-origin': '*'},
@@ -1641,12 +1616,7 @@ def test_dealer_button_retry_on_product_page_error(page: Page):
         card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
         window.ToppreiseSuite.clearCardCache(card);
     }""")
-    page.route('**/plugins/product/pricechart*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
+    mock_pricechart(page, {'797571': 1800})
     page.route('**/preisvergleich/**', lambda route: route.fulfill(
         status=404, headers={'access-control-allow-origin': '*'}, body='Not Found'
     ))

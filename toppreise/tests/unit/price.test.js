@@ -8,7 +8,7 @@ import {
   sanitizeTimeSeries,
   analyzePriceTimeSeries
 } from '../../src/domain/price.js';
-import { DAY, withConfig } from './helpers.js';
+import { DAY, withConfig, withConfigs } from './helpers.js';
 
 describe('Price Domain Module', () => {
   describe('parsePrice', () => {
@@ -318,7 +318,7 @@ describe('Price Domain Module', () => {
         [now, 699]
       ];
 
-      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 365, () => withConfig('OUTLIER_REJECTION_ENABLED', true, () => analyzePriceTimeSeries(series, 699)));
+      const analysis = withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 365, OUTLIER_REJECTION_ENABLED: true }, () => analyzePriceTimeSeries(series, 699));
       assert.ok(analysis);
       assert.equal(analysis.tiefstpreis, 699);
       assert.equal(analysis.isNewAllTimeLow, true);
@@ -338,7 +338,7 @@ describe('Price Domain Module', () => {
         [now - 10 * DAY, 100.00],
         [now, 99.50]
       ];
-      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 99.50)));
+      const analysis = withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 0, OUTLIER_REJECTION_ENABLED: false }, () => analyzePriceTimeSeries(series, 99.50));
       assert.ok(analysis);
       assert.equal(analysis.previousLow, 100.00);
       assert.equal(analysis.realDiscountVsPrevLow, 1); // honest micro-dip, badge renders "Tiefstpreis"
@@ -352,7 +352,7 @@ describe('Price Domain Module', () => {
         [now - 10 * DAY, 300],
         [now, 400]
       ];
-      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 400)));
+      const analysis = withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 0, OUTLIER_REJECTION_ENABLED: false }, () => analyzePriceTimeSeries(series, 400));
       assert.ok(analysis);
       assert.equal(analysis.medianPrice, 250); // (200 + 300) / 2, not 300
       assert.equal(analysis.medianFallback, false);
@@ -366,7 +366,7 @@ describe('Price Domain Module', () => {
         [now - 10 * DAY, 800],
         [now, 750]
       ];
-      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 365, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 750)));
+      const analysis = withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 365, OUTLIER_REJECTION_ENABLED: false }, () => analyzePriceTimeSeries(series, 750));
       assert.ok(analysis);
       assert.equal(analysis.medianFallback, true);
       // Fallback median spans the full history: [750, 800, 1900, 2000] -> (800 + 1900) / 2
@@ -381,7 +381,7 @@ describe('Price Domain Module', () => {
         [now - 5 * DAY, 780],
         [now, 750]
       ];
-      const analysis = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 365, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 750)));
+      const analysis = withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 365, OUTLIER_REJECTION_ENABLED: false }, () => analyzePriceTimeSeries(series, 750));
       assert.ok(analysis);
       assert.equal(analysis.medianFallback, false);
       assert.equal(analysis.medianPrice, 780); // [750, 780, 800] window median
@@ -396,7 +396,7 @@ describe('Price Domain Module', () => {
         [now - 30 * DAY, 780],
         [now, 750]
       ];
-      withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
+      withConfigs({ BESTPREISE_MEDIAN_HORIZON_DAYS: 0, OUTLIER_REJECTION_ENABLED: false }, () => {
         const win = analyzePriceTimeSeries(series, null, 90);
         assert.ok(win);
         assert.equal(win.horizonDays, 90);
@@ -415,7 +415,7 @@ describe('Price Domain Module', () => {
         assert.ok(fromConfig);
         assert.equal(fromConfig.horizonDays, 0); // third arg omitted: CONFIG wins
         assert.equal(fromConfig.medianPrice, 800);
-      }));
+      });
     });
 
     it('exposes rawTimeSeries only when points were filtered', () => {

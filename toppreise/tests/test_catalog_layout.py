@@ -1,16 +1,8 @@
 import os
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page
 
-from conftest import open_settings, seed_verified_deal, mock_pricechart, drop_store_filter
-
-
-def _open_filter_popover(page: Page):
-    # Filter controls live in the popover; opening toggles, so only click when closed.
-    # (Synthetic document clicks never dismiss it — isTrusted guard — but
-    # re-ensure instead of assuming it stayed open.)
-    if 'tp-show' not in (page.locator('#tp-bar-filter-popover').get_attribute('class') or ''):
-        page.click('#tp-bar-filter-btn')
-        page.wait_for_selector('#tp-bar-filter-popover.tp-show')
+from conftest import open_settings, seed_verified_deal, mock_pricechart, drop_store_filter, seed_bestpreise_trio
+from conftest import open_filter_popover as _open_filter_popover
 
 
 
@@ -847,11 +839,7 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
     seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10})
     seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 1800, 'medianPrice': 1500, 'isNewAllTimeLow': False, 'realDiscountVsMedian': 27, 'dataPointCount': 15}, clear=False)
     seed_verified_deal(page, '797573', {'tiefstpreis': 10, 'hoechstpreis': 25, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)
-    page.evaluate("""() => {
-        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
-        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_bestpreise_trio(page)
 
     # Card 1: New Record -> ribbon carries the blend (⚖️ -22%), card burns with it
     card1_badge = page.locator('#card-cheapest .badge-dif')
@@ -903,11 +891,7 @@ def test_bestpreise_sorting_by_blend(page: Page):
     seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2600, 'medianPrice': 2400, 'previousLow': 2200, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 18, 'dataPointCount': 10})
     seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 3500, 'medianPrice': 3437, 'isNewAllTimeLow': False, 'dataPointCount': 15}, clear=False)
     seed_verified_deal(page, '797573', {'tiefstpreis': 15, 'hoechstpreis': 40, 'medianPrice': 30, 'previousLow': 20, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 25, 'dataPointCount': 12}, clear=False)
-    page.evaluate("""() => {
-        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
-        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_bestpreise_trio(page)
 
     card_ids = page.evaluate("""() => {
         const cards = Array.from(document.querySelectorAll('#product-list .Plugin_Product'));
@@ -959,11 +943,7 @@ def test_bestpreise_sorting_nested_wrappers(page: Page):
     seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400, 'medianPrice': 2200, 'isNewAllTimeLow': False, 'dataPointCount': 10})
     seed_verified_deal(page, '797572', {'tiefstpreis': 1100, 'hoechstpreis': 3000, 'medianPrice': 2750, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # dMed 60%, no record -> blend 30%
     seed_verified_deal(page, '797573', {'tiefstpreis': 15, 'hoechstpreis': 50, 'medianPrice': 40, 'previousLow': 25, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 40, 'dataPointCount': 10}, clear=False)  # dMed 63%, dRec 40% -> blend 52%
-    page.evaluate("""() => {
-        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_bestpreise_trio(page)
 
     # Verify column wrappers were reordered by blend % (badge = heat = sort):
     # Card 3 (blend 52%) -> Card 2 (blend 30%) -> Card 1 (blend 9%)
@@ -1169,11 +1149,7 @@ def test_bestpreise_cross_row_sorting_and_natural_order_restoration(page: Page):
     seed_verified_deal(page, '104', {'tiefstpreis': 400, 'hoechstpreis': 600, 'medianPrice': 550, 'previousLow': 530, 'isNewAllTimeLow': True, 'realDiscountVsPrevLow': 25, 'dataPointCount': 10}, clear=False)  # blend 26%
     seed_verified_deal(page, '105', {'tiefstpreis': 500, 'hoechstpreis': 800, 'medianPrice': 800, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # blend 19%
     seed_verified_deal(page, '106', {'tiefstpreis': 600, 'hoechstpreis': 660, 'medianPrice': 650, 'isNewAllTimeLow': False, 'dataPointCount': 10}, clear=False)  # blend 4%
-    page.evaluate("""() => {
-        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
-        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
-        window.ToppreiseSuite.processListings();
-    }""")
+    seed_bestpreise_trio(page)
 
     # 1. Verify blend order across rows in primary row:
     # Card 3 (42%) -> Card 4 (26%) -> Card 5 (19%)
@@ -2663,12 +2639,8 @@ def test_toolbar_stacks_below_site_dropdown(page: Page):
     assert hit == 'dropdown'
 
 
-def test_filter_modes_default_to_dim_on_fresh_install(page: Page, userscript_content):
-    from conftest import MOCK_HTML
-    page.evaluate("() => localStorage.clear()")
-    page.goto(MOCK_HTML)
-    page.evaluate(userscript_content)
-    page.wait_for_selector('#tp-root >> #tp-settings-fab')
+def test_filter_modes_default_to_dim_on_fresh_install(page: Page):
+    # Fresh-install state comes from the page fixture (cleared storage + bundle).
     modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
     assert modes == ['dim'] * 5
     _open_filter_popover(page)

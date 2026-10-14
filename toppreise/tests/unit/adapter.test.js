@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clearCardCache,
@@ -40,7 +40,11 @@ describe('Page Adapter Layer', () => {
   });
 
   describe('Page detection & URL patterns', () => {
+    let realDocument;
+    let realLocation;
     beforeEach(() => {
+      realDocument = globalThis.document;
+      realLocation = globalThis.location;
       globalThis.document = {
         body: {
           classList: { contains: () => false },
@@ -50,6 +54,10 @@ describe('Page Adapter Layer', () => {
         querySelectorAll: () => []
       };
       globalThis.location = { href: 'https://www.toppreise.ch/katalog' };
+    });
+    afterEach(() => {
+      if (realDocument === undefined) delete globalThis.document; else globalThis.document = realDocument;
+      if (realLocation === undefined) delete globalThis.location; else globalThis.location = realLocation;
     });
 
     it('identifies standard listing pages via predicates', () => {

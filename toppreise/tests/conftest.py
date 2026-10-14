@@ -54,7 +54,7 @@ def seed_verified_deal(page, pid='797571', stats=None, clear=True):
             localStorage.clear();
             if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
         }
-        stats.time = Date.now();
+        stats.time = stats.time || Date.now();
         localStorage.setItem('tp_hist_v1_' + pid, JSON.stringify(stats));
         if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey(pid), stats);
         window.ToppreiseSuite.processListings();
@@ -99,3 +99,33 @@ def open_settings(page):
     """Open the settings modal via FAB (all sections always visible)."""
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+
+
+def open_filter_popover(page):
+    """Open the filter popover; toggles, so only click when closed."""
+    if 'tp-show' not in (page.locator('#tp-bar-filter-popover').get_attribute('class') or ''):
+        page.click('#tp-bar-filter-btn')
+        page.wait_for_selector('#tp-bar-filter-popover.tp-show')
+
+
+def seed_bestpreise_trio(page):
+    """Activate 50/50 Tiefstpreise mode, then reprocess (seeds set per test)."""
+    page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.processListings();
+    }""")
+
+
+def import_config(page, payload, filename='config.json'):
+    """Push a config payload through the hidden file-import input."""
+    page.evaluate("""([payload, filename]) => {
+        const shadow = document.getElementById('tp-root').shadowRoot;
+        const fileInput = shadow.getElementById('tp-import-config-file');
+        const blob = new Blob([typeof payload === 'string' ? payload : JSON.stringify(payload)], { type: 'application/json' });
+        const file = new File([blob], filename, { type: 'application/json' });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }""", [payload, filename])

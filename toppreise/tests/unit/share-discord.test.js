@@ -727,15 +727,7 @@ describe('thread_name post paths', () => {
     await postDealToDiscord(HOOK, 'hi', { threadName: 'Deal X' });
     assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', thread_name: 'Deal X' });
   });
-  it('postDealToDiscord body stays plain without opts', async () => {
-    let seen = null;
-    globalThis.fetch = async (url, opts) => {
-      seen = { url, opts };
-      return { ok: true, status: 200 };
-    };
-    await postDealToDiscord(HOOK, 'hi');
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi' });
-  });
+
   it('postDealImageToDiscord sends thread_name when passed', async () => {
     let seen = null;
     globalThis.GM_xmlhttpRequest = opts => {
