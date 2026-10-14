@@ -49,25 +49,37 @@ export function withLivePrice(timeSeries, price) {
 // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
 export function renderSparklinePng(timeSeries, width = 360, height = 100) {
   return new Promise(resolve => {
+    let done = false;
+    const finish = v => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    const timer = setTimeout(() => finish(null), 3000);
     try {
-      if (typeof document === 'undefined') return resolve(null);
+      if (typeof document === 'undefined') return finish(null);
       const svg = renderDiscordChart(timeSeries, width, height);
-      if (!svg) return resolve(null);
-      const svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
+      if (!svg) return finish(null);
+      const svgText = new XMLSerializer().serializeToString(svg);
+      const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
       const img = new Image();
-      img.onload = () => {
+      const rasterize = source => () => {
         try {
           const canvas = document.createElement('canvas');
           canvas.width = width * 2;
           canvas.height = height * 2;
-          canvas.getContext('2d').drawImage(img, 0, 0, width * 2, height * 2);
+          canvas.getContext('2d').drawImage(source, 0, 0, width * 2, height * 2);
           URL.revokeObjectURL(svgUrl);
-          canvas.toBlob(b => resolve(b), 'image/png');
-        } catch { resolve(null); }
+          canvas.toBlob(b => finish(b || null), 'image/png');
+        } catch { finish(null); }
       };
-      img.onerror = () => { URL.revokeObjectURL(svgUrl); resolve(null); };
+      img.onload = rasterize(img);
+      // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
+      img.onerror = () => {
+        URL.revokeObjectURL(svgUrl);
+        const retry = new Image();
+        retry.onload = rasterize(retry);
+        retry.onerror = () => finish(null);
+        retry.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+      };
       img.src = svgUrl;
-    } catch { resolve(null); }
+    } catch { finish(null); }
   });
 }
 

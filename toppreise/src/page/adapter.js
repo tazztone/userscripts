@@ -32,6 +32,7 @@ export function isShippingPriceActive(card = null) {
     const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
     if (shp && prd) {
       const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
+      if (shpContainer && card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
       if (shpContainer && (shpContainer.offsetParent === null || shpContainer.style.display === 'none')) {
         return false;
       }

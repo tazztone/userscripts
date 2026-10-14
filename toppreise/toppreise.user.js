@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.229
+// @version      2.18.230
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2284,6 +2284,9 @@ const SHADOW_MODAL_STYLES = `
   const memoryCache = new Map();
 
   let statsWriteCount = 0;
+  function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
+    return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
+  }
   function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
     if (!parsed) return false;
     const ageMs = Date.now() - (parsed.time || 0);
@@ -2300,7 +2303,7 @@ const SHADOW_MODAL_STYLES = `
     return ageMs < ttlMs;
   }
 
-  function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), forceEvict = false) {
     if (!storage) return;
     try {
       const now = Date.now();
@@ -2327,7 +2330,11 @@ const SHADOW_MODAL_STYLES = `
 
       keysToRemove.forEach(k => storage.removeItem(k));
 
-      if (entries.length > 300) {
+      if (forceEvict && entries.length > 0) {
+        entries.sort((a, b) => a.time - b.time);
+        const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
+        entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
+      } else if (entries.length > 300) {
         entries.sort((a, b) => a.time - b.time);
         entries.slice(0, entries.length - 250).forEach(e => storage.removeItem(e.key));
       }
@@ -2365,13 +2372,28 @@ const SHADOW_MODAL_STYLES = `
 
       const raw = storage?.getItem(STATS_CACHE_PREFIX + productId);
       if (!raw) return null;
-      const parsed = JSON.parse(raw);
+      let parsed = JSON.parse(raw);
 
       if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
         // Cross-mode stale entry: evict from storage too, else every render
         // re-parses localStorage for an entry that always misses.
         if (!isModeMatch(parsed)) { try { storage?.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} return null; }
+        // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
+        // stale-sig entries with a series recompute synchronously, no refetch.
+        if (!parsed.unavailable && parsed.medianSig !== currentMedianSig()) {
+          const src = Array.isArray(parsed.rawTimeSeries) ? parsed.rawTimeSeries : parsed.timeSeries;
+          if (Array.isArray(src)) {
+            try {
+              const fresh = analyzePriceTimeSeries(src, null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+              if (fresh) parsed = { ...parsed, ...fresh, time: parsed.time, medianSig: currentMedianSig() };
+            } catch (e) {}
+          }
+        }
         lruSet(memoryCache, productId, parsed);
+        try {
+          const repersist = (parsed.timeSeries && parsed.rawTimeSeries) ? { ...parsed, rawTimeSeries: undefined } : parsed;
+          storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(repersist));
+        } catch (e) {}
         return parsed;
       }
     } catch (e) {}
@@ -2390,17 +2412,22 @@ const SHADOW_MODAL_STYLES = `
     }
     const payload = isUnavailable
       ? { unavailable: true, time: Date.now() }
-      : { ...stats, time: Date.now() };
+      : { ...stats, time: Date.now(), medianSig: currentMedianSig() };
 
     lruSet(memoryCache, productId, payload);
 
+    // Persist stripped: rawTimeSeries duplicates timeSeries bytes on disk;
+    // memory keeps the full object for recompute.
+    const persistPayload = (!isUnavailable && payload.timeSeries && payload.rawTimeSeries)
+      ? { ...payload, rawTimeSeries: undefined }
+      : payload;
     try {
       statsWriteCount++;
       if (statsWriteCount % 25 === 1) prunePriceStatsCache(storage);
-      storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload));
+      storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(persistPayload));
     } catch (e) {
       if (e?.name === 'QuotaExceededError' || e?.code === 22) {
-        try { prunePriceStatsCache(storage); storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(payload)); } catch (_) {}
+        try { prunePriceStatsCache(storage, true); storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(persistPayload)); } catch (_) {}
       }
     }
   }
@@ -2422,7 +2449,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
 
-  function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), onlyPrefixes = null) {
+    const prefixes = Array.isArray(onlyPrefixes) && onlyPrefixes.length > 0 ? onlyPrefixes : CACHE_PREFIXES;
     memoryCache.clear();
     let count = 0;
     try {
@@ -2430,7 +2458,7 @@ const SHADOW_MODAL_STYLES = `
         const keysToRemove = [];
         for (let i = 0; i < storage.length; i++) {
           const key = storage.key(i);
-          if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
+          if (key && prefixes.some(p => key.startsWith(p))) {
             keysToRemove.push(key);
           }
         }
@@ -2447,6 +2475,7 @@ const SHADOW_MODAL_STYLES = `
   // Serienlose Einträge (Fallback/negativ) werden übersprungen.
   function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
     let count = 0;
+    const sig = currentMedianSig(horizonDays);
     const rewrite = entry => {
       // Cross-mode entries are left alone (not reinserted); their key slot is
       // evicted on next read, so a stale basis never recomputes into memory.
@@ -2457,34 +2486,20 @@ const SHADOW_MODAL_STYLES = `
       if (!Array.isArray(src)) return null;
       const fresh = analyzePriceTimeSeries(src, null, horizonDays);
       if (!fresh) return null;
-      return { ...entry, ...fresh, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
+      return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
     };
-    const seen = new Set();
     for (const [productId, entry] of memoryCache) {
       const next = rewrite(entry);
       if (!next) continue;
       memoryCache.set(productId, next);
-      seen.add(productId);
-      try { storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(next)); } catch (e) {}
+      // Write-through for rewritten entries only (no storage sweep): reloads
+      // and other tabs see the new window without a refetch.
+      try {
+        const persist = (next.timeSeries && next.rawTimeSeries) ? { ...next, rawTimeSeries: undefined } : next;
+        storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(persist));
+      } catch (e) {}
       count++;
     }
-    try {
-      if (storage) {
-        for (let i = 0; i < storage.length; i++) {
-          const key = storage.key(i);
-          if (!key || !key.startsWith(STATS_CACHE_PREFIX)) continue;
-          const productId = key.slice(STATS_CACHE_PREFIX.length);
-          if (seen.has(productId)) continue;
-          let entry = null;
-          try { entry = JSON.parse(storage.getItem(key) || 'null'); } catch (e) { continue; }
-          const next = rewrite(entry);
-          if (!next) continue;
-          memoryCache.set(productId, next);
-          try { storage.setItem(key, JSON.stringify(next)); } catch (e) {}
-          count++;
-        }
-      }
-    } catch (e) {}
     return count;
   }
 
@@ -2646,13 +2661,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_SUPPRESS_DEALER_EMBED: true,
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
     // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-    DISCORD_LAYOUT: `## {title}
-  # {price}
-  # {dealer} +{offers}
-  {spark}
-  {prevlow}
-  {median}
-  {link}`,
+    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}',
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -2660,7 +2669,6 @@ const SHADOW_MODAL_STYLES = `
     ALARM_DURATION_DAYS: '730',
     ALARM_AUTO_SUBMIT: true,
     OBSERVER_DEBOUNCE_MS: 200,
-    SHOW_ADVANCED: false,
     DEBUG: false
   });
 
@@ -2834,7 +2842,6 @@ const SHADOW_MODAL_STYLES = `
     ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
     ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
     OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-    SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
     DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
   };
   // Corrupt storage must never silently break fills: clamp percent to the
@@ -3220,6 +3227,7 @@ const SHADOW_MODAL_STYLES = `
       const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
       if (shp && prd) {
         const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
+        if (shpContainer && card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
         if (shpContainer && (shpContainer.offsetParent === null || shpContainer.style.display === 'none')) {
           return false;
         }
@@ -3398,10 +3406,23 @@ const SHADOW_MODAL_STYLES = `
     if (!termsList || termsList.length === 0) return false;
     let text = card._tpTextLower;
     if (text === undefined) {
-      text = (card.textContent || '').toLowerCase();
+      const native = card.querySelector?.('.bold, .product-name, .Plugin_ProductHeading, [class*="title" i], [class*="details" i]');
+      if (native?.textContent) {
+        text = native.textContent.toLowerCase();
+      } else if (typeof card.cloneNode === 'function') {
+        const clone = card.cloneNode(true);
+        clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
+        text = (clone.textContent || '').toLowerCase();
+      } else {
+        text = (card.textContent || '').toLowerCase();
+      }
       card._tpTextLower = text;
     }
-    return termsList.some(term => {
+    return termsList.some(entry => {
+      if (!entry) return false;
+      const re = typeof entry === 'string' ? null : entry.re;
+      if (re) return re.test(text);
+      const term = typeof entry === 'string' ? entry : entry.term;
       if (!term) return false;
       if (term.length <= 3) {
         return new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
@@ -3516,7 +3537,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
-    return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean);
+    return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
+      .map(term => ({ term, re: new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') }));
   }
 
   function extractCardData(card) {
@@ -4123,27 +4145,11 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  async function fetchPriceTimeSeries(productId) {
+  async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null) {
     if (!productId) return null;
-    try {
-      const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
-      const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json, text/javascript, */*; q=0.01'
-        },
-        credentials: 'same-origin',
-        body: postBody,
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) return null;
-      const data = await res.json();
+    const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+    const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+    const pickSeries = data => {
       const shippingActive = isShippingPriceActive();
       if (Array.isArray(data)) {
         if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
@@ -4159,10 +4165,41 @@ const SHADOW_MODAL_STYLES = `
       if (Array.isArray(data?.series)) return data.series;
       if (Array.isArray(data?.data)) return data.data;
       return null;
-    } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
-      return null;
+    };
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (shouldCancelFn && shouldCancelFn()) return null;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json, text/javascript, */*; q=0.01'
+          },
+          credentials: 'same-origin',
+          body: postBody,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const series = pickSeries(await res.json());
+          if (series) return series;
+        } else if (res.status === 429) {
+          const retryAfterHeader = res.headers?.get('Retry-After');
+          const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+          if (attempt < retries) await interruptibleSleep((retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000), shouldCancelFn);
+        } else if (attempt < retries) {
+          await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+        }
+      } catch (err) {
+        if (attempt < retries) {
+          await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+        } else if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
+      }
     }
+    return null;
   }
 
   async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null) {
@@ -4186,7 +4223,7 @@ const SHADOW_MODAL_STYLES = `
       
         // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
         try {
-          const timeSeries = await fetchPriceTimeSeries(productId);
+          const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn);
           if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
             const analysis = analyzePriceTimeSeries(timeSeries);
             if (analysis && analysis.tiefstpreis > 0) {
@@ -4243,6 +4280,7 @@ const SHADOW_MODAL_STYLES = `
         const stats = parsePriceStatsFromHtml(html);
         if (stats) {
           stats.isShippingPrice = isShippingPriceActive();
+          if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
           setCachedPriceStats(productId, stats);
           return stats;
         } else {
@@ -4486,6 +4524,9 @@ const SHADOW_MODAL_STYLES = `
     dealerHydrated.clear();
     dealerAutoTried.clear();
   }
+  function clearDealerAutoTried() {
+    dealerAutoTried.clear();
+  }
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
     const currentPid = getCardProductId(card);
@@ -4681,7 +4722,17 @@ const SHADOW_MODAL_STYLES = `
           card.appendChild(badgeDifEl);
         }
       }
-
+      // Fresh-injected node missed the heat pass above (it didn't exist yet):
+      // re-apply the same badge swatch so first render matches.
+      if (stats && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+        const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
+        if (badgeHeat) {
+          badgeDifEl.style.setProperty('background', badgeHeat.background, 'important');
+          badgeDifEl.style.setProperty('border-color', badgeHeat.border, 'important');
+          badgeDifEl.style.setProperty('color', '#ffffff', 'important');
+          badgeDifEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+        }
+      }
       if (!badgeDifEl.dataset.tpOriginalDiscount) {
         const initialDiscount = extractCardDiscount(card);
         badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
@@ -5125,61 +5176,64 @@ const SHADOW_MODAL_STYLES = `
           }
           shareBtn.disabled = true;
           try {
-            const { title, url, imageUrl } = extractShareData(card);
-            const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
-            const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
-            let dealer = extractDealer(card);
-            let dealerUrl = extractDealerUrl(card);
-            let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
-            if ((!dealer || !dealerUrl || !offers) && url) {
-              const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
-              if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
-            }
-            const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
-            const content = formatDealMessage({
-              title, url, priceText,
-              dealer, dealerUrl, offerCount: offers,
-              spark: png ? '' : sparklineText(stats?.timeSeries),
-              ...resolveShareFields(cardPrice, stats),
-              suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
-              suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
-            }, CONFIG.DISCORD_LAYOUT);
-            const threadName = buildThreadName(title);
-            const flagKey = discordForumFlagKey(hook);
-            const forum = _getValue(flagKey, false) === true;
-            // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
-            // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
-            const productBlob = (png && productDl) ? await productDl : null;
-            const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
-            const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-            const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-            const tryRound = async withThread => {
-              if (png) {
-                try { await postImage(withThread); return; }
-                catch (imgErr) {
-                  if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
-                  else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
-                  else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+            try {
+              const { title, url, imageUrl } = extractShareData(card);
+              const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
+              const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+              let dealer = extractDealer(card);
+              let dealerUrl = extractDealerUrl(card);
+              let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
+              if ((!dealer || !dealerUrl || !offers) && url) {
+                const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
+                if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
+              }
+              const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
+              const content = formatDealMessage({
+                title, url, priceText,
+                dealer, dealerUrl, offerCount: offers,
+                spark: png ? '' : sparklineText(stats?.timeSeries),
+                ...resolveShareFields(cardPrice, stats),
+                suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+                suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+              }, CONFIG.DISCORD_LAYOUT);
+              const threadName = buildThreadName(title);
+              const flagKey = discordForumFlagKey(hook);
+              const forum = _getValue(flagKey, false) === true;
+              // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
+              // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
+              const productBlob = (png && productDl) ? await productDl : null;
+              const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
+              const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+              const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+              const tryRound = async withThread => {
+                if (png) {
+                  try { await postImage(withThread); return; }
+                  catch (imgErr) {
+                    if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
+                    else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
+                    else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                  }
+                }
+                await postText(withThread);
+              };
+              for (const withThread of (forum ? [true, false] : [false, true])) {
+                try {
+                  await tryRound(withThread);
+                  if (withThread !== forum) _setValue(flagKey, withThread);
+                  break;
+                } catch (err) {
+                  if (!isForumThreadError(err) || withThread) throw err;
+                  // plain round hit forum → loop continues threaded
                 }
               }
-              await postText(withThread);
-            };
-            for (const withThread of (forum ? [true, false] : [false, true])) {
-              try {
-                await tryRound(withThread);
-                if (withThread !== forum) _setValue(flagKey, withThread);
-                break;
-              } catch (err) {
-                if (!isForumThreadError(err) || withThread) throw err;
-                // plain round hit forum → loop continues threaded
-              }
+              showToast('📤 Deal in Discord geteilt');
+              if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
+            } catch {
+              showToast('📤 Teilen fehlgeschlagen');
             }
-            showToast('📤 Deal in Discord geteilt');
-            if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
-          } catch {
-            showToast('📤 Teilen fehlgeschlagen');
+          } finally {
+            shareBtn.disabled = false;
           }
-          shareBtn.disabled = false;
         });
         // Eigener Positioning-Kontext: Host-CSS garantiert kein relative (ausser .tp-is-cheapest).
         if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
@@ -5205,6 +5259,7 @@ const SHADOW_MODAL_STYLES = `
       const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
       let dealer = extractDealer(card);
       if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
+        if (dealerHydrated.size > 1000) dealerHydrated.clear();
         dealerHydrated.add(dKey);
         const stored = getCachedDealer(pid, useShipping);
         if (stored?.dealer) lruSet(dealerCache, dKey, stored);
@@ -5333,11 +5388,7 @@ const SHADOW_MODAL_STYLES = `
       });
 
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-        updateConfig('FILTER_NEG_ENABLED', false);
-        updateConfig('FILTER_MIN_ENABLED', false);
-        updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
-        updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
-        updateConfig('DEALER_MODE', 'dim');
+        updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
     } else if (emptyNotice) {
@@ -5565,6 +5616,9 @@ const SHADOW_MODAL_STYLES = `
         </section>
         <section id="tp-section-data" class="tp-section-card tp-section-data">
           <div class="tp-section-header">💾 Daten & Cache</div>
+          <div class="tp-settings-group">
+            <span class="tp-switch-desc tp-field-hint">Ausreißer-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
@@ -5886,6 +5940,19 @@ const SHADOW_MODAL_STYLES = `
       if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
       const removed = clearPriceStatsCache();
       clearDealerMemory();
+      getProductCards().forEach(clearCardCache);
+      try {
+        const dead = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.includes('DISCORD_FORUM:')) dead.push(k);
+        }
+        dead.forEach(k => localStorage.removeItem(k));
+      } catch (e) {}
+      try {
+        const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
+        if (hook && typeof GM_deleteValue !== 'undefined') GM_deleteValue(discordForumFlagKey(hook));
+      } catch (e) {}
       updateConfigs({ ...DEFAULTS });
       updateBodyClasses();
       syncFieldsFromConfig();
@@ -5926,6 +5993,11 @@ const SHADOW_MODAL_STYLES = `
         try {
           const data = JSON.parse(reader.result);
           const importConfig = data.config || data;
+          const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+          const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+          const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
+          const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
+          const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
             if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
@@ -5936,18 +6008,33 @@ const SHADOW_MODAL_STYLES = `
             if (typeof def === 'number') {
               coerced = typeof val === 'number' ? val : parseFloat(val);
               if (!Number.isFinite(coerced)) continue;
+              if (key === 'MARGIN_PERCENT') coerced = Math.max(0, Math.min(100, coerced));
+              else if (key === 'DIM_OPACITY') coerced = Math.max(0.05, Math.min(0.95, coerced));
+              else if (key === 'ALARM_TARGET_PERCENT') coerced = Math.max(0.05, Math.min(0.99, coerced));
+              else if (key === 'HEATMAP_INTENSITY') coerced = clampIntensity01(coerced);
+              else if (key === 'BESTPREISE_WEIGHT_RECORD') coerced = Math.max(0, Math.min(1, coerced));
+              else if (key === 'BESTPREISE_MIN_POINTS') coerced = clampMinPoints(coerced);
+              else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
+              else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
+              else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.20, coerced));
+              else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(12, Math.round(coerced)));
+              else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
             } else if (typeof def === 'boolean') {
               if (val === true || val === 'true') coerced = true;
               else if (val === false || val === 'false') coerced = false;
               else continue;
             } else if (typeof def === 'string') {
               coerced = String(val);
+              if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(coerced)) continue;
+              if (key === 'ALARM_DURATION_DAYS' && !['90', '180', '365', '730'].includes(coerced)) continue;
             } else {
               continue;
             }
             saveConfigKey(key, coerced);
             count++;
           }
+          if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); getProductCards().forEach(clearCardCache); }
+          if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
           updateBodyClasses();
           triggerProcessListings();
           syncFieldsFromConfig();
@@ -6037,7 +6124,7 @@ const SHADOW_MODAL_STYLES = `
         }
         updates.DISCORD_LAYOUT = value;
       }
-      if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
+      if (shippingChanged) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
       if (horizonChanged) recomputeCachedMedians(newHorizon);
       updateConfigs(updates);
       showToast('Toppreise Suite Einstellungen gespeichert');
@@ -6712,7 +6799,7 @@ const SHADOW_MODAL_STYLES = `
                   <span class="tp-mini-slider"></span>
                 </label>
                 <span class="tp-filter-label" title="An = Fallback-Tiefs werden ausgeschlossen (Filtergrund aktiv); Aus = eingeschlossen">Fallback-Tiefs aus</span>
-                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0 ? vortiefHidden : ''}</span>
+                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? 'inline-flex' : 'none'};">${CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0 ? vortiefHidden : ''}</span>
                 <button class="tp-filter-mode-btn tp-active" data-mode-key="VORTIEF_MODE" title="Zwischen Verbergen und Dimmen wechseln">${CONFIG.VORTIEF_MODE === 'dim' ? 'Dimmen' : 'Verbergen'}</button>
               </div>
               <div class="tp-filter-row" data-filter-row="dealer">
@@ -6786,10 +6873,12 @@ const SHADOW_MODAL_STYLES = `
 
       input.oninput = e => {
         updateConfig('NEGATIVE_TERMS', e.target.value);
+        updateConfig('FILTER_NEG_ENABLED', e.target.value.trim() !== '');
       };
 
       clearBtn.onclick = () => {
         updateConfig('NEGATIVE_TERMS', '');
+        updateConfig('FILTER_NEG_ENABLED', false);
       };
 
       const filterBtn = bar.querySelector('#tp-bar-filter-btn');
@@ -6897,6 +6986,7 @@ const SHADOW_MODAL_STYLES = `
         const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
         if (next !== CONFIG.MIN_OFFERS) {
           updateConfig('MIN_OFFERS', next);
+          updateConfig('FILTER_MIN_ENABLED', next > 0);
         }
       };
 
@@ -6959,7 +7049,7 @@ const SHADOW_MODAL_STYLES = `
     setRowCount('neg', negHidden, negHidden > 0);
     setRowCount('min', minHidden, minHidden > 0);
     setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
-    setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && vortiefHidden > 0);
+    setRowCount('vortief', vortiefHidden, CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && CONFIG.VORTIEF_MODE !== 'dim' && vortiefHidden > 0);
     setRowCount('dealer', dealerHidden, dealerHidden > 0);
     for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
       const mode = CONFIG[key] === 'dim' ? 'dim' : 'hide';
@@ -7402,25 +7492,37 @@ const SHADOW_MODAL_STYLES = `
   // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
   function renderSparklinePng(timeSeries, width = 360, height = 100) {
     return new Promise(resolve => {
+      let done = false;
+      const finish = v => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+      const timer = setTimeout(() => finish(null), 3000);
       try {
-        if (typeof document === 'undefined') return resolve(null);
+        if (typeof document === 'undefined') return finish(null);
         const svg = renderDiscordChart(timeSeries, width, height);
-        if (!svg) return resolve(null);
-        const svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
+        if (!svg) return finish(null);
+        const svgText = new XMLSerializer().serializeToString(svg);
+        const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
         const img = new Image();
-        img.onload = () => {
+        const rasterize = source => () => {
           try {
             const canvas = document.createElement('canvas');
             canvas.width = width * 2;
             canvas.height = height * 2;
-            canvas.getContext('2d').drawImage(img, 0, 0, width * 2, height * 2);
+            canvas.getContext('2d').drawImage(source, 0, 0, width * 2, height * 2);
             URL.revokeObjectURL(svgUrl);
-            canvas.toBlob(b => resolve(b), 'image/png');
-          } catch { resolve(null); }
+            canvas.toBlob(b => finish(b || null), 'image/png');
+          } catch { finish(null); }
         };
-        img.onerror = () => { URL.revokeObjectURL(svgUrl); resolve(null); };
+        img.onload = rasterize(img);
+        // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
+        img.onerror = () => {
+          URL.revokeObjectURL(svgUrl);
+          const retry = new Image();
+          retry.onload = rasterize(retry);
+          retry.onerror = () => finish(null);
+          retry.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+        };
         img.src = svgUrl;
-      } catch { resolve(null); }
+      } catch { finish(null); }
     });
   }
 
@@ -8075,18 +8177,16 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       for (const cd of cardDataList) {
         renderCardEffects(cd, cd.filters, isNeueFeed, activeStores);
         if (cd.filters.isDimmed) counts.dimmed++;
-        if (cd.filters.isFiltered) {
-          counts.filteredCount++;
-          if (cd.filters.isNeg) counts.neg++;
-          if (cd.filters.isLowOffers) counts.min++;
-          if (cd.filters.isUnchecked) counts.uncheckedHidden++;
-          if (cd.filters.isVortiefExcluded) counts.vortief++;
-          if (cd.filters.isDealerLoser) counts.dealer++;
-        }
+        if (cd.filters.isFiltered) counts.filteredCount++;
+        if (cd.filters.isNeg) counts.neg++;
+        if (cd.filters.isLowOffers) counts.min++;
+        if (cd.filters.isUnchecked) counts.uncheckedHidden++;
+        if (cd.filters.isVortiefExcluded) counts.vortief++;
+        if (cd.filters.isDealerLoser) counts.dealer++;
       }
 
-      // --- Sort ---
-      applySorting(cards, pageHasOffers, cardDataList);
+      // --- Sort (deferred mid-scan: final passes sort once with flag cleared) ---
+      if (!scanState.isBatchChecking) applySorting(cards, pageHasOffers, cardDataList);
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
@@ -8132,8 +8232,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
             node.classList?.contains('tp-empty-state-notice')) {
           return false;
         }
-        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton') ||
-               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton');
+        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
+               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
       };
 
       for (let i = 0; i < m.addedNodes.length; i++) {
@@ -8170,6 +8270,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     lastPriceBasis = cur;
     getProductCards().forEach(clearCardCache);
     processListings();
+    if (isProductDetailPage()) processProductDetailPage();
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   document.addEventListener('keydown', e => {
@@ -8200,6 +8301,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
   if (self.navigation?.addEventListener) {
     self.navigation.addEventListener('navigatesuccess', () => {
+      clearDealerAutoTried();
       processListings();
       processPriceAlarmModal();
       if (isProductDetailPage()) {
@@ -8232,7 +8334,12 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       analyzePriceTimeSeries,
       parsePrice,
       isShippingPriceActive,
-      CONFIG,
+      // Live view on CONFIG (test harness mutates flags through it), with the
+      // webhook masked: page JS reads '' and cannot overwrite the secret.
+      CONFIG: new Proxy(CONFIG, {
+        get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
+        set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
+      }),
       memoryCache
     };
   }

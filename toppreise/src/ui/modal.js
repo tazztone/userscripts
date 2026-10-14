@@ -7,11 +7,11 @@
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
 import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from "../state/config.js";
-import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians } from "../scanner/cache.js";
+import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 import { triggerProcessListings, clearCardCache } from "../page/adapter.js";
 import { getProductCards } from "../page/cards.js";
-import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from "../features/share-discord.js";
+import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix, discordForumFlagKey } from "../features/share-discord.js";
 
 export function setupUI() {
   const { shadow } = ensureSkeleton();
@@ -174,6 +174,9 @@ export function setupUI() {
       </section>
       <section id="tp-section-data" class="tp-section-card tp-section-data">
         <div class="tp-section-header">💾 Daten & Cache</div>
+        <div class="tp-settings-group">
+          <span class="tp-switch-desc tp-field-hint">Ausreißer-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
+        </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
@@ -495,6 +498,19 @@ export function setupUI() {
     if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
     const removed = clearPriceStatsCache();
     clearDealerMemory();
+    getProductCards().forEach(clearCardCache);
+    try {
+      const dead = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.includes('DISCORD_FORUM:')) dead.push(k);
+      }
+      dead.forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
+    try {
+      const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
+      if (hook && typeof GM_deleteValue !== 'undefined') GM_deleteValue(discordForumFlagKey(hook));
+    } catch (e) {}
     updateConfigs({ ...DEFAULTS });
     updateBodyClasses();
     syncFieldsFromConfig();
@@ -535,6 +551,11 @@ export function setupUI() {
       try {
         const data = JSON.parse(reader.result);
         const importConfig = data.config || data;
+        const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+        const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+        const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
+        const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
+        const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
           if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
@@ -545,18 +566,33 @@ export function setupUI() {
           if (typeof def === 'number') {
             coerced = typeof val === 'number' ? val : parseFloat(val);
             if (!Number.isFinite(coerced)) continue;
+            if (key === 'MARGIN_PERCENT') coerced = Math.max(0, Math.min(100, coerced));
+            else if (key === 'DIM_OPACITY') coerced = Math.max(0.05, Math.min(0.95, coerced));
+            else if (key === 'ALARM_TARGET_PERCENT') coerced = Math.max(0.05, Math.min(0.99, coerced));
+            else if (key === 'HEATMAP_INTENSITY') coerced = clampIntensity01(coerced);
+            else if (key === 'BESTPREISE_WEIGHT_RECORD') coerced = Math.max(0, Math.min(1, coerced));
+            else if (key === 'BESTPREISE_MIN_POINTS') coerced = clampMinPoints(coerced);
+            else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
+            else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
+            else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.20, coerced));
+            else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(12, Math.round(coerced)));
+            else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
           } else if (typeof def === 'boolean') {
             if (val === true || val === 'true') coerced = true;
             else if (val === false || val === 'false') coerced = false;
             else continue;
           } else if (typeof def === 'string') {
             coerced = String(val);
+            if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(coerced)) continue;
+            if (key === 'ALARM_DURATION_DAYS' && !['90', '180', '365', '730'].includes(coerced)) continue;
           } else {
             continue;
           }
           saveConfigKey(key, coerced);
           count++;
         }
+        if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); getProductCards().forEach(clearCardCache); }
+        if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
         updateBodyClasses();
         triggerProcessListings();
         syncFieldsFromConfig();
@@ -646,7 +682,7 @@ export function setupUI() {
       }
       updates.DISCORD_LAYOUT = value;
     }
-    if (shippingChanged) { clearPriceStatsCache(); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
+    if (shippingChanged) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
     if (horizonChanged) recomputeCachedMedians(newHorizon);
     updateConfigs(updates);
     showToast('Toppreise Suite Einstellungen gespeichert');

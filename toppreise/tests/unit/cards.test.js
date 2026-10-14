@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms } from '../../src/page/cards.js';
 import { withConfig } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
@@ -102,6 +102,22 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       assert.notEqual(full.background, faint.background);
       // Provisional ratio survives intensity scaling.
       assert.notEqual(getBadgeHeatStyle(-58, true, 0.5).background, getBadgeHeatStyle(-58, false, 0.5).background);
+    });
+  });
+
+  describe('matchesNegativeTerms (suite-injected text is never matched)', () => {
+    it('ignores .tp-injected-badge text, matches native title text', () => {
+      const terms = parseNegativeTerms('refurbished');
+      const injectedOnly = {
+        querySelector: () => ({ textContent: 'Apple iPhone 15 Pro' }),
+        textContent: 'Apple iPhone 15 Pro Allzeit-Tiefstpreis refurbished',
+      };
+      assert.equal(matchesNegativeTerms(injectedOnly, terms), false);
+      const nativeHit = {
+        querySelector: () => ({ textContent: 'Apple iPhone refurbished 12' }),
+        textContent: 'Apple iPhone refurbished 12',
+      };
+      assert.equal(matchesNegativeTerms(nativeHit, terms), true);
     });
   });
 });

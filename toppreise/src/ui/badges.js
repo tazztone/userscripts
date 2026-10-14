@@ -5,7 +5,7 @@
  * mini sparklines, and empty-state messaging.
  */
 
-import { CONFIG, updateConfig, _getValue, _setValue } from '../state/config.js';
+import { CONFIG, updateConfig, updateConfigs, _getValue, _setValue } from '../state/config.js';
 import {
   getBadgeHeatStyle,
   getInsetHeatStyle,
@@ -77,6 +77,9 @@ const dealerAutoTried = new Set();
 export function clearDealerMemory() {
   dealerCache.clear();
   dealerHydrated.clear();
+  dealerAutoTried.clear();
+}
+export function clearDealerAutoTried() {
   dealerAutoTried.clear();
 }
 async function runSingleDealCheck(card, badgeDifEl) {
@@ -274,7 +277,17 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         card.appendChild(badgeDifEl);
       }
     }
-
+    // Fresh-injected node missed the heat pass above (it didn't exist yet):
+    // re-apply the same badge swatch so first render matches.
+    if (stats && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+      const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
+      if (badgeHeat) {
+        badgeDifEl.style.setProperty('background', badgeHeat.background, 'important');
+        badgeDifEl.style.setProperty('border-color', badgeHeat.border, 'important');
+        badgeDifEl.style.setProperty('color', '#ffffff', 'important');
+        badgeDifEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
+      }
+    }
     if (!badgeDifEl.dataset.tpOriginalDiscount) {
       const initialDiscount = extractCardDiscount(card);
       badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
@@ -718,61 +731,64 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         }
         shareBtn.disabled = true;
         try {
-          const { title, url, imageUrl } = extractShareData(card);
-          const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
-          const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
-          let dealer = extractDealer(card);
-          let dealerUrl = extractDealerUrl(card);
-          let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
-          if ((!dealer || !dealerUrl || !offers) && url) {
-            const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
-          }
-          const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
-          const content = formatDealMessage({
-            title, url, priceText,
-            dealer, dealerUrl, offerCount: offers,
-            spark: png ? '' : sparklineText(stats?.timeSeries),
-            ...resolveShareFields(cardPrice, stats),
-            suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
-            suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
-          }, CONFIG.DISCORD_LAYOUT);
-          const threadName = buildThreadName(title);
-          const flagKey = discordForumFlagKey(hook);
-          const forum = _getValue(flagKey, false) === true;
-          // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
-          // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
-          const productBlob = (png && productDl) ? await productDl : null;
-          const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
-          const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-          const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-          const tryRound = async withThread => {
-            if (png) {
-              try { await postImage(withThread); return; }
-              catch (imgErr) {
-                if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
-                else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
-                else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+          try {
+            const { title, url, imageUrl } = extractShareData(card);
+            const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
+            const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+            let dealer = extractDealer(card);
+            let dealerUrl = extractDealerUrl(card);
+            let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
+            if ((!dealer || !dealerUrl || !offers) && url) {
+              const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
+              if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
+            }
+            const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
+            const content = formatDealMessage({
+              title, url, priceText,
+              dealer, dealerUrl, offerCount: offers,
+              spark: png ? '' : sparklineText(stats?.timeSeries),
+              ...resolveShareFields(cardPrice, stats),
+              suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+              suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+            }, CONFIG.DISCORD_LAYOUT);
+            const threadName = buildThreadName(title);
+            const flagKey = discordForumFlagKey(hook);
+            const forum = _getValue(flagKey, false) === true;
+            // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
+            // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
+            const productBlob = (png && productDl) ? await productDl : null;
+            const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
+            const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+            const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+            const tryRound = async withThread => {
+              if (png) {
+                try { await postImage(withThread); return; }
+                catch (imgErr) {
+                  if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
+                  else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
+                  else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                }
+              }
+              await postText(withThread);
+            };
+            for (const withThread of (forum ? [true, false] : [false, true])) {
+              try {
+                await tryRound(withThread);
+                if (withThread !== forum) _setValue(flagKey, withThread);
+                break;
+              } catch (err) {
+                if (!isForumThreadError(err) || withThread) throw err;
+                // plain round hit forum → loop continues threaded
               }
             }
-            await postText(withThread);
-          };
-          for (const withThread of (forum ? [true, false] : [false, true])) {
-            try {
-              await tryRound(withThread);
-              if (withThread !== forum) _setValue(flagKey, withThread);
-              break;
-            } catch (err) {
-              if (!isForumThreadError(err) || withThread) throw err;
-              // plain round hit forum → loop continues threaded
-            }
+            showToast('📤 Deal in Discord geteilt');
+            if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
+          } catch {
+            showToast('📤 Teilen fehlgeschlagen');
           }
-          showToast('📤 Deal in Discord geteilt');
-          if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
-        } catch {
-          showToast('📤 Teilen fehlgeschlagen');
+        } finally {
+          shareBtn.disabled = false;
         }
-        shareBtn.disabled = false;
       });
       // Eigener Positioning-Kontext: Host-CSS garantiert kein relative (ausser .tp-is-cheapest).
       if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
@@ -798,6 +814,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
     let dealer = extractDealer(card);
     if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
+      if (dealerHydrated.size > 1000) dealerHydrated.clear();
       dealerHydrated.add(dKey);
       const stored = getCachedDealer(pid, useShipping);
       if (stored?.dealer) lruSet(dealerCache, dKey, stored);
@@ -926,11 +943,7 @@ export function renderEmptyState(cards, counts) {
     });
 
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-      updateConfig('FILTER_NEG_ENABLED', false);
-      updateConfig('FILTER_MIN_ENABLED', false);
-      updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
-      updateConfig('BESTPREISE_INCLUDE_VORTIEF', true);
-      updateConfig('DEALER_MODE', 'dim');
+      updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

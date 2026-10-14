@@ -98,10 +98,23 @@ export function matchesNegativeTerms(card, termsList) {
   if (!termsList || termsList.length === 0) return false;
   let text = card._tpTextLower;
   if (text === undefined) {
-    text = (card.textContent || '').toLowerCase();
+    const native = card.querySelector?.('.bold, .product-name, .Plugin_ProductHeading, [class*="title" i], [class*="details" i]');
+    if (native?.textContent) {
+      text = native.textContent.toLowerCase();
+    } else if (typeof card.cloneNode === 'function') {
+      const clone = card.cloneNode(true);
+      clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
+      text = (clone.textContent || '').toLowerCase();
+    } else {
+      text = (card.textContent || '').toLowerCase();
+    }
     card._tpTextLower = text;
   }
-  return termsList.some(term => {
+  return termsList.some(entry => {
+    if (!entry) return false;
+    const re = typeof entry === 'string' ? null : entry.re;
+    if (re) return re.test(text);
+    const term = typeof entry === 'string' ? entry : entry.term;
     if (!term) return false;
     if (term.length <= 3) {
       return new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
@@ -216,7 +229,8 @@ export function extractActiveStores() {
 }
 
 export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
-  return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean);
+  return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
+    .map(term => ({ term, re: new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') }));
 }
 
 export function extractCardData(card) {

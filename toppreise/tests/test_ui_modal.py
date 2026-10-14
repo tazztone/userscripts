@@ -351,7 +351,9 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
             [now_ms, 1900],
         ];
         const stats = { tiefstpreis: 1800, medianPrice: 2100, horizonDays: 365, medianFallback: false, dataPointCount: 5, timeSeries: series, time: Date.now() };
-        localStorage.setItem('tp_hist_v1_horizon', JSON.stringify(stats));
+        // Card-backed pid: the post-save render re-reads it, firing the lazy
+        // cold-entry recompute (storage orphans recompute on next read).
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats));
         window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED = false;
     }""", [now_ms, day_ms])
     open_settings(page)
@@ -364,7 +366,7 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 90
-    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_horizon'))")
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571'))")
     assert entry['horizonDays'] == 90
     assert entry['medianPrice'] == 2000
     assert entry['medianFallback'] is False

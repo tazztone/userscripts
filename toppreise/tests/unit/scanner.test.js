@@ -64,4 +64,15 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     assert.equal(kept.medianPrice, 100);
     assert.ok(!kept.unavailable);
   });
+
+  it('median-less HTML fallback returns the median-bearing cached entry', async () => {
+    setCachedPriceStats(PID, { tiefstpreis: 50, medianPrice: 100, hoechstpreis: 120 });
+    globalThis.fetch = async (url, opts) => {
+      fetchCalls++;
+      if (opts?.method === 'POST') return { ok: false, status: 500 };
+      return { ok: true, text: async () => '<div>Tiefstpreis</div><span class="Plugin_Price">CHF 49.00</span>' };
+    };
+    const stats = await fetchSingleProductPriceStats(PID, 1, true);
+    assert.equal(stats.medianPrice, 100);
+  });
 });

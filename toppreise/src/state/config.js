@@ -78,13 +78,7 @@ export const DEFAULTS = Object.freeze({
   DISCORD_SUPPRESS_DEALER_EMBED: true,
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
   // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-  DISCORD_LAYOUT: `## {title}
-# {price}
-# {dealer} +{offers}
-{spark}
-{prevlow}
-{median}
-{link}`,
+  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}',
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -92,7 +86,6 @@ export const DEFAULTS = Object.freeze({
   ALARM_DURATION_DAYS: '730',
   ALARM_AUTO_SUBMIT: true,
   OBSERVER_DEBOUNCE_MS: 200,
-  SHOW_ADVANCED: false,
   DEBUG: false
 });
 
@@ -266,7 +259,6 @@ export const CONFIG = {
   ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
   ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
   OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-  SHOW_ADVANCED: _getValue('SHOW_ADVANCED', DEFAULTS.SHOW_ADVANCED),
   DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
 };
 // Corrupt storage must never silently break fills: clamp percent to the

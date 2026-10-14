@@ -23,7 +23,8 @@ import {
 import { applySorting } from './page/sort.js';
 import {
   renderCardEffects,
-  renderEmptyState
+  renderEmptyState,
+  clearDealerAutoTried
 } from './ui/badges.js';
 import { renderSuiteFilterBar } from './ui/toolbar.js';
 import { renderFloatingCTA, hideFloatingCTA, startBatchCheck } from './ui/floating-cta.js';
@@ -41,13 +42,14 @@ import {
   runBatchDealCheck,
   cancelBatchDealCheck
 } from './scanner/scanner.js';
+import { scanState } from './state/store.js';
 import { processPriceAlarmModal } from './features/price-alarm.js';
 import { processProductDetailPage } from './features/product-detail.js';
 
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.229
+// @version      2.18.230
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -123,18 +125,16 @@ import { processProductDetailPage } from './features/product-detail.js';
       for (const cd of cardDataList) {
         renderCardEffects(cd, cd.filters, isNeueFeed, activeStores);
         if (cd.filters.isDimmed) counts.dimmed++;
-        if (cd.filters.isFiltered) {
-          counts.filteredCount++;
-          if (cd.filters.isNeg) counts.neg++;
-          if (cd.filters.isLowOffers) counts.min++;
-          if (cd.filters.isUnchecked) counts.uncheckedHidden++;
-          if (cd.filters.isVortiefExcluded) counts.vortief++;
-          if (cd.filters.isDealerLoser) counts.dealer++;
-        }
+        if (cd.filters.isFiltered) counts.filteredCount++;
+        if (cd.filters.isNeg) counts.neg++;
+        if (cd.filters.isLowOffers) counts.min++;
+        if (cd.filters.isUnchecked) counts.uncheckedHidden++;
+        if (cd.filters.isVortiefExcluded) counts.vortief++;
+        if (cd.filters.isDealerLoser) counts.dealer++;
       }
 
-      // --- Sort ---
-      applySorting(cards, pageHasOffers, cardDataList);
+      // --- Sort (deferred mid-scan: final passes sort once with flag cleared) ---
+      if (!scanState.isBatchChecking) applySorting(cards, pageHasOffers, cardDataList);
 
       // --- Empty state, filter bar & floating verify CTA ---
       renderEmptyState(cards, counts);
@@ -180,8 +180,8 @@ import { processProductDetailPage } from './features/product-detail.js';
             node.classList?.contains('tp-empty-state-notice')) {
           return false;
         }
-        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton') ||
-               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton');
+        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
+               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
       };
 
       for (let i = 0; i < m.addedNodes.length; i++) {
@@ -218,6 +218,7 @@ import { processProductDetailPage } from './features/product-detail.js';
     lastPriceBasis = cur;
     getProductCards().forEach(clearCardCache);
     processListings();
+    if (isProductDetailPage()) processProductDetailPage();
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   document.addEventListener('keydown', e => {
@@ -248,6 +249,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 
   if (self.navigation?.addEventListener) {
     self.navigation.addEventListener('navigatesuccess', () => {
+      clearDealerAutoTried();
       processListings();
       processPriceAlarmModal();
       if (isProductDetailPage()) {
@@ -280,7 +282,12 @@ import { processProductDetailPage } from './features/product-detail.js';
       analyzePriceTimeSeries,
       parsePrice,
       isShippingPriceActive,
-      CONFIG,
+      // Live view on CONFIG (test harness mutates flags through it), with the
+      // webhook masked: page JS reads '' and cannot overwrite the secret.
+      CONFIG: new Proxy(CONFIG, {
+        get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
+        set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
+      }),
       memoryCache
     };
   }

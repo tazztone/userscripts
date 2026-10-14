@@ -24,27 +24,11 @@ async function interruptibleSleep(ms, shouldCancelFn = null) {
   }
 }
 
-async function fetchPriceTimeSeries(productId) {
+async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null) {
   if (!productId) return null;
-  try {
-    const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
-    const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Accept': 'application/json, text/javascript, */*; q=0.01'
-      },
-      credentials: 'same-origin',
-      body: postBody,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-    const data = await res.json();
+  const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+  const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+  const pickSeries = data => {
     const shippingActive = isShippingPriceActive();
     if (Array.isArray(data)) {
       if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
@@ -60,10 +44,41 @@ async function fetchPriceTimeSeries(productId) {
     if (Array.isArray(data?.series)) return data.series;
     if (Array.isArray(data?.data)) return data.data;
     return null;
-  } catch (err) {
-    if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
-    return null;
+  };
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (shouldCancelFn && shouldCancelFn()) return null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json, text/javascript, */*; q=0.01'
+        },
+        credentials: 'same-origin',
+        body: postBody,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const series = pickSeries(await res.json());
+        if (series) return series;
+      } else if (res.status === 429) {
+        const retryAfterHeader = res.headers?.get('Retry-After');
+        const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+        if (attempt < retries) await interruptibleSleep((retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000), shouldCancelFn);
+      } else if (attempt < retries) {
+        await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+      }
+    } catch (err) {
+      if (attempt < retries) {
+        await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
+      } else if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
+    }
   }
+  return null;
 }
 
 export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null) {
@@ -87,7 +102,7 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       
       // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
       try {
-        const timeSeries = await fetchPriceTimeSeries(productId);
+        const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn);
         if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
           const analysis = analyzePriceTimeSeries(timeSeries);
           if (analysis && analysis.tiefstpreis > 0) {
@@ -144,6 +159,7 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       const stats = parsePriceStatsFromHtml(html);
       if (stats) {
         stats.isShippingPrice = isShippingPriceActive();
+        if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
         setCachedPriceStats(productId, stats);
         return stats;
       } else {

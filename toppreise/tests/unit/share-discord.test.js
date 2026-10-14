@@ -805,9 +805,9 @@ describe('layout recipe', () => {
     assert.ok(msg.includes(PRODUCT_URL));
   });
   it('config mirror stays in sync with DEFAULT_LAYOUT', async () => {
-    const { readFileSync } = await import('node:fs');
-    const src = readFileSync(new URL('../../src/state/config.js', import.meta.url), 'utf8');
-    assert.ok(src.includes(DEFAULT_LAYOUT));
+    const { DEFAULTS } = await import('../../src/state/config.js');
+    assert.equal(DEFAULTS.DISCORD_LAYOUT, DEFAULT_LAYOUT);
+    for (const line of DEFAULT_LAYOUT.split('\n').slice(1)) assert.match(line, /^[^ \t]/);
   });
 });
 

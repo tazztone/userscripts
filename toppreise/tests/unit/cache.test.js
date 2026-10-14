@@ -259,6 +259,18 @@ describe('Bounded Cache Module', () => {
       assert.equal(getSharedDeal('old', 1000, s), false);
       assert.equal(getSharedDeal('fresh', 1000, s), true);
     });
+
+    it('forceEvict drops the oldest quarter even under the size threshold', () => {
+      const s = memStorage();
+      for (let i = 0; i < 100; i++) {
+        s.setItem('tp_hist_v1_e' + i, JSON.stringify({ time: Date.now() - (100 - i) * 1000, tiefstpreis: i }));
+      }
+      prunePriceStatsCache(s, true);
+      assert.equal(s.getItem('tp_hist_v1_e0'), null);
+      assert.equal(s.getItem('tp_hist_v1_e24'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_e25'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_e99'), null);
+    });
   });
 
   describe('recomputeCachedMedians', () => {
@@ -280,8 +292,9 @@ describe('Bounded Cache Module', () => {
         setCachedPriceStats('p2', { tiefstpreis: 100 }, false, null);
         const s = memStorage();
         s.setItem('tp_hist_v1_p3', JSON.stringify({ ...seedStats, time: fixedTime }));
+        // Memory-only: cold storage entries recompute lazily on read.
         const rewritten = recomputeCachedMedians(90, s);
-        assert.equal(rewritten, 2);
+        assert.equal(rewritten, 1);
         const e1 = memoryCache.get('p1');
         assert.equal(e1.medianPrice, 780);
         assert.equal(e1.horizonDays, 90);
@@ -289,10 +302,11 @@ describe('Bounded Cache Module', () => {
         assert.equal(e1.time, fixedTime); // TTL untouched: no refetch
         assert.equal(memoryCache.get('p2').tiefstpreis, 100);
         assert.equal(memoryCache.get('p2').medianPrice, undefined);
-        const e3 = memoryCache.get('p3');
+        assert.equal(memoryCache.has('p3'), false);
+        const e3 = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 90, () => getCachedPriceStats('p3', false, s));
         assert.equal(e3.horizonDays, 90);
-        assert.equal(JSON.parse(s.getItem('tp_hist_v1_p3')).horizonDays, 90);
-        assert.equal(JSON.parse(s.getItem('tp_hist_v1_p1')).medianPrice, 780);
+        assert.equal(e3.medianPrice, 780);
+        assert.equal(e3.time, fixedTime);
       });
     });
 
