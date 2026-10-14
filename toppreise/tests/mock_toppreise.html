@@ -503,6 +503,9 @@
           e.preventDefault();
           document.querySelector('#mock-alarm-dialog').dataset.submitted = 'true';
           document.querySelector('#mock-alarm-dialog').dataset.submittedAt = Date.now();
+          // Real site replaces the form via AJAX on success: drop the button
+          // so the suite's submit-observer (not a blind timer) closes us.
+          setTimeout(() => submitBtn.remove(), 200);
         });
       }
 

@@ -1619,7 +1619,7 @@ def test_horizon_select_in_filter_bar(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 120")
-    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571'))")
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571_s'))")
     assert entry['horizonDays'] == 120
     assert entry['medianFallback'] is False
     assert page.locator('#tp-bar-horizon-label').inner_text() == '120T'
@@ -1648,7 +1648,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
     assert horizon_range.input_value() == '180'
-    assert page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571')).horizonDays") == 180
+    assert page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571_s')).horizonDays") == 180
     assert hits == []
 
 
@@ -1861,7 +1861,7 @@ def test_card_elements_and_sparkline_visibility_unclipped(page: Page):
             dataPointCount: 15,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_s', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();

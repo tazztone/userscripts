@@ -5,7 +5,7 @@
  */
 
 import { getCachedPriceStats, setCachedPriceStats } from './cache.js';
-import { analyzePriceTimeSeries, parsePriceStatsFromHtml } from '../domain/price.js';
+import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
 import { getProductCards, getCardProductId, extractCardDiscount, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
@@ -81,7 +81,7 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
   return null;
 }
 
-export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null) {
+export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null) {
   if (!productId) return null;
   // Refresh bypass: always hit the network, but keep the good entry in
   // memory/localStorage until the fetch succeeds — a failed refresh must
@@ -104,7 +104,7 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       try {
         const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn);
         if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
-          const analysis = analyzePriceTimeSeries(timeSeries);
+          const analysis = analyzePriceTimeSeries(timeSeries, currentPrice);
           if (analysis && analysis.tiefstpreis > 0) {
             analysis.isShippingPrice = isShippingPriceActive();
             setCachedPriceStats(productId, analysis);
@@ -220,11 +220,11 @@ export async function runProductScanner(options = {}) {
       if (shouldCancelFn()) break;
       const item = targets[i];
       Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
-      triggerProcessListings();
+      try { item.card.querySelector('.tp-deal-badge')?.classList.add('tp-deal-loading'); } catch {}
 
       let stats = null;
       try {
-        stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn);
+        stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })());
         if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
       } finally {
         Object.assign(scanState, { currentlyScanningPid: null });
@@ -233,8 +233,9 @@ export async function runProductScanner(options = {}) {
       completed++;
       Object.assign(scanState, { progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
-      // No render here: progress paints its own DOM (syncFloatingCTA), and the
-      // verified card paints on the next pre-fetch render (or the final one).
+      // ponytail: progressive paint per verified card (batch CTA asserts
+      // badges mid-scan); the pre-fetch full rescan stays removed.
+      if (stats) triggerProcessListings();
       await interruptibleSleep(250, shouldCancelFn);
     }
   } finally {

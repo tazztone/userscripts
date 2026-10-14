@@ -15,7 +15,7 @@ Requires Violentmonkey (or a compatible userscript manager):
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)
 - [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.234)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.235)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 ---
 
@@ -61,7 +61,7 @@ Requires Violentmonkey (or a compatible userscript manager):
     - `Escape`: Schließt das Einstellungsmenü bzw. hebt den Filter-Fokus auf.
 8. **📥 / 📤 JSON Konfigurations-Import & Export**: Vollständiges Sichern und Wiederherstellen aller Einstellungen (Begriffsfilter, Schwellenwerte) per JSON-Datei mit Whitelist-Validierung.
 9. **Händler Toppreis Highlights**: Highlights products with an emerald green border & "Toppreis" badge when a filtered store is the cheapest (or within custom margin %), while dimming/hiding non-cheapest products.
-10. **Negativer Textfilter (Ausschluss)**: Exclude products containing specific unwanted keywords (e.g. `SAMSUNG, Hülle, Case, Refurbished, Gebraucht`) with word-boundary precision directly via the text input in the inline top filter bar.
+10. **Negativer Textfilter (Ausschluss)**: Exclude products containing specific unwanted keywords (e.g. `SAMSUNG, Hülle, Case, Refurbished, Gebraucht`) directly via the text input in the inline top filter bar — long terms (>3 chars) match as substrings (`Hülle` also catches `Schutzhülle`), short terms keep word boundaries.
 11. **Angebote & Rabatt-Sortierung**: Filter out marketplace items with fewer than $N$ offers, plus optional client-side re-sorting by total offer count or highest discount (`% Rabatt ⬇`).
 12. **Preisalarm Auto-Filler**: Automatically configures target price (e.g. 60% of current price) and 2-year duration upon clicking the price alarm bell icon, supporting Swiss currency formatting (`CHF 1'299.–`). The bell shows the mode at a glance (dimmed = off, blue outline = fill-only, blue + ⚡ = auto-submit) with live target values in its tooltip, and the ⚙ next to it jumps straight to the Preisalarm settings. With Auto-Submit enabled (default), it also ticks the terms checkbox and submits the alarm form on your behalf — disable Auto-Submit in the settings if you prefer to review and submit manually.
 13. **⚡ Context-Aware Top Filter Bar**: Consolidated toolbar with self-labeled controls (no section captions) that automatically adapts to the page context:

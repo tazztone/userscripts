@@ -96,9 +96,9 @@ export function parsePriceStatsFromHtml(html) {
   const hasDOMParser = typeof DOMParser !== 'undefined';
   const doc = hasDOMParser ? new DOMParser().parseFromString(html, 'text/html') : null;
 
+  const titleEls = doc ? [...doc.querySelectorAll('.title,.col-12.title'), ...[...doc.querySelectorAll('div')].filter(el => el.children.length === 0)] : [];
   const extractPrice = titleText => {
     if (doc) {
-      const titleEls = Array.from(doc.querySelectorAll('.title, .col-12.title, div'));
       const found = titleEls.find(el => el.textContent.trim().toLowerCase() === titleText.toLowerCase());
       if (found) {
         if (found.nextElementSibling?.classList.contains('Plugin_Price')) {
@@ -192,6 +192,9 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
       if (k - j === 1) {
         if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
         else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
+      } else if (j === 0 || k === n) {
+        isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
+        if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
       }
       for (let m = j; m < k; m++) {
         const [ts, price] = sorted[m];

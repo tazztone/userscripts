@@ -16,6 +16,7 @@ import {
   setCachedDealer,
   getSharedDeal,
   setSharedDeal,
+  statsKey,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
 import { DAY, HOUR, withConfig } from './helpers.js';
@@ -47,10 +48,10 @@ describe('Bounded Cache Module', () => {
 
       assert.equal(memoryCache.size, 500);
       // Items 1..5 should have been evicted by FIFO/LRU
-      assert.equal(memoryCache.has('p1'), false);
-      assert.equal(memoryCache.has('p5'), false);
-      assert.equal(memoryCache.has('p6'), true);
-      assert.equal(memoryCache.has('p505'), true);
+      assert.equal(memoryCache.has(statsKey('p1')), false);
+      assert.equal(memoryCache.has(statsKey('p5')), false);
+      assert.equal(memoryCache.has(statsKey('p6')), true);
+      assert.equal(memoryCache.has(statsKey('p505')), true);
     });
 
     it('promotes accessed items in LRU order', () => {
@@ -66,9 +67,9 @@ describe('Bounded Cache Module', () => {
       setCachedPriceStats('p501', { tiefstpreis: 200 }, false, null);
 
       assert.equal(memoryCache.size, 500);
-      assert.equal(memoryCache.has('p1'), true);  // Promoted, so kept
-      assert.equal(memoryCache.has('p2'), false); // Oldest, evicted
-      assert.equal(memoryCache.has('p501'), true);
+      assert.equal(memoryCache.has(statsKey('p1')), true);  // Promoted, so kept
+      assert.equal(memoryCache.has(statsKey('p2')), false); // Oldest, evicted
+      assert.equal(memoryCache.has(statsKey('p501')), true);
     });
   });
 
@@ -160,11 +161,11 @@ describe('Bounded Cache Module', () => {
         const stats = analyzePriceTimeSeries(series, 90);
         stats.isShippingPrice = true;
         setCachedPriceStats('xmode', stats);
-        const before = memoryCache.get('xmode');
+        const before = memoryCache.get(statsKey('xmode'));
         recomputeCachedMedians(30);
-        assert.equal(memoryCache.get('xmode'), before);
+        assert.equal(memoryCache.get(statsKey('xmode')), before);
       });
-      memoryCache.delete('xmode');
+      memoryCache.delete(statsKey('xmode'));
     });
   });
 
@@ -288,21 +289,21 @@ describe('Bounded Cache Module', () => {
         assert.equal(seedStats.medianPrice, 800);
         const fixedTime = now - HOUR;
         setCachedPriceStats('p1', seedStats, false, null);
-        memoryCache.get('p1').time = fixedTime;
+        memoryCache.get(statsKey('p1')).time = fixedTime;
         setCachedPriceStats('p2', { tiefstpreis: 100 }, false, null);
         const s = memStorage();
-        s.setItem('tp_hist_v1_p3', JSON.stringify({ ...seedStats, time: fixedTime }));
+        s.setItem(statsKey('p3'), JSON.stringify({ ...seedStats, time: fixedTime }));
         // Memory-only: cold storage entries recompute lazily on read.
         const rewritten = recomputeCachedMedians(90, s);
         assert.equal(rewritten, 1);
-        const e1 = memoryCache.get('p1');
+        const e1 = memoryCache.get(statsKey('p1'));
         assert.equal(e1.medianPrice, 780);
         assert.equal(e1.horizonDays, 90);
         assert.equal(e1.medianFallback, false);
         assert.equal(e1.time, fixedTime); // TTL untouched: no refetch
-        assert.equal(memoryCache.get('p2').tiefstpreis, 100);
-        assert.equal(memoryCache.get('p2').medianPrice, undefined);
-        assert.equal(memoryCache.has('p3'), false);
+        assert.equal(memoryCache.get(statsKey('p2')).tiefstpreis, 100);
+        assert.equal(memoryCache.get(statsKey('p2')).medianPrice, undefined);
+        assert.equal(memoryCache.has(statsKey('p3')), false);
         const e3 = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 90, () => getCachedPriceStats('p3', false, s));
         assert.equal(e3.horizonDays, 90);
         assert.equal(e3.medianPrice, 780);
@@ -329,11 +330,11 @@ describe('Bounded Cache Module', () => {
       assert.ok(Array.isArray(seed.rawTimeSeries));
       const fixedTime = now - HOUR;
       setCachedPriceStats('raw1', seed, false, null);
-      memoryCache.get('raw1').time = fixedTime;
+      memoryCache.get(statsKey('raw1')).time = fixedTime;
       withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
         assert.equal(recomputeCachedMedians(0, null), 1);
       });
-      const e = memoryCache.get('raw1');
+      const e = memoryCache.get(statsKey('raw1'));
       assert.equal(e.filteredOutliers.length, 0);
       assert.equal(e.timeSeries.length, glitchy.length);
       assert.equal(e.time, fixedTime);
@@ -354,7 +355,7 @@ describe('Bounded Cache Module', () => {
         assert.equal(seed.rawTimeSeries, undefined);
         setCachedPriceStats('legacy', seed, false, null);
         assert.equal(recomputeCachedMedians(90, null), 1);
-        assert.equal(memoryCache.get('legacy').medianPrice, 780);
+        assert.equal(memoryCache.get(statsKey('legacy')).medianPrice, 780);
       });
     });
 
@@ -369,8 +370,8 @@ describe('Bounded Cache Module', () => {
         setCachedPriceStats('w' + i, { tiefstpreis: 100 + i, timeSeries: [[Date.now(), 100 + i]] }, false, counting);
       }
       assert.equal(setCalls, 50);
-      assert.equal(counting.getItem('tp_hist_v1_w0') !== null, true);
-      assert.equal(counting.getItem('tp_hist_v1_w49') !== null, true);
+      assert.equal(counting.getItem(statsKey('w0')) !== null, true);
+      assert.equal(counting.getItem(statsKey('w49')) !== null, true);
     });
 
     it('prunes once and retries on quota error', () => {
@@ -389,7 +390,7 @@ describe('Bounded Cache Module', () => {
         },
       };
       setCachedPriceStats('q1', { tiefstpreis: 100, timeSeries: [[Date.now(), 100]] }, false, flaky);
-      assert.equal(flaky.getItem('tp_hist_v1_q1') !== null, true);
+      assert.equal(flaky.getItem(statsKey('q1')) !== null, true);
     });
   });
 });

@@ -230,7 +230,7 @@ export function extractActiveStores() {
 
 export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
   return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
-    .map(term => ({ term, re: new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') }));
+    .map(term => ({ term, re: term.length <= 3 ? new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') : null }));
 }
 
 export function extractCardData(card) {

@@ -12,7 +12,7 @@ import {
 } from './cards.js';
 import { computeDealScore, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
 
-function getCardSortableUnit(card) {
+export function getCardSortableUnit(card) {
   if (!card) return null;
   const collItem = card.closest('.Plugin_ProductCollItem');
   if (collItem) return collItem;

@@ -49,7 +49,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.234
+// @version      2.18.235
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -287,6 +287,8 @@ import { processProductDetailPage } from './features/product-detail.js';
       CONFIG: new Proxy(CONFIG, {
         get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
         set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
+        getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
+        defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
       }),
       memoryCache
     };

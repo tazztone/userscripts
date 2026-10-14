@@ -9,6 +9,10 @@ import { CONFIG } from '../state/config.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 
 export const STATS_CACHE_PREFIX = 'tp_hist_v1_';
+export const statsKey = productId => {
+  try { return `${STATS_CACHE_PREFIX}${productId}_${isShippingPriceActive() ? 's' : 'p'}`; }
+  catch { return `${STATS_CACHE_PREFIX}${productId}_p`; }
+};
 export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
 export const SHARED_CACHE_PREFIX = 'tp_shared_v1_';
 // Janitor-Funktionen (prune/count/clear) betreuen alle Prefixe: Händlerdaten
@@ -97,29 +101,45 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
     } catch (e) { return true; }
   };
   try {
-    if (memoryCache.has(productId)) {
-      const memData = memoryCache.get(productId);
+    const key = statsKey(productId);
+    if (memoryCache.has(key)) {
+      const memData = memoryCache.get(key);
       if (isCacheEntryFresh(memData, ignoreNegativeCache)) {
         if (!isModeMatch(memData)) {
-          memoryCache.delete(productId);
+          memoryCache.delete(key);
         } else {
           // LRU update
-          lruSet(memoryCache, productId, memData);
+          lruSet(memoryCache, key, memData);
           return memData;
         }
       } else {
-        memoryCache.delete(productId);
+        memoryCache.delete(key);
       }
     }
 
-    const raw = storage?.getItem(STATS_CACHE_PREFIX + productId);
+    let raw = storage?.getItem(key);
+    if (!raw) {
+      // Upgrade migration (one read, no refetch storm): pre-suffix entries
+      // adopt the current slot when fresh and mode-matching; stale ones go,
+      // mode-mismatched ones wait for their mode's next miss.
+      try {
+        const legacyKey = STATS_CACHE_PREFIX + productId;
+        const legacy = storage?.getItem(legacyKey);
+        if (legacy) {
+          let parsedLegacy = null;
+          try { parsedLegacy = JSON.parse(legacy); } catch {}
+          if (parsedLegacy && isCacheEntryFresh(parsedLegacy, ignoreNegativeCache) && isModeMatch(parsedLegacy)) { raw = legacy; try { storage?.removeItem(legacyKey); } catch {} }
+          else if (!parsedLegacy || !isCacheEntryFresh(parsedLegacy, ignoreNegativeCache)) try { storage?.removeItem(legacyKey); } catch {}
+        }
+      } catch {}
+    }
     if (!raw) return null;
     let parsed = JSON.parse(raw);
 
     if (isCacheEntryFresh(parsed, ignoreNegativeCache)) {
       // Cross-mode stale entry: evict from storage too, else every render
       // re-parses localStorage for an entry that always misses.
-      if (!isModeMatch(parsed)) { try { storage?.removeItem(STATS_CACHE_PREFIX + productId); } catch (e) {} return null; }
+      if (!isModeMatch(parsed)) { try { storage?.removeItem(key); } catch (e) {} return null; }
       // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
       // stale-sig entries with a series recompute synchronously, no refetch.
       if (!parsed.unavailable && parsed.medianSig !== currentMedianSig()) {
@@ -131,10 +151,10 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
           } catch (e) {}
         }
       }
-      lruSet(memoryCache, productId, parsed);
+      lruSet(memoryCache, key, parsed);
       try {
         const repersist = (parsed.timeSeries && parsed.rawTimeSeries) ? { ...parsed, rawTimeSeries: undefined } : parsed;
-        storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(repersist));
+        storage?.setItem(key, JSON.stringify(repersist));
       } catch (e) {}
       return parsed;
     }
@@ -144,19 +164,20 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
 
 export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
   if (!productId) return;
+  const key = statsKey(productId);
   // Upgrade-only: never replace median-bearing stats with median-less
   // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
   // only) must not regress a full analysis — the badge would keep its old %
   // while the heat goes neutral. Unavailable-markers keep current semantics.
-  if (!isUnavailable && stats && !stats.medianPrice && memoryCache.has(productId)) {
-    const prev = memoryCache.get(productId);
+  if (!isUnavailable && stats && !stats.medianPrice && memoryCache.has(key)) {
+    const prev = memoryCache.get(key);
     if (prev && !prev.unavailable && prev.medianPrice) return;
   }
   const payload = isUnavailable
     ? { unavailable: true, time: Date.now() }
     : { ...stats, time: Date.now(), medianSig: currentMedianSig() };
 
-  lruSet(memoryCache, productId, payload);
+  lruSet(memoryCache, key, payload);
 
   // Persist stripped: rawTimeSeries duplicates timeSeries bytes on disk;
   // memory keeps the full object for recompute.
@@ -166,10 +187,10 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   try {
     statsWriteCount++;
     if (statsWriteCount % 25 === 1) prunePriceStatsCache(storage);
-    storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(persistPayload));
+    storage?.setItem(key, JSON.stringify(persistPayload));
   } catch (e) {
     if (e?.name === 'QuotaExceededError' || e?.code === 22) {
-      try { prunePriceStatsCache(storage, true); storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(persistPayload)); } catch (_) {}
+      try { prunePriceStatsCache(storage, true); storage?.setItem(key, JSON.stringify(persistPayload)); } catch (_) {}
     }
   }
 }
@@ -230,15 +251,15 @@ export function recomputeCachedMedians(horizonDays, storage = (typeof window !==
     if (!fresh) return null;
     return { ...entry, ...fresh, time: entry.time, medianSig: sig, ...(entry.rawTimeSeries && fresh.rawTimeSeries === undefined ? { rawTimeSeries: entry.rawTimeSeries } : {}) };
   };
-  for (const [productId, entry] of memoryCache) {
+  for (const [cacheKey, entry] of memoryCache) {
     const next = rewrite(entry);
     if (!next) continue;
-    memoryCache.set(productId, next);
+    memoryCache.set(cacheKey, next);
     // Write-through for rewritten entries only (no storage sweep): reloads
     // and other tabs see the new window without a refetch.
     try {
       const persist = (next.timeSeries && next.rawTimeSeries) ? { ...next, rawTimeSeries: undefined } : next;
-      storage?.setItem(STATS_CACHE_PREFIX + productId, JSON.stringify(persist));
+      storage?.setItem(cacheKey, JSON.stringify(persist));
     } catch (e) {}
     count++;
   }

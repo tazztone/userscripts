@@ -651,28 +651,29 @@ describe('fetchImageBlob', () => {
       assert.equal(opts.responseType, 'blob');
       opts.onload({ status: 200, response: new Blob(['img']) });
     };
-    const blob = await fetchImageBlob('https://img/u.jpg');
+    const blob = await fetchImageBlob('https://www.toppreise.ch/u.jpg');
     assert.ok(blob instanceof Blob);
   });
 
   it('rejects on bad URL, missing transport, and HTTP errors', async () => {
     await assert.rejects(fetchImageBlob('data:image/gif;base64,x'), /Ungültige Bild-URL/);
+    await assert.rejects(fetchImageBlob('https://evil.example/u.jpg'), /Ungültige Bild-URL/);
     delete globalThis.GM_xmlhttpRequest;
-    await assert.rejects(fetchImageBlob('https://img/u.jpg'), /Kein HTTP-Transport/);
+    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Kein HTTP-Transport/);
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 404, response: null });
-    await assert.rejects(fetchImageBlob('https://img/u.jpg'), /Bild-Download 404/);
+    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Bild-Download 404/);
   });
 
   it('rejects empty blobs', async () => {
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob([]) });
-    await assert.rejects(fetchImageBlob('https://img/u.jpg'), /Leeres Bild/);
+    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Leeres Bild/);
   });
 
   it('rejects non-image MIME but accepts missing MIME', async () => {
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob(['x'], { type: 'text/plain' }) });
-    await assert.rejects(fetchImageBlob('https://img/u.jpg'), /Ungültiges Bild/);
+    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Ungültiges Bild/);
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob(['x'], { type: 'image/jpeg' }) });
-    const blob = await fetchImageBlob('https://img/u.jpg');
+    const blob = await fetchImageBlob('https://www.toppreise.ch/u.jpg');
     assert.ok(blob instanceof Blob);
   });
 });

@@ -527,8 +527,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       window._tpBarCalcDocBound = true;
       document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
-        if (!e.target || !e.target.closest || !e.target.closest('#tp-suite-filter-bar')) return;
-        for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn']]) {
+        for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn'], ['tp-floating-threshold-popover', 'tp-floating-threshold-btn']]) {
           const pop = document.getElementById(popId);
           if (!pop || !pop.classList.contains('tp-show')) continue;
           pop.classList.remove('tp-show');
@@ -539,7 +538,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       document.addEventListener('click', e => {
         if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
         if (e.target && e.target.closest && e.target.closest('#tp-suite-filter-bar')) return;
-        for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn']]) {
+        for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn'], ['tp-floating-threshold-popover', 'tp-floating-threshold-btn']]) {
           const pop = document.getElementById(popId);
           if (!pop || !pop.classList.contains('tp-show')) continue;
           pop.classList.remove('tp-show');

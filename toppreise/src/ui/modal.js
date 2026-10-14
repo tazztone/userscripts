@@ -353,7 +353,7 @@ export function setupUI() {
     // Every key syncUiControl covers (radios, toggles, weight, min-points,
     // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
     // through it — toolbar mirrors included. Only modal-only controls below.
-    for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k]);
+    for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k], { silent: true });
 
     marginRange.value = CONFIG.MARGIN_PERCENT;
     marginVal.value = CONFIG.MARGIN_PERCENT;
@@ -591,7 +591,7 @@ export function setupUI() {
           saveConfigKey(key, coerced);
           count++;
         }
-        if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); getProductCards().forEach(clearCardCache); }
+        if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
         if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
         updateBodyClasses();
         triggerProcessListings();

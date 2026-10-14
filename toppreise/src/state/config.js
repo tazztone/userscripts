@@ -319,7 +319,7 @@ export function updateBodyClasses() {
   document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
 }
 
-export function syncUiControl(key, val) {
+export function syncUiControl(key, val, opts = {}) {
   // 1. Sync Settings Modal (Shadow DOM) if open/exists
   const shadow = uiShadowRoot || (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
   if (shadow) {
@@ -440,7 +440,7 @@ export function syncUiControl(key, val) {
         case 'ALARM_ENABLED': {
           const toggle = shadow.getElementById('tp-alarm-enabled-toggle');
           if (toggle) toggle.checked = val !== false;
-          notifyAlarmConfig();
+          if (!opts.silent) notifyAlarmConfig();
           break;
         }
         case 'ALARM_TARGET_PERCENT': {
@@ -449,19 +449,19 @@ export function syncUiControl(key, val) {
           const num = shadow.getElementById('tp-alarm-target-val');
           if (range) range.value = pct;
           if (num) num.value = pct;
-          notifyAlarmConfig();
+          if (!opts.silent) notifyAlarmConfig();
           break;
         }
         case 'ALARM_DURATION_DAYS': {
           const radio = shadow.querySelector(`input[name="tp-alarm-duration"][value="${val}"]`);
           if (radio) radio.checked = true;
-          notifyAlarmConfig();
+          if (!opts.silent) notifyAlarmConfig();
           break;
         }
         case 'ALARM_AUTO_SUBMIT': {
           const toggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
           if (toggle) toggle.checked = val !== false;
-          notifyAlarmConfig();
+          if (!opts.silent) notifyAlarmConfig();
           break;
         }
       }

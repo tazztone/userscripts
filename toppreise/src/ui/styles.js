@@ -112,7 +112,7 @@ export const STYLES = `
     letter-spacing: 0.5px;
     pointer-events: none;
   }
-  .tp-filtered, [class*="col-"]:has(> .tp-filtered) {
+  .tp-filtered, .tp-col-filtered {
     display: none !important;
   }
   .tp-dimmed {
@@ -277,7 +277,7 @@ export const STYLES = `
     opacity: 0 !important;
     pointer-events: none !important;
   }
-  .tp-show-share > .tp-share-btn,
+  :is(.Plugin_Product, .mixedBrowsingListProduct):is(:hover, :focus-within) > .tp-share-btn,
   .tp-share-btn:hover,
   .tp-share-btn:focus-visible {
     opacity: 0.9 !important;
@@ -436,7 +436,7 @@ export const STYLES = `
     pointer-events: none !important;
     flex: 0 0 auto !important;
   }
-  .tp-show-share button.tp-dealer-name.tp-dealer-btn,
+  :is(.Plugin_Product, .mixedBrowsingListProduct):is(:hover, :focus-within) button.tp-dealer-name.tp-dealer-btn,
   button.tp-dealer-name.tp-dealer-btn:hover,
   button.tp-dealer-name.tp-dealer-btn:focus-visible {
     opacity: 0.75 !important;

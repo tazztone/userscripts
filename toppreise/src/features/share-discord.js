@@ -93,6 +93,11 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     try {
       if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl.trim())) return reject(new Error('Ungültige Bild-URL'));
+      try {
+        const h = new URL(imageUrl.trim()).hostname.toLowerCase();
+        const own = (typeof location !== 'undefined' && location.hostname ? location.hostname : 'www.toppreise.ch').toLowerCase();
+        if (h !== own && h !== 'toppreise.ch' && !h.endsWith('.toppreise.ch')) return reject(new Error('Ungültige Bild-URL'));
+      } catch { return reject(new Error('Ungültige Bild-URL')); }
       if (typeof GM_xmlhttpRequest === 'undefined') return reject(new Error('Kein HTTP-Transport verfügbar'));
       GM_xmlhttpRequest({
         method: 'GET',

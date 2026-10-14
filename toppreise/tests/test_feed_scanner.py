@@ -587,7 +587,7 @@ def test_product_detail_page_negative_cache_no_recursion(page: Page):
     calls = page.evaluate('window.processDetailCalls')
     assert calls == 1, f"Expected 1 call, but got {calls} indicating recursion"
 
-    cached = page.evaluate("localStorage.getItem('tp_hist_v1_840582')")
+    cached = page.evaluate("localStorage.getItem('tp_hist_v1_840582_s')")
     assert 'unavailable' in (cached or '')
 
     # Assert no deal badge was added
@@ -857,7 +857,7 @@ def test_sparkline_handles_edge_cases(page: Page):
             timeSeries: [[1672531199, 1800.0]],
             time: Date.now()
         };
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', stats);
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_s', stats);
         window.ToppreiseSuite?.processListings?.();
     }""")
     assert page.locator('#card-cheapest .tp-sparkline').count() == 0
@@ -870,7 +870,7 @@ def test_sparkline_handles_edge_cases(page: Page):
             timeSeries: [[1672531199, 1800.0], [1675209599, 1800.0]],
             time: Date.now()
         };
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', stats);
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_s', stats);
         window.ToppreiseSuite?.processListings?.();
     }""")
     sparkline = page.locator('#card-cheapest .tp-sparkline')

@@ -152,6 +152,20 @@ export function processPriceAlarmModal() {
     }
 
     try {
+      const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
+      let closeFired = false;
+      let fallbackTimer = 0;
+      let observer = null;
+      const clickCloseOnce = () => {
+        if (closeFired) return;
+        closeFired = true;
+        try { observer?.disconnect(); } catch {}
+        clearTimeout(fallbackTimer);
+        const closeBtn = modalContainer.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
+                         document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
+        if (closeBtn) closeBtn.click();
+        else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+      };
       const submitTimer = setTimeout(() => {
         const submitBtn = modalContainer.querySelector('input.f_submitbtn');
         if (!submitBtn) {
@@ -159,14 +173,18 @@ export function processPriceAlarmModal() {
           return;
         }
         submitBtn.click();
-        // Allow in-flight AJAX request to complete before closing the dialog container
-        const closeTimer = setTimeout(() => {
-          const closeBtn = modalContainer.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
-                           document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
-          if (closeBtn) closeBtn.click();
-          else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
-        }, 800);
-        modalContainer.dataset.tpAlarmTimers = `${submitTimer},${closeTimer}`;
+        // Close once the submit round-trips (button/form leaves the DOM or a
+        // success node appears) instead of after a blind delay.
+        const form = submitBtn.closest('form') || submitBtn;
+        observer = new MutationObserver(() => {
+          if (!document.contains(submitBtn) || !document.contains(form) ||
+              modalContainer.querySelector('.success, .confirmation, [class*="success" i], [class*="confirm" i]')) {
+            clickCloseOnce();
+          }
+        });
+        observer.observe(dialogRoot, { childList: true, subtree: true });
+        fallbackTimer = setTimeout(clickCloseOnce, 5000);
+        modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
       }, 300);
       modalContainer.dataset.tpAlarmTimers = String(submitTimer);
     } catch (err) {

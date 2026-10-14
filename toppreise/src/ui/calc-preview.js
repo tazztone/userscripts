@@ -51,7 +51,7 @@ export function previewStats(points, o) {
   const now = o?.now ?? Date.now();
 
   const san = enabled
-    ? sanitizeTimeSeries(points, band, hours)
+    ? sanitizeTimeSeries(points, band, hours, o?.cardPrice > 0 ? o.cardPrice : null)
     : { cleanPoints: points || [], filteredOutliers: [] };
   const clean = san.cleanPoints || [];
   const prices = clean.map(p => p[1]);

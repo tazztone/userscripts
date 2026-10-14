@@ -13,6 +13,7 @@ import {
   extractCardDiscount,
   getCardProductId
 } from '../page/cards.js';
+import { getCardSortableUnit } from '../page/sort.js';
 import { isDiscordWebhookUrl, formatDealMessage, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, fetchImageBlob, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, discordForumFlagKey } from '../features/share-discord.js';
 import { extractCanonicalPrice, parsePrice, pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../domain/deal-score.js';
@@ -89,7 +90,7 @@ async function runSingleDealCheck(card, badgeDifEl) {
   badgeDifEl.classList.add('tp-deal-loading');
   badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
   const requestTimePrice = extractCanonicalPrice(card).price;
-  const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true);
+  const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true, null, Number.isFinite(requestTimePrice) && requestTimePrice > 0 ? requestTimePrice : null);
   const currentTimePrice = extractCanonicalPrice(card).price;
   if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
     badgeDifEl.classList.remove('tp-deal-loading');
@@ -230,6 +231,8 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   filters.isDimmed = dim;
   card.classList.toggle('tp-filtered', hide);
   card.classList.toggle('tp-dimmed', dim);
+  const sortUnit = getCardSortableUnit(card);
+  if (sortUnit && sortUnit !== card) sortUnit.classList.toggle('tp-col-filtered', hide);
 
   // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
   let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
@@ -709,11 +712,6 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
   const isShareable = !!(dealData || kindNow === 'new-low' || kindNow === 'at-low');
   let shareBtn = card.querySelector(':scope > .tp-share-btn');
-  if (!card.dataset.tpShareHoverBound) {
-    card.dataset.tpShareHoverBound = 'true';
-    card.addEventListener('mouseenter', () => card.classList.add('tp-show-share'));
-    card.addEventListener('mouseleave', () => card.classList.remove('tp-show-share'));
-  }
   if (isShareable) {
     if (!shareBtn) {
       shareBtn = document.createElement('button');

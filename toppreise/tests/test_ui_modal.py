@@ -366,7 +366,7 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 90
-    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571'))")
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571_s'))")
     assert entry['horizonDays'] == 90
     assert entry['medianPrice'] == 2000
     assert entry['medianFallback'] is False
