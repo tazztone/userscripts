@@ -1254,7 +1254,7 @@ def test_bestpreise_mode_uncached_cards_streaming_ui_retention(page: Page):
             isNewAllTimeLow: false,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797572'), JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1349,7 +1349,7 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
             dataPointCount: 10,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1372,7 +1372,7 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
             dataPointCount: 10,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797572'), JSON.parse(localStorage.getItem('tp_hist_v1_797572')));
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1394,7 +1394,7 @@ def test_bestpreise_mode_progressive_reveal(page: Page):
             dataPointCount: 10,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797573'), JSON.parse(localStorage.getItem('tp_hist_v1_797573')));
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1452,7 +1452,7 @@ def test_column_wrapper_layout_fidelity_and_hiding(page: Page):
             dataPointCount: 10,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('88802', JSON.parse(localStorage.getItem('tp_hist_v1_88802')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('88802'), JSON.parse(localStorage.getItem('tp_hist_v1_88802')));
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -1619,7 +1619,7 @@ def test_horizon_select_in_filter_bar(page: Page):
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 120")
-    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571_s'))")
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem(window.ToppreiseSuite.statsKey('797571')))")
     assert entry['horizonDays'] == 120
     assert entry['medianFallback'] is False
     assert page.locator('#tp-bar-horizon-label').inner_text() == '120T'
@@ -1648,7 +1648,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 180
     assert horizon_range.input_value() == '180'
-    assert page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571_s')).horizonDays") == 180
+    assert page.evaluate("() => JSON.parse(localStorage.getItem(window.ToppreiseSuite.statsKey('797571'))).horizonDays") == 180
     assert hits == []
 
 
@@ -1670,7 +1670,7 @@ def test_merged_blend_subline_rendering(page: Page):
             dataPointCount: 20,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.processListings();
@@ -1726,7 +1726,7 @@ def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
             dataPointCount: 3,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD = 0.50;
         window.ToppreiseSuite.processListings();
@@ -1810,7 +1810,7 @@ def test_badge_and_card_no_pulsing_animations_or_scale_transforms(page: Page):
             dataPointCount: 20,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
     }""")
@@ -1861,7 +1861,7 @@ def test_card_elements_and_sparkline_visibility_unclipped(page: Page):
             dataPointCount: 15,
             time: Date.now()
         }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_s', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
         window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
         window.ToppreiseSuite.processListings();
@@ -2394,10 +2394,10 @@ def test_heat_chrome_keeps_site_colors_and_spark(page: Page):
             dataPointCount: 10, time: Date.now()
         };
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), full);
         const aufschlag = { tiefstpreis: 900, hoechstpreis: 1300, medianPrice: 1000, previousLow: 950, isNewAllTimeLow: false, dataPointCount: 10, time: Date.now() };
         localStorage.setItem('tp_hist_v1_797572', JSON.stringify(aufschlag));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797572', aufschlag);
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797572'), aufschlag);
         window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.processListings();
     }""")

@@ -252,10 +252,10 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
             dataPointCount: 10, time: Date.now()
         };
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), full);
         const minimal = { tiefstpreis: 10, time: Date.now() };
         localStorage.setItem('tp_hist_v1_797573', JSON.stringify(minimal));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797573', minimal);
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797573'), minimal);
         window.ToppreiseSuite.processListings();
     }""")
 
@@ -342,9 +342,9 @@ def test_real_deal_dom_memoization_and_cache_pruning(page: Page):
         const staleTime = now - (15 * 24 * 3600 * 1000); // 15 days ago (expired)
         const freshTime = now - (1 * 3600 * 1000);       // 1 hour ago (fresh)
         localStorage.setItem('tp_hist_v1_stale999', JSON.stringify({ tiefstpreis: 50, hoechstpreis: 100, time: staleTime }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('stale999', JSON.parse(localStorage.getItem('tp_hist_v1_stale999')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('stale999'), JSON.parse(localStorage.getItem('tp_hist_v1_stale999')));
         localStorage.setItem('tp_hist_v1_fresh999', JSON.stringify({ tiefstpreis: 80, hoechstpreis: 120, time: freshTime }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('fresh999', JSON.parse(localStorage.getItem('tp_hist_v1_fresh999')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('fresh999'), JSON.parse(localStorage.getItem('tp_hist_v1_fresh999')));
     }''')
 
     mock_pricechart(page, {'797571': 1800})
@@ -587,7 +587,7 @@ def test_product_detail_page_negative_cache_no_recursion(page: Page):
     calls = page.evaluate('window.processDetailCalls')
     assert calls == 1, f"Expected 1 call, but got {calls} indicating recursion"
 
-    cached = page.evaluate("localStorage.getItem('tp_hist_v1_840582_s')")
+    cached = page.evaluate("localStorage.getItem(window.ToppreiseSuite.statsKey('840582'))")
     assert 'unavailable' in (cached or '')
 
     # Assert no deal badge was added
@@ -857,7 +857,7 @@ def test_sparkline_handles_edge_cases(page: Page):
             timeSeries: [[1672531199, 1800.0]],
             time: Date.now()
         };
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_s', stats);
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), stats);
         window.ToppreiseSuite?.processListings?.();
     }""")
     assert page.locator('#card-cheapest .tp-sparkline').count() == 0
@@ -870,7 +870,7 @@ def test_sparkline_handles_edge_cases(page: Page):
             timeSeries: [[1672531199, 1800.0], [1675209599, 1800.0]],
             time: Date.now()
         };
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_s', stats);
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), stats);
         window.ToppreiseSuite?.processListings?.();
     }""")
     sparkline = page.locator('#card-cheapest .tp-sparkline')
@@ -896,7 +896,7 @@ def test_sparkline_click_opens_discord_style_chart(page: Page):
             timeSeries: [[1672531199, 2200.0], [1675209599, 2000.0], [1677628799, 1800.0]],
             time: Date.now()
         };
-        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', stats);
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(stats)); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), stats);
         window.ToppreiseSuite?.processListings?.();
     }""")
     page.locator('#card-cheapest .tp-sparkline-container').click()
@@ -915,7 +915,7 @@ def test_negative_caching_and_manual_click_override(page: Page):
     # Set negative cache for card-cheapest (product 797571)
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({ unavailable: true, time: Date.now() }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
     }""")
 
     # Batch check ignores negatively cached card
@@ -1347,7 +1347,7 @@ def test_weight_switch_moves_blend_ribbon_and_heat(page: Page):
             dataPointCount: 10, time: Date.now()
         };
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('797571', full);
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), full);
         window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
         window.ToppreiseSuite.processListings();
     }""")

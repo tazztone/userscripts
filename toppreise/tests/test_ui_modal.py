@@ -366,7 +366,7 @@ def test_horizon_change_recomputes_cached_price_stats(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS") == 90
-    entry = page.evaluate("() => JSON.parse(localStorage.getItem('tp_hist_v1_797571_s'))")
+    entry = page.evaluate("() => JSON.parse(localStorage.getItem(window.ToppreiseSuite.statsKey('797571')))")
     assert entry['horizonDays'] == 90
     assert entry['medianPrice'] == 2000
     assert entry['medianFallback'] is False
@@ -376,9 +376,9 @@ def test_cache_settings_and_clear_button(page: Page):
     # Seed local storage with 2 fake cache items
     page.evaluate("""() => {
         localStorage.setItem('tp_hist_v1_item1', JSON.stringify({ tiefstpreis: 100, time: Date.now() }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('item1', JSON.parse(localStorage.getItem('tp_hist_v1_item1')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('item1'), JSON.parse(localStorage.getItem('tp_hist_v1_item1')));
         localStorage.setItem('tp_hist_v1_item2', JSON.stringify({ tiefstpreis: 200, time: Date.now() }));
-            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set('item2', JSON.parse(localStorage.getItem('tp_hist_v1_item2')));
+            if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('item2'), JSON.parse(localStorage.getItem('tp_hist_v1_item2')));
     }""")
 
     # Open settings modal

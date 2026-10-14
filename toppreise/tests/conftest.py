@@ -56,7 +56,7 @@ def seed_verified_deal(page, pid='797571', stats=None, clear=True):
         }
         stats.time = Date.now();
         localStorage.setItem('tp_hist_v1_' + pid, JSON.stringify(stats));
-        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(pid, stats);
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey(pid), stats);
         window.ToppreiseSuite.processListings();
     }""", [pid, merged, clear])
 
