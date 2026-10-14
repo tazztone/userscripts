@@ -323,6 +323,24 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); }")
 
 
+def test_mode_sorts_excluded_fallbacks_by_badge_pct(page: Page):
+    """Dimmed fallback-tiefs keep badge-% rank: the -63% card sorts before
+    the -23% card with Fallback-Tiefs filtering on (dim verdict, paint only)."""
+    drop_store_filter(page)
+    # Two thin-history fallbacks (no blend: dataPointCount 3 < minPoints):
+    # card-expensive (CHF 1250) drops ~63% vs previous low 3378,
+    # card-negative (CHF 15) drops ~23% vs previous low 19.5.
+    seed_verified_deal(page, '797572', {'tiefstpreis': 1300, 'previousLow': 3378, 'dataPointCount': 3})
+    seed_verified_deal(page, '797573', {'tiefstpreis': 20, 'previousLow': 19.5, 'dataPointCount': 3}, clear=False)
+    page.evaluate("""() => {
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_INCLUDE_VORTIEF', false);
+        window.ToppreiseSuite.processListings();
+    }""")
+    first_id = page.evaluate("() => Array.from(document.querySelectorAll('.Plugin_Product')).filter(c => c.offsetParent !== null)[0].id")
+    assert first_id == 'card-expensive'
+
+
 
 def test_real_deal_not_low_tooltip_is_trimmed(page: Page):
     mock_pricechart(page, {'797571': (1800, 2400), '797573': (10, 25)})

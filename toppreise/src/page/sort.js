@@ -78,10 +78,10 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
           // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
           // and the card burns with it, so the feed ranks by it too.
           weightedDiff = dealData.weightedDiff;
-        } else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
+        } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
           // Verified low without blend: rank by Vortief-Abstand — the same
           // number the ribbon prints and the edge heat burns with.
-          // Excluded fallbacks sink with the bad deals (-100).
+          // Exclusion dims/hides via applyCardFilters only; sort never reads BESTPREISE_INCLUDE_VORTIEF.
           weightedDiff = vortiefDropPct(cd.cardPrice, cd.stats);
         } else if (!cd.stats) {
           weightedDiff = 0;

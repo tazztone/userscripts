@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.243
+// @version      2.18.244
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4047,10 +4047,10 @@ const SHADOW_MODAL_STYLES = `
             // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
             // and the card burns with it, so the feed ranks by it too.
             weightedDiff = dealData.weightedDiff;
-          } else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
+          } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
             // Verified low without blend: rank by Vortief-Abstand — the same
             // number the ribbon prints and the edge heat burns with.
-            // Excluded fallbacks sink with the bad deals (-100).
+            // Exclusion dims/hides via applyCardFilters only; sort never reads BESTPREISE_INCLUDE_VORTIEF.
             weightedDiff = vortiefDropPct(cd.cardPrice, cd.stats);
           } else if (!cd.stats) {
             weightedDiff = 0;
