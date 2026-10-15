@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.252
+// @version      2.18.253
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1183,6 +1183,15 @@ const STYLES = `
   #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; opacity: 0.8 !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-kept { color: #a855f7 !important; font-weight: 700 !important; }
+  #tp-calc-preview[data-focus="weight"] .tp-pv-main { stroke-width: 2.5 !important; }
+  #tp-calc-preview[data-focus="weight"] .tp-pv-med, #tp-calc-preview[data-focus="weight"] .tp-pv-rec { opacity: 1 !important; }
+  #tp-calc-preview[data-focus="band"] .tp-pv-band { opacity: 0.32 !important; }
+  #tp-calc-preview[data-focus="band"] .tp-pv-x { font-weight: 700 !important; }
+  #tp-calc-preview[data-focus="window"] .tp-pv-cut { stroke-width: 2 !important; }
+  .tp-pv-chip { font-size: 11px !important; border: 1px solid var(--tp-line) !important; border-radius: 999px !important; padding: 0 8px !important; margin-right: 6px !important; white-space: nowrap !important; }
+  .tp-pv-formula { display: inline-flex !important; width: 64px !important; height: 8px !important; border-radius: 4px !important; overflow: hidden !important; vertical-align: middle !important; margin-left: 6px !important; }
+  .tp-pv-formula > i { background: #64748b !important; display: block !important; }
+  .tp-pv-formula > b { background: #f59e0b !important; display: block !important; }
   .tp-bar-stepper-group {
     display: inline-flex !important;
     align-items: center !important;
@@ -1887,7 +1896,16 @@ const SHADOW_MODAL_STYLES = `
     const cleanPoints = [];
     const filteredOutliers = [];
     const n = sorted.length;
-    const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
+    // Rolling ±15-point local medians: a sustained level (launch prices,
+    // regime shifts) is normal against its neighbors even when far from the
+    // lifetime median. Edge windows shrink; no padding.
+    // ponytail: O(n·31 log 31) scan; fine at n ≈ 4000, no optimization.
+    const localMedians = sorted.map((_, m) => {
+      const win = [];
+      for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(sorted[w][1]);
+      return medianOf(win.sort((a, b) => a - b));
+    });
+    const isNormalAt = m => localMedians[m] > 0 && Math.abs(sorted[m][1] - localMedians[m]) / localMedians[m] <= band;
     const localThreshold = Math.min(band, 0.05);
     const isLocallySharp = m => {
       const refs = [];
@@ -1899,14 +1917,14 @@ const SHADOW_MODAL_STYLES = `
     };
     let i = 0;
     while (i < n) {
-      if (isNormal(sorted[i][1])) {
+      if (isNormalAt(i)) {
         cleanPoints.push(sorted[i]);
         i++;
         continue;
       }
       const j = i;
       let k = j;
-      while (k < n && !isNormal(sorted[k][1])) k++;
+      while (k < n && !isNormalAt(k)) k++;
       if (j > 0 && k < n) {
         const durH = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6;
         let isGlitch = durH <= maxGlitchHours + 0.5;
@@ -1919,8 +1937,8 @@ const SHADOW_MODAL_STYLES = `
       } else {
         let isGlitch = false;
         if (k - j === 1) {
-          if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
-          else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
+          if (j === 0 && n > 1 && isNormalAt(1)) isGlitch = true;
+          else if (k === n && n > 1 && isNormalAt(n - 2) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
         } else if (j === 0 || k === n) {
           isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
           if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
@@ -2951,7 +2969,7 @@ const SHADOW_MODAL_STYLES = `
   if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
   else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
   if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
-  else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(12, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
+  else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(24, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
   const saveConfigKey = (key, val) => {
     if (SECRET_KEYS.has(key)) return;
@@ -3198,7 +3216,7 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'OUTLIER_MAX_GLITCH_HOURS': {
-              const hrs = Math.min(168, Math.max(12, parseInt(val ?? 48, 10) || 48));
+              const hrs = Math.min(168, Math.max(24, parseInt(val ?? 48, 10) || 48));
               const hoursRange = bar.querySelector('#tp-bar-outlier-hours-range');
               if (hoursRange && document.activeElement !== hoursRange) hoursRange.value = hrs;
               const hoursLabel = bar.querySelector('#tp-bar-outlier-hours-label');
@@ -4691,14 +4709,15 @@ const SHADOW_MODAL_STYLES = `
     // (getHeatInput) feeds BOTH the card heat here and the badge number below,
     // so the ribbon number always matches its color. The blend sorts too.
     // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
-    // unverified site-%. Verified-state differentiation lives in badge
-    // text/tooltip + Verbergen/Dimmen, never in the card wash. The badge paint
-    // below is verified-only, so heated unverified badges keep the striped
-    // `.tp-is-unverified` cue while the card body still glows.
+    // unverified site-%. Unverified cards render the same wash at 0.35×
+    // intensity so verified deals always outshine them. The badge paint below
+    // is verified-only, so heated unverified badges keep the striped
+    // `.tp-is-unverified` cue while the card body glows faintly.
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
-    const heatIntensity = CONFIG.HEATMAP_INTENSITY;
+    const verified = !!stats && !stats.unavailable;
+    const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
 
     // Blind inset wash: every heatable card gets the same prominent signal,
     // clipped to the card's own edges.
@@ -6286,7 +6305,7 @@ const SHADOW_MODAL_STYLES = `
               else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
               else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
               else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.20, coerced));
-              else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(12, Math.round(coerced)));
+              else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(24, Math.round(coerced)));
               else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
               else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
               else if (key === 'NEGATIVE_CACHE_HOURS') coerced = Math.max(1, Math.min(24, Math.round(coerced)));
@@ -6471,6 +6490,8 @@ const SHADOW_MODAL_STYLES = `
   const PRESET_DATA_SSD990 = [3,310.1,1,296.2,3,294.75,1,293.4,1,292.9,1,291.25,1,291.5,6,291.65,1,288.4,3,291.65,1,287.9,1,290.2,1,288.5,1,287.75,3,290.5,4,291.65,1,300.9,1,290,1,294.4,1,293.85,1,294.4,1,293.5,1,293.8,3,296.8,1,296.7,1,296.85,1,296.9,21,296.8,2,296.9,2,295.75,1,293,2,292,1,291.6,6,292,1,290,1,291.85,2,292,1,290.3,1,287.35,2,284.95,2,285.2,1,285.25,1,285.2,1,284.95,1,285,6,284.95,1,276.8,1,292.1,1,284.85,2,284.9,1,283.09,1,282.23,1,281.71,1,282.17,4,282.6,1,283.12,1,282.49,1,278.25,1,277.9,1,274.25,6,274.3,1,274.35,3,274.3,1,275.8,1,278.75,5,279,1,277.4,1,277,1,275.7,4,276,1,277,1,275,1,275.35,1,275.4,1,275.35,1,275.05,1,275.5,2,217,1,216.9,2,216.95,1,216.9,1,216.85,6,215.35,1,215,1,215.05,1,212.65,1,212.9,2,212.2,1,212.15,1,211.75,1,212.55,1,211.6,2,212.1,1,212.15,1,212.75,1,212.45,1,207.7,1,206.2,1,205.25,1,205.8,1,205.75,1,205.35,1,205,1,201.25,1,200.95,4,199.65,1,203.5,1,202.31,1,208.78,5,208,4,189,1,208,7,189,2,208,1,207.99,1,207.5,5,205,2,203.65,3,203.1,1,203,1,203.1,1,199.4,1,206.08,1,198.9,1,198.7,1,198.65,1,205.86,1,187.3,1,186.95,1,202,3,188.15,8,178,1,179,2,178.9,12,178,1,177.95,1,178,4,164.75,1,164.46,1,164.25,1,164.6,1,164.65,1,164.5,1,164.35,1,164.2,1,160.4,1,160.35,1,160.9,3,160.25,1,160.45,1,161.6,1,161.35,1,161.3,3,160.14,1,160.17,1,158.25,1,157.8,1,157.75,1,158.55,2,158,1,157.4,1,157.45,1,154.35,1,158.2,3,157.35,1,157.3,1,157.15,1,157,2,149,1,153.1,1,154,1,153.9,1,158,1,156.8,1,156.65,1,156.5,1,156.35,1,156.2,1,156.05,1,156.2,1,155.6,1,154.25,1,152.55,1,152.5,1,152.55,1,152.4,1,149.15,1,149.75,1,149.65,3,149.75,2,150.5,1,152,1,155.02,3,155.33,1,155.76,1,155.15,1,155.05,1,155.5,2,155.63,1,155.4,1,154.85,1,155.13,1,155.44,1,153.05,3,151.1,1,151.6,1,151.3,1,151.25,1,150.95,3,151.3,1,151.2,1,151.45,1,151.3,1,151.85,1,151.5,2,151.6,1,148.55,11,129,2,151,1,150.9,1,151.9,2,151,4,152.9,6,153.9,1,149.5,1,149.75,1,149.6,1,149.85,3,149.75,1,152.71,1,147.24,1,147.62,1,147.32,1,147.23,2,145.96,1,132.87,1,149.9,1,149.75,1,139,1,136.63,2,136.8,1,136.97,1,137.73,1,137.04,1,137.09,1,137.38,2,137.96,1,138.1,1,138.46,1,143.54,1,141.62,1,142.45,1,144.75,1,143.09,1,143.78,1,143.8,1,143.71,1,139.3,1,143.9,1,140.45,1,143.93,2,151,1,153.9,1,152.9,1,122.18,2,122.47,1,122.39,1,122.66,1,133.52,1,133.29,1,138.03,1,139.83,2,153,1,164.99,1,148.33,1,147.26,1,155.65,2,149.77,1,149.88,1,154.04,1,149.15,1,148.85,3,149.4,3,161,1,160.9,1,161,4,161.9,2,152.9,6,151.9,1,152.9,5,149.9,7,150.9,5,156.9,1,165.9,2,161.9,4,162.9,1,167.85,1,168.4,1,168,1,153.71,1,143.46,1,143.18,1,153.32,1,152,1,142.48,1,152,1,142.39,1,152,3,151.9,2,152,1,153.25,1,154.15,1,155.05,1,155.95,1,163.3,1,154.2,1,155.22,1,155.24,1,150.77,2,155.18,1,151.04,1,145.11,1,162,6,163.3,1,155.76,1,159,1,156.3,4,154,1,152.62,5,148.9,2,141.9,1,142.35,3,142.3,1,142.35,2,142.8,1,143.35,3,144.25,1,143.55,1,144.2,1,150.63,1,144.85,4,144,1,143.7,1,144.65,1,144.8,1,169.5,2,168,2,146,12,152.1,1,163,1,169.25,1,170,1,160.54,1,161,2,160.78,1,148.44,1,148.1,2,148.83,1,149.04,1,148.15,1,147.82,1,148.6,1,148.8,1,144.55,1,148.75,4,148.85,1,149.4,2,146.92,1,166.1,1,162,1,164,1,163,1,167.1,1,166.05,1,166.3,3,166,2,165.7,1,165.35,1,164.9,3,163.35,1,163.4,1,161.88,1,161.9,1,161.61,1,158.89,3,166.6,1,157.68,1,157.99,1,158.43,3,156.23,1,156.68,1,157.11,1,157.01,1,157.67,3,157.52,1,158.33,1,157.85,2,157.9,3,159.45,1,155.99,1,156.12,1,156.46,1,156.44,3,156.65,1,156.34,1,156.36,1,156,1,156.41,3,157.8,1,156.51,1,156.61,1,155.52,1,147.63,1,147.73,2,147.62,1,147.69,1,147.83,1,147.62,1,146.12,1,145.98,3,146.35,1,146.41,1,145.81,1,145.89,1,144.57,2,143.86,1,143,1,143.93,1,143.79,1,144.38,1,145.27,2,144.94,1,145.17,1,145.42,1,149.22,1,149.62,1,150.16,2,149.93,1,149.79,1,145.24,1,144.48,2,144.3,2,144.24,1,144.1,2,141.94,1,140.24,1,140.64,1,140.69,1,145.53,1,140.66,3,143.37,1,139.41,1,140.05,1,146.84,1,139.37,1,139.45,1,138.68,1,139.78,1,140.1,2,140.78,1,140.65,1,140,1,139.66,1,139.62,1,139.86,2,140.48,1,140.58,1,139.34,1,139.55,1,140.17,1,140.06,2,138.89,1,139.06,1,142.2,1,140.27,1,138.62,3,140.36,1,140.27,1,152.45,1,153.15,1,143.72,1,143.03,2,146.94,1,147.43,1,144,1,147.24,1,146.97,3,147.3,1,146.97,1,146.74,1,140.42,1,140.55,3,141.05,1,140.82,1,140.85,2,141.22,2,142.9,1,145.74,1,145.48,1,145.36,1,129.48,1,133.52,1,130.83,3,130.5,1,144.62,1,145,1,144.85,3,145.16,1,144.77,1,99.95,1,142.9,1,121.87,3,142.9,1,141.9,6,142.9,1,114.19,1,142.9,2,143.86,3,143.53,1,143.7,1,143.27,1,143.47,1,144.08,1,145.1,2,138.77,2,139,1,145.05,1,144.08,3,143.73,2,147.9,6,148.9,1,149.9,2,148.9,3,150.95,1,152.1,1,152.35,1,152.2,1,155.05,3,152.7,2,153.65,1,156.15,1,155.55,3,155.15,1,153.35,1,153.7,1,153.5,1,153.4,3,151.7,1,152.15,1,151.45,1,151.25,1,151.55,3,151.6,1,147.7,1,147.9,1,151.65,1,151.4,1,151.9,2,153.7,1,150.85,1,150.65,1,150.8,1,151.3,2,150.8,1,151.8,1,151.75,2,151.7,1,151.4,3,148.05,1,147.9,1,147.5,1,147.4,1,146.85,3,146.15,1,147.05,1,147.1,1,151.05,1,153.15,3,149.05,1,151.9,1,152.1,1,152.55,1,147.25,3,146.95,1,147.45,1,147.8,1,148.2,1,152.4,2,152.6,1,152.8,1,152.55,1,149.55,1,149.35,1,148.9,1,149.35,1,150.25,1,150.15,1,149.3,1,150,1,149.55,1,150,3,148.85,1,148.05,1,146.9,1,145.65,1,147.1,1,144.7,1,145.05,1,145.3,1,145.25,1,145,1,145.65,1,145.4,5,145.95,1,146.6,1,147.4,1,147.65,1,145.55,1,145.75,1,141.35,1,140.69,1,144.55,1,144.45,3,144.8,1,144.05,1,143.1,2,139.62,3,139.15,1,139.46,1,139.68,1,139.97,1,140.12,1,139.27,3,139.38,1,139.78,1,138.94,1,139.22,1,139.31,2,137.4,1,143.9,1,143.6,1,144.05,1,144.4,3,141.35,1,141.45,1,141.55,1,140.75,1,110.97,4,139.95,1,140.2,1,140.5,1,140.8,3,139.01,1,139.52,1,136.17,1,136.27,1,136.07,3,136.44,1,136.04,1,135.91,1,135.53,1,135.79,3,135.5,1,135.33,1,134.99,1,135.08,1,139.95,1,140.15,1,140.25,1,140.35,1,140.15,1,135.82,1,126.39,1,126.15,1,126.1,1,139.4,1,139.6,1,139.35,1,139.4,1,138.55,1,138.45,3,138.8,1,138.55,1,138.7,1,135.28,1,138.35,3,138.45,1,138.4,1,137.85,5,137.75,1,126.11,1,138.4,1,138.3,4,128.95,1,129.76,1,129.95,1,143,1,139.6,3,139.35,1,139.7,1,139.35,1,139.25,1,138.85,2,139.2,1,129.46,1,123.78,1,123.38,1,123.23,1,122.9,1,123.3,2,123.26,1,123.32,2,123.46,26,129.47,1,137.1,1,128.38,1,136.84,1,136.89,2,136.7,1,136.57,1,136.29,1,136.23,1,136.47,1,136.55,2,136.16,1,136.3,1,136.17,1,136.06,1,135.69,1,135.45,2,135.36,1,133.67,1,133.31,1,133.44,1,133.55,1,138.41,1,133.63,1,138.58,1,138.64,1,133.71,1,133.49,1,134.12,3,129.95,3,139.95,3,144.95,1,144.5,1,143.5,1,142.5,1,138.97,1,140.08,1,139.5,1,138.5,1,137.5,2,137.3,1,147.1,6,162.8,2,169.95,1,143.24,2,169.95,3,179,5,184.95,1,170.59,1,170.3,1,169.72,1,169.49,2,169.81,1,169.76,1,169.94,1,169.74,1,169.66,1,169.34,1,169.27,1,178.58,1,178.48,7,184.95,1,184.35,1,183.35,1,182.35,1,181.35,1,180.35,1,179.35,1,178.35,7,184.95,1,204.86,2,206,1,184.95,7,206,2,205.53,1,205.14,1,184.95,1,204.41,1,204.1,1,203.85,2,197.16,1,196.48,1,204.55,1,204.07,1,204.1,1,204.19,2,203.98,1,204.1,1,203.1,1,202.39,1,203.56,1,203.25,2,202.82,1,202.83,1,213.61,1,214.05,1,213.64,1,213.82,2,214.1,1,214,1,214.18,1,213.67,1,213.89,1,213.92,1,212.88,1,216.49,1,220.08,1,221.63,1,235.95,1,235.85,6,184.95,1,234.49,1,235.68,1,235.19,3,263,2,235.87,1,237.48,2,237.26,1,237.27,1,237.76,1,240.5,1,248.84,1,238.99,2,241.53,1,241.5,1,240.57,1,242.28,1,243.63,1,243.73,1,244.13,1,243.93,2,243.82,1,243.79,1,243.91,1,244.31,2,244.6,1,244.61,1,243.55,1,242.67,1,242.93,1,243.2,2,242.24,1,242.4,1,241.81,1,241.51,1,242.14,1,242.22,2,242.33,1,242.5,1,242.67,1,243.36,1,251.58,1,249.84,2,249.62,4,264,2,276.15,2,265.93,1,266.52,2,265.49,2,265.17,1,269.99,1,270.02,1,270.12,1,270.49,1,270.11,1,269.78,2,271.36,1,275.3,1,274.85,1,288.35,1,288.7,1,288.4,2,288.65,1,288.4,1,289,1,289.6,1,289.7,3,289.9,1,289.85,2,289.7,1,289.8,16,289.7,1,279.95,5,289.7,2,291.6,1,291.8,1,292.2,5,294.7,1,292,1,293.35,1,294.75,1,294.7,3,293.05,1,294.7,3,189,10,294.7,11,294.65,4,294.95,1,294.65,1,285.5,14,294.65,1,305.55,3,304.8,1,306.85,1,298.7,13,299,2,298.7,2,299,1,298.7,1,299,1,298.7,1,307.15,1,307.9,1,307.45,1,310.25,1,311.45,1,219,2,311.45,6,310.3];
 
 
+
+
   const DAY_MS = 86400000;
 
   const PRESET_DATA_SYNTHETIC = [1,425,1,422,1,428,1,419,1,424,1,421,1,427,1,423,1,418,1,426,1,150,1,429,1,424,1,420,1,426,1,2500,1,422,1,419,1,425,1,421,1,427,1,423,1,420];
@@ -6606,7 +6627,7 @@ const SHADOW_MODAL_STYLES = `
     const medianY = o.median > 0 ? y(o.median) : null;
     const glitchXY = (o.dropped || []).map(g => ({ x: fracX(g.timestamp), y: y(g.price) }));
     const keptXY = (o.band > 0 && ref > 0)
-      ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => ({ x: fracX(p[0]), y: y(p[1]) }))
+      ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => ({ x: fracX(p[0]), y: y(p[1]), ts: p[0] }))
       : [];
     const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
       ? { x: m.left + innerW, y: y(o.cardPrice) }
@@ -6614,7 +6635,7 @@ const SHADOW_MODAL_STYLES = `
     const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
-    return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY, rawAttr };
+    return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY, rawAttr, fracX };
   }
 
   let activePresetId = 's26';
@@ -6635,6 +6656,32 @@ const SHADOW_MODAL_STYLES = `
     return box;
   }
 
+  function getPageProductOptions(limit = 30) {
+    const out = [];
+    const seen = new Set();
+    let cards = [];
+    try {
+      cards = Array.from(document.querySelectorAll(SELECTORS.cards.standard));
+    } catch (e) { return out; }
+    if (!cards.length) {
+      try { cards = Array.from(document.querySelectorAll('a.Plugin_Product, .mixedBrowsingListProduct')); } catch (e) { return out; }
+    }
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    for (const card of cards) {
+      if (out.length >= limit) break;
+      const pid = card.dataset?.entityId || card.dataset?.tpProductId;
+      if (!pid || seen.has(pid)) continue;
+      seen.add(pid);
+      let entry = null;
+      try { entry = getCachedPriceStats(pid); } catch (e) { continue; }
+      if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
+      const title = (card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
+      out.push({ pid, label: esc(`${title || `pid ${pid}`}${med}`), card });
+    }
+    return out;
+  }
+
   function refreshCalcPreview() {
     const svg = document.getElementById('tp-preview-svg');
     const legend = document.getElementById('tp-preview-legend');
@@ -6642,10 +6689,30 @@ const SHADOW_MODAL_STYLES = `
     const status = document.getElementById('tp-preview-status');
     if (!svg || !legend || !blend || !status) return;
     const sel = document.getElementById('tp-preview-preset-select');
-    const preset = getPreset(sel ? sel.value : activePresetId);
-    activePresetId = preset.id;
+    const pageOpts = getPageProductOptions();
+    const prevVal = sel ? sel.value : activePresetId;
+    if (sel) {
+      sel.innerHTML = Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')
+        + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${o.pid}">${o.label}</option>`).join('')}</optgroup>` : '');
+      sel.value = (PRESETS[prevVal] || (typeof prevVal === 'string' && prevVal.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === prevVal))) ? prevVal : activePresetId;
+    }
+    const selVal = sel ? sel.value : activePresetId;
     const now = Date.now();
-    const points = expandRleSeries(preset.rle, now);
+    let points;
+    let cardPrice;
+    const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? pageOpts.find(o => `page:${o.pid}` === selVal) : null;
+    if (pageHit) {
+      activePresetId = selVal;
+      const entry = getCachedPriceStats(pageHit.pid) || {};
+      points = Array.isArray(entry.timeSeries) ? entry.timeSeries : [];
+      const live = parsePrice(pageHit.card.querySelector('.productPrice .Plugin_Price')?.textContent || '');
+      cardPrice = live > 0 ? live : (entry.anchorPrice || 0);
+    } else {
+      const preset = getPreset(selVal);
+      activePresetId = preset.id;
+      points = expandRleSeries(preset.rle, now);
+      cardPrice = preset.cardPrice;
+    }
     const num = (id, fb) => {
       const el = document.getElementById(id);
       if (!el) return fb;
@@ -6660,15 +6727,21 @@ const SHADOW_MODAL_STYLES = `
     const toggle = document.getElementById('tp-bar-outlier-toggle');
     const enabled = toggle ? toggle.checked : true;
     const band = Math.min(90, Math.max(20, num('tp-bar-outlier-band-range', 60))) / 100;
-    const hours = Math.min(168, Math.max(12, num('tp-bar-outlier-hours-range', 48)));
-    const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice: preset.cardPrice, now });
-    const { visible, visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
+    const hours = Math.min(168, Math.max(24, num('tp-bar-outlier-hours-range', 48)));
+    const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
+    const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
     const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
-    const co = previewCoords(visible, { median: st.median, refMedian: st.filterMedian, band: enabled ? band : 0, cardPrice: preset.cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
+    const co = previewCoords(st.clean, { median: st.median, refMedian: st.median, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
     if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
+    if (st.cutoffTs != null) {
+      const cx = co.fracX(st.cutoffTs);
+      s += `<rect x="${PV_MARGIN.left}" y="${PV_MARGIN.top}" width="${f1(Math.max(0, cx - PV_MARGIN.left))}" height="${110 - PV_MARGIN.top - PV_MARGIN.bottom}" fill="#64748b" opacity="0.08"/>`;
+      s += `<line class="tp-pv-cut" x1="${f1(cx)}" x2="${f1(cx)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#64748b" stroke-dasharray="3 2" stroke-width="1"/>`;
+      s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
+    }
     if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = co.bandEdges.top, yB = co.bandEdges.bot; s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(Math.max(0, yB - yT))}" fill="#3b82f6" opacity="0.18"/>`; if (!co.bandEdges.topClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yT)}" y2="${f1(yT)}" stroke="#3b82f6" stroke-width="1"/>`; if (!co.bandEdges.botClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yB)}" y2="${f1(yB)}" stroke="#3b82f6" stroke-width="1"/>`; }
     for (const t of co.ticks) {
       s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
@@ -6677,15 +6750,16 @@ const SHADOW_MODAL_STYLES = `
       s += `<line class="tp-pv-rec" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.recordY)}" y2="${f1(co.recordY)}" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * weightRecord}"/>`;
     }
     if (co.medianY !== null) {
-      s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
+      s += `<line class="tp-pv-med" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
     }
     if (co.pointsAttr) {
       s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
     }
     for (const g of co.glitchXY) {
-      s += `<text x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
+      s += `<text class="tp-pv-x" x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
     }
-    for (const k of (co.keptXY || [])) {
+    const keptVisible = (co.keptXY || []).filter(k => st.cutoffTs == null || k.ts >= st.cutoffTs);
+    for (const k of keptVisible) {
       s += `<circle class="tp-pv-kept" cx="${f1(k.x)}" cy="${f1(k.y)}" r="2.5" fill="none" stroke="#a855f7" stroke-width="1.5"/>`;
     }
     if (co.anchor) {
@@ -6694,13 +6768,17 @@ const SHADOW_MODAL_STYLES = `
     }
     svg.innerHTML = s;
     const n = visibleDropped.length;
-    const k = (co.keptXY || []).length;
-    legend.textContent = !enabled
-      ? 'Ausreißer-Filter aus — Rohhistorie'
-      : `${n} Glitch${n === 1 ? '' : 'es'} gefiltert (${hours} h, ±${Math.round(band * 100)} %)${k > 0 ? ` · ${k} außerhalb behalten` : ''}`;
-    blend.textContent = st.qualifies
-      ? `Badge \u2212${st.badge}% = \u00d8 \u2212${st.dMedian}% (${100 - Math.round(weightRecord * 100)}%) + Rekord \u2212${st.dRecord}% (${Math.round(weightRecord * 100)}%)`
-      : 'kein Tiefstpreis zum Demo-Preis \u2013 kein Badge';
+    if (!enabled) {
+      legend.textContent = 'Ausreißer-Filter aus — Rohhistorie';
+    } else {
+      legend.innerHTML = `<span class="tp-pv-chip">🧹 ${n} Glitch${n === 1 ? '' : 'es'}</span><span class="tp-pv-chip">📊 ${st.windowCount} Pkt ${st.activeCount >= minPoints ? '✓' : '✗'}</span>`;
+    }
+    if (st.qualifies) {
+      const w = Math.round(weightRecord * 100);
+      blend.innerHTML = `<span class="badge-dif tp-deal-alltime-low">⚖️ −${st.badge}%</span><span class="tp-pv-formula"><i style="width:${100 - w}%"></i><b style="width:${w}%"></b></span>`;
+    } else {
+      blend.textContent = 'kein Tiefstpreis zum Demo-Preis – kein Badge';
+    }
     const windowPart = horizonDays === 0 ? `${st.windowCount} Punkte` : `${st.windowCount} im Fenster`;
     status.textContent = `\u00d8 ${fmtPreviewMedian(st.median)} \u00b7 ${horizonText(horizonDays)} \u00b7 ${windowPart} \u00b7 ${st.activeCount} aktiv (min. ${minPoints} ${st.activeCount >= minPoints ? '\u2713' : '\u2717'})`;
   }
@@ -6778,6 +6856,14 @@ const SHADOW_MODAL_STYLES = `
   }
 
 
+  function pokePreviewFocus(kind) {
+    const box = document.getElementById('tp-calc-preview');
+    if (!box) return;
+    box.dataset.focus = kind;
+    clearTimeout(box._tpFocusT);
+    box._tpFocusT = setTimeout(() => { if (box.dataset.focus === kind) delete box.dataset.focus; }, 600);
+  }
+
   function bindWeightControls(wrapper) {
     const weightRange = wrapper.querySelector('#tp-bar-weight-range');
     const weightLabel = wrapper.querySelector('#tp-bar-weight-label');
@@ -6793,6 +6879,7 @@ const SHADOW_MODAL_STYLES = `
     let deb;
     weightRange.oninput = () => {
       paintWeightLabel();
+      pokePreviewFocus('weight');
       clearTimeout(deb);
       deb = setTimeout(() => {
         updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
@@ -6877,6 +6964,7 @@ const SHADOW_MODAL_STYLES = `
     let deb;
     range.oninput = () => {
       paintHorizonLabel();
+      pokePreviewFocus('window');
       clearTimeout(deb);
       deb = setTimeout(() => {
         const v = readHorizon();
@@ -6961,6 +7049,7 @@ const SHADOW_MODAL_STYLES = `
     let deb;
     range.oninput = () => {
       paintBandLabel();
+      pokePreviewFocus('band');
       clearTimeout(deb);
       deb = setTimeout(() => {
         const pct = readBandPct();
@@ -7001,13 +7090,14 @@ const SHADOW_MODAL_STYLES = `
     if (!range) return;
     const readHours = () => {
       const raw = parseInt(range.value, 10);
-      return isNaN(raw) ? 48 : Math.min(168, Math.max(12, raw));
+      return isNaN(raw) ? 48 : Math.min(168, Math.max(24, raw));
     };
     const paintHoursLabel = () => { if (label) label.textContent = `${readHours()} h`; };
     paintHoursLabel();
     let deb;
     range.oninput = () => {
       paintHoursLabel();
+      pokePreviewFocus('band');
       clearTimeout(deb);
       deb = setTimeout(() => {
         const hrs = readHours();
@@ -7036,7 +7126,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.innerHTML = `
       <span class="tp-stepper-label">Glitch-Fenster</span>
       <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>
-      <input type="range" id="tp-bar-outlier-hours-range" min="12" max="168" step="12" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
+      <input type="range" id="tp-bar-outlier-hours-range" min="24" max="168" step="24" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
     bindOutlierHoursControls(wrapper);
     return wrapper;
   }

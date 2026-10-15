@@ -196,7 +196,7 @@ describe('Price Domain Module', () => {
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-      const droppedSingle = withConfig('OUTLIER_MAX_GLITCH_HOURS', 12, () => sanitizeTimeSeries(single, 0.60));
+      const droppedSingle = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(single, 0.60));
       assert.equal(droppedSingle.filteredOutliers.length, 1);
       assert.equal(droppedSingle.filteredOutliers[0].price, 20);
       const pair = [
@@ -325,6 +325,23 @@ describe('Price Domain Module', () => {
       const tight = sanitizeTimeSeries(series, 0.08, 48);
       assert.equal(tight.filteredOutliers.length, 1);
       assert.equal(tight.filteredOutliers[0].price, 847);
+    });
+
+    it('keeps a sustained 1249→930 decay over 60 daily points at ±20% (rolling median)', () => {
+      const now = Date.now();
+      const series = Array.from({ length: 60 }, (_, i) => [now - (59 - i) * DAY, 1249 - i * (319 / 59)]);
+      const result = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series, 0.20));
+      assert.equal(result.filteredOutliers.length, 0);
+      assert.equal(result.cleanPoints.length, 60);
+      assert.equal(result.cleanPoints[0][1], 1249);
+    });
+
+    it('drops a lone 847 dip in flat 929 history at ±5% (rolling median)', () => {
+      const now = Date.now();
+      const series = Array.from({ length: 31 }, (_, i) => [now - (30 - i) * DAY, i === 15 ? 847 : 929]);
+      const result = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series, 0.05));
+      assert.equal(result.filteredOutliers.length, 1);
+      assert.equal(result.filteredOutliers[0].price, 847);
     });
 
     it('uses the true median for even-length series (no upper-median bias)', () => {

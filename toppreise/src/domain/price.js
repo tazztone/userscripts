@@ -168,7 +168,16 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   const cleanPoints = [];
   const filteredOutliers = [];
   const n = sorted.length;
-  const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
+  // Rolling ±15-point local medians: a sustained level (launch prices,
+  // regime shifts) is normal against its neighbors even when far from the
+  // lifetime median. Edge windows shrink; no padding.
+  // ponytail: O(n·31 log 31) scan; fine at n ≈ 4000, no optimization.
+  const localMedians = sorted.map((_, m) => {
+    const win = [];
+    for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(sorted[w][1]);
+    return medianOf(win.sort((a, b) => a - b));
+  });
+  const isNormalAt = m => localMedians[m] > 0 && Math.abs(sorted[m][1] - localMedians[m]) / localMedians[m] <= band;
   const localThreshold = Math.min(band, 0.05);
   const isLocallySharp = m => {
     const refs = [];
@@ -180,14 +189,14 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   };
   let i = 0;
   while (i < n) {
-    if (isNormal(sorted[i][1])) {
+    if (isNormalAt(i)) {
       cleanPoints.push(sorted[i]);
       i++;
       continue;
     }
     const j = i;
     let k = j;
-    while (k < n && !isNormal(sorted[k][1])) k++;
+    while (k < n && !isNormalAt(k)) k++;
     if (j > 0 && k < n) {
       const durH = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6;
       let isGlitch = durH <= maxGlitchHours + 0.5;
@@ -200,8 +209,8 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     } else {
       let isGlitch = false;
       if (k - j === 1) {
-        if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
-        else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
+        if (j === 0 && n > 1 && isNormalAt(1)) isGlitch = true;
+        else if (k === n && n > 1 && isNormalAt(n - 2) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
       } else if (j === 0 || k === n) {
         isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
         if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }

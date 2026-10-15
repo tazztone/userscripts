@@ -124,14 +124,15 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // (getHeatInput) feeds BOTH the card heat here and the badge number below,
   // so the ribbon number always matches its color. The blend sorts too.
   // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
-  // unverified site-%. Verified-state differentiation lives in badge
-  // text/tooltip + Verbergen/Dimmen, never in the card wash. The badge paint
-  // below is verified-only, so heated unverified badges keep the striped
-  // `.tp-is-unverified` cue while the card body still glows.
+  // unverified site-%. Unverified cards render the same wash at 0.35×
+  // intensity so verified deals always outshine them. The badge paint below
+  // is verified-only, so heated unverified badges keep the striped
+  // `.tp-is-unverified` cue while the card body glows faintly.
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
   const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
-  const heatIntensity = CONFIG.HEATMAP_INTENSITY;
+  const verified = !!stats && !stats.unavailable;
+  const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
 
   // Blind inset wash: every heatable card gets the same prominent signal,
   // clipped to the card's own edges.

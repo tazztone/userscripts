@@ -306,7 +306,7 @@ if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_M
 if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
 else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.20, CONFIG.OUTLIER_DEVIATION_BAND));
 if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
-else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(12, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
+else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(24, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
 export const saveConfigKey = (key, val) => {
   if (SECRET_KEYS.has(key)) return;
@@ -553,7 +553,7 @@ export function syncUiControl(key, val, opts = {}) {
             break;
           }
           case 'OUTLIER_MAX_GLITCH_HOURS': {
-            const hrs = Math.min(168, Math.max(12, parseInt(val ?? 48, 10) || 48));
+            const hrs = Math.min(168, Math.max(24, parseInt(val ?? 48, 10) || 48));
             const hoursRange = bar.querySelector('#tp-bar-outlier-hours-range');
             if (hoursRange && document.activeElement !== hoursRange) hoursRange.value = hrs;
             const hoursLabel = bar.querySelector('#tp-bar-outlier-hours-label');

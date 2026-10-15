@@ -70,6 +70,14 @@ function bindBestpreiseBtn(btn) {
 }
 
 
+function pokePreviewFocus(kind) {
+  const box = document.getElementById('tp-calc-preview');
+  if (!box) return;
+  box.dataset.focus = kind;
+  clearTimeout(box._tpFocusT);
+  box._tpFocusT = setTimeout(() => { if (box.dataset.focus === kind) delete box.dataset.focus; }, 600);
+}
+
 function bindWeightControls(wrapper) {
   const weightRange = wrapper.querySelector('#tp-bar-weight-range');
   const weightLabel = wrapper.querySelector('#tp-bar-weight-label');
@@ -85,6 +93,7 @@ function bindWeightControls(wrapper) {
   let deb;
   weightRange.oninput = () => {
     paintWeightLabel();
+    pokePreviewFocus('weight');
     clearTimeout(deb);
     deb = setTimeout(() => {
       updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
@@ -169,6 +178,7 @@ function bindHorizonControls(wrapper) {
   let deb;
   range.oninput = () => {
     paintHorizonLabel();
+    pokePreviewFocus('window');
     clearTimeout(deb);
     deb = setTimeout(() => {
       const v = readHorizon();
@@ -253,6 +263,7 @@ function bindOutlierBandControls(wrapper) {
   let deb;
   range.oninput = () => {
     paintBandLabel();
+    pokePreviewFocus('band');
     clearTimeout(deb);
     deb = setTimeout(() => {
       const pct = readBandPct();
@@ -293,13 +304,14 @@ function bindOutlierHoursControls(wrapper) {
   if (!range) return;
   const readHours = () => {
     const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 48 : Math.min(168, Math.max(12, raw));
+    return isNaN(raw) ? 48 : Math.min(168, Math.max(24, raw));
   };
   const paintHoursLabel = () => { if (label) label.textContent = `${readHours()} h`; };
   paintHoursLabel();
   let deb;
   range.oninput = () => {
     paintHoursLabel();
+    pokePreviewFocus('band');
     clearTimeout(deb);
     deb = setTimeout(() => {
       const hrs = readHours();
@@ -328,7 +340,7 @@ function buildOutlierHoursWrapper() {
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Glitch-Fenster</span>
     <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>
-    <input type="range" id="tp-bar-outlier-hours-range" min="12" max="168" step="12" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
+    <input type="range" id="tp-bar-outlier-hours-range" min="24" max="168" step="24" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
   bindOutlierHoursControls(wrapper);
   return wrapper;
 }

@@ -685,7 +685,7 @@ export function setupUI() {
             else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
             else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
             else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.20, coerced));
-            else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(12, Math.round(coerced)));
+            else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(24, Math.round(coerced)));
             else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
             else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
             else if (key === 'NEGATIVE_CACHE_HOURS') coerced = Math.max(1, Math.min(24, Math.round(coerced)));
