@@ -252,7 +252,7 @@ export function refreshCalcPreview() {
   if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
   if (st.cutoffTs != null) {
     const cx = co.fracX(st.cutoffTs);
-    s += `<rect x="${PV_MARGIN.left}" y="${PV_MARGIN.top}" width="${f1(Math.max(0, cx - PV_MARGIN.left))}" height="${110 - PV_MARGIN.top - PV_MARGIN.bottom}" fill="#64748b" opacity="0.08"/>`;
+    s += `<rect x="${PV_MARGIN.left}" y="${PV_MARGIN.top}" width="${f1(Math.max(0, cx - PV_MARGIN.left))}" height="${110 - PV_MARGIN.top - PV_MARGIN.bottom}" fill="#64748b" opacity="0.22"/>`;
     s += `<line class="tp-pv-cut" x1="${f1(cx)}" x2="${f1(cx)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#64748b" stroke-dasharray="3 2" stroke-width="1"/>`;
     s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
   }
