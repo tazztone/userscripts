@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.262
+// @version      2.18.263
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4827,27 +4827,11 @@ const SHADOW_MODAL_STYLES = `
     freshTimer = setTimeout(installFreshListeners, 5000);
   }
 
-  // ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────
+  // ─── MODULE: src/ui/badges/dom-helpers.js ───────────────────────────────────
   /**
-   * Visual Badges & Card Decorator Component
-   * Manages card thermal heatmaps, deal badges (Allzeit-Tiefstpreis,
-   * Neuer Rekord, Differenz loupe, markup alert), score breakdown pills,
-   * mini sparklines, and empty-state messaging.
+   * Badges DOM helpers (split from ui/badges.js): idempotent element painters.
+   * Zero imports. Names frozen (toolbar, floating-cta import setTextIfChanged).
    */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   function setHtmlIfChanged(el, newHtml) {
     if (el && el.innerHTML !== newHtml) {
@@ -4881,6 +4865,25 @@ const SHADOW_MODAL_STYLES = `
     }
     return el;
   }
+
+  // ─── MODULE: src/ui/badges/deal-badge.js ────────────────────────────────────
+  /**
+   * Deal badge (split from ui/badges.js): dealer memory + verify flow, card heat
+   * wash (renderHeat) and badge verdict (renderBadgeVerdict, steps 0-4).
+   * Both halves take one shared ctx computed once by the card-chrome orchestrator:
+   * {card, pid, cardPrice, cardPriceEl, stats, diffVal, dealData, displayDelta,
+   * heatInfo, effectiveDiff} — neither half recomputes (ADR-0005 single-source rule).
+   */
+
+
+
+
+
+
+
+
+
+
   // Single-product verify flow. Reads price at click time and re-verifies it
   // after fetch so a stale or swapped card never paints another product's stats.
   // Händlername (§8 in renderCardEffects): Memory-Map pid:Modus -> Name.
@@ -4936,26 +4939,13 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-    const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
-    const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
-    const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
-
-    // Heatmap (blind): gray (no deal) -> red (max savings), single hue
-    // (ADR-0005: badge shows the blend, heat/sort follow it). One computation
-    // (getHeatInput) feeds BOTH the card heat here and the badge number below,
-    // so the ribbon number always matches its color. The blend sorts too.
-    // Blind rule: heat follows the badge % only — blend, Vortief-Abstand, or
-    // unverified site-%. Unverified cards render the same wash at 0.35×
-    // intensity so verified deals always outshine them. The badge paint below
-    // is verified-only, so heated unverified badges keep the striped
-    // `.tp-is-unverified` cue while the card body glows faintly.
-    const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
-    const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
-    const effectiveDiff = heatInfo.value;
+  // Heatmap wash (blind): gray (no deal) -> red (max savings). Single hue
+  // (ADR-0005: badge shows the blend, heat/sort follow it). heatInfo comes
+  // from the orchestrator — never recomputed here.
+  function renderHeat(ctx) {
+    const { card, pid, stats, heatInfo, effectiveDiff } = ctx;
     const verified = hasUsablePriceStats(stats);
     const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
-
     // Blind inset wash: every heatable card gets the same prominent signal,
     // clipped to the card's own edges.
     if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
@@ -5015,7 +5005,13 @@ const SHADOW_MODAL_STYLES = `
      } else {
       card.classList.remove('tp-is-verified');
      }
+  }
 
+
+  // Filter + dealer verdict (steps 2-3): hide/dim flags land on `filters`
+  // (isFiltered/isDimmed/isDealerLoser) for the scan counters downstream.
+  function renderFilterVerdict(ctx, filters, activeStores) {
+    const { card, stats, cardPrice } = ctx;
     // 2. Filters
     card.classList.toggle('tp-negative-filtered', filters.isNeg);
     card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
@@ -5062,7 +5058,13 @@ const SHADOW_MODAL_STYLES = `
     card.classList.toggle('tp-dimmed', dim);
     const sortUnit = getCardSortableUnit(card);
     if (sortUnit && sortUnit !== card) sortUnit.classList.toggle('tp-col-filtered', hide);
+  }
 
+  // Badge setup (step 4 head): placement, first-render heat catch-up, discount
+  // parse, single check-control binding. Returns null when there is no badge
+  // node (caller runs the no-badge cleanup instead).
+  function renderBadgeSetup(ctx, isNeueFeed) {
+    const { card, pid, cardPriceEl, stats, effectiveDiff } = ctx;
     // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
     let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     // Remove any legacy floating wrappers if present
@@ -5151,8 +5153,28 @@ const SHADOW_MODAL_STYLES = `
           }
         });
       }
+      return { badgeDifEl, isListView, sitePctText, rawDiscount };
+    }
+    return null;
+  }
 
-      if (CONFIG.BESTPREISE_MODE_ACTIVE) {
+  // ─── MODULE: src/ui/badges/deal-verdict.js ──────────────────────────────────
+  /**
+   * Deal verdict (split from ui/badges.js): mode + browse badge verdicts.
+   * renderBadgeVerdict runs badge setup (deal-badge.js) then one branch —
+   * the blend stays single-sourced from ctx.heatInfo (ADR-0005).
+   */
+
+
+
+
+
+
+
+
+  // Tiefstpreis-mode verdict: ribbon prints the Gewichtete Differenz (blend).
+  function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctText, rawDiscount) {
+    const { card, pid, cardPrice, cardPriceEl, stats, dealData, displayDelta, heatInfo } = ctx;
         if (dealData) {
           // Qualified Tiefstpreis! The ribbon prints the Gewichtete Differenz
           // (ADR-0005) — NIE die Site-Differenz. Heat and sort follow the same
@@ -5306,7 +5328,11 @@ const SHADOW_MODAL_STYLES = `
           }
           card.querySelector('.tp-card-historical-price')?.remove();
         }
-      } else {
+  }
+
+  // Browse verdict: verified low/markup ribbons + historical line, else loupe.
+  function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount) {
+    const { card, pid, cardPrice, cardPriceEl, stats, dealData, displayDelta, heatInfo } = ctx;
         card.classList.remove('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record');
 
@@ -5448,12 +5474,46 @@ const SHADOW_MODAL_STYLES = `
             }
           }
         }
-      }
-    } else {
+  }
+
+  // Step-4 orchestrator: setup first, then the mode/browse branch — the
+  // no-badge cleanup mirrors the original else path.
+  function renderBadgeVerdict(ctx, filters, isNeueFeed) {
+    const { card } = ctx;
+    const setup = renderBadgeSetup(ctx, isNeueFeed);
+    if (!setup) {
       card.classList.remove('tp-unchecked-hidden');
       card.querySelector('.tp-card-historical-price')?.remove();
+      return;
     }
+    const { badgeDifEl, isListView, sitePctText, rawDiscount } = setup;
+    if (CONFIG.BESTPREISE_MODE_ACTIVE) renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctText, rawDiscount);
+    else renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount);
+  }
 
+  // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
+  /**
+   * Card chrome (split from ui/badges.js): sparkline row, verified cue, share
+   * button, dealer name, review button, fresh glow, empty state — plus the
+   * renderCardEffects orchestrator (signature frozen, app.js untouched).
+   */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Mini price-trend sparkline + history strip (step 5).
+  function renderSparklineRow(ctx) {
+    const { card, cardPrice, cardPriceEl, stats } = ctx;
     // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
     // pill spans from the share-button zone to the card's right edge, using
     // full card width instead of the narrow price-info column).
@@ -5523,6 +5583,11 @@ const SHADOW_MODAL_STYLES = `
         }
       }
     }
+  }
+
+  // Badge verified/unverified cue (step 6).
+  function applyVerifiedCue(ctx) {
+    const { card, stats } = ctx;
     // 6. Badge geprüft/ungeprüft cue (always on): striped-gray ribbon when
     // unchecked, solid heat ribbon when verified. Loading badge gets neither.
     const badgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
@@ -5537,6 +5602,11 @@ const SHADOW_MODAL_STYLES = `
         badgeEl.classList.remove('tp-is-unverified');
       }
     }
+  }
+
+  // Discord 1-click share (step 7): verified lows only.
+  function renderShareButton(ctx, cd) {
+    const { card, pid, cardPrice, stats, dealData, displayDelta } = ctx;
     // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
     const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
     const isShareable = !!(dealData || kindNow === 'new-low' || kindNow === 'at-low');
@@ -5628,6 +5698,11 @@ const SHADOW_MODAL_STYLES = `
     } else {
       shareBtn?.remove();
     }
+  }
+
+  // Dealer name left of price (step 8). Owns the loadDealer closure.
+  function renderDealerName(ctx, filters) {
+    const { card, pid, cardPriceEl, stats } = ctx;
     // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
     // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
     // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
@@ -5723,6 +5798,11 @@ const SHADOW_MODAL_STYLES = `
         dealerEl?.remove();
       }
     }
+  }
+
+  // Review search on product name (step 9).
+  function renderReviewButton(ctx) {
+    const { card } = ctx;
     // 9. Review-Suche (🌐) am Produktnamen: Ansicht, immer wenn aktiviert.
     // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
     const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
@@ -5754,6 +5834,11 @@ const SHADOW_MODAL_STYLES = `
     } else {
       card.querySelector('.tp-review-search-btn')?.remove();
     }
+  }
+
+  // Fresh-deal glow for newly verified good deals.
+  function applyFreshGlow(ctx) {
+    const { card, pid, stats } = ctx;
     // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
     // above is the single source of truth for "good deal" — no duplicate math.
     const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
@@ -5810,6 +5895,33 @@ const SHADOW_MODAL_STYLES = `
       emptyNotice.remove();
     }
   }
+
+  // Orchestrator (signature frozen — app.js untouched): builds ctx once,
+  // paints heat + verdict, then chrome steps in the original order.
+  function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
+    const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
+    const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
+    const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
+    const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
+    const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
+    const effectiveDiff = heatInfo.value;
+    const ctx = { card, pid, cardPrice, cardPriceEl, stats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+    renderHeat(ctx);
+    renderFilterVerdict(ctx, filters, activeStores);
+    renderBadgeVerdict(ctx, filters, isNeueFeed);
+    renderSparklineRow(ctx);
+    applyVerifiedCue(ctx);
+    renderShareButton(ctx, cd);
+    renderDealerName(ctx, filters);
+    renderReviewButton(ctx);
+    applyFreshGlow(ctx);
+  }
+
+  // ─── MODULE: src/ui/badges.js ───────────────────────────────────────────────
+  /**
+   * Badges barrel (split into ui/badges/ parts): every existing
+   * `from './ui/badges.js'` path keeps working.
+   */
 
   // ─── MODULE: src/ui/shell.js ────────────────────────────────────────────────
   /**
