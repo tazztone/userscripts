@@ -11,6 +11,7 @@ ENV/
 
 # Playwright browser binaries
 .playwright-browsers/
+.codebase-memory/
 
 # Node dependencies
 node_modules/
