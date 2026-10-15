@@ -43,6 +43,16 @@ export const bumpCacheGeneration = () => { cacheGeneration++; };
 export function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
   return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
 }
+export function ensureFreshAnalysis(entry) {
+  if (!entry || entry.unavailable || entry.medianSig === currentMedianSig()) return entry;
+  const src = fullSeries(entry);
+  if (!Array.isArray(src)) return entry;
+  try {
+    const fresh = analyzePriceTimeSeries(src, entry.anchorPrice ?? null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    if (fresh) return { ...entry, ...fresh, time: entry.time, medianSig: currentMedianSig() };
+  } catch {}
+  return entry;
+}
 function fullSeries(entry) {
   if (!entry) return null;
   if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
@@ -130,9 +140,10 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
         if (!isModeMatch(memData)) {
           memoryCache.delete(key);
         } else {
+          const fresh = ensureFreshAnalysis(memData);
           // LRU update
-          lruSet(memoryCache, key, memData);
-          return memData;
+          lruSet(memoryCache, key, fresh);
+          return fresh;
         }
       } else {
         memoryCache.delete(key);
@@ -164,15 +175,7 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
       if (!isModeMatch(parsed)) { try { storage?.removeItem(key); } catch (e) {} return null; }
       // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
       // stale-sig entries with a series recompute synchronously, no refetch.
-      if (!parsed.unavailable && parsed.medianSig !== currentMedianSig()) {
-        const src = fullSeries(parsed);
-        if (Array.isArray(src)) {
-          try {
-            const fresh = analyzePriceTimeSeries(src, parsed?.anchorPrice ?? null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-            if (fresh) parsed = { ...parsed, ...fresh, time: parsed.time, medianSig: currentMedianSig() };
-          } catch (e) {}
-        }
-      }
+      parsed = ensureFreshAnalysis(parsed);
       lruSet(memoryCache, key, parsed);
       try {
         const repersist = (parsed.timeSeries && parsed.rawTimeSeries) ? { ...parsed, rawTimeSeries: undefined } : parsed;

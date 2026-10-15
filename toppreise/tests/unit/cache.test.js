@@ -18,6 +18,7 @@ import {
   setSharedDeal,
   statsKey,
   hasUsablePriceStats,
+  ensureFreshAnalysis,
   currentCacheGen,
   bumpCacheGeneration,
 } from '../../src/scanner/cache.js';
@@ -189,6 +190,25 @@ describe('Bounded Cache Module', () => {
         assert.equal(memoryCache.get(statsKey('xmode')), before);
       });
       memoryCache.delete(statsKey('xmode'));
+    });
+    it('heals stale-sig memory hits on read without recomputeCachedMedians', () => {
+      const now = Date.now();
+      const series = [
+        [now - 500 * DAY, 2000],
+        [now - 400 * DAY, 1900],
+        [now - 60 * DAY, 800],
+        [now - 30 * DAY, 780],
+        [now, 750]
+      ];
+      withConfig('OUTLIER_REJECTION_ENABLED', false, () => {
+        const seed = analyzePriceTimeSeries(series, null, 0);
+        assert.equal(seed.medianPrice, 800);
+        withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 0, () => setCachedPriceStats('heal1', seed, false, null));
+        const healed = withConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', 90, () => getCachedPriceStats('heal1', false, null));
+        assert.equal(healed.medianPrice, 780);
+        assert.equal(healed.horizonDays, 90);
+      });
+      memoryCache.delete(statsKey('heal1'));
     });
   });
 

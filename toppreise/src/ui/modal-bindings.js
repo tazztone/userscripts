@@ -140,7 +140,7 @@ export function bindDual(rangeEl, numEl, onInput = null) {
     if (!rangeEl || !numEl) return;
     rangeEl.addEventListener('input', e => {
       numEl.value = e.target.value;
-      onInput?.(parseFloat(e.target.value));
+      onInput?.(parseFloat(e.target.value), { source: 'range' });
     });
     numEl.addEventListener('input', e => {
       // Clamp typed values into the slider's range so the pair can't desync.
@@ -152,7 +152,7 @@ export function bindDual(rangeEl, numEl, onInput = null) {
       } else {
         rangeEl.value = e.target.value;
       }
-      onInput?.(parseFloat(e.target.value));
+      onInput?.(parseFloat(e.target.value), { source: 'number' });
     });
 }
 
@@ -181,15 +181,15 @@ export function bindControlPairs(els) {
   bindDual(els.realDealMinRange, els.realDealMinVal);
 
   bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
-  bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw) => {
+  bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw, meta) => {
     // Range tops out at the 760 Lifetime sentinel (>730 → 0); a typed number
     // is literal so values like 1000 round-trip through the schema (max 3650).
-    const fromNumber = typeof document !== 'undefined' && document.activeElement === els.bestpreiseHorizonVal;
+    const fromNumber = meta?.source === 'number';
     const v = fromNumber ? (isNaN(raw) ? 365 : raw) : horizonUiToStored(raw);
     if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
     if (v === 0) {
       if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;
-      if (els.bestpreiseHorizonVal && raw > 730) els.bestpreiseHorizonVal.value = 0;
+      if (els.bestpreiseHorizonVal && meta?.source !== 'number') els.bestpreiseHorizonVal.value = 0;
     }
   });
   if (els.bestpreiseMinPointsRange && els.bestpreiseMinPointsVal) {
