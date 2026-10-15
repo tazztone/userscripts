@@ -149,6 +149,15 @@ export function parsePriceStatsFromHtml(html) {
   return null;
 }
 
+export function rollingMedians(points) {
+  const n = (points || []).length;
+  return (points || []).map((_, m) => {
+    const win = [];
+    for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(points[w][1]);
+    return medianOf(win.sort((a, b) => a - b));
+  });
+}
+
 export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
   const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
   if (!(band > 0 && band < 1)) band = 0.60;
@@ -172,11 +181,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   // regime shifts) is normal against its neighbors even when far from the
   // lifetime median. Edge windows shrink; no padding.
   // ponytail: O(n·31 log 31) scan; fine at n ≈ 4000, no optimization.
-  const localMedians = sorted.map((_, m) => {
-    const win = [];
-    for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(sorted[w][1]);
-    return medianOf(win.sort((a, b) => a - b));
-  });
+  const localMedians = rollingMedians(sorted);
   const isNormalAt = m => localMedians[m] > 0 && Math.abs(sorted[m][1] - localMedians[m]) / localMedians[m] <= band;
   const localThreshold = Math.min(band, 0.05);
   const isLocallySharp = m => {
@@ -197,30 +202,15 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     const j = i;
     let k = j;
     while (k < n && !isNormalAt(k)) k++;
-    if (j > 0 && k < n) {
-      const durH = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6;
-      let isGlitch = durH <= maxGlitchHours + 0.5;
-      if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
-      for (let m = j; m < k; m++) {
-        const [ts, price] = sorted[m];
-        if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
-        else cleanPoints.push(sorted[m]);
-      }
-    } else {
-      let isGlitch = false;
-      if (k - j === 1) {
-        if (j === 0 && n > 1 && isNormalAt(1)) isGlitch = true;
-        else if (k === n && n > 1 && isNormalAt(n - 2) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
-      } else if (j === 0 || k === n) {
-        isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
-        if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
-        if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
-      }
-      for (let m = j; m < k; m++) {
-        const [ts, price] = sorted[m];
-        if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
-        else cleanPoints.push(sorted[m]);
-      }
+    const runH = (k - j) * 24;
+    let isGlitch = runH <= maxGlitchHours + 0.5;
+    if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
+    if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
+    if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
+    for (let m = j; m < k; m++) {
+      const [ts, price] = sorted[m];
+      if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
+      else cleanPoints.push(sorted[m]);
     }
     i = k;
   }

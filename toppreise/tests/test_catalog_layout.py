@@ -2503,7 +2503,7 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     assert 'tp-show' in (page.locator('#tp-bar-calc-popover').get_attribute('class') or '')
     preview = page.locator('#tp-calc-preview')
     assert preview.is_visible()
-    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('Badge') && document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
     page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('230 aktiv (min. 5 ✓)')")
     page.select_option('#tp-preview-preset-select', 'r5')
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('28%')")
@@ -2597,10 +2597,10 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
     page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('(48 h, ±20 %)')")
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-band').length") == 1
-    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').tagName") == 'rect'
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').tagName") == 'polygon'
     assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').getAttribute('fill')") == '#3b82f6'
-    assert page.evaluate("() => parseFloat(document.querySelector('#tp-preview-svg .tp-pv-band').getAttribute('height'))") > 0
-    assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-kept').length") == 8
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').points.numberOfItems") == 2 * page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-main').points.numberOfItems")
+    assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-kept').length") == 0
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg text[fill=\"#f43f5e\"]').length") == 0
 
 

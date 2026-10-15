@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.253
+// @version      2.18.254
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1182,7 +1182,6 @@ const STYLES = `
   #tp-preview-key .tp-pv-k-rec { color: #f59e0b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; opacity: 0.8 !important; font-weight: 700 !important; }
-  #tp-preview-key .tp-pv-k-kept { color: #a855f7 !important; font-weight: 700 !important; }
   #tp-calc-preview[data-focus="weight"] .tp-pv-main { stroke-width: 2.5 !important; }
   #tp-calc-preview[data-focus="weight"] .tp-pv-med, #tp-calc-preview[data-focus="weight"] .tp-pv-rec { opacity: 1 !important; }
   #tp-calc-preview[data-focus="band"] .tp-pv-band { opacity: 0.32 !important; }
@@ -1877,6 +1876,15 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
+  function rollingMedians(points) {
+    const n = (points || []).length;
+    return (points || []).map((_, m) => {
+      const win = [];
+      for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(points[w][1]);
+      return medianOf(win.sort((a, b) => a - b));
+    });
+  }
+
   function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
     const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
     if (!(band > 0 && band < 1)) band = 0.60;
@@ -1900,11 +1908,7 @@ const SHADOW_MODAL_STYLES = `
     // regime shifts) is normal against its neighbors even when far from the
     // lifetime median. Edge windows shrink; no padding.
     // ponytail: O(n·31 log 31) scan; fine at n ≈ 4000, no optimization.
-    const localMedians = sorted.map((_, m) => {
-      const win = [];
-      for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(sorted[w][1]);
-      return medianOf(win.sort((a, b) => a - b));
-    });
+    const localMedians = rollingMedians(sorted);
     const isNormalAt = m => localMedians[m] > 0 && Math.abs(sorted[m][1] - localMedians[m]) / localMedians[m] <= band;
     const localThreshold = Math.min(band, 0.05);
     const isLocallySharp = m => {
@@ -1925,30 +1929,15 @@ const SHADOW_MODAL_STYLES = `
       const j = i;
       let k = j;
       while (k < n && !isNormalAt(k)) k++;
-      if (j > 0 && k < n) {
-        const durH = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6;
-        let isGlitch = durH <= maxGlitchHours + 0.5;
-        if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
-        for (let m = j; m < k; m++) {
-          const [ts, price] = sorted[m];
-          if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
-          else cleanPoints.push(sorted[m]);
-        }
-      } else {
-        let isGlitch = false;
-        if (k - j === 1) {
-          if (j === 0 && n > 1 && isNormalAt(1)) isGlitch = true;
-          else if (k === n && n > 1 && isNormalAt(n - 2) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
-        } else if (j === 0 || k === n) {
-          isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
-          if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
-          if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
-        }
-        for (let m = j; m < k; m++) {
-          const [ts, price] = sorted[m];
-          if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
-          else cleanPoints.push(sorted[m]);
-        }
+      const runH = (k - j) * 24;
+      let isGlitch = runH <= maxGlitchHours + 0.5;
+      if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
+      if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
+      if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
+      for (let m = j; m < k; m++) {
+        const [ts, price] = sorted[m];
+        if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
+        else cleanPoints.push(sorted[m]);
       }
       i = k;
     }
@@ -6576,7 +6565,7 @@ const SHADOW_MODAL_STYLES = `
     const recordLow = live.previousLow ?? 0;
     const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
 
-    return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
+    return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, localMedians: rollingMedians(clean), recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
   }
 
   function cropPreviewWindow(clean, dropped, cutoffTs) {
@@ -6614,28 +6603,25 @@ const SHADOW_MODAL_STYLES = `
     const pt = p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`;
     const pointsAttr = pts.map(pt).join(' ');
     const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
-    const ref = o.refMedian > 0 ? o.refMedian : o.median;
-    const bandEdges = { top: null, bot: null, topClipped: false, botClipped: false };
-    if (o.band > 0 && ref > 0) {
-      const yT0 = y(ref * (1 + o.band));
-      const yB0 = y(ref * (1 - o.band));
-      bandEdges.top = Math.max(m.top, Math.min(h - m.bottom, Math.min(yT0, yB0)));
-      bandEdges.bot = Math.max(m.top, Math.min(h - m.bottom, Math.max(yT0, yB0)));
-      bandEdges.topClipped = bandEdges.top !== Math.min(yT0, yB0);
-      bandEdges.botClipped = bandEdges.bot !== Math.max(yT0, yB0);
+    let ribbonAttr = null;
+    if (o.band > 0 && Array.isArray(o.localMedians) && o.localMedians.length === n && n > 0 && o.localMedians.every(v => v > 0)) {
+      const tops = [], bots = [];
+      for (let q = 0; q < n; q++) {
+        const med = o.localMedians[q];
+        tops.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 + o.band)))))}`);
+        bots.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 - o.band)))))}`);
+      }
+      ribbonAttr = tops.join(' ') + ' ' + bots.reverse().join(' ');
     }
     const medianY = o.median > 0 ? y(o.median) : null;
     const glitchXY = (o.dropped || []).map(g => ({ x: fracX(g.timestamp), y: y(g.price) }));
-    const keptXY = (o.band > 0 && ref > 0)
-      ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => ({ x: fracX(p[0]), y: y(p[1]), ts: p[0] }))
-      : [];
     const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
       ? { x: m.left + innerW, y: y(o.cardPrice) }
       : null;
     const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
-    return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY, rawAttr, fracX };
+    return { pointsAttr, ribbonAttr, medianY, glitchXY, anchor, ticks, recordY, rawAttr, fracX };
   }
 
   let activePresetId = 's26';
@@ -6645,7 +6631,7 @@ const SHADOW_MODAL_STYLES = `
     box.id = 'tp-calc-preview';
     const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
     box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
-      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span><span><span class="tp-pv-k-kept">○</span> Regime</span></div>`
+      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span></div>`
       + `<svg id="tp-preview-svg" viewBox="0 0 296 110" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
       + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
     const sel = box.querySelector('#tp-preview-preset-select');
@@ -6731,7 +6717,7 @@ const SHADOW_MODAL_STYLES = `
     const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
     const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
     const visibleRaw = (enabled && visibleDropped.length > 0) ? (st.cutoffTs ? points.filter(p => p[0] >= st.cutoffTs) : points) : null;
-    const co = previewCoords(st.clean, { median: st.median, refMedian: st.median, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
+    const co = previewCoords(st.clean, { median: st.median, localMedians: st.localMedians, band: enabled ? band : 0, cardPrice, dropped: visibleDropped, recordLow: st.recordLow, raw: visibleRaw });
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
@@ -6742,7 +6728,7 @@ const SHADOW_MODAL_STYLES = `
       s += `<line class="tp-pv-cut" x1="${f1(cx)}" x2="${f1(cx)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#64748b" stroke-dasharray="3 2" stroke-width="1"/>`;
       s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
     }
-    if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = co.bandEdges.top, yB = co.bandEdges.bot; s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(Math.max(0, yB - yT))}" fill="#3b82f6" opacity="0.18"/>`; if (!co.bandEdges.topClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yT)}" y2="${f1(yT)}" stroke="#3b82f6" stroke-width="1"/>`; if (!co.bandEdges.botClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yB)}" y2="${f1(yB)}" stroke="#3b82f6" stroke-width="1"/>`; }
+    if (co.ribbonAttr != null) s += `<polygon class="tp-pv-band" points="${co.ribbonAttr}" fill="#3b82f6" opacity="0.18"/>`;
     for (const t of co.ticks) {
       s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
     }
@@ -6757,10 +6743,6 @@ const SHADOW_MODAL_STYLES = `
     }
     for (const g of co.glitchXY) {
       s += `<text class="tp-pv-x" x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
-    }
-    const keptVisible = (co.keptXY || []).filter(k => st.cutoffTs == null || k.ts >= st.cutoffTs);
-    for (const k of keptVisible) {
-      s += `<circle class="tp-pv-kept" cx="${f1(k.x)}" cy="${f1(k.y)}" r="2.5" fill="none" stroke="#a855f7" stroke-width="1.5"/>`;
     }
     if (co.anchor) {
       s += `<line x1="${PV_MARGIN.left}" x2="${f1(co.anchor.x)}" y1="${f1(co.anchor.y)}" y2="${f1(co.anchor.y)}" stroke="${mainStroke}" stroke-dasharray="2 2" stroke-width="1"/>`;

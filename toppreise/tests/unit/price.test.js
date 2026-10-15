@@ -6,7 +6,8 @@ import {
   extractCanonicalPrice,
   parsePriceStatsFromHtml,
   sanitizeTimeSeries,
-  analyzePriceTimeSeries
+  analyzePriceTimeSeries,
+  rollingMedians
 } from '../../src/domain/price.js';
 import { DAY, withConfig, withConfigs } from './helpers.js';
 
@@ -162,7 +163,7 @@ describe('Price Domain Module', () => {
       assert.equal(dropped.filteredOutliers[0].price, 150);
     });
 
-    it('honours OUTLIER_MAX_GLITCH_HOURS on true outlier span: 96h run kept at 48h, filtered at 96h', () => {
+    it('honours OUTLIER_MAX_GLITCH_HOURS on true outlier span: 120h run kept at 48h and 96h, filtered at 120h', () => {
       const now = Date.now();
       const series = [
         [now - 12 * DAY, 100],
@@ -183,11 +184,16 @@ describe('Price Domain Module', () => {
       assert.equal(kept.filteredOutliers.length, 0);
       assert.equal(kept.cleanPoints.filter(p => p[1] === 200).length, 3);
       assert.equal(kept.cleanPoints.filter(p => p[1] === 140).length, 2);
-      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 96, () => sanitizeTimeSeries(series, 0.20));
+      const kept96 = withConfig('OUTLIER_MAX_GLITCH_HOURS', 96, () => sanitizeTimeSeries(series, 0.20));
+      assert.equal(kept96.filteredOutliers.length, 0);
+      assert.equal(kept96.cleanPoints.filter(p => p[1] === 200).length, 3);
+      assert.equal(kept96.cleanPoints.filter(p => p[1] === 140).length, 2);
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 120, () => sanitizeTimeSeries(series, 0.20));
       assert.equal(dropped.filteredOutliers.length, 5);
+
     });
 
-    it('filters a single-point dip at any window (span 0h); a two-point 24h dip at 24h, not 23h', () => {
+    it('filters a single-point dip at any window (span 24h); a two-point 48h dip at 48h, not 24h', () => {
       const now = Date.now();
       const single = [
         [now - 4 * DAY, 100],
@@ -207,11 +213,21 @@ describe('Price Domain Module', () => {
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-      const droppedPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(pair, 0.60));
+      const droppedPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(pair, 0.60));
       assert.equal(droppedPair.filteredOutliers.length, 2);
-      const keptPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 23, () => sanitizeTimeSeries(pair, 0.60));
+      const keptPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(pair, 0.60));
       assert.equal(keptPair.filteredOutliers.length, 0);
       assert.equal(keptPair.cleanPoints.filter(p => p[1] === 20).length, 2);
+    });
+
+    it('rollingMedians tracks a decaying level edge-to-edge (±15 shrink-at-edges)', () => {
+      const now = Date.now();
+      const pts = [];
+      for (let d = 59; d >= 0; d--) pts.push([now - d * DAY, 930 + (1249 - 930) * (d / 59)]);
+      const meds = rollingMedians(pts);
+      assert.equal(meds.length, 60);
+      assert.ok(Math.abs(meds[0] - 1249) / 1249 < 0.05, `head ${meds[0]} must track 1249`);
+      assert.ok(Math.abs(meds[59] - 930) / 930 < 0.05, `tail ${meds[59]} must track 930`);
     });
 
     it('treats an exact 48h two-point dip as a glitch at 48h', () => {
