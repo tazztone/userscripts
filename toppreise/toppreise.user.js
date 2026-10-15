@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.260
+// @version      2.18.261
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -25,17 +25,8 @@
 
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
-/**
- * CSS Stylesheets for Toppreise.ch Suite
- * Contains main document styles (heatmap, badges, pills, filter bar, toasts)
- * and isolated Shadow DOM modal dialog styles.
- */
+/** Tokens part (split from ui/styles.js): shared CSS custom properties. */
 
-/**
- * Shared UI tokens (single source for bar, deal cluster, modal, CTA).
- * Same values as the hardcoded hex they replace — visual no-op on inject.
- * Main doc consumes via :root, shadow modal via :host.
- */
 const TP_TOKEN_VARS = `
   --tp-bg: #ffffff;
   --tp-panel: rgba(255,255,255,0.92);
@@ -70,7 +61,10 @@ const TP_TOKEN_VARS = `
   --tp-fs-lg: 13px;
 `;
 
-const STYLES = `
+/** Cards part (split from ui/styles.js): heat/fresh/cheapest/filter-dim primitives, deal-badge core, card harmonize. */
+
+
+const STYLES_CARDS = `
   :root {
     ${TP_TOKEN_VARS}
   }
@@ -614,6 +608,11 @@ const STYLES = `
   .tp-sparkline-container {
     flex-shrink: 0 !important;
   }
+`;
+
+/** Chrome part (split from ui/styles.js): bestpreise controls, empty state, detail badge, filter bar. */
+
+const STYLES_CHROME = `
   .tp-bar-btn.tp-bestpreise-active {
     /* Opak statt transluzent: der Button sitzt in der dunklen Bar. */
     background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
@@ -1078,6 +1077,11 @@ const STYLES = `
     background: var(--tp-warn) !important;
     color: #fff !important;
   }
+`;
+
+/** Overlays part (split from ui/styles.js): calc/filter popovers, floating CTA, responsive queries. */
+
+const STYLES_OVERLAYS = `
   /* Dimmed tool: the control a switched-OFF mini-toggle belongs to reads inactive. */
   .tp-tool-dim {
     opacity: 0.45 !important;
@@ -1430,6 +1434,21 @@ const STYLES = `
     #tp-floating-check-cta { left: 8px !important; bottom: 8px !important; }
   }
 `;
+
+/**
+ * Styles barrel (split into ui/styles/ parts): composes the document
+ * stylesheet; app.js and shell.js imports stay untouched.
+ */
+
+
+
+
+
+
+const STYLES = STYLES_CARDS + STYLES_CHROME + STYLES_OVERLAYS;
+
+/** Shadow-modal part (split from ui/styles.js): isolated Shadow DOM dialog styles. */
+
 
 const SHADOW_MODAL_STYLES = `
   :host {

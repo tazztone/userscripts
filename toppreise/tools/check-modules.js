@@ -34,8 +34,9 @@ const listSrcFiles = dir => {
 
 const readModules = () => {
   const src = fs.readFileSync(path.join(TOPPREISE_DIR, 'tools', 'build.js'), 'utf-8');
-  const block = src.match(/const MODULES = \[([\s\S]*?)\];/)?.[1] ?? '';
-  return [...block.matchAll(/['"]([^'"]+\.js)['"]/g)].map(m => m[1]);
+  const grab = name => src.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\];`))?.[1] ?? '';
+  const names = block => [...block.matchAll(/['"]([^'"]+\.js)['"]/g)].map(m => m[1]);
+  return [...names(grab('MODULES')), ...names(grab('STYLE_PARTS'))];
 };
 
 const failures = [];
