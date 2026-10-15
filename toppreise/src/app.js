@@ -39,7 +39,8 @@ import {
   saveConfigKey,
   updateConfig,
   updateBodyClasses,
-  migrateFilterSplit
+  migrateFilterSplit,
+  realDealMinDiscount
 } from './state/config.js';
 import {
   runBatchDealCheck,
@@ -52,7 +53,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.271
+// @version      2.18.272
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -93,14 +94,14 @@ import { processProductDetailPage } from './features/product-detail.js';
     if (mainObserver) mainObserver.disconnect();
     try {
       const cards = getProductCards();
-      if (cards.length === 0) { dismissChrome(); return; }
+      if (cards.length === 0) { try { applySorting([], false, []); } catch {} dismissChrome(); return; }
 
       // --- Extract ---
       const activeStores = extractActiveStores();
       const termsList = parseNegativeTerms();
       const isNeueFeed = isNeueToppreisePage();
       const isSortPage = isNeueFeed || isSearchPage();
-      const minDealDiscount = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+      const minDealDiscount = realDealMinDiscount();
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
@@ -172,6 +173,10 @@ import { processProductDetailPage } from './features/product-detail.js';
 
     let dirtyCard = false;
     let structural = false;
+    // Outside cards the interesting changes are text/attribute swaps (detail
+    // price, alarm controls, active filters, route attrs) — records without
+    // added/removed nodes. OBSERVE_OPTS.attributeFilter stays tight on purpose.
+    const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
     const checkNode = node => {
       if (!node || node.nodeType !== 1) return false;
       if (isOwnedNode(node)) return false;
@@ -214,6 +219,12 @@ import { processProductDetailPage } from './features/product-detail.js';
       }
       if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
         if (checkNode(m.removedNodes[i])) { structural = true; break; }
+      }
+      // Attribute/characterData records carry no added/removed nodes: match
+      // the target itself so detail-price text swaps, alarm controls,
+      // active-filter changes and route-attribute swaps schedule a pass.
+      if (!structural && targetEl && (m.type === 'characterData' || m.type === 'attributes')) {
+        if (!isOwnedNode(targetEl) && targetEl.closest?.(NON_CARD_SEL)) structural = true;
       }
       if (dirtyCard && structural) break;
     }
@@ -296,7 +307,7 @@ import { processProductDetailPage } from './features/product-detail.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.271';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.272';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

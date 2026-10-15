@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.271
+// @version      2.18.272
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1571,7 +1571,7 @@ const SHADOW_MODAL_STYLES = `
     border-radius: var(--tp-r-sm);
     transition: all 0.2s ease;
   }
-  .tp-segmented-control input[type="radio"] { display: none; }
+  .tp-segmented-control input[type="radio"] { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; opacity: 0; }
   .tp-segmented-control label:hover { color: var(--tp-txt); }
   .tp-segmented-control input[type="radio"]:checked + label {
     background: var(--tp-acc);
@@ -1983,7 +1983,7 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  function analyzePriceTimeSeries(series, currentPrice = null, horizonOverride = null) {
+  function analyzePriceTimeSeries(series, currentPrice = null, horizonOverride = null, nowMs = Date.now()) {
     if (!series || !Array.isArray(series) || series.length === 0) return null;
 
     let rawPoints = series;
@@ -2010,7 +2010,6 @@ const SHADOW_MODAL_STYLES = `
     if (rawParsedPoints.length === 0) return null;
     // Normalize regardless of outlier toggle: validate, sort ascending, dedupe
     // duplicate timestamps keeping the LAST occurrence.
-    const nowMs = Date.now();
     const seen = new Map();
     for (const [ts, pr] of rawParsedPoints) {
       if (!Number.isFinite(ts) || ts <= 0 || ts > nowMs + 86400000) continue;
@@ -2054,8 +2053,7 @@ const SHADOW_MODAL_STYLES = `
     let windowPrices = prices;
     let medianFallback = false;
     if (horizonDays > 0) {
-      const now = Date.now();
-      const cutoffTime = now - horizonDays * 86400 * 1000;
+      const cutoffTime = nowMs - horizonDays * 86400 * 1000;
       const windowPoints = points.filter(p => p[0] >= cutoffTime);
       if (windowPoints.length >= 3) {
         windowPrices = windowPoints.map(p => p[1]);
@@ -2138,14 +2136,19 @@ const SHADOW_MODAL_STYLES = `
   const MIN_SIGNIFICANT_RECORD_PCT = 2;
 
 
-  function computeDealScore(stats, cardPrice) {
+  function computeDealScore(stats, cardPrice, opts = {}) {
     if (!stats || stats.unavailable || !stats.tiefstpreis || stats.tiefstpreis <= 0) return null;
     if (!cardPrice || cardPrice <= 0) return null;
+
+    // Explicit options (defaults from CONFIG): tests pass fixed values for
+    // determinism instead of mutating global config.
+    const minPoints = opts.minPoints ?? clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
+    const wRecord = typeof opts.weightRecord === 'number' ? opts.weightRecord
+      : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
 
     // History Qualification Gate:
     // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
     const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
-    const minPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
     if (pointsCount < minPoints) return null;
     if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
         ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
@@ -2171,9 +2174,6 @@ const SHADOW_MODAL_STYLES = `
       ? pctDrop(prevLow, cardPrice)
       : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
-    const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
-      ? CONFIG.BESTPREISE_WEIGHT_RECORD
-      : 0.50;
     // Qualification is weight-independent: a Tiefstpreis qualifies on real
     // saving in EITHER component. Gating on the blend hid every
     // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
@@ -2385,6 +2385,12 @@ const SHADOW_MODAL_STYLES = `
   const resolveStorage = s => { try { return s ?? (typeof window !== 'undefined' ? window.localStorage : null); } catch { return null; } };
 
   let statsWriteCount = 0;
+  // Stale-write guard: every clear/reset/route invalidation bumps the
+  // generation; in-flight fetches capture it before network I/O and their
+  // writes no-op when a clear landed mid-flight (reset-during-pending).
+  let cacheGeneration = 0;
+  const currentCacheGen = () => cacheGeneration;
+  const bumpCacheGeneration = () => { cacheGeneration++; };
   function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
     return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
   }
@@ -2529,8 +2535,9 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function setCachedPriceStats(productId, stats, isUnavailable = false, storage = null, useShippingOverride) {
+  function setCachedPriceStats(productId, stats, isUnavailable = false, storage = null, useShippingOverride, expectedGen = null) {
     if (!productId) return;
+    if (expectedGen !== null && expectedGen !== cacheGeneration) return;
     storage = resolveStorage(storage);
     const key = statsKey(productId, useShippingOverride);
     // Upgrade-only: never replace median-bearing stats with median-less
@@ -2583,6 +2590,7 @@ const SHADOW_MODAL_STYLES = `
 
   function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
     const prefixes = Array.isArray(onlyPrefixes) && onlyPrefixes.length > 0 ? onlyPrefixes : CACHE_PREFIXES;
+    cacheGeneration++;
     storage = resolveStorage(storage);
     memoryCache.clear();
     let count = 0;
@@ -3116,6 +3124,9 @@ const SHADOW_MODAL_STYLES = `
     DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
   };
   const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  // 0% is a legitimate threshold (check everything): only non-numeric storage
+  // falls back to 30 — `|| 30` would silently discard an explicit 0.
+  const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
   // Corrupt storage must never silently break fills: fall back to defaults on
   // NaN/unknown durations.
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
@@ -3733,6 +3744,19 @@ const SHADOW_MODAL_STYLES = `
       return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
     }
     const badgeEl = card.querySelector('.badge-dif:not(.tp-injected-badge), .badge:not(.tp-injected-badge), [class*="badge-dif"]:not(.tp-injected-badge)');
+    // Never parse script-painted ribbon text as the site Differenz: after a
+    // cache clear the badge still shows our verdict, not the host number.
+    // Fall back to the pid-keyed snapshot (tpOriginalDiscount stores the site
+    // discount, i.e. -diff) so counting/filtering keep the host number.
+    if (badgeEl?.dataset?.tpPainted === 'true') {
+      const snap = badgeEl.dataset.tpOriginalDiscount;
+      const snapPid = badgeEl.dataset.tpOriginalPid ?? '';
+      if (snap !== undefined && snap !== '' && snapPid === (getCardProductId(card) ?? '')) {
+        const discount = parseFloat(snap);
+        if (!isNaN(discount)) return discount === 0 ? 0 : -discount;
+      }
+      return null;
+    }
     // Never parse our own injected badge text as the site Differenz: when only
     // our badge exists there is no unverified site number to read.
     const text = badgeEl ? badgeEl.textContent
@@ -3842,7 +3866,12 @@ const SHADOW_MODAL_STYLES = `
     _negCacheParsed = parsed;
     return parsed;
   }
-
+  // Basis gate rule (single source): a product-only live price must never score
+  // against shipping-inclusive history (or vice versa). Legacy cache entries
+  // without the boolean flag pass through; mismatches render unverified.
+  const basisMatchesFor = (stats, cardPriceBasis) =>
+    typeof stats?.isShippingPrice !== 'boolean'
+    || stats.isShippingPrice === (cardPriceBasis === 'shipping');
   function extractCardData(card) {
     const pid = getCardProductId(card);
     const priceData = extractCanonicalPrice(card);
@@ -3852,11 +3881,7 @@ const SHADOW_MODAL_STYLES = `
     const stats = pid ? getCachedPriceStats(pid) : null;
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
-    // Basis gate: a product-only live price must never score against
-    // shipping-inclusive history (or vice versa). Legacy cache entries
-    // without the boolean flag pass through; mismatches render unverified.
-    const basisMatches = typeof stats?.isShippingPrice !== 'boolean'
-      || stats.isShippingPrice === (cardPriceBasis === 'shipping');
+    const basisMatches = basisMatchesFor(stats, cardPriceBasis);
     const dealScore = (basisMatches && hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     // Display delta never gates on history quality: with just {tiefstpreis} +
     // card price the badge/heat still tell the verified truth.
@@ -3869,6 +3894,7 @@ const SHADOW_MODAL_STYLES = `
       cardPriceEl,
       cardPrice,
       cardPriceBasis,
+      basisMatches,
       stats,
       diffVal,
       discountVal,
@@ -4212,6 +4238,10 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
+  // The placeholder comment marks the exact pre-sort position; restore inserts
+  // before it when still connected, else appends, then re-sorts by tpInitialOrder.
+  const origPlacement = new WeakMap();
   function getCardSortableUnit(card) {
     if (!card) return null;
     const collItem = card.closest('.Plugin_ProductCollItem');
@@ -4226,53 +4256,61 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function applySorting(cards, pageHasOffers, cardDataList = null) {
-    if (!cards || cards.length <= 1) return;
+    const list = cards || [];
 
     const isCustomSortActive = CONFIG.BESTPREISE_MODE_ACTIVE ||
                                CONFIG.SORT_BY_OFFERS === 'discount-desc' ||
                                (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none');
 
-    if (!isCustomSortActive) {
-      const wasCustomSorted = cards.some(c => {
+    if (isCustomSortActive) {
+      // Ordering needs 2+ visible cards; restore below must run regardless.
+      if (list.length <= 1) return;
+    } else {
+      // Restore must run even with zero visible cards: getProductCards filters
+      // hidden rows, so staging can hide every sorted card at disable time.
+      const wasCustomSorted = list.some(c => {
         const u = getCardSortableUnit(c);
-        return u?.style.order || u?.dataset.tpOrigParentId;
-      });
+        return u?.style.order || (u && origPlacement.has(u));
+      }) || (typeof document?.querySelector === 'function' && !!document.querySelector('.tp-empty-product-row-hidden, [data-tp-initial-order]'));
       if (!wasCustomSorted) return;
     }
 
-    // Ensure initial order and original parent IDs are recorded on all cards/columns
-    cards.forEach((c, idx) => {
+    // Record initial order on every card plus the original placement of every
+    // sortable item — independent of item identity (item === card included).
+    list.forEach((c, idx) => {
       if (!c.dataset.tpInitialOrder) {
         c.dataset.tpInitialOrder = String(idx);
       }
       const item = getCardSortableUnit(c);
-      if (item && !item.dataset.tpInitialOrder) {
-        item.dataset.tpInitialOrder = String(idx);
-        const parent = item.parentElement;
-        if (parent) {
-          if (!parent.id && !parent.dataset.tpParentId) {
-            parent.dataset.tpParentId = 'tp-p-' + Math.random().toString(36).slice(2, 9);
-          }
-          item.dataset.tpOrigParentId = parent.id || parent.dataset.tpParentId;
+      if (item) {
+        if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = String(idx);
+        if (!origPlacement.has(item) && item.parentElement) {
+          // Non-DOM harnesses (unit tests) have no Comment nodes: record the
+          // parent anyway; restore falls back to appendChild order.
+          const placeholder = typeof document?.createComment === 'function' ? document.createComment('tp-orig') : null;
+          if (placeholder) item.after(placeholder);
+          origPlacement.set(item, { parent: item.parentElement, placeholder });
         }
       }
     });
 
-    // Find all rows that actually contain product cards (strictly scopes to product rows, never sidebar/tabs/header)
-    const productRows = Array.from(new Set(cards.map(c => getCardSortableUnit(c)?.parentElement).filter(r => r && !r.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList'))));
-    if (productRows.length === 0) return;
-
-    const primaryRow = productRows[0];
-
     if (isCustomSortActive) {
+      // Rows derive from visible cards — active sort only; restore below re-derives instead.
+      const productRows = Array.from(new Set(list.map(c => getCardSortableUnit(c)?.parentElement).filter(r => r && !r.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList'))));
+      if (productRows.length === 0) return;
+
+      const primaryRow = productRows[0];
+
       let sortedEntries = [];
 
       const byCard = cardDataList ? new Map(cardDataList.map(cd => [cd.card, cd])) : null;
       const cdFor = c => byCard?.get(c) || extractCardData(c);
       if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-        const scored = cards.map(c => {
+        const scored = list.map(c => {
           const cd = cdFor(c);
-          const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
+          // Rejected (null) stays rejected: recompute only uncalculated (undefined) on a matching basis.
+          const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
+          const dealData = (cd.dealScore === undefined && sortBasisOk) ? computeDealScore(cd.stats, cd.cardPrice) : (cd.dealScore ?? null);
           let weightedDiff = -100;
           if (dealData) {
             // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
@@ -4298,7 +4336,7 @@ const SHADOW_MODAL_STYLES = `
         sortedEntries = scored;
       } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
-        const scored = cards.map(c => {
+        const scored = list.map(c => {
           const cd = cdFor(c);
           const level = getLevelPct(cd.cardPrice, cd.stats, true);
           return {
@@ -4311,7 +4349,7 @@ const SHADOW_MODAL_STYLES = `
         scored.sort((a, b) => (b.disc - a.disc) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       } else if (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none') {
-        const scored = cards.map(c => ({
+        const scored = list.map(c => ({
           card: c,
           item: getCardSortableUnit(c),
           count: extractOfferCount(c),
@@ -4374,24 +4412,37 @@ const SHADOW_MODAL_STYLES = `
       }
     } else {
       // Natural order restoration: return items to original parents in initial order
-      const itemsToRestore = cards.map(c => {
+      const itemsToRestore = list.map(c => {
         const item = getCardSortableUnit(c);
         return {
           card: c,
           item,
-          initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10),
-          origParentId: item?.dataset.tpOrigParentId
+          initialOrder: parseInt(c.dataset.tpInitialOrder || item?.dataset.tpInitialOrder || '0', 10)
         };
+      });
+      // cards skips hidden rows (getProductCards filters them), so re-derive
+      // hidden previously-sorted units via their tpInitialOrder marker.
+      const seenUnits = new Set(itemsToRestore.map(entry => entry.item).filter(Boolean));
+      const markedNodes = typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('[data-tp-initial-order]') : [];
+      markedNodes.forEach(node => {
+        const unit = node.matches?.('.Plugin_Product') ? getCardSortableUnit(node) : node;
+        if (!unit || seenUnits.has(unit) || !origPlacement.has(unit)) return;
+        seenUnits.add(unit);
+        const card = unit.matches?.('.Plugin_Product') ? unit : unit.querySelector?.('.Plugin_Product');
+        itemsToRestore.push({
+          card: card || node,
+          item: unit,
+          initialOrder: parseInt(card?.dataset.tpInitialOrder || unit.dataset.tpInitialOrder || '0', 10)
+        });
       });
 
       itemsToRestore.sort((a, b) => a.initialOrder - b.initialOrder);
 
-      const allOrigParents = Array.from(new Set(itemsToRestore.map(entry => {
-        if (!entry.origParentId) return entry.item?.parentElement;
-        return document.getElementById(entry.origParentId) ||
-               document.querySelector(`[data-tp-parent-id="${entry.origParentId}"]`) ||
-               entry.item?.parentElement;
-      }).filter(Boolean)));
+      const hiddenRows = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.tp-empty-product-row-hidden')) : [];
+      const allOrigParents = Array.from(new Set([...itemsToRestore.map(entry => {
+        const saved = entry.item ? origPlacement.get(entry.item) : null;
+        return (saved?.parent?.isConnected ? saved.parent : null) || entry.item?.parentElement;
+      }), ...hiddenRows.filter(r => r.isConnected)].filter(Boolean)));
 
       itemsToRestore.forEach(entry => {
         const item = entry.item;
@@ -4400,12 +4451,11 @@ const SHADOW_MODAL_STYLES = `
           item.style.removeProperty('order');
         }
 
-        if (entry.origParentId) {
-          let origParent = document.getElementById(entry.origParentId) ||
-                           document.querySelector(`[data-tp-parent-id="${entry.origParentId}"]`);
-          if (origParent && item.parentElement !== origParent) {
-            origParent.appendChild(item);
-          }
+        const saved = origPlacement.get(item);
+        const target = (saved?.parent?.isConnected ? saved.parent : null) || item.parentElement;
+        if (target && item.parentElement !== target) {
+          if (saved?.placeholder?.isConnected) target.insertBefore(item, saved.placeholder);
+          else target.appendChild(item);
         }
       });
 
@@ -4421,10 +4471,11 @@ const SHADOW_MODAL_STYLES = `
             }
           });
         }
-        if (row.style.display === 'none') {
+        // Unhide only script-hidden rows: other inline display:none belongs to the host.
+        if (row.classList.contains('tp-empty-product-row-hidden')) {
+          row.classList.remove('tp-empty-product-row-hidden');
           row.style.removeProperty('display');
         }
-        row.classList.remove('tp-empty-product-row-hidden');
       });
     }
   }
@@ -4628,12 +4679,45 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
+  // Per-caller cancel over a shared promise: rejects only this caller (typed
+  // `cancelled`), never the transport siblings still await.
+  function raceSharedRaw(promise, signal, shouldCancelFn) {
+    if (signal?.aborted || shouldCancelFn?.()) {
+      const e = new Error('cancelled');
+      e.cancelled = true;
+      return Promise.reject(e);
+    }
+    if (!signal && !shouldCancelFn) return promise;
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const cleanup = () => { signal?.removeEventListener('abort', onAbort); clearInterval(timer); };
+      const cancel = () => {
+        if (done) return;
+        done = true;
+        cleanup();
+        const e = new Error('cancelled');
+        e.cancelled = true;
+        reject(e);
+      };
+      const onAbort = () => cancel();
+      // ponytail: polled predicate; the shared transport cannot wire N caller
+      // predicates into one abort without one caller killing its siblings.
+      const timer = shouldCancelFn ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
+      signal?.addEventListener('abort', onAbort, { once: true });
+      promise.then(
+        v => { if (!done) { done = true; cleanup(); resolve(v); } },
+        e => { if (!done) { done = true; cleanup(); reject(e); } }
+      );
+    });
+  }
   async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null) {
     if (!productId) return null;
     // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
     // the wrong series into the wrong slot, and each mode dedups independently.
     const useShipping = isShippingPriceActive();
     const fetchKey = `${productId}_${useShipping ? 's' : 'p'}`;
+    // Generation at network start: a clear/reset mid-flight voids every write below.
+    const gen = currentCacheGen();
     // Refresh bypass: always hit the network, but keep the good entry in
     // memory/localStorage until the fetch succeeds — a failed refresh must
     // not downgrade a full analysis to an unavailable marker.
@@ -4643,95 +4727,106 @@ const SHADOW_MODAL_STYLES = `
       return prev;
     }
 
-    if (activeFetches.has(fetchKey)) {
-      return activeFetches.get(fetchKey);
+    // Already cancelled: never touch the network (and never join the registry).
+    if (isCancelled(signal, shouldCancelFn)) return null;
+
+    // Shared raw history: the entry carries the transport only — no price
+    // anchor, no caller signal. Each caller races it with its own cancel, then
+    // analyzes with its own currentPrice. The transport aborts only when the
+    // last consumer leaves, so one caller's cancel never kills a sibling fetch.
+    let entry = activeFetches.get(fetchKey);
+    if (!entry) {
+      const abort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const promise = fetchPriceTimeSeries(productId, retries, null, useShipping, abort?.signal ?? null);
+      entry = { promise, abort, consumers: new Set() };
+      activeFetches.set(fetchKey, entry);
+      const release = () => { if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey); };
+      promise.then(release, release);
+    }
+    const consumer = { signal, shouldCancelFn };
+    entry.consumers.add(consumer);
+    let pick = null;
+    try {
+      pick = await raceSharedRaw(entry.promise, signal, shouldCancelFn);
+    } catch (e) {
+      if (e?.cancelled || e?.timeout || e?.cooldown || e?.transient || e?.unauthorized) return null;
+      throw e;
+    } finally {
+      entry.consumers.delete(consumer);
+      if (entry.consumers.size === 0) { try { entry.abort?.abort(); } catch {} }
     }
 
-    const fetchPromise = (async () => {
-      try {
-        const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+    try {
+      const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
 
-        // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
-        // Only the empty signal (pick null) reaches the HTML fallback; typed
-        // failures (cancelled/timeout/cooldown/transient/unauthorized) return
-        // immediately — a retry there cannot conjure a series.
-        let pick = null;
-        try {
-          pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
-        } catch (e) {
-          if (e?.cancelled || e?.timeout || e?.cooldown || e?.transient || e?.unauthorized) return null;
-          throw e;
-        }
-        if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
-          // Basis guard: a product-shape series must never land in the shipping
-          // slot — fall through to the HTML path (which refuses the shipping
-          // slot too and writes a negative entry instead).
-          if (pick.isShipping === useShipping) {
-            const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
-            if (analysis && analysis.tiefstpreis > 0) {
-              analysis.isShippingPrice = useShipping;
-              setCachedPriceStats(productId, analysis, false, undefined, useShipping);
-              return analysis;
-            }
+      // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+      // Only the empty signal (pick null) reaches the HTML fallback; typed
+      // failures (cancelled/timeout/cooldown/transient/unauthorized) return
+      // immediately — a retry there cannot conjure a series.
+      if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
+        // Basis guard: a product-shape series must never land in the shipping
+        // slot — fall through to the HTML path (which refuses the shipping
+        // slot too and writes a negative entry instead).
+        if (pick.isShipping === useShipping) {
+          const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
+          if (analysis && analysis.tiefstpreis > 0) {
+            analysis.isShippingPrice = useShipping;
+            setCachedPriceStats(productId, analysis, false, undefined, useShipping, gen);
+            return analysis;
           }
         }
+      }
 
-        if (isCancelled(signal, shouldCancelFn)) return null;
+      if (isCancelled(signal, shouldCancelFn)) return null;
 
-        // 2. Fallback route: GET HTML modal dialog (carries no basis info)
-        const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
-        let resHtml = null;
-        let html = null;
-        try {
-          const out = await requestWithRetry(async linkedSignal => {
-            const res = await fetch(url, {
-              headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/html, */*; q=0.01'
-              },
-              credentials: 'same-origin',
-              signal: linkedSignal
-            });
-            const text = res.ok ? await res.text() : null;
-            return { res, data: text };
-          }, { retries, shouldCancelFn, signal, baseDelayMs: 400, timeoutMs: 7000 });
-          resHtml = out.res;
-          html = out.data;
-        } catch (htmlErr) {
-          // Cancelled/timeout/429/5xx/network/cooldown: transient, never a
-          // negative entry (a failed refresh must not downgrade prev either).
+      // 2. Fallback route: GET HTML modal dialog (carries no basis info)
+      const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
+      let resHtml = null;
+      let html = null;
+      try {
+        const out = await requestWithRetry(async linkedSignal => {
+          const res = await fetch(url, {
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'text/html, */*; q=0.01'
+            },
+            credentials: 'same-origin',
+            signal: linkedSignal
+          });
+          const text = res.ok ? await res.text() : null;
+          return { res, data: text };
+        }, { retries, shouldCancelFn, signal, baseDelayMs: 400, timeoutMs: 7000 });
+        resHtml = out.res;
+        html = out.data;
+      } catch (htmlErr) {
+        // Cancelled/timeout/429/5xx/network/cooldown: transient, never a
+        // negative entry (a failed refresh must not downgrade prev either).
+        return null;
+      }
+      // Unauthorized HTML (login wall): no negative entry, no prev downgrade.
+      if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
+      const stats = parsePriceStatsFromHtml(html);
+      if (stats) {
+        stats.isShippingPrice = useShipping;
+        if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
+        if (useShipping) {
+          // HTML carries no basis: never substitute a product comparison
+          // into the shipping slot — slot reads unavailable/retry later.
+          setCachedPriceStats(productId, null, true, undefined, true, gen);
           return null;
         }
-        // Unauthorized HTML (login wall): no negative entry, no prev downgrade.
-        if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
-        const stats = parsePriceStatsFromHtml(html);
-        if (stats) {
-          stats.isShippingPrice = useShipping;
-          if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
-          if (useShipping) {
-            // HTML carries no basis: never substitute a product comparison
-            // into the shipping slot — slot reads unavailable/retry later.
-            setCachedPriceStats(productId, null, true, undefined, true);
-            return null;
-          }
-          setCachedPriceStats(productId, stats, false, undefined, useShipping);
-          return stats;
-        } else {
-          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
-        }
-      } catch (err) {
-        // Cancelled/timeout: silent, no negative write. Genuine failures keep
-        // the no-downgrade rule (prev with median survives).
-        if (!err?.cancelled && !err?.timeout && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-        if (!err?.cancelled && !err?.timeout && (!prev || !prev.medianPrice)) setCachedPriceStats(productId, null, true, undefined, useShipping);
-      } finally {
-        activeFetches.delete(fetchKey);
+        setCachedPriceStats(productId, stats, false, undefined, useShipping, gen);
+        return stats;
+      } else {
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping, gen);
       }
-      return null;
-    })();
-
-    activeFetches.set(fetchKey, fetchPromise);
-    return fetchPromise;
+    } catch (err) {
+      // Cancelled/timeout: silent, no negative write. Genuine failures keep
+      // the no-downgrade rule (prev with median survives).
+      if (!err?.cancelled && !err?.timeout && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
+      if (!err?.cancelled && !err?.timeout && (!prev || !prev.medianPrice)) setCachedPriceStats(productId, null, true, undefined, useShipping, gen);
+    }
+    return null;
   }
 
   async function runProductScanner(options = {}) {
@@ -4987,6 +5082,7 @@ const SHADOW_MODAL_STYLES = `
     dealerCache.clear();
     dealerHydrated.clear();
     dealerAutoTried.clear();
+    bumpCacheGeneration();
   }
   function clearDealerAutoTried() {
     dealerAutoTried.clear();
@@ -5206,9 +5302,12 @@ const SHADOW_MODAL_STYLES = `
           badgeDifEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
         }
       }
-      if (!badgeDifEl.dataset.tpOriginalDiscount) {
+      // Snapshot keyed to product: a reused card node (new pid) must re-read
+      // the host badge instead of printing the previous product's number.
+      if (badgeDifEl.dataset.tpOriginalPid !== (pid ?? '') || !('tpOriginalDiscount' in badgeDifEl.dataset) || badgeDifEl.dataset.tpOriginalDiscount === '') {
         const initialDiscount = extractCardDiscount(card);
         badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
+        badgeDifEl.dataset.tpOriginalPid = pid ?? '';
       }
       const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
       // rawDiscount is the site DISCOUNT (positive = "-X%" deal, negative = "+X%"
@@ -5432,7 +5531,6 @@ const SHADOW_MODAL_STYLES = `
         }
 
         const displayKind = getDisplayDelta(cardPrice, stats).kind;
-
         if (displayKind !== 'unknown') {
           const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
           const isNonBest = (displayKind === 'above-low');
@@ -5573,6 +5671,10 @@ const SHADOW_MODAL_STYLES = `
     const { badgeDifEl, isListView, sitePctText, rawDiscount } = setup;
     if (CONFIG.BESTPREISE_MODE_ACTIVE) renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctText, rawDiscount);
     else renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount);
+    // Script paint marker: extractCardDiff must never re-parse our ribbon text
+    // as the site Differenz after a cache clear (dedicated script-owned badge
+    // replacing host-badge rewrites is out of scope).
+    if (badgeDifEl.isConnected) badgeDifEl.dataset.tpPainted = 'true';
   }
 
   // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
@@ -5581,6 +5683,7 @@ const SHADOW_MODAL_STYLES = `
    * button, dealer name, review button, fresh glow, empty state — plus the
    * renderCardEffects orchestrator (signature frozen, app.js untouched).
    */
+
 
 
 
@@ -5610,7 +5713,10 @@ const SHADOW_MODAL_STYLES = `
       }
       // Click pops the full Discord-style chart (same series incl. live price).
       sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
-      const sig = stats.timeSeries.length + ':' + priceToCents(cardPrice) + ':' + priceToCents(stats.medianPrice ?? 0);
+      // Revision-aware: same length/price/median with refreshed points (new
+      // fetch, recomputed median) must rebuild instead of showing stale art.
+      const lastTs = stats.timeSeries.length ? +stats.timeSeries[stats.timeSeries.length - 1][0] || 0 : 0;
+      const sig = [stats.timeSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
       sparkContainer.style.cursor = 'pointer';
       sparkContainer.setAttribute('role', 'button');
       sparkContainer.setAttribute('tabindex', '0');
@@ -5678,7 +5784,9 @@ const SHADOW_MODAL_STYLES = `
     if (badgeEl) {
       if (badgeEl.classList.contains('tp-deal-loading')) {
         badgeEl.classList.remove('tp-is-unverified', 'tp-is-verified');
-      } else if (!stats) {
+      } else if (!hasUsablePriceStats(stats)) {
+        // Negative markers ({unavailable:true}) and thin histories are not
+        // verified — truthiness of the stats object must not imply quality.
         badgeEl.classList.add('tp-is-unverified');
         badgeEl.classList.remove('tp-is-verified');
       } else {
@@ -5690,10 +5798,13 @@ const SHADOW_MODAL_STYLES = `
 
   // Discord 1-click share (step 7): verified lows only.
   function renderShareButton(ctx, cd) {
-    const { card, pid, cardPrice, stats, dealData, displayDelta } = ctx;
-    // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
-    const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
-    const isShareable = !!(dealData || kindNow === 'new-low' || kindNow === 'at-low');
+    const { card } = ctx;
+    // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte).
+    // Render-time gate from the basis-guarded ctx; the click handler below
+    // re-resolves everything from the live card — never from this closure.
+    const basisOk = cd?.basisMatches ?? basisMatchesFor(ctx.stats, cd?.cardPriceBasis);
+    const kindNow = ctx.displayDelta?.kind ?? (basisOk ? getDisplayDelta(ctx.cardPrice, ctx.stats).kind : 'unknown');
+    const isShareable = !!(ctx.dealData || kindNow === 'new-low' || kindNow === 'at-low');
     let shareBtn = card.querySelector(':scope > .tp-share-btn');
     if (isShareable) {
       if (!shareBtn) {
@@ -5710,25 +5821,47 @@ const SHADOW_MODAL_STYLES = `
             showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
             return;
           }
+          // Click-time resolve: the card may have been reused or repainted
+          // since render — shareability is re-derived from the live card.
+          const fresh = extractCardData(card);
+          const freshKind = fresh.displayDelta?.kind;
+          if (!(fresh.dealScore || freshKind === 'new-low' || freshKind === 'at-low')) {
+            showToast('Kein verifizierter Tiefstpreis mehr – Karte wird neu geprüft');
+            scheduleProcessListings();
+            return;
+          }
+          const snap = { pid: fresh.pid, priceCents: priceToCents(fresh.cardPrice), basis: fresh.cardPriceBasis };
+          const stillFresh = () => {
+            if (!card.isConnected) return false;
+            const cur = extractCardData(card);
+            return cur.pid === snap.pid && cur.cardPriceBasis === snap.basis
+              && priceToCents(cur.cardPrice) === snap.priceCents;
+          };
+          const abortStale = () => {
+            showToast('Karte hat sich geändert – erneut prüfen');
+            scheduleProcessListings();
+          };
           shareBtn.disabled = true;
           try {
             try {
               const { title, url, imageUrl } = extractShareData(card);
               const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
-              const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+              const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
               let dealer = extractDealer(card);
               let dealerUrl = extractDealerUrl(card);
-              let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
+              let offers = fresh.offerCount || getCachedDealer(snap.pid, isShippingPriceActive(card))?.offers || 0;
               if ((!dealer || !dealerUrl || !offers) && url) {
                 const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
+                if (!stillFresh()) { abortStale(); return; }
                 if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
               }
-              const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
+              const png = await renderSparklinePng(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)).catch(() => null);
+              if (!stillFresh()) { abortStale(); return; }
               const fields = {
                 title, url, priceText,
                 dealer, dealerUrl, offerCount: offers,
-                spark: png ? '' : sparklineText(stats?.timeSeries),
-                ...resolveShareFields(cardPrice, stats),
+                spark: sparklineText(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)),
+                ...resolveShareFields(fresh.cardPrice, fresh.stats),
                 suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
                 suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
               };
@@ -5740,6 +5873,7 @@ const SHADOW_MODAL_STYLES = `
               // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
               // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
               const productBlob = (png && productDl) ? await productDl : null;
+              if (!stillFresh()) { abortStale(); return; }
               const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
               const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
               const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
@@ -5747,9 +5881,13 @@ const SHADOW_MODAL_STYLES = `
                 if (png) {
                   try { await postImage(withThread); return; }
                   catch (imgErr) {
-                    if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
-                    else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
-                    else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                    if (isForumThreadError(imgErr)) {
+                      if (!withThread) throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                      /* threaded image rejected: fall through to threaded text */
+                    } else if (!isAttachmentRejection(imgErr)) {
+                      throw imgErr; // ambiguous (429/timeout/network): never auto-post text — could duplicate
+                    }
+                    /* definite attachment rejection: fall through to text, same round */
                   }
                 }
                 await postText(withThread);
@@ -5764,10 +5902,13 @@ const SHADOW_MODAL_STYLES = `
                   // plain round hit forum → loop continues threaded
                 }
               }
+              if (!stillFresh()) { abortStale(); return; }
               showToast('📤 Deal in Discord geteilt');
-              if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
-            } catch {
-              showToast('📤 Teilen fehlgeschlagen');
+              if (snap.pid && snap.priceCents > 0) { setSharedDeal(snap.pid, snap.priceCents); shareBtn.classList.add('tp-share-done'); }
+            } catch (err) {
+              if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
+              else if (!err?.status) showToast('⚠️ Übermittlung nicht bestätigt — bitte prüfen');
+              else showToast('📤 Teilen fehlgeschlagen');
             }
           } finally {
             shareBtn.disabled = false;
@@ -5778,7 +5919,7 @@ const SHADOW_MODAL_STYLES = `
         card.appendChild(shareBtn);
       }
       shareBtn.style.display = '';
-      shareBtn.classList.toggle('tp-share-done', !!(pid && cardPrice > 0 && getSharedDeal(pid, priceToCents(cardPrice))));
+      shareBtn.classList.toggle('tp-share-done', !!(ctx.pid && ctx.cardPrice > 0 && getSharedDeal(ctx.pid, priceToCents(ctx.cardPrice))));
     } else {
       shareBtn?.remove();
     }
@@ -5938,7 +6079,7 @@ const SHADOW_MODAL_STYLES = `
     // Filtern removes cards: empty state whenever all cards are removed.
     if (cards.length > 0 && totalHidden >= cards.length) {
       // Static notice: skip rebuild + listener re-bind when nothing changed
-      const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}`;
+      const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${realDealMinDiscount()}`;
       if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
       if (!emptyNotice) {
         emptyNotice = document.createElement('div');
@@ -5949,7 +6090,7 @@ const SHADOW_MODAL_STYLES = `
           listParent.insertBefore(emptyNotice, listParent.firstChild);
         }
       }
-      const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+      const minDisc = realDealMinDiscount();
       emptyNotice.innerHTML = `
         <div>🚫 <strong>Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.</strong></div>
         <div class="tp-empty-state-actions">
@@ -5983,9 +6124,12 @@ const SHADOW_MODAL_STYLES = `
   // Orchestrator (signature frozen — app.js untouched): builds ctx once,
   // paints heat + verdict, then chrome steps in the original order.
   function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-    const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
-    const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
-    const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
+    const { card, pid, cardPriceEl, cardPrice, cardPriceBasis, basisMatches, stats, diffVal } = cd;
+    // Rejected verdicts (null) stay rejected: only an uncalculated verdict
+    // (undefined, e.g. a partial struct) may compute — and only on a matching basis.
+    const basisOk = basisMatches ?? basisMatchesFor(stats, cardPriceBasis);
+    const displayDelta = cd.displayDelta ?? (basisOk ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' });
+    const dealData = cd.dealScore === undefined && basisOk ? computeDealScore(stats, cardPrice) : (cd.dealScore ?? null);
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
@@ -6203,7 +6347,7 @@ const SHADOW_MODAL_STYLES = `
             <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
             <div id="tp-discord-webhook-collapsed">
               <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
-              <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook anzeigen / ändern</button>
+              <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook ersetzen / entfernen</button>
             </div>
             <div id="tp-discord-webhook-editor" style="display: none;">
               <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
@@ -6657,9 +6801,12 @@ const SHADOW_MODAL_STYLES = `
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
 
-    els.discordWebhookReveal?.addEventListener('click', () => {
+    els.discordWebhookReveal?.addEventListener('click', e => {
+      // Replace, never reveal: the secret is write-only. The status line is
+      // the only configured indicator — Shadow DOM is not a security boundary.
+      if (e && !e.isTrusted) return;
       if (!els.discordWebhookEditor || !els.discordWebhookInput) return;
-      els.discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+      els.discordWebhookInput.value = '';
       els.discordWebhookEditor.style.display = '';
       els.discordWebhookReveal.style.display = 'none';
       els.discordWebhookReveal.setAttribute('aria-expanded', 'true');
@@ -6764,7 +6911,7 @@ const SHADOW_MODAL_STYLES = `
             saveConfigKey(key, clean);
             count++;
           }
-          if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
+          if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { getProductCards().forEach(clearCardCache); }
           if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
           updateBodyClasses();
           triggerProcessListings();
@@ -6785,6 +6932,8 @@ const SHADOW_MODAL_STYLES = `
     };
 
     const closeModal = () => {
+      // Never leave a typed secret in the editor across sessions of the dialog.
+      if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       if (typeof els.dialog.close === 'function') els.dialog.close();
       else els.dialog.removeAttribute('open');
@@ -6802,15 +6951,15 @@ const SHADOW_MODAL_STYLES = `
 
       updates.MARGIN_PERCENT = Math.max(0, Math.min(50, parseFloat(els.marginVal.value) || 0));
       updates.DIM_OPACITY = Math.max(0.05, Math.min(1, parseFloat(els.opacityRange.value) || 0.25));
-      // Cached price stats are shipping-mode specific (product vs shipping series
-      // share one cache key), so a mode change must invalidate them.
+      // Cache entries are keyed per shipping basis, so a mode change only needs
+      // fresh card memos (below) — the other slot stays warm for toggling back.
       const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
-      if (els.shippingToggle) updates.USE_SHIPPING_PRICE = els.shippingToggle.checked;
       // Cached analyses bake in the median horizon — recompute them locally
       // from the retained series (no network) before the single repaint below.
+      // Single schema: bounds live in config-store (min 0, max 3650), not here.
       const rawHorizon = els.bestpreiseHorizonVal ? parseInt(els.bestpreiseHorizonVal.value, 10)
         : (els.bestpreiseHorizonRange ? parseInt(els.bestpreiseHorizonRange.value, 10) : NaN);
-      const newHorizon = isNaN(rawHorizon) ? 365 : (rawHorizon <= 0 || rawHorizon > 730 ? 0 : Math.min(730, Math.max(30, rawHorizon)));
+      const newHorizon = sanitizeConfigValue('BESTPREISE_MEDIAN_HORIZON_DAYS', rawHorizon);
       const horizonChanged = !!(els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
       const checkedSort = els.shadow.querySelector('input[name="tp-sort-offers"]:checked');
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
@@ -6838,7 +6987,7 @@ const SHADOW_MODAL_STYLES = `
       }
       if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
       if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
-      if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(0, Math.min(90, parseInt(els.realDealMinVal.value) || 30));
+      if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
       if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
@@ -6860,7 +7009,9 @@ const SHADOW_MODAL_STYLES = `
         }
         updates.DISCORD_LAYOUT = value;
       }
-      if (shippingChanged) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
+      // Basis toggle keeps both cache slots (entries are keyed per basis): only
+      // card memos clear + repaint, no whole-cache wipe, no generation bump.
+      if (shippingChanged) { getProductCards().forEach(clearCardCache); }
       if (horizonChanged) recomputeCachedMedians(newHorizon);
       updateConfigs(updates);
       showToast('Toppreise Suite Einstellungen gespeichert');
@@ -8098,7 +8249,7 @@ const SHADOW_MODAL_STYLES = `
       showToast('Keine ungeprüften Deals vorhanden');
       return;
     }
-    const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+    const minDisc = realDealMinDiscount();
     // Progress + cancel live in the expanded form — a check always expands.
     setCollapsed(false);
     runBatchDealCheck(
@@ -8255,7 +8406,7 @@ const SHADOW_MODAL_STYLES = `
     setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
     collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
 
-    const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+    const minDisc = realDealMinDiscount();
     const threshBtn = el.querySelector('#tp-floating-threshold-btn');
     // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
     // on catalog pages only the check action itself is offered.
@@ -8311,6 +8462,9 @@ const SHADOW_MODAL_STYLES = `
   // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
   const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
   const isForumThreadError = err => /^Discord (400|405)$/.test(err?.message || '');
+  // Definite attachment rejections: the file itself was refused — text fallback
+  // is safe. Anything else (429/timeout/network) must never auto-post text.
+  const isAttachmentRejection = err => err?.status === 400 || err?.status === 413 || err?.status === 415;
   function discordForumFlagKey(webhookUrl) {
     let h = 5381;
     const s = String(webhookUrl || '').trim();
@@ -8416,6 +8570,31 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
+  // Enriched rejection: {status, body, retryAfterMs} let the caller tell a
+  // definite attachment refusal (safe text fallback) from an ambiguous
+  // transport failure (429/timeout/network — never auto-repost, could duplicate).
+  const discordBodyExcerpt = body => (typeof body === 'string' ? body : '')?.slice(0, 500) || '';
+  const discordHeaderVal = (headers, name) => {
+    if (!headers) return null;
+    if (typeof headers.get === 'function') return headers.get(name);
+    const m = String(headers).match(new RegExp(`^${name}:\\s*(.+)$`, 'im'));
+    return m ? m[1].trim() : null;
+  };
+  const discordRetryAfterMs = headers => {
+    const ra = discordHeaderVal(headers, 'Retry-After');
+    if (ra != null && ra !== '') {
+      const secs = Number(ra);
+      if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+      const at = Date.parse(ra);
+      if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+    }
+    const resetAfter = Number(discordHeaderVal(headers, 'X-RateLimit-Reset-After'));
+    if (Number.isFinite(resetAfter)) return Math.max(0, Math.min(60000, resetAfter * 1000));
+    return 0;
+  };
+  const discordError = (status, body, headers) =>
+    Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
+      { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
   function gmPost({ url, data, headers, timeoutMs }) {
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
@@ -8424,9 +8603,9 @@ const SHADOW_MODAL_STYLES = `
         ...(headers ? { headers } : {}),
         data,
         timeout: timeoutMs,
-        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
-        onerror: () => reject(new Error('Netzwerkfehler')),
-        ontimeout: () => reject(new Error('Timeout'))
+        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(discordError(res.status, res?.responseText, res?.responseHeaders))),
+        onerror: () => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })),
+        ontimeout: () => reject(Object.assign(new Error('Timeout'), { status: 0, retryAfterMs: 0 }))
       });
     });
   }
@@ -8458,8 +8637,11 @@ const SHADOW_MODAL_STYLES = `
           gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
         } else if (typeof fetch !== 'undefined') {
           fetch(url, { method: 'POST', body: form })
-            .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
-            .catch(() => reject(new Error('Netzwerkfehler')));
+            .then(async res => {
+              if (res.ok) return resolve();
+              reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
+            })
+            .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
         } else {
           reject(new Error('Kein Multipart-Transport'));
         }
@@ -8648,26 +8830,48 @@ const SHADOW_MODAL_STYLES = `
         if (!types.includes('Product')) continue;
         const list = Array.isArray(item.offers) ? item.offers : (item.offers ? [item.offers] : null);
         if (!list) continue;
-        if (list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' && !Array.isArray(list[0].offers)) {
-          const n = +list[0].offerCount; // kein Verkäufer, aber echte Angebotszahl
-          return { dealer: '', offers: Number.isFinite(n) ? Math.round(n) : 0 };
+        const agg = list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' ? list[0] : null;
+        if (agg) {
+          // Nested offer objects beat a bare count: recurse into them so the
+          // dealer comes from real rows, not an ID list.
+          if (Array.isArray(agg.offers) && agg.offers.length) {
+            const nested = parseJsonLdOffer({ '@type': 'Product', offers: agg.offers });
+            if (nested.dealer || nested.offers) return nested;
+          }
+          // Count-only: no loaded rows (offers 0), but a real total.
+          const n = +agg.offerCount;
+          return { dealer: '', offers: 0, totalOffers: Number.isFinite(n) && n > 0 ? Math.round(n) : 0 };
         }
         let best = null;
         for (const o of list) {
+          // Strict: +null/+'' coerce to 0 and must never win as "cheapest".
           const price = +o?.price;
-          if (!Number.isFinite(price)) continue; // fehlendes price: Angebot überspringen
+          if (!(price > 0)) continue;
           if (!best || price < best.price) best = { price, dealer: typeof o.seller === 'object' ? (o.seller?.name || '') : (o.seller || '') };
         }
-        if (best) return { dealer: best.dealer, offers: list.length };
+        if (best) return { dealer: best.dealer, offers: list.length, totalOffers: 0 };
       }
     }
-    return { dealer: '', offers: 0 };
+    return { dealer: '', offers: 0, totalOffers: 0 };
   }
 
   // Produktseiten listen Angebote als .Plugin_Offer-Blöcke (Preis-aufsteigend,
   // statisch im HTML, live verifiziert 2026-10-09): Shopname im Logo-alt, je ein
   // Produkt-/Versandpreis. Günstigstes Angebot auf Karten-Basis wählen (Min statt
   // erste Zeile: robust gegen fremde Sortier-Cookies; nur Seite 1 geparst).
+  // Feed-Format zusätzlich als .Plugin_DealerRelProdPriceInfo-Zeilen (.title +
+  // je ein Produkt-/Versandpreis): gleiches Offer-Shape, gleiche strikte Wahl.
+  function parseDealerRows(doc) {
+    const rows = Array.from(doc?.querySelectorAll?.(`${SELECTORS.cards.dealerRows}`) || []);
+    return rows.map(row => {
+      const dealer = row.querySelector?.('.title')?.textContent?.replace(/\s+/g, ' ').trim() || '';
+      const product = parsePrice(row.querySelector?.('.productPrice .Plugin_Price')?.textContent);
+      const shipping = parsePrice(row.querySelector?.('.shippingPrice .Plugin_Price')?.textContent);
+      const link = row.querySelector?.('a[href*="ext_de"]');
+      const url = link?.getAttribute?.('href') || link?.href || '';
+      return { dealer, product: product || 0, shipping: shipping || 0, url: url || '' };
+    }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
+  }
   function parseProductOffers(doc) {
     const blocks = Array.from(doc?.querySelectorAll?.('.Plugin_Offer') || []);
     return blocks.map(block => {
@@ -8684,11 +8888,13 @@ const SHADOW_MODAL_STYLES = `
   function pickCheapestOffer(offers, useShipping = false) {
     let best = null;
     for (const o of offers || []) {
-      const price = useShipping ? (o.shipping || o.product) : (o.product || o.shipping);
+      // Basis-strict: no cross-basis fallback — a product-only price must never
+      // stand in for shipping-inclusive history (or vice versa).
+      const price = useShipping ? (o.shipping || 0) : (o.product || 0);
       if (!(price > 0)) continue;
       if (!best || price < best.price) best = { price, dealer: o.dealer || '', url: o.url || '' };
     }
-    return best || { price: 0, dealer: '', url: '' };
+    return best;
   }
 
   // Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
@@ -8696,7 +8902,9 @@ const SHADOW_MODAL_STYLES = `
   // /ext_de-Direktlink zum günstigsten Angebot) → JSON-LD (nur Count). Händler
   // immer auf Karten-Preisbasis (Versand/Produkt).
   async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
-    const out = { dealer: '', offers: 0, dealerUrl: '' };
+    // offers = loaded page-1 rows; totalOffers = JSON-LD AggregateOffer count
+    // when present (0 otherwise). Callers keep reading `offers` — no migration.
+    const out = { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 };
     try {
       if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
       if (!/^https?:\/\//i.test(productUrl || '')) return out;
@@ -8713,17 +8921,23 @@ const SHADOW_MODAL_STYLES = `
         clearTimeout(timer);
       }
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const titles = Array.from(doc.querySelectorAll(`${SELECTORS.cards.dealerRows} .title`));
-      // ponytail: first row is the cheapest offer on Toppreise listings
-      out.dealer = titles[0]?.textContent?.replace(/\s+/g, ' ').trim() || '';
-      out.offers = titles.length;
-      if (out.dealer || out.offers) return out;
-      const offers = parseProductOffers(doc);
+      // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
+      // blocks — both through basis-strict cheapest (row order may follow
+      // foreign sort cookies). Rows without a parseable basis price still yield
+      // the first titled row as display-only name (no price claim attached).
+      const dealerRows = parseDealerRows(doc);
+      const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
       if (offers.length) {
         out.offers = offers.length;
-        const best = pickCheapestOffer(offers, useShipping);
-        out.dealer = best.dealer;
-        if (best.url) {
+        let best = pickCheapestOffer(offers, useShipping);
+        if (!best) {
+          // Link-only fallback: no parseable price on the card basis (e.g.
+          // product-only rows in shipping mode). Picks whose name/link to show;
+          // never a price — posted prices always come from the card snapshot.
+          best = pickCheapestOffer(offers, !useShipping);
+        }
+        out.dealer = best ? best.dealer : (offers[0].dealer || '');
+        if (best?.url) {
           try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
         }
         return out;
@@ -8732,10 +8946,12 @@ const SHADOW_MODAL_STYLES = `
       for (const s of scripts) {
         try {
           const found = parseJsonLdOffer(JSON.parse(s.textContent));
-          if (found.dealer || found.offers) return { dealer: found.dealer, offers: found.offers, dealerUrl: '' };
+          if (found.dealer || found.offers || found.totalOffers) {
+            return { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
+          }
         } catch { /* Block einzeln ignorieren */ }
       }
-      console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: titles.length, jsonLdBlocks: scripts.length });
+      console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: offers.length, jsonLdBlocks: scripts.length });
     } catch { /* Händler unbekannt: Zeile entfällt */ }
     return out;
   }
@@ -8751,8 +8967,11 @@ const SHADOW_MODAL_STYLES = `
         gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
       } else if (typeof fetch !== 'undefined') {
         fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
-          .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
-          .catch(() => reject(new Error('Netzwerkfehler')));
+          .then(async res => {
+            if (res.ok) return resolve();
+            reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
+          })
+          .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
       } else {
         reject(new Error('Kein HTTP-Transport verfügbar'));
       }
@@ -8909,15 +9128,24 @@ const SHADOW_MODAL_STYLES = `
 
     const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
     const productFirst = modalContainer.querySelector('.productPrice .Plugin_Price');
-    const priceEl = (isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst)) ||
-                    document.querySelector('.pageContent .priceContainer .Plugin_Price');
+    // Modal-scoped only: a page-wide fallback could fill a foreign price into
+    // this product's alarm (missing controls retry on the next observer pass).
+    const priceEl = isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst);
     if (!priceEl) return;
 
     const presentValue = parsePrice(priceEl.textContent);
     if (!(presentValue > 0)) return;
-
-    const targetPrice = (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2);
-    const duration = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
+    // Full snapshot: the 300ms submit revalidates every field below — a basis
+    // toggle, route change, or foreign fill mid-wait aborts silently.
+    const snapshot = {
+      url: location.href,
+      basis: isShippingPriceActive(),
+      priceText: priceEl.textContent,
+      target: (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2),
+      duration: normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS)
+    };
+    const targetPrice = snapshot.target;
+    const duration = snapshot.duration;
     const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
     const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
     const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
@@ -8937,7 +9165,7 @@ const SHADOW_MODAL_STYLES = `
 
     if (CONFIG.ALARM_AUTO_SUBMIT === true) {
       const reqModal = modalContainer;
-      const reqValue = priceInput.value;
+      const reqSnap = snapshot;
       const unconfirmedMsg = '⚠️ Übermittlung nicht bestätigt — bitte prüfen';
       const flagUnconfirmed = () => {
         const cur = document.querySelector('.Plugin_NewInfoMailForm');
@@ -8974,10 +9202,15 @@ const SHADOW_MODAL_STYLES = `
           flagUnconfirmed();
         }, 5000);
         const submitTimer = setTimeout(() => {
-          // Pre-submit revalidation: basis/config may have changed mid-wait.
+          // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
           if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return;
+          if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return;
+          if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return;
+          if (priceInput.value !== reqSnap.target) return;
+          const durHidden = reqModal.querySelector('input[name="im_nimf_du"]');
+          if (durHidden && durHidden.value !== reqSnap.duration) return;
           const submitBtn = reqModal.querySelector('input.f_submitbtn');
-          if (!submitBtn || priceInput.value !== reqValue) return;
+          if (!submitBtn) return;
           const termsCheckbox = reqModal.querySelector('input#im_nimf_prtrm');
           if (termsCheckbox) {
             termsCheckbox.checked = true;
@@ -8992,7 +9225,13 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  setAlarmConfigListener(refreshAlarmBellDecor);
+  setAlarmConfigListener(() => {
+    // A settings change invalidates pending auto-submits: cancel timers so a
+    // stale snapshot can never submit under new settings.
+    const live = typeof document !== 'undefined' ? document.querySelector('.Plugin_NewInfoMailForm') : null;
+    if (live) clearAlarmTimers(live);
+    refreshAlarmBellDecor();
+  });
 
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
   /**
@@ -9006,9 +9245,15 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  // Stale-request guard: overlapping observer triggers race the fetch — only
+  // the latest run may paint. A generation token (not pid comparison alone)
+  // also covers same-product reprices and basis toggles mid-flight.
+  let detailRun = 0;
+  const removeDetailBadge = () => document.getElementById('tp-detail-deal-badge')?.remove();
   async function processProductDetailPage() {
+    const run = ++detailRun;
     const pid = getDetailProductId();
-    if (!pid) return;
+    if (!pid) { removeDetailBadge(); return; }
 
     // Ordered single queries (see getDetailLowestPrice): grouped selectors match
     // in document order, so the bare h1 fallback must never outrank its scopes.
@@ -9018,15 +9263,23 @@ const SHADOW_MODAL_STYLES = `
       headingEl = document.querySelector(sel);
       if (headingEl) break;
     }
-    if (!headingEl) return;
+    if (!headingEl) { removeDetailBadge(); return; }
 
     const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
-    if (currentPrice <= 0) return;
+    if (!(currentPrice > 0)) { removeDetailBadge(); return; }
 
     let badge = document.getElementById('tp-detail-deal-badge');
     let stats = getCachedPriceStats(pid);
     if (!stats || !stats.tiefstpreis) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
+      // Stale: a newer run started, the route changed, or the heading died.
+      if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
+        if (pid !== getDetailProductId()) removeDetailBadge();
+        return;
+      }
+      // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
+      const fresh = getDetailLowestPrice();
+      if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
       stats = getCachedPriceStats(pid);
     }
     if (stats && stats.tiefstpreis > 0) {
@@ -9091,14 +9344,14 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     if (mainObserver) mainObserver.disconnect();
     try {
       const cards = getProductCards();
-      if (cards.length === 0) { dismissChrome(); return; }
+      if (cards.length === 0) { try { applySorting([], false, []); } catch {} dismissChrome(); return; }
 
       // --- Extract ---
       const activeStores = extractActiveStores();
       const termsList = parseNegativeTerms();
       const isNeueFeed = isNeueToppreisePage();
       const isSortPage = isNeueFeed || isSearchPage();
-      const minDealDiscount = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+      const minDealDiscount = realDealMinDiscount();
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
@@ -9170,6 +9423,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
     let dirtyCard = false;
     let structural = false;
+    // Outside cards the interesting changes are text/attribute swaps (detail
+    // price, alarm controls, active filters, route attrs) — records without
+    // added/removed nodes. OBSERVE_OPTS.attributeFilter stays tight on purpose.
+    const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
     const checkNode = node => {
       if (!node || node.nodeType !== 1) return false;
       if (isOwnedNode(node)) return false;
@@ -9212,6 +9469,12 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       }
       if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
         if (checkNode(m.removedNodes[i])) { structural = true; break; }
+      }
+      // Attribute/characterData records carry no added/removed nodes: match
+      // the target itself so detail-price text swaps, alarm controls,
+      // active-filter changes and route-attribute swaps schedule a pass.
+      if (!structural && targetEl && (m.type === 'characterData' || m.type === 'attributes')) {
+        if (!isOwnedNode(targetEl) && targetEl.closest?.(NON_CARD_SEL)) structural = true;
       }
       if (dirtyCard && structural) break;
     }
@@ -9294,7 +9557,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.270';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.271';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

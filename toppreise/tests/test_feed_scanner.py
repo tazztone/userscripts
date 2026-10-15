@@ -1,6 +1,6 @@
 from playwright.sync_api import Page
 
-from conftest import seed_verified_deal, mock_pricechart, drop_store_filter, open_filter_popover
+from conftest import seed_verified_deal, mock_pricechart, drop_store_filter, open_filter_popover, open_settings
 
 
 
@@ -1697,3 +1697,135 @@ def test_bestpreise_button_readable_on_light_background(page: Page):
     assert 'gradient' in btn.evaluate("el => window.getComputedStyle(el).backgroundImage")
     assert '(' not in (page.locator('#tp-bar-bestpreise-count').text_content() or '')
 
+
+
+def test_share_aborts_after_card_reuse(page: Page):
+    """Share-after-card-reuse aborts: repid mid-flight → no Discord post + stale toast."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+    # Webhook through the real settings save path (page JS can only write it).
+    open_settings(page)
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/123/abc')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    # Discord recorder: must stay silent.
+    posts = []
+    page.route('**/discord.com/**', lambda route: (posts.append(route.request.url),
+                                                   route.fulfill(status=200, body='{}')))
+    # Slow every fetch so the card reuse lands while share awaits resolve.
+    page.evaluate("() => { const o = window.fetch; window.fetch = (...a) => new Promise((res, rej) => setTimeout(() => o(...a).then(res, rej), 1500)); }")
+    # Atomic click+reuse in one task: the handler posts within ~50ms (no pre-post
+    # fetch slows it — data-URI image, non-toppreise URL), so a later CDP task
+    # could never land the reuse mid-flight. Same-task flip parks every
+    # stillFresh check behind the reuse: abort before any post.
+    page.evaluate("() => { document.querySelector('#card-cheapest > .tp-share-btn').click(); document.querySelector('#card-cheapest').dataset.entityId = '797574'; }")
+    page.locator('#tp-root >> .tp-toast', has_text='Karte hat sich geändert').wait_for(state='attached', timeout=10000)
+    page.wait_for_timeout(2000)
+    assert posts == [], f"stale share posted: {posts}"
+
+
+def test_sort_disable_restores_original_parents(page: Page):
+    """Cross-row sort restore: disable returns every card to its own parent, no synthetic ids."""
+    page.evaluate("""() => {
+        const full = { tiefstpreis: 1800, hoechstpreis: 2600, medianPrice: 2400,
+            previousLow: 2200, isNewAllTimeLow: true, realDiscountVsPrevLow: 18,
+            dataPointCount: 10, time: Date.now() };
+        localStorage.setItem('tp_hist_v1_797571', JSON.stringify(full));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), full);
+        const minimal = { tiefstpreis: 10, time: Date.now() };
+        localStorage.setItem('tp_hist_v1_797573', JSON.stringify(minimal));
+        if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797573'), minimal);
+        window.ToppreiseSuite.processListings();
+    }""")
+    orig = page.evaluate("""() => Object.fromEntries(
+        [...document.querySelectorAll('.Plugin_Product')].map(c => [c.id, c.parentElement?.id || null]))""")
+    before = page.evaluate("() => [...document.querySelectorAll('.Plugin_Product')].filter(c => c.offsetParent !== null).map(c => c.id)")
+    page.evaluate("""() => {
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', true);
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-new-record')
+    after = page.evaluate("() => [...document.querySelectorAll('.Plugin_Product')].filter(c => c.offsetParent !== null).map(c => c.id)")
+    assert after != before, "mode sort did not reorder visible cards"
+    # Host-hidden row (no script class) vs script-hidden row: only the latter may unhide.
+    page.evaluate("""() => {
+        const hostRow = document.querySelector('#product-grid-row-2');
+        // Active sort empties row-2 into the primary row and marks it script-hidden;
+        // host-hidden means NO script class, so drop the marker to stage that state literally.
+        hostRow.classList.remove('tp-empty-product-row-hidden');
+        hostRow.style.display = 'none';
+        const scriptRow = document.querySelector('#product-grid-row-1');
+        scriptRow.classList.add('tp-empty-product-row-hidden');
+        scriptRow.style.display = 'none';
+    }""")
+    page.evaluate("""() => {
+        window.ToppreiseSuite.saveConfigKey('BESTPREISE_MODE_ACTIVE', false);
+        window.ToppreiseSuite.processListings();
+    }""")
+    page.wait_for_function("() => !document.querySelector('#product-grid-row-1.tp-empty-product-row-hidden')", timeout=5000)
+    restored = page.evaluate("""() => Object.fromEntries(
+        [...document.querySelectorAll('.Plugin_Product')].map(c => [c.id, c.parentElement?.id || null]))""")
+    assert restored == orig, f"cards not back in original parents: {restored} vs {orig}"
+    assert page.evaluate("() => document.querySelectorAll('[data-tp-parent-id]').length") == 0
+    assert page.evaluate("() => document.querySelectorAll('[data-tp-orig-parent-id]').length") == 0
+    assert page.evaluate("() => window.getComputedStyle(document.querySelector('#product-grid-row-2')).display") == 'none'
+
+
+def test_detail_route_change_during_fetch_paints_nothing(page: Page):
+    """Detail route-change during fetch: pid swap mid-flight → no stale badge."""
+    import time as _time
+    def _handle(route):
+        _time.sleep(1.5)
+        route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
+                      content_type='application/json', body='[[0, 0]]')
+    page.route('**/plugins/product/pricechart*', _handle)
+    page.evaluate("""() => {
+        document.body.innerHTML = `
+          <div class="Plugin_ProductHeading">
+            <h1>SHARP 55HR7265E <a href="/plugins/product/pricechart?p_pc_pid=840582">Preischart</a></h1>
+          </div>
+          <div class="productPrice"><div class="Plugin_Price">350.90</div></div>
+        `;
+        window.ToppreiseSuite?.processProductDetailPage?.();
+    }""")
+    page.wait_for_timeout(300)
+    # Route change before the fetch resolves: new pid, new price, no new run.
+    page.evaluate("""() => {
+        document.body.innerHTML = `
+          <div class="Plugin_ProductHeading">
+            <h1>OTHER PRODUCT <a href="/plugins/product/pricechart?p_pc_pid=111111">Preischart</a></h1>
+          </div>
+          <div class="productPrice"><div class="Plugin_Price">999.99</div></div>
+        `;
+    }""")
+    page.wait_for_timeout(2500)
+    assert page.locator('#tp-detail-deal-badge').count() == 0
+
+
+def test_reset_during_pending_fetch_keeps_cache_empty(page: Page):
+    """Reset-during-pending: cache clear mid-fetch voids the write (generation guard)."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    import json as _json
+    _series = [[_now - (9 - i) * _day, 10] for i in range(10)]
+    def _handle(route):
+        _time.sleep(2)
+        route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
+                      content_type='application/json', body=_json.dumps([_series, _series]))
+    page.route('**/plugins/product/pricechart*', _handle)
+    page.click('#card-negative .badge-dif')
+    page.wait_for_timeout(500)
+    # Real reset path: bumps the cache generation mid-flight.
+    open_settings(page)
+    page.click('#tp-root >> #tp-cache-clear-btn')
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_timeout(3000)
+    assert page.evaluate("() => window.ToppreiseSuite.memoryCache.size") == 0
+    assert page.evaluate("() => Object.keys(localStorage).filter(k => k.startsWith('tp_hist_v1_')).length") == 0

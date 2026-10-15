@@ -6,12 +6,17 @@
 
 import { CONFIG } from '../state/config.js';
 import {
+  basisMatchesFor,
   extractCardData,
   extractCardDiscount,
   extractOfferCount
 } from './cards.js';
 import { computeDealScore, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
 
+// Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
+// The placeholder comment marks the exact pre-sort position; restore inserts
+// before it when still connected, else appends, then re-sorts by tpInitialOrder.
+const origPlacement = new WeakMap();
 export function getCardSortableUnit(card) {
   if (!card) return null;
   const collItem = card.closest('.Plugin_ProductCollItem');
@@ -26,53 +31,61 @@ export function getCardSortableUnit(card) {
 }
 
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
-  if (!cards || cards.length <= 1) return;
+  const list = cards || [];
 
   const isCustomSortActive = CONFIG.BESTPREISE_MODE_ACTIVE ||
                              CONFIG.SORT_BY_OFFERS === 'discount-desc' ||
                              (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none');
 
-  if (!isCustomSortActive) {
-    const wasCustomSorted = cards.some(c => {
+  if (isCustomSortActive) {
+    // Ordering needs 2+ visible cards; restore below must run regardless.
+    if (list.length <= 1) return;
+  } else {
+    // Restore must run even with zero visible cards: getProductCards filters
+    // hidden rows, so staging can hide every sorted card at disable time.
+    const wasCustomSorted = list.some(c => {
       const u = getCardSortableUnit(c);
-      return u?.style.order || u?.dataset.tpOrigParentId;
-    });
+      return u?.style.order || (u && origPlacement.has(u));
+    }) || (typeof document?.querySelector === 'function' && !!document.querySelector('.tp-empty-product-row-hidden, [data-tp-initial-order]'));
     if (!wasCustomSorted) return;
   }
 
-  // Ensure initial order and original parent IDs are recorded on all cards/columns
-  cards.forEach((c, idx) => {
+  // Record initial order on every card plus the original placement of every
+  // sortable item — independent of item identity (item === card included).
+  list.forEach((c, idx) => {
     if (!c.dataset.tpInitialOrder) {
       c.dataset.tpInitialOrder = String(idx);
     }
     const item = getCardSortableUnit(c);
-    if (item && !item.dataset.tpInitialOrder) {
-      item.dataset.tpInitialOrder = String(idx);
-      const parent = item.parentElement;
-      if (parent) {
-        if (!parent.id && !parent.dataset.tpParentId) {
-          parent.dataset.tpParentId = 'tp-p-' + Math.random().toString(36).slice(2, 9);
-        }
-        item.dataset.tpOrigParentId = parent.id || parent.dataset.tpParentId;
+    if (item) {
+      if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = String(idx);
+      if (!origPlacement.has(item) && item.parentElement) {
+        // Non-DOM harnesses (unit tests) have no Comment nodes: record the
+        // parent anyway; restore falls back to appendChild order.
+        const placeholder = typeof document?.createComment === 'function' ? document.createComment('tp-orig') : null;
+        if (placeholder) item.after(placeholder);
+        origPlacement.set(item, { parent: item.parentElement, placeholder });
       }
     }
   });
 
-  // Find all rows that actually contain product cards (strictly scopes to product rows, never sidebar/tabs/header)
-  const productRows = Array.from(new Set(cards.map(c => getCardSortableUnit(c)?.parentElement).filter(r => r && !r.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList'))));
-  if (productRows.length === 0) return;
-
-  const primaryRow = productRows[0];
-
   if (isCustomSortActive) {
+    // Rows derive from visible cards — active sort only; restore below re-derives instead.
+    const productRows = Array.from(new Set(list.map(c => getCardSortableUnit(c)?.parentElement).filter(r => r && !r.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar, .Plugin_ProductHistoryDropdown, .AbstractDropDown, #Plugin_MainHead, .DropDownMenuList'))));
+    if (productRows.length === 0) return;
+
+    const primaryRow = productRows[0];
+
     let sortedEntries = [];
 
     const byCard = cardDataList ? new Map(cardDataList.map(cd => [cd.card, cd])) : null;
     const cdFor = c => byCard?.get(c) || extractCardData(c);
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
-      const scored = cards.map(c => {
+      const scored = list.map(c => {
         const cd = cdFor(c);
-        const dealData = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
+        // Rejected (null) stays rejected: recompute only uncalculated (undefined) on a matching basis.
+        const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
+        const dealData = (cd.dealScore === undefined && sortBasisOk) ? computeDealScore(cd.stats, cd.cardPrice) : (cd.dealScore ?? null);
         let weightedDiff = -100;
         if (dealData) {
           // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
@@ -98,7 +111,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       sortedEntries = scored;
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
-      const scored = cards.map(c => {
+      const scored = list.map(c => {
         const cd = cdFor(c);
         const level = getLevelPct(cd.cardPrice, cd.stats, true);
         return {
@@ -111,7 +124,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       scored.sort((a, b) => (b.disc - a.disc) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none') {
-      const scored = cards.map(c => ({
+      const scored = list.map(c => ({
         card: c,
         item: getCardSortableUnit(c),
         count: extractOfferCount(c),
@@ -174,24 +187,37 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     }
   } else {
     // Natural order restoration: return items to original parents in initial order
-    const itemsToRestore = cards.map(c => {
+    const itemsToRestore = list.map(c => {
       const item = getCardSortableUnit(c);
       return {
         card: c,
         item,
-        initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10),
-        origParentId: item?.dataset.tpOrigParentId
+        initialOrder: parseInt(c.dataset.tpInitialOrder || item?.dataset.tpInitialOrder || '0', 10)
       };
+    });
+    // cards skips hidden rows (getProductCards filters them), so re-derive
+    // hidden previously-sorted units via their tpInitialOrder marker.
+    const seenUnits = new Set(itemsToRestore.map(entry => entry.item).filter(Boolean));
+    const markedNodes = typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('[data-tp-initial-order]') : [];
+    markedNodes.forEach(node => {
+      const unit = node.matches?.('.Plugin_Product') ? getCardSortableUnit(node) : node;
+      if (!unit || seenUnits.has(unit) || !origPlacement.has(unit)) return;
+      seenUnits.add(unit);
+      const card = unit.matches?.('.Plugin_Product') ? unit : unit.querySelector?.('.Plugin_Product');
+      itemsToRestore.push({
+        card: card || node,
+        item: unit,
+        initialOrder: parseInt(card?.dataset.tpInitialOrder || unit.dataset.tpInitialOrder || '0', 10)
+      });
     });
 
     itemsToRestore.sort((a, b) => a.initialOrder - b.initialOrder);
 
-    const allOrigParents = Array.from(new Set(itemsToRestore.map(entry => {
-      if (!entry.origParentId) return entry.item?.parentElement;
-      return document.getElementById(entry.origParentId) ||
-             document.querySelector(`[data-tp-parent-id="${entry.origParentId}"]`) ||
-             entry.item?.parentElement;
-    }).filter(Boolean)));
+    const hiddenRows = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.tp-empty-product-row-hidden')) : [];
+    const allOrigParents = Array.from(new Set([...itemsToRestore.map(entry => {
+      const saved = entry.item ? origPlacement.get(entry.item) : null;
+      return (saved?.parent?.isConnected ? saved.parent : null) || entry.item?.parentElement;
+    }), ...hiddenRows.filter(r => r.isConnected)].filter(Boolean)));
 
     itemsToRestore.forEach(entry => {
       const item = entry.item;
@@ -200,12 +226,11 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         item.style.removeProperty('order');
       }
 
-      if (entry.origParentId) {
-        let origParent = document.getElementById(entry.origParentId) ||
-                         document.querySelector(`[data-tp-parent-id="${entry.origParentId}"]`);
-        if (origParent && item.parentElement !== origParent) {
-          origParent.appendChild(item);
-        }
+      const saved = origPlacement.get(item);
+      const target = (saved?.parent?.isConnected ? saved.parent : null) || item.parentElement;
+      if (target && item.parentElement !== target) {
+        if (saved?.placeholder?.isConnected) target.insertBefore(item, saved.placeholder);
+        else target.appendChild(item);
       }
     });
 
@@ -221,10 +246,11 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
           }
         });
       }
-      if (row.style.display === 'none') {
+      // Unhide only script-hidden rows: other inline display:none belongs to the host.
+      if (row.classList.contains('tp-empty-product-row-hidden')) {
+        row.classList.remove('tp-empty-product-row-hidden');
         row.style.removeProperty('display');
       }
-      row.classList.remove('tp-empty-product-row-hidden');
     });
   }
 }
