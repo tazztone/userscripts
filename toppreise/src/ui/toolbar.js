@@ -12,35 +12,8 @@ import { showToast } from "./toast.js";
 import { buildCalcPreview, refreshCalcPreview } from "./calc-preview.js";
 import { setTextIfChanged } from "./badges.js";
 import { syncMiniToggle } from "./mini-toggle.js";
-const CYCLE_TITLE = { off: 'Filter: Normal — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Normal' };
-const CYCLE_TOASTS = {
-  FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', off: '📝 Negativ-Begriffe: Normal' },
-  FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', off: '🔢 Min-Angebote: Normal' },
-  HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
-  VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', off: 'Fallback-Tiefs eingeschlossen' },
-};
-function paintCycleButton(btn, modeKey) {
-  const s = cycleStateOf(modeKey);
-  setTextIfChanged(btn, s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen');
-  btn.classList.toggle('tp-active', s !== 'off');
-  btn.title = CYCLE_TITLE[s];
-}
-function cycleFilter(modeKey) {
-  const pair = FILTER_CYCLE[modeKey];
-  if (!pair) return;
-  const toasts = CYCLE_TOASTS[modeKey];
-  const s = cycleStateOf(modeKey);
-  if (s === 'off') {
-    updateConfigs({ [pair.enable]: pair.on, [modeKey]: 'dim' });
-    showToast(toasts.dim);
-  } else if (s === 'dim') {
-    updateConfig(modeKey, 'hide');
-    showToast(toasts.hide);
-  } else {
-    updateConfig(pair.enable, !pair.on);
-    showToast(toasts.off);
-  }
-}
+import { buildCalcControls, syncCalcControls } from './toolbar-calc.js';
+import { wireFilterPopover, syncFilterRow } from './toolbar-filter.js';
 
 function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');
@@ -70,280 +43,6 @@ function bindBestpreiseBtn(btn) {
 }
 
 
-function pokePreviewFocus(kind) {
-  const box = document.getElementById('tp-calc-preview');
-  if (!box) return;
-  box.dataset.focus = kind;
-  clearTimeout(box._tpFocusT);
-  box._tpFocusT = setTimeout(() => { if (box.dataset.focus === kind) delete box.dataset.focus; }, 600);
-}
-
-function bindWeightControls(wrapper) {
-  const weightRange = wrapper.querySelector('#tp-bar-weight-range');
-  const weightLabel = wrapper.querySelector('#tp-bar-weight-label');
-  if (!weightRange) return;
-  const readWeight = () => Math.max(0, Math.min(1, (parseInt(weightRange.value, 10) || 0) / 100));
-  const paintWeightLabel = () => {
-    if (!weightLabel) return;
-    const w = readWeight();
-    weightLabel.textContent = `⚖️ ${weightText(w, 'short')}`;
-    weightLabel.title = weightText(w, 'title');
-  };
-  paintWeightLabel();
-  let deb;
-  weightRange.oninput = () => {
-    paintWeightLabel();
-    pokePreviewFocus('weight');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-    }, 175);
-  };
-  weightRange.onchange = () => {
-    clearTimeout(deb);
-    const w = readWeight();
-    paintWeightLabel();
-    updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-    showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (Reihenfolge + Farb-Emphase)`);
-  };
-}
-
-
-function buildWeightWrapper() {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper';
-  wrapper.id = 'tp-bar-weight-wrapper';
-  wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Gewichtung</span>
-    <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
-  bindWeightControls(wrapper);
-  return wrapper;
-}
-
-function bindMinPointsControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-minpoints-range');
-  const label = wrapper.querySelector('#tp-bar-minpoints-label');
-  if (!range) return;
-  const readNum = () => minPointsFromIndex(range.value);
-  const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
-  paint();
-  let deb;
-  range.oninput = () => {
-    paint();
-    clearTimeout(deb);
-    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const n = readNum();
-    paint();
-    updateConfig('BESTPREISE_MIN_POINTS', n);
-    showToast(`Mindestanzahl Datenpunkte in der Preishistorie: ${n} (≈ Tage)`);
-  };
-}
-
-function buildMinPointsWrapper() {
-  const cur = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-minpoints-wrapper';
-  wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Mindestpunkte</span>
-    <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
-    <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
-  bindMinPointsControls(wrapper);
-  return wrapper;
-}
-
-function bindHorizonControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-horizon-range');
-  const label = wrapper.querySelector('#tp-bar-horizon-label');
-  if (!range) return;
-  const readHorizon = () => {
-    const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
-  };
-  const paintHorizonLabel = () => {
-    if (!label) return;
-    const v = readHorizon();
-    label.textContent = horizonText(v);
-    label.title = horizonText(v, 'title');
-  };
-  paintHorizonLabel();
-  let deb;
-  range.oninput = () => {
-    paintHorizonLabel();
-    pokePreviewFocus('window');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      const v = readHorizon();
-      recomputeCachedMedians(v);
-      updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    }, 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const v = readHorizon();
-    paintHorizonLabel();
-    recomputeCachedMedians(v);
-    updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
-  };
-}
-
-function buildHorizonWrapper() {
-  const cur = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-horizon-wrapper';
-  wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel rechnet gecachte Mediane lokal neu — ohne Netz.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Ø-Zeitraum</span>
-    <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
-    <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${cur === 0 ? 760 : cur}" title="${horizonText(cur, 'title')}">`;
-  bindHorizonControls(wrapper);
-  return wrapper;
-}
-
-function bindOutlierControls(wrapper) {
-  const toggle = wrapper.querySelector('#tp-bar-outlier-toggle');
-  if (!toggle) return;
-  syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
-  paintOutlierDim();
-  toggle.onchange = () => {
-    const v = toggle.checked;
-    updateConfig('OUTLIER_REJECTION_ENABLED', v, { skipRender: true });
-    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    triggerProcessListings();
-    syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
-    paintOutlierDim();
-    showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
-  };
-}
-
-function buildOutlierWrapper() {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-outlier-wrapper';
-  wrapper.title = 'Kurze Preissprünge (Band und Fenster unten einstellbar) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
-  wrapper.innerHTML = `
-    <label class="tp-mini-switch" title="Ausreißer-Filter">
-      <input type="checkbox" id="tp-bar-outlier-toggle" ${CONFIG.OUTLIER_REJECTION_ENABLED !== false ? 'checked' : ''}>
-      <span class="tp-mini-slider"></span>
-    </label>
-    <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreißer filtern</span>`;
-  bindOutlierControls(wrapper);
-  return wrapper;
-}
-
-function paintOutlierDim() {
-  const dim = CONFIG.OUTLIER_REJECTION_ENABLED === false;
-  for (const id of ['tp-bar-outlier-band-wrapper', 'tp-bar-outlier-hours-wrapper']) {
-    const wrap = document.getElementById(id);
-    if (wrap) wrap.classList.toggle('tp-tool-dim', dim);
-  }
-}
-
-function bindOutlierBandControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-outlier-band-range');
-  const label = wrapper.querySelector('#tp-bar-outlier-band-label');
-  if (!range) return;
-  const readBandPct = () => {
-    const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 50 : Math.min(50, Math.max(1, raw));
-  };
-  const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
-  paintBandLabel();
-  let deb;
-  range.oninput = () => {
-    paintBandLabel();
-    pokePreviewFocus('band');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      const pct = readBandPct();
-      updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
-      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      triggerProcessListings();
-    }, 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const pct = readBandPct();
-    paintBandLabel();
-    updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
-    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    triggerProcessListings();
-    showToast(`Ausreißer-Band: ±${pct} % — live aktualisiert`);
-  };
-}
-
-function buildOutlierBandWrapper() {
-  const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 50;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-outlier-band-wrapper';
-  wrapper.title = 'Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Glitch-Band</span>
-    <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
-    <input type="range" id="tp-bar-outlier-band-range" min="1" max="50" step="1" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
-  bindOutlierBandControls(wrapper);
-  return wrapper;
-}
-
-function bindOutlierHoursControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-outlier-hours-range');
-  const label = wrapper.querySelector('#tp-bar-outlier-hours-label');
-  if (!range) return;
-  const readHours = () => {
-    const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 48 : Math.min(168, Math.max(24, raw));
-  };
-  const paintHoursLabel = () => { if (label) label.textContent = `${readHours()} h`; };
-  paintHoursLabel();
-  let deb;
-  range.oninput = () => {
-    paintHoursLabel();
-    pokePreviewFocus('band');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      const hrs = readHours();
-      updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
-      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      triggerProcessListings();
-    }, 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const hrs = readHours();
-    paintHoursLabel();
-    updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
-    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    triggerProcessListings();
-    showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
-  };
-}
-
-function buildOutlierHoursWrapper() {
-  const cur = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-outlier-hours-wrapper';
-  wrapper.title = 'Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Glitch-Fenster</span>
-    <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>
-    <input type="range" id="tp-bar-outlier-hours-range" min="24" max="168" step="24" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
-  bindOutlierHoursControls(wrapper);
-  return wrapper;
-}
 
 
 function placeBar(bar, placement) {
@@ -434,86 +133,12 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
        </div>
       </div>
     `;
-    // Deal sliders built once via builders; reset button stays last in the popover.
-    {
-      const popover = bar.querySelector('#tp-bar-calc-popover');
-      const resetBtn = bar.querySelector('#tp-bar-calc-reset');
-      const weight = buildWeightWrapper();
-      const horizon = buildHorizonWrapper();
-      const minpoints = buildMinPointsWrapper();
-      const outlier = buildOutlierWrapper();
-      const outlierBand = buildOutlierBandWrapper();
-      const outlierHours = buildOutlierHoursWrapper();
-      if (popover && resetBtn) popover.insertBefore(weight, resetBtn);
-      if (popover && resetBtn) popover.insertBefore(horizon, resetBtn);
-      if (popover && resetBtn) popover.insertBefore(minpoints, resetBtn);
-      if (popover && resetBtn) popover.insertBefore(outlier, resetBtn);
-      if (popover && resetBtn) popover.insertBefore(outlierBand, resetBtn);
-      if (popover && resetBtn) popover.insertBefore(outlierHours, resetBtn);
-      if (popover && resetBtn) popover.insertBefore(buildCalcPreview(), resetBtn);
-    }
-    // Preview follows slider drags live (DOM values, not debounced CONFIG).
-    {
-      for (const id of ['tp-bar-weight-range', 'tp-bar-horizon-range', 'tp-bar-minpoints-range', 'tp-bar-outlier-toggle', 'tp-bar-outlier-band-range', 'tp-bar-outlier-hours-range']) {
-        const el = bar.querySelector('#' + id);
-        if (!el) continue;
-        el.addEventListener('input', refreshCalcPreview);
-        el.addEventListener('change', refreshCalcPreview);
-      }
-    }
+    // Calc sliders + live preview listeners + reset live in toolbar-calc.js.
+    buildCalcControls(bar.querySelector('#tp-bar-calc-popover'), bar.querySelector('#tp-bar-calc-reset'));
 
     placeBar(bar, placement);
 
-    const input = bar.querySelector('#tp-inline-negative-input');
-    const clearBtn = bar.querySelector('#tp-clear-neg-btn');
-
-    input.onkeydown = e => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        input.blur();
-      }
-    };
-
-    input.oninput = e => {
-      updateConfig('NEGATIVE_TERMS', e.target.value);
-      updateConfig('FILTER_NEG_ENABLED', e.target.value.trim() !== '');
-    };
-
-    clearBtn.onclick = () => {
-      updateConfig('NEGATIVE_TERMS', '');
-      updateConfig('FILTER_NEG_ENABLED', false);
-    };
-
-    const filterBtn = bar.querySelector('#tp-bar-filter-btn');
-    const filterPopover = bar.querySelector('#tp-bar-filter-popover');
-    if (filterBtn && filterPopover) {
-      filterBtn.onclick = e => {
-        e.stopPropagation();
-        const calcPop = bar.querySelector('#tp-bar-calc-popover');
-        if (calcPop) calcPop.classList.remove('tp-show');
-        const calcBtnEl = bar.querySelector('#tp-bar-calc-btn');
-        if (calcBtnEl) calcBtnEl.setAttribute('aria-expanded', 'false');
-        const open = filterPopover.classList.toggle('tp-show');
-        filterBtn.setAttribute('aria-expanded', String(open));
-      };
-      filterPopover.onclick = e => {
-        const btn = e.target?.closest?.('.tp-filter-mode-btn');
-        if (!btn) return;
-        const modeKey = btn.dataset.modeKey;
-        if (modeKey in FILTER_CYCLE) {
-          cycleFilter(modeKey);
-          return;
-        }
-        updateConfig(modeKey, CONFIG[modeKey] === 'dim' ? 'hide' : 'dim');
-      };
-      const resetBtn = bar.querySelector('#tp-filter-reset');
-      if (resetBtn) {
-        resetBtn.onclick = () => {
-          updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, NEGATIVE_TERMS: '' });
-          showToast('Filter zurückgesetzt');
-        };
-      }
-    }
+    wireFilterPopover(bar);
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
       const nextState = !CONFIG.HEATMAP_ENABLED;
@@ -563,30 +188,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         calcBtn.setAttribute('aria-expanded', String(open));
         if (open) refreshCalcPreview();
       };
-      const resetBtn = bar.querySelector('#tp-bar-calc-reset');
-      if (resetBtn) {
-        resetBtn.onclick = () => {
-          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.50, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
-          recomputeCachedMedians(365);
-          triggerProcessListings();
-          const previewSel = document.getElementById('tp-preview-preset-select');
-          if (previewSel) previewSel.value = 's26';
-          refreshCalcPreview();
-          showToast('Berechnungsparameter zurückgesetzt');
-        };
-      }
+      // Calc reset lives in toolbar-calc.js (wired by buildCalcControls).
     }
 
-    const updateMinOffers = delta => {
-      const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
-      if (next !== CONFIG.MIN_OFFERS) {
-        updateConfig('MIN_OFFERS', next);
-        updateConfig('FILTER_MIN_ENABLED', next > 0);
-      }
-    };
-
-    bar.querySelector('#tp-bar-min-minus').onclick = () => updateMinOffers(-1);
-    bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
   } else if (bar.parentElement !== placement.container || (bar.nextSibling !== placement.reference && placement.reference !== bar)) {
     placeBar(bar, placement);
   }
@@ -594,76 +198,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   bar.style.display = 'flex';
   bar.classList.toggle('tp-bestpreise-bar', CONFIG.BESTPREISE_MODE_ACTIVE === true);
 
-  const input = bar.querySelector('#tp-inline-negative-input');
-  const clearBtn = bar.querySelector('#tp-clear-neg-btn');
-  if (input && document.activeElement !== input) {
-    input.value = CONFIG.NEGATIVE_TERMS || '';
-    if (clearBtn) clearBtn.style.display = CONFIG.NEGATIVE_TERMS ? 'block' : 'none';
-  }
-
-  const hiddenTotal = counts.filteredCount || 0;
-  const heatBtn = bar.querySelector('#tp-bar-heat-btn');
-  if (heatBtn) {
-    heatBtn.classList.toggle('tp-active', CONFIG.HEATMAP_ENABLED !== false);
-    heatBtn.setAttribute('aria-pressed', String(CONFIG.HEATMAP_ENABLED !== false));
-  }
-  const dimmedTotal = counts.dimmed || 0;
-  const filterBtn = bar.querySelector('#tp-bar-filter-btn');
-  if (filterBtn) {
-    const filterCount = bar.querySelector('#tp-filter-count');
-    if (filterCount) {
-      setTextIfChanged(filterCount, hiddenTotal > 0 ? String(hiddenTotal) : '');
-      filterCount.style.display = hiddenTotal > 0 ? 'inline-flex' : 'none';
-    }
-    const dimCount = bar.querySelector('#tp-filter-dim-count');
-    if (dimCount) {
-      setTextIfChanged(dimCount, dimmedTotal > 0 ? `+${dimmedTotal} gedimmt` : '');
-      dimCount.style.display = dimmedTotal > 0 ? 'inline' : 'none';
-    }
-    filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0);
-    filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
-  }
-  const setRowCount = (name, n, show) => {
-    const badge = bar.querySelector(`[data-row-count="${name}"]`);
-    if (!badge) return;
-    setTextIfChanged(badge, show ? String(n) : '');
-    badge.style.display = show ? 'inline-flex' : 'none';
-  };
-  setRowCount('neg', negHidden, negHidden > 0);
-  setRowCount('min', minHidden, minHidden > 0);
-  setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
-  setRowCount('vortief', vortiefHidden, vortiefHidden > 0);
-  setRowCount('dealer', dealerHidden, dealerHidden > 0);
-  for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
-    bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleButton(btn, key));
-  }
-  {
-    const dealerActive = counts.dealerActive === true;
-    const mode = CONFIG.DEALER_MODE === 'dim' ? 'dim' : 'hide';
-    bar.querySelectorAll('[data-mode-key="DEALER_MODE"]').forEach(btn => {
-      if (!dealerActive) {
-        btn.classList.toggle('tp-active', false);
-        setTextIfChanged(btn, 'Normal');
-        btn.title = 'Filter: Normal — kein Händler gewählt';
-      } else {
-        btn.classList.toggle('tp-active', true);
-        setTextIfChanged(btn, mode === 'dim' ? 'Dimmen' : 'Verbergen');
-        btn.title = mode === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen';
-      }
-    });
-  }
-  const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
-  if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-  const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
-  if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-  const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
-  if (dealerRow) {
-    dealerRow.classList.toggle('tp-row-inactive', !(counts.dealerActive === true));
-    const note = dealerRow.querySelector('[data-dealer-note]');
-    if (note) setTextIfChanged(note, counts.dealerActive === true ? 'greift bei gewähltem Händler' : 'inaktiv – kein Händler gewählt');
-    const dealerBtn = dealerRow.querySelector('[data-mode-key="DEALER_MODE"]');
-    if (dealerBtn) dealerBtn.disabled = !(counts.dealerActive === true);
-  }
+  syncFilterRow(bar, counts, { isDealFeed, pageHasOffers });
 
 
   const bestpreiseBtn = document.getElementById('tp-bar-bestpreise-btn');
@@ -677,52 +212,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     }
   }
 
-  bar.querySelector('.tp-input-field-box')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_NEG_ENABLED);
-  bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_MIN_ENABLED);
-  syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
-  // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
-
-  const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
-  const weightRange = document.getElementById('tp-bar-weight-range');
-  // Skip while dragging: the input handler owns the label mid-drag.
-  if (weightRange && document.activeElement !== weightRange) {
-    weightRange.value = Math.round(curWeight * 100);
-  }
-  const weightLabel = document.getElementById('tp-bar-weight-label');
-  if (weightLabel) {
-    weightLabel.textContent = `⚖️ ${weightText(curWeight, 'short')}`;
-    weightLabel.title = weightText(curWeight, 'title');
-  }
-  paintMinPoints();
-  const horizonRange = document.getElementById('tp-bar-horizon-range');
-  const curHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-  if (horizonRange && document.activeElement !== horizonRange) {
-    horizonRange.value = curHorizon === 0 ? 760 : curHorizon;
-    const horizonLabel = document.getElementById('tp-bar-horizon-label');
-    if (horizonLabel) {
-      horizonLabel.textContent = horizonText(curHorizon);
-      horizonLabel.title = horizonText(curHorizon, 'title');
-    }
-  }
-  const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.50;
-  const bandRange = document.getElementById('tp-bar-outlier-band-range');
-  if (bandRange && document.activeElement !== bandRange) {
-    bandRange.value = Math.round(curBand * 100);
-    const bandLabel = document.getElementById('tp-bar-outlier-band-label');
-    if (bandLabel) bandLabel.textContent = `±${Math.round(curBand * 100)} %`;
-  }
-  const curHours = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
-  const hoursRange = document.getElementById('tp-bar-outlier-hours-range');
-  if (hoursRange && document.activeElement !== hoursRange) {
-    hoursRange.value = curHours;
-    const hoursLabel = document.getElementById('tp-bar-outlier-hours-label');
-    if (hoursLabel) hoursLabel.textContent = `${curHours} h`;
-  }
-  paintOutlierDim();
-  const calcSummary = document.getElementById('tp-bar-calc-summary');
-  if (calcSummary) {
-    setTextIfChanged(calcSummary, `${weightText(curWeight, 'short')} · ${horizonText(curHorizon)} · ${clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS)} Pkt`);
-  }
+  syncCalcControls();
   // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
   const calcWrapEl = document.getElementById('tp-bar-calc-wrap');
   if (calcWrapEl) calcWrapEl.style.setProperty('display', 'inline-flex', 'important');
@@ -742,9 +232,5 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     sep.style.display = between ? '' : 'none';
   }
 
-  const minRow = bar.querySelector('[data-filter-row="min"]');
-  if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
-  const minVal = bar.querySelector('#tp-bar-min-val');
-  if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
   if (document.getElementById('tp-bar-calc-popover')?.classList.contains('tp-show')) refreshCalcPreview();
 }
