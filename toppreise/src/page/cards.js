@@ -94,6 +94,7 @@ export function getCardProductId(card) {
   return null;
 }
 
+const _negReCache = new Map();
 export function matchesNegativeTerms(card, termsList) {
   if (!termsList || termsList.length === 0) return false;
   let text = card._tpTextLower;
@@ -121,7 +122,12 @@ export function matchesNegativeTerms(card, termsList) {
     const term = typeof entry === 'string' ? entry : entry.term;
     if (!term) return false;
     if (term.length <= 3) {
-      return new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu').test(text);
+      let shortRe = _negReCache.get(term);
+      if (!shortRe) {
+        shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+        _negReCache.set(term, shortRe);
+      }
+      return shortRe.test(text);
     }
     return text.includes(term);
   });
@@ -232,9 +238,15 @@ export function extractActiveStores() {
   }).filter(name => name.length > 0);
 }
 
+let _negCacheRaw = null;
+let _negCacheParsed = null;
 export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
-  return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
+  if (rawTerms === _negCacheRaw && _negCacheParsed) return _negCacheParsed;
+  const parsed = (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
     .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
+  _negCacheRaw = rawTerms;
+  _negCacheParsed = parsed;
+  return parsed;
 }
 
 export function extractCardData(card) {

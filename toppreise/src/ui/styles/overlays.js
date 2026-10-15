@@ -82,10 +82,7 @@ export const STYLES_OVERLAYS = `
     gap: 8px !important;
   }
   #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
-  #tp-bar-outlier-band-range, #tp-bar-outlier-hours-range { accent-color: var(--tp-acc) !important; }
-    width: 100% !important;
-  }
-  #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
+  #tp-bar-outlier-band-range, #tp-bar-outlier-hours-range { accent-color: var(--tp-acc) !important; width: 100% !important; }
   #tp-bar-calc-popover .tp-threshold-wrapper input[type="range"] {
     flex: 1 !important;
     width: auto !important;

@@ -12,6 +12,7 @@ import { getProductCards } from '../page/cards.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe, discordForumFlagKey } from '../features/share-discord.js';
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets } from './modal-bindings.js';
 import { ensureSkeleton } from './shell.js';
+import { writeCollapsed } from './modal-template.js';
 
 export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
@@ -165,8 +166,8 @@ export function wireModalActions(els) {
   els.btnSave.addEventListener('click', () => {
     const updates = {};
 
-    updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(els.marginVal.value) || 0));
-    updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(els.opacityRange.value) || 0.25));
+    updates.MARGIN_PERCENT = Math.max(0, Math.min(50, parseFloat(els.marginVal.value) || 0));
+    updates.DIM_OPACITY = Math.max(0.05, Math.min(1, parseFloat(els.opacityRange.value) || 0.25));
     // Cached price stats are shipping-mode specific (product vs shipping series
     // share one cache key), so a mode change must invalidate them.
     const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
@@ -189,24 +190,21 @@ export function wireModalActions(els) {
     updates.ALARM_AUTO_SUBMIT = els.alarmAutoSubmitToggle.checked;
     updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(els.heatmapIntensityVal.value) || 100) / 100);
 
-    if (els.bestpreiseModeToggle) {
-      updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
-      if (els.bestpreiseWeightVal) {
-        const rawW = parseInt(els.bestpreiseWeightVal.value, 10);
-        const weightNum = isNaN(rawW) ? 50 : rawW;
-        updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
-      }
-      if (els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) {
-        updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
-      }
-      if (els.bestpreiseMinPointsVal) {
-        updates.BESTPREISE_MIN_POINTS = clampMinPoints(els.bestpreiseMinPointsVal.value);
-      }
+    if (els.bestpreiseModeToggle) updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
+    if (els.bestpreiseWeightVal) {
+      const rawW = parseInt(els.bestpreiseWeightVal.value, 10);
+      const weightNum = isNaN(rawW) ? 50 : rawW;
+      updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
+    }
+    if (els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) {
+      updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
+    }
+    if (els.bestpreiseMinPointsVal) {
+      updates.BESTPREISE_MIN_POINTS = clampMinPoints(els.bestpreiseMinPointsVal.value);
     }
     if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
-    if (els.cacheNegTtlSelect) { const rawN = parseInt(els.cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
-
-    if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(els.realDealMinVal.value) || 30));
+    if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
+    if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(0, Math.min(90, parseInt(els.realDealMinVal.value) || 30));
     if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
     if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
@@ -247,14 +245,8 @@ export function openSettingsAt(sectionId) {
   if (anchor.classList.contains('tp-collapsed')) {
     anchor.classList.remove('tp-collapsed');
     anchor.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'true');
-    try {
-      const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
-      if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_tp_modal_collapsed', current);
-    } catch {}
-    try {
-      if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_tp_modal_collapsed', JSON.stringify(
-        [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id)));
-    } catch {}
+    const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
+    writeCollapsed(current);
   }
   anchor.scrollIntoView({ block: 'start' });
   anchor.classList.add('tp-flash');

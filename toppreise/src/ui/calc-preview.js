@@ -7,6 +7,7 @@ export { DAY_MS, PRESET_DATA_S26, PRESET_DATA_R5, PRESET_DATA_SSD990, PRESET_DAT
 
 
 export const fmtPreviewMedian = v => String(Number(v.toFixed(2)));
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function previewStats(points, o) {
   const band = o?.band ?? 0.50;
@@ -58,13 +59,12 @@ export function previewStats(points, o) {
   const recordLow = live.previousLow ?? 0;
   const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
 
-  return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, localMedians: rollingMedians(clean), recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
+  return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, localMedians: ((san.filteredOutliers || []).length === 0 && san.localMedians) ? san.localMedians : rollingMedians(clean), recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
 }
 
 export function cropPreviewWindow(clean, dropped, cutoffTs) {
-  if (cutoffTs === null || cutoffTs === undefined) return { visible: clean || [], visibleDropped: dropped || [] };
+  if (cutoffTs === null || cutoffTs === undefined) return { visibleDropped: dropped || [] };
   return {
-    visible: (clean || []).filter(p => p[0] >= cutoffTs),
     visibleDropped: (dropped || []).filter(g => g.timestamp >= cutoffTs),
   };
 }
@@ -147,7 +147,6 @@ export function getPageProductOptions(limit = 30) {
   if (!cards.length) {
     try { cards = Array.from(document.querySelectorAll('a.Plugin_Product, .mixedBrowsingListProduct')); } catch (e) { return out; }
   }
-  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   for (const card of cards) {
     if (out.length >= limit) break;
     const pid = card.dataset?.entityId || card.dataset?.tpProductId;
@@ -174,7 +173,7 @@ export function refreshCalcPreview() {
   const prevVal = sel ? sel.value : activePresetId;
   if (sel) {
     sel.innerHTML = Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')
-      + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${o.pid}">${o.label}</option>`).join('')}</optgroup>` : '');
+      + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
     sel.value = (PRESETS[prevVal] || (typeof prevVal === 'string' && prevVal.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === prevVal))) ? prevVal : activePresetId;
   }
   const selVal = sel ? sel.value : activePresetId;

@@ -540,9 +540,6 @@ export const STYLES_CARDS = `
     min-width: 0 !important;
     max-width: 100% !important;
   }
-  .tp-card-subline-row {
-    max-width: none !important;
-  }
   .tp-sparkline-container {
     flex-shrink: 0 !important;
   }

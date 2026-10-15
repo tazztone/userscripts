@@ -4,10 +4,10 @@
  * into the main product detail heading.
  */
 
-import { getDetailProductId, getDetailLowestPrice, isShippingPriceActive } from '../page/adapter.js';
+import { getDetailProductId, getDetailLowestPrice } from '../page/adapter.js';
 import { getCachedPriceStats } from '../scanner/cache.js';
 import { getDisplayDelta } from '../domain/deal-score.js';
-import { activeFetches, fetchSingleProductPriceStats } from '../scanner/scanner.js';
+import { fetchSingleProductPriceStats } from '../scanner/scanner.js';
 import { pctDrop, pctRise } from '../domain/price.js';
 
 
@@ -29,8 +29,11 @@ export async function processProductDetailPage() {
   if (currentPrice <= 0) return;
 
   let badge = document.getElementById('tp-detail-deal-badge');
-  const stats = getCachedPriceStats(pid);
-
+  let stats = getCachedPriceStats(pid);
+  if (!stats || !stats.tiefstpreis) {
+    await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
+    stats = getCachedPriceStats(pid);
+  }
   if (stats && stats.tiefstpreis > 0) {
     // Basis gate (same rule as extractCardData): a live price on the other
     // basis than the cached history renders no badge. A refetch cannot fix
@@ -44,11 +47,9 @@ export async function processProductDetailPage() {
       badge.id = 'tp-detail-deal-badge';
       headingEl.appendChild(badge);
     }
-
     const displayKind = getDisplayDelta(currentPrice, stats).kind;
     const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
     const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
     if (isAllTimeLow) {
       badge.className = 'tp-detail-deal-badge tp-is-alltime-low';
       let peakContext = '';
@@ -66,15 +67,9 @@ export async function processProductDetailPage() {
       badge.title = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
       badge.textContent = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
     }
-  } else if (!activeFetches.has(`${pid}_${isShippingPriceActive() ? 's' : 'p'}`)) {
-    await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
-    const fetchedStats = getCachedPriceStats(pid);
-    if (fetchedStats && !fetchedStats.unavailable && fetchedStats.tiefstpreis > 0) {
-      processProductDetailPage();
-    } else {
-      document.getElementById('tp-detail-deal-badge')?.remove();
-      return;
-    }
-}
+  } else {
+    document.getElementById('tp-detail-deal-badge')?.remove();
+    return;
+  }
 }
 

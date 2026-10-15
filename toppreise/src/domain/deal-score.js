@@ -177,12 +177,11 @@ export function medianHorizonLabel(stats) {
  * - unverified deal -> site Differenz, provisional always false (blind heat;
  *   the striped-gray cue lives in the badge class, not the heat flag)
  * - unverified markup / unknown -> null (neutral)
- * Callers pass the mode positionally so the heat reuses the exact mode of the
- * badge branch (no parallel formulas). The optional 5th parameter takes an
+ * The optional 5th parameter takes an
  * already-computed dealScore (undefined = not provided, compute inside;
  * null = computed-unqualified, never recompute).
  */
-export function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = undefined) {
+export function getHeatInput(cardPrice, stats, siteDiff, _mode, precomputed = undefined) {
   const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
   if (verified) {
     const display = getDisplayDelta(cardPrice, stats);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.270
+// @version      2.18.271
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -602,9 +602,6 @@ const STYLES_CARDS = `
     min-width: 0 !important;
     max-width: 100% !important;
   }
-  .tp-card-subline-row {
-    max-width: none !important;
-  }
   .tp-sparkline-container {
     flex-shrink: 0 !important;
   }
@@ -1163,10 +1160,7 @@ const STYLES_OVERLAYS = `
     gap: 8px !important;
   }
   #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
-  #tp-bar-outlier-band-range, #tp-bar-outlier-hours-range { accent-color: var(--tp-acc) !important; }
-    width: 100% !important;
-  }
-  #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
+  #tp-bar-outlier-band-range, #tp-bar-outlier-hours-range { accent-color: var(--tp-acc) !important; width: 100% !important; }
   #tp-bar-calc-popover .tp-threshold-wrapper input[type="range"] {
     flex: 1 !important;
     width: auto !important;
@@ -1854,9 +1848,14 @@ const SHADOW_MODAL_STYLES = `
     const doc = hasDOMParser ? new DOMParser().parseFromString(html, 'text/html') : null;
 
     const titleEls = doc ? [...doc.querySelectorAll('.title,.col-12.title'), ...[...doc.querySelectorAll('div')].filter(el => el.children.length === 0)] : [];
+    const titleByText = new Map();
+    for (const el of titleEls) {
+      const key = el.textContent.trim().toLowerCase();
+      if (!titleByText.has(key)) titleByText.set(key, el);
+    }
     const extractPrice = titleText => {
       if (doc) {
-        const found = titleEls.find(el => el.textContent.trim().toLowerCase() === titleText.toLowerCase());
+        const found = titleByText.get(titleText.toLowerCase());
         if (found) {
           if (found.nextElementSibling?.classList.contains('Plugin_Price')) {
             const val = parsePrice(found.nextElementSibling.textContent);
@@ -1979,7 +1978,8 @@ const SHADOW_MODAL_STYLES = `
       cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
       filteredOutliers,
       rawMedian,
-      rawMin
+      rawMin,
+      localMedians
     };
   }
 
@@ -2301,12 +2301,11 @@ const SHADOW_MODAL_STYLES = `
    * - unverified deal -> site Differenz, provisional always false (blind heat;
    *   the striped-gray cue lives in the badge class, not the heat flag)
    * - unverified markup / unknown -> null (neutral)
-   * Callers pass the mode positionally so the heat reuses the exact mode of the
-   * badge branch (no parallel formulas). The optional 5th parameter takes an
+   * The optional 5th parameter takes an
    * already-computed dealScore (undefined = not provided, compute inside;
    * null = computed-unqualified, never recompute).
    */
-  function getHeatInput(cardPrice, stats, siteDiff, mode, precomputed = undefined) {
+  function getHeatInput(cardPrice, stats, siteDiff, _mode, precomputed = undefined) {
     const verified = !!stats && stats.tiefstpreis > 0 && cardPrice > 0;
     if (verified) {
       const display = getDisplayDelta(cardPrice, stats);
@@ -2712,8 +2711,15 @@ const SHADOW_MODAL_STYLES = `
     const state = label?.querySelector('.tp-mini-state');
     if (state) state.textContent = enabled ? 'ON' : 'OFF';
     const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+
     const caption = scope?.querySelector('.tp-mini-caption');
     if (caption) caption.title = title;
+  }
+
+  function paintCycleButton(btn, state) {
+    if (!btn) return;
+    btn.textContent = state === 'off' ? 'Normal' : state === 'dim' ? 'Dimmen' : 'Verbergen';
+    btn.classList.toggle('tp-active', state !== 'off');
   }
 
   // ─── MODULE: src/state/config-store.js ──────────────────────────────────────
@@ -3054,12 +3060,11 @@ const SHADOW_MODAL_STYLES = `
     return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
   };
   // Toolbar owns the cycle button element; config owns the state mapping.
-  // Duplicate of the toolbar paint (config→toolbar imports only, never reverse).
+  // Text/class paint shared with the toolbar via ui/mini-toggle.js.
   const paintCycleButtons = (bar, modeKey) => {
     const s = cycleStateOf(modeKey);
     bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
-      btn.textContent = s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen';
-      btn.classList.toggle('tp-active', s !== 'off');
+      paintCycleButton(btn, s);
       btn.title = s === 'off' ? 'Filter: Normal — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Normal';
     });
   };
@@ -3111,18 +3116,12 @@ const SHADOW_MODAL_STYLES = `
     DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
   };
   const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
-  // Corrupt storage must never silently break fills: clamp percent to the
-  // modal save bounds, fall back to defaults on NaN/unknown durations.
-  if (!Number.isFinite(CONFIG.ALARM_TARGET_PERCENT)) CONFIG.ALARM_TARGET_PERCENT = DEFAULTS.ALARM_TARGET_PERCENT;
-  else CONFIG.ALARM_TARGET_PERCENT = Math.min(0.99, Math.max(0.05, CONFIG.ALARM_TARGET_PERCENT));
+  // Corrupt storage must never silently break fills: fall back to defaults on
+  // NaN/unknown durations.
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
   if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
   if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
-  if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
-  else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.50, Math.max(0.01, CONFIG.OUTLIER_DEVIATION_BAND));
-  if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
-  else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(24, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
   const saveConfigKey = (key, val) => {
     if (SECRET_KEYS.has(key)) return;
@@ -3689,6 +3688,7 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
+  const _negReCache = new Map();
   function matchesNegativeTerms(card, termsList) {
     if (!termsList || termsList.length === 0) return false;
     let text = card._tpTextLower;
@@ -3716,7 +3716,12 @@ const SHADOW_MODAL_STYLES = `
       const term = typeof entry === 'string' ? entry : entry.term;
       if (!term) return false;
       if (term.length <= 3) {
-        return new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu').test(text);
+        let shortRe = _negReCache.get(term);
+        if (!shortRe) {
+          shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+          _negReCache.set(term, shortRe);
+        }
+        return shortRe.test(text);
       }
       return text.includes(term);
     });
@@ -3827,9 +3832,15 @@ const SHADOW_MODAL_STYLES = `
     }).filter(name => name.length > 0);
   }
 
+  let _negCacheRaw = null;
+  let _negCacheParsed = null;
   function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
-    return (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
+    if (rawTerms === _negCacheRaw && _negCacheParsed) return _negCacheParsed;
+    const parsed = (rawTerms || '').split(/[,;\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
       .map(term => ({ term, re: term.length <= 3 ? new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu') : null }));
+    _negCacheRaw = rawTerms;
+    _negCacheParsed = parsed;
+    return parsed;
   }
 
   function extractCardData(card) {
@@ -6060,8 +6071,8 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group" id="tp-dim-opacity-group">
             <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
             <div class="tp-range-container">
-              <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
-              <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
+              <input type="range" id="tp-opacity-range" min="0.05" max="1" step="0.05" value="0.25">
+              <input type="number" id="tp-opacity-val" min="5" max="100" step="5" value="25">
             </div>
           </div>
           <div class="tp-settings-group">
@@ -6139,8 +6150,8 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group">
             <label>Preis-Toleranz (%)</label>
             <div class="tp-range-container">
-              <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
-              <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
+              <input type="range" id="tp-margin-range" min="0" max="50" step="0.5" value="0">
+              <input type="number" id="tp-margin-val" min="0" max="50" step="0.1" value="0">
             </div>
           </div>
   </div>
@@ -6299,7 +6310,7 @@ const SHADOW_MODAL_STYLES = `
             <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
             <div class="tp-range-container">
               <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-              <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
+              <input type="number" id="tp-real-deal-min-val" min="0" max="90" step="5" value="30">
             </div>
             <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
           </div>
@@ -6636,6 +6647,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function wireModalActions(els) {
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -6788,8 +6800,8 @@ const SHADOW_MODAL_STYLES = `
     els.btnSave.addEventListener('click', () => {
       const updates = {};
 
-      updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(els.marginVal.value) || 0));
-      updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(els.opacityRange.value) || 0.25));
+      updates.MARGIN_PERCENT = Math.max(0, Math.min(50, parseFloat(els.marginVal.value) || 0));
+      updates.DIM_OPACITY = Math.max(0.05, Math.min(1, parseFloat(els.opacityRange.value) || 0.25));
       // Cached price stats are shipping-mode specific (product vs shipping series
       // share one cache key), so a mode change must invalidate them.
       const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
@@ -6812,24 +6824,21 @@ const SHADOW_MODAL_STYLES = `
       updates.ALARM_AUTO_SUBMIT = els.alarmAutoSubmitToggle.checked;
       updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(els.heatmapIntensityVal.value) || 100) / 100);
 
-      if (els.bestpreiseModeToggle) {
-        updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
-        if (els.bestpreiseWeightVal) {
-          const rawW = parseInt(els.bestpreiseWeightVal.value, 10);
-          const weightNum = isNaN(rawW) ? 50 : rawW;
-          updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
-        }
-        if (els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) {
-          updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
-        }
-        if (els.bestpreiseMinPointsVal) {
-          updates.BESTPREISE_MIN_POINTS = clampMinPoints(els.bestpreiseMinPointsVal.value);
-        }
+      if (els.bestpreiseModeToggle) updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
+      if (els.bestpreiseWeightVal) {
+        const rawW = parseInt(els.bestpreiseWeightVal.value, 10);
+        const weightNum = isNaN(rawW) ? 50 : rawW;
+        updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
+      }
+      if (els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) {
+        updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
+      }
+      if (els.bestpreiseMinPointsVal) {
+        updates.BESTPREISE_MIN_POINTS = clampMinPoints(els.bestpreiseMinPointsVal.value);
       }
       if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
-      if (els.cacheNegTtlSelect) { const rawN = parseInt(els.cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
-
-      if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(els.realDealMinVal.value) || 30));
+      if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
+      if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(0, Math.min(90, parseInt(els.realDealMinVal.value) || 30));
       if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
@@ -6870,14 +6879,8 @@ const SHADOW_MODAL_STYLES = `
     if (anchor.classList.contains('tp-collapsed')) {
       anchor.classList.remove('tp-collapsed');
       anchor.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'true');
-      try {
-        const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
-        if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_tp_modal_collapsed', current);
-      } catch {}
-      try {
-        if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_tp_modal_collapsed', JSON.stringify(
-          [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id)));
-      } catch {}
+      const current = [...shadow.querySelectorAll('#tp-settings-sections section.tp-collapsed')].map(s => s.id);
+      writeCollapsed(current);
     }
     anchor.scrollIntoView({ block: 'start' });
     anchor.classList.add('tp-flash');
@@ -6967,6 +6970,7 @@ const SHADOW_MODAL_STYLES = `
 
   // ─── MODULE: src/ui/calc-preview.js ─────────────────────────────────────────
   const fmtPreviewMedian = v => String(Number(v.toFixed(2)));
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   function previewStats(points, o) {
     const band = o?.band ?? 0.50;
@@ -7018,13 +7022,12 @@ const SHADOW_MODAL_STYLES = `
     const recordLow = live.previousLow ?? 0;
     const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
 
-    return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, localMedians: rollingMedians(clean), recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
+    return { median, medianFallback, windowCount, activeCount: clean.length, dropped: san.filteredOutliers || [], tiefstpreis, dMedian, dRecord, badge, qualifies, clean, localMedians: ((san.filteredOutliers || []).length === 0 && san.localMedians) ? san.localMedians : rollingMedians(clean), recordLow, cutoffTs, filterMedian: enabled ? (san.rawMedian || 0) : 0 };
   }
 
   function cropPreviewWindow(clean, dropped, cutoffTs) {
-    if (cutoffTs === null || cutoffTs === undefined) return { visible: clean || [], visibleDropped: dropped || [] };
+    if (cutoffTs === null || cutoffTs === undefined) return { visibleDropped: dropped || [] };
     return {
-      visible: (clean || []).filter(p => p[0] >= cutoffTs),
       visibleDropped: (dropped || []).filter(g => g.timestamp >= cutoffTs),
     };
   }
@@ -7107,7 +7110,6 @@ const SHADOW_MODAL_STYLES = `
     if (!cards.length) {
       try { cards = Array.from(document.querySelectorAll('a.Plugin_Product, .mixedBrowsingListProduct')); } catch (e) { return out; }
     }
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     for (const card of cards) {
       if (out.length >= limit) break;
       const pid = card.dataset?.entityId || card.dataset?.tpProductId;
@@ -7134,7 +7136,7 @@ const SHADOW_MODAL_STYLES = `
     const prevVal = sel ? sel.value : activePresetId;
     if (sel) {
       sel.innerHTML = Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')
-        + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${o.pid}">${o.label}</option>`).join('')}</optgroup>` : '');
+        + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
       sel.value = (PRESETS[prevVal] || (typeof prevVal === 'string' && prevVal.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === prevVal))) ? prevVal : activePresetId;
     }
     const selVal = sel ? sel.value : activePresetId;
@@ -7595,6 +7597,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const CYCLE_TITLE = { off: 'Filter: Normal — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Normal' };
   const CYCLE_TOASTS = {
     FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', off: '📝 Negativ-Begriffe: Normal' },
@@ -7602,10 +7605,9 @@ const SHADOW_MODAL_STYLES = `
     HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
     VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', off: 'Fallback-Tiefs eingeschlossen' },
   };
-  function paintCycleButton(btn, modeKey) {
+  function paintCycleModeButton(btn, modeKey) {
     const s = cycleStateOf(modeKey);
-    setTextIfChanged(btn, s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen');
-    btn.classList.toggle('tp-active', s !== 'off');
+    paintCycleButton(btn, s);
     btn.title = CYCLE_TITLE[s];
   }
   function cycleFilter(modeKey) {
@@ -7636,14 +7638,17 @@ const SHADOW_MODAL_STYLES = `
       }
     };
 
+    let negDeb;
     input.oninput = e => {
-      updateConfig('NEGATIVE_TERMS', e.target.value);
-      updateConfig('FILTER_NEG_ENABLED', e.target.value.trim() !== '');
+      const val = e.target.value;
+      clearTimeout(negDeb);
+      negDeb = setTimeout(() => {
+        updateConfigs({ NEGATIVE_TERMS: val, FILTER_NEG_ENABLED: val.trim() !== '' });
+      }, 150);
     };
-
     clearBtn.onclick = () => {
-      updateConfig('NEGATIVE_TERMS', '');
-      updateConfig('FILTER_NEG_ENABLED', false);
+      clearTimeout(negDeb);
+      updateConfigs({ NEGATIVE_TERMS: '', FILTER_NEG_ENABLED: false });
     };
 
     const filterBtn = bar.querySelector('#tp-bar-filter-btn');
@@ -7680,8 +7685,7 @@ const SHADOW_MODAL_STYLES = `
     const updateMinOffers = delta => {
       const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
       if (next !== CONFIG.MIN_OFFERS) {
-        updateConfig('MIN_OFFERS', next);
-        updateConfig('FILTER_MIN_ENABLED', next > 0);
+        updateConfigs({ MIN_OFFERS: next, FILTER_MIN_ENABLED: next > 0 });
       }
     };
 
@@ -7733,7 +7737,7 @@ const SHADOW_MODAL_STYLES = `
     setRowCount('vortief', vortiefHidden, vortiefHidden > 0);
     setRowCount('dealer', dealerHidden, dealerHidden > 0);
     for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
-      bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleButton(btn, key));
+      bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleModeButton(btn, key));
     }
     {
       const dealerActive = counts.dealerActive === true;
@@ -8699,10 +8703,15 @@ const SHADOW_MODAL_STYLES = `
       if (!isToppreiseProductUrl(productUrl)) return out;
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
-      const res = await fetch(productUrl, { signal: ctrl?.signal });
-      clearTimeout(timer);
-      if (!res.ok) return out;
-      const html = await res.text();
+      let res;
+      let html;
+      try {
+        res = await fetch(productUrl, { signal: ctrl?.signal });
+        if (!res.ok) return out;
+        html = await res.text();
+      } finally {
+        clearTimeout(timer);
+      }
       const doc = new DOMParser().parseFromString(html, 'text/html');
       const titles = Array.from(doc.querySelectorAll(`${SELECTORS.cards.dealerRows} .title`));
       // ponytail: first row is the cheapest offer on Toppreise listings
@@ -9015,8 +9024,11 @@ const SHADOW_MODAL_STYLES = `
     if (currentPrice <= 0) return;
 
     let badge = document.getElementById('tp-detail-deal-badge');
-    const stats = getCachedPriceStats(pid);
-
+    let stats = getCachedPriceStats(pid);
+    if (!stats || !stats.tiefstpreis) {
+      await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
+      stats = getCachedPriceStats(pid);
+    }
     if (stats && stats.tiefstpreis > 0) {
       // Basis gate (same rule as extractCardData): a live price on the other
       // basis than the cached history renders no badge. A refetch cannot fix
@@ -9030,11 +9042,9 @@ const SHADOW_MODAL_STYLES = `
         badge.id = 'tp-detail-deal-badge';
         headingEl.appendChild(badge);
       }
-
       const displayKind = getDisplayDelta(currentPrice, stats).kind;
       const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
       const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
       if (isAllTimeLow) {
         badge.className = 'tp-detail-deal-badge tp-is-alltime-low';
         let peakContext = '';
@@ -9052,16 +9062,10 @@ const SHADOW_MODAL_STYLES = `
         badge.title = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
         badge.textContent = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
       }
-    } else if (!activeFetches.has(`${pid}_${isShippingPriceActive() ? 's' : 'p'}`)) {
-      await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
-      const fetchedStats = getCachedPriceStats(pid);
-      if (fetchedStats && !fetchedStats.unavailable && fetchedStats.tiefstpreis > 0) {
-        processProductDetailPage();
-      } else {
-        document.getElementById('tp-detail-deal-badge')?.remove();
-        return;
-      }
-  }
+    } else {
+      document.getElementById('tp-detail-deal-badge')?.remove();
+      return;
+    }
   }
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
@@ -9290,7 +9294,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.269';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.270';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

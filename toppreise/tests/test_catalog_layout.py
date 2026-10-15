@@ -775,6 +775,7 @@ def test_inline_negative_input_clear_button(page: Page):
 
     inp.fill('QuickClearTest')
     inp.dispatch_event('input')
+    page.wait_for_function("() => window.ToppreiseSuite?.CONFIG?.NEGATIVE_TERMS === 'QuickClearTest'")
     assert clear_btn.is_visible()
     assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.NEGATIVE_TERMS") == 'QuickClearTest'
 

@@ -407,10 +407,15 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
     if (!isToppreiseProductUrl(productUrl)) return out;
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
-    const res = await fetch(productUrl, { signal: ctrl?.signal });
-    clearTimeout(timer);
-    if (!res.ok) return out;
-    const html = await res.text();
+    let res;
+    let html;
+    try {
+      res = await fetch(productUrl, { signal: ctrl?.signal });
+      if (!res.ok) return out;
+      html = await res.text();
+    } finally {
+      clearTimeout(timer);
+    }
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const titles = Array.from(doc.querySelectorAll(`${SELECTORS.cards.dealerRows} .title`));
     // ponytail: first row is the cheapest offer on Toppreise listings

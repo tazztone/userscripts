@@ -107,9 +107,14 @@ export function parsePriceStatsFromHtml(html) {
   const doc = hasDOMParser ? new DOMParser().parseFromString(html, 'text/html') : null;
 
   const titleEls = doc ? [...doc.querySelectorAll('.title,.col-12.title'), ...[...doc.querySelectorAll('div')].filter(el => el.children.length === 0)] : [];
+  const titleByText = new Map();
+  for (const el of titleEls) {
+    const key = el.textContent.trim().toLowerCase();
+    if (!titleByText.has(key)) titleByText.set(key, el);
+  }
   const extractPrice = titleText => {
     if (doc) {
-      const found = titleEls.find(el => el.textContent.trim().toLowerCase() === titleText.toLowerCase());
+      const found = titleByText.get(titleText.toLowerCase());
       if (found) {
         if (found.nextElementSibling?.classList.contains('Plugin_Price')) {
           const val = parsePrice(found.nextElementSibling.textContent);
@@ -232,7 +237,8 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
     filteredOutliers,
     rawMedian,
-    rawMin
+    rawMin,
+    localMedians
   };
 }
 

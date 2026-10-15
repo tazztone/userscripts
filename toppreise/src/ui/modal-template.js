@@ -18,8 +18,8 @@ export function ensureModalSection(shadow) {
         <div class="tp-settings-group" id="tp-dim-opacity-group">
           <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
           <div class="tp-range-container">
-            <input type="range" id="tp-opacity-range" min="0.05" max="0.95" step="0.05" value="0.25">
-            <input type="number" id="tp-opacity-val" min="5" max="95" step="5" value="25">
+            <input type="range" id="tp-opacity-range" min="0.05" max="1" step="0.05" value="0.25">
+            <input type="number" id="tp-opacity-val" min="5" max="100" step="5" value="25">
           </div>
         </div>
         <div class="tp-settings-group">
@@ -97,8 +97,8 @@ export function ensureModalSection(shadow) {
         <div class="tp-settings-group">
           <label>Preis-Toleranz (%)</label>
           <div class="tp-range-container">
-            <input type="range" id="tp-margin-range" min="0" max="15" step="0.5" value="0">
-            <input type="number" id="tp-margin-val" min="0" max="100" step="0.1" value="0">
+            <input type="range" id="tp-margin-range" min="0" max="50" step="0.5" value="0">
+            <input type="number" id="tp-margin-val" min="0" max="50" step="0.1" value="0">
           </div>
         </div>
 </div>
@@ -257,7 +257,7 @@ export function ensureModalSection(shadow) {
           <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
-            <input type="number" id="tp-real-deal-min-val" min="5" max="95" step="5" value="30">
+            <input type="number" id="tp-real-deal-min-val" min="0" max="90" step="5" value="30">
           </div>
           <span class="tp-switch-desc tp-field-hint">Nur Differenzen ab diesem Wert (ungeprüft) werden automatisch geprüft. Die Prüfung ersetzt sie durch den echten Rabatt.</span>
         </div>

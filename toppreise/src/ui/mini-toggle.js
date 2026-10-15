@@ -13,6 +13,13 @@ export function syncMiniToggle(input, enabled, titleBase) {
   const state = label?.querySelector('.tp-mini-state');
   if (state) state.textContent = enabled ? 'ON' : 'OFF';
   const scope = input.closest?.('.tp-bar-stepper-group, .tp-threshold-wrapper, .tp-input-wrapper, .tp-group');
+
   const caption = scope?.querySelector('.tp-mini-caption');
   if (caption) caption.title = title;
+}
+
+export function paintCycleButton(btn, state) {
+  if (!btn) return;
+  btn.textContent = state === 'off' ? 'Normal' : state === 'dim' ? 'Dimmen' : 'Verbergen';
+  btn.classList.toggle('tp-active', state !== 'off');
 }

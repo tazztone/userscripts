@@ -6,6 +6,7 @@
 import { CONFIG, updateConfig, updateConfigs, FILTER_CYCLE, cycleStateOf } from '../state/config.js';
 import { showToast } from './toast.js';
 import { setTextIfChanged } from './badges.js';
+import { paintCycleButton } from './mini-toggle.js';
 
 const CYCLE_TITLE = { off: 'Filter: Normal — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Normal' };
 const CYCLE_TOASTS = {
@@ -14,10 +15,9 @@ const CYCLE_TOASTS = {
   HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
   VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', off: 'Fallback-Tiefs eingeschlossen' },
 };
-function paintCycleButton(btn, modeKey) {
+function paintCycleModeButton(btn, modeKey) {
   const s = cycleStateOf(modeKey);
-  setTextIfChanged(btn, s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen');
-  btn.classList.toggle('tp-active', s !== 'off');
+  paintCycleButton(btn, s);
   btn.title = CYCLE_TITLE[s];
 }
 function cycleFilter(modeKey) {
@@ -48,14 +48,17 @@ export function wireFilterPopover(bar) {
     }
   };
 
+  let negDeb;
   input.oninput = e => {
-    updateConfig('NEGATIVE_TERMS', e.target.value);
-    updateConfig('FILTER_NEG_ENABLED', e.target.value.trim() !== '');
+    const val = e.target.value;
+    clearTimeout(negDeb);
+    negDeb = setTimeout(() => {
+      updateConfigs({ NEGATIVE_TERMS: val, FILTER_NEG_ENABLED: val.trim() !== '' });
+    }, 150);
   };
-
   clearBtn.onclick = () => {
-    updateConfig('NEGATIVE_TERMS', '');
-    updateConfig('FILTER_NEG_ENABLED', false);
+    clearTimeout(negDeb);
+    updateConfigs({ NEGATIVE_TERMS: '', FILTER_NEG_ENABLED: false });
   };
 
   const filterBtn = bar.querySelector('#tp-bar-filter-btn');
@@ -92,8 +95,7 @@ export function wireFilterPopover(bar) {
   const updateMinOffers = delta => {
     const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
     if (next !== CONFIG.MIN_OFFERS) {
-      updateConfig('MIN_OFFERS', next);
-      updateConfig('FILTER_MIN_ENABLED', next > 0);
+      updateConfigs({ MIN_OFFERS: next, FILTER_MIN_ENABLED: next > 0 });
     }
   };
 
@@ -145,7 +147,7 @@ export function syncFilterRow(bar, counts, flags) {
   setRowCount('vortief', vortiefHidden, vortiefHidden > 0);
   setRowCount('dealer', dealerHidden, dealerHidden > 0);
   for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
-    bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleButton(btn, key));
+    bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleModeButton(btn, key));
   }
   {
     const dealerActive = counts.dealerActive === true;
