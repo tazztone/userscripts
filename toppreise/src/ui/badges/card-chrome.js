@@ -133,7 +133,7 @@ export function renderShareButton(ctx, cd) {
       shareBtn.type = 'button';
       shareBtn.className = 'tp-share-btn';
       shareBtn.textContent = '📤';
-      shareBtn.title = 'Deal in Discord teilen';
+      shareBtn.title = 'Tiefstpreis in Discord teilen';
       shareBtn.addEventListener('click', async e => {
         e.preventDefault();
         e.stopPropagation();
@@ -334,7 +334,7 @@ export function renderDealerName(ctx, filters) {
         btn.className = 'tp-dealer-name tp-dealer-btn';
         btn.textContent = '🏬';
         btn.setAttribute('aria-label', 'Händler laden');
-        btn.title = 'Günstigsten Händler laden (lädt die Produktseite einmalig)';
+        btn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';
         btn.addEventListener('click', e => {
           e.preventDefault();
           e.stopPropagation();
@@ -431,7 +431,7 @@ export function renderEmptyState(cards, counts) {
       <div class="tp-empty-state-actions">
         ${counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
         ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `✓ Ungeprüfte aktiv ausgeblendet (${counts.uncheckedHidden || 0}) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${counts.uncheckedHidden || 0}) – entfernt sie aus der Liste`}">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Ungeprüfte ausblenden'}</button>` : ''}
-        <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn">⚡ Filter ausschalten</button>
+        <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn" title="Alle Filter pausieren (alles anzeigen)">⚡ Filter ausschalten</button>
       </div>
     `;
 

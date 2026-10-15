@@ -87,15 +87,15 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <div class="tp-filter-row" data-filter-row="min" style="display: ${pageHasOffers ? 'flex' : 'none'};">
               <span class="tp-filter-label" title="Karten mit weniger als N Angeboten dimmen/verbergen">Min-Angebote</span>
               <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: flex;">
-                <button class="tp-stepper-btn" id="tp-bar-min-minus">-</button>
+                <button class="tp-stepper-btn" id="tp-bar-min-minus" title="Weniger Angebote fordern">-</button>
                 <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
-                <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
+                <button class="tp-stepper-btn" id="tp-bar-min-plus" title="Mehr Angebote fordern">+</button>
               </div>
               <span class="tp-count-badge" data-row-count="min" style="display: ${minHidden > 0 ? 'inline-flex' : 'none'};">${minHidden > 0 ? minHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="unchecked" style="display: ${isDealFeed ? 'flex' : 'none'};">
-              <span class="tp-filter-label" title="Karten ohne verifizierten Tiefstpreis dimmen/verbergen (grau gestreift, nur Site-%) — Normal = zeigen">Ungeprüfte</span>
+              <span class="tp-filter-label" title="Ungeprüfte dimmen/verbergen (grau gestreift, nur Differenz) — Normal = zeigen">Ungeprüfte</span>
               <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Normal</button>
             </div>
@@ -110,13 +110,13 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <span class="tp-count-badge" data-row-count="dealer" style="display: ${dealerHidden > 0 ? 'inline-flex' : 'none'};">${dealerHidden > 0 ? dealerHidden : ''}</span>
               <button class="tp-filter-mode-btn tp-active" data-mode-key="DEALER_MODE">Normal</button>
             </div>
-            <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset">Zurücksetzen</button>
+            <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset" title="Filter zurücksetzen">Zurücksetzen</button>
           </div>
         </div>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Heatmap: Karten- und Badge-Farbe folgt stets der angezeigten Badge-% — Tiefrot = grosser Tiefstpreis, Grau = kein Rabatt. Grau gestreift = ungeprüft (Differenz)." style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Heatmap: Farbe folgt der Badge-% (rot = Tiefstpreis, grau = kein Rabatt, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
@@ -127,7 +127,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
           <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — nur Anzeige, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
           <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
             <div class="tp-calc-head">Berechnungsparameter<span>Nur Anzeige — filtert nichts</span></div>
-            <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset">Zurücksetzen</button>
+            <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset" title="Berechnungsparameter zurücksetzen">Zurücksetzen</button>
           </div>
         </div>
        </div>

@@ -142,17 +142,17 @@ function ensureCta() {
   el.setAttribute('aria-label', 'Tiefstpreise prüfen');
   el.innerHTML = `
     <div id="tp-floating-check-col">
-      <button type="button" id="tp-floating-check-btn" title="Echte Allzeit-Tiefstpreise prüfen (Toppreise-Rabatt ist ungeprüft)">
+      <button type="button" id="tp-floating-check-btn" title="Differenzen anhand der Historie prüfen (ungeprüft ≠ Tiefstpreis)">
         <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
         <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
         <span id="tp-floating-check-count">🔍</span>
       </button>
-      <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen automatisch mitladen (max. 3 parallel, auch in den Einstellungen)">
+      <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen mitladen (max. 3 parallel)">
         <input type="checkbox" id="tp-floating-dealer-toggle">
         <span>🏬 Händler laden</span>
       </label>
     </div>
-    <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab diesem Wert prüfen">≥30% ▾</button>
+    <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab Schwelle prüfen">≥30% ▾</button>
     <div id="tp-floating-threshold-popover" role="menu">
       <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
     </div>
@@ -255,8 +255,8 @@ function syncFloatingCTA() {
   }
   setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
   threshBtn.title = lastIsDealFeed
-    ? `Nur Differenzen ≥ ${minDisc}% werden geprüft (ungeprüft ≠ Tiefstpreis)`
-    : `Nur Produkte mit Differenz ≥ ${minDisc}% werden geprüft`;
+    ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
+    : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
   el.querySelectorAll('.tp-floating-option').forEach(opt => {
     opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
   });

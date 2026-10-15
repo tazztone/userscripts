@@ -52,7 +52,7 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
         // Badge-% and both CHF legs live on ribbon/pill; color legend lives on
         // the heatmap button.
         const outlierTip = stats?.filteredOutliers && stats.filteredOutliers.length > 0 ? `ℹ️ ${stats.filteredOutliers.length} Ausreisser ignoriert\n` : '';
-        setTitleIfChanged(badgeDifEl, `${outlierTip}[Klicken zum Aktualisieren]`);
+        setTitleIfChanged(badgeDifEl, `${outlierTip}[Klicken: erneut prüfen]`);
 
         // Merged subline: CHF-anchored split with per-leg % (no blend words —
         // the ribbon above already shows it, so the short CHF tail survives
@@ -111,14 +111,14 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
           const dropVsPrev = vortiefDropPct(cardPrice, stats);
           const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cardPrice);
           if (dropVsPrev > 0 && hasPrevLowBase) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback: dünne Historie ohne Ø-Vergleich (einfache Fläche, kein Blend)\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${dropVsPrev}% vs. vorheriges Tief (CHF ${prevLowNow.toFixed(2)}) · Fallback-Tief ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>-${dropVsPrev}%</span><p>Tiefstpreis</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${dropVsPrev}%</p>`);
             }
           } else if (sitePctText) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft) · Fallback ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Differenz ${sitePctText} (ungeprüft) · Fallback-Tief ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
             } else {
@@ -151,7 +151,7 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
         } else {
           badgeDifEl.classList.remove('tp-deal-loading');
           if (rawDiscount !== null && !isNaN(rawDiscount)) {
-            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (ungeprüft), kein verifizierter Tiefstpreis.\n[Klicken: echten Allzeit-Tiefstpreis prüfen]`);
+            setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz, kein Tiefstpreis.\n[Klicken: echten Tiefstpreis prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>🔍</span><p>${sitePctText}</p>`);
             } else {
@@ -215,21 +215,21 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
 
           if (badgePct > 0) {
             // Tooltip: action hint only — badge + pill carry the verified numbers.
-            setTitleIfChanged(badgeDifEl, '[Klicken zum Aktualisieren]');
+            setTitleIfChanged(badgeDifEl, '[Klicken: erneut prüfen]');
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
             }
           } else if (realDropVsPrev > 0) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip} · Fallback: dünne Historie ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip} · Fallback-Tief ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>-${realDropVsPrev}%</span><p>Tiefstpreis</p>`);
             } else {
               setHtmlIfChanged(badgeDifEl, `<div class="text">Tiefstpreis</div><p>-${realDropVsPrev}%</p>`);
             }
           } else if (sitePctText) {
-            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Shop-Differenz ${sitePctText} (Basis ungeprüft) · Fallback ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
+            setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · Differenz ${sitePctText} (ungeprüft) · Fallback-Tief ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>${sitePctText}</span><p>Tiefstpreis</p>`);
             } else {
@@ -302,7 +302,7 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
         badgeDifEl.classList.add('tp-deal-badge-interactive');
         badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-new-record', 'tp-deal-not-low', 'tp-is-severe-markup', 'tp-deal-loading');
         if (isNeueFeed && rawDiscount !== null && !isNaN(rawDiscount)) {
-          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz (z.B. vs UVP, ungeprüft), kein verifizierter Tiefstpreis. Klicken: echten Allzeit-Tiefstpreis prüfen. Grau gestreift = ungeprüft.`);
+          setTitleIfChanged(badgeDifEl, `🔍 Ungeprüft: ${sitePctText} ist die Differenz, kein Tiefstpreis (grau gestreift).\n[Klicken: echten Tiefstpreis prüfen]`);
           setHtmlIfChanged(badgeDifEl, `<div class="text">Differenz</div><p>${sitePctText}</p><span class="tp-badge-loupe-icon">🔍</span>`);
         } else {
           setTitleIfChanged(badgeDifEl, `🔍 Klicken: Preishistorie & Allzeit-Tiefstpreis prüfen.`);

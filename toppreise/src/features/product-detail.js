@@ -71,7 +71,7 @@ export async function processProductDetailPage() {
         const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
         peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
       }
-      const nextTitle = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
+      const nextTitle = `Aktueller Preis (CHF ${currentPrice.toFixed(2)}) ist der Allzeit-Tiefstpreis!${peakContext}`;
       if (badge.title !== nextTitle) badge.title = nextTitle;
       if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
     } else {

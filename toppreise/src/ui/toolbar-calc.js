@@ -59,7 +59,7 @@ function buildWeightWrapper() {
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Gewichtung</span>
     <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
+    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Gewichtung: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
   bindWeightControls(wrapper);
   return wrapper;
 }
@@ -92,7 +92,7 @@ function buildMinPointsWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-minpoints-wrapper';
-  wrapper.title = 'Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.';
+  wrapper.title = 'Ø-Vergleich erst ab so vielen Punkten (Punkte ≈ Tage). Darunter: Fallback-Tief.';
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Mindestpunkte</span>
     <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
@@ -143,7 +143,7 @@ function buildHorizonWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-horizon-wrapper';
-  wrapper.title = 'Median-Berechnungszeitraum für den Ø-Preis (Duplikat der Modal-Einstellung). Wechsel rechnet gecachte Mediane lokal neu — ohne Netz.';
+  wrapper.title = 'Ø-Zeitraum für den Median (ändert auch die Modal-Einstellung).';
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Ø-Zeitraum</span>
     <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
@@ -230,7 +230,7 @@ function buildOutlierBandWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-outlier-band-wrapper';
-  wrapper.title = 'Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.';
+  wrapper.title = 'Glitch-Band: Abweichung ab der gefiltert wird';
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Glitch-Band</span>
     <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
@@ -278,7 +278,7 @@ function buildOutlierHoursWrapper() {
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-outlier-hours-wrapper';
-  wrapper.title = 'Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.';
+  wrapper.title = 'Glitch-Fenster: maximale Dauer eines Glitches';
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Glitch-Fenster</span>
     <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>

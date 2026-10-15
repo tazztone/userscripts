@@ -115,9 +115,9 @@ export function refreshAlarmBellDecor() {
       const dur = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
       const durLabel = DURATION_LABELS[dur] || dur;
       const nextTitle = state === 'off'
-        ? 'Preisalarm auto-fill AUS — ⚙ für Einstellungen'
+        ? 'Preisalarm AUS — ⚙ für Einstellungen'
         : state === 'fill'
-          ? `Preisalarm: füllt Ziel ${pct}% / ${durLabel} an — klicken zum Prüfen`
+          ? `Preisalarm: trägt Ziel ${pct}% / ${durLabel} ein — klicken zum Prüfen`
           : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
       if (bell.title !== nextTitle) bell.title = nextTitle;
       ensureAlarmCog(bell);

@@ -184,7 +184,7 @@ export function weightText(weightRecord, style) {
   }
   if (style === 'title') {
     const pctRec = Math.round(w * 100);
-    return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt die Gewichtete Differenz.`;
+    return `Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Badge zeigt die Gewichtete Differenz.`;
   }
   const pct = Math.round(w * 100);
   const weightedDiff = Math.round(((100 - pct) * 25 + pct * 10) / 100);

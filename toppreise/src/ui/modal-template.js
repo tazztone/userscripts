@@ -16,14 +16,14 @@ export function ensureModalSection(shadow) {
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-display-body" data-collapse="tp-section-display"><span class="tp-section-title">🖥️ Ansicht</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-display-body">
         <div class="tp-settings-group" id="tp-dim-opacity-group">
-          <label>Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
+          <label title="Deckkraft gedimmter Karten (Filter-Modus Dimmen)">Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-opacity-range" min="0.05" max="1" step="0.05" value="0.25">
             <input type="number" id="tp-opacity-val" min="5" max="100" step="5" value="25">
           </div>
         </div>
         <div class="tp-settings-group">
-          <label>Heatmap-Intensität (%)</label>
+          <label title="Stärke der Karten- und Badge-Farbe">Heatmap-Intensität (%)</label>
           <div class="tp-range-container tp-rose">
             <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
             <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
@@ -66,7 +66,7 @@ export function ensureModalSection(shadow) {
 <div class="tp-section-body" id="tp-section-deals-body">
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Zeigt und sortiert verifizierte Tiefstpreise nach echtem Rabatt; sortiert nur, filtert nichts">Tiefstpreis-Sortierung</label>
+            <label title="Sortiert verifizierte Tiefstpreise nach Gewichteter Differenz; filtert nichts">Tiefstpreis-Sortierung</label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -74,7 +74,7 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label>Sortierung nach Angeboten / Rabatt</label>
+          <label title="Angebotsanzahl- oder Rabatt-Sortierung (Toppreise-Liste)">Sortierung nach Angeboten / Rabatt</label>
           <div class="tp-segmented-control">
             <input type="radio" id="tp-sort-none" name="tp-sort-offers" value="none">
             <label for="tp-sort-none">Standard</label>
@@ -95,7 +95,7 @@ export function ensureModalSection(shadow) {
           <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, Ungeprüfte, Fallback-Tiefs und Händler stehen im Filter-Popover der Filterleiste.</span>
         </div>
         <div class="tp-settings-group">
-          <label>Preis-Toleranz (%)</label>
+          <label title="So viel teurer darf der gewählte Händler als der Bestpreis sein">Preis-Toleranz (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-margin-range" min="0" max="50" step="0.5" value="0">
             <input type="number" id="tp-margin-val" min="0" max="50" step="0.1" value="0">
@@ -123,7 +123,7 @@ export function ensureModalSection(shadow) {
           </div>
         </div>
         <div class="tp-settings-group">
-          <label>Laufzeit Dauer</label>
+          <label title="Laufzeit des Preisalarms">Laufzeit Dauer</label>
           <div class="tp-segmented-control tp-segmented-control-blue">
             <input type="radio" id="tp-dur-90" name="tp-alarm-duration" value="90"><label for="tp-dur-90">3 Monate</label>
             <input type="radio" id="tp-dur-180" name="tp-alarm-duration" value="180"><label for="tp-dur-180">6 Monate</label>
@@ -133,7 +133,7 @@ export function ensureModalSection(shadow) {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label>Automatisch Absenden & Schließen</label>
+            <label title="Alarmformular sofort einreichen und schließen">Automatisch Absenden & Schließen</label>
             <span class="tp-switch-desc">Formular direkt einreichen und Dialog schließen</span>
           </div>
           <label class="tp-switch tp-blue">
@@ -188,11 +188,11 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label for="tp-discord-layout-input">Nachrichten-Layout (Baukasten)</label>
+          <label for="tp-discord-layout-input" title="Aufbau der Discord-Nachricht (eine Zeile je Baustein)">Nachrichten-Layout (Baukasten)</label>
           <div>
-            <button type="button" id="tp-discord-layout-preset-kompakt" class="tp-btn tp-btn-secondary">Kompakt</button>
-            <button type="button" id="tp-discord-layout-preset-ausfuehrlich" class="tp-btn tp-btn-secondary">Ausführlich</button>
-            <button type="button" id="tp-discord-layout-preset-minimal" class="tp-btn tp-btn-secondary">Minimal</button>
+            <button type="button" id="tp-discord-layout-preset-kompakt" class="tp-btn tp-btn-secondary" title="Layout: kompakt einsetzen">Kompakt</button>
+            <button type="button" id="tp-discord-layout-preset-ausfuehrlich" class="tp-btn tp-btn-secondary" title="Layout: ausführlich einsetzen">Ausführlich</button>
+            <button type="button" id="tp-discord-layout-preset-minimal" class="tp-btn tp-btn-secondary" title="Layout: minimal einsetzen">Minimal</button>
           </div>
           <div id="tp-discord-layout-chips">
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{title}">Titel {title}</button>
@@ -209,7 +209,7 @@ export function ensureModalSection(shadow) {
           <pre id="tp-discord-layout-preview"></pre>
           <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
           <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
-          <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary">Layout zurücksetzen</button>
+          <button type="button" id="tp-discord-layout-reset" class="tp-btn tp-btn-secondary" title="Layout auf Standard zurücksetzen">Layout zurücksetzen</button>
         </div>
 </div>
       </section>
@@ -230,7 +230,7 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group">
-          <label>Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+          <label title="Mischung aus Rekord- und Ø-Rabatt für Badge, Farbe und Reihenfolge">Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
@@ -238,7 +238,7 @@ export function ensureModalSection(shadow) {
           <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-weight-desc">50% Rekord / 50% Ø-Preis (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz 18</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-minpoints-group">
-          <label title="Mindestanzahl Datenpunkte in der Preishistorie für den Ø-Vergleich (Punkte ≈ Tage). Darunter kein Blend — Karte wird Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
+          <label title="Ø-Vergleich erst ab so vielen Punkten (Punkte ≈ Tage). Darunter: Fallback-Tief.">Mindestanzahl Datenpunkte in der Preishistorie</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
             <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
@@ -246,7 +246,7 @@ export function ensureModalSection(shadow) {
           <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (einfache Fläche, kein Blend).</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
-          <label>Median-Berechnungszeitraum (Ø-Preis)</label>
+          <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
             <input type="number" id="tp-bestpreise-horizon-val" min="0" max="3650" step="1" value="365">
@@ -254,7 +254,7 @@ export function ensureModalSection(shadow) {
           <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
         </div>
         <div class="tp-settings-group">
-          <label>Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
+          <label title="Nur Differenzen ab diesem Wert automatisch prüfen">Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
           <div class="tp-range-container">
             <input type="range" id="tp-real-deal-min-range" min="10" max="70" step="5" value="30">
             <input type="number" id="tp-real-deal-min-val" min="0" max="90" step="5" value="30">
@@ -287,7 +287,7 @@ export function ensureModalSection(shadow) {
           <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
         </div>
         <div class="tp-settings-group">
-          <label>Cache-Dauer für Preishistorie (Gültige Daten)</label>
+          <label title="So lange bleiben Preisdaten lokal gespeichert">Cache-Dauer für Preishistorie (Gültige Daten)</label>
           <select id="tp-cache-ttl-select" class="tp-select tp-field-dark">
             <option value="24">24 Stunden (1 Tag)</option>
             <option value="48">48 Stunden (2 Tage) [Standard]</option>
@@ -298,7 +298,7 @@ export function ensureModalSection(shadow) {
           <span class="tp-switch-desc tp-field-hint">Bestimmt, wie lange abgefragte Preisstatistiken lokal gespeichert bleiben</span>
         </div>
         <div class="tp-settings-group">
-          <label>Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
+          <label title="So lange werden leere Ergebnisse zwischengespeichert">Negativ-Cache Dauer (Nicht verfügbare Daten)</label>
           <select id="tp-cache-neg-ttl-select" class="tp-select tp-field-dark">
             <option value="1">1 Stunde</option>
             <option value="2">2 Stunden [Standard]</option>
