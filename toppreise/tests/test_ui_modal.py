@@ -491,7 +491,8 @@ def test_settings_grouped_sections_visible_without_expanding(page: Page):
     open_settings(page)
     assert page.locator('#tp-root >> #tp-discord-webhook-status').inner_text() == '✅ Webhook hinterlegt'
     page.click('#tp-root >> #tp-discord-webhook-reveal')
-    assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == 'https://discord.com/api/webhooks/123/abc'
+    # Reveal never fills the secret: empty editor, status line is the only indicator.
+    assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == ''
     assert page.locator('#tp-root >> #tp-alarm-target-val').input_value() == '60'
     page.click('#tp-root >> #tp-btn-close')
 
@@ -565,3 +566,20 @@ def test_discord_layout_editor(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
+
+
+def test_segmented_radios_keyboard_focusable(page: Page):
+    open_settings(page)
+    radios = page.locator('#tp-root >> input[name="tp-sort-offers"]')
+    assert radios.count() >= 2
+
+    # Visually hidden, never display:none — keyboard focus must land
+    first = radios.nth(0)
+    assert first.evaluate('el => getComputedStyle(el).display') != 'none'
+    first.focus()
+    assert first.evaluate('el => el.getRootNode().activeElement === el')
+
+    # Arrow key moves checked state within the native radio group
+    first.press('ArrowRight')
+    assert radios.nth(1).is_checked()
+    page.click('#tp-root >> #tp-btn-close')

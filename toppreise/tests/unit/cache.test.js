@@ -18,6 +18,8 @@ import {
   setSharedDeal,
   statsKey,
   hasUsablePriceStats,
+  currentCacheGen,
+  bumpCacheGeneration,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
 import { DAY, HOUR, withConfig } from './helpers.js';
@@ -108,6 +110,26 @@ describe('Bounded Cache Module', () => {
 
       clearPriceStatsCache(null);
       assert.equal(memoryCache.size, 0);
+    });
+  });
+
+  describe('cache generation (stale-write guard)', () => {
+    it('drops writes stamped with a pre-clear generation', () => {
+      const gen = currentCacheGen();
+      clearPriceStatsCache(null);
+      setCachedPriceStats('stale-write', { tiefstpreis: 50 }, false, null, undefined, gen);
+      assert.equal(getCachedPriceStats('stale-write', false, null), null);
+    });
+
+    it('accepts writes stamped with the current generation', () => {
+      setCachedPriceStats('fresh-write', { tiefstpreis: 50 }, false, null, undefined, currentCacheGen());
+      assert.equal(getCachedPriceStats('fresh-write', false, null).tiefstpreis, 50);
+    });
+
+    it('unstamped writes always go through (legacy callers)', () => {
+      bumpCacheGeneration();
+      setCachedPriceStats('unstamped', { tiefstpreis: 60 }, false, null);
+      assert.equal(getCachedPriceStats('unstamped', false, null).tiefstpreis, 60);
     });
   });
 

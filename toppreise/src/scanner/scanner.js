@@ -4,7 +4,7 @@
  * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
  */
 
-import { getCachedPriceStats, setCachedPriceStats } from './cache.js';
+import { getCachedPriceStats, setCachedPriceStats, currentCacheGen } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
 import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
@@ -197,12 +197,45 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
   return null;
 }
 
+// Per-caller cancel over a shared promise: rejects only this caller (typed
+// `cancelled`), never the transport siblings still await.
+function raceSharedRaw(promise, signal, shouldCancelFn) {
+  if (signal?.aborted || shouldCancelFn?.()) {
+    const e = new Error('cancelled');
+    e.cancelled = true;
+    return Promise.reject(e);
+  }
+  if (!signal && !shouldCancelFn) return promise;
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const cleanup = () => { signal?.removeEventListener('abort', onAbort); clearInterval(timer); };
+    const cancel = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      const e = new Error('cancelled');
+      e.cancelled = true;
+      reject(e);
+    };
+    const onAbort = () => cancel();
+    // ponytail: polled predicate; the shared transport cannot wire N caller
+    // predicates into one abort without one caller killing its siblings.
+    const timer = shouldCancelFn ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
+    signal?.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      v => { if (!done) { done = true; cleanup(); resolve(v); } },
+      e => { if (!done) { done = true; cleanup(); reject(e); } }
+    );
+  });
+}
 export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null) {
   if (!productId) return null;
   // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
   // the wrong series into the wrong slot, and each mode dedups independently.
   const useShipping = isShippingPriceActive();
   const fetchKey = `${productId}_${useShipping ? 's' : 'p'}`;
+  // Generation at network start: a clear/reset mid-flight voids every write below.
+  const gen = currentCacheGen();
   // Refresh bypass: always hit the network, but keep the good entry in
   // memory/localStorage until the fetch succeeds — a failed refresh must
   // not downgrade a full analysis to an unavailable marker.
@@ -212,95 +245,106 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
     return prev;
   }
 
-  if (activeFetches.has(fetchKey)) {
-    return activeFetches.get(fetchKey);
+  // Already cancelled: never touch the network (and never join the registry).
+  if (isCancelled(signal, shouldCancelFn)) return null;
+
+  // Shared raw history: the entry carries the transport only — no price
+  // anchor, no caller signal. Each caller races it with its own cancel, then
+  // analyzes with its own currentPrice. The transport aborts only when the
+  // last consumer leaves, so one caller's cancel never kills a sibling fetch.
+  let entry = activeFetches.get(fetchKey);
+  if (!entry) {
+    const abort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const promise = fetchPriceTimeSeries(productId, retries, null, useShipping, abort?.signal ?? null);
+    entry = { promise, abort, consumers: new Set() };
+    activeFetches.set(fetchKey, entry);
+    const release = () => { if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey); };
+    promise.then(release, release);
+  }
+  const consumer = { signal, shouldCancelFn };
+  entry.consumers.add(consumer);
+  let pick = null;
+  try {
+    pick = await raceSharedRaw(entry.promise, signal, shouldCancelFn);
+  } catch (e) {
+    if (e?.cancelled || e?.timeout || e?.cooldown || e?.transient || e?.unauthorized) return null;
+    throw e;
+  } finally {
+    entry.consumers.delete(consumer);
+    if (entry.consumers.size === 0) { try { entry.abort?.abort(); } catch {} }
   }
 
-  const fetchPromise = (async () => {
-    try {
-      const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+  try {
+    const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
 
-      // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
-      // Only the empty signal (pick null) reaches the HTML fallback; typed
-      // failures (cancelled/timeout/cooldown/transient/unauthorized) return
-      // immediately — a retry there cannot conjure a series.
-      let pick = null;
-      try {
-        pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
-      } catch (e) {
-        if (e?.cancelled || e?.timeout || e?.cooldown || e?.transient || e?.unauthorized) return null;
-        throw e;
-      }
-      if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
-        // Basis guard: a product-shape series must never land in the shipping
-        // slot — fall through to the HTML path (which refuses the shipping
-        // slot too and writes a negative entry instead).
-        if (pick.isShipping === useShipping) {
-          const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
-          if (analysis && analysis.tiefstpreis > 0) {
-            analysis.isShippingPrice = useShipping;
-            setCachedPriceStats(productId, analysis, false, undefined, useShipping);
-            return analysis;
-          }
+    // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+    // Only the empty signal (pick null) reaches the HTML fallback; typed
+    // failures (cancelled/timeout/cooldown/transient/unauthorized) return
+    // immediately — a retry there cannot conjure a series.
+    if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
+      // Basis guard: a product-shape series must never land in the shipping
+      // slot — fall through to the HTML path (which refuses the shipping
+      // slot too and writes a negative entry instead).
+      if (pick.isShipping === useShipping) {
+        const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
+        if (analysis && analysis.tiefstpreis > 0) {
+          analysis.isShippingPrice = useShipping;
+          setCachedPriceStats(productId, analysis, false, undefined, useShipping, gen);
+          return analysis;
         }
       }
+    }
 
-      if (isCancelled(signal, shouldCancelFn)) return null;
+    if (isCancelled(signal, shouldCancelFn)) return null;
 
-      // 2. Fallback route: GET HTML modal dialog (carries no basis info)
-      const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
-      let resHtml = null;
-      let html = null;
-      try {
-        const out = await requestWithRetry(async linkedSignal => {
-          const res = await fetch(url, {
-            headers: {
-              'X-Requested-With': 'XMLHttpRequest',
-              'Accept': 'text/html, */*; q=0.01'
-            },
-            credentials: 'same-origin',
-            signal: linkedSignal
-          });
-          const text = res.ok ? await res.text() : null;
-          return { res, data: text };
-        }, { retries, shouldCancelFn, signal, baseDelayMs: 400, timeoutMs: 7000 });
-        resHtml = out.res;
-        html = out.data;
-      } catch (htmlErr) {
-        // Cancelled/timeout/429/5xx/network/cooldown: transient, never a
-        // negative entry (a failed refresh must not downgrade prev either).
+    // 2. Fallback route: GET HTML modal dialog (carries no basis info)
+    const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
+    let resHtml = null;
+    let html = null;
+    try {
+      const out = await requestWithRetry(async linkedSignal => {
+        const res = await fetch(url, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'text/html, */*; q=0.01'
+          },
+          credentials: 'same-origin',
+          signal: linkedSignal
+        });
+        const text = res.ok ? await res.text() : null;
+        return { res, data: text };
+      }, { retries, shouldCancelFn, signal, baseDelayMs: 400, timeoutMs: 7000 });
+      resHtml = out.res;
+      html = out.data;
+    } catch (htmlErr) {
+      // Cancelled/timeout/429/5xx/network/cooldown: transient, never a
+      // negative entry (a failed refresh must not downgrade prev either).
+      return null;
+    }
+    // Unauthorized HTML (login wall): no negative entry, no prev downgrade.
+    if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
+    const stats = parsePriceStatsFromHtml(html);
+    if (stats) {
+      stats.isShippingPrice = useShipping;
+      if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
+      if (useShipping) {
+        // HTML carries no basis: never substitute a product comparison
+        // into the shipping slot — slot reads unavailable/retry later.
+        setCachedPriceStats(productId, null, true, undefined, true, gen);
         return null;
       }
-      // Unauthorized HTML (login wall): no negative entry, no prev downgrade.
-      if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
-      const stats = parsePriceStatsFromHtml(html);
-      if (stats) {
-        stats.isShippingPrice = useShipping;
-        if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
-        if (useShipping) {
-          // HTML carries no basis: never substitute a product comparison
-          // into the shipping slot — slot reads unavailable/retry later.
-          setCachedPriceStats(productId, null, true, undefined, true);
-          return null;
-        }
-        setCachedPriceStats(productId, stats, false, undefined, useShipping);
-        return stats;
-      } else {
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
-      }
-    } catch (err) {
-      // Cancelled/timeout: silent, no negative write. Genuine failures keep
-      // the no-downgrade rule (prev with median survives).
-      if (!err?.cancelled && !err?.timeout && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-      if (!err?.cancelled && !err?.timeout && (!prev || !prev.medianPrice)) setCachedPriceStats(productId, null, true, undefined, useShipping);
-    } finally {
-      activeFetches.delete(fetchKey);
+      setCachedPriceStats(productId, stats, false, undefined, useShipping, gen);
+      return stats;
+    } else {
+      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping, gen);
     }
-    return null;
-  })();
-
-  activeFetches.set(fetchKey, fetchPromise);
-  return fetchPromise;
+  } catch (err) {
+    // Cancelled/timeout: silent, no negative write. Genuine failures keep
+    // the no-downgrade rule (prev with median survives).
+    if (!err?.cancelled && !err?.timeout && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
+    if (!err?.cancelled && !err?.timeout && (!prev || !prev.medianPrice)) setCachedPriceStats(productId, null, true, undefined, useShipping, gen);
+  }
+  return null;
 }
 
 export async function runProductScanner(options = {}) {

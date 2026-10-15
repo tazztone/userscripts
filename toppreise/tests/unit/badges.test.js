@@ -140,13 +140,14 @@ describe('renderCardEffects median line + sparkline signature', () => {
     return card;
   };
 
+  const T0 = 1_700_000_000_000;
   const stats = medianPrice => ({
     tiefstpreis: 900,
     hoechstpreis: 1500,
     previousLow: 1100,
     medianPrice,
     realDiscountVsPrevLow: 0,
-    timeSeries: [[Date.now() - 86400000, 1100], [Date.now(), 1000]],
+    timeSeries: [[T0 - 86400000, 1100], [T0, 1000]],
   });
 
   const cd = medianPrice => ({
@@ -196,6 +197,18 @@ describe('renderCardEffects median line + sparkline signature', () => {
     renderCardEffects({ ...c, stats: stats(1200) }, {}, true, []);
     assert.equal(box.children[0], first);
     renderCardEffects({ ...c, stats: stats(1100) }, {}, true, []);
+    assert.notEqual(box.children[0], first);
+  });
+
+  it('rebuilds on refreshed series with identical length/price/median (revision-aware sig)', async () => {
+    const { renderCardEffects } = await import('../../src/ui/badges.js');
+    const c = cd(1200);
+    renderCardEffects(c, {}, true, []);
+    const box = c.card.querySelector('.tp-sparkline-container');
+    const first = box.children[0];
+    // Same shape, one fresh point: length/price/median equal, lastTs newer.
+    const refreshed = { ...c.stats, timeSeries: [[1700000000000 - 86400000, 1100], [1700000000000 + 3600000, 1000]] };
+    renderCardEffects({ ...c, stats: refreshed }, {}, true, []);
     assert.notEqual(box.children[0], first);
   });
 });

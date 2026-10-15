@@ -124,6 +124,9 @@ export const CONFIG = {
   DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
 };
 export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+// 0% is a legitimate threshold (check everything): only non-numeric storage
+// falls back to 30 — `|| 30` would silently discard an explicit 0.
+export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
 // Corrupt storage must never silently break fills: fall back to defaults on
 // NaN/unknown durations.
 if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';

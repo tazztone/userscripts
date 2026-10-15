@@ -242,7 +242,7 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   };
 }
 
-export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverride = null) {
+export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverride = null, nowMs = Date.now()) {
   if (!series || !Array.isArray(series) || series.length === 0) return null;
 
   let rawPoints = series;
@@ -269,7 +269,6 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
   if (rawParsedPoints.length === 0) return null;
   // Normalize regardless of outlier toggle: validate, sort ascending, dedupe
   // duplicate timestamps keeping the LAST occurrence.
-  const nowMs = Date.now();
   const seen = new Map();
   for (const [ts, pr] of rawParsedPoints) {
     if (!Number.isFinite(ts) || ts <= 0 || ts > nowMs + 86400000) continue;
@@ -313,8 +312,7 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
   let windowPrices = prices;
   let medianFallback = false;
   if (horizonDays > 0) {
-    const now = Date.now();
-    const cutoffTime = now - horizonDays * 86400 * 1000;
+    const cutoffTime = nowMs - horizonDays * 86400 * 1000;
     const windowPoints = points.filter(p => p[0] >= cutoffTime);
     if (windowPoints.length >= 3) {
       windowPrices = windowPoints.map(p => p[1]);

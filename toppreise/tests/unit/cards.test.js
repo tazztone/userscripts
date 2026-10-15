@@ -67,6 +67,20 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       assert.strictEqual(extractCardDiscount(card2), 0);
       assert.strictEqual(Object.is(extractCardDiff(card2), -0), false);
     });
+
+    it('reads the pid-keyed snapshot on script-painted badges, ignores foreign pids', () => {
+      const painted = (pid, snapPid, snap) => ({
+        dataset: { entityId: pid },
+        querySelector: () => ({ textContent: '⏳ Prüfe…', dataset: { tpPainted: 'true', tpOriginalPid: snapPid, tpOriginalDiscount: snap } }),
+        textContent: ''
+      });
+      // Snapshot discount 67 → diff -67, discount 67.
+      assert.strictEqual(extractCardDiff(painted('p1', 'p1', '67')), -67);
+      assert.strictEqual(extractCardDiscount(painted('p1', 'p1', '67')), 67);
+      // Reused node, snapshot from previous product: ignore (null, not wrong).
+      assert.strictEqual(extractCardDiff(painted('p2', 'p1', '67')), null);
+      assert.strictEqual(extractCardDiscount(painted('p2', 'p1', '67')), null);
+    });
   });
 
   // Blind heatmap: no fallback-specific visual remains — every heatable card

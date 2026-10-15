@@ -139,6 +139,19 @@ export function extractCardDiff(card) {
     return isNaN(cached) ? null : (cached === 0 ? 0 : cached);
   }
   const badgeEl = card.querySelector('.badge-dif:not(.tp-injected-badge), .badge:not(.tp-injected-badge), [class*="badge-dif"]:not(.tp-injected-badge)');
+  // Never parse script-painted ribbon text as the site Differenz: after a
+  // cache clear the badge still shows our verdict, not the host number.
+  // Fall back to the pid-keyed snapshot (tpOriginalDiscount stores the site
+  // discount, i.e. -diff) so counting/filtering keep the host number.
+  if (badgeEl?.dataset?.tpPainted === 'true') {
+    const snap = badgeEl.dataset.tpOriginalDiscount;
+    const snapPid = badgeEl.dataset.tpOriginalPid ?? '';
+    if (snap !== undefined && snap !== '' && snapPid === (getCardProductId(card) ?? '')) {
+      const discount = parseFloat(snap);
+      if (!isNaN(discount)) return discount === 0 ? 0 : -discount;
+    }
+    return null;
+  }
   // Never parse our own injected badge text as the site Differenz: when only
   // our badge exists there is no unverified site number to read.
   const text = badgeEl ? badgeEl.textContent
@@ -248,7 +261,12 @@ export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
   _negCacheParsed = parsed;
   return parsed;
 }
-
+// Basis gate rule (single source): a product-only live price must never score
+// against shipping-inclusive history (or vice versa). Legacy cache entries
+// without the boolean flag pass through; mismatches render unverified.
+export const basisMatchesFor = (stats, cardPriceBasis) =>
+  typeof stats?.isShippingPrice !== 'boolean'
+  || stats.isShippingPrice === (cardPriceBasis === 'shipping');
 export function extractCardData(card) {
   const pid = getCardProductId(card);
   const priceData = extractCanonicalPrice(card);
@@ -258,11 +276,7 @@ export function extractCardData(card) {
   const stats = pid ? getCachedPriceStats(pid) : null;
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
-  // Basis gate: a product-only live price must never score against
-  // shipping-inclusive history (or vice versa). Legacy cache entries
-  // without the boolean flag pass through; mismatches render unverified.
-  const basisMatches = typeof stats?.isShippingPrice !== 'boolean'
-    || stats.isShippingPrice === (cardPriceBasis === 'shipping');
+  const basisMatches = basisMatchesFor(stats, cardPriceBasis);
   const dealScore = (basisMatches && hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
   // Display delta never gates on history quality: with just {tiefstpreis} +
   // card price the badge/heat still tell the verified truth.
@@ -275,6 +289,7 @@ export function extractCardData(card) {
     cardPriceEl,
     cardPrice,
     cardPriceBasis,
+    basisMatches,
     stats,
     diffVal,
     discountVal,

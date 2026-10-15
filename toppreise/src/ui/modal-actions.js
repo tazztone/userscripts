@@ -23,9 +23,12 @@ export function wireModalActions(els) {
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
   });
 
-  els.discordWebhookReveal?.addEventListener('click', () => {
+  els.discordWebhookReveal?.addEventListener('click', e => {
+    // Replace, never reveal: the secret is write-only. The status line is
+    // the only configured indicator — Shadow DOM is not a security boundary.
+    if (e && !e.isTrusted) return;
     if (!els.discordWebhookEditor || !els.discordWebhookInput) return;
-    els.discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+    els.discordWebhookInput.value = '';
     els.discordWebhookEditor.style.display = '';
     els.discordWebhookReveal.style.display = 'none';
     els.discordWebhookReveal.setAttribute('aria-expanded', 'true');
@@ -130,7 +133,7 @@ export function wireModalActions(els) {
           saveConfigKey(key, clean);
           count++;
         }
-        if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
+        if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { getProductCards().forEach(clearCardCache); }
         if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
         updateBodyClasses();
         triggerProcessListings();
@@ -151,6 +154,8 @@ export function wireModalActions(els) {
   };
 
   const closeModal = () => {
+    // Never leave a typed secret in the editor across sessions of the dialog.
+    if (els.discordWebhookInput) els.discordWebhookInput.value = '';
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     if (typeof els.dialog.close === 'function') els.dialog.close();
     else els.dialog.removeAttribute('open');
@@ -168,15 +173,15 @@ export function wireModalActions(els) {
 
     updates.MARGIN_PERCENT = Math.max(0, Math.min(50, parseFloat(els.marginVal.value) || 0));
     updates.DIM_OPACITY = Math.max(0.05, Math.min(1, parseFloat(els.opacityRange.value) || 0.25));
-    // Cached price stats are shipping-mode specific (product vs shipping series
-    // share one cache key), so a mode change must invalidate them.
+    // Cache entries are keyed per shipping basis, so a mode change only needs
+    // fresh card memos (below) — the other slot stays warm for toggling back.
     const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
-    if (els.shippingToggle) updates.USE_SHIPPING_PRICE = els.shippingToggle.checked;
     // Cached analyses bake in the median horizon — recompute them locally
     // from the retained series (no network) before the single repaint below.
+    // Single schema: bounds live in config-store (min 0, max 3650), not here.
     const rawHorizon = els.bestpreiseHorizonVal ? parseInt(els.bestpreiseHorizonVal.value, 10)
       : (els.bestpreiseHorizonRange ? parseInt(els.bestpreiseHorizonRange.value, 10) : NaN);
-    const newHorizon = isNaN(rawHorizon) ? 365 : (rawHorizon <= 0 || rawHorizon > 730 ? 0 : Math.min(730, Math.max(30, rawHorizon)));
+    const newHorizon = sanitizeConfigValue('BESTPREISE_MEDIAN_HORIZON_DAYS', rawHorizon);
     const horizonChanged = !!(els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
     const checkedSort = els.shadow.querySelector('input[name="tp-sort-offers"]:checked');
     if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
@@ -204,7 +209,7 @@ export function wireModalActions(els) {
     }
     if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
     if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
-    if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(0, Math.min(90, parseInt(els.realDealMinVal.value) || 30));
+    if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
     if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
     if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
@@ -226,7 +231,9 @@ export function wireModalActions(els) {
       }
       updates.DISCORD_LAYOUT = value;
     }
-    if (shippingChanged) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
+    // Basis toggle keeps both cache slots (entries are keyed per basis): only
+    // card memos clear + repaint, no whole-cache wipe, no generation bump.
+    if (shippingChanged) { getProductCards().forEach(clearCardCache); }
     if (horizonChanged) recomputeCachedMedians(newHorizon);
     updateConfigs(updates);
     showToast('Toppreise Suite Einstellungen gespeichert');

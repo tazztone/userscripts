@@ -148,15 +148,24 @@ export function processPriceAlarmModal() {
 
   const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
   const productFirst = modalContainer.querySelector('.productPrice .Plugin_Price');
-  const priceEl = (isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst)) ||
-                  document.querySelector('.pageContent .priceContainer .Plugin_Price');
+  // Modal-scoped only: a page-wide fallback could fill a foreign price into
+  // this product's alarm (missing controls retry on the next observer pass).
+  const priceEl = isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst);
   if (!priceEl) return;
 
   const presentValue = parsePrice(priceEl.textContent);
   if (!(presentValue > 0)) return;
-
-  const targetPrice = (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2);
-  const duration = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
+  // Full snapshot: the 300ms submit revalidates every field below — a basis
+  // toggle, route change, or foreign fill mid-wait aborts silently.
+  const snapshot = {
+    url: location.href,
+    basis: isShippingPriceActive(),
+    priceText: priceEl.textContent,
+    target: (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2),
+    duration: normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS)
+  };
+  const targetPrice = snapshot.target;
+  const duration = snapshot.duration;
   const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
   const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
   const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
@@ -176,7 +185,7 @@ export function processPriceAlarmModal() {
 
   if (CONFIG.ALARM_AUTO_SUBMIT === true) {
     const reqModal = modalContainer;
-    const reqValue = priceInput.value;
+    const reqSnap = snapshot;
     const unconfirmedMsg = '⚠️ Übermittlung nicht bestätigt — bitte prüfen';
     const flagUnconfirmed = () => {
       const cur = document.querySelector('.Plugin_NewInfoMailForm');
@@ -213,10 +222,15 @@ export function processPriceAlarmModal() {
         flagUnconfirmed();
       }, 5000);
       const submitTimer = setTimeout(() => {
-        // Pre-submit revalidation: basis/config may have changed mid-wait.
+        // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
         if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return;
+        if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return;
+        if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return;
+        if (priceInput.value !== reqSnap.target) return;
+        const durHidden = reqModal.querySelector('input[name="im_nimf_du"]');
+        if (durHidden && durHidden.value !== reqSnap.duration) return;
         const submitBtn = reqModal.querySelector('input.f_submitbtn');
-        if (!submitBtn || priceInput.value !== reqValue) return;
+        if (!submitBtn) return;
         const termsCheckbox = reqModal.querySelector('input#im_nimf_prtrm');
         if (termsCheckbox) {
           termsCheckbox.checked = true;
@@ -231,4 +245,10 @@ export function processPriceAlarmModal() {
   }
 }
 
-setAlarmConfigListener(refreshAlarmBellDecor);
+setAlarmConfigListener(() => {
+  // A settings change invalidates pending auto-submits: cancel timers so a
+  // stale snapshot can never submit under new settings.
+  const live = typeof document !== 'undefined' ? document.querySelector('.Plugin_NewInfoMailForm') : null;
+  if (live) clearAlarmTimers(live);
+  refreshAlarmBellDecor();
+});

@@ -37,6 +37,19 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
 
+    it('accepts explicit opts for determinism (no global config read)', () => {
+      // Global gate would reject (30 > 10 points), explicit minPoints admits.
+      withConfig('BESTPREISE_MIN_POINTS', 30, () => {
+        assert.equal(computeDealScore(validStats, 90), null);
+        assert.ok(computeDealScore(validStats, 90, { minPoints: 1 }));
+      });
+      // Explicit weightRecord drives the blend: 100% record → dRecord 25.
+      const full = computeDealScore(validStats, 90, { weightRecord: 1.0 });
+      assert.equal(full.weightedDiff, 25);
+      const none = computeDealScore(validStats, 90, { weightRecord: 0.0 });
+      assert.equal(none.weightedDiff, 40);
+    });
+
     it('returns null when historical price variance is <= 2%', () => {
       const flatStats = { ...validStats, tiefstpreis: 100, hoechstpreis: 101, dataPointCount: 10 };
       assert.equal(computeDealScore(flatStats, 100), null);
@@ -149,6 +162,14 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.equal(getDisplayDelta(10.37, { tiefstpreis: 21.70 }).kind, 'new-low');
       assert.equal(getDisplayDelta(0, { tiefstpreis: 21.70 }).kind, 'unknown');
       assert.equal(getDisplayDelta(10, null).kind, 'unknown');
+    });
+
+    it('ignores the shipping-basis flag: the badge event never gates on basis', () => {
+      // Product-only card in a shipping-mode page (or vice versa): the event
+      // still classifies against the recorded low; only the blend/score gate.
+      assert.equal(getDisplayDelta(15, { tiefstpreis: 10, isShippingPrice: true }).kind, 'above-low');
+      assert.equal(getDisplayDelta(10, { tiefstpreis: 10, isShippingPrice: false }).kind, 'at-low');
+      assert.equal(getDisplayDelta(8, { tiefstpreis: 10, isShippingPrice: true }).kind, 'new-low');
     });
 
     it('re-anchors the previous low at the live price when the series lags (ACER case)', () => {

@@ -14,14 +14,19 @@ export const HEAT_NEUTRAL_DEADBAND_PCT = 5;
 export const MIN_SIGNIFICANT_RECORD_PCT = 2;
 
 
-export function computeDealScore(stats, cardPrice) {
+export function computeDealScore(stats, cardPrice, opts = {}) {
   if (!stats || stats.unavailable || !stats.tiefstpreis || stats.tiefstpreis <= 0) return null;
   if (!cardPrice || cardPrice <= 0) return null;
+
+  // Explicit options (defaults from CONFIG): tests pass fixed values for
+  // determinism instead of mutating global config.
+  const minPoints = opts.minPoints ?? clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
+  const wRecord = typeof opts.weightRecord === 'number' ? opts.weightRecord
+    : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
 
   // History Qualification Gate:
   // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
   const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
-  const minPoints = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
   if (pointsCount < minPoints) return null;
   if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
       ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
@@ -47,9 +52,6 @@ export function computeDealScore(stats, cardPrice) {
     ? pctDrop(prevLow, cardPrice)
     : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
-  const wRecord = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number'
-    ? CONFIG.BESTPREISE_WEIGHT_RECORD
-    : 0.50;
   // Qualification is weight-independent: a Tiefstpreis qualifies on real
   // saving in EITHER component. Gating on the blend hid every
   // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises

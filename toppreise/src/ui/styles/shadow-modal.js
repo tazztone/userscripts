@@ -129,7 +129,7 @@ export const SHADOW_MODAL_STYLES = `
     border-radius: var(--tp-r-sm);
     transition: all 0.2s ease;
   }
-  .tp-segmented-control input[type="radio"] { display: none; }
+  .tp-segmented-control input[type="radio"] { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; opacity: 0; }
   .tp-segmented-control label:hover { color: var(--tp-txt); }
   .tp-segmented-control input[type="radio"]:checked + label {
     background: var(--tp-acc);

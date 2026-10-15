@@ -34,6 +34,12 @@ export const memoryCache = new Map();
 const resolveStorage = s => { try { return s ?? (typeof window !== 'undefined' ? window.localStorage : null); } catch { return null; } };
 
 let statsWriteCount = 0;
+// Stale-write guard: every clear/reset/route invalidation bumps the
+// generation; in-flight fetches capture it before network I/O and their
+// writes no-op when a clear landed mid-flight (reset-during-pending).
+let cacheGeneration = 0;
+export const currentCacheGen = () => cacheGeneration;
+export const bumpCacheGeneration = () => { cacheGeneration++; };
 export function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
   return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
 }
@@ -178,8 +184,9 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
   return null;
 }
 
-export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = null, useShippingOverride) {
+export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = null, useShippingOverride, expectedGen = null) {
   if (!productId) return;
+  if (expectedGen !== null && expectedGen !== cacheGeneration) return;
   storage = resolveStorage(storage);
   const key = statsKey(productId, useShippingOverride);
   // Upgrade-only: never replace median-bearing stats with median-less
@@ -232,6 +239,7 @@ export function countCachedPriceStats(storage = null) {
 
 export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
   const prefixes = Array.isArray(onlyPrefixes) && onlyPrefixes.length > 0 ? onlyPrefixes : CACHE_PREFIXES;
+  cacheGeneration++;
   storage = resolveStorage(storage);
   memoryCache.clear();
   let count = 0;

@@ -4,11 +4,12 @@
  * renderCardEffects orchestrator (signature frozen, app.js untouched).
  */
 
-import { CONFIG, updateConfig, updateConfigs, _getValue, _setValue, sanitizeReviewKeyword } from '../../state/config.js';
+import { CONFIG, updateConfig, updateConfigs, _getValue, _setValue, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
 import { getDisplayDelta, getHeatInput, computeDealScore } from '../../domain/deal-score.js';
+import { basisMatchesFor, extractCardData } from '../../page/cards.js';
+import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal, hasUsablePriceStats } from '../../scanner/cache.js';
 import { priceToCents } from '../../domain/price.js';
-import { isDiscordWebhookUrl, formatDealMessage, forumRecipeFor, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, fetchImageBlob, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, discordForumFlagKey } from '../../features/share-discord.js';
-import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../../scanner/cache.js';
+import { isDiscordWebhookUrl, formatDealMessage, forumRecipeFor, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, fetchImageBlob, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, isAttachmentRejection, discordForumFlagKey } from '../../features/share-discord.js';
 import { showToast } from '../toast.js';
 import { renderSparkline, openSparklinePopout } from '../sparkline.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
@@ -33,7 +34,10 @@ export function renderSparklineRow(ctx) {
     }
     // Click pops the full Discord-style chart (same series incl. live price).
     sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
-    const sig = stats.timeSeries.length + ':' + priceToCents(cardPrice) + ':' + priceToCents(stats.medianPrice ?? 0);
+    // Revision-aware: same length/price/median with refreshed points (new
+    // fetch, recomputed median) must rebuild instead of showing stale art.
+    const lastTs = stats.timeSeries.length ? +stats.timeSeries[stats.timeSeries.length - 1][0] || 0 : 0;
+    const sig = [stats.timeSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
     sparkContainer.style.cursor = 'pointer';
     sparkContainer.setAttribute('role', 'button');
     sparkContainer.setAttribute('tabindex', '0');
@@ -101,7 +105,9 @@ export function applyVerifiedCue(ctx) {
   if (badgeEl) {
     if (badgeEl.classList.contains('tp-deal-loading')) {
       badgeEl.classList.remove('tp-is-unverified', 'tp-is-verified');
-    } else if (!stats) {
+    } else if (!hasUsablePriceStats(stats)) {
+      // Negative markers ({unavailable:true}) and thin histories are not
+      // verified — truthiness of the stats object must not imply quality.
       badgeEl.classList.add('tp-is-unverified');
       badgeEl.classList.remove('tp-is-verified');
     } else {
@@ -113,10 +119,13 @@ export function applyVerifiedCue(ctx) {
 
 // Discord 1-click share (step 7): verified lows only.
 export function renderShareButton(ctx, cd) {
-  const { card, pid, cardPrice, stats, dealData, displayDelta } = ctx;
-  // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte)
-  const kindNow = (displayDelta && displayDelta.kind) || getDisplayDelta(cardPrice, stats).kind;
-  const isShareable = !!(dealData || kindNow === 'new-low' || kindNow === 'at-low');
+  const { card } = ctx;
+  // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte).
+  // Render-time gate from the basis-guarded ctx; the click handler below
+  // re-resolves everything from the live card — never from this closure.
+  const basisOk = cd?.basisMatches ?? basisMatchesFor(ctx.stats, cd?.cardPriceBasis);
+  const kindNow = ctx.displayDelta?.kind ?? (basisOk ? getDisplayDelta(ctx.cardPrice, ctx.stats).kind : 'unknown');
+  const isShareable = !!(ctx.dealData || kindNow === 'new-low' || kindNow === 'at-low');
   let shareBtn = card.querySelector(':scope > .tp-share-btn');
   if (isShareable) {
     if (!shareBtn) {
@@ -133,25 +142,47 @@ export function renderShareButton(ctx, cd) {
           showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
           return;
         }
+        // Click-time resolve: the card may have been reused or repainted
+        // since render — shareability is re-derived from the live card.
+        const fresh = extractCardData(card);
+        const freshKind = fresh.displayDelta?.kind;
+        if (!(fresh.dealScore || freshKind === 'new-low' || freshKind === 'at-low')) {
+          showToast('Kein verifizierter Tiefstpreis mehr – Karte wird neu geprüft');
+          scheduleProcessListings();
+          return;
+        }
+        const snap = { pid: fresh.pid, priceCents: priceToCents(fresh.cardPrice), basis: fresh.cardPriceBasis };
+        const stillFresh = () => {
+          if (!card.isConnected) return false;
+          const cur = extractCardData(card);
+          return cur.pid === snap.pid && cur.cardPriceBasis === snap.basis
+            && priceToCents(cur.cardPrice) === snap.priceCents;
+        };
+        const abortStale = () => {
+          showToast('Karte hat sich geändert – erneut prüfen');
+          scheduleProcessListings();
+        };
         shareBtn.disabled = true;
         try {
           try {
             const { title, url, imageUrl } = extractShareData(card);
             const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
-            const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+            const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
             let dealer = extractDealer(card);
             let dealerUrl = extractDealerUrl(card);
-            let offers = cd.offerCount || getCachedDealer(pid, isShippingPriceActive(card))?.offers || 0;
+            let offers = fresh.offerCount || getCachedDealer(snap.pid, isShippingPriceActive(card))?.offers || 0;
             if ((!dealer || !dealerUrl || !offers) && url) {
               const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
+              if (!stillFresh()) { abortStale(); return; }
               if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
             }
-            const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
+            const png = await renderSparklinePng(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)).catch(() => null);
+            if (!stillFresh()) { abortStale(); return; }
             const fields = {
               title, url, priceText,
               dealer, dealerUrl, offerCount: offers,
-              spark: png ? '' : sparklineText(stats?.timeSeries),
-              ...resolveShareFields(cardPrice, stats),
+              spark: sparklineText(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)),
+              ...resolveShareFields(fresh.cardPrice, fresh.stats),
               suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
             };
@@ -163,6 +194,7 @@ export function renderShareButton(ctx, cd) {
             // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
             // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
             const productBlob = (png && productDl) ? await productDl : null;
+            if (!stillFresh()) { abortStale(); return; }
             const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
             const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
@@ -170,9 +202,13 @@ export function renderShareButton(ctx, cd) {
               if (png) {
                 try { await postImage(withThread); return; }
                 catch (imgErr) {
-                  if (!isForumThreadError(imgErr)) { /* non-forum image error: fall through to text, same round */ }
-                  else if (withThread) { /* threaded image rejected: fall through to threaded text */ }
-                  else throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                  if (isForumThreadError(imgErr)) {
+                    if (!withThread) throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
+                    /* threaded image rejected: fall through to threaded text */
+                  } else if (!isAttachmentRejection(imgErr)) {
+                    throw imgErr; // ambiguous (429/timeout/network): never auto-post text — could duplicate
+                  }
+                  /* definite attachment rejection: fall through to text, same round */
                 }
               }
               await postText(withThread);
@@ -187,10 +223,13 @@ export function renderShareButton(ctx, cd) {
                 // plain round hit forum → loop continues threaded
               }
             }
+            if (!stillFresh()) { abortStale(); return; }
             showToast('📤 Deal in Discord geteilt');
-            if (pid && cardPrice > 0) { setSharedDeal(pid, priceToCents(cardPrice)); shareBtn.classList.add('tp-share-done'); }
-          } catch {
-            showToast('📤 Teilen fehlgeschlagen');
+            if (snap.pid && snap.priceCents > 0) { setSharedDeal(snap.pid, snap.priceCents); shareBtn.classList.add('tp-share-done'); }
+          } catch (err) {
+            if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
+            else if (!err?.status) showToast('⚠️ Übermittlung nicht bestätigt — bitte prüfen');
+            else showToast('📤 Teilen fehlgeschlagen');
           }
         } finally {
           shareBtn.disabled = false;
@@ -201,7 +240,7 @@ export function renderShareButton(ctx, cd) {
       card.appendChild(shareBtn);
     }
     shareBtn.style.display = '';
-    shareBtn.classList.toggle('tp-share-done', !!(pid && cardPrice > 0 && getSharedDeal(pid, priceToCents(cardPrice))));
+    shareBtn.classList.toggle('tp-share-done', !!(ctx.pid && ctx.cardPrice > 0 && getSharedDeal(ctx.pid, priceToCents(ctx.cardPrice))));
   } else {
     shareBtn?.remove();
   }
@@ -361,7 +400,7 @@ export function renderEmptyState(cards, counts) {
   // Filtern removes cards: empty state whenever all cards are removed.
   if (cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${CONFIG.REAL_DEAL_MIN_DISCOUNT || 30}`;
+    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${realDealMinDiscount()}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');
@@ -372,7 +411,7 @@ export function renderEmptyState(cards, counts) {
         listParent.insertBefore(emptyNotice, listParent.firstChild);
       }
     }
-    const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+    const minDisc = realDealMinDiscount();
     emptyNotice.innerHTML = `
       <div>🚫 <strong>Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.</strong></div>
       <div class="tp-empty-state-actions">
@@ -406,9 +445,12 @@ export function renderEmptyState(cards, counts) {
 // Orchestrator (signature frozen — app.js untouched): builds ctx once,
 // paints heat + verdict, then chrome steps in the original order.
 export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
-  const { card, pid, cardPriceEl, cardPrice, stats, diffVal } = cd;
-  const displayDelta = cd.displayDelta || getDisplayDelta(cardPrice, stats);
-  const dealData = cd.dealScore ?? computeDealScore(stats, cardPrice);
+  const { card, pid, cardPriceEl, cardPrice, cardPriceBasis, basisMatches, stats, diffVal } = cd;
+  // Rejected verdicts (null) stay rejected: only an uncalculated verdict
+  // (undefined, e.g. a partial struct) may compute — and only on a matching basis.
+  const basisOk = basisMatches ?? basisMatchesFor(stats, cardPriceBasis);
+  const displayDelta = cd.displayDelta ?? (basisOk ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' });
+  const dealData = cd.dealScore === undefined && basisOk ? computeDealScore(stats, cardPrice) : (cd.dealScore ?? null);
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
   const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;

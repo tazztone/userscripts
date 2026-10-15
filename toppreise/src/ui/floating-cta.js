@@ -19,7 +19,7 @@
  * without a DOM.
  */
 
-import { CONFIG, updateConfig } from "../state/config.js";
+import { CONFIG, updateConfig, realDealMinDiscount } from "../state/config.js";
 import { scanState } from "../state/store.js";
 import {
   runBatchDealCheck,
@@ -86,7 +86,7 @@ export function startBatchCheck() {
     showToast('Keine ungeprüften Deals vorhanden');
     return;
   }
-  const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+  const minDisc = realDealMinDiscount();
   // Progress + cancel live in the expanded form — a check always expands.
   setCollapsed(false);
   runBatchDealCheck(
@@ -243,7 +243,7 @@ function syncFloatingCTA() {
   setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
   collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
 
-  const minDisc = CONFIG.REAL_DEAL_MIN_DISCOUNT || 30;
+  const minDisc = realDealMinDiscount();
   const threshBtn = el.querySelector('#tp-floating-threshold-btn');
   // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
   // on catalog pages only the check action itself is offered.

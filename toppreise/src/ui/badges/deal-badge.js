@@ -11,7 +11,7 @@ import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDis
 import { getCardSortableUnit } from '../../page/sort.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/price.js';
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
-import { hasUsablePriceStats } from '../../scanner/cache.js';
+import { hasUsablePriceStats, bumpCacheGeneration } from '../../scanner/cache.js';
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState } from '../../state/store.js';
@@ -35,6 +35,7 @@ export function clearDealerMemory() {
   dealerCache.clear();
   dealerHydrated.clear();
   dealerAutoTried.clear();
+  bumpCacheGeneration();
 }
 export function clearDealerAutoTried() {
   dealerAutoTried.clear();
@@ -254,9 +255,12 @@ export function renderBadgeSetup(ctx, isNeueFeed) {
         badgeDifEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
       }
     }
-    if (!badgeDifEl.dataset.tpOriginalDiscount) {
+    // Snapshot keyed to product: a reused card node (new pid) must re-read
+    // the host badge instead of printing the previous product's number.
+    if (badgeDifEl.dataset.tpOriginalPid !== (pid ?? '') || !('tpOriginalDiscount' in badgeDifEl.dataset) || badgeDifEl.dataset.tpOriginalDiscount === '') {
       const initialDiscount = extractCardDiscount(card);
       badgeDifEl.dataset.tpOriginalDiscount = (initialDiscount !== null && !isNaN(initialDiscount)) ? String(initialDiscount) : '';
+      badgeDifEl.dataset.tpOriginalPid = pid ?? '';
     }
     const rawDiscount = badgeDifEl.dataset.tpOriginalDiscount !== '' ? parseFloat(badgeDifEl.dataset.tpOriginalDiscount) : null;
     // rawDiscount is the site DISCOUNT (positive = "-X%" deal, negative = "+X%"

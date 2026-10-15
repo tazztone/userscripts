@@ -382,6 +382,25 @@ describe('Price Domain Module', () => {
       assert.equal(analyzePriceTimeSeries('invalid'), null);
     });
 
+    it('threads an explicit nowMs: same instant, same result; shifted clock shifts the window', () => {
+      const now = 1_700_000_000_000;
+      const series = [
+        [now - 700 * DAY, 2000],
+        [now - 120 * DAY, 850],
+        [now - 60 * DAY, 780],
+        [now - 30 * DAY, 750],
+        [now, 699]
+      ];
+      const a = analyzePriceTimeSeries(series, 699, 90, now);
+      const b = analyzePriceTimeSeries(series, 699, 90, now);
+      assert.deepEqual(a, b);
+      assert.equal(a.medianFallback, false);
+      // 400 days later every point leaves the 90-day window → full-history fallback.
+      const later = analyzePriceTimeSeries(series, 699, 90, now + 400 * DAY);
+      assert.equal(later.medianFallback, true);
+      assert.notEqual(later.medianPrice, a.medianPrice);
+    });
+
     it('parses second-based timestamps equal to millisecond ones', () => {
       const now = Date.now();
       const ms = [

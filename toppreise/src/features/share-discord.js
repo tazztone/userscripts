@@ -15,6 +15,9 @@ export const isDiscordWebhookUrl = url =>
 // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
 export const buildThreadName = title => ((title || '').replace(/\s+/g, ' ').trim() || 'Toppreise-Deal').slice(0, 100);
 export const isForumThreadError = err => /^Discord (400|405)$/.test(err?.message || '');
+// Definite attachment rejections: the file itself was refused — text fallback
+// is safe. Anything else (429/timeout/network) must never auto-post text.
+export const isAttachmentRejection = err => err?.status === 400 || err?.status === 413 || err?.status === 415;
 export function discordForumFlagKey(webhookUrl) {
   let h = 5381;
   const s = String(webhookUrl || '').trim();
@@ -120,6 +123,31 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
   });
 }
 
+// Enriched rejection: {status, body, retryAfterMs} let the caller tell a
+// definite attachment refusal (safe text fallback) from an ambiguous
+// transport failure (429/timeout/network — never auto-repost, could duplicate).
+const discordBodyExcerpt = body => (typeof body === 'string' ? body : '')?.slice(0, 500) || '';
+const discordHeaderVal = (headers, name) => {
+  if (!headers) return null;
+  if (typeof headers.get === 'function') return headers.get(name);
+  const m = String(headers).match(new RegExp(`^${name}:\\s*(.+)$`, 'im'));
+  return m ? m[1].trim() : null;
+};
+const discordRetryAfterMs = headers => {
+  const ra = discordHeaderVal(headers, 'Retry-After');
+  if (ra != null && ra !== '') {
+    const secs = Number(ra);
+    if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+    const at = Date.parse(ra);
+    if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+  }
+  const resetAfter = Number(discordHeaderVal(headers, 'X-RateLimit-Reset-After'));
+  if (Number.isFinite(resetAfter)) return Math.max(0, Math.min(60000, resetAfter * 1000));
+  return 0;
+};
+const discordError = (status, body, headers) =>
+  Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
+    { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 function gmPost({ url, data, headers, timeoutMs }) {
   return new Promise((resolve, reject) => {
     GM_xmlhttpRequest({
@@ -128,9 +156,9 @@ function gmPost({ url, data, headers, timeoutMs }) {
       ...(headers ? { headers } : {}),
       data,
       timeout: timeoutMs,
-      onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(new Error(`Discord ${res.status}`))),
-      onerror: () => reject(new Error('Netzwerkfehler')),
-      ontimeout: () => reject(new Error('Timeout'))
+      onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(discordError(res.status, res?.responseText, res?.responseHeaders))),
+      onerror: () => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })),
+      ontimeout: () => reject(Object.assign(new Error('Timeout'), { status: 0, retryAfterMs: 0 }))
     });
   });
 }
@@ -162,8 +190,11 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
         gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
       } else if (typeof fetch !== 'undefined') {
         fetch(url, { method: 'POST', body: form })
-          .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
-          .catch(() => reject(new Error('Netzwerkfehler')));
+          .then(async res => {
+            if (res.ok) return resolve();
+            reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
+          })
+          .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
       } else {
         reject(new Error('Kein Multipart-Transport'));
       }
@@ -352,26 +383,48 @@ export function parseJsonLdOffer(json) {
       if (!types.includes('Product')) continue;
       const list = Array.isArray(item.offers) ? item.offers : (item.offers ? [item.offers] : null);
       if (!list) continue;
-      if (list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' && !Array.isArray(list[0].offers)) {
-        const n = +list[0].offerCount; // kein Verkäufer, aber echte Angebotszahl
-        return { dealer: '', offers: Number.isFinite(n) ? Math.round(n) : 0 };
+      const agg = list.length === 1 && list[0]?.['@type'] === 'AggregateOffer' ? list[0] : null;
+      if (agg) {
+        // Nested offer objects beat a bare count: recurse into them so the
+        // dealer comes from real rows, not an ID list.
+        if (Array.isArray(agg.offers) && agg.offers.length) {
+          const nested = parseJsonLdOffer({ '@type': 'Product', offers: agg.offers });
+          if (nested.dealer || nested.offers) return nested;
+        }
+        // Count-only: no loaded rows (offers 0), but a real total.
+        const n = +agg.offerCount;
+        return { dealer: '', offers: 0, totalOffers: Number.isFinite(n) && n > 0 ? Math.round(n) : 0 };
       }
       let best = null;
       for (const o of list) {
+        // Strict: +null/+'' coerce to 0 and must never win as "cheapest".
         const price = +o?.price;
-        if (!Number.isFinite(price)) continue; // fehlendes price: Angebot überspringen
+        if (!(price > 0)) continue;
         if (!best || price < best.price) best = { price, dealer: typeof o.seller === 'object' ? (o.seller?.name || '') : (o.seller || '') };
       }
-      if (best) return { dealer: best.dealer, offers: list.length };
+      if (best) return { dealer: best.dealer, offers: list.length, totalOffers: 0 };
     }
   }
-  return { dealer: '', offers: 0 };
+  return { dealer: '', offers: 0, totalOffers: 0 };
 }
 
 // Produktseiten listen Angebote als .Plugin_Offer-Blöcke (Preis-aufsteigend,
 // statisch im HTML, live verifiziert 2026-10-09): Shopname im Logo-alt, je ein
 // Produkt-/Versandpreis. Günstigstes Angebot auf Karten-Basis wählen (Min statt
 // erste Zeile: robust gegen fremde Sortier-Cookies; nur Seite 1 geparst).
+// Feed-Format zusätzlich als .Plugin_DealerRelProdPriceInfo-Zeilen (.title +
+// je ein Produkt-/Versandpreis): gleiches Offer-Shape, gleiche strikte Wahl.
+export function parseDealerRows(doc) {
+  const rows = Array.from(doc?.querySelectorAll?.(`${SELECTORS.cards.dealerRows}`) || []);
+  return rows.map(row => {
+    const dealer = row.querySelector?.('.title')?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    const product = parsePrice(row.querySelector?.('.productPrice .Plugin_Price')?.textContent);
+    const shipping = parsePrice(row.querySelector?.('.shippingPrice .Plugin_Price')?.textContent);
+    const link = row.querySelector?.('a[href*="ext_de"]');
+    const url = link?.getAttribute?.('href') || link?.href || '';
+    return { dealer, product: product || 0, shipping: shipping || 0, url: url || '' };
+  }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
+}
 export function parseProductOffers(doc) {
   const blocks = Array.from(doc?.querySelectorAll?.('.Plugin_Offer') || []);
   return blocks.map(block => {
@@ -388,11 +441,13 @@ export function parseProductOffers(doc) {
 export function pickCheapestOffer(offers, useShipping = false) {
   let best = null;
   for (const o of offers || []) {
-    const price = useShipping ? (o.shipping || o.product) : (o.product || o.shipping);
+    // Basis-strict: no cross-basis fallback — a product-only price must never
+    // stand in for shipping-inclusive history (or vice versa).
+    const price = useShipping ? (o.shipping || 0) : (o.product || 0);
     if (!(price > 0)) continue;
     if (!best || price < best.price) best = { price, dealer: o.dealer || '', url: o.url || '' };
   }
-  return best || { price: 0, dealer: '', url: '' };
+  return best;
 }
 
 // Feed-Karten tragen keine Händlerzeilen: Produktseite nachladen (nur bei Klick,
@@ -400,7 +455,9 @@ export function pickCheapestOffer(offers, useShipping = false) {
 // /ext_de-Direktlink zum günstigsten Angebot) → JSON-LD (nur Count). Händler
 // immer auf Karten-Preisbasis (Versand/Produkt).
 export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
-  const out = { dealer: '', offers: 0, dealerUrl: '' };
+  // offers = loaded page-1 rows; totalOffers = JSON-LD AggregateOffer count
+  // when present (0 otherwise). Callers keep reading `offers` — no migration.
+  const out = { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 };
   try {
     if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
     if (!/^https?:\/\//i.test(productUrl || '')) return out;
@@ -417,17 +474,23 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
       clearTimeout(timer);
     }
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const titles = Array.from(doc.querySelectorAll(`${SELECTORS.cards.dealerRows} .title`));
-    // ponytail: first row is the cheapest offer on Toppreise listings
-    out.dealer = titles[0]?.textContent?.replace(/\s+/g, ' ').trim() || '';
-    out.offers = titles.length;
-    if (out.dealer || out.offers) return out;
-    const offers = parseProductOffers(doc);
+    // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
+    // blocks — both through basis-strict cheapest (row order may follow
+    // foreign sort cookies). Rows without a parseable basis price still yield
+    // the first titled row as display-only name (no price claim attached).
+    const dealerRows = parseDealerRows(doc);
+    const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
     if (offers.length) {
       out.offers = offers.length;
-      const best = pickCheapestOffer(offers, useShipping);
-      out.dealer = best.dealer;
-      if (best.url) {
+      let best = pickCheapestOffer(offers, useShipping);
+      if (!best) {
+        // Link-only fallback: no parseable price on the card basis (e.g.
+        // product-only rows in shipping mode). Picks whose name/link to show;
+        // never a price — posted prices always come from the card snapshot.
+        best = pickCheapestOffer(offers, !useShipping);
+      }
+      out.dealer = best ? best.dealer : (offers[0].dealer || '');
+      if (best?.url) {
         try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
       }
       return out;
@@ -436,10 +499,12 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
     for (const s of scripts) {
       try {
         const found = parseJsonLdOffer(JSON.parse(s.textContent));
-        if (found.dealer || found.offers) return { dealer: found.dealer, offers: found.offers, dealerUrl: '' };
+        if (found.dealer || found.offers || found.totalOffers) {
+          return { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
+        }
       } catch { /* Block einzeln ignorieren */ }
     }
-    console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: titles.length, jsonLdBlocks: scripts.length });
+    console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: offers.length, jsonLdBlocks: scripts.length });
   } catch { /* Händler unbekannt: Zeile entfällt */ }
   return out;
 }
@@ -455,8 +520,11 @@ export function postDealToDiscord(webhookUrl, content, options = {}) {
       gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
     } else if (typeof fetch !== 'undefined') {
       fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
-        .then(res => (res.ok ? resolve() : reject(new Error(`Discord ${res.status}`))))
-        .catch(() => reject(new Error('Netzwerkfehler')));
+        .then(async res => {
+          if (res.ok) return resolve();
+          reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
+        })
+        .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
     } else {
       reject(new Error('Kein HTTP-Transport verfügbar'));
     }

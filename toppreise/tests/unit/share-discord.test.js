@@ -16,6 +16,7 @@ import {
   extractDealer,
   extractDealerUrl,
   parseJsonLdOffer,
+  parseDealerRows,
   parseProductOffers,
   pickCheapestOffer,
   fetchProductInfo,
@@ -306,24 +307,93 @@ describe('fetchProductInfo', () => {
   });
 
   it('returns empty info without fetch/DOM or for bad URLs', async () => {
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL), { dealer: '', offers: 0, dealerUrl: '' });
-    assert.deepEqual(await fetchProductInfo('not-a-url'), { dealer: '', offers: 0, dealerUrl: '' });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL), { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 });
+    assert.deepEqual(await fetchProductInfo('not-a-url'), { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 });
   });
 
-  it('reads cheapest dealer + offer count from the product page', async () => {
+  it('reads cheapest dealer + loaded-row count from offer blocks', async () => {
+    const blk = ({ dealer, product, href }) => ({
+      querySelector: sel => {
+        if (sel.startsWith('.Plugin_ShopLogo')) return dealer ? { getAttribute: () => dealer } : null;
+        if (sel.includes('ext_de')) return href ? { getAttribute: () => href } : null;
+        if (sel.includes('productPrice')) return product ? { textContent: ` CHF ${product} ` } : null;
+        return null;
+      }
+    });
+    const blocks = [
+      blk({ dealer: 'Brack', product: '44.95', href: '/ext_de?pid=9&did=3&oid=33' }),
+      blk({ dealer: 'Digitec', product: '31.90', href: '/ext_de?pid=9&did=4&oid=44' }),
+    ];
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
     globalThis.DOMParser = class {
       parseFromString() {
-        return { querySelectorAll: () => [{ textContent: ' Digitec ' }, { textContent: 'Brack' }] };
+        return { querySelectorAll: sel => (sel === '.Plugin_Offer' ? blocks : []) };
       }
     };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '' });
+    // offers = loaded page-1 rows (2); JSON-LD count is absent (totalOffers 0).
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=4&oid=44', totalOffers: 0 });
   });
-
   it('returns empty info on HTTP errors', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 404 });
     globalThis.DOMParser = class { parseFromString() { throw new Error('unreachable'); } };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0, dealerUrl: '' });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 });
+  });
+
+  it('reads dealer rows (.Plugin_DealerRelProdPriceInfo) with strict cheapest', async () => {
+    const row = ({ dealer, product, shipping }) => ({
+      querySelector: sel => {
+        if (sel === '.title') return dealer ? { textContent: ` ${dealer} ` } : null;
+        if (sel.includes('ext_de')) return null;
+        if (sel.includes('productPrice')) return product ? { textContent: ` CHF ${product} ` } : null;
+        if (sel.includes('shippingPrice')) return shipping ? { textContent: ` CHF ${shipping} ` } : null;
+        return null;
+      }
+    });
+    const rows = [
+      row({ dealer: 'Brack', product: '44.95' }),
+      row({ dealer: 'Digitec', product: '31.90' }),
+    ];
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: sel => (sel === '.Plugin_DealerRelProdPriceInfo' ? rows : []) };
+      }
+    };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '', totalOffers: 0 });
+  });
+
+  it('falls back to first titled row for display when no basis price parses', async () => {
+    const rows = [{ querySelector: sel => (sel === '.title' ? { textContent: ' Galaxus ' } : null) }];
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: sel => (sel === '.Plugin_DealerRelProdPriceInfo' ? rows : []) };
+      }
+    };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Galaxus', offers: 1, dealerUrl: '', totalOffers: 0 });
+  });
+
+  it('falls back to the other basis for name/link when the card basis has no price', async () => {
+    const row = (dealer, product, href) => ({
+      querySelector: sel => {
+        if (sel === '.title') return { textContent: ` ${dealer} ` };
+        if (sel.includes('ext_de')) return href ? { getAttribute: () => href } : null;
+        if (sel.includes('productPrice')) return product ? { textContent: ` CHF ${product} ` } : null;
+        return null;
+      }
+    });
+    const rows = [
+      row('Brack', '44.95', '/ext_de?pid=9&did=3&oid=33'),
+      row('Digitec', '31.90', '/ext_de?pid=9&did=4&oid=44'),
+    ];
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return { querySelectorAll: sel => (sel === '.Plugin_DealerRelProdPriceInfo' ? rows : []) };
+      }
+    };
+    // Shipping basis, product-only rows: link/name still resolve (never a price).
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Digitec', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=4&oid=44', totalOffers: 0 });
   });
 });
 describe('parseProductOffers / pickCheapestOffer', () => {
@@ -359,7 +429,14 @@ describe('parseProductOffers / pickCheapestOffer', () => {
     ];
     assert.deepEqual(pickCheapestOffer(offers, false), { price: 15.23, dealer: 'Amazon.de', url: '/ext_de?pid=9&did=1&oid=11' });
     assert.deepEqual(pickCheapestOffer([...offers].reverse(), true), { price: 19.00, dealer: 'Galaxus', url: '/ext_de?pid=9&did=2&oid=22' });
-    assert.deepEqual(pickCheapestOffer([], true), { price: 0, dealer: '', url: '' });
+    assert.equal(pickCheapestOffer([], true), null);
+  });
+
+  it('never mixes bases: product-only prices lose on shipping basis', () => {
+    const solo = [{ dealer: 'Solo', product: 9.99, shipping: 0, url: '/ext_de?x=1' }];
+    assert.deepEqual(pickCheapestOffer(solo, false), { price: 9.99, dealer: 'Solo', url: '/ext_de?x=1' });
+    assert.equal(pickCheapestOffer(solo, true), null);
+    assert.equal(pickCheapestOffer([{ dealer: 'Zero', product: 0, shipping: 0, url: '' }], false), null);
   });
 
   it('fetchProductInfo prefers offer blocks over JSON-LD, on card basis', async () => {
@@ -375,8 +452,8 @@ describe('parseProductOffers / pickCheapestOffer', () => {
       }
     };
     try {
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11' });
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=2&oid=22' });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11', totalOffers: 0 });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=2&oid=22', totalOffers: 0 });
     } finally {
       delete globalThis.fetch;
       delete globalThis.DOMParser;
@@ -391,20 +468,37 @@ describe('parseJsonLdOffer', () => {
     assert.deepEqual(parseJsonLdOffer(product([
       { '@type': 'Offer', price: 44.95, seller: { name: 'Brack' } },
       { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
-    ])), { dealer: 'Digitec', offers: 2 });
+    ])), { dealer: 'Digitec', offers: 2, totalOffers: 0 });
   });
 
   it('finds products inside @graph and wraps single offers', () => {
     assert.deepEqual(
       parseJsonLdOffer({ '@graph': [{ '@type': 'WebSite' }, product({ '@type': 'Offer', price: 10, seller: 'Galaxus' })] }),
-      { dealer: 'Galaxus', offers: 1 });
+      { dealer: 'Galaxus', offers: 1, totalOffers: 0 });
   });
 
   it('takes the count from AggregateOffer (no sellers), ignores garbage', () => {
-    assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', lowPrice: 5, offerCount: 6 })), { dealer: '', offers: 6 });
-    assert.deepEqual(parseJsonLdOffer({ '@type': 'Product' }), { dealer: '', offers: 0 });
-    assert.deepEqual(parseJsonLdOffer(null), { dealer: '', offers: 0 });
-    assert.deepEqual(parseJsonLdOffer([{ '@type': 'Offer', seller: { name: 'x' } }]), { dealer: '', offers: 0 });
+    assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', lowPrice: 5, offerCount: 6 })), { dealer: '', offers: 0, totalOffers: 6 });
+    assert.deepEqual(parseJsonLdOffer({ '@type': 'Product' }), { dealer: '', offers: 0, totalOffers: 0 });
+    assert.deepEqual(parseJsonLdOffer(null), { dealer: '', offers: 0, totalOffers: 0 });
+    assert.deepEqual(parseJsonLdOffer([{ '@type': 'Offer', seller: { name: 'x' } }]), { dealer: '', offers: 0, totalOffers: 0 });
+  });
+
+  it('rejects zero/missing/empty prices so +null/+"" never win cheapest', () => {
+    assert.deepEqual(parseJsonLdOffer(product([
+      { '@type': 'Offer', price: 0, seller: { name: 'Gratis' } },
+      { '@type': 'Offer', price: null, seller: { name: 'Nix' } },
+      { '@type': 'Offer', price: '', seller: { name: 'Leer' } },
+      { '@type': 'Offer', seller: { name: 'Ohne' } },
+      { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
+    ])), { dealer: 'Digitec', offers: 5, totalOffers: 0 });
+  });
+
+  it('recurses into nested AggregateOffer.offers for the dealer', () => {
+    assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', offerCount: 3, offers: [
+      { '@type': 'Offer', price: 44.95, seller: { name: 'Brack' } },
+      { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
+    ] })), { dealer: 'Digitec', offers: 2, totalOffers: 0 });
   });
 });
 
@@ -415,9 +509,8 @@ describe('fetchProductInfo JSON-LD fallback', () => {
   });
 
   const docStub = ({ rows = [], scripts = [] }) => ({
-    querySelectorAll: sel => (sel.startsWith('script') ? scripts : rows)
+    querySelectorAll: sel => (sel.startsWith('script') ? scripts : sel === '.Plugin_Offer' ? rows : [])
   });
-
   it('uses JSON-LD when dealer rows are absent (AJAX-rendered)', async () => {
     const ld = { '@type': 'Product', offers: [
       { price: 44.95, seller: { name: 'Brack' } },
@@ -425,15 +518,22 @@ describe('fetchProductInfo JSON-LD fallback', () => {
     ] };
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>-x' });
     globalThis.DOMParser = class { parseFromString() { return docStub({ scripts: [{ textContent: JSON.stringify(ld) }] }); } };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '' });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '', totalOffers: 0 });
   });
 
   it('prefers DOM rows over JSON-LD', async () => {
+    const row = {
+      querySelector: sel => {
+        if (sel.startsWith('.Plugin_ShopLogo')) return { getAttribute: () => 'STEG' };
+        if (sel.includes('productPrice')) return { textContent: ' CHF 99.00 ' };
+        return null;
+      }
+    };
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>' });
     globalThis.DOMParser = class {
-      parseFromString() { return docStub({ rows: [{ textContent: ' STEG ' }], scripts: [{ textContent: '{"@type":"Product","offers":[]}' }] }); }
+      parseFromString() { return docStub({ rows: [row], scripts: [{ textContent: '{"@type":"Product","offers":[]}' }] }); }
     };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'STEG', offers: 1, dealerUrl: '' });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'STEG', offers: 1, dealerUrl: '', totalOffers: 0 });
   });
 
   it('survives corrupt JSON-LD without throwing', async () => {
@@ -442,7 +542,7 @@ describe('fetchProductInfo JSON-LD fallback', () => {
     const debug = console.debug;
     console.debug = () => {};
     try {
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0, dealerUrl: '' });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 });
     } finally { console.debug = debug; }
   });
 });
@@ -480,8 +580,32 @@ describe('postDealToDiscord', () => {
   });
 
   it('rejects on Discord error status', async () => {
-    globalThis.fetch = async () => ({ ok: false, status: 429 });
+    globalThis.fetch = async () => ({ ok: false, status: 429, text: async () => '', headers: undefined });
     await assert.rejects(postDealToDiscord(HOOK, 'hi'), /Discord 429/);
+  });
+
+  it('enriches HTTP rejections with status/body/retryAfterMs', async () => {
+    globalThis.fetch = async () => ({
+      ok: false, status: 429, text: async () => '{"message":"rate limited"}',
+      headers: { get: name => (name === 'Retry-After' ? '2' : null) }
+    });
+    const err = await postDealToDiscord(HOOK, 'hi').then(() => null, e => e);
+    assert.match(err.message, /Discord 429/);
+    assert.equal(err.status, 429);
+    assert.equal(err.body, '{"message":"rate limited"}');
+    assert.equal(err.retryAfterMs, 2000);
+  });
+
+  it('marks transport failures status 0 without body (ambiguous: never auto-repost)', async () => {
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    const net = await postDealToDiscord(HOOK, 'hi').then(() => null, e => e);
+    assert.match(net.message, /Netzwerkfehler/);
+    assert.equal(net.status, 0);
+    globalThis.GM_xmlhttpRequest = ({ ontimeout }) => ontimeout();
+    const tout = await postDealToDiscord(HOOK, 'hi').then(() => null, e => e);
+    assert.match(tout.message, /Timeout/);
+    assert.equal(tout.status, 0);
+    delete globalThis.GM_xmlhttpRequest;
   });
 
   it('prefers GM_xmlhttpRequest (CORS-Bypass) when available', async () => {
@@ -756,7 +880,7 @@ describe('thread_name post paths', () => {
   });
   it('never auto-retries: 429 emits exactly one request', async () => {
     let calls = 0;
-    globalThis.fetch = async () => { calls++; return { ok: false, status: 429 }; };
+    globalThis.fetch = async () => { calls++; return { ok: false, status: 429, text: async () => '', headers: undefined }; };
     await assert.rejects(postDealToDiscord(HOOK, 'hi'), /Discord 429/);
     assert.equal(calls, 1);
   });

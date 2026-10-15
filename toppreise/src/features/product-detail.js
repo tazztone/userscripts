@@ -10,10 +10,15 @@ import { getDisplayDelta } from '../domain/deal-score.js';
 import { fetchSingleProductPriceStats } from '../scanner/scanner.js';
 import { pctDrop, pctRise } from '../domain/price.js';
 
-
+// Stale-request guard: overlapping observer triggers race the fetch — only
+// the latest run may paint. A generation token (not pid comparison alone)
+// also covers same-product reprices and basis toggles mid-flight.
+let detailRun = 0;
+const removeDetailBadge = () => document.getElementById('tp-detail-deal-badge')?.remove();
 export async function processProductDetailPage() {
+  const run = ++detailRun;
   const pid = getDetailProductId();
-  if (!pid) return;
+  if (!pid) { removeDetailBadge(); return; }
 
   // Ordered single queries (see getDetailLowestPrice): grouped selectors match
   // in document order, so the bare h1 fallback must never outrank its scopes.
@@ -23,15 +28,23 @@ export async function processProductDetailPage() {
     headingEl = document.querySelector(sel);
     if (headingEl) break;
   }
-  if (!headingEl) return;
+  if (!headingEl) { removeDetailBadge(); return; }
 
   const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
-  if (currentPrice <= 0) return;
+  if (!(currentPrice > 0)) { removeDetailBadge(); return; }
 
   let badge = document.getElementById('tp-detail-deal-badge');
   let stats = getCachedPriceStats(pid);
   if (!stats || !stats.tiefstpreis) {
     await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
+    // Stale: a newer run started, the route changed, or the heading died.
+    if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
+      if (pid !== getDetailProductId()) removeDetailBadge();
+      return;
+    }
+    // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
+    const fresh = getDetailLowestPrice();
+    if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
     stats = getCachedPriceStats(pid);
   }
   if (stats && stats.tiefstpreis > 0) {

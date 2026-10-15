@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -109,5 +109,28 @@ describe('weightText short (endpoint and detent labels)', () => {
   it('falls back to N% Rek off-detent and tolerates float noise', () => {
     assert.equal(weightText(0.95, 'short'), '95% Rek');
     assert.equal(weightText(0.69999999, 'short'), '70/30');
+  });
+});
+
+describe('realDealMinDiscount (explicit 0% survives)', () => {
+  const prev = CONFIG.REAL_DEAL_MIN_DISCOUNT;
+  const restore = () => { CONFIG.REAL_DEAL_MIN_DISCOUNT = prev; };
+
+  it('preserves an explicit 0 instead of falling back to 30', () => {
+    CONFIG.REAL_DEAL_MIN_DISCOUNT = 0;
+    try {
+      assert.equal(realDealMinDiscount(), 0);
+    } finally { restore(); }
+  });
+
+  it('passes ordinary values through, falls back on garbage', () => {
+    try {
+      CONFIG.REAL_DEAL_MIN_DISCOUNT = 25;
+      assert.equal(realDealMinDiscount(), 25);
+      CONFIG.REAL_DEAL_MIN_DISCOUNT = NaN;
+      assert.equal(realDealMinDiscount(), 30);
+      CONFIG.REAL_DEAL_MIN_DISCOUNT = undefined;
+      assert.equal(realDealMinDiscount(), 30);
+    } finally { restore(); }
   });
 });

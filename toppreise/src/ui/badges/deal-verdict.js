@@ -188,7 +188,6 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
       }
 
       const displayKind = getDisplayDelta(cardPrice, stats).kind;
-
       if (displayKind !== 'unknown') {
         const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
         const isNonBest = (displayKind === 'above-low');
@@ -329,4 +328,8 @@ export function renderBadgeVerdict(ctx, filters, isNeueFeed) {
   const { badgeDifEl, isListView, sitePctText, rawDiscount } = setup;
   if (CONFIG.BESTPREISE_MODE_ACTIVE) renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctText, rawDiscount);
   else renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListView, sitePctText, rawDiscount);
+  // Script paint marker: extractCardDiff must never re-parse our ribbon text
+  // as the site Differenz after a cache clear (dedicated script-owned badge
+  // replacing host-badge rewrites is out of scope).
+  if (badgeDifEl.isConnected) badgeDifEl.dataset.tpPainted = 'true';
 }
