@@ -14,6 +14,7 @@ Commits run `bump_version_precommit.py` (rebuild, `--check`, unit tests, `@versi
 ## Graph
 
 Project `home-tazztone-_coding-userscripts`, indexed `moderate` (filtered+semantic; `full` would pull gitignored `.playwright-browsers`/`venv`). Structural questions first: `search_graph` to find, `trace_path` for callers/callees, `get_code_snippet` to read. Bare names are ambiguous (src + built bundle `toppreise.user.js`); trace with the qualified name. Re-index via `index_repository(mode="moderate")` after moves/renames.
+Zero-degree hits are candidates only: re-check with `rg`/LSP before deleting. The graph misses callback references (`forEach(scheduleApproval)`), listener args (`addEventListener('abort', onAbort)`), Proxy traps (`get:`), Tampermonkey wiring, and pytest entries — all falsified live in Oct 2026; only `batchSignal` was truly dead.
 
 ## Testing
 

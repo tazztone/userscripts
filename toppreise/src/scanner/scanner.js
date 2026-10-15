@@ -15,7 +15,6 @@ export const activeFetches = new Map();
 
 // Single-flight abort for the running batch scan. Next run replaces it.
 let batchController = null;
-export const batchSignal = () => batchController?.signal ?? null;
 // Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
 let originCooldownUntil = 0;
 
