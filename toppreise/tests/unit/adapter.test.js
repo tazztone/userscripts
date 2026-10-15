@@ -91,14 +91,43 @@ describe('Page Adapter Layer', () => {
           return null;
         }
       };
-      assert.equal(getDetailLowestPrice(), 899);
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        assert.deepEqual(getDetailLowestPrice(), { price: 899, basis: 'product' });
+      });
       assert.ok(queried.length >= 1);
       assert.ok(queried.every(sel => !sel.includes(',')));
     });
 
     it('falls back through the selector list and returns 0 when nothing matches', () => {
       globalThis.document = { querySelector: () => null };
-      assert.equal(getDetailLowestPrice(), 0);
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        assert.deepEqual(getDetailLowestPrice(), { price: 0, basis: null });
+      });
+    });
+
+    it('never falls back to product prices when shipping is active', () => {
+      const queried = [];
+      globalThis.document = {
+        querySelector: sel => {
+          queried.push(sel);
+          if (sel === '.productPrice .Plugin_Price') return { textContent: 'CHF 39.00' };
+          return null;
+        }
+      };
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        assert.deepEqual(getDetailLowestPrice(), { price: 0, basis: null });
+      });
+      assert.ok(queried.every(sel => !sel.includes('.productPrice')));
+    });
+
+    it('returns the shipping basis when shipping is active', () => {
+      globalThis.document = {
+        querySelector: sel => (sel === '.shippingPrice .Plugin_Price' ? { textContent: 'CHF 45.00' } : null)
+      };
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        assert.deepEqual(getDetailLowestPrice(), { price: 45, basis: 'shipping' });
+      });
+      delete globalThis.document;
     });
   });
 });

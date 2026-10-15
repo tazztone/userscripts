@@ -77,7 +77,9 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     setCachedPriceStats(PID, { tiefstpreis: 50, medianPrice: 100, hoechstpreis: 120 });
     globalThis.fetch = async (url, opts) => {
       fetchCalls++;
-      if (opts?.method === 'POST') return { ok: false, status: 500 };
+      // Empty primary (not a 5xx): transients skip the HTML fallback, only
+      // the empty signal falls through to it.
+      if (opts?.method === 'POST') return { ok: true, json: async () => [] };
       return { ok: true, text: async () => '<div>Tiefstpreis</div><span class="Plugin_Price">CHF 49.00</span>' };
     };
     const stats = await fetchSingleProductPriceStats(PID, 1, true);
@@ -160,6 +162,115 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     assert.equal(stats?.tiefstpreis, 75);
     assert.ok(elapsed < 1400, `elapsed ${elapsed}ms exceeds HTTP-date wait`);
     assert.ok(elapsed >= 50, `elapsed ${elapsed}ms skipped the Retry-After wait`);
+  });
+
+  // Fires the first >=6s timer instantly (the attempt-1 timeout), so timeout
+  // paths are exercised without real 6s waits. Later timers run for real
+  // but are cleared on success.
+  const fireFirstSlowTimerInstantly = () => {
+    const realSetTimeout = globalThis.setTimeout;
+    let armed = true;
+    globalThis.setTimeout = (fn, ms, ...args) => {
+      if (armed && ms >= 6000) { armed = false; return realSetTimeout(fn, 0, ...args); }
+      return realSetTimeout(fn, ms, ...args);
+    };
+    // Stubs must yield a macrotask before failing: microtask rejections
+    // would otherwise beat the 0ms abort timer and misclassify as backstop.
+    const tick = () => new Promise(r => realSetTimeout(r, 10));
+    return { restore: () => { globalThis.setTimeout = realSetTimeout; }, tick };
+  };
+  const abortErr = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
+
+  it('attempt timeout retries the primary route and then succeeds', async () => {
+    const pid = 'test-pid-timeout-retry';
+    const { restore, tick } = fireFirstSlowTimerInstantly();
+    try {
+      let n = 0;
+      globalThis.fetch = async (url, opts) => {
+        fetchCalls++;
+        if (opts?.method === 'POST' && n++ === 0) { await tick(); throw abortErr(); }
+        return { ok: true, json: async () => freshSeries };
+      };
+      const stats = await fetchSingleProductPriceStats(pid, 1, true);
+      assert.equal(stats?.tiefstpreis, 75);
+      assert.equal(fetchCalls, 2);
+    } finally { restore(); }
+  });
+
+  it('timeout during the body read retries and then succeeds', async () => {
+    const pid = 'test-pid-timeout-body';
+    const { restore, tick } = fireFirstSlowTimerInstantly();
+    try {
+      globalThis.fetch = async (url, opts) => {
+        fetchCalls++;
+        const sig = opts?.signal;
+        return { ok: true, json: async () => {
+          await tick();
+          if (sig?.aborted) throw abortErr();
+          return freshSeries;
+        } };
+      };
+      const stats = await fetchSingleProductPriceStats(pid, 1, true);
+      assert.equal(stats?.tiefstpreis, 75);
+      assert.equal(fetchCalls, 2);
+    } finally { restore(); }
+  });
+
+  it('parent cancellation mid-flight performs no retry and writes nothing', async () => {
+    const pid = 'test-pid-parent-cancel';
+    globalThis.fetch = (url, opts) => {
+      fetchCalls++;
+      return new Promise((_, reject) => {
+        const s = opts?.signal;
+        if (s?.aborted) reject(abortErr());
+        else s?.addEventListener('abort', () => reject(abortErr()), { once: true });
+      });
+    };
+    const ctrl = new AbortController();
+    const p = fetchSingleProductPriceStats(pid, 1, true, null, null, ctrl.signal);
+    ctrl.abort();
+    const stats = await p;
+    assert.equal(stats, null);
+    assert.equal(fetchCalls, 1);
+    assert.equal(getCachedPriceStats(pid), null);
+  });
+
+  it('malformed JSON falls back to HTML and absent HTML writes a negative entry', async () => {
+    const pid = 'test-pid-bad-json';
+    globalThis.fetch = async (url, opts) => {
+      fetchCalls++;
+      if (opts?.method === 'POST') return { ok: true, json: async () => { throw new SyntaxError('bad json'); } };
+      return { ok: true, text: async () => '<div>Kein Tiefstpreis gefunden</div>' };
+    };
+    const stats = await fetchSingleProductPriceStats(pid, 0, true);
+    assert.equal(stats, null);
+    assert.equal(fetchCalls, 2);
+    assert.equal(getCachedPriceStats(pid)?.unavailable, true);
+  });
+
+  it('401/403 writes no negative entry and skips the HTML fallback', async () => {
+    for (const status of [401, 403]) {
+      const pid = `test-pid-auth-${status}`;
+      fetchCalls = 0;
+      globalThis.fetch = async () => { fetchCalls++; return { ok: false, status, headers: { get: () => null } }; };
+      const stats = await fetchSingleProductPriceStats(pid, 0, true);
+      assert.equal(stats, null, `status ${status}`);
+      assert.equal(fetchCalls, 1, `status ${status} must skip the HTML fallback`);
+      assert.equal(getCachedPriceStats(pid), null, `status ${status} must not write a negative entry`);
+    }
+  });
+
+  it('429 exhaustion on the primary route skips the HTML fallback', async () => {
+    // Before the cooldown-setting 429 test below: exhaustion cools the
+    // origin down, and that test still passes short-circuited (it asserts
+    // no fetch count, only null stats and no negative entry).
+    const pid = 'test-pid-429-no-fallback';
+    fetchCalls = 0;
+    globalThis.fetch = async () => { fetchCalls++; return { ok: false, status: 429, headers: { get: () => '0' } }; };
+    const stats = await fetchSingleProductPriceStats(pid, 0, true);
+    assert.equal(stats, null);
+    assert.equal(fetchCalls, 1);
+    assert.equal(getCachedPriceStats(pid), null);
   });
 
   it('429 exhaustion writes no negative entry and cools the origin down', async () => {

@@ -94,11 +94,27 @@ async function requestWithRetry(makeRequest, { retries = 1, shouldCancelFn = nul
       return { res, data };
     } catch (err) {
       if (err?.cancelled || err?.cooldown || err?.transient) throw err;
-      if (ctrl.signal.aborted || isCancelled(signal, shouldCancelFn)) {
+      // Parent cancellation (outer signal / predicate) wins over the
+      // attempt's own timeout: both abort the linked controller, so check
+      // the parent first or every timeout looks like a cancellation.
+      if (signal?.aborted || shouldCancelFn?.()) {
         const e = new Error('cancelled');
         e.cancelled = true;
         throw e;
       }
+      if (ctrl.signal.aborted) {
+        // This attempt's own timer fired: retry like any transient instead
+        // of exiting on the first attempt.
+        if (attempt < retries) {
+          await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
+          continue;
+        }
+        const e = new Error('timeout');
+        e.timeout = true;
+        throw e;
+      }
+      // Backstop for aborts neither parent nor timer explains (e.g. a fetch
+      // implementation aborting without the controller flag).
       if (err?.name === 'AbortError') {
         const e = new Error('timeout');
         e.timeout = true;
@@ -146,7 +162,7 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
     return { series: null, isShipping: false };
   };
   try {
-    const { data } = await requestWithRetry(async linkedSignal => {
+    const { res, data } = await requestWithRetry(async linkedSignal => {
       const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
         method: 'POST',
         headers: {
@@ -158,13 +174,25 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
         body: postBody,
         signal: linkedSignal
       });
-      const json = res.ok ? await res.json().catch(() => null) : null;
+      // No .catch swallow: body-read aborts must reach the retry classifier
+      // (timeout path), malformed JSON the generic branch (retried, then
+      // invalid-response below). 4xx other than 429 arrive here with res.
+      const json = res.ok ? await res.json() : null;
       return { res, data: json };
     }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
+    if (res && !res.ok && (res.status === 401 || res.status === 403)) {
+      const e = new Error('unauthorized');
+      e.unauthorized = true;
+      throw e;
+    }
     const pick = pickSeries(data);
     if (pick.series) return pick;
   } catch (err) {
-    if (!err?.cancelled && !err?.timeout && !err?.cooldown && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
+    // Typed failures propagate so the caller skips the HTML fallback; only
+    // the empty signal (absent/invalid) falls through to it.
+    if (err?.cancelled || err?.timeout || err?.cooldown || err?.unauthorized) throw err;
+    if (err?.transient && err?.cause?.name !== 'SyntaxError') throw err;
+    if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
   }
   return null;
 }
@@ -193,12 +221,21 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
       const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
 
       // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+      // Only the empty signal (pick null) reaches the HTML fallback; typed
+      // failures (cancelled/timeout/cooldown/transient/unauthorized) return
+      // immediately — a retry there cannot conjure a series.
+      let pick = null;
       try {
-        const pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
+        pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
+      } catch (e) {
+        if (e?.cancelled || e?.timeout || e?.cooldown || e?.transient || e?.unauthorized) return null;
+        throw e;
+      }
+      if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
         // Basis guard: a product-shape series must never land in the shipping
         // slot — fall through to the HTML path (which refuses the shipping
         // slot too and writes a negative entry instead).
-        if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1 && pick.isShipping === useShipping) {
+        if (pick.isShipping === useShipping) {
           const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
           if (analysis && analysis.tiefstpreis > 0) {
             analysis.isShippingPrice = useShipping;
@@ -206,8 +243,6 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
             return analysis;
           }
         }
-      } catch (seriesErr) {
-        if (seriesErr?.cancelled || seriesErr?.timeout) return null;
       }
 
       if (isCancelled(signal, shouldCancelFn)) return null;
@@ -236,6 +271,8 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
         // negative entry (a failed refresh must not downgrade prev either).
         return null;
       }
+      // Unauthorized HTML (login wall): no negative entry, no prev downgrade.
+      if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
       const stats = parsePriceStatsFromHtml(html);
       if (stats) {
         stats.isShippingPrice = useShipping;

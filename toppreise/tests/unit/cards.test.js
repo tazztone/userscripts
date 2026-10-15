@@ -1,6 +1,7 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData } from '../../src/page/cards.js';
+import { setCachedPriceStats, memoryCache } from '../../src/scanner/cache.js';
 import { withConfig } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
@@ -236,5 +237,62 @@ describe('extractOfferCount languages', () => {
 
   it('falls back to the dealer-row count', () => {
     assert.equal(extractOfferCount({ textContent: 'kein Treffer', dataset: {}, querySelectorAll: () => [1, 2, 3] }), 3);
+  });
+});
+
+describe('extractCardData basis gate', () => {
+  const PID = 'basis-pid';
+  const basisCard = ({ shippingPrice, productPrice }) => ({
+    dataset: { entityId: PID },
+    textContent: '',
+    querySelector: sel => {
+      if (sel.includes('.priceContainer.shippingPrice')) return shippingPrice ? { textContent: shippingPrice } : null;
+      if (sel.includes('.priceContainer.productPrice')) return productPrice ? { textContent: productPrice } : null;
+      return null;
+    },
+    querySelectorAll: () => []
+  });
+
+  beforeEach(() => { memoryCache.clear(); });
+
+  it('product-only price against shipping history renders unverified', () => {
+    withConfig('USE_SHIPPING_PRICE', true, () => {
+      setCachedPriceStats(PID, { tiefstpreis: 45, hoechstpreis: 60, isShippingPrice: true });
+      const cd = extractCardData(basisCard({ productPrice: 'CHF 39.00' }));
+      assert.equal(cd.cardPrice, 39);
+      assert.equal(cd.cardPriceBasis, 'product');
+      assert.equal(cd.dealScore, null);
+      assert.equal(cd.displayDelta.kind, 'unknown');
+    });
+  });
+
+  it('shipping-only price against product history renders unverified', () => {
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      setCachedPriceStats(PID, { tiefstpreis: 39, hoechstpreis: 60, isShippingPrice: false });
+      const cd = extractCardData(basisCard({ shippingPrice: 'CHF 45.00' }));
+      assert.equal(cd.cardPrice, 45);
+      assert.equal(cd.cardPriceBasis, 'shipping');
+      assert.equal(cd.dealScore, null);
+      assert.equal(cd.displayDelta.kind, 'unknown');
+    });
+  });
+
+  it('matching basis still scores', () => {
+    withConfig('USE_SHIPPING_PRICE', true, () => {
+      setCachedPriceStats(PID, { tiefstpreis: 45, hoechstpreis: 60, medianPrice: 55, isShippingPrice: true });
+      const cd = extractCardData(basisCard({ shippingPrice: 'CHF 45.00', productPrice: 'CHF 39.00' }));
+      assert.equal(cd.cardPriceBasis, 'shipping');
+      assert.ok(cd.dealScore !== null);
+      assert.equal(cd.displayDelta.kind, 'at-low');
+    });
+  });
+
+  it('legacy history without the basis flag passes through', () => {
+    withConfig('USE_SHIPPING_PRICE', true, () => {
+      setCachedPriceStats(PID, { tiefstpreis: 45, hoechstpreis: 60, medianPrice: 55 });
+      const cd = extractCardData(basisCard({ productPrice: 'CHF 39.00' }));
+      assert.ok(cd.dealScore !== null);
+      assert.notEqual(cd.displayDelta.kind, 'unknown');
+    });
   });
 });

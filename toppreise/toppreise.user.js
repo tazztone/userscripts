@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.265
+// @version      2.18.266
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1795,7 +1795,7 @@ const SHADOW_MODAL_STYLES = `
   };
 
   function extractCanonicalPrice(card) {
-    if (!card) return { price: 0, el: null };
+    if (!card) return { price: 0, el: null, basis: null };
 
     if (card._tpPriceInfo) {
       const els = Object.values(card._tpPriceInfo);
@@ -1835,9 +1835,15 @@ const SHADOW_MODAL_STYLES = `
         : (fallbackProduct || fallbackShipping);
     }
 
+    // Basis follows the winning element: callers comparing against per-mode
+    // history must refuse cross-basis prices instead of scoring them.
+    const basis = !priceEl ? null
+      : (priceEl === mainShipping || priceEl === fallbackShipping) ? 'shipping'
+      : (priceEl === mainProduct || priceEl === fallbackProduct) ? 'product' : null;
     return {
       price: priceEl ? parsePrice(priceEl.textContent) : 0,
-      el: priceEl
+      el: priceEl,
+      basis
     };
   }
 
@@ -3531,17 +3537,17 @@ const SHADOW_MODAL_STYLES = `
   function getDetailLowestPrice() {
     // Ordered single queries: a grouped selector would return the first match in
     // document order, not priority order, so a stray early .Plugin_Price could win.
-    // Basis must match the cached history series (scanner.js picks data[1] when
+    // Basis-strict: no cross-basis fallback — a product-only price must never
+    // compare against shipping-inclusive history (scanner.js picks data[1] when
     // shipping is active), else a live-vs-history mismatch fakes a record low.
+    const shipping = isShippingPriceActive();
     const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
-    const selectors = isShippingPriceActive()
-      ? ['.shippingPrice .Plugin_Price', ...productFirst]
-      : productFirst;
+    const selectors = shipping ? ['.shippingPrice .Plugin_Price'] : productFirst;
     for (const sel of selectors) {
       const priceEl = document.querySelector(sel);
-      if (priceEl) return parsePrice(priceEl.textContent);
+      if (priceEl) return { price: parsePrice(priceEl.textContent), basis: shipping ? 'shipping' : 'product' };
     }
-    return 0;
+    return { price: 0, basis: null };
   }
 
   function isProductDetailPage() {
@@ -3815,13 +3821,19 @@ const SHADOW_MODAL_STYLES = `
     const priceData = extractCanonicalPrice(card);
     const cardPriceEl = priceData.el;
     const cardPrice = priceData.price;
+    const cardPriceBasis = priceData.basis;
     const stats = pid ? getCachedPriceStats(pid) : null;
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
-    const dealScore = (hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
+    // Basis gate: a product-only live price must never score against
+    // shipping-inclusive history (or vice versa). Legacy cache entries
+    // without the boolean flag pass through; mismatches render unverified.
+    const basisMatches = typeof stats?.isShippingPrice !== 'boolean'
+      || stats.isShippingPrice === (cardPriceBasis === 'shipping');
+    const dealScore = (basisMatches && hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     // Display delta never gates on history quality: with just {tiefstpreis} +
     // card price the badge/heat still tell the verified truth.
-    const displayDelta = getDisplayDelta(cardPrice, stats);
+    const displayDelta = basisMatches ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' };
     const offerCount = extractOfferCount(card);
 
     return {
@@ -3829,6 +3841,7 @@ const SHADOW_MODAL_STYLES = `
       pid,
       cardPriceEl,
       cardPrice,
+      cardPriceBasis,
       stats,
       diffVal,
       discountVal,
@@ -3872,8 +3885,8 @@ const SHADOW_MODAL_STYLES = `
     const priceData = extractCanonicalPrice(card);
     const useShipping = isShippingPriceActive(card);
     const storePriceEl = useShipping
-      ? (matchedRow.querySelector('.shippingPrice .Plugin_Price') || matchedRow.querySelector('.productPrice .Plugin_Price'))
-      : (matchedRow.querySelector('.productPrice .Plugin_Price') || matchedRow.querySelector('.shippingPrice .Plugin_Price'));
+      ? matchedRow.querySelector('.shippingPrice .Plugin_Price')
+      : matchedRow.querySelector('.productPrice .Plugin_Price');
     const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
     const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
     if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) return false;
@@ -4484,11 +4497,27 @@ const SHADOW_MODAL_STYLES = `
         return { res, data };
       } catch (err) {
         if (err?.cancelled || err?.cooldown || err?.transient) throw err;
-        if (ctrl.signal.aborted || isCancelled(signal, shouldCancelFn)) {
+        // Parent cancellation (outer signal / predicate) wins over the
+        // attempt's own timeout: both abort the linked controller, so check
+        // the parent first or every timeout looks like a cancellation.
+        if (signal?.aborted || shouldCancelFn?.()) {
           const e = new Error('cancelled');
           e.cancelled = true;
           throw e;
         }
+        if (ctrl.signal.aborted) {
+          // This attempt's own timer fired: retry like any transient instead
+          // of exiting on the first attempt.
+          if (attempt < retries) {
+            await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
+            continue;
+          }
+          const e = new Error('timeout');
+          e.timeout = true;
+          throw e;
+        }
+        // Backstop for aborts neither parent nor timer explains (e.g. a fetch
+        // implementation aborting without the controller flag).
         if (err?.name === 'AbortError') {
           const e = new Error('timeout');
           e.timeout = true;
@@ -4536,7 +4565,7 @@ const SHADOW_MODAL_STYLES = `
       return { series: null, isShipping: false };
     };
     try {
-      const { data } = await requestWithRetry(async linkedSignal => {
+      const { res, data } = await requestWithRetry(async linkedSignal => {
         const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
           method: 'POST',
           headers: {
@@ -4548,13 +4577,25 @@ const SHADOW_MODAL_STYLES = `
           body: postBody,
           signal: linkedSignal
         });
-        const json = res.ok ? await res.json().catch(() => null) : null;
+        // No .catch swallow: body-read aborts must reach the retry classifier
+        // (timeout path), malformed JSON the generic branch (retried, then
+        // invalid-response below). 4xx other than 429 arrive here with res.
+        const json = res.ok ? await res.json() : null;
         return { res, data: json };
       }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
+      if (res && !res.ok && (res.status === 401 || res.status === 403)) {
+        const e = new Error('unauthorized');
+        e.unauthorized = true;
+        throw e;
+      }
       const pick = pickSeries(data);
       if (pick.series) return pick;
     } catch (err) {
-      if (!err?.cancelled && !err?.timeout && !err?.cooldown && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
+      // Typed failures propagate so the caller skips the HTML fallback; only
+      // the empty signal (absent/invalid) falls through to it.
+      if (err?.cancelled || err?.timeout || err?.cooldown || err?.unauthorized) throw err;
+      if (err?.transient && err?.cause?.name !== 'SyntaxError') throw err;
+      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
     }
     return null;
   }
@@ -4583,12 +4624,21 @@ const SHADOW_MODAL_STYLES = `
         const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
 
         // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
+        // Only the empty signal (pick null) reaches the HTML fallback; typed
+        // failures (cancelled/timeout/cooldown/transient/unauthorized) return
+        // immediately — a retry there cannot conjure a series.
+        let pick = null;
         try {
-          const pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
+          pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
+        } catch (e) {
+          if (e?.cancelled || e?.timeout || e?.cooldown || e?.transient || e?.unauthorized) return null;
+          throw e;
+        }
+        if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1) {
           // Basis guard: a product-shape series must never land in the shipping
           // slot — fall through to the HTML path (which refuses the shipping
           // slot too and writes a negative entry instead).
-          if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1 && pick.isShipping === useShipping) {
+          if (pick.isShipping === useShipping) {
             const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
             if (analysis && analysis.tiefstpreis > 0) {
               analysis.isShippingPrice = useShipping;
@@ -4596,8 +4646,6 @@ const SHADOW_MODAL_STYLES = `
               return analysis;
             }
           }
-        } catch (seriesErr) {
-          if (seriesErr?.cancelled || seriesErr?.timeout) return null;
         }
 
         if (isCancelled(signal, shouldCancelFn)) return null;
@@ -4626,6 +4674,8 @@ const SHADOW_MODAL_STYLES = `
           // negative entry (a failed refresh must not downgrade prev either).
           return null;
         }
+        // Unauthorized HTML (login wall): no negative entry, no prev downgrade.
+        if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
         const stats = parsePriceStatsFromHtml(html);
         if (stats) {
           stats.isShippingPrice = useShipping;
@@ -8938,13 +8988,20 @@ const SHADOW_MODAL_STYLES = `
     }
     if (!headingEl) return;
 
-    const currentPrice = getDetailLowestPrice();
+    const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
     if (currentPrice <= 0) return;
 
     let badge = document.getElementById('tp-detail-deal-badge');
     const stats = getCachedPriceStats(pid);
 
     if (stats && stats.tiefstpreis > 0) {
+      // Basis gate (same rule as extractCardData): a live price on the other
+      // basis than the cached history renders no badge. A refetch cannot fix
+      // a missing DOM basis, so drop the badge instead of re-requesting.
+      if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
+        document.getElementById('tp-detail-deal-badge')?.remove();
+        return;
+      }
       if (!badge) {
         badge = document.createElement('div');
         badge.id = 'tp-detail-deal-badge';

@@ -242,13 +242,19 @@ export function extractCardData(card) {
   const priceData = extractCanonicalPrice(card);
   const cardPriceEl = priceData.el;
   const cardPrice = priceData.price;
+  const cardPriceBasis = priceData.basis;
   const stats = pid ? getCachedPriceStats(pid) : null;
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
-  const dealScore = (hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
+  // Basis gate: a product-only live price must never score against
+  // shipping-inclusive history (or vice versa). Legacy cache entries
+  // without the boolean flag pass through; mismatches render unverified.
+  const basisMatches = typeof stats?.isShippingPrice !== 'boolean'
+    || stats.isShippingPrice === (cardPriceBasis === 'shipping');
+  const dealScore = (basisMatches && hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
   // Display delta never gates on history quality: with just {tiefstpreis} +
   // card price the badge/heat still tell the verified truth.
-  const displayDelta = getDisplayDelta(cardPrice, stats);
+  const displayDelta = basisMatches ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' };
   const offerCount = extractOfferCount(card);
 
   return {
@@ -256,6 +262,7 @@ export function extractCardData(card) {
     pid,
     cardPriceEl,
     cardPrice,
+    cardPriceBasis,
     stats,
     diffVal,
     discountVal,
@@ -299,8 +306,8 @@ export function dealerLoserFor(card, activeStores) {
   const priceData = extractCanonicalPrice(card);
   const useShipping = isShippingPriceActive(card);
   const storePriceEl = useShipping
-    ? (matchedRow.querySelector('.shippingPrice .Plugin_Price') || matchedRow.querySelector('.productPrice .Plugin_Price'))
-    : (matchedRow.querySelector('.productPrice .Plugin_Price') || matchedRow.querySelector('.shippingPrice .Plugin_Price'));
+    ? matchedRow.querySelector('.shippingPrice .Plugin_Price')
+    : matchedRow.querySelector('.productPrice .Plugin_Price');
   const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
   const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
   if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) return false;

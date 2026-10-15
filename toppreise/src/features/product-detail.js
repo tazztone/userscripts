@@ -25,13 +25,20 @@ export async function processProductDetailPage() {
   }
   if (!headingEl) return;
 
-  const currentPrice = getDetailLowestPrice();
+  const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
   if (currentPrice <= 0) return;
 
   let badge = document.getElementById('tp-detail-deal-badge');
   const stats = getCachedPriceStats(pid);
 
   if (stats && stats.tiefstpreis > 0) {
+    // Basis gate (same rule as extractCardData): a live price on the other
+    // basis than the cached history renders no badge. A refetch cannot fix
+    // a missing DOM basis, so drop the badge instead of re-requesting.
+    if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
+      document.getElementById('tp-detail-deal-badge')?.remove();
+      return;
+    }
     if (!badge) {
       badge = document.createElement('div');
       badge.id = 'tp-detail-deal-badge';

@@ -75,17 +75,17 @@ export function getDetailProductId() {
 export function getDetailLowestPrice() {
   // Ordered single queries: a grouped selector would return the first match in
   // document order, not priority order, so a stray early .Plugin_Price could win.
-  // Basis must match the cached history series (scanner.js picks data[1] when
+  // Basis-strict: no cross-basis fallback — a product-only price must never
+  // compare against shipping-inclusive history (scanner.js picks data[1] when
   // shipping is active), else a live-vs-history mismatch fakes a record low.
+  const shipping = isShippingPriceActive();
   const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
-  const selectors = isShippingPriceActive()
-    ? ['.shippingPrice .Plugin_Price', ...productFirst]
-    : productFirst;
+  const selectors = shipping ? ['.shippingPrice .Plugin_Price'] : productFirst;
   for (const sel of selectors) {
     const priceEl = document.querySelector(sel);
-    if (priceEl) return parsePrice(priceEl.textContent);
+    if (priceEl) return { price: parsePrice(priceEl.textContent), basis: shipping ? 'shipping' : 'product' };
   }
-  return 0;
+  return { price: 0, basis: null };
 }
 
 export function isProductDetailPage() {

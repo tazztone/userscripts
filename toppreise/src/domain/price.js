@@ -48,7 +48,7 @@ export const parsePrice = str => {
 };
 
 export function extractCanonicalPrice(card) {
-  if (!card) return { price: 0, el: null };
+  if (!card) return { price: 0, el: null, basis: null };
 
   if (card._tpPriceInfo) {
     const els = Object.values(card._tpPriceInfo);
@@ -88,9 +88,15 @@ export function extractCanonicalPrice(card) {
       : (fallbackProduct || fallbackShipping);
   }
 
+  // Basis follows the winning element: callers comparing against per-mode
+  // history must refuse cross-basis prices instead of scoring them.
+  const basis = !priceEl ? null
+    : (priceEl === mainShipping || priceEl === fallbackShipping) ? 'shipping'
+    : (priceEl === mainProduct || priceEl === fallbackProduct) ? 'product' : null;
   return {
     price: priceEl ? parsePrice(priceEl.textContent) : 0,
-    el: priceEl
+    el: priceEl,
+    basis
   };
 }
 

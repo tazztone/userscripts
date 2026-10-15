@@ -617,6 +617,7 @@ describe('Price Domain Module', () => {
       const res = extractCanonicalPrice(null);
       assert.equal(res.price, 0);
       assert.equal(res.el, null);
+      assert.equal(res.basis, null);
     });
 
     it('uses fallback containers when main price info is absent', () => {
@@ -629,13 +630,27 @@ describe('Price Domain Module', () => {
       };
 
       withConfig('USE_SHIPPING_PRICE', true, () => {
-        assert.equal(extractCanonicalPrice(mockCard).price, 45.00);
+        const ship = extractCanonicalPrice(mockCard);
+        assert.equal(ship.price, 45.00);
+        assert.equal(ship.basis, 'shipping');
 
         // Memoized container reset for product mode
         delete mockCard._tpPriceInfo;
         withConfig('USE_SHIPPING_PRICE', false, () => {
-          assert.equal(extractCanonicalPrice(mockCard).price, 39.00);
+          const prod = extractCanonicalPrice(mockCard);
+          assert.equal(prod.price, 39.00);
+          assert.equal(prod.basis, 'product');
         });
+      });
+    });
+    it('reports the fallback basis when only the other mode has a price', () => {
+      const mockCard = {
+        querySelector: sel => (sel.includes('.priceContainer.productPrice') ? { textContent: 'CHF 39.00' } : null)
+      };
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        const res = extractCanonicalPrice(mockCard);
+        assert.equal(res.price, 39.00);
+        assert.equal(res.basis, 'product');
       });
     });
     it('second call on a stub without contains reuses the memo', () => {
