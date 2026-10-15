@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.280
+// @version      2.18.281
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3895,6 +3895,22 @@ const SHADOW_MODAL_STYLES = `
   const basisMatchesFor = (stats, cardPriceBasis) =>
     typeof stats?.isShippingPrice !== 'boolean'
     || stats.isShippingPrice === (cardPriceBasis === 'shipping');
+  // Single scan-eligibility resolver (counter + scanner queue share it):
+  // usable stats verify, fresh unavailable markers wait out the negative TTL,
+  // basis mismatches refetch (no new state), everything else is unchecked.
+  function scanEligibility(card) {
+    const pid = getCardProductId(card);
+    if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
+    const stats = getCachedPriceStats(pid);
+    if (stats && stats.unavailable) {
+      return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
+    }
+    if (stats && !basisMatchesFor(stats, extractCanonicalPrice(card).basis)) {
+      return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
+    }
+    if (hasUsablePriceStats(stats)) return { state: 'verified', canScan: false, retryAt: null, reason: null };
+    return { state: 'unchecked', canScan: true, retryAt: null, reason: null };
+  }
   function extractCardData(card) {
     const pid = getCardProductId(card);
     const priceData = extractCanonicalPrice(card);
@@ -4882,21 +4898,25 @@ const SHADOW_MODAL_STYLES = `
     const activeStores = extractActiveStores();
     const isDealFeed = isNeueToppreisePage();
 
+    const seenTargets = new Set();
     for (const card of cards) {
       const pid = getCardProductId(card);
       if (!pid) continue;
-      // Usable entries AND fresh negative markers both skip the fetch (storm
-      // protection); usable-verdicts downstream use hasUsablePriceStats.
-      const cached = getCachedPriceStats(pid);
-      if (cached) continue;
+      // Shared resolver: usable stats verify, fresh unavailable markers wait
+      // out the negative TTL, basis mismatches refetch into their own slot.
+      const elig = scanEligibility(card);
+      if (!elig.canScan) continue;
       // Full card data (not a partial struct): scanner, counter and renderer
       // share one filter verdict, including the dealer rule.
       const cd = extractCardData(card);
+      const targetKey = `${pid}:${cd.cardPriceBasis}`;
+      if (seenTargets.has(targetKey)) continue;
       const filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
       filters.isDealerLoser = dealerLoserFor(card, activeStores);
       if (isCardFilteredOut(card, filters, { forScan: true })) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
+        seenTargets.add(targetKey);
         targets.push({ pid, card, discount });
       }
     }
@@ -4926,11 +4946,15 @@ const SHADOW_MODAL_STYLES = `
 
         let stats = null;
         try {
-          stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
-          // Card-identity guard: reused/detached cards must not collect an
-          // earlier request's verification.
-          if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
-          else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+          // Pre-fetch identity guard: skip the fetch when the card detached or
+          // was reused for another product while queued (post-fetch guard stays).
+          if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
+            stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
+            // Card-identity guard: reused/detached cards must not collect an
+            // earlier request's verification.
+            if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
+            else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+          }
         } finally {
           Object.assign(scanState, { currentlyScanningPid: null });
         }
@@ -9440,22 +9464,23 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
+      const counts = { neg: 0, min: 0, uncheckedDeals: 0, unavailableDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
         // Dealer verdict before counting: scanner and counter must agree.
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
-        if (isNeueFeed) {
-          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
-            counts.uncheckedDeals++;
-          }
-        } else {
-          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
-            counts.uncheckedDeals++;
-          }
-        }
+        // Scan bucket from the shared resolver: fresh unavailable markers
+        // wait out the negative TTL (counted aside, CTA ignores them).
+        const countScanBucket = extraOk => {
+          if (!cd.pid || !extraOk || isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return;
+          const elig = scanEligibility(cd.card);
+          if (elig.canScan) counts.uncheckedDeals++;
+          else if (elig.state === 'unavailable') counts.unavailableDeals++;
+        };
+        if (isNeueFeed) countScanBucket(cd.discountVal !== null && cd.discountVal >= minDealDiscount);
+        else countScanBucket(true);
         // Verified markups are removed nowhere, so counted nowhere.
         // (No recompute here: extractCardData already scored with identical inputs.)
         if (cd.dealScore) counts.bestpreiseDeals++;
@@ -9643,7 +9668,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.279';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.280';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

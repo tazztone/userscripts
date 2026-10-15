@@ -6,7 +6,7 @@
 
 import { getCachedPriceStats, setCachedPriceStats, currentCacheGen } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
-import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
+import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount, scanEligibility } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
@@ -375,21 +375,25 @@ export async function runProductScanner(options = {}) {
   const activeStores = extractActiveStores();
   const isDealFeed = isNeueToppreisePage();
 
+  const seenTargets = new Set();
   for (const card of cards) {
     const pid = getCardProductId(card);
     if (!pid) continue;
-    // Usable entries AND fresh negative markers both skip the fetch (storm
-    // protection); usable-verdicts downstream use hasUsablePriceStats.
-    const cached = getCachedPriceStats(pid);
-    if (cached) continue;
+    // Shared resolver: usable stats verify, fresh unavailable markers wait
+    // out the negative TTL, basis mismatches refetch into their own slot.
+    const elig = scanEligibility(card);
+    if (!elig.canScan) continue;
     // Full card data (not a partial struct): scanner, counter and renderer
     // share one filter verdict, including the dealer rule.
     const cd = extractCardData(card);
+    const targetKey = `${pid}:${cd.cardPriceBasis}`;
+    if (seenTargets.has(targetKey)) continue;
     const filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
     filters.isDealerLoser = dealerLoserFor(card, activeStores);
     if (isCardFilteredOut(card, filters, { forScan: true })) continue;
     const discount = extractCardDiscount(card) ?? 0;
     if (filterFn({ pid, card, discount })) {
+      seenTargets.add(targetKey);
       targets.push({ pid, card, discount });
     }
   }
@@ -419,11 +423,15 @@ export async function runProductScanner(options = {}) {
 
       let stats = null;
       try {
-        stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
-        // Card-identity guard: reused/detached cards must not collect an
-        // earlier request's verification.
-        if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
-        else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+        // Pre-fetch identity guard: skip the fetch when the card detached or
+        // was reused for another product while queued (post-fetch guard stays).
+        if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
+          stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
+          // Card-identity guard: reused/detached cards must not collect an
+          // earlier request's verification.
+          if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
+          else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+        }
       } finally {
         Object.assign(scanState, { currentlyScanningPid: null });
       }

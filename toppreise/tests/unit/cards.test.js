@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor } from '../../src/page/cards.js';
-import { setCachedPriceStats, memoryCache } from '../../src/scanner/cache.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility } from '../../src/page/cards.js';
+import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
 import { withConfig } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
@@ -85,6 +85,45 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       const badge = { textContent: '-50%', dataset: { tpPainted: 'true', tpOriginalPid: 'p1', tpOriginalDiscount: '30', tpPaintedText: '⏳ Prüfe…' } };
       const card = { dataset: { entityId: 'p1' }, querySelector: () => badge, textContent: '' };
       assert.strictEqual(extractCardDiff(card), -50);
+    });
+  });
+
+  describe('scanEligibility', () => {
+    it('buckets no-pid, unavailable, verified and unchecked cards', () => {
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        const noPid = scanEligibility({ dataset: {} });
+        assert.equal(noPid.canScan, false);
+        assert.equal(noPid.state, 'verified');
+        assert.equal(noPid.reason, 'no-pid');
+        setCachedPriceStats('neg1', {}, true);
+        const neg = scanEligibility({ dataset: { entityId: 'neg1' } });
+        assert.equal(neg.canScan, false);
+        assert.equal(neg.state, 'unavailable');
+        assert.ok(neg.retryAt > Date.now());
+        setCachedPriceStats('ok1', { tiefstpreis: 100 });
+        const ok = scanEligibility({ dataset: { entityId: 'ok1' } });
+        assert.equal(ok.canScan, false);
+        assert.equal(ok.state, 'verified');
+        const fresh = scanEligibility({ dataset: { entityId: 'new1' } });
+        assert.equal(fresh.canScan, true);
+        assert.equal(fresh.state, 'unchecked');
+      });
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        for (const pid of ['neg1', 'ok1']) memoryCache.delete(statsKey(pid));
+      });
+    });
+    it('marks basis mismatches as scannable', () => {
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        setCachedPriceStats('mm1', { tiefstpreis: 100, isShippingPrice: true });
+        const card = {
+          dataset: { entityId: 'mm1' },
+          _tpPriceInfo: { mainPriceInfo: null, mainShipping: null, mainProduct: null, fallbackShipping: null, fallbackProduct: { textContent: 'CHF 100' } }
+        };
+        const elig = scanEligibility(card);
+        assert.equal(elig.canScan, true);
+        assert.equal(elig.state, 'basis-mismatch');
+        memoryCache.delete(statsKey('mm1'));
+      });
     });
   });
 

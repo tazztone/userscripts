@@ -4,7 +4,7 @@ import {
   analyzePriceTimeSeries
 } from './domain/price.js';
 import { computeDealScore } from './domain/deal-score.js';
-import { memoryCache, statsKey, hasUsablePriceStats } from './scanner/cache.js';
+import { memoryCache, statsKey } from './scanner/cache.js';
 import {
   getProductCards,
   parseNegativeTerms,
@@ -13,7 +13,8 @@ import {
   getCardDealerRows,
   applyCardFilters,
   isCardFilteredOut,
-  dealerLoserFor
+  dealerLoserFor,
+  scanEligibility
 } from './page/cards.js';
 import {
   isShippingPriceActive,
@@ -53,7 +54,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.280
+// @version      2.18.281
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -105,22 +106,23 @@ import { processProductDetailPage } from './features/product-detail.js';
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, uncheckedDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
+      const counts = { neg: 0, min: 0, uncheckedDeals: 0, unavailableDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
         // Dealer verdict before counting: scanner and counter must agree.
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
-        if (isNeueFeed) {
-          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
-            counts.uncheckedDeals++;
-          }
-        } else {
-          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
-            counts.uncheckedDeals++;
-          }
-        }
+        // Scan bucket from the shared resolver: fresh unavailable markers
+        // wait out the negative TTL (counted aside, CTA ignores them).
+        const countScanBucket = extraOk => {
+          if (!cd.pid || !extraOk || isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return;
+          const elig = scanEligibility(cd.card);
+          if (elig.canScan) counts.uncheckedDeals++;
+          else if (elig.state === 'unavailable') counts.unavailableDeals++;
+        };
+        if (isNeueFeed) countScanBucket(cd.discountVal !== null && cd.discountVal >= minDealDiscount);
+        else countScanBucket(true);
         // Verified markups are removed nowhere, so counted nowhere.
         // (No recompute here: extractCardData already scored with identical inputs.)
         if (cd.dealScore) counts.bestpreiseDeals++;
@@ -308,7 +310,7 @@ import { processProductDetailPage } from './features/product-detail.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.280';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.281';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

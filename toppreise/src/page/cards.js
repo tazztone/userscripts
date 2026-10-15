@@ -283,6 +283,22 @@ export function parseNegativeTerms(rawTerms = CONFIG.NEGATIVE_TERMS || '') {
 export const basisMatchesFor = (stats, cardPriceBasis) =>
   typeof stats?.isShippingPrice !== 'boolean'
   || stats.isShippingPrice === (cardPriceBasis === 'shipping');
+// Single scan-eligibility resolver (counter + scanner queue share it):
+// usable stats verify, fresh unavailable markers wait out the negative TTL,
+// basis mismatches refetch (no new state), everything else is unchecked.
+export function scanEligibility(card) {
+  const pid = getCardProductId(card);
+  if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
+  const stats = getCachedPriceStats(pid);
+  if (stats && stats.unavailable) {
+    return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
+  }
+  if (stats && !basisMatchesFor(stats, extractCanonicalPrice(card).basis)) {
+    return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
+  }
+  if (hasUsablePriceStats(stats)) return { state: 'verified', canScan: false, retryAt: null, reason: null };
+  return { state: 'unchecked', canScan: true, retryAt: null, reason: null };
+}
 export function extractCardData(card) {
   const pid = getCardProductId(card);
   const priceData = extractCanonicalPrice(card);
