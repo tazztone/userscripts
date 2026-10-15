@@ -638,5 +638,10 @@ describe('Price Domain Module', () => {
         });
       });
     });
+    it('second call on a stub without contains reuses the memo', () => {
+      const mockCard = { querySelector: sel => (sel.includes('.priceContainer') ? { textContent: 'CHF 10.00' } : null) };
+      assert.equal(extractCanonicalPrice(mockCard).price, 10);
+      assert.equal(extractCanonicalPrice(mockCard).price, 10);
+    });
   });
 });

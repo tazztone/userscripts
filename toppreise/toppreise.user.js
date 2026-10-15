@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.264
+// @version      2.18.265
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1799,7 +1799,7 @@ const SHADOW_MODAL_STYLES = `
 
     if (card._tpPriceInfo) {
       const els = Object.values(card._tpPriceInfo);
-      if (els.some(el => el && !card.contains(el))) delete card._tpPriceInfo;
+      if (els.some(el => el && card.contains?.(el) === false)) delete card._tpPriceInfo;
     }
     if (!card._tpPriceInfo) {
        const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
@@ -2648,8 +2648,8 @@ const SHADOW_MODAL_STYLES = `
       try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
       const slot = useShipping ? 's' : 'p';
       const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
-      const next = { ...prev, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: Date.now() } };
-      delete next.time;
+      const now = Date.now();
+      const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: now } };
       storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
     } catch (e) {}
   }
@@ -8882,8 +8882,6 @@ const SHADOW_MODAL_STYLES = `
           } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
             try { observer.disconnect(); } catch {}
             clearTimeout(fallbackTimer);
-          } else {
-            flagUnconfirmed();
           }
         });
         observer.observe(dialogRoot, { childList: true, subtree: true });

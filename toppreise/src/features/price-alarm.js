@@ -203,8 +203,6 @@ export function processPriceAlarmModal() {
         } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
           try { observer.disconnect(); } catch {}
           clearTimeout(fallbackTimer);
-        } else {
-          flagUnconfirmed();
         }
       });
       observer.observe(dialogRoot, { childList: true, subtree: true });

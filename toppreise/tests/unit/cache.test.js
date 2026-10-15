@@ -211,6 +211,14 @@ describe('Bounded Cache Module', () => {
       });
     });
 
+    it('prune retains fresh dealer entries', () => {
+      const s = memStorage();
+      setCachedDealer('p1', false, 'Galaxus', '', s);
+      prunePriceStatsCache(s);
+      assert.equal(getCachedDealer('p1', false, s).dealer, 'Galaxus');
+    });
+
+
     it('tolerates corrupt entries and needs no storage', () => {
       const s = memStorage();
       s.setItem(DEALER_CACHE_PREFIX + 'broken', 'kein json{{');

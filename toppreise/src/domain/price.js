@@ -52,7 +52,7 @@ export function extractCanonicalPrice(card) {
 
   if (card._tpPriceInfo) {
     const els = Object.values(card._tpPriceInfo);
-    if (els.some(el => el && !card.contains(el))) delete card._tpPriceInfo;
+    if (els.some(el => el && card.contains?.(el) === false)) delete card._tpPriceInfo;
   }
   if (!card._tpPriceInfo) {
      const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;

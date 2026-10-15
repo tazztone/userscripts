@@ -302,8 +302,8 @@ export function setCachedDealer(productId, useShipping, dealer, url, storage = (
     try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
     const slot = useShipping ? 's' : 'p';
     const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
-    const next = { ...prev, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: Date.now() } };
-    delete next.time;
+    const now = Date.now();
+    const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: now } };
     storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
   } catch (e) {}
 }
