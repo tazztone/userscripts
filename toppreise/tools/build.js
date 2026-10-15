@@ -93,6 +93,15 @@ export function buildBundle() {
   }
   const header = headerMatch[1];
 
+  // Version single-source: the @version header is authoritative; the runtime
+  // fallback literal in the IIFE body must match it or --check fails.
+  const headerVersion = (header.match(/@version\s+(\S+)/) || [])[1];
+  const fallbackVersion = (appCodeClean.match(/\|\|\s*'(\d+\.\d+\.\d+)'/) || [])[1];
+  if (!headerVersion) throw new Error('No @version found in src/app.js header');
+  if (fallbackVersion !== headerVersion) {
+    throw new Error(`Version drift: header @version ${headerVersion} but runtime fallback '${fallbackVersion}'. Sync the fallback literal in src/app.js.`);
+  }
+
   // Extract everything after metadata header up to (() => { 'use strict';
   const afterHeader = appCodeClean.slice(headerMatch.index + headerMatch[0].length);
   const iifeIndex = afterHeader.indexOf("(() => {");

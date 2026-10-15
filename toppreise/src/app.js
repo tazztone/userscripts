@@ -4,7 +4,7 @@ import {
   analyzePriceTimeSeries
 } from './domain/price.js';
 import { computeDealScore } from './domain/deal-score.js';
-import { memoryCache, statsKey, hasUsablePriceStats } from './scanner/cache.js';
+import { memoryCache, statsKey } from './scanner/cache.js';
 import {
   getProductCards,
   parseNegativeTerms,
@@ -12,7 +12,8 @@ import {
   extractActiveStores,
   getCardDealerRows,
   applyCardFilters,
-  isCardFilteredOut
+  isCardFilteredOut,
+  dealerLoserFor
 } from './page/cards.js';
 import {
   isShippingPriceActive,
@@ -50,7 +51,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.266
+// @version      2.18.267
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -107,18 +108,19 @@ import { processProductDetailPage } from './features/product-detail.js';
 
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
+        // Dealer verdict before counting: scanner and counter must agree.
+        cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         if (isNeueFeed) {
-          if (cd.pid && !hasUsablePriceStats(cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !hasUsablePriceStats(cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
         // Verified markups are removed nowhere, so counted nowhere.
-        cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
-        // bestpreiseDeals feeds the empty-state "deals exist" guard: dealScore blends plus included Vortief lows; excluded-fallback lows count under vortief only.
+        // (No recompute here: extractCardData already scored with identical inputs.)
         if (cd.dealScore) counts.bestpreiseDeals++;
         else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) counts.bestpreiseDeals++;
       }
@@ -155,7 +157,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
-  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href'] };
+  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id'] };
   const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
@@ -196,12 +198,11 @@ import { processProductDetailPage } from './features/product-detail.js';
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
       if (hit) {
-        let self = false;
-        for (const n of [...m.addedNodes, ...m.removedNodes]) {
-          if (isOwnedNode(n)) { self = true; break; }
-          if (cardOf(n)) continue;
-        }
-        if (self) continue;
+        // All-changes-owned skips only pure self-paint: a mixed record (own
+        // badge plus a genuine host replacement) still invalidates, or the
+        // host update is lost with the badge.
+        const changes = [...m.addedNodes, ...m.removedNodes].filter(n => n?.nodeType === 1);
+        if (changes.length > 0 && changes.every(isOwnedNode)) continue;
         clearCardCache(hit);
         dirtyCard = true;
         continue;
@@ -271,17 +272,20 @@ import { processProductDetailPage } from './features/product-detail.js';
     }
   });
 
-  if (self.navigation?.addEventListener) {
-    self.navigation.addEventListener('navigatesuccess', () => {
-      cancelBatchDealCheck();
-      clearDealerAutoTried();
-      processListings();
-      processPriceAlarmModal();
-      if (isProductDetailPage()) {
-        processProductDetailPage();
-      }
-    });
+  function handleRouteTransition() {
+    cancelBatchDealCheck();
+    clearDealerAutoTried();
+    processListings();
+    processPriceAlarmModal();
+    if (isProductDetailPage()) {
+      processProductDetailPage();
+    }
   }
+  if (self.navigation?.addEventListener) {
+    self.navigation.addEventListener('navigatesuccess', handleRouteTransition);
+  }
+  window.addEventListener('popstate', handleRouteTransition);
+  window.addEventListener('hashchange', handleRouteTransition);
 
   setupUI();
   processListings();
@@ -291,7 +295,7 @@ import { processProductDetailPage } from './features/product-detail.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.258';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.266';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

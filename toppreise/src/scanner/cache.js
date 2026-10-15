@@ -28,6 +28,10 @@ export function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
 }
 
 export const memoryCache = new Map();
+// Default-arg `window.localStorage` access itself can throw (blocked
+// third-party storage); resolve lazily inside a guard so persistence
+// absence only disables disk, never the in-memory LRU.
+const resolveStorage = s => { try { return s ?? (typeof window !== 'undefined' ? window.localStorage : null); } catch { return null; } };
 
 let statsWriteCount = 0;
 export function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
@@ -59,7 +63,8 @@ export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
 }
 export const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
-export function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), forceEvict = false) {
+export function prunePriceStatsCache(storage = null, forceEvict = false) {
+  storage = resolveStorage(storage);
   if (!storage) return;
   try {
     const now = Date.now();
@@ -97,8 +102,9 @@ export function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? 
   } catch (e) {}
 }
 
-export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null) {
   if (!productId) return null;
+  storage = resolveStorage(storage);
   // Mode guard: the series is picked per shipping mode at fetch time and the
   // key is bare, so a cross-mode entry would compare the wrong baseline
   // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
@@ -172,8 +178,9 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
   return null;
 }
 
-export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null), useShippingOverride) {
+export function setCachedPriceStats(productId, stats, isUnavailable = false, storage = null, useShippingOverride) {
   if (!productId) return;
+  storage = resolveStorage(storage);
   const key = statsKey(productId, useShippingOverride);
   // Upgrade-only: never replace median-bearing stats with median-less
   // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
@@ -205,8 +212,9 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   }
 }
 
-export function countCachedPriceStats(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function countCachedPriceStats(storage = null) {
   let count = 0;
+  storage = resolveStorage(storage);
   try {
     if (storage) {
       for (let i = 0; i < storage.length; i++) {
@@ -222,8 +230,9 @@ export function countCachedPriceStats(storage = (typeof window !== 'undefined' ?
 }
 
 
-export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), onlyPrefixes = null) {
+export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
   const prefixes = Array.isArray(onlyPrefixes) && onlyPrefixes.length > 0 ? onlyPrefixes : CACHE_PREFIXES;
+  storage = resolveStorage(storage);
   memoryCache.clear();
   let count = 0;
   try {
@@ -246,8 +255,9 @@ export function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? 
 // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
 // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
 // Serienlose Einträge (Fallback/negativ) werden übersprungen.
-export function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function recomputeCachedMedians(horizonDays, storage = null) {
   let count = 0;
+  storage = resolveStorage(storage);
   const sig = currentMedianSig(horizonDays);
   const rewrite = entry => {
     // Cross-mode entries are left alone (not reinserted); their key slot is
@@ -279,8 +289,9 @@ export function recomputeCachedMedians(horizonDays, storage = (typeof window !==
 // Händlername + Angebotslink pro Produkt, je Preisbasis (p/s-Slot): wird beim
 // 🏬-Klick zusammen mit dem Produktseiten-Fetch geschrieben und überlebt so
 // Reloads — gleiche TTL wie die Preishistorie (REAL_DEAL_CACHE_HOURS).
-export function getCachedDealer(productId, useShipping, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function getCachedDealer(productId, useShipping, storage = null) {
   if (!productId) return null;
+  storage = resolveStorage(storage);
   try {
     const raw = storage?.getItem(DEALER_CACHE_PREFIX + productId);
     if (!raw) return null;
@@ -295,8 +306,9 @@ export function getCachedDealer(productId, useShipping, storage = (typeof window
   return null;
 }
 
-export function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null), offers = 0) {
+export function setCachedDealer(productId, useShipping, dealer, url, storage = null, offers = 0) {
   if (!productId || !dealer) return;
+  storage = resolveStorage(storage);
   try {
     let prev = {};
     try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
@@ -312,8 +324,9 @@ export function setCachedDealer(productId, useShipping, dealer, url, storage = (
 // eine Preisänderung die Markierung löst und der Deal neu scharf wird.
 // TTL via isCacheEntryFresh (REAL_DEAL_CACHE_HOURS); clear/prune laufen über
 // CACHE_PREFIXES mit — kein eigener Lifecycle.
-export function getSharedDeal(productId, priceCents, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function getSharedDeal(productId, priceCents, storage = null) {
   if (!productId) return false;
+  storage = resolveStorage(storage);
   try {
     const raw = storage?.getItem(SHARED_CACHE_PREFIX + productId);
     if (!raw) return false;
@@ -323,8 +336,9 @@ export function getSharedDeal(productId, priceCents, storage = (typeof window !=
   return false;
 }
 
-export function setSharedDeal(productId, priceCents, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+export function setSharedDeal(productId, priceCents, storage = null) {
   if (!productId || priceCents == null) return;
+  storage = resolveStorage(storage);
   try {
     storage?.setItem(SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
   } catch (e) {}

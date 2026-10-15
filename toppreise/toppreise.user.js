@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.266
+// @version      2.18.267
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2380,6 +2380,10 @@ const SHADOW_MODAL_STYLES = `
   }
 
   const memoryCache = new Map();
+  // Default-arg `window.localStorage` access itself can throw (blocked
+  // third-party storage); resolve lazily inside a guard so persistence
+  // absence only disables disk, never the in-memory LRU.
+  const resolveStorage = s => { try { return s ?? (typeof window !== 'undefined' ? window.localStorage : null); } catch { return null; } };
 
   let statsWriteCount = 0;
   function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
@@ -2411,7 +2415,8 @@ const SHADOW_MODAL_STYLES = `
   }
   const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
-  function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), forceEvict = false) {
+  function prunePriceStatsCache(storage = null, forceEvict = false) {
+    storage = resolveStorage(storage);
     if (!storage) return;
     try {
       const now = Date.now();
@@ -2449,8 +2454,9 @@ const SHADOW_MODAL_STYLES = `
     } catch (e) {}
   }
 
-  function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null) {
     if (!productId) return null;
+    storage = resolveStorage(storage);
     // Mode guard: the series is picked per shipping mode at fetch time and the
     // key is bare, so a cross-mode entry would compare the wrong baseline
     // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
@@ -2524,8 +2530,9 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function setCachedPriceStats(productId, stats, isUnavailable = false, storage = (typeof window !== 'undefined' ? window.localStorage : null), useShippingOverride) {
+  function setCachedPriceStats(productId, stats, isUnavailable = false, storage = null, useShippingOverride) {
     if (!productId) return;
+    storage = resolveStorage(storage);
     const key = statsKey(productId, useShippingOverride);
     // Upgrade-only: never replace median-bearing stats with median-less
     // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
@@ -2557,8 +2564,9 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function countCachedPriceStats(storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function countCachedPriceStats(storage = null) {
     let count = 0;
+    storage = resolveStorage(storage);
     try {
       if (storage) {
         for (let i = 0; i < storage.length; i++) {
@@ -2574,8 +2582,9 @@ const SHADOW_MODAL_STYLES = `
   }
 
 
-  function clearPriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), onlyPrefixes = null) {
+  function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
     const prefixes = Array.isArray(onlyPrefixes) && onlyPrefixes.length > 0 ? onlyPrefixes : CACHE_PREFIXES;
+    storage = resolveStorage(storage);
     memoryCache.clear();
     let count = 0;
     try {
@@ -2598,8 +2607,9 @@ const SHADOW_MODAL_STYLES = `
   // (timeSeries) — der Median wird lokal für den neuen Horizont neu gerechnet.
   // `time` bleibt unangetastet, Einträge bleiben fresh, kein Refetch.
   // Serienlose Einträge (Fallback/negativ) werden übersprungen.
-  function recomputeCachedMedians(horizonDays, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function recomputeCachedMedians(horizonDays, storage = null) {
     let count = 0;
+    storage = resolveStorage(storage);
     const sig = currentMedianSig(horizonDays);
     const rewrite = entry => {
       // Cross-mode entries are left alone (not reinserted); their key slot is
@@ -2631,8 +2641,9 @@ const SHADOW_MODAL_STYLES = `
   // Händlername + Angebotslink pro Produkt, je Preisbasis (p/s-Slot): wird beim
   // 🏬-Klick zusammen mit dem Produktseiten-Fetch geschrieben und überlebt so
   // Reloads — gleiche TTL wie die Preishistorie (REAL_DEAL_CACHE_HOURS).
-  function getCachedDealer(productId, useShipping, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function getCachedDealer(productId, useShipping, storage = null) {
     if (!productId) return null;
+    storage = resolveStorage(storage);
     try {
       const raw = storage?.getItem(DEALER_CACHE_PREFIX + productId);
       if (!raw) return null;
@@ -2647,8 +2658,9 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function setCachedDealer(productId, useShipping, dealer, url, storage = (typeof window !== 'undefined' ? window.localStorage : null), offers = 0) {
+  function setCachedDealer(productId, useShipping, dealer, url, storage = null, offers = 0) {
     if (!productId || !dealer) return;
+    storage = resolveStorage(storage);
     try {
       let prev = {};
       try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
@@ -2664,8 +2676,9 @@ const SHADOW_MODAL_STYLES = `
   // eine Preisänderung die Markierung löst und der Deal neu scharf wird.
   // TTL via isCacheEntryFresh (REAL_DEAL_CACHE_HOURS); clear/prune laufen über
   // CACHE_PREFIXES mit — kein eigener Lifecycle.
-  function getSharedDeal(productId, priceCents, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function getSharedDeal(productId, priceCents, storage = null) {
     if (!productId) return false;
+    storage = resolveStorage(storage);
     try {
       const raw = storage?.getItem(SHARED_CACHE_PREFIX + productId);
       if (!raw) return false;
@@ -2675,8 +2688,9 @@ const SHADOW_MODAL_STYLES = `
     return false;
   }
 
-  function setSharedDeal(productId, priceCents, storage = (typeof window !== 'undefined' ? window.localStorage : null)) {
+  function setSharedDeal(productId, priceCents, storage = null) {
     if (!productId || priceCents == null) return;
+    storage = resolveStorage(storage);
     try {
       storage?.setItem(SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
     } catch (e) {}
@@ -3873,23 +3887,26 @@ const SHADOW_MODAL_STYLES = `
     if (!activeStores || activeStores.length === 0) return false;
     const dealerRows = getCardDealerRows(card);
     if (dealerRows.length === 0) return false;
-    let matchedRow = null;
-    for (let d = 0; d < dealerRows.length; d++) {
-      const item = dealerRows[d];
-      if (item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName))) {
-        matchedRow = item.row;
-        break;
-      }
-    }
-    if (!matchedRow) return true;
+    const matchedRows = dealerRows
+      .filter(item => item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName)))
+      .map(item => item.row);
+    if (matchedRows.length === 0) return true;
     const priceData = extractCanonicalPrice(card);
     const useShipping = isShippingPriceActive(card);
-    const storePriceEl = useShipping
-      ? matchedRow.querySelector('.shippingPrice .Plugin_Price')
-      : matchedRow.querySelector('.productPrice .Plugin_Price');
-    const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
     const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
-    if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) return false;
+    const limit = bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100);
+    // Any qualifying selected dealer keeps the card: rows are evaluated in
+    // DOM order but the verdict must not depend on it.
+    for (const row of matchedRows) {
+      // Rows carry a single offer price (host marks it .productPrice even in
+      // shipping mode): prefer the active basis but fall back — a missing
+      // wrapper must not disqualify every selected dealer.
+      const storePriceEl = useShipping
+        ? (row.querySelector('.shippingPrice .Plugin_Price') || row.querySelector('.productPrice .Plugin_Price'))
+        : (row.querySelector('.productPrice .Plugin_Price') || row.querySelector('.shippingPrice .Plugin_Price'));
+      const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
+      if (storePrice > 0 && bestPrice > 0 && storePrice <= limit) return false;
+    }
     return true;
   }
 
@@ -4722,6 +4739,8 @@ const SHADOW_MODAL_STYLES = `
     // feeds must not min-offers-filter everything when Min >= 1.
     const pageHasOffers = cards.some(card => extractOfferCount(card) > 0);
     const termsList = parseNegativeTerms();
+    const activeStores = extractActiveStores();
+    const isDealFeed = isNeueToppreisePage();
 
     for (const card of cards) {
       const pid = getCardProductId(card);
@@ -4730,8 +4749,12 @@ const SHADOW_MODAL_STYLES = `
       // protection); usable-verdicts downstream use hasUsablePriceStats.
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
-      const offerCount = extractOfferCount(card);
-      if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers), { forScan: true })) continue;
+      // Full card data (not a partial struct): scanner, counter and renderer
+      // share one filter verdict, including the dealer rule.
+      const cd = extractCardData(card);
+      const filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
+      filters.isDealerLoser = dealerLoserFor(card, activeStores);
+      if (isCardFilteredOut(card, filters, { forScan: true })) continue;
       const discount = extractCardDiscount(card) ?? 0;
       if (filterFn({ pid, card, discount })) {
         targets.push({ pid, card, discount });
@@ -9080,18 +9103,19 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
+        // Dealer verdict before counting: scanner and counter must agree.
+        cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         if (isNeueFeed) {
-          if (cd.pid && !hasUsablePriceStats(cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !hasUsablePriceStats(cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
         // Verified markups are removed nowhere, so counted nowhere.
-        cd.dealScore = cd.dealScore ?? computeDealScore(cd.stats, cd.cardPrice);
-        // bestpreiseDeals feeds the empty-state "deals exist" guard: dealScore blends plus included Vortief lows; excluded-fallback lows count under vortief only.
+        // (No recompute here: extractCardData already scored with identical inputs.)
         if (cd.dealScore) counts.bestpreiseDeals++;
         else if ((cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') && CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) counts.bestpreiseDeals++;
       }
@@ -9128,7 +9152,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
-  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href'] };
+  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id'] };
   const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
@@ -9169,12 +9193,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
       if (hit) {
-        let self = false;
-        for (const n of [...m.addedNodes, ...m.removedNodes]) {
-          if (isOwnedNode(n)) { self = true; break; }
-          if (cardOf(n)) continue;
-        }
-        if (self) continue;
+        // All-changes-owned skips only pure self-paint: a mixed record (own
+        // badge plus a genuine host replacement) still invalidates, or the
+        // host update is lost with the badge.
+        const changes = [...m.addedNodes, ...m.removedNodes].filter(n => n?.nodeType === 1);
+        if (changes.length > 0 && changes.every(isOwnedNode)) continue;
         clearCardCache(hit);
         dirtyCard = true;
         continue;
@@ -9244,17 +9267,20 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     }
   });
 
-  if (self.navigation?.addEventListener) {
-    self.navigation.addEventListener('navigatesuccess', () => {
-      cancelBatchDealCheck();
-      clearDealerAutoTried();
-      processListings();
-      processPriceAlarmModal();
-      if (isProductDetailPage()) {
-        processProductDetailPage();
-      }
-    });
+  function handleRouteTransition() {
+    cancelBatchDealCheck();
+    clearDealerAutoTried();
+    processListings();
+    processPriceAlarmModal();
+    if (isProductDetailPage()) {
+      processProductDetailPage();
+    }
   }
+  if (self.navigation?.addEventListener) {
+    self.navigation.addEventListener('navigatesuccess', handleRouteTransition);
+  }
+  window.addEventListener('popstate', handleRouteTransition);
+  window.addEventListener('hashchange', handleRouteTransition);
 
   setupUI();
   processListings();
@@ -9264,7 +9290,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.258';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.266';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

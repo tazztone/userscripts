@@ -437,5 +437,18 @@ describe('Bounded Cache Module', () => {
       setCachedPriceStats('q1', { tiefstpreis: 100, timeSeries: [[Date.now(), 100]] }, false, flaky);
       assert.equal(flaky.getItem(statsKey('q1')) !== null, true);
     });
+
+    it('survives a throwing storage getter: memory LRU keeps working', () => {
+      const prev = Object.getOwnPropertyDescriptor(globalThis, 'window');
+      Object.defineProperty(globalThis, 'window', { configurable: true, get() { throw new Error('denied'); } });
+      try {
+        setCachedPriceStats('throw-pid', { tiefstpreis: 50 });
+        assert.equal(getCachedPriceStats('throw-pid')?.tiefstpreis, 50);
+        assert.equal(countCachedPriceStats(), 0);
+      } finally {
+        if (prev) Object.defineProperty(globalThis, 'window', prev);
+        else delete globalThis.window;
+      }
+    });
   });
 });

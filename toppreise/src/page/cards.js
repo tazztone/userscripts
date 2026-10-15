@@ -294,23 +294,26 @@ export function dealerLoserFor(card, activeStores) {
   if (!activeStores || activeStores.length === 0) return false;
   const dealerRows = getCardDealerRows(card);
   if (dealerRows.length === 0) return false;
-  let matchedRow = null;
-  for (let d = 0; d < dealerRows.length; d++) {
-    const item = dealerRows[d];
-    if (item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName))) {
-      matchedRow = item.row;
-      break;
-    }
-  }
-  if (!matchedRow) return true;
+  const matchedRows = dealerRows
+    .filter(item => item.storeName && activeStores.some(store => item.storeName.includes(store) || store.includes(item.storeName)))
+    .map(item => item.row);
+  if (matchedRows.length === 0) return true;
   const priceData = extractCanonicalPrice(card);
   const useShipping = isShippingPriceActive(card);
-  const storePriceEl = useShipping
-    ? matchedRow.querySelector('.shippingPrice .Plugin_Price')
-    : matchedRow.querySelector('.productPrice .Plugin_Price');
-  const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
   const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
-  if (storePrice > 0 && bestPrice > 0 && storePrice <= bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100)) return false;
+  const limit = bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100);
+  // Any qualifying selected dealer keeps the card: rows are evaluated in
+  // DOM order but the verdict must not depend on it.
+  for (const row of matchedRows) {
+    // Rows carry a single offer price (host marks it .productPrice even in
+    // shipping mode): prefer the active basis but fall back — a missing
+    // wrapper must not disqualify every selected dealer.
+    const storePriceEl = useShipping
+      ? (row.querySelector('.shippingPrice .Plugin_Price') || row.querySelector('.productPrice .Plugin_Price'))
+      : (row.querySelector('.productPrice .Plugin_Price') || row.querySelector('.shippingPrice .Plugin_Price'));
+    const storePrice = storePriceEl ? parsePrice(storePriceEl.textContent) : 0;
+    if (storePrice > 0 && bestPrice > 0 && storePrice <= limit) return false;
+  }
   return true;
 }
 

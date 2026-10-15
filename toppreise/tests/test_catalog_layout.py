@@ -2013,6 +2013,35 @@ def test_process_listings_is_idempotent_and_does_not_flicker_or_loop(page: Page)
     assert observer_ignored, "MutationObserver fired processListings on an internal card mutation (lazyload loop)"
 
 
+def test_observer_processes_mixed_owned_and_host_mutations(page: Page):
+    """One childList record mixing own paint with a host node must still invalidate the card."""
+    cleared = page.evaluate("""() => {
+        return new Promise(resolve => {
+            // clearCardCache (observer-only caller) deletes this marker; a
+            // skipped record leaves it untouched. Rebuilds never carry it.
+            const card = document.getElementById('card-cheapest');
+            card._tpPriceInfo = { planted: true };
+
+            // Same-task batch: own badge plus a genuine host node land in one record.
+            const badge = document.createElement('div');
+            badge.className = 'tp-injected-badge';
+            const hostNote = document.createElement('span');
+            hostNote.className = 'host-note';
+            hostNote.textContent = 'Abholung möglich';
+            card.append(badge, hostNote);
+
+            // Wait longer than CONFIG.OBSERVER_DEBOUNCE_MS (200ms)
+            setTimeout(() => {
+                const gone = card._tpPriceInfo?.planted !== true;
+                badge.remove();
+                hostNote.remove();
+                resolve(gone);
+            }, 350);
+        });
+    }""")
+    assert cleared, "MutationObserver dropped a host update batched with own paint"
+
+
 
 def test_card_memoization_caches_dom_queries_and_text(page: Page):
     res = page.evaluate("""() => {

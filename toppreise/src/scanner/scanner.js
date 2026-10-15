@@ -6,7 +6,7 @@
 
 import { getCachedPriceStats, setCachedPriceStats } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
-import { getProductCards, getCardProductId, extractCardDiscount, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
+import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
@@ -319,6 +319,8 @@ export async function runProductScanner(options = {}) {
   // feeds must not min-offers-filter everything when Min >= 1.
   const pageHasOffers = cards.some(card => extractOfferCount(card) > 0);
   const termsList = parseNegativeTerms();
+  const activeStores = extractActiveStores();
+  const isDealFeed = isNeueToppreisePage();
 
   for (const card of cards) {
     const pid = getCardProductId(card);
@@ -327,8 +329,12 @@ export async function runProductScanner(options = {}) {
     // protection); usable-verdicts downstream use hasUsablePriceStats.
     const cached = getCachedPriceStats(pid);
     if (cached) continue;
-    const offerCount = extractOfferCount(card);
-    if (isCardFilteredOut(card, applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers), { forScan: true })) continue;
+    // Full card data (not a partial struct): scanner, counter and renderer
+    // share one filter verdict, including the dealer rule.
+    const cd = extractCardData(card);
+    const filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
+    filters.isDealerLoser = dealerLoserFor(card, activeStores);
+    if (isCardFilteredOut(card, filters, { forScan: true })) continue;
     const discount = extractCardDiscount(card) ?? 0;
     if (filterFn({ pid, card, discount })) {
       targets.push({ pid, card, discount });

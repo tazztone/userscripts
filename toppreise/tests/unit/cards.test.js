@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor } from '../../src/page/cards.js';
 import { setCachedPriceStats, memoryCache } from '../../src/scanner/cache.js';
 import { withConfig } from './helpers.js';
 
@@ -220,6 +220,16 @@ describe('isCardFilteredOut forScan', () => {
       assert.equal(isCardFilteredOut(fakeCard(), uncheckedOnly), false);
     });
   });
+
+  it('dealer-loser filters with forScan in remove mode, not in dim mode', () => {
+    const f = { isNeg: false, isLowOffers: false, isDealerLoser: true, isUnchecked: false, isVortiefExcluded: false };
+    withConfig('DEALER_MODE', 'remove', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), f, { forScan: true }), true);
+    });
+    withConfig('DEALER_MODE', 'dim', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), f, { forScan: true }), false);
+    });
+  });
 });
 
 describe('extractOfferCount languages', () => {
@@ -293,6 +303,88 @@ describe('extractCardData basis gate', () => {
       const cd = extractCardData(basisCard({ productPrice: 'CHF 39.00' }));
       assert.ok(cd.dealScore !== null);
       assert.notEqual(cd.displayDelta.kind, 'unknown');
+    });
+  });
+});
+
+describe('dealerLoserFor any-match', () => {
+  const dealerRow = (store, price) => ({
+    querySelector: sel => {
+      if (sel === '.title') return { textContent: store };
+      if (sel === '.productPrice .Plugin_Price') return price ? { textContent: price } : null;
+      return null;
+    }
+  });
+  // Product mode: canonical price comes from the fallback product container.
+  const dealerCard = rows => ({
+    dataset: {},
+    textContent: '',
+    querySelector: sel => {
+      if (sel.includes('.priceContainer.productPrice')) return { textContent: 'CHF 100.00' };
+      return null;
+    },
+    querySelectorAll: sel => (String(sel).includes('DealerRelProdPriceInfo') ? rows : [])
+  });
+
+  it('keeps the card when a later selected dealer qualifies', () => {
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      const card = dealerCard([dealerRow('Teuer AG', 'CHF 150.00'), dealerRow('Billig AG', 'CHF 100.00')]);
+      assert.equal(dealerLoserFor(card, ['teuerag', 'billigag']), false);
+    });
+  });
+
+  it('verdict is independent of DOM order', () => {
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      const card = dealerCard([dealerRow('Billig AG', 'CHF 100.00'), dealerRow('Teuer AG', 'CHF 150.00')]);
+      assert.equal(dealerLoserFor(card, ['teuerag', 'billigag']), false);
+    });
+  });
+
+  it('loses only when every selected dealer is over margin', () => {
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      const card = dealerCard([dealerRow('A AG', 'CHF 150.00'), dealerRow('B AG', 'CHF 130.00')]);
+      assert.equal(dealerLoserFor(card, ['aag', 'bbg']), true);
+    });
+  });
+
+  it('no matching store is still a loss, no selected stores is not', () => {
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      const card = dealerCard([dealerRow('Fremd AG', 'CHF 90.00')]);
+      assert.equal(dealerLoserFor(card, ['aag']), true);
+      assert.equal(dealerLoserFor(card, []), false);
+    });
+  });
+
+  it('productPrice-wrapped rows qualify in shipping mode (host row shape)', () => {
+    withConfig('USE_SHIPPING_PRICE', true, () => {
+      const card = {
+        dataset: {},
+        textContent: '',
+        querySelector: sel => {
+          if (sel.includes('.priceContainer.shippingPrice')) return { textContent: 'CHF 100.00' };
+          return null;
+        },
+        querySelectorAll: sel => (String(sel).includes('DealerRelProdPriceInfo') ? [dealerRow('Billig AG', 'CHF 100.00')] : [])
+      };
+      assert.equal(dealerLoserFor(card, ['billigag']), false);
+    });
+  });
+});
+
+describe('unchecked counter parity', () => {
+  it('fresh negative markers are truthy: scanner skips and counter excludes', () => {
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      const pid = 'neg-counter-pid';
+      setCachedPriceStats(pid, null, true);
+      const card = {
+        dataset: { entityId: pid },
+        textContent: '',
+        querySelector: sel => (sel.includes('.priceContainer.productPrice') ? { textContent: 'CHF 39.00' } : null),
+        querySelectorAll: () => []
+      };
+      const cd = extractCardData(card);
+      assert.ok(cd.stats?.unavailable);
+      assert.equal(cd.pid && !cd.stats, false);
     });
   });
 });
