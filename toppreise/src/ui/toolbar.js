@@ -256,7 +256,7 @@ function bindOutlierBandControls(wrapper) {
   if (!range) return;
   const readBandPct = () => {
     const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 60 : Math.min(90, Math.max(20, raw));
+    return isNaN(raw) ? 60 : Math.min(90, Math.max(5, raw));
   };
   const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
   paintBandLabel();
@@ -292,7 +292,7 @@ function buildOutlierBandWrapper() {
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Glitch-Band</span>
     <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
-    <input type="range" id="tp-bar-outlier-band-range" min="20" max="90" step="5" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
+    <input type="range" id="tp-bar-outlier-band-range" min="5" max="90" step="5" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
   bindOutlierBandControls(wrapper);
   return wrapper;
 }

@@ -238,7 +238,7 @@ export function refreshCalcPreview() {
   const minPoints = minPointsFromIndex(rangeEl ? rangeEl.value : undefined);
   const toggle = document.getElementById('tp-bar-outlier-toggle');
   const enabled = toggle ? toggle.checked : true;
-  const band = Math.min(90, Math.max(20, num('tp-bar-outlier-band-range', 60))) / 100;
+  const band = Math.min(90, Math.max(5, num('tp-bar-outlier-band-range', 60))) / 100;
   const hours = Math.min(168, Math.max(24, num('tp-bar-outlier-hours-range', 48)));
   const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
   const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
@@ -254,7 +254,7 @@ export function refreshCalcPreview() {
     s += `<line class="tp-pv-cut" x1="${f1(cx)}" x2="${f1(cx)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#64748b" stroke-dasharray="3 2" stroke-width="1"/>`;
     s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
   }
-  if (co.ribbonAttr != null) s += `<polygon class="tp-pv-band" points="${co.ribbonAttr}" fill="#3b82f6" opacity="0.18"/>`;
+  if (co.ribbonAttr != null) s += `<polygon class="tp-pv-band" points="${co.ribbonAttr}" fill="#3b82f6" opacity="0.08"/>`;
   for (const t of co.ticks) {
     s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
   }
