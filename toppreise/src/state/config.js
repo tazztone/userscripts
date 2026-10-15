@@ -80,6 +80,7 @@ export const DEFAULTS = Object.freeze({
   DISCORD_WEBHOOK_URL: '',
   DISCORD_SUPPRESS_DEALER_EMBED: true,
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
+  DISCORD_FORUM_TITLE: false,
   // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
   DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}',
   MIN_OFFERS: 0,
@@ -282,6 +283,7 @@ export const CONFIG = {
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
   DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
   DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
+  DISCORD_FORUM_TITLE: _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE),
   DISCORD_LAYOUT: (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT,
   MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
   SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),

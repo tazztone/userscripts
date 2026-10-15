@@ -756,7 +756,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
             };
             const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
-            const forumContent = formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+            const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
             const threadName = buildThreadName(title);
             const flagKey = discordForumFlagKey(hook);
             const forum = _getValue(flagKey, false) === true;

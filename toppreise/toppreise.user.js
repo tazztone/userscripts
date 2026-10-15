@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.250
+// @version      2.18.251
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2707,6 +2707,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_WEBHOOK_URL: '',
     DISCORD_SUPPRESS_DEALER_EMBED: true,
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
+    DISCORD_FORUM_TITLE: false,
     // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
     DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}',
     MIN_OFFERS: 0,
@@ -2909,6 +2910,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
     DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
     DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
+    DISCORD_FORUM_TITLE: _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE),
     DISCORD_LAYOUT: (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT,
     MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
     SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
@@ -5303,7 +5305,7 @@ const SHADOW_MODAL_STYLES = `
                 suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
               };
               const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
-              const forumContent = formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+              const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
               const threadName = buildThreadName(title);
               const flagKey = discordForumFlagKey(hook);
               const forum = _getValue(flagKey, false) === true;
@@ -5767,6 +5769,16 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Zeigt den Deal-Titel auch im Body von Forenposts (sonst nur als Thread-Titel).">Titel im Foren-Body</label>
+              <span class="tp-switch-desc">AN = Titel auch im Foren-Body</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-discord-forum-title-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
           <div class="tp-settings-group">
             <label for="tp-discord-layout-input">Nachrichten-Layout (Baukasten)</label>
             <div>
@@ -5998,6 +6010,7 @@ const SHADOW_MODAL_STYLES = `
     const discordWebhookStatus = shadow.getElementById('tp-discord-webhook-status');
     const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
     const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
+    const discordForumTitleToggle = shadow.getElementById('tp-discord-forum-title-toggle');
     const discordLayoutInput = shadow.getElementById('tp-discord-layout-input');
     const discordLayoutPreview = shadow.getElementById('tp-discord-layout-preview');
     const discordLayoutCount = shadow.getElementById('tp-discord-layout-count');
@@ -6067,6 +6080,7 @@ const SHADOW_MODAL_STYLES = `
       if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
       if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
       if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
+      if (discordForumTitleToggle) discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
       if (discordLayoutInput) discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
       renderLayoutPreview();
     }
@@ -6360,6 +6374,7 @@ const SHADOW_MODAL_STYLES = `
       if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
       if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
       if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
+      if (discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = discordForumTitleToggle.checked;
       if (discordLayoutInput) {
         const value = String(discordLayoutInput.value || '');
         const err = validateLayoutRecipe(value);

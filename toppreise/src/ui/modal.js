@@ -186,6 +186,16 @@ export function setupUI() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Zeigt den Deal-Titel auch im Body von Forenposts (sonst nur als Thread-Titel).">Titel im Foren-Body</label>
+            <span class="tp-switch-desc">AN = Titel auch im Foren-Body</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-discord-forum-title-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
         <div class="tp-settings-group">
           <label for="tp-discord-layout-input">Nachrichten-Layout (Baukasten)</label>
           <div>
@@ -417,6 +427,7 @@ export function setupUI() {
   const discordWebhookStatus = shadow.getElementById('tp-discord-webhook-status');
   const discordDealerEmbedToggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
   const discordProductEmbedToggle = shadow.getElementById('tp-discord-product-embed-toggle');
+  const discordForumTitleToggle = shadow.getElementById('tp-discord-forum-title-toggle');
   const discordLayoutInput = shadow.getElementById('tp-discord-layout-input');
   const discordLayoutPreview = shadow.getElementById('tp-discord-layout-preview');
   const discordLayoutCount = shadow.getElementById('tp-discord-layout-count');
@@ -486,6 +497,7 @@ export function setupUI() {
     if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
     if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
     if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
+    if (discordForumTitleToggle) discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
     if (discordLayoutInput) discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
     renderLayoutPreview();
   }
@@ -779,6 +791,7 @@ export function setupUI() {
     if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
     if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
     if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
+    if (discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = discordForumTitleToggle.checked;
     if (discordLayoutInput) {
       const value = String(discordLayoutInput.value || '');
       const err = validateLayoutRecipe(value);
