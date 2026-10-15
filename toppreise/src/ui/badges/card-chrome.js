@@ -7,7 +7,7 @@
 import { CONFIG, updateConfig, updateConfigs, _getValue, _setValue, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
 import { getDisplayDelta, getHeatInput, computeDealScore } from '../../domain/deal-score.js';
 import { basisMatchesFor, extractCardData } from '../../page/cards.js';
-import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal, hasUsablePriceStats } from '../../scanner/cache.js';
+import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal, hasUsablePriceStats, currentCacheGen } from '../../scanner/cache.js';
 import { priceToCents } from '../../domain/price.js';
 import { isDiscordWebhookUrl, formatDealMessage, forumRecipeFor, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, fetchImageBlob, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, isAttachmentRejection, discordForumFlagKey } from '../../features/share-discord.js';
 import { showToast } from '../toast.js';
@@ -174,15 +174,15 @@ export function renderShareButton(ctx, cd) {
             if ((!dealer || !dealerUrl || !offers) && url) {
               const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
-              if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
+              if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers || info.totalOffers || 0; }
             }
-            const png = await renderSparklinePng(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)).catch(() => null);
+            const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
             if (!stillFresh()) { abortStale(); return; }
             const fields = {
               title, url, priceText,
               dealer, dealerUrl, offerCount: offers,
-              spark: sparklineText(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)),
-              ...resolveShareFields(fresh.cardPrice, fresh.stats),
+              spark: sparklineText(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)),
+              ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
               suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
             };
@@ -199,6 +199,9 @@ export function renderShareButton(ctx, cd) {
             const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const tryRound = async withThread => {
+              // Never post for a changed card: the snapshot price/dealer
+              // would no longer match what the user clicked.
+              if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
               if (png) {
                 try { await postImage(withThread); return; }
                 catch (imgErr) {
@@ -211,6 +214,7 @@ export function renderShareButton(ctx, cd) {
                   /* definite attachment rejection: fall through to text, same round */
                 }
               }
+              if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
               await postText(withThread);
             };
             for (const withThread of (forum ? [true, false] : [false, true])) {
@@ -223,11 +227,15 @@ export function renderShareButton(ctx, cd) {
                 // plain round hit forum → loop continues threaded
               }
             }
-            if (!stillFresh()) { abortStale(); return; }
+            // Delivery happened: record the snapshot and toast success even
+            // if the card changed mid-post — only the green paint is gated.
+            if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
             showToast('📤 Deal in Discord geteilt');
-            if (snap.pid && snap.priceCents > 0) { setSharedDeal(snap.pid, snap.priceCents); shareBtn.classList.add('tp-share-done'); }
+            if (stillFresh()) shareBtn.classList.add('tp-share-done');
+            else abortStale();
           } catch (err) {
-            if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
+            if (err?.stale) { abortStale(); }
+            else if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
             else if (!err?.status) showToast('⚠️ Übermittlung nicht bestätigt — bitte prüfen');
             else showToast('📤 Teilen fehlgeschlagen');
           }
@@ -304,9 +312,15 @@ export function renderDealerName(ctx, filters) {
       const loadDealer = async () => {
         if (dealerPending.has(dKey)) return;
         dealerPending.add(dKey);
+        // Stale-write guard: a clear/reset mid-flight voids the write; the
+        // basis snapshot avoids resolving the live mode after the await.
+        const reqGen = currentCacheGen();
+        const reqShipping = useShipping;
+        const reqKey = dKey;
         try {
-          const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-          if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0 }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0); }
+          const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
+          if (reqGen !== currentCacheGen()) return;
+          if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || info.totalOffers || 0); }
         } finally {
           dealerPending.delete(dKey);
         }
@@ -449,12 +463,13 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // Rejected verdicts (null) stay rejected: only an uncalculated verdict
   // (undefined, e.g. a partial struct) may compute — and only on a matching basis.
   const basisOk = basisMatches ?? basisMatchesFor(stats, cardPriceBasis);
-  const displayDelta = cd.displayDelta ?? (basisOk ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' });
-  const dealData = cd.dealScore === undefined && basisOk ? computeDealScore(stats, cardPrice) : (cd.dealScore ?? null);
+  const vStats = cd.verifiedStats ?? (basisOk ? stats : null);
+  const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cardPrice, vStats) : { kind: 'unknown' });
+  const dealData = cd.dealScore === undefined && vStats ? computeDealScore(vStats, cardPrice) : (cd.dealScore ?? null);
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
-  const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
+  const heatInfo = getHeatInput(cardPrice, vStats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
-  const ctx = { card, pid, cardPrice, cardPriceEl, stats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+  const ctx = { card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
   renderHeat(ctx);
   renderFilterVerdict(ctx, filters, activeStores);
   renderBadgeVerdict(ctx, filters, isNeueFeed);

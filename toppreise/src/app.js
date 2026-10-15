@@ -4,7 +4,7 @@ import {
   analyzePriceTimeSeries
 } from './domain/price.js';
 import { computeDealScore } from './domain/deal-score.js';
-import { memoryCache, statsKey } from './scanner/cache.js';
+import { memoryCache, statsKey, hasUsablePriceStats } from './scanner/cache.js';
 import {
   getProductCards,
   parseNegativeTerms,
@@ -53,7 +53,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.274
+// @version      2.18.275
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -113,11 +113,11 @@ import { processProductDetailPage } from './features/product-detail.js';
         // Dealer verdict before counting: scanner and counter must agree.
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
@@ -159,8 +159,8 @@ import { processProductDetailPage } from './features/product-detail.js';
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
-  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price';
+  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,#tp-detail-deal-badge,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -178,6 +178,8 @@ import { processProductDetailPage } from './features/product-detail.js';
     // added/removed nodes. OBSERVE_OPTS.attributeFilter stays tight on purpose.
     const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
     const checkNode = node => {
+      if (!node) return false;
+      if (node.nodeType === 3) node = node.parentElement;
       if (!node || node.nodeType !== 1) return false;
       if (isOwnedNode(node)) return false;
       if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
@@ -307,7 +309,7 @@ import { processProductDetailPage } from './features/product-detail.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.274';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.275';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

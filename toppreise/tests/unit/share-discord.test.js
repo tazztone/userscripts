@@ -16,6 +16,7 @@ import {
   extractDealer,
   extractDealerUrl,
   parseJsonLdOffer,
+  jsonLdOfferTotal,
   parseDealerRows,
   parseProductOffers,
   pickCheapestOffer,
@@ -362,7 +363,7 @@ describe('fetchProductInfo', () => {
     assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '', totalOffers: 0 });
   });
 
-  it('falls back to first titled row for display when no basis price parses', async () => {
+  it('leaves dealer unknown for title-only rows with no basis price', async () => {
     const rows = [{ querySelector: sel => (sel === '.title' ? { textContent: ' Galaxus ' } : null) }];
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
     globalThis.DOMParser = class {
@@ -370,10 +371,10 @@ describe('fetchProductInfo', () => {
         return { querySelectorAll: sel => (sel === '.Plugin_DealerRelProdPriceInfo' ? rows : []) };
       }
     };
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Galaxus', offers: 1, dealerUrl: '', totalOffers: 0 });
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: '', offers: 1, dealerUrl: '', totalOffers: 0 });
   });
 
-  it('falls back to the other basis for name/link when the card basis has no price', async () => {
+  it('never uses the other basis for name/link when the card basis has no price', async () => {
     const row = (dealer, product, href) => ({
       querySelector: sel => {
         if (sel === '.title') return { textContent: ` ${dealer} ` };
@@ -392,8 +393,8 @@ describe('fetchProductInfo', () => {
         return { querySelectorAll: sel => (sel === '.Plugin_DealerRelProdPriceInfo' ? rows : []) };
       }
     };
-    // Shipping basis, product-only rows: link/name still resolve (never a price).
-    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Digitec', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=4&oid=44', totalOffers: 0 });
+    // Shipping basis, product-only rows: dealer stays unknown (never the opposite basis).
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: '', offers: 2, dealerUrl: '', totalOffers: 0 });
   });
 });
 describe('parseProductOffers / pickCheapestOffer', () => {
@@ -452,8 +453,22 @@ describe('parseProductOffers / pickCheapestOffer', () => {
       }
     };
     try {
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11', totalOffers: 0 });
-      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=2&oid=22', totalOffers: 0 });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, false), { dealer: 'Amazon.de', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11', totalOffers: 9 });
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: 'Galaxus', offers: 2, dealerUrl: 'https://www.toppreise.ch/ext_de?pid=9&did=2&oid=22', totalOffers: 9 });
+    } finally {
+      delete globalThis.fetch;
+      delete globalThis.DOMParser;
+    }
+  });
+
+  it('fetchProductInfo leaves dealer unknown when the card basis has no price', async () => {
+    const blocks = [block({ dealer: 'Solo', product: '9.99', shipping: '', href: '/ext_de?x=1' })];
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html></html>' });
+    globalThis.DOMParser = class {
+      parseFromString() { return { querySelectorAll: sel => (sel === '.Plugin_Offer' ? blocks : []) }; }
+    };
+    try {
+      assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: '', offers: 1, dealerUrl: '', totalOffers: 0 });
     } finally {
       delete globalThis.fetch;
       delete globalThis.DOMParser;
@@ -493,12 +508,21 @@ describe('parseJsonLdOffer', () => {
       { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
     ])), { dealer: 'Digitec', offers: 5, totalOffers: 0 });
   });
-
   it('recurses into nested AggregateOffer.offers for the dealer', () => {
     assert.deepEqual(parseJsonLdOffer(product({ '@type': 'AggregateOffer', offerCount: 3, offers: [
       { '@type': 'Offer', price: 44.95, seller: { name: 'Brack' } },
       { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
-    ] })), { dealer: 'Digitec', offers: 2, totalOffers: 0 });
+    ] })), { dealer: 'Digitec', offers: 2, totalOffers: 3 });
+  });
+
+  it('rejects non-finite prices so Infinity never wins cheapest', () => {
+    assert.deepEqual(parseJsonLdOffer(product([
+      { '@type': 'Offer', price: Infinity, seller: { name: 'Unendlich' } },
+      { '@type': 'Offer', price: 31.90, seller: { name: 'Digitec' } }
+    ])), { dealer: 'Digitec', offers: 2, totalOffers: 0 });
+    assert.deepEqual(parseJsonLdOffer(product([
+      { '@type': 'Offer', price: Infinity, seller: { name: 'Unendlich' } }
+    ])), { dealer: '', offers: 0, totalOffers: 0 });
   });
 });
 

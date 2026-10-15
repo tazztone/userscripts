@@ -389,7 +389,10 @@ export function parseJsonLdOffer(json) {
         // dealer comes from real rows, not an ID list.
         if (Array.isArray(agg.offers) && agg.offers.length) {
           const nested = parseJsonLdOffer({ '@type': 'Product', offers: agg.offers });
-          if (nested.dealer || nested.offers) return nested;
+          if (nested.dealer || nested.offers) {
+            if (!nested.totalOffers) { const t = Number(agg.offerCount); if (Number.isFinite(t) && t > 0) nested.totalOffers = Math.round(t); }
+            return nested;
+          }
         }
         // Count-only: no loaded rows (offers 0), but a real total.
         const n = +agg.offerCount;
@@ -398,14 +401,26 @@ export function parseJsonLdOffer(json) {
       let best = null;
       for (const o of list) {
         // Strict: +null/+'' coerce to 0 and must never win as "cheapest".
-        const price = +o?.price;
-        if (!(price > 0)) continue;
+        const price = Number(o?.price);
+        if (!Number.isFinite(price) || !(price > 0)) continue;
         if (!best || price < best.price) best = { price, dealer: typeof o.seller === 'object' ? (o.seller?.name || '') : (o.seller || '') };
       }
       if (best) return { dealer: best.dealer, offers: list.length, totalOffers: 0 };
     }
   }
   return { dealer: '', offers: 0, totalOffers: 0 };
+}
+// Aggregate total independent of loaded rows: page-1 rows and the JSON-LD
+// offerCount coexist, so the row path must not skip the count scan.
+export function jsonLdOfferTotal(doc) {
+  let total = 0;
+  for (const s of Array.from(doc?.querySelectorAll?.('script[type="application/ld+json"]') || [])) {
+    try {
+      const found = parseJsonLdOffer(JSON.parse(s.textContent));
+      if (Number.isFinite(found?.totalOffers) && found.totalOffers > total) total = Math.round(found.totalOffers);
+    } catch { /* Block einzeln ignorieren */ }
+  }
+  return total;
 }
 
 // Produktseiten listen Angebote als .Plugin_Offer-Blöcke (Preis-aufsteigend,
@@ -476,20 +491,15 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
     const doc = new DOMParser().parseFromString(html, 'text/html');
     // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
     // blocks — both through basis-strict cheapest (row order may follow
-    // foreign sort cookies). Rows without a parseable basis price still yield
-    // the first titled row as display-only name (no price claim attached).
+    // foreign sort cookies). Basis-strict: no parseable price on the card
+    // basis means unknown dealer — never the opposite-basis name.
     const dealerRows = parseDealerRows(doc);
     const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
     if (offers.length) {
       out.offers = offers.length;
-      let best = pickCheapestOffer(offers, useShipping);
-      if (!best) {
-        // Link-only fallback: no parseable price on the card basis (e.g.
-        // product-only rows in shipping mode). Picks whose name/link to show;
-        // never a price — posted prices always come from the card snapshot.
-        best = pickCheapestOffer(offers, !useShipping);
-      }
-      out.dealer = best ? best.dealer : (offers[0].dealer || '');
+      out.totalOffers = jsonLdOfferTotal(doc);
+      const best = pickCheapestOffer(offers, useShipping);
+      out.dealer = best ? best.dealer : '';
       if (best?.url) {
         try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
       }

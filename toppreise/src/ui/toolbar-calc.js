@@ -4,7 +4,7 @@
  * Sections re-query the live bar by ID (bar can be removed + recreated).
  */
 
-import { CONFIG, updateConfig, updateConfigs, weightText, horizonText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, paintMinPoints } from '../state/config.js';
+import { CONFIG, updateConfig, updateConfigs, weightText, horizonText, horizonUiToStored, horizonStoredToUi, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, paintMinPoints } from '../state/config.js';
 import { recomputeCachedMedians } from '../scanner/cache.js';
 import { triggerProcessListings } from '../page/adapter.js';
 import { showToast } from './toast.js';
@@ -108,7 +108,7 @@ function bindHorizonControls(wrapper) {
   if (!range) return;
   const readHorizon = () => {
     const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+    return horizonUiToStored(raw);
   };
   const paintHorizonLabel = () => {
     if (!label) return;
@@ -147,7 +147,7 @@ function buildHorizonWrapper() {
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Ø-Zeitraum</span>
     <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
-    <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${cur === 0 ? 760 : cur}" title="${horizonText(cur, 'title')}">`;
+    <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${horizonStoredToUi(cur)}" title="${horizonText(cur, 'title')}">`;
   bindHorizonControls(wrapper);
   return wrapper;
 }
@@ -333,7 +333,7 @@ export function syncCalcControls() {
   const horizonRange = document.getElementById('tp-bar-horizon-range');
   const curHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
   if (horizonRange && document.activeElement !== horizonRange) {
-    horizonRange.value = curHorizon === 0 ? 760 : curHorizon;
+    horizonRange.value = horizonStoredToUi(curHorizon);
     const horizonLabel = document.getElementById('tp-bar-horizon-label');
     if (horizonLabel) {
       horizonLabel.textContent = horizonText(curHorizon);

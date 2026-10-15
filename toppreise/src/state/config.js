@@ -6,7 +6,7 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 import { syncMiniToggle, paintCycleButton } from '../ui/mini-toggle.js';
-import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, sanitizeConfigValue, weightText, horizonText } from './config-store.js';
+import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
 import { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit } from './config-migrate.js';
 
 
@@ -227,7 +227,7 @@ export function syncUiControl(key, val, opts = {}) {
         case 'BESTPREISE_MEDIAN_HORIZON_DAYS': {
           const stored = val ?? 365;
           const horizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
-          if (horizonRange) horizonRange.value = stored === 0 ? 760 : stored;
+          if (horizonRange) horizonRange.value = horizonStoredToUi(stored);
           const horizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
           if (horizonVal) horizonVal.value = stored;
           const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
@@ -236,7 +236,7 @@ export function syncUiControl(key, val, opts = {}) {
           if (typeof document !== 'undefined') {
             const barRange = document.getElementById('tp-bar-horizon-range');
             if (barRange && document.activeElement !== barRange) {
-              barRange.value = stored === 0 ? 760 : stored;
+              barRange.value = horizonStoredToUi(stored);
               const barLabel = document.getElementById('tp-bar-horizon-label');
               if (barLabel) {
                 barLabel.textContent = horizonText(stored);
@@ -469,6 +469,6 @@ export function updateConfigs(entries, options = {}) {
 // Re-exports: storage/schema/migrate symbols moved to siblings — every
 // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
 import { SETTING_SCHEMA } from './config-store.js';
-export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, SETTING_SCHEMA, sanitizeConfigValue, weightText, horizonText };
+export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, SETTING_SCHEMA, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
 export { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit };
 

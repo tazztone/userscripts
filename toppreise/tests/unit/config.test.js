@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -132,5 +132,20 @@ describe('realDealMinDiscount (explicit 0% survives)', () => {
       CONFIG.REAL_DEAL_MIN_DISCOUNT = undefined;
       assert.equal(realDealMinDiscount(), 30);
     } finally { restore(); }
+  });
+});
+
+describe('horizon UI mapping (range sentinel + typed values)', () => {
+  it('maps range values above 730 days to Lifetime (0)', () => {
+    assert.equal(horizonUiToStored(760), 0);
+    assert.equal(horizonUiToStored(731), 0);
+    assert.equal(horizonUiToStored(730), 730);
+    assert.equal(horizonUiToStored(365), 365);
+    assert.equal(horizonUiToStored(NaN), 365);
+  });
+
+  it('round-trips the Lifetime sentinel to the range top', () => {
+    assert.equal(horizonStoredToUi(0), 760);
+    assert.equal(horizonStoredToUi(365), 365);
   });
 });

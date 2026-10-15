@@ -281,6 +281,7 @@ describe('extractCardData basis gate', () => {
       const cd = extractCardData(basisCard({ productPrice: 'CHF 39.00' }));
       assert.equal(cd.cardPrice, 39);
       assert.equal(cd.cardPriceBasis, 'product');
+      assert.equal(cd.verifiedStats, null);
       assert.equal(cd.dealScore, null);
       assert.equal(cd.displayDelta.kind, 'unknown');
     });
@@ -292,6 +293,7 @@ describe('extractCardData basis gate', () => {
       const cd = extractCardData(basisCard({ shippingPrice: 'CHF 45.00' }));
       assert.equal(cd.cardPrice, 45);
       assert.equal(cd.cardPriceBasis, 'shipping');
+      assert.equal(cd.verifiedStats, null);
       assert.equal(cd.dealScore, null);
       assert.equal(cd.displayDelta.kind, 'unknown');
     });
@@ -302,6 +304,7 @@ describe('extractCardData basis gate', () => {
       setCachedPriceStats(PID, { tiefstpreis: 45, hoechstpreis: 60, medianPrice: 55, isShippingPrice: true });
       const cd = extractCardData(basisCard({ shippingPrice: 'CHF 45.00', productPrice: 'CHF 39.00' }));
       assert.equal(cd.cardPriceBasis, 'shipping');
+      assert.ok(cd.verifiedStats !== null);
       assert.ok(cd.dealScore !== null);
       assert.equal(cd.displayDelta.kind, 'at-low');
     });

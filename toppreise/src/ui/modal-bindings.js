@@ -3,7 +3,7 @@
  * field sync, dual control pairs. The els record replaces closure locals.
  */
 
-import { CONFIG, syncUiControl, weightText, horizonText, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from '../state/config.js';
+import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, horizonStoredToUi, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from '../state/config.js';
 import { renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 
@@ -113,7 +113,7 @@ export function syncFieldsFromConfig(els) {
     // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
     {
       const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-      if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
+      if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = horizonStoredToUi(stored);
       if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
       if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
     }
@@ -171,7 +171,7 @@ export function bindControlPairs(els) {
       document.documentElement.style.setProperty('--tp-dim-opacity', v);
     });
     els.opacityVal.addEventListener('input', e => {
-      const v = Math.min(0.95, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
+      const v = Math.min(1, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
       els.opacityRange.value = v;
       document.documentElement.style.setProperty('--tp-dim-opacity', v);
     });
@@ -182,7 +182,10 @@ export function bindControlPairs(els) {
 
   bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
   bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw) => {
-    const v = isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+    // Range tops out at the 760 Lifetime sentinel (>730 → 0); a typed number
+    // is literal so values like 1000 round-trip through the schema (max 3650).
+    const fromNumber = typeof document !== 'undefined' && document.activeElement === els.bestpreiseHorizonVal;
+    const v = fromNumber ? (isNaN(raw) ? 365 : raw) : horizonUiToStored(raw);
     if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
     if (v === 0) {
       if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;

@@ -63,6 +63,34 @@ def test_pruef_vorauswahl_threshold_persists(page: Page):
     assert page.locator('#tp-root >> #tp-real-deal-min-val').input_value() == '40'
     page.click('#tp-root >> #tp-btn-close')
 
+def test_shipping_basis_toggle_persists(page: Page):
+    open_settings(page)
+    toggle = page.locator('#tp-root >> #tp-shipping-toggle')
+    initial = toggle.is_checked()
+    # Toggle via slider click (checkbox itself is visually hidden)
+    page.click('#tp-root >> #tp-shipping-toggle + .tp-slider')
+    assert toggle.is_checked() != initial
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.USE_SHIPPING_PRICE") != initial
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-shipping-toggle').is_checked() != initial
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_escape_clears_webhook_editor(page: Page):
+    open_settings(page)
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/123/abc')
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    open_settings(page)
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    assert page.locator('#tp-root >> #tp-discord-webhook-input').input_value() == ''
+    page.click('#tp-root >> #tp-btn-close')
+
 
 
 def test_slash_key_focuses_negative_filter(page: Page):

@@ -103,17 +103,23 @@ export function refreshAlarmBellDecor() {
     if (!bells.length) return;
     for (const bell of bells) {
       const state = alarmBellState();
-      bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
-      bell.classList.add(`tp-alarm-${state}`);
-      bell.setAttribute('data-tp-alarm-state', state);
+      // Idempotent paint: the observer ignores [data-tp-alarm-state] owners,
+      // but conditional writes keep unrelated attribute loops quiet too.
+      const nextClass = `tp-alarm-${state}`;
+      if (!bell.classList.contains(nextClass)) {
+        bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
+        bell.classList.add(nextClass);
+      }
+      if (bell.getAttribute('data-tp-alarm-state') !== state) bell.setAttribute('data-tp-alarm-state', state);
       const pct = Math.round(clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT) * 100);
       const dur = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
       const durLabel = DURATION_LABELS[dur] || dur;
-      bell.title = state === 'off'
+      const nextTitle = state === 'off'
         ? 'Preisalarm auto-fill AUS — ⚙ für Einstellungen'
         : state === 'fill'
           ? `Preisalarm: füllt Ziel ${pct}% / ${durLabel} an — klicken zum Prüfen`
           : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
+      if (bell.title !== nextTitle) bell.title = nextTitle;
       ensureAlarmCog(bell);
     }
   } catch (err) {

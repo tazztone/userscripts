@@ -253,10 +253,17 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
   // analyzes with its own currentPrice. The transport aborts only when the
   // last consumer leaves, so one caller's cancel never kills a sibling fetch.
   let entry = activeFetches.get(fetchKey);
+  // A clear/reset mid-flight voids the shared transport: never join an
+  // entry from an older generation — abort it and start fresh.
+  if (entry && entry.gen !== currentCacheGen()) {
+    try { entry.abort?.abort(); } catch {}
+    if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey);
+    entry = null;
+  }
   if (!entry) {
     const abort = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const promise = fetchPriceTimeSeries(productId, retries, null, useShipping, abort?.signal ?? null);
-    entry = { promise, abort, consumers: new Set() };
+    entry = { promise, abort, consumers: new Set(), gen: currentCacheGen() };
     activeFetches.set(fetchKey, entry);
     const release = () => { if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey); };
     promise.then(release, release);
@@ -271,7 +278,9 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
     throw e;
   } finally {
     entry.consumers.delete(consumer);
-    if (entry.consumers.size === 0) { try { entry.abort?.abort(); } catch {} }
+    // An aborted transport must not stay joinable: drop it so the next
+    // caller starts a fresh request instead of racing a dead promise.
+    if (entry.consumers.size === 0) { try { entry.abort?.abort(); } catch {} if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey); }
   }
 
   try {

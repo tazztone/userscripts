@@ -205,3 +205,7 @@ export function horizonText(days, style = 'short') {
   if (d === 365) return '1J';
   return `${d}T`;
 }
+// UI↔stored horizon mapping (single source): the range control tops out at
+// 760 as the Lifetime sentinel; anything above 730 days stores 0 (Lifetime).
+export const horizonUiToStored = raw => { const n = Number.isFinite(raw) ? raw : 365; return n > 730 ? 0 : n; };
+export const horizonStoredToUi = stored => stored === 0 ? 760 : stored;

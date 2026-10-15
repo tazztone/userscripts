@@ -64,21 +64,26 @@ export async function processProductDetailPage() {
     const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
     const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
     if (isAllTimeLow) {
-      badge.className = 'tp-detail-deal-badge tp-is-alltime-low';
+      const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
+      if (badge.className !== nextClass) badge.className = nextClass;
       let peakContext = '';
       if (hasSignificantPeak) {
         const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
         peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
       }
-      badge.title = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
-      badge.textContent = '🌟 Allzeit-Tiefstpreis';
+      const nextTitle = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
+      if (badge.title !== nextTitle) badge.title = nextTitle;
+      if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
     } else {
       const markupPct = pctRise(stats.tiefstpreis, currentPrice);
       const isSevere = markupPct >= 50;
-      badge.className = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
+      const nextClass = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
+      if (badge.className !== nextClass) badge.className = nextClass;
       const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-      badge.title = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
-      badge.textContent = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
+      const nextTitle = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
+      if (badge.title !== nextTitle) badge.title = nextTitle;
+      const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
+      if (badge.textContent !== nextText) badge.textContent = nextText;
     }
   } else {
     document.getElementById('tp-detail-deal-badge')?.remove();

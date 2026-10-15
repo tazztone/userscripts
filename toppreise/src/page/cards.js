@@ -144,13 +144,27 @@ export function extractCardDiff(card) {
   // Fall back to the pid-keyed snapshot (tpOriginalDiscount stores the site
   // discount, i.e. -diff) so counting/filtering keep the host number.
   if (badgeEl?.dataset?.tpPainted === 'true') {
-    const snap = badgeEl.dataset.tpOriginalDiscount;
-    const snapPid = badgeEl.dataset.tpOriginalPid ?? '';
-    if (snap !== undefined && snap !== '' && snapPid === (getCardProductId(card) ?? '')) {
-      const discount = parseFloat(snap);
-      if (!isNaN(discount)) return discount === 0 ? 0 : -discount;
+    // Host update detection: changed badge text with a pid mismatch voids
+    // the snapshot so counting/filtering re-read the live host number below.
+    if (badgeEl.dataset.tpPaintedText !== undefined && badgeEl.textContent !== badgeEl.dataset.tpPaintedText) {
+      const hostMatch = badgeEl.textContent.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
+      if (hostMatch && (badgeEl.dataset.tpOriginalPid !== (getCardProductId(card) ?? ''))) {
+        delete badgeEl.dataset.tpPainted;
+        delete badgeEl.dataset.tpOriginalDiscount;
+        delete badgeEl.dataset.tpOriginalPid;
+        delete badgeEl.dataset.tpPaintedText;
+      }
     }
-    return null;
+    if (badgeEl.dataset.tpPainted === 'true') {
+      const snap = badgeEl.dataset.tpOriginalDiscount;
+      const snapPid = badgeEl.dataset.tpOriginalPid ?? '';
+      if (snap !== undefined && snap !== '' && snapPid === (getCardProductId(card) ?? '')) {
+        const discount = parseFloat(snap);
+        if (!isNaN(discount)) return discount === 0 ? 0 : -discount;
+      }
+      return null;
+    }
+    /* snapshot voided: fall through to host parse below */
   }
   // Never parse our own injected badge text as the site Differenz: when only
   // our badge exists there is no unverified site number to read.
@@ -291,6 +305,7 @@ export function extractCardData(card) {
     cardPriceBasis,
     basisMatches,
     stats,
+    verifiedStats: basisMatches ? stats : null,
     diffVal,
     discountVal,
     dealScore,
@@ -311,7 +326,7 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
    const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-  const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.stats);
+  const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
   const isDealerLoser = false;
   return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser };
 }

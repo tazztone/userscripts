@@ -1,5 +1,5 @@
 import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians } from "../domain/price.js";
-import { horizonText, minPointsFromIndex, clampMinPoints } from "../state/config.js";
+import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } from "../state/config.js";
 import { getCachedPriceStats } from "../scanner/cache.js";
 import { SELECTORS } from "../page/selectors.js";
 import { DAY_MS, PRESET_DATA_S26, PRESET_DATA_R5, PRESET_DATA_SSD990, PRESET_DATA_SYNTHETIC, expandRleSeries, PRESETS, getPreset } from './calc-preset-data.js';
@@ -201,7 +201,7 @@ export function refreshCalcPreview() {
   };
   const weightRecord = Math.max(0, Math.min(1, num('tp-bar-weight-range', 50) / 100));
   const hRaw = num('tp-bar-horizon-range', 365);
-  const horizonDays = hRaw > 730 ? 0 : hRaw;
+  const horizonDays = horizonUiToStored(hRaw);
   const rangeEl = document.getElementById('tp-bar-minpoints-range');
   const minPoints = minPointsFromIndex(rangeEl ? rangeEl.value : undefined);
   const toggle = document.getElementById('tp-bar-outlier-toggle');

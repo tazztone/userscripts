@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.274
+// @version      2.18.275
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2938,6 +2938,10 @@ const SHADOW_MODAL_STYLES = `
     if (d === 365) return '1J';
     return `${d}T`;
   }
+  // UI↔stored horizon mapping (single source): the range control tops out at
+  // 760 as the Lifetime sentinel; anything above 730 days stores 0 (Lifetime).
+  const horizonUiToStored = raw => { const n = Number.isFinite(raw) ? raw : 365; return n > 730 ? 0 : n; };
+  const horizonStoredToUi = stored => stored === 0 ? 760 : stored;
 
   // ─── MODULE: src/state/config-migrate.js ────────────────────────────────────
   /**
@@ -3227,7 +3231,7 @@ const SHADOW_MODAL_STYLES = `
           case 'BESTPREISE_MEDIAN_HORIZON_DAYS': {
             const stored = val ?? 365;
             const horizonRange = shadow.getElementById('tp-bestpreise-horizon-range');
-            if (horizonRange) horizonRange.value = stored === 0 ? 760 : stored;
+            if (horizonRange) horizonRange.value = horizonStoredToUi(stored);
             const horizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
             if (horizonVal) horizonVal.value = stored;
             const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
@@ -3236,7 +3240,7 @@ const SHADOW_MODAL_STYLES = `
             if (typeof document !== 'undefined') {
               const barRange = document.getElementById('tp-bar-horizon-range');
               if (barRange && document.activeElement !== barRange) {
-                barRange.value = stored === 0 ? 760 : stored;
+                barRange.value = horizonStoredToUi(stored);
                 const barLabel = document.getElementById('tp-bar-horizon-label');
                 if (barLabel) {
                   barLabel.textContent = horizonText(stored);
@@ -3749,13 +3753,27 @@ const SHADOW_MODAL_STYLES = `
     // Fall back to the pid-keyed snapshot (tpOriginalDiscount stores the site
     // discount, i.e. -diff) so counting/filtering keep the host number.
     if (badgeEl?.dataset?.tpPainted === 'true') {
-      const snap = badgeEl.dataset.tpOriginalDiscount;
-      const snapPid = badgeEl.dataset.tpOriginalPid ?? '';
-      if (snap !== undefined && snap !== '' && snapPid === (getCardProductId(card) ?? '')) {
-        const discount = parseFloat(snap);
-        if (!isNaN(discount)) return discount === 0 ? 0 : -discount;
+      // Host update detection: changed badge text with a pid mismatch voids
+      // the snapshot so counting/filtering re-read the live host number below.
+      if (badgeEl.dataset.tpPaintedText !== undefined && badgeEl.textContent !== badgeEl.dataset.tpPaintedText) {
+        const hostMatch = badgeEl.textContent.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
+        if (hostMatch && (badgeEl.dataset.tpOriginalPid !== (getCardProductId(card) ?? ''))) {
+          delete badgeEl.dataset.tpPainted;
+          delete badgeEl.dataset.tpOriginalDiscount;
+          delete badgeEl.dataset.tpOriginalPid;
+          delete badgeEl.dataset.tpPaintedText;
+        }
       }
-      return null;
+      if (badgeEl.dataset.tpPainted === 'true') {
+        const snap = badgeEl.dataset.tpOriginalDiscount;
+        const snapPid = badgeEl.dataset.tpOriginalPid ?? '';
+        if (snap !== undefined && snap !== '' && snapPid === (getCardProductId(card) ?? '')) {
+          const discount = parseFloat(snap);
+          if (!isNaN(discount)) return discount === 0 ? 0 : -discount;
+        }
+        return null;
+      }
+      /* snapshot voided: fall through to host parse below */
     }
     // Never parse our own injected badge text as the site Differenz: when only
     // our badge exists there is no unverified site number to read.
@@ -3896,6 +3914,7 @@ const SHADOW_MODAL_STYLES = `
       cardPriceBasis,
       basisMatches,
       stats,
+      verifiedStats: basisMatches ? stats : null,
       diffVal,
       discountVal,
       dealScore,
@@ -3916,7 +3935,7 @@ const SHADOW_MODAL_STYLES = `
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
      const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-    const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.stats);
+    const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
     const isDealerLoser = false;
     return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser };
   }
@@ -4310,7 +4329,8 @@ const SHADOW_MODAL_STYLES = `
           const cd = cdFor(c);
           // Rejected (null) stays rejected: recompute only uncalculated (undefined) on a matching basis.
           const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
-          const dealData = (cd.dealScore === undefined && sortBasisOk) ? computeDealScore(cd.stats, cd.cardPrice) : (cd.dealScore ?? null);
+          const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
+          const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
           let weightedDiff = -100;
           if (dealData) {
             // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
@@ -4320,8 +4340,8 @@ const SHADOW_MODAL_STYLES = `
             // Verified low without blend: rank by Vortief-Abstand — the same
             // number the ribbon prints and the edge heat burns with.
             // Exclusion dims/hides via applyCardFilters only; sort never reads BESTPREISE_INCLUDE_VORTIEF.
-            weightedDiff = vortiefDropPct(cd.cardPrice, cd.stats);
-          } else if (!cd.stats) {
+            weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
+          } else if (!vStats) {
             weightedDiff = 0;
           }
           return {
@@ -4338,7 +4358,7 @@ const SHADOW_MODAL_STYLES = `
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
         const scored = list.map(c => {
           const cd = cdFor(c);
-          const level = getLevelPct(cd.cardPrice, cd.stats, true);
+          const level = getLevelPct(cd.cardPrice, cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats, true);
           return {
             card: c,
             item: getCardSortableUnit(c),
@@ -4735,10 +4755,17 @@ const SHADOW_MODAL_STYLES = `
     // analyzes with its own currentPrice. The transport aborts only when the
     // last consumer leaves, so one caller's cancel never kills a sibling fetch.
     let entry = activeFetches.get(fetchKey);
+    // A clear/reset mid-flight voids the shared transport: never join an
+    // entry from an older generation — abort it and start fresh.
+    if (entry && entry.gen !== currentCacheGen()) {
+      try { entry.abort?.abort(); } catch {}
+      if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey);
+      entry = null;
+    }
     if (!entry) {
       const abort = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const promise = fetchPriceTimeSeries(productId, retries, null, useShipping, abort?.signal ?? null);
-      entry = { promise, abort, consumers: new Set() };
+      entry = { promise, abort, consumers: new Set(), gen: currentCacheGen() };
       activeFetches.set(fetchKey, entry);
       const release = () => { if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey); };
       promise.then(release, release);
@@ -4753,7 +4780,9 @@ const SHADOW_MODAL_STYLES = `
       throw e;
     } finally {
       entry.consumers.delete(consumer);
-      if (entry.consumers.size === 0) { try { entry.abort?.abort(); } catch {} }
+      // An aborted transport must not stay joinable: drop it so the next
+      // caller starts a fresh request instead of racing a dead promise.
+      if (entry.consumers.size === 0) { try { entry.abort?.abort(); } catch {} if (activeFetches.get(fetchKey) === entry) activeFetches.delete(fetchKey); }
     }
 
     try {
@@ -5661,7 +5690,7 @@ const SHADOW_MODAL_STYLES = `
   // Step-4 orchestrator: setup first, then the mode/browse branch — the
   // no-badge cleanup mirrors the original else path.
   function renderBadgeVerdict(ctx, filters, isNeueFeed) {
-    const { card } = ctx;
+    const { card, pid } = ctx;
     const setup = renderBadgeSetup(ctx, isNeueFeed);
     if (!setup) {
       card.classList.remove('tp-unchecked-hidden');
@@ -5674,7 +5703,11 @@ const SHADOW_MODAL_STYLES = `
     // Script paint marker: extractCardDiff must never re-parse our ribbon text
     // as the site Differenz after a cache clear (dedicated script-owned badge
     // replacing host-badge rewrites is out of scope).
-    if (badgeDifEl.isConnected) badgeDifEl.dataset.tpPainted = 'true';
+    if (badgeDifEl.isConnected) {
+      badgeDifEl.dataset.tpPainted = 'true';
+      badgeDifEl.dataset.tpOriginalPid = pid ?? '';
+      badgeDifEl.dataset.tpPaintedText = badgeDifEl.textContent ?? '';
+    }
   }
 
   // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
@@ -5853,15 +5886,15 @@ const SHADOW_MODAL_STYLES = `
               if ((!dealer || !dealerUrl || !offers) && url) {
                 const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
                 if (!stillFresh()) { abortStale(); return; }
-                if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
+                if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers || info.totalOffers || 0; }
               }
-              const png = await renderSparklinePng(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)).catch(() => null);
+              const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
               const fields = {
                 title, url, priceText,
                 dealer, dealerUrl, offerCount: offers,
-                spark: sparklineText(withLivePrice(fresh.stats?.timeSeries, fresh.cardPrice)),
-                ...resolveShareFields(fresh.cardPrice, fresh.stats),
+                spark: sparklineText(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)),
+                ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
                 suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
                 suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
               };
@@ -5878,6 +5911,9 @@ const SHADOW_MODAL_STYLES = `
               const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
               const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
               const tryRound = async withThread => {
+                // Never post for a changed card: the snapshot price/dealer
+                // would no longer match what the user clicked.
+                if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
                 if (png) {
                   try { await postImage(withThread); return; }
                   catch (imgErr) {
@@ -5890,6 +5926,7 @@ const SHADOW_MODAL_STYLES = `
                     /* definite attachment rejection: fall through to text, same round */
                   }
                 }
+                if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
                 await postText(withThread);
               };
               for (const withThread of (forum ? [true, false] : [false, true])) {
@@ -5902,11 +5939,15 @@ const SHADOW_MODAL_STYLES = `
                   // plain round hit forum → loop continues threaded
                 }
               }
-              if (!stillFresh()) { abortStale(); return; }
+              // Delivery happened: record the snapshot and toast success even
+              // if the card changed mid-post — only the green paint is gated.
+              if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
               showToast('📤 Deal in Discord geteilt');
-              if (snap.pid && snap.priceCents > 0) { setSharedDeal(snap.pid, snap.priceCents); shareBtn.classList.add('tp-share-done'); }
+              if (stillFresh()) shareBtn.classList.add('tp-share-done');
+              else abortStale();
             } catch (err) {
-              if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
+              if (err?.stale) { abortStale(); }
+              else if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
               else if (!err?.status) showToast('⚠️ Übermittlung nicht bestätigt — bitte prüfen');
               else showToast('📤 Teilen fehlgeschlagen');
             }
@@ -5983,9 +6024,15 @@ const SHADOW_MODAL_STYLES = `
         const loadDealer = async () => {
           if (dealerPending.has(dKey)) return;
           dealerPending.add(dKey);
+          // Stale-write guard: a clear/reset mid-flight voids the write; the
+          // basis snapshot avoids resolving the live mode after the await.
+          const reqGen = currentCacheGen();
+          const reqShipping = useShipping;
+          const reqKey = dKey;
           try {
-            const info = await fetchProductInfo(productUrl, undefined, isShippingPriceActive(card)).catch(() => null);
-            if (info?.dealer) { lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0 }); setCachedDealer(pid, useShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0); }
+            const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
+            if (reqGen !== currentCacheGen()) return;
+            if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || info.totalOffers || 0); }
           } finally {
             dealerPending.delete(dKey);
           }
@@ -6128,12 +6175,13 @@ const SHADOW_MODAL_STYLES = `
     // Rejected verdicts (null) stay rejected: only an uncalculated verdict
     // (undefined, e.g. a partial struct) may compute — and only on a matching basis.
     const basisOk = basisMatches ?? basisMatchesFor(stats, cardPriceBasis);
-    const displayDelta = cd.displayDelta ?? (basisOk ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' });
-    const dealData = cd.dealScore === undefined && basisOk ? computeDealScore(stats, cardPrice) : (cd.dealScore ?? null);
+    const vStats = cd.verifiedStats ?? (basisOk ? stats : null);
+    const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cardPrice, vStats) : { kind: 'unknown' });
+    const dealData = cd.dealScore === undefined && vStats ? computeDealScore(vStats, cardPrice) : (cd.dealScore ?? null);
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
-    const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
+    const heatInfo = getHeatInput(cardPrice, vStats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
-    const ctx = { card, pid, cardPrice, cardPriceEl, stats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+    const ctx = { card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
     renderHeat(ctx);
     renderFilterVerdict(ctx, filters, activeStores);
     renderBadgeVerdict(ctx, filters, isNeueFeed);
@@ -6446,7 +6494,7 @@ const SHADOW_MODAL_STYLES = `
             <label>Median-Berechnungszeitraum (Ø-Preis)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
-              <input type="number" id="tp-bestpreise-horizon-val" min="0" max="730" step="1" value="365">
+              <input type="number" id="tp-bestpreise-horizon-val" min="0" max="3650" step="1" value="365">
             </div>
             <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
           </div>
@@ -6689,7 +6737,7 @@ const SHADOW_MODAL_STYLES = `
       // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
       {
         const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-        if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
+        if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = horizonStoredToUi(stored);
         if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
         if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
       }
@@ -6747,7 +6795,7 @@ const SHADOW_MODAL_STYLES = `
         document.documentElement.style.setProperty('--tp-dim-opacity', v);
       });
       els.opacityVal.addEventListener('input', e => {
-        const v = Math.min(0.95, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
+        const v = Math.min(1, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
         els.opacityRange.value = v;
         document.documentElement.style.setProperty('--tp-dim-opacity', v);
       });
@@ -6758,7 +6806,10 @@ const SHADOW_MODAL_STYLES = `
 
     bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
     bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw) => {
-      const v = isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+      // Range tops out at the 760 Lifetime sentinel (>730 → 0); a typed number
+      // is literal so values like 1000 round-trip through the schema (max 3650).
+      const fromNumber = typeof document !== 'undefined' && document.activeElement === els.bestpreiseHorizonVal;
+      const v = fromNumber ? (isNaN(raw) ? 365 : raw) : horizonUiToStored(raw);
       if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
       if (v === 0) {
         if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;
@@ -6931,9 +6982,10 @@ const SHADOW_MODAL_STYLES = `
       else els.dialog.setAttribute('open', '');
     };
 
+    // Never leave a typed secret in the editor across sessions of the dialog.
+    const clearWebhookEditor = () => { if (els.discordWebhookInput) els.discordWebhookInput.value = ''; };
     const closeModal = () => {
-      // Never leave a typed secret in the editor across sessions of the dialog.
-      if (els.discordWebhookInput) els.discordWebhookInput.value = '';
+      clearWebhookEditor();
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       if (typeof els.dialog.close === 'function') els.dialog.close();
       else els.dialog.removeAttribute('open');
@@ -6944,7 +6996,7 @@ const SHADOW_MODAL_STYLES = `
     els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the els.shadow keydown handler — reset the preview anyway.
-    els.dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
+    els.dialog.addEventListener('close', () => { clearWebhookEditor(); document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY); });
 
     els.btnSave.addEventListener('click', () => {
       const updates = {};
@@ -6954,6 +7006,7 @@ const SHADOW_MODAL_STYLES = `
       // Cache entries are keyed per shipping basis, so a mode change only needs
       // fresh card memos (below) — the other slot stays warm for toggling back.
       const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
+      if (els.shippingToggle) updates.USE_SHIPPING_PRICE = els.shippingToggle.checked;
       // Cached analyses bake in the median horizon — recompute them locally
       // from the retained series (no network) before the single repaint below.
       // Single schema: bounds live in config-store (min 0, max 3650), not here.
@@ -7315,7 +7368,7 @@ const SHADOW_MODAL_STYLES = `
     };
     const weightRecord = Math.max(0, Math.min(1, num('tp-bar-weight-range', 50) / 100));
     const hRaw = num('tp-bar-horizon-range', 365);
-    const horizonDays = hRaw > 730 ? 0 : hRaw;
+    const horizonDays = horizonUiToStored(hRaw);
     const rangeEl = document.getElementById('tp-bar-minpoints-range');
     const minPoints = minPointsFromIndex(rangeEl ? rangeEl.value : undefined);
     const toggle = document.getElementById('tp-bar-outlier-toggle');
@@ -7486,7 +7539,7 @@ const SHADOW_MODAL_STYLES = `
     if (!range) return;
     const readHorizon = () => {
       const raw = parseInt(range.value, 10);
-      return isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
+      return horizonUiToStored(raw);
     };
     const paintHorizonLabel = () => {
       if (!label) return;
@@ -7525,7 +7578,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.innerHTML = `
       <span class="tp-stepper-label">Ø-Zeitraum</span>
       <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
-      <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${cur === 0 ? 760 : cur}" title="${horizonText(cur, 'title')}">`;
+      <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${horizonStoredToUi(cur)}" title="${horizonText(cur, 'title')}">`;
     bindHorizonControls(wrapper);
     return wrapper;
   }
@@ -7711,7 +7764,7 @@ const SHADOW_MODAL_STYLES = `
     const horizonRange = document.getElementById('tp-bar-horizon-range');
     const curHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
     if (horizonRange && document.activeElement !== horizonRange) {
-      horizonRange.value = curHorizon === 0 ? 760 : curHorizon;
+      horizonRange.value = horizonStoredToUi(curHorizon);
       const horizonLabel = document.getElementById('tp-bar-horizon-label');
       if (horizonLabel) {
         horizonLabel.textContent = horizonText(curHorizon);
@@ -8836,7 +8889,10 @@ const SHADOW_MODAL_STYLES = `
           // dealer comes from real rows, not an ID list.
           if (Array.isArray(agg.offers) && agg.offers.length) {
             const nested = parseJsonLdOffer({ '@type': 'Product', offers: agg.offers });
-            if (nested.dealer || nested.offers) return nested;
+            if (nested.dealer || nested.offers) {
+              if (!nested.totalOffers) { const t = Number(agg.offerCount); if (Number.isFinite(t) && t > 0) nested.totalOffers = Math.round(t); }
+              return nested;
+            }
           }
           // Count-only: no loaded rows (offers 0), but a real total.
           const n = +agg.offerCount;
@@ -8845,14 +8901,26 @@ const SHADOW_MODAL_STYLES = `
         let best = null;
         for (const o of list) {
           // Strict: +null/+'' coerce to 0 and must never win as "cheapest".
-          const price = +o?.price;
-          if (!(price > 0)) continue;
+          const price = Number(o?.price);
+          if (!Number.isFinite(price) || !(price > 0)) continue;
           if (!best || price < best.price) best = { price, dealer: typeof o.seller === 'object' ? (o.seller?.name || '') : (o.seller || '') };
         }
         if (best) return { dealer: best.dealer, offers: list.length, totalOffers: 0 };
       }
     }
     return { dealer: '', offers: 0, totalOffers: 0 };
+  }
+  // Aggregate total independent of loaded rows: page-1 rows and the JSON-LD
+  // offerCount coexist, so the row path must not skip the count scan.
+  function jsonLdOfferTotal(doc) {
+    let total = 0;
+    for (const s of Array.from(doc?.querySelectorAll?.('script[type="application/ld+json"]') || [])) {
+      try {
+        const found = parseJsonLdOffer(JSON.parse(s.textContent));
+        if (Number.isFinite(found?.totalOffers) && found.totalOffers > total) total = Math.round(found.totalOffers);
+      } catch { /* Block einzeln ignorieren */ }
+    }
+    return total;
   }
 
   // Produktseiten listen Angebote als .Plugin_Offer-Blöcke (Preis-aufsteigend,
@@ -8923,20 +8991,15 @@ const SHADOW_MODAL_STYLES = `
       const doc = new DOMParser().parseFromString(html, 'text/html');
       // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
       // blocks — both through basis-strict cheapest (row order may follow
-      // foreign sort cookies). Rows without a parseable basis price still yield
-      // the first titled row as display-only name (no price claim attached).
+      // foreign sort cookies). Basis-strict: no parseable price on the card
+      // basis means unknown dealer — never the opposite-basis name.
       const dealerRows = parseDealerRows(doc);
       const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
       if (offers.length) {
         out.offers = offers.length;
-        let best = pickCheapestOffer(offers, useShipping);
-        if (!best) {
-          // Link-only fallback: no parseable price on the card basis (e.g.
-          // product-only rows in shipping mode). Picks whose name/link to show;
-          // never a price — posted prices always come from the card snapshot.
-          best = pickCheapestOffer(offers, !useShipping);
-        }
-        out.dealer = best ? best.dealer : (offers[0].dealer || '');
+        out.totalOffers = jsonLdOfferTotal(doc);
+        const best = pickCheapestOffer(offers, useShipping);
+        out.dealer = best ? best.dealer : '';
         if (best?.url) {
           try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
         }
@@ -9083,17 +9146,23 @@ const SHADOW_MODAL_STYLES = `
       if (!bells.length) return;
       for (const bell of bells) {
         const state = alarmBellState();
-        bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
-        bell.classList.add(`tp-alarm-${state}`);
-        bell.setAttribute('data-tp-alarm-state', state);
+        // Idempotent paint: the observer ignores [data-tp-alarm-state] owners,
+        // but conditional writes keep unrelated attribute loops quiet too.
+        const nextClass = `tp-alarm-${state}`;
+        if (!bell.classList.contains(nextClass)) {
+          bell.classList.remove('tp-alarm-off', 'tp-alarm-fill', 'tp-alarm-auto');
+          bell.classList.add(nextClass);
+        }
+        if (bell.getAttribute('data-tp-alarm-state') !== state) bell.setAttribute('data-tp-alarm-state', state);
         const pct = Math.round(clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT) * 100);
         const dur = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
         const durLabel = DURATION_LABELS[dur] || dur;
-        bell.title = state === 'off'
+        const nextTitle = state === 'off'
           ? 'Preisalarm auto-fill AUS — ⚙ für Einstellungen'
           : state === 'fill'
             ? `Preisalarm: füllt Ziel ${pct}% / ${durLabel} an — klicken zum Prüfen`
             : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
+        if (bell.title !== nextTitle) bell.title = nextTitle;
         ensureAlarmCog(bell);
       }
     } catch (err) {
@@ -9299,21 +9368,26 @@ const SHADOW_MODAL_STYLES = `
       const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
       const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
       if (isAllTimeLow) {
-        badge.className = 'tp-detail-deal-badge tp-is-alltime-low';
+        const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
+        if (badge.className !== nextClass) badge.className = nextClass;
         let peakContext = '';
         if (hasSignificantPeak) {
           const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
           peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
         }
-        badge.title = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
-        badge.textContent = '🌟 Allzeit-Tiefstpreis';
+        const nextTitle = `Aktueller Bestpreis (CHF ${currentPrice.toFixed(2)}) ist der historische Allzeit-Tiefstpreis!${peakContext}`;
+        if (badge.title !== nextTitle) badge.title = nextTitle;
+        if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
       } else {
         const markupPct = pctRise(stats.tiefstpreis, currentPrice);
         const isSevere = markupPct >= 50;
-        badge.className = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
+        const nextClass = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
+        if (badge.className !== nextClass) badge.className = nextClass;
         const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-        badge.title = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
-        badge.textContent = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
+        const nextTitle = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
+        if (badge.title !== nextTitle) badge.title = nextTitle;
+        const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
+        if (badge.textContent !== nextText) badge.textContent = nextText;
       }
     } else {
       document.getElementById('tp-detail-deal-badge')?.remove();
@@ -9363,11 +9437,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         // Dealer verdict before counting: scanner and counter must agree.
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
@@ -9409,8 +9483,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
-  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price';
+  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,#tp-detail-deal-badge,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -9428,6 +9502,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     // added/removed nodes. OBSERVE_OPTS.attributeFilter stays tight on purpose.
     const NON_CARD_SEL = '.Plugin_ProductHeading, .productHeading, .product_title, h1, .priceContainer, .Plugin_Price, .Plugin_NewInfoMailForm, .AbstractDialog, .Plugin_NewInfoMailButton, .filters, .f_remove_filter, [data-tp-product-id]';
     const checkNode = node => {
+      if (!node) return false;
+      if (node.nodeType === 3) node = node.parentElement;
       if (!node || node.nodeType !== 1) return false;
       if (isOwnedNode(node)) return false;
       if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
@@ -9557,7 +9633,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.273';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.274';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

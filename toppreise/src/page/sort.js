@@ -85,7 +85,8 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         const cd = cdFor(c);
         // Rejected (null) stays rejected: recompute only uncalculated (undefined) on a matching basis.
         const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
-        const dealData = (cd.dealScore === undefined && sortBasisOk) ? computeDealScore(cd.stats, cd.cardPrice) : (cd.dealScore ?? null);
+        const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
+        const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
         let weightedDiff = -100;
         if (dealData) {
           // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
@@ -95,8 +96,8 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
           // Verified low without blend: rank by Vortief-Abstand — the same
           // number the ribbon prints and the edge heat burns with.
           // Exclusion dims/hides via applyCardFilters only; sort never reads BESTPREISE_INCLUDE_VORTIEF.
-          weightedDiff = vortiefDropPct(cd.cardPrice, cd.stats);
-        } else if (!cd.stats) {
+          weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
+        } else if (!vStats) {
           weightedDiff = 0;
         }
         return {
@@ -113,7 +114,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
       const scored = list.map(c => {
         const cd = cdFor(c);
-        const level = getLevelPct(cd.cardPrice, cd.stats, true);
+        const level = getLevelPct(cd.cardPrice, cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats, true);
         return {
           card: c,
           item: getCardSortableUnit(c),

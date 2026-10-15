@@ -318,7 +318,7 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
 // Step-4 orchestrator: setup first, then the mode/browse branch — the
 // no-badge cleanup mirrors the original else path.
 export function renderBadgeVerdict(ctx, filters, isNeueFeed) {
-  const { card } = ctx;
+  const { card, pid } = ctx;
   const setup = renderBadgeSetup(ctx, isNeueFeed);
   if (!setup) {
     card.classList.remove('tp-unchecked-hidden');
@@ -331,5 +331,9 @@ export function renderBadgeVerdict(ctx, filters, isNeueFeed) {
   // Script paint marker: extractCardDiff must never re-parse our ribbon text
   // as the site Differenz after a cache clear (dedicated script-owned badge
   // replacing host-badge rewrites is out of scope).
-  if (badgeDifEl.isConnected) badgeDifEl.dataset.tpPainted = 'true';
+  if (badgeDifEl.isConnected) {
+    badgeDifEl.dataset.tpPainted = 'true';
+    badgeDifEl.dataset.tpOriginalPid = pid ?? '';
+    badgeDifEl.dataset.tpPaintedText = badgeDifEl.textContent ?? '';
+  }
 }

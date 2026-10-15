@@ -153,9 +153,10 @@ export function wireModalActions(els) {
     else els.dialog.setAttribute('open', '');
   };
 
+  // Never leave a typed secret in the editor across sessions of the dialog.
+  const clearWebhookEditor = () => { if (els.discordWebhookInput) els.discordWebhookInput.value = ''; };
   const closeModal = () => {
-    // Never leave a typed secret in the editor across sessions of the dialog.
-    if (els.discordWebhookInput) els.discordWebhookInput.value = '';
+    clearWebhookEditor();
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     if (typeof els.dialog.close === 'function') els.dialog.close();
     else els.dialog.removeAttribute('open');
@@ -166,7 +167,7 @@ export function wireModalActions(els) {
   els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the els.shadow keydown handler — reset the preview anyway.
-  els.dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
+  els.dialog.addEventListener('close', () => { clearWebhookEditor(); document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY); });
 
   els.btnSave.addEventListener('click', () => {
     const updates = {};
@@ -176,6 +177,7 @@ export function wireModalActions(els) {
     // Cache entries are keyed per shipping basis, so a mode change only needs
     // fresh card memos (below) — the other slot stays warm for toggling back.
     const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
+    if (els.shippingToggle) updates.USE_SHIPPING_PRICE = els.shippingToggle.checked;
     // Cached analyses bake in the median horizon — recompute them locally
     // from the retained series (no network) before the single repaint below.
     // Single schema: bounds live in config-store (min 0, max 3650), not here.
