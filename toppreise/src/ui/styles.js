@@ -1154,6 +1154,7 @@ export const STYLES = `
   #tp-preview-key .tp-pv-k-med { color: #64748b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-rec { color: #f59e0b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-demo { color: #3b82f6 !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; opacity: 0.8 !important; font-weight: 700 !important; }
   #tp-calc-preview[data-focus="weight"] .tp-pv-main { stroke-width: 2.5 !important; }
   #tp-calc-preview[data-focus="weight"] .tp-pv-med, #tp-calc-preview[data-focus="weight"] .tp-pv-rec { opacity: 1 !important; }

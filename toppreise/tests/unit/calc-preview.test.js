@@ -16,5 +16,6 @@ describe('calc-preview rolling ribbon', () => {
     const tops = ys.slice(0, st.clean.length);
     const bots = ys.slice(st.clean.length);
     assert.ok(Math.min(...tops) <= co.medianY && co.medianY <= Math.max(...bots), `corridor must contain the Ø line ${co.medianY}`);
+    assert.equal(co.ribbonTopAttr + ' ' + co.ribbonBotAttr.split(' ').reverse().join(' '), co.ribbonAttr, 'edge paths must reconstruct the ribbon polygon');
   });
 });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.255
+// @version      2.18.256
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1181,6 +1181,7 @@ const STYLES = `
   #tp-preview-key .tp-pv-k-med { color: #64748b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-rec { color: #f59e0b !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-g { color: #f43f5e !important; font-weight: 700 !important; }
+  #tp-preview-key .tp-pv-k-demo { color: #3b82f6 !important; font-weight: 700 !important; }
   #tp-preview-key .tp-pv-k-band { color: #3b82f6 !important; opacity: 0.8 !important; font-weight: 700 !important; }
   #tp-calc-preview[data-focus="weight"] .tp-pv-main { stroke-width: 2.5 !important; }
   #tp-calc-preview[data-focus="weight"] .tp-pv-med, #tp-calc-preview[data-focus="weight"] .tp-pv-rec { opacity: 1 !important; }
@@ -6603,7 +6604,7 @@ const SHADOW_MODAL_STYLES = `
     const pt = p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`;
     const pointsAttr = pts.map(pt).join(' ');
     const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
-    let ribbonAttr = null;
+    let ribbonAttr = null, ribbonTopAttr = null, ribbonBotAttr = null;
     if (o.band > 0 && Array.isArray(o.localMedians) && o.localMedians.length === n && n > 0 && o.localMedians.every(v => v > 0)) {
       const tops = [], bots = [];
       for (let q = 0; q < n; q++) {
@@ -6611,7 +6612,9 @@ const SHADOW_MODAL_STYLES = `
         tops.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 + o.band)))))}`);
         bots.push(`${f1(fracX(pts[q][0]))},${f1(Math.max(m.top, Math.min(h - m.bottom, y(med * (1 - o.band)))))}`);
       }
-      ribbonAttr = tops.join(' ') + ' ' + bots.reverse().join(' ');
+      ribbonTopAttr = tops.join(' ');
+      ribbonBotAttr = bots.join(' ');
+      ribbonAttr = ribbonTopAttr + ' ' + [...bots].reverse().join(' ');
     }
     const medianY = o.median > 0 ? y(o.median) : null;
     const glitchXY = (o.dropped || []).map(g => ({ x: fracX(g.timestamp), y: y(g.price) }));
@@ -6621,7 +6624,7 @@ const SHADOW_MODAL_STYLES = `
     const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
-    return { pointsAttr, ribbonAttr, medianY, glitchXY, anchor, ticks, recordY, rawAttr, fracX };
+    return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, ticks, recordY, rawAttr, fracX };
   }
 
   let activePresetId = 's26';
@@ -6631,7 +6634,7 @@ const SHADOW_MODAL_STYLES = `
     box.id = 'tp-calc-preview';
     const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
     box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
-      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span></div>`
+      + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-demo">···</span> Demo</span><span><span class="tp-pv-k-g">×</span> Glitch</span></div>`
       + `<svg id="tp-preview-svg" viewBox="0 0 296 110" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
       + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
     const sel = box.querySelector('#tp-preview-preset-select');
@@ -6729,6 +6732,9 @@ const SHADOW_MODAL_STYLES = `
       s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
     }
     if (co.ribbonAttr != null) s += `<polygon class="tp-pv-band" points="${co.ribbonAttr}" fill="#3b82f6" opacity="0.08"/>`;
+    for (const edge of [co.ribbonTopAttr, co.ribbonBotAttr]) {
+      if (edge != null) s += `<polyline class="tp-pv-band-edge" points="${edge}" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
+    }
     for (const t of co.ticks) {
       s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
     }
@@ -7193,9 +7199,9 @@ const SHADOW_MODAL_STYLES = `
             💎 Tiefstpreis-Sortierung <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
           </button>
           <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
-            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — Sortierung + Farb-Emphase, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
+            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — nur Anzeige, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
             <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
-              <div class="tp-calc-head">Berechnungsparameter<span>Sortierung + Farb-Emphase — filtert nichts</span></div>
+              <div class="tp-calc-head">Berechnungsparameter<span>Nur Anzeige — filtert nichts</span></div>
               <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset">Zurücksetzen</button>
             </div>
           </div>
