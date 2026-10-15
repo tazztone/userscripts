@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.281
+// @version      2.18.282
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2663,12 +2663,12 @@ const SHADOW_MODAL_STYLES = `
       // Per-slot expiry; legacy entries carry top-level time only.
       const slotTime = entry.time ?? parsed?.time ?? 0;
       if (!isCacheEntryFresh({ time: slotTime })) return null;
-      return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0 };
+      return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0, totalOffers: entry.totalOffers || 0 };
     } catch (e) {}
     return null;
   }
 
-  function setCachedDealer(productId, useShipping, dealer, url, storage = null, offers = 0) {
+  function setCachedDealer(productId, useShipping, dealer, url, storage = null, offers = 0, totalOffers = 0) {
     if (!productId || !dealer) return;
     storage = resolveStorage(storage);
     try {
@@ -2677,7 +2677,7 @@ const SHADOW_MODAL_STYLES = `
       const slot = useShipping ? 's' : 'p';
       const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
       const now = Date.now();
-      const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: now } };
+      const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, totalOffers: Number.isFinite(+totalOffers) ? Math.round(+totalOffers) : 0, time: now } };
       storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
     } catch (e) {}
   }
@@ -5909,13 +5909,24 @@ const SHADOW_MODAL_STYLES = `
               const { title, url, imageUrl } = extractShareData(card);
               const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
               const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-              let dealer = extractDealer(card);
-              let dealerUrl = extractDealerUrl(card);
-              let offers = fresh.offerCount || getCachedDealer(snap.pid, isShippingPriceActive(card))?.offers || 0;
+              let dealer = extractDealer(card, isShippingPriceActive(card));
+              let dealerUrl = extractDealerUrl(card, isShippingPriceActive(card));
+              // Geladen (page-1) vs. total (JSON-LD-Aggregat): Anzeige/Share
+              // nutzen das Total, fällts zurück auf die geladene Anzahl.
+              const cachedDealer = getCachedDealer(snap.pid, isShippingPriceActive(card));
+              let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
+              let totalOffers = cachedDealer?.totalOffers || 0;
+              let offers = totalOffers || loadedOffers;
               if ((!dealer || !dealerUrl || !offers) && url) {
                 const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
                 if (!stillFresh()) { abortStale(); return; }
-                if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers || info.totalOffers || 0; }
+                if (info) {
+                  dealer = dealer || info.dealer;
+                  dealerUrl = dealerUrl || info.dealerUrl;
+                  loadedOffers = loadedOffers || info.offers || 0;
+                  totalOffers = totalOffers || info.totalOffers || 0;
+                  offers = totalOffers || loadedOffers;
+                }
               }
               const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
@@ -6011,7 +6022,7 @@ const SHADOW_MODAL_STYLES = `
     } else {
       const useShipping = isShippingPriceActive(card);
       const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
-      let dealer = extractDealer(card);
+      let dealer = extractDealer(card, useShipping);
       if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
         if (dealerHydrated.size > 1000) dealerHydrated.clear();
         dealerHydrated.add(dKey);
@@ -6021,7 +6032,7 @@ const SHADOW_MODAL_STYLES = `
       const cached = dealerCache.get(dKey);
       if (!dealer && cached?.dealer) dealer = cached.dealer;
       const { url: productUrl } = extractShareData(card);
-      const directUrl = cached?.url || (dealer ? extractDealerUrl(card) : '');
+      const directUrl = cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '');
       const targetUrl = directUrl || productUrl || '';
       const hasUrl = /^https?:\/\//i.test(targetUrl);
       const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
@@ -6061,7 +6072,7 @@ const SHADOW_MODAL_STYLES = `
           try {
             const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
             if (reqGen !== currentCacheGen()) return;
-            if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || info.totalOffers || 0); }
+            if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0, totalOffers: info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0, info.totalOffers || 0); }
           } finally {
             dealerPending.delete(dKey);
           }
@@ -8890,15 +8901,30 @@ const SHADOW_MODAL_STYLES = `
     return { title, url, imageUrl };
   }
 
+  // Günstigste Händlerzeile auf Karten-Basis (Name + Link aus derselben Zeile):
+  // ohne parsebaren Basispreis gewinnt die erste Zeile (bisheriges Verhalten).
+  function extractCheapestDealerRow(card, useShipping = false) {
+    const rows = Array.from(card?.querySelectorAll?.(SELECTORS.cards.dealerRows) || []);
+    if (!rows.length) return null;
+    const priceSel = useShipping ? '.shippingPrice .Plugin_Price' : '.productPrice .Plugin_Price';
+    let best = null;
+    for (const row of rows) {
+      const price = parsePrice(row.querySelector?.(priceSel)?.textContent);
+      if (!(price > 0)) continue;
+      if (!best || price < best.price) best = { row, price };
+    }
+    return best ? best.row : rows[0];
+  }
+
   // Angezeigten Händler (günstigste Zeile zuerst) als Klartext.
-  function extractDealer(card) {
-    const el = card?.querySelector?.(`${SELECTORS.cards.dealerRows} .title`);
-    return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  function extractDealer(card, useShipping = false) {
+    const row = extractCheapestDealerRow(card, useShipping);
+    return row?.querySelector?.('.title')?.textContent?.replace(/\s+/g, ' ').trim() || '';
   }
 
   // Direktlink zum Händlerangebot aus der Händlerzeile (Katalog), falls verlinkt.
-  function extractDealerUrl(card) {
-    const a = card?.querySelector?.(`${SELECTORS.cards.dealerRows} a[href]`);
+  function extractDealerUrl(card, useShipping = false) {
+    const a = extractCheapestDealerRow(card, useShipping)?.querySelector?.('a[href]');
     let url = a?.getAttribute?.('href') || a?.href || '';
     if (url && !/^https?:\/\//i.test(url)) {
       try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
@@ -9045,6 +9071,9 @@ const SHADOW_MODAL_STYLES = `
         try {
           const found = parseJsonLdOffer(JSON.parse(s.textContent));
           if (found.dealer || found.offers || found.totalOffers) {
+            // Count-only unter Versandbasis: unbekannter Versandpreis kann nie
+            // einen Delivered-Preis-Sieger küren — nur die Anzahl übernehmen.
+            if (useShipping) return { dealer: '', offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
             return { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
           }
         } catch { /* Block einzeln ignorieren */ }
@@ -9668,7 +9697,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.280';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.281';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -230,10 +230,13 @@ describe('resolveShareFields', () => {
 describe('extractShareData / extractDealer', () => {
   const stubCard = () => {
     const els = {};
+    const lists = {};
     return {
       tagName: 'DIV',
       querySelector: sel => els[sel] || null,
-      __set: (sel, el) => { els[sel] = el; }
+      querySelectorAll: sel => lists[sel] || [],
+      __set: (sel, el) => { els[sel] = el; },
+      __setAll: (sel, arr) => { lists[sel] = arr; }
     };
   };
 
@@ -273,18 +276,34 @@ describe('extractShareData / extractDealer', () => {
     }
   });
 
-  it('reads the first dealer row title, empty when absent', () => {
+  it('reads the cheapest dealer row title, empty when absent', () => {
+    const row = (title, productPrice) => ({
+      querySelector: sel => sel === '.title' ? { textContent: title }
+        : sel === '.productPrice .Plugin_Price' ? { textContent: productPrice } : null
+    });
     const card = stubCard();
-    card.__set('.Plugin_DealerRelProdPriceInfo .title', { textContent: '\n Digitec \n' });
+    card.__setAll('.Plugin_DealerRelProdPriceInfo', [row('\n Teuer \n', 'CHF 99.00'), row('\n Digitec \n', 'CHF 31.90')]);
     assert.equal(extractDealer(card), 'Digitec');
     assert.equal(extractDealer(stubCard()), '');
+    const noPrice = stubCard();
+    noPrice.__setAll('.Plugin_DealerRelProdPriceInfo', [row('\n Erster \n', '')]);
+    assert.equal(extractDealer(noPrice), 'Erster');
   });
 
-  it('reads the dealer row offer link, absolutized, empty when absent', () => {
+  it('reads name and link from the same cheapest row', () => {
+    const row = (title, productPrice, href) => ({
+      querySelector: sel => sel === '.title' ? { textContent: title }
+        : sel === '.productPrice .Plugin_Price' ? { textContent: productPrice }
+        : sel === 'a[href]' ? { getAttribute: () => href } : null
+    });
     const card = stubCard();
-    card.__set('.Plugin_DealerRelProdPriceInfo a[href]', { getAttribute: () => '/ext_de?pid=9&did=1&oid=11' });
+    card.__setAll('.Plugin_DealerRelProdPriceInfo', [
+      row('Teuer', 'CHF 99.00', '/ext_de?pid=9&did=1&oid=11'),
+      row('Digitec', 'CHF 31.90', '/ext_de?pid=9&did=2&oid=22')
+    ]);
     globalThis.location = { href: 'https://www.toppreise.ch/katalog/Maeuse' };
-    assert.equal(extractDealerUrl(card), 'https://www.toppreise.ch/ext_de?pid=9&did=1&oid=11');
+    assert.equal(extractDealer(card), 'Digitec');
+    assert.equal(extractDealerUrl(card), 'https://www.toppreise.ch/ext_de?pid=9&did=2&oid=22');
     delete globalThis.location;
     assert.equal(extractDealerUrl(stubCard()), '');
   });
@@ -296,7 +315,9 @@ describe('extractShareData / extractDealer', () => {
     card2.__set('a[href*="/preisvergleich/"]', { getAttribute: () => 'https://www.toppreise.ch/katalog/Maeuse' });
     assert.equal(extractShareData(card2).url, '');
     const d = stubCard();
-    d.__set('.Plugin_DealerRelProdPriceInfo a[href]', { getAttribute: () => 'http://dealer.example/buy' });
+    d.__setAll('.Plugin_DealerRelProdPriceInfo', [{
+      querySelector: sel => sel === 'a[href]' ? { getAttribute: () => 'http://dealer.example/buy' } : null
+    }]);
     assert.equal(extractDealerUrl(d), '');
   });
 });
@@ -543,6 +564,16 @@ describe('fetchProductInfo JSON-LD fallback', () => {
     globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>-x' });
     globalThis.DOMParser = class { parseFromString() { return docStub({ scripts: [{ textContent: JSON.stringify(ld) }] }); } };
     assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50), { dealer: 'Digitec', offers: 2, dealerUrl: '', totalOffers: 0 });
+  });
+
+  it('keeps JSON-LD count-only under shipping basis (never crowns a winner)', async () => {
+    const ld = { '@type': 'Product', offers: [
+      { price: 44.95, seller: { name: 'Brack' } },
+      { price: 31.90, seller: { name: 'Digitec' } }
+    ] };
+    globalThis.fetch = async () => ({ ok: true, text: async () => '<html/>-x' });
+    globalThis.DOMParser = class { parseFromString() { return docStub({ scripts: [{ textContent: JSON.stringify(ld) }] }); } };
+    assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: '', offers: 2, dealerUrl: '', totalOffers: 0 });
   });
 
   it('prefers DOM rows over JSON-LD', async () => {

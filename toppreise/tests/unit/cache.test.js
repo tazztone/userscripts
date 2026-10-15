@@ -217,9 +217,17 @@ describe('Bounded Cache Module', () => {
       const s = memStorage();
       setCachedDealer('p1', false, 'Galaxus', 'https://www.toppreise.ch/ext_de?oid=1', s);
       setCachedDealer('p1', true, 'Brack', '', s, 7);
-      assert.deepEqual(getCachedDealer('p1', false, s), { dealer: 'Galaxus', url: 'https://www.toppreise.ch/ext_de?oid=1', offers: 0 });
-      assert.deepEqual(getCachedDealer('p1', true, s), { dealer: 'Brack', url: '', offers: 7 });
+      assert.deepEqual(getCachedDealer('p1', false, s), { dealer: 'Galaxus', url: 'https://www.toppreise.ch/ext_de?oid=1', offers: 0, totalOffers: 0 });
+      assert.deepEqual(getCachedDealer('p1', true, s), { dealer: 'Brack', url: '', offers: 7, totalOffers: 0 });
       assert.equal(getCachedDealer('p2', false, s), null);
+    });
+
+    it('keeps loaded rows and aggregate total apart (legacy: total 0)', () => {
+      const s = memStorage();
+      setCachedDealer('p9', false, 'Digitec', '', s, 10, 43);
+      assert.deepEqual(getCachedDealer('p9', false, s), { dealer: 'Digitec', url: '', offers: 10, totalOffers: 43 });
+      s.setItem(DEALER_CACHE_PREFIX + 'legacy', JSON.stringify({ time: Date.now(), p: { dealer: 'Galaxus', url: '', offers: 5 } }));
+      assert.deepEqual(getCachedDealer('legacy', false, s), { dealer: 'Galaxus', url: '', offers: 5, totalOffers: 0 });
     });
 
     it('expires with the price-history TTL', () => {

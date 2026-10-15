@@ -312,12 +312,12 @@ export function getCachedDealer(productId, useShipping, storage = null) {
     // Per-slot expiry; legacy entries carry top-level time only.
     const slotTime = entry.time ?? parsed?.time ?? 0;
     if (!isCacheEntryFresh({ time: slotTime })) return null;
-    return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0 };
+    return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0, totalOffers: entry.totalOffers || 0 };
   } catch (e) {}
   return null;
 }
 
-export function setCachedDealer(productId, useShipping, dealer, url, storage = null, offers = 0) {
+export function setCachedDealer(productId, useShipping, dealer, url, storage = null, offers = 0, totalOffers = 0) {
   if (!productId || !dealer) return;
   storage = resolveStorage(storage);
   try {
@@ -326,7 +326,7 @@ export function setCachedDealer(productId, useShipping, dealer, url, storage = n
     const slot = useShipping ? 's' : 'p';
     const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
     const now = Date.now();
-    const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: now } };
+    const next = { ...prev, time: now, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, totalOffers: Number.isFinite(+totalOffers) ? Math.round(+totalOffers) : 0, time: now } };
     storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
   } catch (e) {}
 }

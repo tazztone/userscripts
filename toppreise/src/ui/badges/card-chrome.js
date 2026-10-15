@@ -168,13 +168,24 @@ export function renderShareButton(ctx, cd) {
             const { title, url, imageUrl } = extractShareData(card);
             const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
             const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-            let dealer = extractDealer(card);
-            let dealerUrl = extractDealerUrl(card);
-            let offers = fresh.offerCount || getCachedDealer(snap.pid, isShippingPriceActive(card))?.offers || 0;
+            let dealer = extractDealer(card, isShippingPriceActive(card));
+            let dealerUrl = extractDealerUrl(card, isShippingPriceActive(card));
+            // Geladen (page-1) vs. total (JSON-LD-Aggregat): Anzeige/Share
+            // nutzen das Total, fällts zurück auf die geladene Anzahl.
+            const cachedDealer = getCachedDealer(snap.pid, isShippingPriceActive(card));
+            let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
+            let totalOffers = cachedDealer?.totalOffers || 0;
+            let offers = totalOffers || loadedOffers;
             if ((!dealer || !dealerUrl || !offers) && url) {
               const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
-              if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers || info.totalOffers || 0; }
+              if (info) {
+                dealer = dealer || info.dealer;
+                dealerUrl = dealerUrl || info.dealerUrl;
+                loadedOffers = loadedOffers || info.offers || 0;
+                totalOffers = totalOffers || info.totalOffers || 0;
+                offers = totalOffers || loadedOffers;
+              }
             }
             const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
             if (!stillFresh()) { abortStale(); return; }
@@ -270,7 +281,7 @@ export function renderDealerName(ctx, filters) {
   } else {
     const useShipping = isShippingPriceActive(card);
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
-    let dealer = extractDealer(card);
+    let dealer = extractDealer(card, useShipping);
     if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
       if (dealerHydrated.size > 1000) dealerHydrated.clear();
       dealerHydrated.add(dKey);
@@ -280,7 +291,7 @@ export function renderDealerName(ctx, filters) {
     const cached = dealerCache.get(dKey);
     if (!dealer && cached?.dealer) dealer = cached.dealer;
     const { url: productUrl } = extractShareData(card);
-    const directUrl = cached?.url || (dealer ? extractDealerUrl(card) : '');
+    const directUrl = cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '');
     const targetUrl = directUrl || productUrl || '';
     const hasUrl = /^https?:\/\//i.test(targetUrl);
     const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
@@ -320,7 +331,7 @@ export function renderDealerName(ctx, filters) {
         try {
           const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
           if (reqGen !== currentCacheGen()) return;
-          if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || info.totalOffers || 0); }
+          if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0, totalOffers: info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0, info.totalOffers || 0); }
         } finally {
           dealerPending.delete(dKey);
         }

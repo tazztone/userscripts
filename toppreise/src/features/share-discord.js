@@ -355,15 +355,30 @@ export function extractShareData(card) {
   return { title, url, imageUrl };
 }
 
+// Günstigste Händlerzeile auf Karten-Basis (Name + Link aus derselben Zeile):
+// ohne parsebaren Basispreis gewinnt die erste Zeile (bisheriges Verhalten).
+export function extractCheapestDealerRow(card, useShipping = false) {
+  const rows = Array.from(card?.querySelectorAll?.(SELECTORS.cards.dealerRows) || []);
+  if (!rows.length) return null;
+  const priceSel = useShipping ? '.shippingPrice .Plugin_Price' : '.productPrice .Plugin_Price';
+  let best = null;
+  for (const row of rows) {
+    const price = parsePrice(row.querySelector?.(priceSel)?.textContent);
+    if (!(price > 0)) continue;
+    if (!best || price < best.price) best = { row, price };
+  }
+  return best ? best.row : rows[0];
+}
+
 // Angezeigten Händler (günstigste Zeile zuerst) als Klartext.
-export function extractDealer(card) {
-  const el = card?.querySelector?.(`${SELECTORS.cards.dealerRows} .title`);
-  return el?.textContent?.replace(/\s+/g, ' ').trim() || '';
+export function extractDealer(card, useShipping = false) {
+  const row = extractCheapestDealerRow(card, useShipping);
+  return row?.querySelector?.('.title')?.textContent?.replace(/\s+/g, ' ').trim() || '';
 }
 
 // Direktlink zum Händlerangebot aus der Händlerzeile (Katalog), falls verlinkt.
-export function extractDealerUrl(card) {
-  const a = card?.querySelector?.(`${SELECTORS.cards.dealerRows} a[href]`);
+export function extractDealerUrl(card, useShipping = false) {
+  const a = extractCheapestDealerRow(card, useShipping)?.querySelector?.('a[href]');
   let url = a?.getAttribute?.('href') || a?.href || '';
   if (url && !/^https?:\/\//i.test(url)) {
     try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
@@ -510,6 +525,9 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
       try {
         const found = parseJsonLdOffer(JSON.parse(s.textContent));
         if (found.dealer || found.offers || found.totalOffers) {
+          // Count-only unter Versandbasis: unbekannter Versandpreis kann nie
+          // einen Delivered-Preis-Sieger küren — nur die Anzahl übernehmen.
+          if (useShipping) return { dealer: '', offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
           return { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
         }
       } catch { /* Block einzeln ignorieren */ }
