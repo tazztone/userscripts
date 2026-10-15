@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.258
+// @version      2.18.259
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1778,22 +1778,26 @@ const SHADOW_MODAL_STYLES = `
   function extractCanonicalPrice(card) {
     if (!card) return { price: 0, el: null };
 
-    if (!card._tpPriceInfo) {
-      const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
-      let fallbackShipping = null;
-      let fallbackProduct = null;
-      if (!mainPriceInfo && card.querySelector) {
-        fallbackShipping = card.querySelector('.priceContainer.shippingPrice .Plugin_Price');
-        fallbackProduct = card.querySelector('.priceContainer.productPrice .Plugin_Price');
-      }
-      card._tpPriceInfo = {
-        mainPriceInfo,
-        mainShipping: mainPriceInfo?.querySelector?.('.shippingPrice .Plugin_Price') || null,
-        mainProduct: mainPriceInfo?.querySelector?.('.productPrice .Plugin_Price') || null,
-        fallbackShipping,
-        fallbackProduct
-      };
+    if (card._tpPriceInfo) {
+      const els = Object.values(card._tpPriceInfo);
+      if (els.some(el => el && !card.contains(el))) delete card._tpPriceInfo;
     }
+    if (!card._tpPriceInfo) {
+       const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
+       let fallbackShipping = null;
+       let fallbackProduct = null;
+       if (!mainPriceInfo && card.querySelector) {
+         fallbackShipping = card.querySelector('.priceContainer.shippingPrice .Plugin_Price');
+         fallbackProduct = card.querySelector('.priceContainer.productPrice .Plugin_Price');
+       }
+       card._tpPriceInfo = {
+         mainPriceInfo,
+         mainShipping: mainPriceInfo?.querySelector?.('.shippingPrice .Plugin_Price') || null,
+         mainProduct: mainPriceInfo?.querySelector?.('.productPrice .Plugin_Price') || null,
+         fallbackShipping,
+         fallbackProduct
+       };
+     }
 
     const { mainPriceInfo, mainShipping, mainProduct, fallbackShipping, fallbackProduct } = card._tpPriceInfo;
 
@@ -1890,18 +1894,19 @@ const SHADOW_MODAL_STYLES = `
     const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
     if (!(band > 0 && band < 1)) band = 0.50;
     if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
+    const sorted0 = Array.isArray(points) ? [...points].sort((a, b) => a[0] - b[0]) : [];
+    const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
     if (!points || points.length < 3) {
-      return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0 };
-    }
+      return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0, rawMin };
+     }
 
-    const sorted = [...points].sort((a, b) => a[0] - b[0]);
+    const sorted = sorted0;
     const prices = sorted.map(p => p[1]).sort((a, b) => a - b);
     const rawMedian = medianOf(prices);
 
     if (rawMedian <= 0) {
-      return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0 };
-    }
-
+      return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0, rawMin };
+     }
     const cleanPoints = [];
     const filteredOutliers = [];
     const n = sorted.length;
@@ -1930,7 +1935,9 @@ const SHADOW_MODAL_STYLES = `
       const j = i;
       let k = j;
       while (k < n && !isNormalAt(k)) k++;
-      const runH = (k - j) * 24;
+      const startTs = sorted[j - 1]?.[0] ?? sorted[j][0];
+      const endTs = sorted[k]?.[0] ?? sorted[k - 1][0];
+      const runH = (endTs - startTs) / 3600000;
       let isGlitch = runH <= maxGlitchHours + 0.5;
       if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
       if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
@@ -1946,7 +1953,8 @@ const SHADOW_MODAL_STYLES = `
     return {
       cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
       filteredOutliers,
-      rawMedian
+      rawMedian,
+      rawMin
     };
   }
 
@@ -1975,11 +1983,22 @@ const SHADOW_MODAL_STYLES = `
     }).filter(Boolean);
 
     if (rawParsedPoints.length === 0) return null;
+    // Normalize regardless of outlier toggle: validate, sort ascending, dedupe
+    // duplicate timestamps keeping the LAST occurrence.
+    const nowMs = Date.now();
+    const seen = new Map();
+    for (const [ts, pr] of rawParsedPoints) {
+      if (!Number.isFinite(ts) || ts <= 0 || ts > nowMs + 86400000) continue;
+      if (!Number.isFinite(pr) || pr <= 0) continue;
+      seen.set(ts, pr);
+    }
+    const normPoints = [...seen.entries()].sort((a, b) => a[0] - b[0]);
+    if (normPoints.length === 0) return null;
 
     const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
     const sanitizeResult = outlierRejectionEnabled
-      ? sanitizeTimeSeries(rawParsedPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
-      : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
+      ? sanitizeTimeSeries(normPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
+      : { cleanPoints: normPoints, filteredOutliers: [], rawMin: Math.min(...normPoints.map(p => p[1])) };
 
     const points = sanitizeResult.cleanPoints;
     const filteredOutliers = sanitizeResult.filteredOutliers;
@@ -2050,7 +2069,8 @@ const SHADOW_MODAL_STYLES = `
       dataPointCount: points.length,
       timeSeries: points,
       anchorPrice: curr,
-      ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: rawParsedPoints } : null)
+      ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: normPoints } : null),
+      rawTiefstpreis: sanitizeResult.rawMin ?? Math.min(...normPoints.map(p => p[1]))
     };
   }
 
@@ -2364,6 +2384,7 @@ const SHADOW_MODAL_STYLES = `
     const ttlMs = (realHours || 48) * 3600 * 1000;
     return ageMs < ttlMs;
   }
+  const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
   function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), forceEvict = false) {
     if (!storage) return;
@@ -2591,9 +2612,11 @@ const SHADOW_MODAL_STYLES = `
       const raw = storage?.getItem(DEALER_CACHE_PREFIX + productId);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!isCacheEntryFresh(parsed)) return null;
       const entry = useShipping ? parsed?.s : parsed?.p;
       if (!entry?.dealer) return null;
+      // Per-slot expiry; legacy entries carry top-level time only.
+      const slotTime = entry.time ?? parsed?.time ?? 0;
+      if (!isCacheEntryFresh({ time: slotTime })) return null;
       return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0 };
     } catch (e) {}
     return null;
@@ -2604,7 +2627,10 @@ const SHADOW_MODAL_STYLES = `
     try {
       let prev = {};
       try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
-      const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0 } };
+      const slot = useShipping ? 's' : 'p';
+      const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
+      const next = { ...prev, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: Date.now() } };
+      delete next.time;
       storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
     } catch (e) {}
   }
@@ -2741,7 +2767,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_ENABLED: true,
     ALARM_TARGET_PERCENT: 0.60,
     ALARM_DURATION_DAYS: '730',
-    ALARM_AUTO_SUBMIT: true,
+    ALARM_AUTO_SUBMIT: false,
     OBSERVER_DEBOUNCE_MS: 200,
     DEBUG: false
   });
@@ -2780,6 +2806,88 @@ const SHADOW_MODAL_STYLES = `
     // Secrets nie ins page-lesbare localStorage spiegeln (GM bleibt privat).
     if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
   };
+  // Single config schema: every DEFAULTS key validates/coerces through
+  // sanitizeConfigValue (init, updateConfig(s), settings import). Unknown keys
+  // are rejected (undefined → caller ignores). Bounds below are authoritative.
+  const SETTING_SCHEMA = {
+    FILTER_NEG_ENABLED: { type: 'bool', default: false },
+    FILTER_MIN_ENABLED: { type: 'bool', default: false },
+    FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
+    FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
+    HIDE_UNCHECKED_MODE: { type: 'mode', default: 'dim' },
+    VORTIEF_MODE: { type: 'mode', default: 'dim' },
+    DEALER_MODE: { type: 'mode', default: 'dim' },
+    MARGIN_PERCENT: { type: 'float', default: 0.0, min: 0, max: 50 },
+    DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
+    USE_SHIPPING_PRICE: { type: 'bool', default: true },
+    HEATMAP_ENABLED: { type: 'bool', default: true },
+    HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
+    REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
+    REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
+    NEGATIVE_CACHE_HOURS: { type: 'float', default: 2, min: 0.25, max: 24 },
+    BESTPREISE_MODE_ACTIVE: { type: 'bool', default: false },
+    BESTPREISE_HIDE_UNCHECKED: { type: 'bool', default: false },
+    BESTPREISE_INCLUDE_VORTIEF: { type: 'bool', default: true },
+    BESTPREISE_WEIGHT_RECORD: { type: 'float', default: 0.50, min: 0, max: 1 },
+    BESTPREISE_MIN_POINTS: { type: 'int', default: 5, min: 1, max: 100 },
+    BESTPREISE_MEDIAN_HORIZON_DAYS: { type: 'int', default: 365, min: 0, max: 3650 },
+    OUTLIER_REJECTION_ENABLED: { type: 'bool', default: true },
+    OUTLIER_DEVIATION_BAND: { type: 'float', default: 0.50, min: 0.01, max: 0.50 },
+    OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
+    ENABLE_SPARKLINES: { type: 'bool', default: true },
+    REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
+    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht' },
+    REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+    DEALER_AUTOFETCH: { type: 'bool', default: false },
+    NEGATIVE_TERMS: { type: 'string', default: '' },
+    DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
+    DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
+    DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
+    DISCORD_FORUM_TITLE: { type: 'bool', default: false },
+    DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}' },
+    MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
+    SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
+    ALARM_ENABLED: { type: 'bool', default: true },
+    ALARM_TARGET_PERCENT: { type: 'float', default: 0.60, min: 0.05, max: 0.99 },
+    ALARM_DURATION_DAYS: { type: 'enum', default: '730', allowed: ['90', '180', '365', '730'] },
+    ALARM_AUTO_SUBMIT: { type: 'bool', default: false },
+    OBSERVER_DEBOUNCE_MS: { type: 'int', default: 200, min: 0, max: 2000 },
+    DEBUG: { type: 'bool', default: false }
+  };
+  const coerceNumber = raw => {
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'boolean') return raw ? 1 : 0;
+    if (typeof raw === 'string' && raw.trim() !== '') return Number(raw);
+    return NaN;
+  };
+  function sanitizeConfigValue(key, raw) {
+    const rule = SETTING_SCHEMA[key];
+    if (!rule) {
+      try { if (_getValue('DEBUG', false) === true) console.warn('[Toppreise-Suite] unknown config key ignored', key); } catch {}
+      return undefined;
+    }
+    switch (rule.type) {
+      case 'bool': return raw === true;
+      case 'mode': return raw === 'dim' ? 'dim' : 'hide';
+      case 'int': {
+        const n = coerceNumber(raw);
+        if (!Number.isFinite(n)) return rule.default;
+        return Math.min(rule.max, Math.max(rule.min, Math.round(n)));
+      }
+      case 'float': {
+        const n = coerceNumber(raw);
+        if (!Number.isFinite(n)) return rule.default;
+        return Math.min(rule.max, Math.max(rule.min, n));
+      }
+      case 'enum': {
+        if (rule.allowed.includes(raw)) return raw;
+        const s = String(raw);
+        return rule.allowed.includes(s) ? s : rule.default;
+      }
+      case 'string': return typeof raw === 'string' ? raw : rule.default;
+      default: return rule.default;
+    }
+  }
 
   // One-time migration: DEBUG default flipped true→false, but stored true
   // persists via _getValue precedence. No settings UI ever wrote DEBUG
@@ -2903,49 +3011,49 @@ const SHADOW_MODAL_STYLES = `
 
 
   const CONFIG = {
-    FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
-    FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
+    FILTER_NEG_ENABLED: sanitizeConfigValue('FILTER_NEG_ENABLED', _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED))),
+    FILTER_MIN_ENABLED: sanitizeConfigValue('FILTER_MIN_ENABLED', _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED))),
     FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
     FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
     HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
     VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
     DEALER_MODE: _modeValue('DEALER_MODE'),
-    MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
-    DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
-    USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
-    HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
-    HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-    REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
-    REAL_DEAL_CACHE_HOURS: parseInt(_getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
-    NEGATIVE_CACHE_HOURS: parseInt(_getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
-    BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
-    BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
-    BESTPREISE_INCLUDE_VORTIEF: _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF),
-    BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
-    BESTPREISE_MIN_POINTS: parseInt(_getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
-    BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
-    OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
-    OUTLIER_DEVIATION_BAND: parseFloat(_getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
-    OUTLIER_MAX_GLITCH_HOURS: parseInt(_getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
-    ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
-    REVIEW_SEARCH_ENABLED: _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED),
-    REVIEW_SEARCH_KEYWORD: String(_getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
-    REVIEW_SEARCH_AI_MODE: _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE),
-    DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
-    NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
+    MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
+    DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
+    USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
+    HEATMAP_ENABLED: sanitizeConfigValue('HEATMAP_ENABLED', _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED)),
+    HEATMAP_INTENSITY: sanitizeConfigValue('HEATMAP_INTENSITY', _getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
+    REAL_DEAL_MIN_DISCOUNT: sanitizeConfigValue('REAL_DEAL_MIN_DISCOUNT', _getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
+    REAL_DEAL_CACHE_HOURS: sanitizeConfigValue('REAL_DEAL_CACHE_HOURS', _getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
+    NEGATIVE_CACHE_HOURS: sanitizeConfigValue('NEGATIVE_CACHE_HOURS', _getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
+    BESTPREISE_MODE_ACTIVE: sanitizeConfigValue('BESTPREISE_MODE_ACTIVE', _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE)),
+    BESTPREISE_HIDE_UNCHECKED: sanitizeConfigValue('BESTPREISE_HIDE_UNCHECKED', _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED)),
+    BESTPREISE_INCLUDE_VORTIEF: sanitizeConfigValue('BESTPREISE_INCLUDE_VORTIEF', _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF)),
+    BESTPREISE_WEIGHT_RECORD: sanitizeConfigValue('BESTPREISE_WEIGHT_RECORD', _getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+    BESTPREISE_MIN_POINTS: sanitizeConfigValue('BESTPREISE_MIN_POINTS', _getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
+    BESTPREISE_MEDIAN_HORIZON_DAYS: sanitizeConfigValue('BESTPREISE_MEDIAN_HORIZON_DAYS', _getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
+    OUTLIER_REJECTION_ENABLED: sanitizeConfigValue('OUTLIER_REJECTION_ENABLED', _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED)),
+    OUTLIER_DEVIATION_BAND: sanitizeConfigValue('OUTLIER_DEVIATION_BAND', _getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
+    OUTLIER_MAX_GLITCH_HOURS: sanitizeConfigValue('OUTLIER_MAX_GLITCH_HOURS', _getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
+    ENABLE_SPARKLINES: sanitizeConfigValue('ENABLE_SPARKLINES', _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES)),
+    REVIEW_SEARCH_ENABLED: sanitizeConfigValue('REVIEW_SEARCH_ENABLED', _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED)),
+    REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
+    REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
+    DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
+    NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
-    DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
-    DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
-    DISCORD_FORUM_TITLE: _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE),
-    DISCORD_LAYOUT: (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT,
-    MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
-    SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
-    ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
-    ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
-    ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
-    ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
-    OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-    DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
+    DISCORD_SUPPRESS_DEALER_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_DEALER_EMBED', _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED)),
+    DISCORD_SUPPRESS_PRODUCT_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_PRODUCT_EMBED', _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED)),
+    DISCORD_FORUM_TITLE: sanitizeConfigValue('DISCORD_FORUM_TITLE', _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE)),
+    DISCORD_LAYOUT: sanitizeConfigValue('DISCORD_LAYOUT', (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT),
+    MIN_OFFERS: sanitizeConfigValue('MIN_OFFERS', _getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
+    SORT_BY_OFFERS: sanitizeConfigValue('SORT_BY_OFFERS', _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS)),
+    ALARM_ENABLED: sanitizeConfigValue('ALARM_ENABLED', _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED)),
+    ALARM_TARGET_PERCENT: sanitizeConfigValue('ALARM_TARGET_PERCENT', _getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
+    ALARM_DURATION_DAYS: sanitizeConfigValue('ALARM_DURATION_DAYS', _getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
+    ALARM_AUTO_SUBMIT: sanitizeConfigValue('ALARM_AUTO_SUBMIT', _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT)),
+    OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
+    DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
   };
   const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
   // Corrupt storage must never silently break fills: clamp percent to the
@@ -2963,8 +3071,10 @@ const SHADOW_MODAL_STYLES = `
 
   const saveConfigKey = (key, val) => {
     if (SECRET_KEYS.has(key)) return;
-    CONFIG[key] = val;
-    _setValue(key, val);
+    const clean = sanitizeConfigValue(key, val);
+    if (clean === undefined) return;
+    CONFIG[key] = clean;
+    _setValue(key, clean);
   };
   // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
   // here (a static import would cycle config ← price-alarm; the concat-IIFE
@@ -3265,7 +3375,12 @@ const SHADOW_MODAL_STYLES = `
   const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
   function updateConfig(key, val, options = {}) {
     if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
-    else saveConfigKey(key, val);
+    else {
+      const clean = sanitizeConfigValue(key, val);
+      if (clean === undefined) return;
+      val = clean;
+      saveConfigKey(key, val);
+    }
     if (!options.skipUiSync) {
       syncUiControl(key, val);
     }
@@ -3666,7 +3781,7 @@ const SHADOW_MODAL_STYLES = `
     const stats = pid ? getCachedPriceStats(pid) : null;
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
-    const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
+    const dealScore = (hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
     // Display delta never gates on history quality: with just {tiefstpreis} +
     // card price the badge/heat still tell the verified truth.
     const displayDelta = getDisplayDelta(cardPrice, stats);
@@ -3698,7 +3813,7 @@ const SHADOW_MODAL_STYLES = `
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
      const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-    const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
+    const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.stats);
     const isDealerLoser = false;
     // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
     const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
@@ -4251,10 +4366,17 @@ const SHADOW_MODAL_STYLES = `
 
   const activeFetches = new Map();
 
-  async function interruptibleSleep(ms, shouldCancelFn = null) {
+  // Single-flight abort for the running batch scan. Next run replaces it.
+  let batchController = null;
+  const batchSignal = () => batchController?.signal ?? null;
+  // Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
+  let originCooldownUntil = 0;
+
+  async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
     const step = 100;
     let elapsed = 0;
     while (elapsed < ms) {
+      if (signal?.aborted) return;
       if (shouldCancelFn && shouldCancelFn()) break;
       const wait = Math.min(step, ms - elapsed);
       await new Promise(r => setTimeout(r, wait));
@@ -4262,32 +4384,122 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null) {
+  const backoffMs = (attempt, baseDelayMs = 400) =>
+    Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
+
+  const parseRetryAfterMs = (header, baseDelayMs, attempt) => {
+    if (header != null && String(header).trim() !== '') {
+      const secs = Number(String(header).trim());
+      if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+      const at = Date.parse(String(header).trim());
+      if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+    }
+    return backoffMs(attempt, baseDelayMs);
+  };
+
+  const isCancelled = (signal, shouldCancelFn) => signal?.aborted || shouldCancelFn?.();
+
+  // Central retry: makeRequest(linkedSignal, attempt) must do fetch AND body
+  // reads with the linked signal, so the per-attempt timeout below covers body
+  // reads too (cleared in finally after makeRequest resolves). Returns the
+  // makeRequest value on HTTP 200; returns it on non-429 4xx (caller maps to
+  // genuinely-absent); throws transient/cancelled/cooldown otherwise — never
+  // writes cache itself.
+  async function requestWithRetry(makeRequest, { retries = 1, shouldCancelFn = null, signal = null, baseDelayMs = 400, timeoutMs = 6000 } = {}) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (isCancelled(signal, shouldCancelFn)) {
+        const e = new Error('cancelled');
+        e.cancelled = true;
+        throw e;
+      }
+      if (Date.now() < originCooldownUntil) {
+        const e = new Error('cooldown');
+        e.cooldown = true;
+        throw e;
+      }
+      const ctrl = new AbortController();
+      const onAbort = () => ctrl.abort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const { res, data } = await makeRequest(ctrl.signal, attempt);
+        if (res.ok) return { res, data };
+        if (res.status === 429) {
+          const wait = parseRetryAfterMs(res.headers?.get('Retry-After'), baseDelayMs, attempt);
+          if (attempt < retries) {
+            await interruptibleSleep(wait, shouldCancelFn, signal);
+            continue;
+          }
+          originCooldownUntil = Date.now() + Math.max(wait, baseDelayMs);
+          const e = new Error('429');
+          e.transient = true;
+          throw e;
+        }
+        if (res.status >= 500) {
+          if (attempt < retries) {
+            await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
+            continue;
+          }
+          const e = new Error(`HTTP ${res.status}`);
+          e.transient = true;
+          throw e;
+        }
+        return { res, data };
+      } catch (err) {
+        if (err?.cancelled || err?.cooldown || err?.transient) throw err;
+        if (ctrl.signal.aborted || isCancelled(signal, shouldCancelFn)) {
+          const e = new Error('cancelled');
+          e.cancelled = true;
+          throw e;
+        }
+        if (err?.name === 'AbortError') {
+          const e = new Error('timeout');
+          e.timeout = true;
+          throw e;
+        }
+        if (attempt < retries) {
+          await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
+          continue;
+        }
+        const e = new Error('network');
+        e.transient = true;
+        e.cause = err;
+        throw e;
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+      }
+    }
+    const e = new Error('network');
+    e.transient = true;
+    throw e;
+  }
+
+  async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null, signal = null) {
     if (!productId) return null;
     const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
     const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+    // isShipping true ONLY when shipping was requested AND the data[1] branch
+    // was taken; every other shape is basis-unconfirmed → treat as product.
     const pickSeries = data => {
       const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
       if (Array.isArray(data)) {
         if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
           if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-            return data[1];
+            return { series: data[1], isShipping: true };
           }
-          return data[0]; // Series 0: Produktpreis
+          return { series: data[0], isShipping: false }; // Series 0: Produktpreis
         }
         if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
-          return data; // Raw points [[t1, p1], [t2, p2]]
+          return { series: data, isShipping: false }; // Raw points [[t1, p1], [t2, p2]]
         }
       }
-      if (Array.isArray(data?.series)) return data.series;
-      if (Array.isArray(data?.data)) return data.data;
-      return null;
+      if (Array.isArray(data?.series)) return { series: data.series, isShipping: false };
+      if (Array.isArray(data?.data)) return { series: data.data, isShipping: false };
+      return { series: null, isShipping: false };
     };
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      if (shouldCancelFn && shouldCancelFn()) return null;
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+    try {
+      const { data } = await requestWithRetry(async linkedSignal => {
         const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
           method: 'POST',
           headers: {
@@ -4297,29 +4509,20 @@ const SHADOW_MODAL_STYLES = `
           },
           credentials: 'same-origin',
           body: postBody,
-          signal: controller.signal
+          signal: linkedSignal
         });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const series = pickSeries(await res.json());
-          if (series) return series;
-        } else if (res.status === 429) {
-          const retryAfterHeader = res.headers?.get('Retry-After');
-          const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-          if (attempt < retries) await interruptibleSleep((retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000), shouldCancelFn);
-        } else if (attempt < retries) {
-          await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-        }
-      } catch (err) {
-        if (attempt < retries) {
-          await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-        } else if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
-      }
+        const json = res.ok ? await res.json().catch(() => null) : null;
+        return { res, data: json };
+      }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
+      const pick = pickSeries(data);
+      if (pick.series) return pick;
+    } catch (err) {
+      if (!err?.cancelled && !err?.timeout && !err?.cooldown && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
     }
     return null;
   }
 
-  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null) {
+  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null) {
     if (!productId) return null;
     // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
     // the wrong series into the wrong slot, and each mode dedups independently.
@@ -4341,75 +4544,71 @@ const SHADOW_MODAL_STYLES = `
     const fetchPromise = (async () => {
       try {
         const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-      
+
         // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
         try {
-          const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping);
-          if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
-            const analysis = analyzePriceTimeSeries(timeSeries, currentPrice);
+          const pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
+          // Basis guard: a product-shape series must never land in the shipping
+          // slot — fall through to the HTML path (which refuses the shipping
+          // slot too and writes a negative entry instead).
+          if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1 && pick.isShipping === useShipping) {
+            const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
             if (analysis && analysis.tiefstpreis > 0) {
               analysis.isShippingPrice = useShipping;
               setCachedPriceStats(productId, analysis, false, undefined, useShipping);
               return analysis;
             }
           }
-        } catch (seriesErr) {}
+        } catch (seriesErr) {
+          if (seriesErr?.cancelled || seriesErr?.timeout) return null;
+        }
 
-        // 2. Fallback route: GET HTML modal dialog
+        if (isCancelled(signal, shouldCancelFn)) return null;
+
+        // 2. Fallback route: GET HTML modal dialog (carries no basis info)
         const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
         let resHtml = null;
-        for (let attempt = 0; attempt <= retries; attempt++) {
-          if (shouldCancelFn && shouldCancelFn()) return null;
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 7000);
-            resHtml = await fetch(url, {
+        let html = null;
+        try {
+          const out = await requestWithRetry(async linkedSignal => {
+            const res = await fetch(url, {
               headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'text/html, */*; q=0.01'
               },
               credentials: 'same-origin',
-              signal: controller.signal
+              signal: linkedSignal
             });
-            clearTimeout(timeoutId);
-            if (resHtml.ok) break;
-
-            if (resHtml.status === 429) {
-              const retryAfterHeader = resHtml.headers?.get('Retry-After');
-              const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-              const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
-              if (attempt < retries) {
-                await interruptibleSleep(backoffMs, shouldCancelFn);
-              }
-            } else if (attempt < retries) {
-              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-            }
-          } catch (fetchErr) {
-            if (attempt < retries) {
-              await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-            } else {
-              throw fetchErr;
-            }
-          }
-        }
-
-        if (!resHtml || !resHtml.ok) {
-          if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
+            const text = res.ok ? await res.text() : null;
+            return { res, data: text };
+          }, { retries, shouldCancelFn, signal, baseDelayMs: 400, timeoutMs: 7000 });
+          resHtml = out.res;
+          html = out.data;
+        } catch (htmlErr) {
+          // Cancelled/timeout/429/5xx/network/cooldown: transient, never a
+          // negative entry (a failed refresh must not downgrade prev either).
           return null;
         }
-        const html = await resHtml.text();
         const stats = parsePriceStatsFromHtml(html);
         if (stats) {
           stats.isShippingPrice = useShipping;
           if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
+          if (useShipping) {
+            // HTML carries no basis: never substitute a product comparison
+            // into the shipping slot — slot reads unavailable/retry later.
+            setCachedPriceStats(productId, null, true, undefined, true);
+            return null;
+          }
           setCachedPriceStats(productId, stats, false, undefined, useShipping);
           return stats;
         } else {
           if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
         }
       } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
+        // Cancelled/timeout: silent, no negative write. Genuine failures keep
+        // the no-downgrade rule (prev with median survives).
+        if (!err?.cancelled && !err?.timeout && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
+        if (!err?.cancelled && !err?.timeout && (!prev || !prev.medianPrice)) setCachedPriceStats(productId, null, true, undefined, useShipping);
       } finally {
         activeFetches.delete(fetchKey);
       }
@@ -4426,7 +4625,8 @@ const SHADOW_MODAL_STYLES = `
       sortByDiscount = false,
       shouldCancelFn = () => false,
       onProgress = null,
-      onComplete = null
+      onComplete = null,
+      signal = null
     } = options;
 
     const cards = getProductCards();
@@ -4439,6 +4639,8 @@ const SHADOW_MODAL_STYLES = `
     for (const card of cards) {
       const pid = getCardProductId(card);
       if (!pid) continue;
+      // Usable entries AND fresh negative markers both skip the fetch (storm
+      // protection); usable-verdicts downstream use hasUsablePriceStats.
       const cached = getCachedPriceStats(pid);
       if (cached) continue;
       const offerCount = extractOfferCount(card);
@@ -4459,7 +4661,7 @@ const SHADOW_MODAL_STYLES = `
 
     try {
       for (let i = 0; i < targets.length; i++) {
-        if (shouldCancelFn()) break;
+        if (isCancelled(signal, shouldCancelFn)) break;
         const item = targets[i];
         Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
         try {
@@ -4474,8 +4676,11 @@ const SHADOW_MODAL_STYLES = `
 
         let stats = null;
         try {
-          stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })());
-          if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+          stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
+          // Card-identity guard: reused/detached cards must not collect an
+          // earlier request's verification.
+          if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
+          else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
         } finally {
           Object.assign(scanState, { currentlyScanningPid: null });
         }
@@ -4486,7 +4691,7 @@ const SHADOW_MODAL_STYLES = `
         // ponytail: progressive paint per verified card (batch CTA asserts
         // badges mid-scan); the pre-fetch full rescan stays removed.
         if (stats) triggerProcessListings();
-        await interruptibleSleep(250, shouldCancelFn);
+        await interruptibleSleep(250, shouldCancelFn, signal);
       }
     } finally {
       Object.assign(scanState, { currentlyScanningPid: null });
@@ -4500,9 +4705,11 @@ const SHADOW_MODAL_STYLES = `
   async function runScan({ minDiscount = 30, onProgress = null, onComplete = null } = {}) {
     if (scanState.isBatchChecking) {
       Object.assign(scanState, { batchCancelRequested: true });
+      try { batchController?.abort(); } catch {}
       return;
     }
     Object.assign(scanState, { isBatchChecking: true, batchCancelRequested: false });
+    batchController = new AbortController();
 
     try {
       const isFeed = isNeueToppreisePage();
@@ -4511,7 +4718,8 @@ const SHADOW_MODAL_STYLES = `
         sortByDiscount: false,
         shouldCancelFn: (() => scanState.batchCancelRequested),
         onProgress,
-        onComplete
+        onComplete,
+        signal: batchController.signal
       });
     } finally {
       Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
@@ -4524,6 +4732,7 @@ const SHADOW_MODAL_STYLES = `
 
   function cancelBatchDealCheck() {
     Object.assign(scanState, { batchCancelRequested: true });
+    try { batchController?.abort(); } catch {}
   }
 
   // ─── MODULE: src/ui/fresh-dismiss.js ────────────────────────────────────────
@@ -4660,14 +4869,15 @@ const SHADOW_MODAL_STYLES = `
   }
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
-    const currentPid = getCardProductId(card);
-    if (!currentPid) return;
+    const reqPid = getCardProductId(card);
+    if (!reqPid) return;
+    const reqBasis = isShippingPriceActive();
+    const reqPrice = extractCanonicalPrice(card).price;
+    const reqCents = priceToCents(reqPrice);
     badgeDifEl.classList.add('tp-deal-loading');
     badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-    const requestTimePrice = extractCanonicalPrice(card).price;
-    const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true, null, Number.isFinite(requestTimePrice) && requestTimePrice > 0 ? requestTimePrice : null);
-    const currentTimePrice = extractCanonicalPrice(card).price;
-    if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
+    const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null);
+    if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || isShippingPriceActive() !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
       badgeDifEl.classList.remove('tp-deal-loading');
       triggerProcessListings();
       return;
@@ -4675,14 +4885,14 @@ const SHADOW_MODAL_STYLES = `
     badgeDifEl.classList.remove('tp-deal-loading');
     if (fetchedStats) {
       armFreshDismiss();
-      markFreshVerified(currentPid);
+      markFreshVerified(reqPid);
       triggerProcessListings();
     } else {
       badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
       badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
       badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
       setTimeout(() => {
-        if (badgeDifEl && !getCachedPriceStats(currentPid)) {
+        if (badgeDifEl && !getCachedPriceStats(reqPid)) {
           triggerProcessListings();
         }
       }, 2500);
@@ -4706,7 +4916,7 @@ const SHADOW_MODAL_STYLES = `
     const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
     const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
-    const verified = !!stats && !stats.unavailable;
+    const verified = hasUsablePriceStats(stats);
     const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
 
     // Blind inset wash: every heatable card gets the same prominent signal,
@@ -4725,7 +4935,7 @@ const SHADOW_MODAL_STYLES = `
       // desync from the card. Verified-only: unverified cards keep the striped
       // `.tp-is-unverified` cue on the badge while the card body still glows.
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-      if (heatBadgeEl && stats) {
+      if (heatBadgeEl && hasUsablePriceStats(stats)) {
         const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
         heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
         heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
@@ -4763,7 +4973,7 @@ const SHADOW_MODAL_STYLES = `
     // (step 6) is the only ungeprüft signal. Loading cards get neither class.
      if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
       card.classList.remove('tp-is-verified');
-     } else if (stats) {
+     } else if (hasUsablePriceStats(stats)) {
        card.classList.add('tp-is-verified');
      } else {
       card.classList.remove('tp-is-verified');
@@ -4864,7 +5074,7 @@ const SHADOW_MODAL_STYLES = `
       }
       // Fresh-injected node missed the heat pass above (it didn't exist yet):
       // re-apply the same badge swatch so first render matches.
-      if (stats && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+      if (hasUsablePriceStats(stats) && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
         const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
         if (badgeHeat) {
           badgeDifEl.style.setProperty('background', badgeHeat.background, 'important');
@@ -4969,7 +5179,7 @@ const SHADOW_MODAL_STYLES = `
           } else {
             histPriceEl.remove();
           }
-        } else if (stats) {
+        } else if (hasUsablePriceStats(stats)) {
           // Verified but no qualifying blend — e.g. minimal fallback stats
           // without median, or above-low. Only a verified MARKUP hides in the
           // mode; a verified low without blend stays visible with Vortief edge
@@ -6279,41 +6489,11 @@ const SHADOW_MODAL_STYLES = `
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
             if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
-            // Coerce to the DEFAULTS type: save clamps, import must not store
-            // NaN/garbage (or legacy numeric strings) raw.
-            const def = DEFAULTS[key];
-            let coerced = val;
-            if (typeof def === 'number') {
-              coerced = typeof val === 'number' ? val : parseFloat(val);
-              if (!Number.isFinite(coerced)) continue;
-              if (key === 'MARGIN_PERCENT') coerced = Math.max(0, Math.min(100, coerced));
-              else if (key === 'DIM_OPACITY') coerced = Math.max(0.05, Math.min(0.95, coerced));
-              else if (key === 'ALARM_TARGET_PERCENT') coerced = Math.max(0.05, Math.min(0.99, coerced));
-              else if (key === 'HEATMAP_INTENSITY') coerced = clampIntensity01(coerced);
-              else if (key === 'BESTPREISE_WEIGHT_RECORD') coerced = Math.max(0, Math.min(1, coerced));
-              else if (key === 'BESTPREISE_MIN_POINTS') coerced = clampMinPoints(coerced);
-              else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
-              else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
-              else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.50, Math.max(0.01, coerced));
-              else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(24, Math.round(coerced)));
-              else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
-              else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
-              else if (key === 'NEGATIVE_CACHE_HOURS') coerced = Math.max(1, Math.min(24, Math.round(coerced)));
-              else if (key === 'OBSERVER_DEBOUNCE_MS') coerced = Math.max(50, Math.min(2000, Math.round(coerced)));
-            } else if (typeof def === 'boolean') {
-              if (val === true || val === 'true') coerced = true;
-              else if (val === false || val === 'false') coerced = false;
-              else continue;
-            } else if (typeof def === 'string') {
-              coerced = String(val);
-              if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(coerced)) continue;
-              if (key === 'ALARM_DURATION_DAYS' && !['90', '180', '365', '730'].includes(coerced)) continue;
-              if ((key === 'FILTER_NEG_MODE' || key === 'FILTER_MIN_MODE' || key === 'HIDE_UNCHECKED_MODE' || key === 'VORTIEF_MODE' || key === 'DEALER_MODE') && !['dim', 'hide'].includes(coerced)) continue;
-              if (key === 'SORT_BY_OFFERS' && !['none', 'desc', 'asc', 'discount-desc'].includes(coerced)) continue;
-            } else {
-              continue;
-            }
-            saveConfigKey(key, coerced);
+            // Single schema: sanitize each imported key, drop unknowns/invalid.
+            if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
+            const clean = sanitizeConfigValue(key, val);
+            if (clean === undefined) continue;
+            saveConfigKey(key, clean);
             count++;
           }
           if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }
@@ -7856,14 +8036,15 @@ const SHADOW_MODAL_STYLES = `
   function renderSparklinePng(timeSeries, width = 360, height = 100) {
     return new Promise(resolve => {
       let done = false;
-      const finish = v => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+      let svgUrl = null;
+      const finish = v => { if (!done) { done = true; clearTimeout(timer); if (svgUrl) try { URL.revokeObjectURL(svgUrl); } catch {} resolve(v); } };
       const timer = setTimeout(() => finish(null), 3000);
       try {
         if (typeof document === 'undefined') return finish(null);
         const svg = renderDiscordChart(timeSeries, width, height);
         if (!svg) return finish(null);
         const svgText = new XMLSerializer().serializeToString(svg);
-        const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+        svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
         const img = new Image();
         const rasterize = source => () => {
           try {
@@ -7871,14 +8052,12 @@ const SHADOW_MODAL_STYLES = `
             canvas.width = width * 2;
             canvas.height = height * 2;
             canvas.getContext('2d').drawImage(source, 0, 0, width * 2, height * 2);
-            URL.revokeObjectURL(svgUrl);
             canvas.toBlob(b => finish(b || null), 'image/png');
           } catch { finish(null); }
         };
         img.onload = rasterize(img);
         // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
         img.onerror = () => {
-          URL.revokeObjectURL(svgUrl);
           const retry = new Image();
           retry.onload = rasterize(retry);
           retry.onerror = () => finish(null);
@@ -7915,6 +8094,7 @@ const SHADOW_MODAL_STYLES = `
             if (res.status >= 200 && res.status < 300 && data) {
               const blob = data instanceof Blob ? data : new Blob([data]);
               if (!blob.size) return reject(new Error('Leeres Bild'));
+              if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu groß'));
               if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
               resolve(blob);
             } else reject(new Error(`Bild-Download ${res.status}`));
@@ -7948,7 +8128,7 @@ const SHADOW_MODAL_STYLES = `
         if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
         if (typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
         const form = new FormData();
-        const body = { content };
+        const body = { content, allowed_mentions: { parse: [] } };
         const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
         if (productBlob) {
           body.embeds = [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }];
@@ -8018,6 +8198,16 @@ const SHADOW_MODAL_STYLES = `
   const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
   const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
   const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim().replace(/\[/g, '(').replace(/\]/g, ')');
+  function escapeDiscordMarkdown(s) {
+    return String(s ?? '').replace(/\\/g, '\\\\').replace(/[`*_~|>]/g, '\\$&');
+  }
+  const isToppreiseProductUrl = u => {
+    try {
+      const parsed = new URL(u);
+      if (parsed.hostname !== 'toppreise.ch' && parsed.hostname !== 'www.toppreise.ch') return false;
+      return parsed.pathname.startsWith('/preisvergleich/');
+    } catch { return false; }
+  };
   function tokenText(name, ctx) {
     switch (name) {
       case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
@@ -8037,11 +8227,11 @@ const SHADOW_MODAL_STYLES = `
     const link = ((fields || {}).url || '').trim();
     const dealerUrl = (fields || {}).dealerUrl || '';
     const ctx = {
-      cleanTitle: cleanTitleOf((fields || {}).title),
+      cleanTitle: escapeDiscordMarkdown(cleanTitleOf((fields || {}).title)),
       link,
       titleTarget: link ? (((fields || {}).suppressProductEmbed && link) ? `<${link}>` : link) : '',
       priceText: (fields || {}).priceText || '',
-      dealer: String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')'),
+      dealer: escapeDiscordMarkdown(String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')')),
       dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
       offerCount: (fields || {}).offerCount || 0,
       spark: (fields || {}).spark || '',
@@ -8116,6 +8306,7 @@ const SHADOW_MODAL_STYLES = `
       else try { imageUrl = new URL(imageUrl, location.href).href; } catch { imageUrl = ''; }
     }
     if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
+    if (url && !isToppreiseProductUrl(url)) url = '';
     return { title, url, imageUrl };
   }
 
@@ -8132,7 +8323,7 @@ const SHADOW_MODAL_STYLES = `
     if (url && !/^https?:\/\//i.test(url)) {
       try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
     }
-    return url;
+    return /^https:/i.test(url) ? url : '';
   }
 
   // Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
@@ -8199,6 +8390,7 @@ const SHADOW_MODAL_STYLES = `
     try {
       if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
       if (!/^https?:\/\//i.test(productUrl || '')) return out;
+      if (!isToppreiseProductUrl(productUrl)) return out;
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
       const res = await fetch(productUrl, { signal: ctrl?.signal });
@@ -8236,7 +8428,7 @@ const SHADOW_MODAL_STYLES = `
     return new Promise((resolve, reject) => {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       const url = webhookUrl.trim();
-      const body = { content };
+      const body = { content, allowed_mentions: { parse: [] } };
       if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
       if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
       const payload = JSON.stringify(body);
@@ -8261,6 +8453,7 @@ const SHADOW_MODAL_STYLES = `
    * Also paints the native bell trigger with the 3-state auto-fill mode
    * (off / fill-only / auto-submit) plus a cog jumping to its settings.
    */
+
 
 
 
@@ -8376,9 +8569,20 @@ const SHADOW_MODAL_STYLES = `
 
   const clearAlarmTimers = modal => {
     const raw = modal.dataset.tpAlarmTimers;
-    if (!raw) return;
-    raw.split(',').forEach(id => clearTimeout(Number(id)));
+    if (raw) raw.split(',').forEach(id => clearTimeout(Number(id)));
     delete modal.dataset.tpAlarmTimers;
+    try { modal._tpAlarmObserver?.disconnect(); } catch {}
+    modal._tpAlarmObserver = null;
+  };
+
+  const ensureAlarmStatus = modal => {
+    let el = modal.querySelector('.tp-alarm-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'tp-alarm-status';
+      modal.appendChild(el);
+    }
+    return el;
   };
 
   function processPriceAlarmModal() {
@@ -8396,67 +8600,79 @@ const SHADOW_MODAL_STYLES = `
 
     const presentValue = parsePrice(priceEl.textContent);
     if (!(presentValue > 0)) return;
-    modalContainer.dataset.tpAlarmProcessed = 'true';
 
     const targetPrice = (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2);
     const duration = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
     const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
-    if (priceInput) {
-      priceInput.value = targetPrice;
-      priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-      priceInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
     const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
+    const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
+    // Missing-controls: no submission, no processed flag — next DOM pass retries.
+    if (!priceInput || (!durationHidden && !durationLi)) return;
+    priceInput.value = targetPrice;
+    priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    priceInput.dispatchEvent(new Event('change', { bubbles: true }));
     if (durationHidden) {
       durationHidden.value = duration;
       durationHidden.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    modalContainer.querySelector(`li[data-value="${duration}"]`)?.click();
+    durationLi?.click();
+    // Read-back revalidation: partial fills retry on the next observer pass.
+    if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return;
+    modalContainer.dataset.tpAlarmProcessed = 'true';
 
-    if (CONFIG.ALARM_AUTO_SUBMIT) {
-      const termsCheckbox = modalContainer.querySelector('input#im_nimf_prtrm');
-      if (termsCheckbox) {
-        termsCheckbox.checked = true;
-        termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-
+    if (CONFIG.ALARM_AUTO_SUBMIT === true) {
+      const reqModal = modalContainer;
+      const reqValue = priceInput.value;
+      const unconfirmedMsg = '⚠️ Übermittlung nicht bestätigt — bitte prüfen';
+      const flagUnconfirmed = () => {
+        const cur = document.querySelector('.Plugin_NewInfoMailForm');
+        if (!cur) return;
+        const el = ensureAlarmStatus(cur);
+        // Guarded write: the observer watches this subtree, so an unguarded
+        // textContent assignment would re-trigger it into a microtask loop.
+        if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
+      };
       try {
         const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
-        let closeFired = false;
         let fallbackTimer = 0;
-        let observer = null;
-        const clickCloseOnce = () => {
-          if (closeFired) return;
-          closeFired = true;
-          try { observer?.disconnect(); } catch {}
-          clearTimeout(fallbackTimer);
-          const closeBtn = modalContainer.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
-                           document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
-          if (closeBtn) closeBtn.click();
-          else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
-        };
+        // Observe BEFORE submit: close only on a success signal — button/form
+        // detachment alone never closes.
+        const observer = new MutationObserver(() => {
+          if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
+            try { observer.disconnect(); } catch {}
+            clearTimeout(fallbackTimer);
+            reqModal._tpAlarmObserver = null;
+            const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
+                             document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
+            if (closeBtn) closeBtn.click();
+            else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+          } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
+            try { observer.disconnect(); } catch {}
+            clearTimeout(fallbackTimer);
+          } else {
+            flagUnconfirmed();
+          }
+        });
+        observer.observe(dialogRoot, { childList: true, subtree: true });
+        reqModal._tpAlarmObserver = observer;
+        fallbackTimer = setTimeout(() => {
+          try { observer.disconnect(); } catch {}
+          reqModal._tpAlarmObserver = null;
+          flagUnconfirmed();
+        }, 5000);
         const submitTimer = setTimeout(() => {
-          const submitBtn = modalContainer.querySelector('input.f_submitbtn');
-          if (!submitBtn) {
-            if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Submit-Button gefunden');
-            return;
+          // Pre-submit revalidation: basis/config may have changed mid-wait.
+          if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return;
+          const submitBtn = reqModal.querySelector('input.f_submitbtn');
+          if (!submitBtn || priceInput.value !== reqValue) return;
+          const termsCheckbox = reqModal.querySelector('input#im_nimf_prtrm');
+          if (termsCheckbox) {
+            termsCheckbox.checked = true;
+            termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
           }
           submitBtn.click();
-          // Close once the submit round-trips (button/form leaves the DOM or a
-          // success node appears) instead of after a blind delay.
-          const form = submitBtn.closest('form') || submitBtn;
-          observer = new MutationObserver(() => {
-            if (!document.contains(submitBtn) || !document.contains(form) ||
-                modalContainer.querySelector('.success, .confirmation, [class*="success" i], [class*="confirm" i]')) {
-              clickCloseOnce();
-            }
-          });
-          observer.observe(dialogRoot, { childList: true, subtree: true });
-          fallbackTimer = setTimeout(clickCloseOnce, 5000);
-          modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
         }, 300);
-        modalContainer.dataset.tpAlarmTimers = String(submitTimer);
+        modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
       }
@@ -8577,11 +8793,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
@@ -8617,54 +8833,75 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       isModifyingDOM = false;
       if (mainObserver) {
         mainObserver.takeRecords();
-        mainObserver.observe(document.documentElement, { childList: true, subtree: true });
+        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
       }
     }
   }
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
+  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href'] };
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price';
+  const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
+  const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
+  const cardOf = n => {
+    if (n?.nodeType !== 1) return null;
+    if (typeof n.matches === 'function' && n.matches(TP_CARD_SEL)) return n;
+    return n.closest?.(TP_CARD_SEL) ?? null;
+  };
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
 
-    const hasRelevantMutation = mutations.some(m => {
+    let dirtyCard = false;
+    let structural = false;
+    const checkNode = node => {
+      if (!node || node.nodeType !== 1) return false;
+      if (isOwnedNode(node)) return false;
+      if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
+      if (node.classList?.contains('tp-card-subline-row') ||
+          node.classList?.contains('tp-sparkline-container') ||
+          node.classList?.contains('tp-best-price-badge') ||
+          node.classList?.contains('tp-empty-state-notice')) {
+        return false;
+      }
+      return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
+             !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
+    };
+
+    for (const m of mutations) {
       const target = m.target;
-      if (!target) return false;
-
-      // Ignore mutations inside our own root UI, filter bar, or floating CTA
-      if (target.id === 'tp-root' || target.closest?.('#tp-root')) return false;
-      if (target.id === 'tp-suite-filter-bar' || target.closest?.('#tp-suite-filter-bar')) return false;
-      if (target.id === 'tp-floating-check-cta' || target.closest?.('#tp-floating-check-cta')) return false;
-
+      if (!target) continue;
       // Ignore mutations inside document.head (DarkReader dynamic styles, font loading, etc.)
-      if (target === document.head || target.closest?.('head')) return false;
+      if (target === document.head || target.closest?.('head')) continue;
+      const targetEl = target.nodeType === 1 ? target : target.parentElement;
+      // Ignore script-owned paint (own root UI, filter bar, CTA, badges).
+      if (targetEl?.closest?.(TP_OWNED_SEL)) continue;
 
-      // If the mutation target is inside an existing card, ignore it (image lazyloads, badges, tooltips)
-      if (target.closest?.('.Plugin_Product, .mixedBrowsingListProduct')) return false;
-
-      const checkNode = node => {
-        if (!node || node.nodeType !== 1) return false;
-        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
-        if (node.classList?.contains('tp-card-subline-row') ||
-            node.classList?.contains('tp-sparkline-container') ||
-            node.classList?.contains('tp-best-price-badge') ||
-            node.classList?.contains('tp-empty-state-notice')) {
-          return false;
+      // In-card host mutation (price text/attribute swap, node replacement):
+      // invalidate the card memo so re-render rebuilds instead of repainting stale data.
+      const hit = cardOf(targetEl);
+      if (hit) {
+        let self = false;
+        for (const n of [...m.addedNodes, ...m.removedNodes]) {
+          if (isOwnedNode(n)) { self = true; break; }
+          if (cardOf(n)) continue;
         }
-        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
-               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
-      };
+        if (self) continue;
+        clearCardCache(hit);
+        dirtyCard = true;
+        continue;
+      }
 
       for (let i = 0; i < m.addedNodes.length; i++) {
-        if (checkNode(m.addedNodes[i])) return true;
+        if (checkNode(m.addedNodes[i])) { structural = true; break; }
       }
-      for (let i = 0; i < m.removedNodes.length; i++) {
-        if (checkNode(m.removedNodes[i])) return true;
+      if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
+        if (checkNode(m.removedNodes[i])) { structural = true; break; }
       }
-      return false;
-    });
+      if (dirtyCard && structural) break;
+    }
 
-    if (!hasRelevantMutation) return;
+    if (!dirtyCard && !structural) return;
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -8676,7 +8913,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     }, CONFIG.OBSERVER_DEBOUNCE_MS);
   });
 
-  mainObserver.observe(document.documentElement, { childList: true, subtree: true });
+  mainObserver.observe(document.documentElement, OBSERVE_OPTS);
 
   // Host price-basis toggle (product vs shipping): attribute-only observer on
   // body, separate from the main subtree observer. Rare event, no debounce.
@@ -8695,6 +8932,12 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   document.addEventListener('keydown', e => {
     // Skip if modifier keys other than none
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Escape always leaves the negative-input first, even while typing.
+    if (e.key === 'Escape') {
+      const negInput = document.getElementById('tp-inline-negative-input');
+      if (negInput && document.activeElement === negInput) negInput.blur();
+      return;
+    }
     // Skip if user is typing in an input/textarea/select or contenteditable
     const tag = document.activeElement?.tagName;
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || document.activeElement?.isContentEditable) return;
@@ -8710,16 +8953,12 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         input.focus();
         input.select();
       }
-    } else if (e.key === 'Escape') {
-      const input = document.getElementById('tp-inline-negative-input');
-      if (input && document.activeElement === input) {
-        input.blur();
-      }
     }
   });
 
   if (self.navigation?.addEventListener) {
     self.navigation.addEventListener('navigatesuccess', () => {
+      cancelBatchDealCheck();
       clearDealerAutoTried();
       processListings();
       processPriceAlarmModal();
@@ -8737,34 +8976,50 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    window.ToppreiseSuite = {
-      processListings,
-      processPriceAlarmModal,
-      processProductDetailPage,
-      updateConfig,
-      openSettingsAt,
-      saveConfigKey,
-      startBatchCheck,
-      runBatchDealCheck,
-      cancelBatchDealCheck,
-      getCardDealerRows,
-      isCardFilteredOut,
-      clearCardCache,
-      computeDealScore,
-      analyzePriceTimeSeries,
-      parsePrice,
-      isShippingPriceActive,
-      // Live view on CONFIG (test harness mutates flags through it), with the
-      // webhook masked: page JS reads '' and cannot overwrite the secret.
-      CONFIG: new Proxy(CONFIG, {
-        get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
-        set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
-        getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
-        defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
-        deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
-      }),
-      memoryCache,
-      statsKey
-    };
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.258';
+    const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
+    if (isDebugHost) {
+      window.ToppreiseSuite = {
+        processListings,
+        processPriceAlarmModal,
+        processProductDetailPage,
+        updateConfig,
+        openSettingsAt,
+        saveConfigKey,
+        startBatchCheck,
+        runBatchDealCheck,
+        cancelBatchDealCheck,
+        getCardDealerRows,
+        isCardFilteredOut,
+        clearCardCache,
+        computeDealScore,
+        analyzePriceTimeSeries,
+        parsePrice,
+        isShippingPriceActive,
+        // Live view on CONFIG (test harness mutates flags through it), with the
+        // webhook masked: page JS reads '' and cannot overwrite the secret.
+        CONFIG: new Proxy(CONFIG, {
+          get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
+          set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
+          getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
+          defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
+          deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
+        }),
+        memoryCache,
+        statsKey
+      };
+    } else {
+      // Production: frozen minimal handle. processListings stays — async
+      // re-renders fall through to window.ToppreiseSuite.processListings.
+      window.ToppreiseSuite = Object.freeze({
+        version: suiteVersion,
+        processListings,
+        snapshot: () => ({
+          checkedCount: scanState.progress.completed,
+          queueLength: Math.max(0, scanState.progress.total - scanState.progress.completed),
+          shippingActive: (() => { try { return isShippingPriceActive(); } catch { return false; } })()
+        })
+      });
+    }
   }
 })();

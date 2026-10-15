@@ -4,7 +4,7 @@ import {
   analyzePriceTimeSeries
 } from './domain/price.js';
 import { computeDealScore } from './domain/deal-score.js';
-import { memoryCache, statsKey } from './scanner/cache.js';
+import { memoryCache, statsKey, hasUsablePriceStats } from './scanner/cache.js';
 import {
   getProductCards,
   parseNegativeTerms,
@@ -50,7 +50,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.258
+// @version      2.18.259
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -108,11 +108,11 @@ import { processProductDetailPage } from './features/product-detail.js';
       for (const cd of cardDataList) {
         cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isNeueFeed);
         if (isNeueFeed) {
-          if (cd.pid && !cd.stats && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.stats) && cd.discountVal !== null && cd.discountVal >= minDealDiscount && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         } else {
-          if (cd.pid && !cd.stats && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
+          if (cd.pid && !hasUsablePriceStats(cd.stats) && !isCardFilteredOut(cd.card, cd.filters, { forScan: true })) {
             counts.uncheckedDeals++;
           }
         }
@@ -148,54 +148,75 @@ import { processProductDetailPage } from './features/product-detail.js';
       isModifyingDOM = false;
       if (mainObserver) {
         mainObserver.takeRecords();
-        mainObserver.observe(document.documentElement, { childList: true, subtree: true });
+        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
       }
     }
   }
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
+  const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href'] };
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price';
+  const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
+  const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
+  const cardOf = n => {
+    if (n?.nodeType !== 1) return null;
+    if (typeof n.matches === 'function' && n.matches(TP_CARD_SEL)) return n;
+    return n.closest?.(TP_CARD_SEL) ?? null;
+  };
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
 
-    const hasRelevantMutation = mutations.some(m => {
+    let dirtyCard = false;
+    let structural = false;
+    const checkNode = node => {
+      if (!node || node.nodeType !== 1) return false;
+      if (isOwnedNode(node)) return false;
+      if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
+      if (node.classList?.contains('tp-card-subline-row') ||
+          node.classList?.contains('tp-sparkline-container') ||
+          node.classList?.contains('tp-best-price-badge') ||
+          node.classList?.contains('tp-empty-state-notice')) {
+        return false;
+      }
+      return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
+             !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
+    };
+
+    for (const m of mutations) {
       const target = m.target;
-      if (!target) return false;
-
-      // Ignore mutations inside our own root UI, filter bar, or floating CTA
-      if (target.id === 'tp-root' || target.closest?.('#tp-root')) return false;
-      if (target.id === 'tp-suite-filter-bar' || target.closest?.('#tp-suite-filter-bar')) return false;
-      if (target.id === 'tp-floating-check-cta' || target.closest?.('#tp-floating-check-cta')) return false;
-
+      if (!target) continue;
       // Ignore mutations inside document.head (DarkReader dynamic styles, font loading, etc.)
-      if (target === document.head || target.closest?.('head')) return false;
+      if (target === document.head || target.closest?.('head')) continue;
+      const targetEl = target.nodeType === 1 ? target : target.parentElement;
+      // Ignore script-owned paint (own root UI, filter bar, CTA, badges).
+      if (targetEl?.closest?.(TP_OWNED_SEL)) continue;
 
-      // If the mutation target is inside an existing card, ignore it (image lazyloads, badges, tooltips)
-      if (target.closest?.('.Plugin_Product, .mixedBrowsingListProduct')) return false;
-
-      const checkNode = node => {
-        if (!node || node.nodeType !== 1) return false;
-        if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
-        if (node.classList?.contains('tp-card-subline-row') ||
-            node.classList?.contains('tp-sparkline-container') ||
-            node.classList?.contains('tp-best-price-badge') ||
-            node.classList?.contains('tp-empty-state-notice')) {
-          return false;
+      // In-card host mutation (price text/attribute swap, node replacement):
+      // invalidate the card memo so re-render rebuilds instead of repainting stale data.
+      const hit = cardOf(targetEl);
+      if (hit) {
+        let self = false;
+        for (const n of [...m.addedNodes, ...m.removedNodes]) {
+          if (isOwnedNode(n)) { self = true; break; }
+          if (cardOf(n)) continue;
         }
-        return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
-               !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
-      };
+        if (self) continue;
+        clearCardCache(hit);
+        dirtyCard = true;
+        continue;
+      }
 
       for (let i = 0; i < m.addedNodes.length; i++) {
-        if (checkNode(m.addedNodes[i])) return true;
+        if (checkNode(m.addedNodes[i])) { structural = true; break; }
       }
-      for (let i = 0; i < m.removedNodes.length; i++) {
-        if (checkNode(m.removedNodes[i])) return true;
+      if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
+        if (checkNode(m.removedNodes[i])) { structural = true; break; }
       }
-      return false;
-    });
+      if (dirtyCard && structural) break;
+    }
 
-    if (!hasRelevantMutation) return;
+    if (!dirtyCard && !structural) return;
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -207,7 +228,7 @@ import { processProductDetailPage } from './features/product-detail.js';
     }, CONFIG.OBSERVER_DEBOUNCE_MS);
   });
 
-  mainObserver.observe(document.documentElement, { childList: true, subtree: true });
+  mainObserver.observe(document.documentElement, OBSERVE_OPTS);
 
   // Host price-basis toggle (product vs shipping): attribute-only observer on
   // body, separate from the main subtree observer. Rare event, no debounce.
@@ -226,6 +247,12 @@ import { processProductDetailPage } from './features/product-detail.js';
   document.addEventListener('keydown', e => {
     // Skip if modifier keys other than none
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Escape always leaves the negative-input first, even while typing.
+    if (e.key === 'Escape') {
+      const negInput = document.getElementById('tp-inline-negative-input');
+      if (negInput && document.activeElement === negInput) negInput.blur();
+      return;
+    }
     // Skip if user is typing in an input/textarea/select or contenteditable
     const tag = document.activeElement?.tagName;
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || document.activeElement?.isContentEditable) return;
@@ -241,16 +268,12 @@ import { processProductDetailPage } from './features/product-detail.js';
         input.focus();
         input.select();
       }
-    } else if (e.key === 'Escape') {
-      const input = document.getElementById('tp-inline-negative-input');
-      if (input && document.activeElement === input) {
-        input.blur();
-      }
     }
   });
 
   if (self.navigation?.addEventListener) {
     self.navigation.addEventListener('navigatesuccess', () => {
+      cancelBatchDealCheck();
       clearDealerAutoTried();
       processListings();
       processPriceAlarmModal();
@@ -268,34 +291,50 @@ import { processProductDetailPage } from './features/product-detail.js';
   }
 
   if (typeof window !== 'undefined') {
-    window.ToppreiseSuite = {
-      processListings,
-      processPriceAlarmModal,
-      processProductDetailPage,
-      updateConfig,
-      openSettingsAt,
-      saveConfigKey,
-      startBatchCheck,
-      runBatchDealCheck,
-      cancelBatchDealCheck,
-      getCardDealerRows,
-      isCardFilteredOut,
-      clearCardCache,
-      computeDealScore,
-      analyzePriceTimeSeries,
-      parsePrice,
-      isShippingPriceActive,
-      // Live view on CONFIG (test harness mutates flags through it), with the
-      // webhook masked: page JS reads '' and cannot overwrite the secret.
-      CONFIG: new Proxy(CONFIG, {
-        get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
-        set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
-        getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
-        defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
-        deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
-      }),
-      memoryCache,
-      statsKey
-    };
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.258';
+    const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
+    if (isDebugHost) {
+      window.ToppreiseSuite = {
+        processListings,
+        processPriceAlarmModal,
+        processProductDetailPage,
+        updateConfig,
+        openSettingsAt,
+        saveConfigKey,
+        startBatchCheck,
+        runBatchDealCheck,
+        cancelBatchDealCheck,
+        getCardDealerRows,
+        isCardFilteredOut,
+        clearCardCache,
+        computeDealScore,
+        analyzePriceTimeSeries,
+        parsePrice,
+        isShippingPriceActive,
+        // Live view on CONFIG (test harness mutates flags through it), with the
+        // webhook masked: page JS reads '' and cannot overwrite the secret.
+        CONFIG: new Proxy(CONFIG, {
+          get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
+          set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
+          getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
+          defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
+          deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
+        }),
+        memoryCache,
+        statsKey
+      };
+    } else {
+      // Production: frozen minimal handle. processListings stays — async
+      // re-renders fall through to window.ToppreiseSuite.processListings.
+      window.ToppreiseSuite = Object.freeze({
+        version: suiteVersion,
+        processListings,
+        snapshot: () => ({
+          checkedCount: scanState.progress.completed,
+          queueLength: Math.max(0, scanState.progress.total - scanState.progress.completed),
+          shippingActive: (() => { try { return isShippingPriceActive(); } catch { return false; } })()
+        })
+      });
+    }
   }
 })();

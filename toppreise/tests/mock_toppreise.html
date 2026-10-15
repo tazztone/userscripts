@@ -504,8 +504,10 @@
           document.querySelector('#mock-alarm-dialog').dataset.submitted = 'true';
           document.querySelector('#mock-alarm-dialog').dataset.submittedAt = Date.now();
           // Real site replaces the form via AJAX on success: drop the button
-          // so the suite's submit-observer (not a blind timer) closes us.
-          setTimeout(() => submitBtn.remove(), 200);
+          // and render a confirmation so the suite's submit-observer (close
+          // on success signal, not blind timer) closes us. Opt out per test
+          // with window.__tpMockAlarmSuccess = false (unconfirmed path).
+          setTimeout(() => { submitBtn.remove(); if (window.__tpMockAlarmSuccess !== false) document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm')?.insertAdjacentHTML('beforeend', '<div class="success">Preisalarm gespeichert</div>'); }, 200);
         });
       }
 

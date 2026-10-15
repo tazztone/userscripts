@@ -84,18 +84,23 @@ def test_exact_cent_boundary_badge_states(page: Page):
 
 
 def test_price_alarm_automation(page: Page):
+    # Auto-submit is opt-in (default false): enable it, reset the load-time
+    # fill pass, then drive the modal deterministically.
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('ALARM_ENABLED', true); window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true); }")
     page.evaluate("""() => {
+      delete document.querySelector('.Plugin_NewInfoMailForm').dataset.tpAlarmProcessed;
       document.querySelector('#mock-alarm-dialog').style.display = 'block';
+      window.ToppreiseSuite?.processPriceAlarmModal?.();
     }""")
     page.wait_for_timeout(250)
 
     price_val = page.locator('#f_NewInfoMailForm_priceFrom').input_value()
     # 60% of CHF 1000.00 = 600.00
     assert price_val == '600.00'
-    assert page.locator('#im_nimf_prtrm').is_checked()
 
-    # Pre-submit delay (300ms): after 450ms total, it should have submitted
-    page.wait_for_timeout(250)
+    # Submit timer (300ms) ticks the terms box then clicks submit
+    page.wait_for_timeout(600)
+    assert page.locator('#im_nimf_prtrm').is_checked()
     assert page.locator('#mock-alarm-dialog').get_attribute('data-submitted') == 'true'
 
     # Grace period before closing (800ms after submit): wait until 1300ms total
@@ -108,10 +113,10 @@ def test_alarm_bell_three_states_and_cog(page: Page):
     bells = page.locator('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog')
     assert bells.count() == 2
     bell = page.locator('#mock-alarm-bell')
-    # Default config (enabled + auto-submit): auto state, live numbers in title
+    # Default config (enabled + fill-only): fill state, live numbers in title
     for i in range(2):
-        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'auto'
-    assert 'tp-alarm-auto' in (bell.get_attribute('class') or '')
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'fill'
+    assert 'tp-alarm-fill' in (bell.get_attribute('class') or '')
     assert '60%' in (bell.get_attribute('title') or '')
     cogs = page.locator('.tp-alarm-cog')
     assert cogs.count() == 2
@@ -121,21 +126,26 @@ def test_alarm_bell_three_states_and_cog(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     assert page.locator('#tp-root >> #tp-section-alarm').is_visible()
 
-    # Fill-only and off states repaint live via updateConfig (no reload)
+    # Auto, fill-only and off states repaint live via updateConfig (no reload)
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true)")
+    for i in range(2):
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'auto'
     page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', false)")
     for i in range(2):
         assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'fill'
     page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_ENABLED', false)")
     for i in range(2):
         assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'off'
-    page.evaluate("() => { window.ToppreiseSuite.updateConfig('ALARM_ENABLED', true); window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true); }")
+    page.evaluate("() => { window.ToppreiseSuite.updateConfig('ALARM_ENABLED', true); window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', false); }")
     for i in range(2):
-        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'auto'
+        assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'fill'
 
 def test_alarm_bell_ajax_injected(page: Page):
     # Bell injected after load (offer tabs / AJAX content) is painted via the
     # main observer within one debounce window; body-level insertion mirrors
     # the fixture containers. Fixture already provides 2 bells + 2 cogs.
+    # Auto-submit is opt-in (default fill): enable it so the injected bell paints auto.
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true)")
     page.evaluate("""() => {
         document.body.insertAdjacentHTML('beforeend',
             '<div data-context-hash="mock3" data-ajax-url="/plugins/infomails/NewInfoMailButton" data-prod-id="797573" data-templ="btn" class="Plugin_NewInfoMailButton hoverBox">' +
@@ -488,16 +498,26 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     requested_pids = []
     def handle_pricechart(route):
         post_data = route.request.post_data or ''
+        import json as _json
+        import time as _time
         import urllib.parse
         parsed = urllib.parse.parse_qs(post_data)
         pid = parsed.get('pcspagdpi', [''])[0]
         requested_pids.append(pid)
-        route.fulfill(
-            status=200,
-            headers={'access-control-allow-origin': '*'},
-            content_type='text/html',
-            body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">500.00</div></div>'
-        )
+        # Live shape: POST returns the JSON series pair (verifies in either
+        # price basis), GET the HTML modal fallback. Flat at 500: the
+        # 1800-CHF card stays a +260% severe markup (tp-deal-not-low).
+        if route.request.method == 'POST':
+            _now = int(_time.time() * 1000)
+            _series = [[_now - (9 - i) * 86400 * 1000, 500.00] for i in range(10)]
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='application/json', body=_json.dumps([_series, _series]))
+        else:
+            route.fulfill(
+                status=200,
+                headers={'access-control-allow-origin': '*'},
+                content_type='text/html',
+                body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">500.00</div></div>'
+            )
     page.route('**/plugins/product/pricechart*', handle_pricechart)
 
     # 3. Click floating CTA -> should only scan card-cheapest (pid 797571), NOT the ignored cards
@@ -550,18 +570,20 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
 
 
 def test_product_detail_page_deal_badge(page: Page):
-    # Mock route for product detail chart
-    page.route('**/plugins/product/pricechart*840582*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='''
-        <div class="PriceChartLegend">
-          <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">350.90</div></div>
-          <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">700.00</div></div>
-        </div>
-        '''
-    ))
+    # Live shape: the detail flow POSTs (pid in body, not URL) then GETs.
+    # POST history declines 700 -> 350.90 so the analysis carries the peak
+    # context (title 'CHF 700.00'); GET is the HTML modal fallback.
+    import json as _json
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _hist = [[_now - (9 - i) * _day, 700.00] for i in range(9)] + [[_now, 350.90]]
+    def _handle_detail(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='application/json', body=_json.dumps([_hist, _hist]))
+        else:
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">350.90</div></div><div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">700.00</div></div></div>')
+    page.route('**/plugins/product/pricechart*', _handle_detail)
 
     # Setup detail page DOM structure
     page.evaluate('''() => {
@@ -692,7 +714,9 @@ def test_real_world_toppreise_pricechart_html_parsing(page: Page):
         content_type='text/html',
         body=real_toppreise_html
     ))
-
+    # HTML carries no price basis: the shipping slot refuses it, so verify in
+    # product mode (POST HTML never parses as JSON; GET fallback parses this layout).
+    page.evaluate("() => { document.body.classList.remove('showshippingprice'); document.body.classList.add('showproductprice'); }")
     # Click Differenz badge on card-cheapest (price 1800 CHF vs Tiefstpreis 79.45 CHF -> +2166% markup)
     page.click('#card-cheapest .badge-dif')
 
@@ -701,14 +725,6 @@ def test_real_world_toppreise_pricechart_html_parsing(page: Page):
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-not-low')
     assert '+2166%' in (badge.text_content() or '')
 
-    # Now verify all-time low case when Tiefstpreis matches card price (1800 CHF)
-    real_alltime_low_html = real_toppreise_html.replace('79.45', '1800.00')
-    page.route('**/plugins/product/pricechart*456*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body=real_alltime_low_html
-    ))
     # card-negative has product id 456, price 15 CHF -> let's make mock match 15.00
     real_negative_html = real_toppreise_html.replace('79.45', '15.00')
     page.route('**/plugins/product/pricechart*456*', lambda route: route.fulfill(
@@ -731,7 +747,9 @@ def test_category_page_single_card_on_demand_check_renders_percentage_and_halo(p
     # Mock price chart series for product 797571
     # Card price is 1800.00. Set historical prices with median 2400.00, previous low 2100.00
     page.evaluate('''() => {
-        document.body.className = 'color_bg Page_Browsing';
+        // Bare product-shape series only verifies in the product slot: the
+        // shipping slot refuses it (basis guard), so check in product mode.
+        document.body.className = 'color_bg Page_Browsing showproductprice';
         document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
         document.querySelectorAll('.badge-dif').forEach(b => b.remove());
 
@@ -787,7 +805,8 @@ def test_category_page_single_card_on_demand_check_renders_percentage_and_halo(p
 def test_category_page_batch_check_scans_visible_cards(page: Page):
     # Setup mock for all products
     page.evaluate('''() => {
-        document.body.className = 'color_bg Page_Browsing';
+        // Bare product-shape series only verifies in the product slot (see above).
+        document.body.className = 'color_bg Page_Browsing showproductprice';
         document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
         window.localStorage.clear();
         document.querySelectorAll('.badge-dif').forEach(b => b.remove());
@@ -811,7 +830,7 @@ def test_category_page_batch_check_scans_visible_cards(page: Page):
                     text: async () => JSON.stringify(points)
                 };
             }
-            return { ok: false, status: 404 };
+            return { ok: false, status: 404, headers: new Headers(), json: async () => null, text: async () => '', clone() { return this; } };
         };
 
         window.ToppreiseSuite?.processListings?.();
@@ -955,14 +974,19 @@ def test_negative_caching_and_manual_click_override(page: Page):
     cached = page.evaluate("() => window.ToppreiseSuite?.CONFIG ? localStorage.getItem('tp_hist_v1_797571') : null")
     assert 'unavailable' in (cached or '')
 
-    # Manual click bypasses negative cache and fetches fresh stats
-    page.route('**/plugins/product/pricechart*797571*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>'
-    ))
-
+    # Manual click bypasses negative cache and fetches fresh stats. Live shape:
+    # POST returns the JSON series pair, GET the HTML modal fallback.
+    import json as _json
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _series = [[_now - (9 - i) * 86400 * 1000, 1800.00] for i in range(10)]
+    def _handle_neg(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='application/json', body=_json.dumps([_series, _series]))
+        else:
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body='<div class="PriceChartLegend"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>')
+    # POST carries the pid in the body, not the URL: match broadly (only this card is checked).
+    page.route('**/plugins/product/pricechart*', _handle_neg)
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-alltime-low')

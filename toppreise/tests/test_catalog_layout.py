@@ -1887,6 +1887,10 @@ def test_shipping_price_mismatch(browser, userscript_content):
     test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
     # Custom navigation (not the conftest page fixture): evaluate bundle directly.
     page.goto(f'file://{test_html_path}')
+    # Full ToppreiseSuite harness (CONFIG et al.) exists only with DEBUG,
+    # mirroring the shared page fixture in conftest.py.
+    page.evaluate("() => localStorage.clear()")
+    page.evaluate("() => { localStorage.setItem('tp_suite_v2_DEBUG', 'true'); localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true'); }")
     page.evaluate(userscript_content)
 
     drop_store_filter(page)
@@ -2270,6 +2274,10 @@ def test_showproductprice_vs_showshippingprice_consistency(browser, userscript_c
     test_html_path = os.path.join(os.path.dirname(__file__), 'mock_toppreise.html')
     page = browser.new_page()
     page.goto(f'file://{test_html_path}')
+    # Full ToppreiseSuite harness (isShippingPriceActive et al.) exists only
+    # with DEBUG, mirroring the shared page fixture in conftest.py.
+    page.evaluate("() => localStorage.clear()")
+    page.evaluate("() => { localStorage.setItem('tp_suite_v2_DEBUG', 'true'); localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true'); }")
     page.evaluate(userscript_content)
 
     # Mock pricechart response with distinct series:
@@ -2514,7 +2522,7 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('input', {bubbles: true}));
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
-    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('3 Glitches gefiltert')")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches')")
     page.select_option('#tp-preview-preset-select', 'ssd990')
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('37%')")
     page.evaluate("""() => {
@@ -2537,7 +2545,7 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         t.dispatchEvent(new Event('input', {bubbles: true}));
         t.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
-    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('Glitches gefiltert')")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('Glitches')")
     opaque = page.evaluate("""() => {
         const cs = getComputedStyle(document.getElementById('tp-bar-calc-popover'));
         return { bg: cs.backgroundColor, borderTop: cs.borderTopWidth };
@@ -2561,9 +2569,9 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('input', {bubbles: true}));
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
-    page.wait_for_function("() => document.querySelectorAll('#tp-preview-svg polyline').length === 1")
-    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-main').points.numberOfItems") == 31
-    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-cut')") is None
+    page.wait_for_function("() => document.querySelectorAll('#tp-preview-svg polyline').length === 3")
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-main').points.numberOfItems") == 230
+    assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-cut')") is not None
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-weight-range');
         r.value = '100';
@@ -2584,7 +2592,7 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('input', {bubbles: true}));
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
-    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches')")
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg text[fill=\"#f43f5e\"]').length") == 0
     page.evaluate("() => document.getElementById('tp-bar-calc-reset').click()")
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
@@ -2594,8 +2602,8 @@ def test_calc_preview_live_in_calc_popover(page: Page):
         r.dispatchEvent(new Event('input', {bubbles: true}));
         r.dispatchEvent(new Event('change', {bubbles: true}));
     }""")
-    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches gefiltert')")
-    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('(48 h, ±20 %)')")
+    page.wait_for_function("() => document.getElementById('tp-preview-legend')?.textContent?.includes('0 Glitches')")
+    page.wait_for_function("() => document.getElementById('tp-bar-outlier-band-label')?.textContent?.includes('±20 %')")
     assert page.evaluate("() => document.querySelectorAll('#tp-preview-svg .tp-pv-band').length") == 1
     assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').tagName") == 'polygon'
     assert page.evaluate("() => document.querySelector('#tp-preview-svg .tp-pv-band').getAttribute('fill')") == '#3b82f6'
@@ -2684,6 +2692,10 @@ def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):
     from conftest import MOCK_HTML
     page.evaluate("""() => {
         localStorage.clear();
+        // Full-harness markers (mirroring conftest.py): the manually
+        // evaluated bundle below only exposes CONFIG with DEBUG set.
+        localStorage.setItem('tp_suite_v2_DEBUG', 'true');
+        localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true');
         for (const k of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'])
             localStorage.setItem('tp_suite_v2_' + k, JSON.stringify('hide'));
     }""")
