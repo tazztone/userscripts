@@ -734,6 +734,7 @@ export function setupUI() {
 
   fabButton.addEventListener('click', openModal);
   btnClose.addEventListener('click', closeModal);
+  dialog.addEventListener('click', e => { if (e.target === dialog) closeModal(); });
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the shadow keydown handler — reset the preview anyway.
   dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));

@@ -20,6 +20,15 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
     assert not dialog.is_visible()
 
 
+def test_settings_dialog_closes_on_backdrop_click(page: Page):
+    dialog = page.locator('#tp-root >> #tp-settings-dialog')
+    page.click('#tp-root >> #tp-settings-fab')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+    assert dialog.bounding_box()  # viewport corner sits outside the dialog box
+    page.mouse.click(5, 5)  # native backdrop: e.target === dialog
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+
 
 def test_modal_has_no_display_mode_radios(page: Page):
     open_settings(page)

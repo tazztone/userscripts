@@ -88,7 +88,7 @@ function bindWeightControls(wrapper) {
     clearTimeout(deb);
     deb = setTimeout(() => {
       updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-    }, 1000);
+    }, 175);
   };
   weightRange.onchange = () => {
     clearTimeout(deb);
@@ -108,14 +108,7 @@ function buildWeightWrapper() {
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Gewichtung</span>
     <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
-    <datalist id="tp-bar-weight-ticks">
-      <option value="0" label="Ø"></option>
-      <option value="30"></option>
-      <option value="50"></option>
-      <option value="70"></option>
-      <option value="100" label="Rek"></option>
-    </datalist>`;
+    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
   bindWeightControls(wrapper);
   return wrapper;
 }
@@ -132,7 +125,7 @@ function bindMinPointsControls(wrapper) {
   range.oninput = () => {
     paint();
     clearTimeout(deb);
-    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 1000);
+    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 175);
   };
   range.onchange = () => {
     clearTimeout(deb);
@@ -181,7 +174,7 @@ function bindHorizonControls(wrapper) {
       const v = readHorizon();
       recomputeCachedMedians(v);
       updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    }, 1000);
+    }, 175);
   };
   range.onchange = () => {
     clearTimeout(deb);
@@ -266,7 +259,7 @@ function bindOutlierBandControls(wrapper) {
       updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
       triggerProcessListings();
-    }, 1000);
+    }, 175);
   };
   range.onchange = () => {
     clearTimeout(deb);
@@ -313,7 +306,7 @@ function bindOutlierHoursControls(wrapper) {
       updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
       triggerProcessListings();
-    }, 1000);
+    }, 175);
   };
   range.onchange = () => {
     clearTimeout(deb);

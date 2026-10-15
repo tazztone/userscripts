@@ -1512,9 +1512,9 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
     assert 'Farb-Emphase' in (weight_label.get_attribute('title') or '')
 
     weight_range = page.locator('#tp-bar-weight-range')
-    # Continuous slider with 5 rast steps (the old presets)
+    # Continuous slider, tick marks removed (step UI stays at 5)
     assert weight_range.get_attribute('step') == '5'
-    assert len(page.locator('#tp-bar-weight-ticks option').all()) == 5
+    assert page.locator('#tp-bar-weight-ticks').count() == 0
 
     def set_weight(pct):
         page.evaluate(f"""() => {{

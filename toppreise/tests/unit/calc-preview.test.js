@@ -90,7 +90,7 @@ describe('calc-preview', () => {
       assert.ok(g.x >= 34 && g.x <= 286);
       assert.ok(g.y >= 8 && g.y <= 102);
     }
-    assert.equal(co.ticks.length, 3);
+    assert.equal(co.ticks.length, 2); // median collides with hi/lo edge, skipped
     assert.equal(co.rawAttr.split(' ').length, pts.length);
     assert.notEqual(co.rawAttr, co.pointsAttr);
   });
@@ -141,15 +141,19 @@ describe('calc-preview', () => {
     assert.equal(tiny.medianFallback, true);
     assert.equal(tiny.cutoffTs, null);
   });
-  it('exposes unclamped band edges (svg clips)', () => {
+  it('clamps band edges to the plot area (8..94) with clipped flags', () => {
     // ref 100 sits far below the s26 window (domain lo = cardPrice 799):
-    // both ±20 % edges stay non-null; the SVG clips them.
+    // both ±20 % edges stay non-null but clamp to the plot area.
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
     const st = previewStats(pts, { ...DEF, cardPrice: 799 });
     const co = previewCoords(st.clean, { median: st.median, refMedian: 100, band: 0.20, cardPrice: 799, dropped: st.dropped });
     assert.ok(co.bandEdges.top !== null);
     assert.ok(co.bandEdges.bot !== null);
-    assert.ok(co.bandEdges.top > 94 && co.bandEdges.bot > 94 && co.bandEdges.bot > co.bandEdges.top);
+    assert.ok(co.bandEdges.top >= 8 && co.bandEdges.top <= 94);
+    assert.ok(co.bandEdges.bot >= 8 && co.bandEdges.bot <= 94);
+    assert.equal(co.bandEdges.topClipped, true);
+    assert.equal(co.bandEdges.botClipped, true);
+    assert.ok(co.bandEdges.bot >= co.bandEdges.top);
   });
   it('exposes the filter reference median and kept out-of-band points on s26', () => {
     const pts = expandRleSeries(PRESETS.s26.rle, NOW);
@@ -160,7 +164,23 @@ describe('calc-preview', () => {
     const co = previewCoords(st.clean, { median: st.median, refMedian: st.filterMedian, band: 0.20, cardPrice: 799, dropped: st.dropped });
     assert.ok(co.bandEdges.top !== null);
     assert.ok(co.bandEdges.bot !== null);
-    assert.ok(co.bandEdges.bot > 94);
+    assert.ok(co.bandEdges.top >= 8 && co.bandEdges.bot <= 94);
     assert.equal(co.keptXY.length, 8);
+  });
+  it('maps main polyline X by timestamp fraction, not index', () => {
+    const t0 = NOW - 30 * 86400000;
+    const pts = [[t0, 900], [t0 + 29 * 86400000, 950], [t0 + 30 * 86400000, 920]];
+    const co = previewCoords(pts, { median: 920 });
+    const xs = co.pointsAttr.split(' ').map(s => parseFloat(s.split(',')[0]));
+    const innerW = 296 - 40 - 10;
+    assert.ok(Math.abs(xs[0] - 40) < 0.1);
+    assert.ok(Math.abs(xs[1] - (40 + 29 / 30 * innerW)) < 0.1); // index mapping would put it at midpoint
+    assert.ok(Math.abs(xs[2] - (40 + innerW)) < 0.1);
+  });
+  it('skips the median tick when it collides with hi/lo', () => {
+    const t0 = NOW - 2 * 86400000;
+    const pts = [[t0, 100], [t0 + 86400000, 100], [t0 + 2 * 86400000, 200]];
+    assert.equal(previewCoords(pts, { median: 100 }).ticks.length, 2);
+    assert.equal(previewCoords(pts, { median: 150 }).ticks.length, 3);
   });
 });

@@ -966,6 +966,7 @@ export const STYLES = `
     box-sizing: border-box !important;
   }
   .tp-bar-btn:hover { background: rgba(15, 23, 42, 0.08) !important; color: var(--tp-txt) !important; }
+  .tp-bar-btn[aria-expanded="true"] { background: rgba(99,102,241,.12) !important; border-color: rgba(99,102,241,.45) !important; color: #4338ca !important; }
   .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -1016,8 +1017,8 @@ export const STYLES = `
     transition: transform 0.2s ease, background 0.2s ease !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider {
-    background: var(--tp-acc-soft) !important;
-    border-color: var(--tp-acc-line) !important;
+    background: var(--tp-acc) !important;
+    border-color: var(--tp-acc-deep) !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider:before {
     transform: translateX(14px) !important;
@@ -1125,7 +1126,13 @@ export const STYLES = `
     box-shadow: none !important;
     height: auto !important;
     padding: 0 !important;
-    justify-content: space-between !important;
+    display: grid !important;
+    grid-template-columns: 92px 68px 1fr !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
+  #tp-bar-outlier-band-range, #tp-bar-outlier-hours-range { accent-color: var(--tp-acc) !important; }
     width: 100% !important;
   }
   #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
@@ -1138,7 +1145,8 @@ export const STYLES = `
   .tp-calc-reset { align-self: flex-end !important; }
   #tp-bar-calc-popover { max-height: min(70vh, 560px) !important; overflow-y: auto !important; }
   #tp-calc-preview { border-top: 1px solid var(--tp-line) !important; margin-top: 6px !important; padding-top: 6px !important; display: flex !important; flex-direction: column !important; gap: 4px !important; }
-  .tp-preview-select { font-size: 11px !important; max-width: 190px !important; }
+  .tp-preview-head { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
+  .tp-preview-select { font-size: 11px !important; max-width: 190px !important; border: 1px solid var(--tp-line) !important; border-radius: var(--tp-r-md) !important; padding: 2px 6px !important; background: transparent !important; color: var(--tp-txt) !important; }
   #tp-preview-svg { width: 100% !important; height: auto !important; display: block !important; }
   #tp-preview-legend, #tp-preview-blend, #tp-preview-status { font-size: 11px !important; color: var(--tp-txt-dim) !important; }
   #tp-preview-key { font-size: 11px !important; color: var(--tp-txt-dim) !important; display: flex !important; gap: 10px !important; }

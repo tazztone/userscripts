@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.251
+// @version      2.18.252
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -993,6 +993,7 @@ const STYLES = `
     box-sizing: border-box !important;
   }
   .tp-bar-btn:hover { background: rgba(15, 23, 42, 0.08) !important; color: var(--tp-txt) !important; }
+  .tp-bar-btn[aria-expanded="true"] { background: rgba(99,102,241,.12) !important; border-color: rgba(99,102,241,.45) !important; color: #4338ca !important; }
   .tp-bar-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   .tp-bar-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -1043,8 +1044,8 @@ const STYLES = `
     transition: transform 0.2s ease, background 0.2s ease !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider {
-    background: var(--tp-acc-soft) !important;
-    border-color: var(--tp-acc-line) !important;
+    background: var(--tp-acc) !important;
+    border-color: var(--tp-acc-deep) !important;
   }
   .tp-mini-switch input:checked + .tp-mini-slider:before {
     transform: translateX(14px) !important;
@@ -1152,7 +1153,13 @@ const STYLES = `
     box-shadow: none !important;
     height: auto !important;
     padding: 0 !important;
-    justify-content: space-between !important;
+    display: grid !important;
+    grid-template-columns: 92px 68px 1fr !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
+  #tp-bar-outlier-band-range, #tp-bar-outlier-hours-range { accent-color: var(--tp-acc) !important; }
     width: 100% !important;
   }
   #tp-bar-calc-popover #tp-bar-outlier-wrapper { justify-content: flex-start !important; }
@@ -1165,7 +1172,8 @@ const STYLES = `
   .tp-calc-reset { align-self: flex-end !important; }
   #tp-bar-calc-popover { max-height: min(70vh, 560px) !important; overflow-y: auto !important; }
   #tp-calc-preview { border-top: 1px solid var(--tp-line) !important; margin-top: 6px !important; padding-top: 6px !important; display: flex !important; flex-direction: column !important; gap: 4px !important; }
-  .tp-preview-select { font-size: 11px !important; max-width: 190px !important; }
+  .tp-preview-head { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
+  .tp-preview-select { font-size: 11px !important; max-width: 190px !important; border: 1px solid var(--tp-line) !important; border-radius: var(--tp-r-md) !important; padding: 2px 6px !important; background: transparent !important; color: var(--tp-txt) !important; }
   #tp-preview-svg { width: 100% !important; height: auto !important; display: block !important; }
   #tp-preview-legend, #tp-preview-blend, #tp-preview-status { font-size: 11px !important; color: var(--tp-txt-dim) !important; }
   #tp-preview-key { font-size: 11px !important; color: var(--tp-txt-dim) !important; display: flex !important; gap: 10px !important; }
@@ -1880,6 +1888,15 @@ const SHADOW_MODAL_STYLES = `
     const filteredOutliers = [];
     const n = sorted.length;
     const isNormal = p => Math.abs(p - rawMedian) / rawMedian <= band;
+    const localThreshold = Math.min(band, 0.05);
+    const isLocallySharp = m => {
+      const refs = [];
+      if (m > 0) refs.push(sorted[m - 1][1]);
+      if (m < n - 1) refs.push(sorted[m + 1][1]);
+      if (!refs.length) return true;
+      const ref = refs.length > 1 ? (refs[0] + refs[1]) / 2 : refs[0];
+      return ref > 0 && Math.abs(sorted[m][1] - ref) / ref > localThreshold;
+    };
     let i = 0;
     while (i < n) {
       if (isNormal(sorted[i][1])) {
@@ -1891,8 +1908,9 @@ const SHADOW_MODAL_STYLES = `
       let k = j;
       while (k < n && !isNormal(sorted[k][1])) k++;
       if (j > 0 && k < n) {
-        const durH = (sorted[k][0] - sorted[j][0]) / 3.6e6;
-        const isGlitch = durH <= maxGlitchHours + 0.5;
+        const durH = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6;
+        let isGlitch = durH <= maxGlitchHours + 0.5;
+        if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
         for (let m = j; m < k; m++) {
           const [ts, price] = sorted[m];
           if (isGlitch) filteredOutliers.push({ timestamp: ts, price, rawMedian });
@@ -1904,8 +1922,8 @@ const SHADOW_MODAL_STYLES = `
           if (j === 0 && n > 1 && isNormal(sorted[1][1])) isGlitch = true;
           else if (k === n && n > 1 && isNormal(sorted[n - 2][1]) && !isLiveAnchored(sorted[n - 1][1])) isGlitch = true;
         } else if (j === 0 || k === n) {
-          const spanEnd = (j === 0 && k < n) ? sorted[k][0] : sorted[k - 1][0];
-          isGlitch = (spanEnd - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
+          isGlitch = (sorted[k - 1][0] - sorted[j][0]) / 3.6e6 <= maxGlitchHours + 0.5;
+          if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
           if (isGlitch && k === n) for (let m = j; m < k; m++) if (isLiveAnchored(sorted[m][1])) { isGlitch = false; break; }
         }
         for (let m = j; m < k; m++) {
@@ -6317,6 +6335,7 @@ const SHADOW_MODAL_STYLES = `
 
     fabButton.addEventListener('click', openModal);
     btnClose.addEventListener('click', closeModal);
+    dialog.addEventListener('click', e => { if (e.target === dialog) closeModal(); });
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the shadow keydown handler — reset the preview anyway.
     dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
@@ -6547,7 +6566,7 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
-  const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 34 };
+  const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 40 };
 
   function previewCoords(clean, o = {}) {
     const w = o.w || 296;
@@ -6567,36 +6586,34 @@ const SHADOW_MODAL_STYLES = `
     if (!(hi > lo)) hi = lo + 1;
     const pad = (hi - lo) * 0.05;
     const y = v => m.top + (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad))) * innerH;
-    const x = i => m.left + (n > 1 ? (i / (n - 1)) * innerW : 0);
+    const t0 = n ? pts[0][0] : 0;
+    const t1 = n ? pts[n - 1][0] : 0;
     const f1 = v => v.toFixed(1);
-    const pt = (p, i) => `${f1(x(i))},${f1(y(p[1]))}`;
+    const fracX = ts => m.left + (t1 > t0 ? Math.max(0, Math.min(1, (ts - t0) / (t1 - t0))) * innerW : 0);
+    const pt = p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`;
     const pointsAttr = pts.map(pt).join(' ');
     const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
     const ref = o.refMedian > 0 ? o.refMedian : o.median;
-    let bandEdges = { top: null, bot: null };
+    const bandEdges = { top: null, bot: null, topClipped: false, botClipped: false };
     if (o.band > 0 && ref > 0) {
-      bandEdges.top = y(ref * (1 + o.band));
-      bandEdges.bot = y(ref * (1 - o.band));
+      const yT0 = y(ref * (1 + o.band));
+      const yB0 = y(ref * (1 - o.band));
+      bandEdges.top = Math.max(m.top, Math.min(h - m.bottom, Math.min(yT0, yB0)));
+      bandEdges.bot = Math.max(m.top, Math.min(h - m.bottom, Math.max(yT0, yB0)));
+      bandEdges.topClipped = bandEdges.top !== Math.min(yT0, yB0);
+      bandEdges.botClipped = bandEdges.bot !== Math.max(yT0, yB0);
     }
     const medianY = o.median > 0 ? y(o.median) : null;
-    const t0 = n ? pts[0][0] : 0;
-    const t1 = n ? pts[n - 1][0] : 0;
-    const glitchXY = (o.dropped || []).map(g => {
-      const frac = t1 > t0 ? Math.max(0, Math.min(1, (g.timestamp - t0) / (t1 - t0))) : 0;
-      return { x: m.left + frac * innerW, y: y(g.price) };
-    });
+    const glitchXY = (o.dropped || []).map(g => ({ x: fracX(g.timestamp), y: y(g.price) }));
     const keptXY = (o.band > 0 && ref > 0)
-      ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => {
-          const frac = t1 > t0 ? Math.max(0, Math.min(1, (p[0] - t0) / (t1 - t0))) : 0;
-          return { x: m.left + frac * innerW, y: y(p[1]) };
-        })
+      ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => ({ x: fracX(p[0]), y: y(p[1]) }))
       : [];
     const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
       ? { x: m.left + innerW, y: y(o.cardPrice) }
       : null;
-    const rawAttr = o.raw?.length ? o.raw.map(p => { const frac = t1 > t0 ? Math.max(0, Math.min(1, (p[0] - t0) / (t1 - t0))) : 0; return `${f1(m.left + frac * innerW)},${f1(y(p[1]))}`; }).join(' ') : null;
+    const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
-    if (o.median > 0) ticks.splice(1, 0, { y: y(o.median), label: fmtPreviewMedian(o.median) });
+    if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
     return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY, rawAttr };
   }
 
@@ -6608,7 +6625,7 @@ const SHADOW_MODAL_STYLES = `
     const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
     box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
       + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span><span><span class="tp-pv-k-kept">○</span> Regime</span></div>`
-      + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
+      + `<svg id="tp-preview-svg" viewBox="0 0 296 110" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
       + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
     const sel = box.querySelector('#tp-preview-preset-select');
     if (sel) sel.addEventListener('change', () => {
@@ -6651,19 +6668,19 @@ const SHADOW_MODAL_STYLES = `
     const f1 = v => v.toFixed(1);
     const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
     let s = '';
-    if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45"/>`;
-    if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = Math.min(co.bandEdges.top, co.bandEdges.bot), yB = Math.max(co.bandEdges.top, co.bandEdges.bot); s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(yB - yT)}" fill="#3b82f6" opacity="0.18"/>`; }
+    if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
+    if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = co.bandEdges.top, yB = co.bandEdges.bot; s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(Math.max(0, yB - yT))}" fill="#3b82f6" opacity="0.18"/>`; if (!co.bandEdges.topClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yT)}" y2="${f1(yT)}" stroke="#3b82f6" stroke-width="1"/>`; if (!co.bandEdges.botClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yB)}" y2="${f1(yB)}" stroke="#3b82f6" stroke-width="1"/>`; }
     for (const t of co.ticks) {
-      s += `<text x="2" y="${f1(t.y + 3)}" font-size="9" fill="#64748b">${t.label}</text>`;
+      s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
     }
     if (st.recordLow > 0 && st.dRecord > 0 && co.recordY !== null) {
-      s += `<line class="tp-pv-rec" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.recordY)}" y2="${f1(co.recordY)}" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * weightRecord}"/>`;
+      s += `<line class="tp-pv-rec" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.recordY)}" y2="${f1(co.recordY)}" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * weightRecord}"/>`;
     }
     if (co.medianY !== null) {
-      s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
+      s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
     }
     if (co.pointsAttr) {
-      s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5"/>`;
+      s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
     }
     for (const g of co.glitchXY) {
       s += `<text x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
@@ -6779,7 +6796,7 @@ const SHADOW_MODAL_STYLES = `
       clearTimeout(deb);
       deb = setTimeout(() => {
         updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-      }, 1000);
+      }, 175);
     };
     weightRange.onchange = () => {
       clearTimeout(deb);
@@ -6799,14 +6816,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.innerHTML = `
       <span class="tp-stepper-label">Gewichtung</span>
       <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-      <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" list="tp-bar-weight-ticks" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">
-      <datalist id="tp-bar-weight-ticks">
-        <option value="0" label="Ø"></option>
-        <option value="30"></option>
-        <option value="50"></option>
-        <option value="70"></option>
-        <option value="100" label="Rek"></option>
-      </datalist>`;
+      <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Tiefstpreis-Gewichtung stufenlos: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
     bindWeightControls(wrapper);
     return wrapper;
   }
@@ -6823,7 +6833,7 @@ const SHADOW_MODAL_STYLES = `
     range.oninput = () => {
       paint();
       clearTimeout(deb);
-      deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 1000);
+      deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 175);
     };
     range.onchange = () => {
       clearTimeout(deb);
@@ -6872,7 +6882,7 @@ const SHADOW_MODAL_STYLES = `
         const v = readHorizon();
         recomputeCachedMedians(v);
         updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-      }, 1000);
+      }, 175);
     };
     range.onchange = () => {
       clearTimeout(deb);
@@ -6957,7 +6967,7 @@ const SHADOW_MODAL_STYLES = `
         updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
         recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
         triggerProcessListings();
-      }, 1000);
+      }, 175);
     };
     range.onchange = () => {
       clearTimeout(deb);
@@ -7004,7 +7014,7 @@ const SHADOW_MODAL_STYLES = `
         updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
         recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
         triggerProcessListings();
-      }, 1000);
+      }, 175);
     };
     range.onchange = () => {
       clearTimeout(deb);

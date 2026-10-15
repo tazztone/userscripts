@@ -162,42 +162,56 @@ describe('Price Domain Module', () => {
       assert.equal(dropped.filteredOutliers[0].price, 150);
     });
 
-    it('honours OUTLIER_MAX_GLITCH_HOURS: 72h deviation kept at 48h, filtered at 96h', () => {
+    it('honours OUTLIER_MAX_GLITCH_HOURS on true outlier span: 96h run kept at 48h, filtered at 96h', () => {
       const now = Date.now();
       const series = [
+        [now - 12 * DAY, 100],
+        [now - 11 * DAY, 100],
+        [now - 10 * DAY, 100],
         [now - 9 * DAY, 100],
-        [now - 8 * DAY, 100],
-        [now - 7 * DAY, 100],
-        [now - 6 * DAY, 100],
-        [now - 5 * DAY, 200],   // 100% above median, 72h until next point
+        [now - 8 * DAY, 200],   // zigzag run = 96h span, every point locally sharp
+        [now - 7 * DAY, 140],
+        [now - 6 * DAY, 200],
+        [now - 5 * DAY, 140],
+        [now - 4 * DAY, 200],
+        [now - 3 * DAY, 100],
         [now - 2 * DAY, 100],
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-
-      const kept = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series));
+      const kept = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series, 0.20));
       assert.equal(kept.filteredOutliers.length, 0);
-      assert.ok(kept.cleanPoints.some(p => p[1] === 200));
-      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 96, () => sanitizeTimeSeries(series));
-      assert.equal(dropped.filteredOutliers.length, 1);
-      assert.equal(dropped.filteredOutliers[0].price, 200);
+      assert.equal(kept.cleanPoints.filter(p => p[1] === 200).length, 3);
+      assert.equal(kept.cleanPoints.filter(p => p[1] === 140).length, 2);
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 96, () => sanitizeTimeSeries(series, 0.20));
+      assert.equal(dropped.filteredOutliers.length, 5);
     });
 
-    it('treats an exact 24h single-point dip as a glitch at 24h, not at 23h', () => {
+    it('filters a single-point dip at any window (span 0h); a two-point 24h dip at 24h, not 23h', () => {
       const now = Date.now();
-      const series = [
+      const single = [
         [now - 4 * DAY, 100],
         [now - 3 * DAY, 100],
         [now - 2 * DAY, 20],
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(series));
-      assert.equal(dropped.filteredOutliers.length, 1);
-      assert.equal(dropped.filteredOutliers[0].price, 20);
-      const kept = withConfig('OUTLIER_MAX_GLITCH_HOURS', 23, () => sanitizeTimeSeries(series));
-      assert.equal(kept.filteredOutliers.length, 0);
-      assert.ok(kept.cleanPoints.some(p => p[1] === 20));
+      const droppedSingle = withConfig('OUTLIER_MAX_GLITCH_HOURS', 12, () => sanitizeTimeSeries(single, 0.60));
+      assert.equal(droppedSingle.filteredOutliers.length, 1);
+      assert.equal(droppedSingle.filteredOutliers[0].price, 20);
+      const pair = [
+        [now - 5 * DAY, 100],
+        [now - 4 * DAY, 100],
+        [now - 3 * DAY, 20],
+        [now - 2 * DAY, 20],
+        [now - 1 * DAY, 100],
+        [now, 100]
+      ];
+      const droppedPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(pair, 0.60));
+      assert.equal(droppedPair.filteredOutliers.length, 2);
+      const keptPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 23, () => sanitizeTimeSeries(pair, 0.60));
+      assert.equal(keptPair.filteredOutliers.length, 0);
+      assert.equal(keptPair.cleanPoints.filter(p => p[1] === 20).length, 2);
     });
 
     it('treats an exact 48h two-point dip as a glitch at 48h', () => {
@@ -251,22 +265,66 @@ describe('Price Domain Module', () => {
       assert.ok(!result.cleanPoints.some(p => p[1] === 20));
     });
 
-    it('keeps a sustained two-point shift lasting longer than the window', () => {
+    it('keeps a sustained five-point shift (96h span) at a 72h window', () => {
       const now = Date.now();
       const series = [
-        [now - 20 * DAY, 100],
-        [now - 19 * DAY, 100],
-        [now - 18 * DAY, 100],
-        [now - 17 * DAY, 100],
-        [now - 10 * DAY, 20],
-        [now - 9 * DAY, 20],
-        [now - 4 * DAY, 100],
+        [now - 12 * DAY, 100],
+        [now - 11 * DAY, 100],
+        [now - 10 * DAY, 100],
+        [now - 9 * DAY, 100],
+        [now - 8 * DAY, 20],
+        [now - 7 * DAY, 20],
+        [now - 6 * DAY, 20],
+        [now - 5 * DAY, 20],
+        [now - 4 * DAY, 20],
         [now - 3 * DAY, 100],
+        [now - 2 * DAY, 100],
+        [now - 1 * DAY, 100],
         [now, 100]
       ];
       const result = withConfig('OUTLIER_MAX_GLITCH_HOURS', 72, () => sanitizeTimeSeries(series));
       assert.equal(result.filteredOutliers.length, 0);
-      assert.equal(result.cleanPoints.filter(p => p[1] === 20).length, 2);
+      assert.equal(result.cleanPoints.filter(p => p[1] === 20).length, 5);
+    });
+
+    it('keeps a gradual launch tail (locally coherent) at ±20%', () => {
+      const now = Date.now();
+      const series = [
+        [now - 12 * DAY, 1250],
+        [now - 11 * DAY, 1225],
+        [now - 10 * DAY, 1200],
+        [now - 9 * DAY, 900],
+        [now - 8 * DAY, 900],
+        [now - 7 * DAY, 900],
+        [now - 6 * DAY, 900],
+        [now - 5 * DAY, 900],
+        [now - 4 * DAY, 900],
+        [now - 3 * DAY, 900],
+        [now - 2 * DAY, 900],
+        [now - 1 * DAY, 900],
+        [now, 900]
+      ];
+      const result = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series, 0.20));
+      assert.equal(result.filteredOutliers.length, 0);
+      assert.equal(result.cleanPoints.filter(p => p[1] > 1080).length, 3);
+    });
+
+    it('filters a sharp single-day dip only when the band is tight (847 vs 929)', () => {
+      const now = Date.now();
+      const series = [
+        [now - 6 * DAY, 929],
+        [now - 5 * DAY, 929],
+        [now - 4 * DAY, 929],
+        [now - 3 * DAY, 847],
+        [now - 2 * DAY, 929],
+        [now - 1 * DAY, 929],
+        [now, 929]
+      ];
+      const loose = sanitizeTimeSeries(series, 0.20, 48);
+      assert.equal(loose.filteredOutliers.length, 0);
+      const tight = sanitizeTimeSeries(series, 0.08, 48);
+      assert.equal(tight.filteredOutliers.length, 1);
+      assert.equal(tight.filteredOutliers[0].price, 847);
     });
 
     it('uses the true median for even-length series (no upper-median bias)', () => {

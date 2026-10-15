@@ -100,7 +100,7 @@ export function cropPreviewWindow(clean, dropped, cutoffTs) {
   };
 }
 
-const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 34 };
+const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 40 };
 
 export function previewCoords(clean, o = {}) {
   const w = o.w || 296;
@@ -120,36 +120,34 @@ export function previewCoords(clean, o = {}) {
   if (!(hi > lo)) hi = lo + 1;
   const pad = (hi - lo) * 0.05;
   const y = v => m.top + (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad))) * innerH;
-  const x = i => m.left + (n > 1 ? (i / (n - 1)) * innerW : 0);
+  const t0 = n ? pts[0][0] : 0;
+  const t1 = n ? pts[n - 1][0] : 0;
   const f1 = v => v.toFixed(1);
-  const pt = (p, i) => `${f1(x(i))},${f1(y(p[1]))}`;
+  const fracX = ts => m.left + (t1 > t0 ? Math.max(0, Math.min(1, (ts - t0) / (t1 - t0))) * innerW : 0);
+  const pt = p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`;
   const pointsAttr = pts.map(pt).join(' ');
   const recordY = (typeof o.recordLow === 'number' && o.recordLow > 0) ? y(o.recordLow) : null;
   const ref = o.refMedian > 0 ? o.refMedian : o.median;
-  let bandEdges = { top: null, bot: null };
+  const bandEdges = { top: null, bot: null, topClipped: false, botClipped: false };
   if (o.band > 0 && ref > 0) {
-    bandEdges.top = y(ref * (1 + o.band));
-    bandEdges.bot = y(ref * (1 - o.band));
+    const yT0 = y(ref * (1 + o.band));
+    const yB0 = y(ref * (1 - o.band));
+    bandEdges.top = Math.max(m.top, Math.min(h - m.bottom, Math.min(yT0, yB0)));
+    bandEdges.bot = Math.max(m.top, Math.min(h - m.bottom, Math.max(yT0, yB0)));
+    bandEdges.topClipped = bandEdges.top !== Math.min(yT0, yB0);
+    bandEdges.botClipped = bandEdges.bot !== Math.max(yT0, yB0);
   }
   const medianY = o.median > 0 ? y(o.median) : null;
-  const t0 = n ? pts[0][0] : 0;
-  const t1 = n ? pts[n - 1][0] : 0;
-  const glitchXY = (o.dropped || []).map(g => {
-    const frac = t1 > t0 ? Math.max(0, Math.min(1, (g.timestamp - t0) / (t1 - t0))) : 0;
-    return { x: m.left + frac * innerW, y: y(g.price) };
-  });
+  const glitchXY = (o.dropped || []).map(g => ({ x: fracX(g.timestamp), y: y(g.price) }));
   const keptXY = (o.band > 0 && ref > 0)
-    ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => {
-        const frac = t1 > t0 ? Math.max(0, Math.min(1, (p[0] - t0) / (t1 - t0))) : 0;
-        return { x: m.left + frac * innerW, y: y(p[1]) };
-      })
+    ? pts.filter(p => Math.abs(p[1] - ref) / ref > o.band).map(p => ({ x: fracX(p[0]), y: y(p[1]) }))
     : [];
   const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
     ? { x: m.left + innerW, y: y(o.cardPrice) }
     : null;
-  const rawAttr = o.raw?.length ? o.raw.map(p => { const frac = t1 > t0 ? Math.max(0, Math.min(1, (p[0] - t0) / (t1 - t0))) : 0; return `${f1(m.left + frac * innerW)},${f1(y(p[1]))}`; }).join(' ') : null;
+  const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
   const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
-  if (o.median > 0) ticks.splice(1, 0, { y: y(o.median), label: fmtPreviewMedian(o.median) });
+  if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
   return { pointsAttr, bandEdges, keptXY, medianY, glitchXY, anchor, ticks, recordY, rawAttr };
 }
 
@@ -161,7 +159,7 @@ export function buildCalcPreview() {
   const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
   box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
     + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-g">×</span> Glitch</span><span><span class="tp-pv-k-kept">○</span> Regime</span></div>`
-    + `<svg id="tp-preview-svg" viewBox="0 0 296 110" preserveAspectRatio="none" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
+    + `<svg id="tp-preview-svg" viewBox="0 0 296 110" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
     + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
   const sel = box.querySelector('#tp-preview-preset-select');
   if (sel) sel.addEventListener('change', () => {
@@ -204,19 +202,19 @@ export function refreshCalcPreview() {
   const f1 = v => v.toFixed(1);
   const mainStroke = st.activeCount < minPoints ? '#94a3b8' : '#3b82f6';
   let s = '';
-  if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45"/>`;
-  if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = Math.min(co.bandEdges.top, co.bandEdges.bot), yB = Math.max(co.bandEdges.top, co.bandEdges.bot); s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(yB - yT)}" fill="#3b82f6" opacity="0.18"/>`; }
+  if (co.rawAttr) s += `<polyline class="tp-pv-raw" points="${co.rawAttr}" fill="none" stroke="#94a3b8" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
+  if (co.bandEdges?.top != null && co.bandEdges?.bot != null) { const yT = co.bandEdges.top, yB = co.bandEdges.bot; s += `<rect class="tp-pv-band" x="${PV_MARGIN.left}" y="${f1(yT)}" width="${296 - PV_MARGIN.left - PV_MARGIN.right}" height="${f1(Math.max(0, yB - yT))}" fill="#3b82f6" opacity="0.18"/>`; if (!co.bandEdges.topClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yT)}" y2="${f1(yT)}" stroke="#3b82f6" stroke-width="1"/>`; if (!co.bandEdges.botClipped) s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(yB)}" y2="${f1(yB)}" stroke="#3b82f6" stroke-width="1"/>`; }
   for (const t of co.ticks) {
-    s += `<text x="2" y="${f1(t.y + 3)}" font-size="9" fill="#64748b">${t.label}</text>`;
+    s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
   }
   if (st.recordLow > 0 && st.dRecord > 0 && co.recordY !== null) {
-    s += `<line class="tp-pv-rec" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.recordY)}" y2="${f1(co.recordY)}" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * weightRecord}"/>`;
+    s += `<line class="tp-pv-rec" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.recordY)}" y2="${f1(co.recordY)}" stroke="#f59e0b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * weightRecord}"/>`;
   }
   if (co.medianY !== null) {
-    s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
+    s += `<line x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(co.medianY)}" y2="${f1(co.medianY)}" stroke="#64748b" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${0.25 + 0.75 * (1 - weightRecord)}"/>`;
   }
   if (co.pointsAttr) {
-    s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5"/>`;
+    s += `<polyline class="tp-pv-main" points="${co.pointsAttr}" fill="none" stroke="${mainStroke}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
   }
   for (const g of co.glitchXY) {
     s += `<text x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
