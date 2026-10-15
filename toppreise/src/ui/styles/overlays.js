@@ -206,8 +206,8 @@ export const STYLES_OVERLAYS = `
   }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 8px rgba(16,185,129,0.2) !important; }
-    50% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 18px rgba(16,185,129,0.45) !important; }
+    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 8px rgba(16,185,129,0.2); }
+    50% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 18px rgba(16,185,129,0.45); }
   }
   @media (prefers-reduced-motion: reduce) {
     #tp-floating-check-cta { animation: none !important; }
