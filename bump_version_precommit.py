@@ -99,6 +99,10 @@ def check_toppreise_quality_gates(toppreise_dir):
         unit_test_files = sorted(glob.glob(os.path.join(unit_test_dir, '*.test.js')))
         subprocess.run(['node', '--test'] + unit_test_files, cwd=toppreise_dir, check=True)
 
+        # 4. Module size advisory (warning-only, never fails the commit)
+        print("🔍 [pre-commit] Checking Toppreise module sizes...")
+        subprocess.run(['node', 'tools/check-modules.js'], cwd=toppreise_dir)
+
         print("✅ [pre-commit] All Toppreise quality gates passed successfully!")
     except subprocess.CalledProcessError as e:
         print(f"❌ [pre-commit] Quality gate failed (exit code {e.returncode})")

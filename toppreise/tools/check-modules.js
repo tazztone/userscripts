@@ -122,3 +122,10 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`check-modules: ok (${srcFiles.length} modules, boundaries clean)`);
+// Size advisory (warning-only, never fails): every src module SHOULD stay
+// under 25 KB so the tree never silently regrows past the split budget.
+const SIZE_WARN_BYTES = 25 * 1024;
+for (const f of srcFiles) {
+  const bytes = fs.statSync(path.join(SRC_DIR, f)).size;
+  if (bytes > SIZE_WARN_BYTES) console.warn(`check-modules: warning: src/${f} is ${(bytes / 1024).toFixed(1)} KB (>25 KB) — consider splitting it into cohesive modules`);
+}
