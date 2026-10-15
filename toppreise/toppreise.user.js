@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.263
+// @version      2.18.264
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5967,23 +5967,14 @@ const SHADOW_MODAL_STYLES = `
     return { shadow };
   }
 
-  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
+  // ─── MODULE: src/ui/modal-template.js ───────────────────────────────────────
   /**
-   * Settings Modal & Shadow DOM Component
-   * Manages the floating action button, single-page settings dialog,
-   * dual-binding input controls, view paint, import/export, and cache controls.
+   * Modal template (split from ui/modal.js): settings section HTML + collapse state.
    */
 
 
-
-
-
-
-
-
-
-  function setupUI() {
-    const { shadow } = ensureSkeleton();
+  // Injects the settings sections on first open; later calls are a no-op.
+  function ensureModalSection(shadow) {
     let section = shadow.getElementById('tp-section-unified-suite');
     if (!section) {
       const sectionsHolder = shadow.getElementById('tp-settings-sections');
@@ -6299,11 +6290,14 @@ const SHADOW_MODAL_STYLES = `
       section = tempDiv.firstElementChild;
       sectionsHolder.appendChild(section);
     }
-    // Independent per-section collapse, remembered outside CONFIG so it never
-    // leaks into export/import/reset. GM primary, localStorage mirror.
-    const COLLAPSE_KEY = 'tp_modal_collapsed';
-    const COLLAPSE_IDS = ['tp-section-display', 'tp-section-review', 'tp-section-deals', 'tp-section-filter', 'tp-section-alarm', 'tp-section-discord', 'tp-section-data'];
-    const readCollapsed = () => {
+    return section;
+  }
+
+  // Independent per-section collapse, remembered outside CONFIG so it never
+  // leaks into export/import/reset. GM primary, localStorage mirror.
+  const COLLAPSE_KEY = 'tp_modal_collapsed';
+  const COLLAPSE_IDS = ['tp-section-display', 'tp-section-review', 'tp-section-deals', 'tp-section-filter', 'tp-section-alarm', 'tp-section-discord', 'tp-section-data'];
+  function readCollapsed() {
       try {
         if (typeof GM_getValue !== 'undefined') {
           const gv = GM_getValue('tp_suite_v2_' + COLLAPSE_KEY);
@@ -6321,12 +6315,12 @@ const SHADOW_MODAL_STYLES = `
       } catch {}
       return [];
     };
-    const writeCollapsed = (ids) => {
+  function writeCollapsed(ids) {
       const clean = ids.filter(id => COLLAPSE_IDS.includes(id));
       try { if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_' + COLLAPSE_KEY, clean); } catch {}
       try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + COLLAPSE_KEY, JSON.stringify(clean)); } catch {}
     };
-    const applyCollapsed = () => {
+  function applyCollapsed(shadow) {
       for (const id of readCollapsed()) {
         const card = shadow.getElementById(id);
         if (!card) continue;
@@ -6334,7 +6328,9 @@ const SHADOW_MODAL_STYLES = `
         card.querySelector('[data-collapse]')?.setAttribute('aria-expanded', 'false');
       }
     };
-    applyCollapsed();
+
+  function initCollapse(shadow) {
+    applyCollapsed(shadow);
     const sectionsEl = shadow.getElementById('tp-settings-sections');
     if (sectionsEl && !sectionsEl.dataset.collapseBound) {
       sectionsEl.dataset.collapseBound = '1';
@@ -6348,7 +6344,19 @@ const SHADOW_MODAL_STYLES = `
         writeCollapsed([...sectionsEl.querySelectorAll('section.tp-collapsed')].map(s => s.id));
       });
     }
+  }
 
+  // ─── MODULE: src/ui/modal-bindings.js ───────────────────────────────────────
+  /**
+   * Modal bindings (split from ui/modal.js): element table, layout preview,
+   * field sync, dual control pairs. The els record replaces closure locals.
+   */
+
+
+
+
+  // Element-lookup table: one record, shared by sync/bind/actions.
+  function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
     const fabButton = shadow.getElementById('tp-settings-fab');
     const btnClose = shadow.getElementById('tp-btn-close');
@@ -6402,76 +6410,81 @@ const SHADOW_MODAL_STYLES = `
     const discordLayoutCount = shadow.getElementById('tp-discord-layout-count');
     const discordLayoutError = shadow.getElementById('tp-discord-layout-error');
     const discordLayoutReset = shadow.getElementById('tp-discord-layout-reset');
-    const LAYOUT_PRESETS = {
+    const exportBtn = shadow.getElementById('tp-export-config-btn');
+    const importBtn = shadow.getElementById('tp-import-config-btn');
+    const importFile = shadow.getElementById('tp-import-config-file');
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  }
+
+  // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
+  // initializes later in bundle concat order (features/share-discord.js).
+  function getLayoutPresets() {
+    return {
       kompakt: DEFAULT_LAYOUT,
       ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{spark}\n{prevlow}\n{median}\n{link}',
       minimal: '## {title}\n# {price}\n{link}'
     };
-    const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '▁▂▃▄▅▆▇', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
-    function renderLayoutPreview() {
-      if (!discordLayoutInput || !discordLayoutPreview) return;
-      const recipe = discordLayoutInput.value;
-      if (discordLayoutError) discordLayoutError.textContent = validateLayoutRecipe(recipe) || '';
+  }
+  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '▁▂▃▄▅▆▇', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+  function renderLayoutPreview(els) {
+      if (!els.discordLayoutInput || !els.discordLayoutPreview) return;
+      const recipe = els.discordLayoutInput.value;
+      if (els.discordLayoutError) els.discordLayoutError.textContent = validateLayoutRecipe(recipe) || '';
       const rendered = renderLayout({
         ...LAYOUT_SAMPLE,
-        suppressDealerEmbed: discordDealerEmbedToggle ? !discordDealerEmbedToggle.checked : true,
-        suppressProductEmbed: discordProductEmbedToggle ? !discordProductEmbedToggle.checked : true
+        suppressDealerEmbed: els.discordDealerEmbedToggle ? !els.discordDealerEmbedToggle.checked : true,
+        suppressProductEmbed: els.discordProductEmbedToggle ? !els.discordProductEmbedToggle.checked : true
       }, recipe);
-      discordLayoutPreview.innerHTML = renderDiscordMarkdownPreview(rendered);
-      if (discordLayoutCount) discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${layoutOverLimitSuffix(rendered.length, recipe)}`;
-    }
-    let layoutTimer = 0;
-    function scheduleLayoutPreview() { clearTimeout(layoutTimer); layoutTimer = setTimeout(renderLayoutPreview, 150); }
+      els.discordLayoutPreview.innerHTML = renderDiscordMarkdownPreview(rendered);
+      if (els.discordLayoutCount) els.discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${layoutOverLimitSuffix(rendered.length, recipe)}`;
+  }
+  function scheduleLayoutPreview(els) { clearTimeout(els.layoutTimer); els.layoutTimer = setTimeout(() => renderLayoutPreview(els), 150); }
 
-    const exportBtn = shadow.getElementById('tp-export-config-btn');
-    const importBtn = shadow.getElementById('tp-import-config-btn');
-    const importFile = shadow.getElementById('tp-import-config-file');
-
-    function syncFieldsFromConfig() {
+  function syncFieldsFromConfig(els) {
       // Every key syncUiControl covers (radios, toggles, weight, min-points,
       // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
       // through it — toolbar mirrors included. Only modal-only controls below.
       for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k], { silent: true });
 
-      marginRange.value = CONFIG.MARGIN_PERCENT;
-      marginVal.value = CONFIG.MARGIN_PERCENT;
+      els.marginRange.value = CONFIG.MARGIN_PERCENT;
+      els.marginVal.value = CONFIG.MARGIN_PERCENT;
 
-      if (CONFIG.SORT_BY_OFFERS === 'desc') sortDesc.checked = true;
-      else if (CONFIG.SORT_BY_OFFERS === 'asc') sortAsc.checked = true;
-      else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') sortDiscount.checked = true;
-      else sortNone.checked = true;
+      if (CONFIG.SORT_BY_OFFERS === 'desc') els.sortDesc.checked = true;
+      else if (CONFIG.SORT_BY_OFFERS === 'asc') els.sortAsc.checked = true;
+      else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') els.sortDiscount.checked = true;
+      else els.sortNone.checked = true;
 
       const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
-      heatmapIntensityRange.value = heatIntensityPct;
-      heatmapIntensityVal.value = heatIntensityPct;
+      els.heatmapIntensityRange.value = heatIntensityPct;
+      els.heatmapIntensityVal.value = heatIntensityPct;
 
       // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
       {
         const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-        if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
-        if (bestpreiseHorizonVal) bestpreiseHorizonVal.value = stored;
-        if (bestpreiseHorizonDesc) bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+        if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = stored === 0 ? 760 : stored;
+        if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
+        if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
       }
 
-      if (cacheTtlSelect) cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
-      if (cacheNegTtlSelect) cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
-      if (cacheStatsLabel) {
+      if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
+      if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
+      if (els.cacheStatsLabel) {
         const count = countCachedPriceStats();
-        cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+        els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
       }
 
-      if (discordWebhookInput) discordWebhookInput.value = '';
-      if (discordWebhookEditor) discordWebhookEditor.style.display = 'none';
-      if (discordWebhookReveal) { discordWebhookReveal.style.display = ''; discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
-      if (discordWebhookStatus) discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
-      if (discordDealerEmbedToggle) discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
-      if (discordProductEmbedToggle) discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
-      if (discordForumTitleToggle) discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
-      if (discordLayoutInput) discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
-      renderLayoutPreview();
-    }
+      if (els.discordWebhookInput) els.discordWebhookInput.value = '';
+      if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
+      if (els.discordWebhookReveal) { els.discordWebhookReveal.style.display = ''; els.discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
+      if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+      if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
+      if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
+      if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
+      if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
+      renderLayoutPreview(els);
+  }
 
-    const bindDual = (rangeEl, numEl, onInput = null) => {
+  function bindDual(rangeEl, numEl, onInput = null) {
       if (!rangeEl || !numEl) return;
       rangeEl.addEventListener('input', e => {
         numEl.value = e.target.value;
@@ -6489,91 +6502,112 @@ const SHADOW_MODAL_STYLES = `
         }
         onInput?.(parseFloat(e.target.value));
       });
-    };
+  }
 
-    bindDual(marginRange, marginVal);
-    if (opacityRange && opacityVal) {
-      opacityRange.addEventListener('input', e => {
+  function updateWeightDesc(els, val) {
+    if (els.bestpreiseWeightDesc) {
+      els.bestpreiseWeightDesc.textContent = weightText(val / 100, 'desc');
+    }
+  }
+
+  function bindControlPairs(els) {
+    bindDual(els.marginRange, els.marginVal);
+    if (els.opacityRange && els.opacityVal) {
+      els.opacityRange.addEventListener('input', e => {
         const v = parseFloat(e.target.value);
-        opacityVal.value = Math.round(v * 100);
+        els.opacityVal.value = Math.round(v * 100);
         document.documentElement.style.setProperty('--tp-dim-opacity', v);
       });
-      opacityVal.addEventListener('input', e => {
+      els.opacityVal.addEventListener('input', e => {
         const v = Math.min(0.95, Math.max(0.05, (parseFloat(e.target.value) || 0) / 100));
-        opacityRange.value = v;
+        els.opacityRange.value = v;
         document.documentElement.style.setProperty('--tp-dim-opacity', v);
       });
     }
-    bindDual(alarmTargetRange, alarmTargetVal);
-    bindDual(heatmapIntensityRange, heatmapIntensityVal);
-    bindDual(realDealMinRange, realDealMinVal);
+    bindDual(els.alarmTargetRange, els.alarmTargetVal);
+    bindDual(els.heatmapIntensityRange, els.heatmapIntensityVal);
+    bindDual(els.realDealMinRange, els.realDealMinVal);
 
-    const updateWeightDesc = (val) => {
-      if (bestpreiseWeightDesc) {
-        bestpreiseWeightDesc.textContent = weightText(val / 100, 'desc');
-      }
-    };
-    bindDual(bestpreiseWeightRange, bestpreiseWeightVal, updateWeightDesc);
-    bindDual(bestpreiseHorizonRange, bestpreiseHorizonVal, (raw) => {
+    bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
+    bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw) => {
       const v = isNaN(raw) ? 365 : (raw > 730 ? 0 : raw);
-      if (bestpreiseHorizonDesc) bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+      if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
       if (v === 0) {
-        if (bestpreiseHorizonRange) bestpreiseHorizonRange.value = 760;
-        if (bestpreiseHorizonVal && raw > 730) bestpreiseHorizonVal.value = 0;
+        if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;
+        if (els.bestpreiseHorizonVal && raw > 730) els.bestpreiseHorizonVal.value = 0;
       }
     });
-    if (bestpreiseMinPointsRange && bestpreiseMinPointsVal) {
-      bestpreiseMinPointsRange.addEventListener('input', e => {
-        bestpreiseMinPointsVal.value = minPointsFromIndex(e.target.value);
+    if (els.bestpreiseMinPointsRange && els.bestpreiseMinPointsVal) {
+      els.bestpreiseMinPointsRange.addEventListener('input', e => {
+        els.bestpreiseMinPointsVal.value = minPointsFromIndex(e.target.value);
       });
-      bestpreiseMinPointsVal.addEventListener('input', e => {
+      els.bestpreiseMinPointsVal.addEventListener('input', e => {
         const typed = parseFloat(e.target.value);
-        if (!isNaN(typed)) bestpreiseMinPointsRange.value = minPointsToIndex(clampMinPoints(typed));
+        if (!isNaN(typed)) els.bestpreiseMinPointsRange.value = minPointsToIndex(clampMinPoints(typed));
       });
     }
-    cacheClearBtn?.addEventListener('click', () => {
+  }
+
+  // ─── MODULE: src/ui/modal-actions.js ────────────────────────────────────────
+  /**
+   * Modal actions (split from ui/modal.js): cache/webhook/layout/data/export/
+   * import/open-close/save handlers + openSettingsAt entry point.
+   */
+
+
+
+
+
+
+
+
+
+
+  function wireModalActions(els) {
+    els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
       clearDealerMemory();
-      if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+      if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
       triggerProcessListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
-    discordWebhookReveal?.addEventListener('click', () => {
-      if (!discordWebhookEditor || !discordWebhookInput) return;
-      discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
-      discordWebhookEditor.style.display = '';
-      discordWebhookReveal.style.display = 'none';
-      discordWebhookReveal.setAttribute('aria-expanded', 'true');
-      discordWebhookInput.focus();
+
+    els.discordWebhookReveal?.addEventListener('click', () => {
+      if (!els.discordWebhookEditor || !els.discordWebhookInput) return;
+      els.discordWebhookInput.value = CONFIG.DISCORD_WEBHOOK_URL || '';
+      els.discordWebhookEditor.style.display = '';
+      els.discordWebhookReveal.style.display = 'none';
+      els.discordWebhookReveal.setAttribute('aria-expanded', 'true');
+      els.discordWebhookInput.focus();
     });
-    discordLayoutInput?.addEventListener('input', scheduleLayoutPreview);
-    discordDealerEmbedToggle?.addEventListener('change', scheduleLayoutPreview);
-    discordProductEmbedToggle?.addEventListener('change', scheduleLayoutPreview);
-    for (const [name, recipe] of Object.entries(LAYOUT_PRESETS)) {
-      shadow.getElementById(`tp-discord-layout-preset-${name}`)?.addEventListener('click', () => {
-        if (!discordLayoutInput) return;
-        const current = discordLayoutInput.value;
-        if (!Object.values(LAYOUT_PRESETS).includes(current) && !window.confirm('Layout ersetzen?')) return;
-        discordLayoutInput.value = recipe;
-        scheduleLayoutPreview();
+
+    els.discordLayoutInput?.addEventListener('input', () => scheduleLayoutPreview(els));
+    els.discordDealerEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
+    els.discordProductEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
+    for (const [name, recipe] of Object.entries(getLayoutPresets())) {
+      els.shadow.getElementById(`tp-discord-layout-preset-${name}`)?.addEventListener('click', () => {
+        if (!els.discordLayoutInput) return;
+        const current = els.discordLayoutInput.value;
+        if (!Object.values(getLayoutPresets()).includes(current) && !window.confirm('Layout ersetzen?')) return;
+        els.discordLayoutInput.value = recipe;
+        scheduleLayoutPreview(els);
       });
     }
-    shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
+    els.shadow.getElementById('tp-discord-layout-chips')?.addEventListener('click', e => {
       const token = e.target?.closest?.('button')?.dataset?.token;
-      if (!token || !discordLayoutInput) return;
-      const { selectionStart = discordLayoutInput.value.length, selectionEnd = discordLayoutInput.value.length } = discordLayoutInput;
-      discordLayoutInput.value = discordLayoutInput.value.slice(0, selectionStart) + token + discordLayoutInput.value.slice(selectionEnd);
-      discordLayoutInput.focus();
-      scheduleLayoutPreview();
+      if (!token || !els.discordLayoutInput) return;
+      const { selectionStart = els.discordLayoutInput.value.length, selectionEnd = els.discordLayoutInput.value.length } = els.discordLayoutInput;
+      els.discordLayoutInput.value = els.discordLayoutInput.value.slice(0, selectionStart) + token + els.discordLayoutInput.value.slice(selectionEnd);
+      els.discordLayoutInput.focus();
+      scheduleLayoutPreview(els);
     });
-    discordLayoutReset?.addEventListener('click', () => {
-      if (!discordLayoutInput) return;
-      discordLayoutInput.value = DEFAULT_LAYOUT;
-      scheduleLayoutPreview();
+    els.discordLayoutReset?.addEventListener('click', () => {
+      if (!els.discordLayoutInput) return;
+      els.discordLayoutInput.value = DEFAULT_LAYOUT;
+      scheduleLayoutPreview(els);
     });
 
-
-    dataResetBtn?.addEventListener('click', () => {
+    els.dataResetBtn?.addEventListener('click', () => {
       if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
       const removed = clearPriceStatsCache();
       clearDealerMemory();
@@ -6592,12 +6626,12 @@ const SHADOW_MODAL_STYLES = `
       } catch (e) {}
       updateConfigs({ ...DEFAULTS });
       updateBodyClasses();
-      syncFieldsFromConfig();
-      if (cacheStatsLabel) cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+      syncFieldsFromConfig(els);
+      if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
       showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
     });
 
-    exportBtn?.addEventListener('click', () => {
+    els.exportBtn?.addEventListener('click', () => {
       const exportData = {
         _meta: {
           version: (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev',
@@ -6618,11 +6652,11 @@ const SHADOW_MODAL_STYLES = `
       showToast('Einstellungen exportiert');
     });
 
-    importBtn?.addEventListener('click', () => {
-      importFile?.click();
+    els.importBtn?.addEventListener('click', () => {
+      els.importFile?.click();
     });
 
-    importFile?.addEventListener('change', e => {
+    els.importFile?.addEventListener('change', e => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
@@ -6649,7 +6683,7 @@ const SHADOW_MODAL_STYLES = `
           if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon || CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn || CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand || CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours) recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
           updateBodyClasses();
           triggerProcessListings();
-          syncFieldsFromConfig();
+          syncFieldsFromConfig(els);
           showToast(`${count} Einstellungen importiert`);
         } catch (err) {
           showToast('Import fehlgeschlagen: Ungültige JSON-Datei');
@@ -6660,86 +6694,86 @@ const SHADOW_MODAL_STYLES = `
     });
 
     const openModal = () => {
-      syncFieldsFromConfig();
-      if (typeof dialog.showModal === 'function') dialog.showModal();
-      else dialog.setAttribute('open', '');
+      syncFieldsFromConfig(els);
+      if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
+      else els.dialog.setAttribute('open', '');
     };
 
     const closeModal = () => {
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
-      if (typeof dialog.close === 'function') dialog.close();
-      else dialog.removeAttribute('open');
+      if (typeof els.dialog.close === 'function') els.dialog.close();
+      else els.dialog.removeAttribute('open');
     };
 
-    fabButton.addEventListener('click', openModal);
-    btnClose.addEventListener('click', closeModal);
-    dialog.addEventListener('click', e => { if (e.target === dialog) closeModal(); });
+    els.fabButton.addEventListener('click', openModal);
+    els.btnClose.addEventListener('click', closeModal);
+    els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
-    // closeModal and the shadow keydown handler — reset the preview anyway.
-    dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
+    // closeModal and the els.shadow keydown handler — reset the preview anyway.
+    els.dialog.addEventListener('close', () => document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY));
 
-    btnSave.addEventListener('click', () => {
+    els.btnSave.addEventListener('click', () => {
       const updates = {};
 
-      updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(marginVal.value) || 0));
-      updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(opacityRange.value) || 0.25));
+      updates.MARGIN_PERCENT = Math.max(0, Math.min(100, parseFloat(els.marginVal.value) || 0));
+      updates.DIM_OPACITY = Math.max(0.05, Math.min(0.95, parseFloat(els.opacityRange.value) || 0.25));
       // Cached price stats are shipping-mode specific (product vs shipping series
       // share one cache key), so a mode change must invalidate them.
-      const shippingChanged = !!shippingToggle && CONFIG.USE_SHIPPING_PRICE !== shippingToggle.checked;
-      if (shippingToggle) updates.USE_SHIPPING_PRICE = shippingToggle.checked;
+      const shippingChanged = !!els.shippingToggle && CONFIG.USE_SHIPPING_PRICE !== els.shippingToggle.checked;
+      if (els.shippingToggle) updates.USE_SHIPPING_PRICE = els.shippingToggle.checked;
       // Cached analyses bake in the median horizon — recompute them locally
       // from the retained series (no network) before the single repaint below.
-      const rawHorizon = bestpreiseHorizonVal ? parseInt(bestpreiseHorizonVal.value, 10)
-        : (bestpreiseHorizonRange ? parseInt(bestpreiseHorizonRange.value, 10) : NaN);
+      const rawHorizon = els.bestpreiseHorizonVal ? parseInt(els.bestpreiseHorizonVal.value, 10)
+        : (els.bestpreiseHorizonRange ? parseInt(els.bestpreiseHorizonRange.value, 10) : NaN);
       const newHorizon = isNaN(rawHorizon) ? 365 : (rawHorizon <= 0 || rawHorizon > 730 ? 0 : Math.min(730, Math.max(30, rawHorizon)));
-      const horizonChanged = !!(bestpreiseHorizonVal || bestpreiseHorizonRange) && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
-      const checkedSort = shadow.querySelector('input[name="tp-sort-offers"]:checked');
+      const horizonChanged = !!(els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== newHorizon;
+      const checkedSort = els.shadow.querySelector('input[name="tp-sort-offers"]:checked');
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
-      updates.ALARM_ENABLED = alarmEnabledToggle.checked;
-      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(alarmTargetVal.value) || 60) / 100));
+      updates.ALARM_ENABLED = els.alarmEnabledToggle.checked;
+      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(els.alarmTargetVal.value) || 60) / 100));
 
-      const checkedDur = shadow.querySelector('input[name="tp-alarm-duration"]:checked');
+      const checkedDur = els.shadow.querySelector('input[name="tp-alarm-duration"]:checked');
       if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
-      updates.ALARM_AUTO_SUBMIT = alarmAutoSubmitToggle.checked;
-      updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(heatmapIntensityVal.value) || 100) / 100);
+      updates.ALARM_AUTO_SUBMIT = els.alarmAutoSubmitToggle.checked;
+      updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(els.heatmapIntensityVal.value) || 100) / 100);
 
-      if (bestpreiseModeToggle) {
-        updates.BESTPREISE_MODE_ACTIVE = bestpreiseModeToggle.checked;
-        if (bestpreiseWeightVal) {
-          const rawW = parseInt(bestpreiseWeightVal.value, 10);
+      if (els.bestpreiseModeToggle) {
+        updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
+        if (els.bestpreiseWeightVal) {
+          const rawW = parseInt(els.bestpreiseWeightVal.value, 10);
           const weightNum = isNaN(rawW) ? 50 : rawW;
           updates.BESTPREISE_WEIGHT_RECORD = Math.max(0, Math.min(1.0, weightNum / 100));
         }
-        if (bestpreiseHorizonVal || bestpreiseHorizonRange) {
+        if (els.bestpreiseHorizonVal || els.bestpreiseHorizonRange) {
           updates.BESTPREISE_MEDIAN_HORIZON_DAYS = newHorizon;
         }
-        if (bestpreiseMinPointsVal) {
-          updates.BESTPREISE_MIN_POINTS = clampMinPoints(bestpreiseMinPointsVal.value);
+        if (els.bestpreiseMinPointsVal) {
+          updates.BESTPREISE_MIN_POINTS = clampMinPoints(els.bestpreiseMinPointsVal.value);
         }
       }
-      if (cacheTtlSelect) { const rawC = parseInt(cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
-      if (cacheNegTtlSelect) { const rawN = parseInt(cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
+      if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
+      if (els.cacheNegTtlSelect) { const rawN = parseInt(els.cacheNegTtlSelect.value, 10); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
 
-      if (realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(realDealMinVal.value) || 30));
-      if (sparklinesToggle) updates.ENABLE_SPARKLINES = sparklinesToggle.checked;
-      if (dealerAutofetchToggle) updates.DEALER_AUTOFETCH = dealerAutofetchToggle.checked;
-      if (reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = reviewSearchToggle.checked;
-      if (reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(reviewKeywordInput.value);
-      if (reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = reviewAiModeToggle.checked;
-      if (discordWebhookInput && discordWebhookEditor && discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(discordWebhookInput.value || '').trim();
-      if (discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !discordDealerEmbedToggle.checked;
-      if (discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !discordProductEmbedToggle.checked;
-      if (discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = discordForumTitleToggle.checked;
-      if (discordLayoutInput) {
-        const value = String(discordLayoutInput.value || '');
+      if (els.realDealMinVal) updates.REAL_DEAL_MIN_DISCOUNT = Math.max(5, Math.min(95, parseInt(els.realDealMinVal.value) || 30));
+      if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
+      if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
+      if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
+      if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
+      if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
+      if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(els.discordWebhookInput.value || '').trim();
+      if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
+      if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
+      if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
+      if (els.discordLayoutInput) {
+        const value = String(els.discordLayoutInput.value || '');
         const err = validateLayoutRecipe(value);
         if (err) {
-          if (discordLayoutError) discordLayoutError.textContent = err;
-          shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
-          shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
-          discordLayoutInput.focus();
+          if (els.discordLayoutError) els.discordLayoutError.textContent = err;
+          els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
+          els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+          els.discordLayoutInput.focus();
           return;
         }
         updates.DISCORD_LAYOUT = value;
@@ -6775,6 +6809,25 @@ const SHADOW_MODAL_STYLES = `
     anchor.scrollIntoView({ block: 'start' });
     anchor.classList.add('tp-flash');
     setTimeout(() => anchor.classList.remove('tp-flash'), 2000);
+  }
+
+  // ─── MODULE: src/ui/modal.js ────────────────────────────────────────────────
+  /**
+   * Settings modal orchestrator (split into modal-template/bindings/actions):
+   * setupUI wires section inject -> elements -> collapse -> pairs -> actions.
+   */
+
+
+
+
+
+  function setupUI() {
+    const { shadow } = ensureSkeleton();
+    ensureModalSection(shadow);
+    const els = collectModalElements(shadow);
+    initCollapse(shadow);
+    bindControlPairs(els);
+    wireModalActions(els);
   }
 
   // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
