@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.282
+// @version      2.18.283
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1284,8 +1284,8 @@ const STYLES_OVERLAYS = `
   }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 8px rgba(16,185,129,0.2) !important; }
-    50% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 18px rgba(16,185,129,0.45) !important; }
+    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 8px rgba(16,185,129,0.2); }
+    50% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 18px rgba(16,185,129,0.45); }
   }
   @media (prefers-reduced-motion: reduce) {
     #tp-floating-check-cta { animation: none !important; }
@@ -5760,6 +5760,10 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  // Share dedupe surviving button re-renders: duplicate clicks for the same
+  // pid:basis:price post once (button disabled alone is not enough).
+  const shareInFlight = new Set();
+
   // Mini price-trend sparkline + history strip (step 5).
   function renderSparklineRow(ctx) {
     const { card, cardPrice, cardPriceEl, stats } = ctx;
@@ -5896,13 +5900,21 @@ const SHADOW_MODAL_STYLES = `
           const stillFresh = () => {
             if (!card.isConnected) return false;
             const cur = extractCardData(card);
-            return cur.pid === snap.pid && cur.cardPriceBasis === snap.basis
-              && priceToCents(cur.cardPrice) === snap.priceCents;
+            if (cur.pid !== snap.pid || cur.cardPriceBasis !== snap.basis
+              || priceToCents(cur.cardPrice) !== snap.priceCents) return false;
+            // Shareability can lapse while price/pid/basis hold (cache
+            // eviction): re-derive the click-time verdict so the green paint
+            // never rewards a deal that is no longer verifiable.
+            const curKind = cur.displayDelta?.kind;
+            return !!(cur.dealScore || curKind === 'new-low' || curKind === 'at-low');
           };
           const abortStale = () => {
             showToast('Karte hat sich geändert – erneut prüfen');
             scheduleProcessListings();
           };
+          const shareKey = `${snap.pid}:${snap.basis}:${snap.priceCents}`;
+          if (shareInFlight.has(shareKey)) { showToast('Teilen läuft bereits'); return; }
+          shareInFlight.add(shareKey);
           shareBtn.disabled = true;
           try {
             try {
@@ -5984,7 +5996,7 @@ const SHADOW_MODAL_STYLES = `
               if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
               showToast('📤 Deal in Discord geteilt');
               if (stillFresh()) shareBtn.classList.add('tp-share-done');
-              else abortStale();
+              else { showToast('📤 Deal geteilt – Karte hat sich danach geändert'); scheduleProcessListings(); }
             } catch (err) {
               if (err?.stale) { abortStale(); }
               else if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
@@ -5992,6 +6004,7 @@ const SHADOW_MODAL_STYLES = `
               else showToast('📤 Teilen fehlgeschlagen');
             }
           } finally {
+            shareInFlight.delete(shareKey);
             shareBtn.disabled = false;
           }
         });
@@ -9241,6 +9254,7 @@ const SHADOW_MODAL_STYLES = `
     try { modal._tpAlarmObserver?.disconnect(); } catch {}
     modal._tpAlarmObserver = null;
   };
+  let alarmAttemptSeq = 0;
 
   const ensureAlarmStatus = modal => {
     let el = modal.querySelector('.tp-alarm-status');
@@ -9256,14 +9270,19 @@ const SHADOW_MODAL_STYLES = `
     refreshAlarmBellDecor();
     if (!CONFIG.ALARM_ENABLED) return;
     const modalContainer = document.querySelector('.Plugin_NewInfoMailForm');
-    if (!modalContainer || modalContainer.dataset.tpAlarmProcessed === 'true') return;
+    if (!modalContainer) return;
+    // Attempt machine: a fresh fill only from idle-like states — in-flight
+    // (filled/scheduled/submitted) or confirmed attempts never refill, so a
+    // replaced modal can never paint another attempt's status.
+    const alarmState = modalContainer.dataset.tpAlarmState;
+    if (alarmState === 'filled' || alarmState === 'scheduled' || alarmState === 'submitted' || alarmState === 'confirmed') return;
     clearAlarmTimers(modalContainer);
 
     const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
     const productFirst = modalContainer.querySelector('.productPrice .Plugin_Price');
-    // Modal-scoped only: a page-wide fallback could fill a foreign price into
-    // this product's alarm (missing controls retry on the next observer pass).
-    const priceEl = isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst);
+    // Basis-strict: no opposite-basis fallback — a foreign price must never be
+    // filled into this product's alarm (missing controls retry next pass).
+    const priceEl = isShippingPriceActive() ? shippingFirst : productFirst;
     if (!priceEl) return;
 
     const presentValue = parsePrice(priceEl.textContent);
@@ -9282,8 +9301,10 @@ const SHADOW_MODAL_STYLES = `
     const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
     const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
     const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
-    // Missing-controls: no submission, no processed flag — next DOM pass retries.
+    // Missing-controls: no submission, no attempt stamp — next DOM pass retries.
     if (!priceInput || (!durationHidden && !durationLi)) return;
+    // Refill must not clobber a focused manual edit.
+    if (document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
     priceInput.value = targetPrice;
     priceInput.dispatchEvent(new Event('input', { bubbles: true }));
     priceInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -9295,29 +9316,44 @@ const SHADOW_MODAL_STYLES = `
     // Read-back revalidation: partial fills retry on the next observer pass.
     if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return;
     modalContainer.dataset.tpAlarmProcessed = 'true';
+    modalContainer.dataset.tpAlarmState = 'filled';
+    modalContainer.dataset.tpAlarmAttempt = String(++alarmAttemptSeq);
 
     if (CONFIG.ALARM_AUTO_SUBMIT === true) {
       const reqModal = modalContainer;
       const reqSnap = snapshot;
+      const reqAttempt = modalContainer.dataset.tpAlarmAttempt;
       const unconfirmedMsg = '⚠️ Übermittlung nicht bestätigt — bitte prüfen';
+      let fallbackTimer = 0;
+      let observer = null;
+      // Any validation failure cancels this attempt: timers die, no submit,
+      // no status paint — a newer attempt (if any) is untouched.
+      const cancelAttempt = () => {
+        clearTimeout(fallbackTimer);
+        try { observer?.disconnect(); } catch {}
+        reqModal._tpAlarmObserver = null;
+        if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+      };
       const flagUnconfirmed = () => {
-        const cur = document.querySelector('.Plugin_NewInfoMailForm');
-        if (!cur) return;
-        const el = ensureAlarmStatus(cur);
+        // Attempt-scoped paint: a replaced modal never gets another
+        // attempt's status — no document-wide query.
+        if (!reqModal.isConnected || reqModal.dataset.tpAlarmAttempt !== reqAttempt) return;
+        reqModal.dataset.tpAlarmState = 'unconfirmed';
+        const el = ensureAlarmStatus(reqModal);
         // Guarded write: the observer watches this subtree, so an unguarded
         // textContent assignment would re-trigger it into a microtask loop.
         if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
       };
       try {
         const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
-        let fallbackTimer = 0;
         // Observe BEFORE submit: close only on a success signal — button/form
         // detachment alone never closes.
-        const observer = new MutationObserver(() => {
+        observer = new MutationObserver(() => {
           if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
             try { observer.disconnect(); } catch {}
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
+            if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
             const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
@@ -9325,6 +9361,8 @@ const SHADOW_MODAL_STYLES = `
           } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
             try { observer.disconnect(); } catch {}
             clearTimeout(fallbackTimer);
+            reqModal._tpAlarmObserver = null;
+            if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
           }
         });
         observer.observe(dialogRoot, { childList: true, subtree: true });
@@ -9336,22 +9374,25 @@ const SHADOW_MODAL_STYLES = `
         }, 5000);
         const submitTimer = setTimeout(() => {
           // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
-          if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return;
-          if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return;
-          if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return;
-          if (priceInput.value !== reqSnap.target) return;
+          if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
+          if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();
+          if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return cancelAttempt();
+          if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return cancelAttempt();
+          if (priceInput.value !== reqSnap.target) return cancelAttempt();
           const durHidden = reqModal.querySelector('input[name="im_nimf_du"]');
-          if (durHidden && durHidden.value !== reqSnap.duration) return;
+          if (durHidden && durHidden.value !== reqSnap.duration) return cancelAttempt();
           const submitBtn = reqModal.querySelector('input.f_submitbtn');
-          if (!submitBtn) return;
+          if (!submitBtn) return cancelAttempt();
           const termsCheckbox = reqModal.querySelector('input#im_nimf_prtrm');
           if (termsCheckbox) {
             termsCheckbox.checked = true;
             termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
           }
           submitBtn.click();
+          if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'submitted';
         }, 300);
         modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
+        modalContainer.dataset.tpAlarmState = 'scheduled';
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
       }
@@ -9360,9 +9401,14 @@ const SHADOW_MODAL_STYLES = `
 
   setAlarmConfigListener(() => {
     // A settings change invalidates pending auto-submits: cancel timers so a
-    // stale snapshot can never submit under new settings.
+    // stale snapshot can never submit under new settings. Both flags go so
+    // the next pass refills under the new settings (never over a focused edit).
     const live = typeof document !== 'undefined' ? document.querySelector('.Plugin_NewInfoMailForm') : null;
-    if (live) clearAlarmTimers(live);
+    if (live) {
+      clearAlarmTimers(live);
+      delete live.dataset.tpAlarmState;
+      delete live.dataset.tpAlarmProcessed;
+    }
     refreshAlarmBellDecor();
   });
 
@@ -9697,7 +9743,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.281';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.282';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

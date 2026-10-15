@@ -89,6 +89,7 @@ def test_price_alarm_automation(page: Page):
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('ALARM_ENABLED', true); window.ToppreiseSuite.updateConfig('ALARM_AUTO_SUBMIT', true); }")
     page.evaluate("""() => {
       delete document.querySelector('.Plugin_NewInfoMailForm').dataset.tpAlarmProcessed;
+      delete document.querySelector('.Plugin_NewInfoMailForm').dataset.tpAlarmState;
       document.querySelector('#mock-alarm-dialog').style.display = 'block';
       window.ToppreiseSuite?.processPriceAlarmModal?.();
     }""")
@@ -181,6 +182,7 @@ def test_alarm_fill_clamps_corrupt_config(page: Page):
     page.evaluate("""() => {
       const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
       delete form.dataset.tpAlarmProcessed;
+      delete form.dataset.tpAlarmState;
       form.querySelector('#im_nimf_prtrm').checked = false;
       window.ToppreiseSuite.processPriceAlarmModal();
     }""")
@@ -191,6 +193,7 @@ def test_alarm_fill_clamps_corrupt_config(page: Page):
       window.ToppreiseSuite.updateConfig('ALARM_TARGET_PERCENT', NaN);
       const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
       delete form.dataset.tpAlarmProcessed;
+      delete form.dataset.tpAlarmState;
       form.querySelector('#f_NewInfoMailForm_priceFrom').value = '';
       window.ToppreiseSuite.processPriceAlarmModal();
     }""")
@@ -202,6 +205,7 @@ def test_alarm_fill_clamps_corrupt_config(page: Page):
       window.ToppreiseSuite.updateConfig('ALARM_DURATION_DAYS', '999');
       const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
       delete form.dataset.tpAlarmProcessed;
+      delete form.dataset.tpAlarmState;
       window.ToppreiseSuite.processPriceAlarmModal();
     }""")
     assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == '990.00'
@@ -212,7 +216,8 @@ def test_alarm_missing_price_retries(page: Page):
     page.evaluate("""() => {
       const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
       delete form.dataset.tpAlarmProcessed;
-      form.querySelector('.productPrice .Plugin_Price').textContent = '';
+      delete form.dataset.tpAlarmState;
+      form.querySelector('.shippingPrice .Plugin_Price').textContent = '';
       form.querySelector('#f_NewInfoMailForm_priceFrom').value = '';
       document.querySelector('#mock-alarm-dialog').style.display = 'block';
       window.ToppreiseSuite.processPriceAlarmModal();
@@ -223,7 +228,8 @@ def test_alarm_missing_price_retries(page: Page):
 
     page.evaluate("""() => {
       const form = document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm');
-      form.querySelector('.productPrice .Plugin_Price').textContent = '1000.00';
+      delete form.dataset.tpAlarmState;
+      form.querySelector('.shippingPrice .Plugin_Price').textContent = '1000.00';
       window.ToppreiseSuite.processPriceAlarmModal();
     }""")
     assert page.locator('#f_NewInfoMailForm_priceFrom').input_value() == '600.00'

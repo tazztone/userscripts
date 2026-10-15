@@ -79,6 +79,7 @@ def test_alarm_missing_controls_schedules_nothing(page: Page):
         window.ToppreiseSuite.CONFIG.ALARM_AUTO_SUBMIT = true;
         document.querySelector('#mock-alarm-dialog input#f_NewInfoMailForm_priceFrom')?.remove();
         delete document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm').dataset.tpAlarmProcessed;
+        delete document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm').dataset.tpAlarmState;
         document.querySelector('#mock-alarm-dialog').style.display = 'block';
         window.ToppreiseSuite.processPriceAlarmModal();
     }""")
@@ -98,8 +99,8 @@ def test_alarm_unconfirmed_submit_keeps_dialog_open_with_warning(page: Page):
         // Unconfirmed path: mock detaches the button without AJAX success.
         window.__tpMockAlarmSuccess = false;
         delete document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm').dataset.tpAlarmProcessed;
+        delete document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm').dataset.tpAlarmState;
         document.querySelector('#mock-alarm-dialog').style.display = 'block';
-        window.ToppreiseSuite.processPriceAlarmModal();
     }""")
     # Fill-only proof: 1000.00 * 60% target lands in the input.
     assert page.locator(f'{DIALOG} input#f_NewInfoMailForm_priceFrom').input_value() == '600.00'

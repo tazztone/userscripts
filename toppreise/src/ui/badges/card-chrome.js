@@ -18,6 +18,9 @@ import { startBatchCheck } from '../floating-cta.js';
 import { setTextIfChanged, setTitleIfChanged } from './dom-helpers.js';
 import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried, renderHeat, renderFilterVerdict } from './deal-badge.js';
 import { renderBadgeVerdict } from './deal-verdict.js';
+// Share dedupe surviving button re-renders: duplicate clicks for the same
+// pid:basis:price post once (button disabled alone is not enough).
+const shareInFlight = new Set();
 
 // Mini price-trend sparkline + history strip (step 5).
 export function renderSparklineRow(ctx) {
@@ -155,13 +158,21 @@ export function renderShareButton(ctx, cd) {
         const stillFresh = () => {
           if (!card.isConnected) return false;
           const cur = extractCardData(card);
-          return cur.pid === snap.pid && cur.cardPriceBasis === snap.basis
-            && priceToCents(cur.cardPrice) === snap.priceCents;
+          if (cur.pid !== snap.pid || cur.cardPriceBasis !== snap.basis
+            || priceToCents(cur.cardPrice) !== snap.priceCents) return false;
+          // Shareability can lapse while price/pid/basis hold (cache
+          // eviction): re-derive the click-time verdict so the green paint
+          // never rewards a deal that is no longer verifiable.
+          const curKind = cur.displayDelta?.kind;
+          return !!(cur.dealScore || curKind === 'new-low' || curKind === 'at-low');
         };
         const abortStale = () => {
           showToast('Karte hat sich geändert – erneut prüfen');
           scheduleProcessListings();
         };
+        const shareKey = `${snap.pid}:${snap.basis}:${snap.priceCents}`;
+        if (shareInFlight.has(shareKey)) { showToast('Teilen läuft bereits'); return; }
+        shareInFlight.add(shareKey);
         shareBtn.disabled = true;
         try {
           try {
@@ -243,7 +254,7 @@ export function renderShareButton(ctx, cd) {
             if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
             showToast('📤 Deal in Discord geteilt');
             if (stillFresh()) shareBtn.classList.add('tp-share-done');
-            else abortStale();
+            else { showToast('📤 Deal geteilt – Karte hat sich danach geändert'); scheduleProcessListings(); }
           } catch (err) {
             if (err?.stale) { abortStale(); }
             else if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
@@ -251,6 +262,7 @@ export function renderShareButton(ctx, cd) {
             else showToast('📤 Teilen fehlgeschlagen');
           }
         } finally {
+          shareInFlight.delete(shareKey);
           shareBtn.disabled = false;
         }
       });

@@ -134,6 +134,7 @@ const clearAlarmTimers = modal => {
   try { modal._tpAlarmObserver?.disconnect(); } catch {}
   modal._tpAlarmObserver = null;
 };
+let alarmAttemptSeq = 0;
 
 const ensureAlarmStatus = modal => {
   let el = modal.querySelector('.tp-alarm-status');
@@ -149,14 +150,19 @@ export function processPriceAlarmModal() {
   refreshAlarmBellDecor();
   if (!CONFIG.ALARM_ENABLED) return;
   const modalContainer = document.querySelector('.Plugin_NewInfoMailForm');
-  if (!modalContainer || modalContainer.dataset.tpAlarmProcessed === 'true') return;
+  if (!modalContainer) return;
+  // Attempt machine: a fresh fill only from idle-like states — in-flight
+  // (filled/scheduled/submitted) or confirmed attempts never refill, so a
+  // replaced modal can never paint another attempt's status.
+  const alarmState = modalContainer.dataset.tpAlarmState;
+  if (alarmState === 'filled' || alarmState === 'scheduled' || alarmState === 'submitted' || alarmState === 'confirmed') return;
   clearAlarmTimers(modalContainer);
 
   const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
   const productFirst = modalContainer.querySelector('.productPrice .Plugin_Price');
-  // Modal-scoped only: a page-wide fallback could fill a foreign price into
-  // this product's alarm (missing controls retry on the next observer pass).
-  const priceEl = isShippingPriceActive() ? (shippingFirst || productFirst) : (productFirst || shippingFirst);
+  // Basis-strict: no opposite-basis fallback — a foreign price must never be
+  // filled into this product's alarm (missing controls retry next pass).
+  const priceEl = isShippingPriceActive() ? shippingFirst : productFirst;
   if (!priceEl) return;
 
   const presentValue = parsePrice(priceEl.textContent);
@@ -175,8 +181,10 @@ export function processPriceAlarmModal() {
   const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
   const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
   const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
-  // Missing-controls: no submission, no processed flag — next DOM pass retries.
+  // Missing-controls: no submission, no attempt stamp — next DOM pass retries.
   if (!priceInput || (!durationHidden && !durationLi)) return;
+  // Refill must not clobber a focused manual edit.
+  if (document.activeElement === priceInput && priceInput.value !== snapshot.target) return;
   priceInput.value = targetPrice;
   priceInput.dispatchEvent(new Event('input', { bubbles: true }));
   priceInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -188,29 +196,44 @@ export function processPriceAlarmModal() {
   // Read-back revalidation: partial fills retry on the next observer pass.
   if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return;
   modalContainer.dataset.tpAlarmProcessed = 'true';
+  modalContainer.dataset.tpAlarmState = 'filled';
+  modalContainer.dataset.tpAlarmAttempt = String(++alarmAttemptSeq);
 
   if (CONFIG.ALARM_AUTO_SUBMIT === true) {
     const reqModal = modalContainer;
     const reqSnap = snapshot;
+    const reqAttempt = modalContainer.dataset.tpAlarmAttempt;
     const unconfirmedMsg = '⚠️ Übermittlung nicht bestätigt — bitte prüfen';
+    let fallbackTimer = 0;
+    let observer = null;
+    // Any validation failure cancels this attempt: timers die, no submit,
+    // no status paint — a newer attempt (if any) is untouched.
+    const cancelAttempt = () => {
+      clearTimeout(fallbackTimer);
+      try { observer?.disconnect(); } catch {}
+      reqModal._tpAlarmObserver = null;
+      if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
+    };
     const flagUnconfirmed = () => {
-      const cur = document.querySelector('.Plugin_NewInfoMailForm');
-      if (!cur) return;
-      const el = ensureAlarmStatus(cur);
+      // Attempt-scoped paint: a replaced modal never gets another
+      // attempt's status — no document-wide query.
+      if (!reqModal.isConnected || reqModal.dataset.tpAlarmAttempt !== reqAttempt) return;
+      reqModal.dataset.tpAlarmState = 'unconfirmed';
+      const el = ensureAlarmStatus(reqModal);
       // Guarded write: the observer watches this subtree, so an unguarded
       // textContent assignment would re-trigger it into a microtask loop.
       if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
     };
     try {
       const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
-      let fallbackTimer = 0;
       // Observe BEFORE submit: close only on a success signal — button/form
       // detachment alone never closes.
-      const observer = new MutationObserver(() => {
+      observer = new MutationObserver(() => {
         if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
           try { observer.disconnect(); } catch {}
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
+          if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
           const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
@@ -218,6 +241,8 @@ export function processPriceAlarmModal() {
         } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
           try { observer.disconnect(); } catch {}
           clearTimeout(fallbackTimer);
+          reqModal._tpAlarmObserver = null;
+          if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
         }
       });
       observer.observe(dialogRoot, { childList: true, subtree: true });
@@ -229,22 +254,25 @@ export function processPriceAlarmModal() {
       }, 5000);
       const submitTimer = setTimeout(() => {
         // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
-        if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return;
-        if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return;
-        if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return;
-        if (priceInput.value !== reqSnap.target) return;
+        if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
+        if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();
+        if (location.href !== reqSnap.url || isShippingPriceActive() !== reqSnap.basis) return cancelAttempt();
+        if (!priceEl.isConnected || priceEl.textContent !== reqSnap.priceText) return cancelAttempt();
+        if (priceInput.value !== reqSnap.target) return cancelAttempt();
         const durHidden = reqModal.querySelector('input[name="im_nimf_du"]');
-        if (durHidden && durHidden.value !== reqSnap.duration) return;
+        if (durHidden && durHidden.value !== reqSnap.duration) return cancelAttempt();
         const submitBtn = reqModal.querySelector('input.f_submitbtn');
-        if (!submitBtn) return;
+        if (!submitBtn) return cancelAttempt();
         const termsCheckbox = reqModal.querySelector('input#im_nimf_prtrm');
         if (termsCheckbox) {
           termsCheckbox.checked = true;
           termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
         submitBtn.click();
+        if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'submitted';
       }, 300);
       modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
+      modalContainer.dataset.tpAlarmState = 'scheduled';
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
     }
@@ -253,8 +281,13 @@ export function processPriceAlarmModal() {
 
 setAlarmConfigListener(() => {
   // A settings change invalidates pending auto-submits: cancel timers so a
-  // stale snapshot can never submit under new settings.
+  // stale snapshot can never submit under new settings. Both flags go so
+  // the next pass refills under the new settings (never over a focused edit).
   const live = typeof document !== 'undefined' ? document.querySelector('.Plugin_NewInfoMailForm') : null;
-  if (live) clearAlarmTimers(live);
+  if (live) {
+    clearAlarmTimers(live);
+    delete live.dataset.tpAlarmState;
+    delete live.dataset.tpAlarmProcessed;
+  }
   refreshAlarmBellDecor();
 });
