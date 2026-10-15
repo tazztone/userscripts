@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.279
+// @version      2.18.280
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3756,15 +3756,17 @@ const SHADOW_MODAL_STYLES = `
     // Fall back to the pid-keyed snapshot (tpOriginalDiscount stores the site
     // discount, i.e. -diff) so counting/filtering keep the host number.
     if (badgeEl?.dataset?.tpPainted === 'true') {
-      // Host update detection: changed badge text with a pid mismatch voids
-      // the snapshot so counting/filtering re-read the live host number below.
+      // Host update detection: changed badge text with a live host % voids the
+      // snapshot (same pid or not) so counting/filtering re-read the host
+      // number below. Paint site stamps tpPaintedText on every script write.
       if (badgeEl.dataset.tpPaintedText !== undefined && badgeEl.textContent !== badgeEl.dataset.tpPaintedText) {
         const hostMatch = badgeEl.textContent.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
-        if (hostMatch && (badgeEl.dataset.tpOriginalPid !== (getCardProductId(card) ?? ''))) {
+        if (hostMatch) {
           delete badgeEl.dataset.tpPainted;
           delete badgeEl.dataset.tpOriginalDiscount;
           delete badgeEl.dataset.tpOriginalPid;
           delete badgeEl.dataset.tpPaintedText;
+          if (card.dataset) delete card.dataset.tpDiff;
         }
       }
       if (badgeEl.dataset.tpPainted === 'true') {
@@ -9522,19 +9524,16 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
           node.classList?.contains('tp-empty-state-notice')) {
         return false;
       }
-      return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
-             !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
+      return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
+             !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
     };
 
     for (const m of mutations) {
+      // Route-attribute swap on body matches no card selector: handle
+      // explicitly so SPA navigation always schedules a pass.
+      if (m.type === 'attributes' && (m.attributeName === 'data-current_url' || m.attributeName === 'data-current-url')) structural = true;
       const target = m.target;
       if (!target) continue;
-      // Ignore mutations inside document.head (DarkReader dynamic styles, font loading, etc.)
-      if (target === document.head || target.closest?.('head')) continue;
-      const targetEl = target.nodeType === 1 ? target : target.parentElement;
-      // Ignore script-owned paint (own root UI, filter bar, CTA, badges).
-      if (targetEl?.closest?.(TP_OWNED_SEL)) continue;
-
       // In-card host mutation (price text/attribute swap, node replacement):
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
@@ -9558,8 +9557,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // Attribute/characterData records carry no added/removed nodes: match
       // the target itself so detail-price text swaps, alarm controls,
       // active-filter changes and route-attribute swaps schedule a pass.
-      if (!structural && targetEl && (m.type === 'characterData' || m.type === 'attributes')) {
-        if (!isOwnedNode(targetEl) && targetEl.closest?.(NON_CARD_SEL)) structural = true;
+      // childList targets cover textContent writes and price-element
+      // replacement where the container itself is the mutation target.
+      if (!structural && targetEl && (m.type === 'childList' || m.type === 'characterData' || m.type === 'attributes')) {
+        if (!isOwnedNode(targetEl) && (targetEl.matches?.(NON_CARD_SEL) || targetEl.closest?.(NON_CARD_SEL))) structural = true;
       }
       if (dirtyCard && structural) break;
     }
@@ -9642,7 +9643,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.278';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.279';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -81,6 +81,11 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       assert.strictEqual(extractCardDiff(painted('p2', 'p1', '67')), null);
       assert.strictEqual(extractCardDiscount(painted('p2', 'p1', '67')), null);
     });
+    it('voids the snapshot on same-product host badge updates', () => {
+      const badge = { textContent: '-50%', dataset: { tpPainted: 'true', tpOriginalPid: 'p1', tpOriginalDiscount: '30', tpPaintedText: '⏳ Prüfe…' } };
+      const card = { dataset: { entityId: 'p1' }, querySelector: () => badge, textContent: '' };
+      assert.strictEqual(extractCardDiff(card), -50);
+    });
   });
 
   // Blind heatmap: no fallback-specific visual remains — every heatable card

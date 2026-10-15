@@ -144,15 +144,17 @@ export function extractCardDiff(card) {
   // Fall back to the pid-keyed snapshot (tpOriginalDiscount stores the site
   // discount, i.e. -diff) so counting/filtering keep the host number.
   if (badgeEl?.dataset?.tpPainted === 'true') {
-    // Host update detection: changed badge text with a pid mismatch voids
-    // the snapshot so counting/filtering re-read the live host number below.
+    // Host update detection: changed badge text with a live host % voids the
+    // snapshot (same pid or not) so counting/filtering re-read the host
+    // number below. Paint site stamps tpPaintedText on every script write.
     if (badgeEl.dataset.tpPaintedText !== undefined && badgeEl.textContent !== badgeEl.dataset.tpPaintedText) {
       const hostMatch = badgeEl.textContent.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/);
-      if (hostMatch && (badgeEl.dataset.tpOriginalPid !== (getCardProductId(card) ?? ''))) {
+      if (hostMatch) {
         delete badgeEl.dataset.tpPainted;
         delete badgeEl.dataset.tpOriginalDiscount;
         delete badgeEl.dataset.tpOriginalPid;
         delete badgeEl.dataset.tpPaintedText;
+        if (card.dataset) delete card.dataset.tpDiff;
       }
     }
     if (badgeEl.dataset.tpPainted === 'true') {
