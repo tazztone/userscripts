@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isDiscordWebhookUrl,
   formatDealMessage,
+  forumRecipeFor,
   renderLayout,
   validateLayoutRecipe,
   renderDiscordMarkdownPreview,
@@ -801,6 +802,43 @@ describe('layout recipe', () => {
     const { DEFAULTS } = await import('../../src/state/config.js');
     assert.equal(DEFAULTS.DISCORD_LAYOUT, DEFAULT_LAYOUT);
     for (const line of DEFAULT_LAYOUT.split('\n').slice(1)) assert.match(line, /^[^ \t]/);
+  });
+});
+describe('forum body', () => {
+  const base = {
+    title: 'HyperX Pulsefire Fuse',
+    url: PRODUCT_URL,
+    priceText: 'CHF 31.90',
+    dealer: 'Digitec',
+    dealerUrl: DEALER_URL,
+    offerCount: 3,
+    spark: '█▁▁',
+    prevLowText: 'CHF 44.95',
+    prevLowPct: 29,
+    medianText: 'Ø-Preis (1J): CHF 54.05',
+    medianPct: 41,
+    suppressProductEmbed: true
+  };
+  const forumFields = { ...base, forceLink: true };
+  it('default layout: no title, price first, bare link last', () => {
+    const msg = formatDealMessage(forumFields, forumRecipeFor(DEFAULT_LAYOUT));
+    assert.ok(!msg.includes('HyperX Pulsefire Fuse'));
+    const lines = msg.split('\n');
+    assert.equal(lines[0], '# 💰 CHF 31.90');
+    assert.ok(lines.some(l => l.includes('Digitec')));
+    assert.equal(lines[lines.length - 1], PRODUCT_URL);
+  });
+  it('custom recipe without {link} gains a trailing bare link', () => {
+    const msg = formatDealMessage(forumFields, forumRecipeFor('# {price}'));
+    assert.deepEqual(msg.split('\n'), ['# 💰 CHF 31.90', PRODUCT_URL]);
+  });
+  it('inline title keeps the rest of the line', () => {
+    const msg = formatDealMessage(forumFields, forumRecipeFor('## {title} {price}'));
+    assert.ok(msg.includes('CHF 31.90'));
+    assert.ok(!msg.includes('HyperX Pulsefire Fuse'));
+  });
+  it('normal path still starts with the title link', () => {
+    assert.ok(formatDealMessage(base).startsWith(`## [HyperX Pulsefire Fuse](<${PRODUCT_URL}>)`));
   });
 });
 

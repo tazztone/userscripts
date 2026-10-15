@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.248
+// @version      2.18.249
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5294,14 +5294,16 @@ const SHADOW_MODAL_STYLES = `
                 if (info) { dealer = dealer || info.dealer; dealerUrl = dealerUrl || info.dealerUrl; offers = offers || info.offers; }
               }
               const png = await renderSparklinePng(withLivePrice(stats?.timeSeries, cardPrice)).catch(() => null);
-              const content = formatDealMessage({
+              const fields = {
                 title, url, priceText,
                 dealer, dealerUrl, offerCount: offers,
                 spark: png ? '' : sparklineText(stats?.timeSeries),
                 ...resolveShareFields(cardPrice, stats),
                 suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
                 suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
-              }, CONFIG.DISCORD_LAYOUT);
+              };
+              const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
+              const forumContent = formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
               const threadName = buildThreadName(title);
               const flagKey = discordForumFlagKey(hook);
               const forum = _getValue(flagKey, false) === true;
@@ -5309,8 +5311,8 @@ const SHADOW_MODAL_STYLES = `
               // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
               const productBlob = (png && productDl) ? await productDl : null;
               const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
-              const postText = withThread => postDealToDiscord(hook, content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-              const postImage = withThread => postDealImageToDiscord(hook, content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+              const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+              const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
               const tryRound = async withThread => {
                 if (png) {
                   try { await postImage(withThread); return; }
@@ -7922,7 +7924,7 @@ const SHADOW_MODAL_STYLES = `
       case 'spark': return ctx.spark ? `📊 ${ctx.spark}` : '';
       case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
       case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
-      case 'link': return (ctx.link && !ctx.suppressProductEmbed) ? ctx.link : '';
+      case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
       default: return '';
     }
   }
@@ -7945,6 +7947,7 @@ const SHADOW_MODAL_STYLES = `
       medianText: (fields || {}).medianText || '',
       medianPct: (fields || {}).medianPct || 0,
       suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
+      forceLink: (fields || {}).forceLink === true,
     };
     const out = [];
     for (const rawLine of recipe.split('\n')) {
@@ -7953,6 +7956,11 @@ const SHADOW_MODAL_STYLES = `
       out.push(line);
     }
     return out.join('\n');
+  }
+  function forumRecipeFor(recipe = DEFAULT_LAYOUT) {
+    const base = String(recipe || '').trim() ? String(recipe) : DEFAULT_LAYOUT;
+    const stripped = base.replace(/\{title\}/g, '');
+    return /\{link\}/.test(stripped) ? stripped : `${stripped.replace(/\s+$/, '')}\n{link}`;
   }
   function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
     const full = renderLayout(fields, recipe);

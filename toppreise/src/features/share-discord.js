@@ -221,7 +221,7 @@ function tokenText(name, ctx) {
     case 'spark': return ctx.spark ? `📊 ${ctx.spark}` : '';
     case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
     case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
-    case 'link': return (ctx.link && !ctx.suppressProductEmbed) ? ctx.link : '';
+    case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
     default: return '';
   }
 }
@@ -244,6 +244,7 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     medianText: (fields || {}).medianText || '',
     medianPct: (fields || {}).medianPct || 0,
     suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
+    forceLink: (fields || {}).forceLink === true,
   };
   const out = [];
   for (const rawLine of recipe.split('\n')) {
@@ -252,6 +253,11 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     out.push(line);
   }
   return out.join('\n');
+}
+export function forumRecipeFor(recipe = DEFAULT_LAYOUT) {
+  const base = String(recipe || '').trim() ? String(recipe) : DEFAULT_LAYOUT;
+  const stripped = base.replace(/\{title\}/g, '');
+  return /\{link\}/.test(stripped) ? stripped : `${stripped.replace(/\s+$/, '')}\n{link}`;
 }
 export function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
   const full = renderLayout(fields, recipe);
