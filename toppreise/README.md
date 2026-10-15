@@ -99,12 +99,12 @@ Klicke auf das schwebende **Zahnrad-Symbol** unten rechts auf Toppreise.ch, um d
 
 ## 🏗️ Architecture & Development
 
-The source code is modularized under `src/` (23 modules; `node tools/build.js` concatenates them in load-bearing order):
+The source code is modularized under `src/` (42 modules, each <25 KB; `node tools/build.js` concatenates them in load-bearing order):
 - `src/domain/`: `price.js` (parsing, cents, time-series, horizons), `deal-score.js` (Tiefstpreis classification, Gewichtete Differenz).
 - `src/page/`: `selectors.js` (immutable `SELECTORS` registry), `adapter.js` (DOM/price extraction), `cards.js` (card data, heat ramp), `sort.js` (grid sorting).
 - `src/scanner/`: `cache.js` (bounded LRU + TTL + pruning), `scanner.js` (fetch orchestration).
-- `src/state/`: `config.js` (2-layer persistence, UI sync), `store.js` (runtime scan state).
-- `src/ui/`: `shell.js` (shadow skeleton), `styles.js` (design tokens), `modal.js` (settings dialog), `toolbar.js` (filter bar), `mini-toggle.js` (toggle primitive), `badges.js` (deal badges), `sparkline.js` (SVG sparklines), `floating-cta.js` (batch check CTA), `toast.js` (notifications).
+- `src/state/`: `config.js` (facade: UI sync, text helpers), `config-store.js` (2-layer persistence, schema), `config-migrate.js` (one-time migrations), `store.js` (runtime scan state).
+- `src/ui/`: `shell.js` (shadow skeleton), `styles/` + `styles.js` (tokens/cards/chrome/overlays/shadow-modal parts + barrel), `modal.js` (orchestrator) + `modal-template.js`/`modal-bindings.js`/`modal-actions.js`, `toolbar.js` (shell) + `toolbar-calc.js`/`toolbar-filter.js`, `calc-preview.js` + `calc-preset-data.js`, `badges.js` (barrel) + `badges/` (dom-helpers/deal-badge/deal-verdict/card-chrome), `mini-toggle.js` (toggle primitive), `sparkline.js` (SVG sparklines), `floating-cta.js` (batch check CTA), `toast.js` (notifications).
 - `src/features/`: `share-discord.js` (webhook sharing), `price-alarm.js` (drop alerts), `product-detail.js` (detail-page badge).
 - `src/app.js`: orchestration, observers, DOM lifecycle.
 
@@ -117,9 +117,11 @@ node toppreise/tools/build.js
 # Verify bundle integrity and detect drift (CI gate)
 node toppreise/tools/build.js --check
 
+# Module boundaries + 25 KB size advisory (warning-only, never fails)
+node toppreise/tools/check-modules.js
+
 # Syntax verification
 node --check toppreise/toppreise.user.js
-```
 
 ### 🧪 Test Execution
 
