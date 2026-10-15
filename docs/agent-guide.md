@@ -11,6 +11,10 @@ node toppreise/tools/build.js --check  # drift gate, run pre/post src/ edit
 
 Commits run `bump_version_precommit.py` (rebuild, `--check`, unit tests, `@version` patch-bump); a failing gate aborts. When deleting files, clear the gate: `rg '<deleted-name>' bump_version_precommit.py <script>/tools/ AGENTS.md`. `git status` first; stage only intended files.
 
+## Graph
+
+Project `home-tazztone-_coding-userscripts`, indexed `moderate` (filtered+semantic; `full` would pull gitignored `.playwright-browsers`/`venv`). Structural questions first: `search_graph` to find, `trace_path` for callers/callees, `get_code_snippet` to read. Bare names are ambiguous (src + built bundle `toppreise.user.js`); trace with the qualified name. Re-index via `index_repository(mode="moderate")` after moves/renames.
+
 ## Testing
 
 ```bash
