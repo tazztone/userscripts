@@ -113,10 +113,15 @@ export function previewCoords(clean, o = {}) {
   const anchor = (typeof o.cardPrice === 'number' && o.cardPrice > 0)
     ? { x: m.left + innerW, y: y(o.cardPrice) }
     : null;
+  let anchorLink = null;
+  if (n > 0 && anchor) {
+    const y1 = y(pts[n - 1][1]);
+    if (Math.abs(y1 - anchor.y) >= 0.5) anchorLink = { x1: anchor.x, y1, x2: anchor.x, y2: anchor.y };
+  }
   const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
   const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
   if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
-  return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, ticks, recordY, rawAttr, fracX };
+  return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, anchorLink, ticks, recordY, rawAttr, fracX };
 }
 
 let activePresetId = 's26';
@@ -124,8 +129,8 @@ let activePresetId = 's26';
 export function buildCalcPreview() {
   const box = document.createElement('div');
   box.id = 'tp-calc-preview';
-  const opts = Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('');
-  box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Demo-Historie für die Vorschau">${opts}</select></div>`
+  const opts = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}"${p.id === 's26' ? ' selected' : ''}>${p.label}</option>`).join('')}</optgroup>`;
+  box.innerHTML = `<div class="tp-preview-head"><span>Live-Vorschau</span><select id="tp-preview-preset-select" class="tp-preview-select" title="Beispiel-Historie für die Vorschau">${opts}</select></div>`
     + `<div id="tp-preview-key"><span><span class="tp-pv-k-main">—</span> Verlauf</span><span><span class="tp-pv-k-med">– –</span> Ø</span><span><span class="tp-pv-k-rec">····</span> Rekord</span><span><span class="tp-pv-k-band">▉</span> Band</span><span><span class="tp-pv-k-demo">···</span> Demo</span><span><span class="tp-pv-k-g">×</span> Glitch</span></div>`
     + `<svg id="tp-preview-svg" viewBox="0 0 296 110" role="img" aria-label="Preisverlauf-Vorschau"></svg>`
     + `<div id="tp-preview-legend"></div><div id="tp-preview-blend"></div><div id="tp-preview-status"></div>`;
@@ -172,7 +177,7 @@ export function refreshCalcPreview() {
   const pageOpts = getPageProductOptions();
   const prevVal = sel ? sel.value : activePresetId;
   if (sel) {
-    sel.innerHTML = Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')
+    sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
       + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
     sel.value = (PRESETS[prevVal] || (typeof prevVal === 'string' && prevVal.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === prevVal))) ? prevVal : activePresetId;
   }
@@ -242,6 +247,7 @@ export function refreshCalcPreview() {
     s += `<text class="tp-pv-x" x="${f1(g.x)}" y="${f1(g.y - 3)}" font-size="10" fill="#f43f5e" text-anchor="middle">×</text>`;
   }
   if (co.anchor) {
+    if (co.anchorLink) s += `<line class="tp-pv-anchor-link" x1="${f1(co.anchorLink.x1)}" y1="${f1(co.anchorLink.y1)}" x2="${f1(co.anchorLink.x2)}" y2="${f1(co.anchorLink.y2)}" stroke="${mainStroke}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
     s += `<line x1="${PV_MARGIN.left}" x2="${f1(co.anchor.x)}" y1="${f1(co.anchor.y)}" y2="${f1(co.anchor.y)}" stroke="${mainStroke}" stroke-dasharray="2 2" stroke-width="1"/>`;
     s += `<circle cx="${f1(co.anchor.x)}" cy="${f1(co.anchor.y)}" r="3" fill="${mainStroke}" stroke="#fff" stroke-width="1"/>`;
   }
