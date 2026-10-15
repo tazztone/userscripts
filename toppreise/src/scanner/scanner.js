@@ -17,6 +17,7 @@ export const activeFetches = new Map();
 let batchController = null;
 // Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
 let originCooldownUntil = 0;
+export function resetOriginCooldown() { originCooldownUntil = 0; }
 
 async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
   const step = 100;
@@ -51,7 +52,7 @@ const isCancelled = (signal, shouldCancelFn) => signal?.aborted || shouldCancelF
 // makeRequest value on HTTP 200; returns it on non-429 4xx (caller maps to
 // genuinely-absent); throws transient/cancelled/cooldown otherwise — never
 // writes cache itself.
-async function requestWithRetry(makeRequest, { retries = 1, shouldCancelFn = null, signal = null, baseDelayMs = 400, timeoutMs = 6000 } = {}) {
+export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelFn = null, signal = null, baseDelayMs = 400, timeoutMs = 6000 } = {}) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (isCancelled(signal, shouldCancelFn)) {
       const e = new Error('cancelled');

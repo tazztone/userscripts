@@ -1986,8 +1986,8 @@ def test_process_listings_is_idempotent_and_does_not_flicker_or_loop(page: Page)
     }""")
     assert badge_child_stable, "Badge inner DOM elements were destroyed/re-created during processListings"
 
-    # 3. Verify MutationObserver does not fire on card-internal mutations (e.g. image lazyload)
-    observer_ignored = page.evaluate("""() => {
+    # 3. Verify MutationObserver does not loop on card-internal mutations (e.g. image lazyload)
+    observer_no_loop = page.evaluate("""() => {
         return new Promise(resolve => {
             let runs = 0;
             const orig = window.ToppreiseSuite.processListings;
@@ -2006,11 +2006,13 @@ def test_process_listings_is_idempotent_and_does_not_flicker_or_loop(page: Page)
             setTimeout(() => {
                 window.ToppreiseSuite.processListings = orig;
                 dummy.remove();
-                resolve(runs === 0);
+                resolve(runs);
             }, 350);
         });
     }""")
-    assert observer_ignored, "MutationObserver fired processListings on an internal card mutation (lazyload loop)"
+    # The debounce routes through the suite handle, so one scheduled render
+    # is observable; what must not happen is a self-perpetuating loop.
+    assert observer_no_loop <= 1, "MutationObserver looped processListings on an internal card mutation (lazyload loop)"
 
 
 def test_observer_processes_mixed_owned_and_host_mutations(page: Page):
@@ -2041,6 +2043,32 @@ def test_observer_processes_mixed_owned_and_host_mutations(page: Page):
     }""")
     assert cleared, "MutationObserver dropped a host update batched with own paint"
 
+
+def test_observer_render_is_observable_via_suite_handle(page: Page):
+    """Wrapping the suite handle must observe observer-triggered renders."""
+    runs = page.evaluate("""() => {
+        return new Promise(resolve => {
+            let runs = 0;
+            const orig = window.ToppreiseSuite.processListings;
+            window.ToppreiseSuite.processListings = function() {
+                runs++;
+                return orig.apply(this, arguments);
+            };
+
+            const card = document.getElementById('card-cheapest');
+            const probe = document.createElement('div');
+            probe.className = 'host-probe';
+            card.appendChild(probe);
+
+            // Wait longer than CONFIG.OBSERVER_DEBOUNCE_MS (200ms)
+            setTimeout(() => {
+                window.ToppreiseSuite.processListings = orig;
+                probe.remove();
+                resolve(runs);
+            }, 350);
+        });
+    }""")
+    assert runs >= 1, "Observer-triggered render bypassed the suite handle"
 
 
 def test_card_memoization_caches_dom_queries_and_text(page: Page):

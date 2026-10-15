@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchSingleProductPriceStats, activeFetches } from '../../src/scanner/scanner.js';
+import { fetchSingleProductPriceStats, activeFetches, requestWithRetry, resetOriginCooldown } from '../../src/scanner/scanner.js';
 import { setCachedPriceStats, getCachedPriceStats, memoryCache, statsKey, hasUsablePriceStats } from '../../src/scanner/cache.js';
 import { CONFIG } from '../../src/state/config.js';
 import { DAY } from './helpers.js';
@@ -25,6 +25,7 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     fetchCalls = 0;
     memoryCache.clear();
     activeFetches.clear();
+    resetOriginCooldown();
     // Product-shape stubs below verify on the product basis.
     prevShipping = CONFIG.USE_SHIPPING_PRICE;
     CONFIG.USE_SHIPPING_PRICE = false;
@@ -164,56 +165,38 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     assert.ok(elapsed >= 50, `elapsed ${elapsed}ms skipped the Retry-After wait`);
   });
 
-  // Fires the first >=6s timer instantly (the attempt-1 timeout), so timeout
-  // paths are exercised without real 6s waits. Later timers run for real
-  // but are cleared on success.
-  const fireFirstSlowTimerInstantly = () => {
-    const realSetTimeout = globalThis.setTimeout;
-    let armed = true;
-    globalThis.setTimeout = (fn, ms, ...args) => {
-      if (armed && ms >= 6000) { armed = false; return realSetTimeout(fn, 0, ...args); }
-      return realSetTimeout(fn, ms, ...args);
-    };
-    // Stubs must yield a macrotask before failing: microtask rejections
-    // would otherwise beat the 0ms abort timer and misclassify as backstop.
-    const tick = () => new Promise(r => realSetTimeout(r, 10));
-    return { restore: () => { globalThis.setTimeout = realSetTimeout; }, tick };
-  };
+  // Hangs until the attempt timer aborts the linked signal, then surfaces
+  // AbortError — mirrors a fetch (or body read) that only rejects on abort.
+  // Direct requestWithRetry calls with a 50ms timeout: no timer mocks.
   const abortErr = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
+  const hangUntilAbort = sig => new Promise((_, reject) => {
+    if (sig?.aborted) reject(abortErr());
+    else sig?.addEventListener('abort', () => reject(abortErr()), { once: true });
+  });
 
-  it('attempt timeout retries the primary route and then succeeds', async () => {
-    const pid = 'test-pid-timeout-retry';
-    const { restore, tick } = fireFirstSlowTimerInstantly();
-    try {
-      let n = 0;
-      globalThis.fetch = async (url, opts) => {
-        fetchCalls++;
-        if (opts?.method === 'POST' && n++ === 0) { await tick(); throw abortErr(); }
-        return { ok: true, json: async () => freshSeries };
-      };
-      const stats = await fetchSingleProductPriceStats(pid, 1, true);
-      assert.equal(stats?.tiefstpreis, 75);
-      assert.equal(fetchCalls, 2);
-    } finally { restore(); }
+  it('attempt timeout retries and then succeeds', async () => {
+    let n = 0;
+    const attempts = [];
+    const { data } = await requestWithRetry(async (sig, attempt) => {
+      attempts.push(attempt);
+      if (n++ === 0) await hangUntilAbort(sig);
+      return { res: { ok: true }, data: 'ok' };
+    }, { retries: 1, timeoutMs: 50, baseDelayMs: 10 });
+    assert.equal(data, 'ok');
+    assert.deepEqual(attempts, [0, 1]);
   });
 
   it('timeout during the body read retries and then succeeds', async () => {
-    const pid = 'test-pid-timeout-body';
-    const { restore, tick } = fireFirstSlowTimerInstantly();
-    try {
-      globalThis.fetch = async (url, opts) => {
-        fetchCalls++;
-        const sig = opts?.signal;
-        return { ok: true, json: async () => {
-          await tick();
-          if (sig?.aborted) throw abortErr();
-          return freshSeries;
-        } };
-      };
-      const stats = await fetchSingleProductPriceStats(pid, 1, true);
-      assert.equal(stats?.tiefstpreis, 75);
-      assert.equal(fetchCalls, 2);
-    } finally { restore(); }
+    let n = 0;
+    const attempts = [];
+    const { data } = await requestWithRetry(async (sig, attempt) => {
+      attempts.push(attempt);
+      const res = { ok: true };
+      const json = n++ === 0 ? hangUntilAbort(sig) : Promise.resolve('ok');
+      return { res, data: await json };
+    }, { retries: 1, timeoutMs: 50, baseDelayMs: 10 });
+    assert.equal(data, 'ok');
+    assert.deepEqual(attempts, [0, 1]);
   });
 
   it('parent cancellation mid-flight performs no retry and writes nothing', async () => {
@@ -261,9 +244,6 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
   });
 
   it('429 exhaustion on the primary route skips the HTML fallback', async () => {
-    // Before the cooldown-setting 429 test below: exhaustion cools the
-    // origin down, and that test still passes short-circuited (it asserts
-    // no fetch count, only null stats and no negative entry).
     const pid = 'test-pid-429-no-fallback';
     fetchCalls = 0;
     globalThis.fetch = async () => { fetchCalls++; return { ok: false, status: 429, headers: { get: () => '0' } }; };

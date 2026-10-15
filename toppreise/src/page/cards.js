@@ -286,9 +286,7 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
    const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
   const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.stats);
   const isDealerLoser = false;
-  // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
-  const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
-  return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isExcluded };
+  return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser };
 }
 export function dealerLoserFor(card, activeStores) {
   if (!activeStores || activeStores.length === 0) return false;

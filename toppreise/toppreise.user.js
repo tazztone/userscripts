@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.269
+// @version      2.18.270
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3575,10 +3575,12 @@ const SHADOW_MODAL_STYLES = `
 
 
   function triggerProcessListings() {
-    if (typeof processListings === 'function') {
-      processListings();
-    } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
+    // Suite handle first so spies observe observer-triggered renders; in
+    // production both references resolve to the same function.
+    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processListings === 'function') {
       window.ToppreiseSuite.processListings();
+    } else if (typeof processListings === 'function') {
+      processListings();
     }
   }
 
@@ -3879,9 +3881,7 @@ const SHADOW_MODAL_STYLES = `
      const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
     const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.stats);
     const isDealerLoser = false;
-    // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
-    const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;
-    return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser, isExcluded };
+    return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser };
   }
   function dealerLoserFor(card, activeStores) {
     if (!activeStores || activeStores.length === 0) return false;
@@ -4437,6 +4437,7 @@ const SHADOW_MODAL_STYLES = `
   let batchController = null;
   // Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
   let originCooldownUntil = 0;
+  function resetOriginCooldown() { originCooldownUntil = 0; }
 
   async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
     const step = 100;
@@ -9215,7 +9216,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      processListings();
+      triggerProcessListings();
       processPriceAlarmModal();
       if (isProductDetailPage()) {
         processProductDetailPage();
@@ -9289,7 +9290,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.268';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.269';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

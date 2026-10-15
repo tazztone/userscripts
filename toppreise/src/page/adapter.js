@@ -99,10 +99,12 @@ export function isProductDetailPage() {
 
 
 export function triggerProcessListings() {
-  if (typeof processListings === 'function') {
-    processListings();
-  } else if (typeof window !== 'undefined' && window.ToppreiseSuite?.processListings) {
+  // Suite handle first so spies observe observer-triggered renders; in
+  // production both references resolve to the same function.
+  if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processListings === 'function') {
     window.ToppreiseSuite.processListings();
+  } else if (typeof processListings === 'function') {
+    processListings();
   }
 }
 
