@@ -1510,7 +1510,7 @@ def test_gewichtete_differenz_weight_slider_in_filter_bar(page: Page):
     weight_label = page.locator('#tp-bar-weight-label')
     assert '50/50' in weight_label.inner_text()
     # Plain-language hint: order + color emphasis, badge shows the blend
-    assert 'Farb-Emphase' in (weight_label.get_attribute('title') or '')
+    assert 'Gewichtete Differenz' in (weight_label.get_attribute('title') or '')
 
     weight_range = page.locator('#tp-bar-weight-range')
     # Continuous slider, tick marks removed (step UI stays at 5)
@@ -1556,7 +1556,7 @@ def test_minpoints_slider_in_filter_bar(page: Page):
 
     minpoints_label = page.locator('#tp-bar-minpoints-label')
     assert 'Pkt' in minpoints_label.inner_text()
-    assert 'Mindestanzahl Datenpunkte' in (minpoints_wrapper.get_attribute('title') or '')
+    assert 'Ø-Vergleich' in (minpoints_wrapper.get_attribute('title') or '')
 
     minpoints_range = page.locator('#tp-bar-minpoints-range')
     assert minpoints_range.get_attribute('min') == '0'
@@ -1605,7 +1605,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     assert horizon_wrapper.is_visible()
     assert horizon_wrapper.evaluate("e => e.closest('#tp-bar-calc-popover') !== null")
     assert horizon_wrapper.evaluate("e => e.previousElementSibling && e.previousElementSibling.id === 'tp-bar-weight-wrapper'")
-    assert 'Median-Berechnungszeitraum' in (horizon_wrapper.get_attribute('title') or '')
+    assert 'Ø-Zeitraum' in (horizon_wrapper.get_attribute('title') or '')
 
     horizon_range = page.locator('#tp-bar-horizon-range')
     assert horizon_range.get_attribute('min') == '30'
@@ -1695,7 +1695,7 @@ def test_merged_blend_subline_rendering(page: Page):
     assert '-18%' in badge.inner_text()
     assert 'Rekord' not in badge.inner_text()
     assert 'Ø-Preis' not in badge.inner_text()
-    assert '[Klicken zum Aktualisieren]' in (badge.get_attribute('title') or '')
+    assert '[Klicken: erneut prüfen]' in (badge.get_attribute('title') or '')
 
     # No separate score pill exists anymore — one merged subline instead
     assert card.locator('.tp-badge-score-breakdown').count() == 0

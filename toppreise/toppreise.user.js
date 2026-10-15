@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.277
+// @version      2.18.278
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2394,6 +2394,16 @@ const SHADOW_MODAL_STYLES = `
   function currentMedianSig(horizonDays = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS) {
     return `${horizonDays}|${CONFIG.OUTLIER_REJECTION_ENABLED ? 1 : 0}|${CONFIG.OUTLIER_DEVIATION_BAND}|${CONFIG.OUTLIER_MAX_GLITCH_HOURS}`;
   }
+  function ensureFreshAnalysis(entry) {
+    if (!entry || entry.unavailable || entry.medianSig === currentMedianSig()) return entry;
+    const src = fullSeries(entry);
+    if (!Array.isArray(src)) return entry;
+    try {
+      const fresh = analyzePriceTimeSeries(src, entry.anchorPrice ?? null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      if (fresh) return { ...entry, ...fresh, time: entry.time, medianSig: currentMedianSig() };
+    } catch {}
+    return entry;
+  }
   function fullSeries(entry) {
     if (!entry) return null;
     if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
@@ -2481,9 +2491,10 @@ const SHADOW_MODAL_STYLES = `
           if (!isModeMatch(memData)) {
             memoryCache.delete(key);
           } else {
+            const fresh = ensureFreshAnalysis(memData);
             // LRU update
-            lruSet(memoryCache, key, memData);
-            return memData;
+            lruSet(memoryCache, key, fresh);
+            return fresh;
           }
         } else {
           memoryCache.delete(key);
@@ -2515,15 +2526,7 @@ const SHADOW_MODAL_STYLES = `
         if (!isModeMatch(parsed)) { try { storage?.removeItem(key); } catch (e) {} return null; }
         // Lazy cold-entry recompute: horizon/outlier change stamps medianSig;
         // stale-sig entries with a series recompute synchronously, no refetch.
-        if (!parsed.unavailable && parsed.medianSig !== currentMedianSig()) {
-          const src = fullSeries(parsed);
-          if (Array.isArray(src)) {
-            try {
-              const fresh = analyzePriceTimeSeries(src, parsed?.anchorPrice ?? null, CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-              if (fresh) parsed = { ...parsed, ...fresh, time: parsed.time, medianSig: currentMedianSig() };
-            } catch (e) {}
-          }
-        }
+        parsed = ensureFreshAnalysis(parsed);
         lruSet(memoryCache, key, parsed);
         try {
           const repersist = (parsed.timeSeries && parsed.rawTimeSeries) ? { ...parsed, rawTimeSeries: undefined } : parsed;
@@ -6764,7 +6767,7 @@ const SHADOW_MODAL_STYLES = `
       if (!rangeEl || !numEl) return;
       rangeEl.addEventListener('input', e => {
         numEl.value = e.target.value;
-        onInput?.(parseFloat(e.target.value));
+        onInput?.(parseFloat(e.target.value), { source: 'range' });
       });
       numEl.addEventListener('input', e => {
         // Clamp typed values into the slider's range so the pair can't desync.
@@ -6776,7 +6779,7 @@ const SHADOW_MODAL_STYLES = `
         } else {
           rangeEl.value = e.target.value;
         }
-        onInput?.(parseFloat(e.target.value));
+        onInput?.(parseFloat(e.target.value), { source: 'number' });
       });
   }
 
@@ -6805,15 +6808,15 @@ const SHADOW_MODAL_STYLES = `
     bindDual(els.realDealMinRange, els.realDealMinVal);
 
     bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
-    bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw) => {
+    bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw, meta) => {
       // Range tops out at the 760 Lifetime sentinel (>730 → 0); a typed number
       // is literal so values like 1000 round-trip through the schema (max 3650).
-      const fromNumber = typeof document !== 'undefined' && document.activeElement === els.bestpreiseHorizonVal;
+      const fromNumber = meta?.source === 'number';
       const v = fromNumber ? (isNaN(raw) ? 365 : raw) : horizonUiToStored(raw);
       if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
       if (v === 0) {
         if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;
-        if (els.bestpreiseHorizonVal && raw > 730) els.bestpreiseHorizonVal.value = 0;
+        if (els.bestpreiseHorizonVal && meta?.source !== 'number') els.bestpreiseHorizonVal.value = 0;
       }
     });
     if (els.bestpreiseMinPointsRange && els.bestpreiseMinPointsVal) {
@@ -9639,7 +9642,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.276';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.277';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

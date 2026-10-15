@@ -51,11 +51,11 @@ def test_exact_cent_boundary_badge_states(page: Page):
 
     cases = [
         # currentPrice, title hint string, expected_class, not_expected_class
-        (37.94, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # new low
-        (37.95, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low
+        (37.94, '[Klicken: erneut prüfen]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # new low
+        (37.95, '[Klicken: erneut prüfen]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low
         (37.96, '⚠️ Kein Tiefstpreis (+0% Aufschlag)', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
         (38.00, '⚠️ Kein Tiefstpreis (+0% Aufschlag)', 'tp-deal-not-low', 'tp-deal-alltime-low'), # above low
-        (37.9500001, '[Klicken zum Aktualisieren]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low normalized
+        (37.9500001, '[Klicken: erneut prüfen]', 'tp-deal-alltime-low', 'tp-deal-not-low'), # at low normalized
     ]
 
     for (curr_price, title_match, expected_class, unexpected_class) in cases:
