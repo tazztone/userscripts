@@ -8,7 +8,7 @@ import { SELECTORS } from './selectors.js';
 import { CONFIG, clampIntensity01 } from '../state/config.js';
 import { extractCanonicalPrice, parsePrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta } from '../domain/deal-score.js';
-import { getCachedPriceStats } from '../scanner/cache.js';
+import { getCachedPriceStats, hasUsablePriceStats } from '../scanner/cache.js';
 import { isShippingPriceActive } from './adapter.js';
 
 const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
@@ -245,7 +245,7 @@ export function extractCardData(card) {
   const stats = pid ? getCachedPriceStats(pid) : null;
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
-  const dealScore = (stats && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
+  const dealScore = (hasUsablePriceStats(stats) && cardPrice > 0) ? computeDealScore(stats, cardPrice) : null;
   // Display delta never gates on history quality: with just {tiefstpreis} +
   // card price the badge/heat still tell the verified truth.
   const displayDelta = getDisplayDelta(cardPrice, stats);
@@ -277,7 +277,7 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
    const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-  const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !cd.stats;
+  const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.stats);
   const isDealerLoser = false;
   // Excluded = cause hit in either mode; hidden-only verdict is set by renderCardEffects.
   const isExcluded = isNeg || isLowOffers || isDealerLoser || isUnchecked || isVortiefExcluded;

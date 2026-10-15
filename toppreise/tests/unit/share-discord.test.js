@@ -26,6 +26,7 @@ import {
   isForumThreadError,
   discordForumFlagKey,
   fetchImageBlob,
+  escapeDiscordMarkdown,
 } from '../../src/features/share-discord.js';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';
@@ -285,6 +286,17 @@ describe('extractShareData / extractDealer', () => {
     delete globalThis.location;
     assert.equal(extractDealerUrl(stubCard()), '');
   });
+  it('drops foreign product URLs and non-https dealer links', () => {
+    const card = stubCard();
+    card.__set('a[href*="/preisvergleich/"]', { getAttribute: () => 'https://evil.example/preisvergleich/x-p9' });
+    assert.equal(extractShareData(card).url, '');
+    const card2 = stubCard();
+    card2.__set('a[href*="/preisvergleich/"]', { getAttribute: () => 'https://www.toppreise.ch/katalog/Maeuse' });
+    assert.equal(extractShareData(card2).url, '');
+    const d = stubCard();
+    d.__set('.Plugin_DealerRelProdPriceInfo a[href]', { getAttribute: () => 'http://dealer.example/buy' });
+    assert.equal(extractDealerUrl(d), '');
+  });
 });
 
 describe('fetchProductInfo', () => {
@@ -464,7 +476,7 @@ describe('postDealToDiscord', () => {
     await postDealToDiscord(HOOK, '🔥 deal');
     assert.equal(seen.url, HOOK);
     assert.equal(seen.opts.method, 'POST');
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal', allowed_mentions: { parse: [] } });
   });
 
   it('rejects on Discord error status', async () => {
@@ -498,14 +510,14 @@ describe('postDealToDiscord', () => {
     }
   });
 
-  it('sends content without flags (per-link suppression lives in the markup)', async () => {
+  it('sends content with mention-suppression flags', async () => {
     let seen = null;
     globalThis.fetch = async (url, opts) => {
       seen = { url, opts };
       return { ok: true, status: 204 };
     };
     await postDealToDiscord(HOOK, '🔥 deal');
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal', allowed_mentions: { parse: [] } });
   });
 
   it('sends the product image as embed image when passed', async () => {
@@ -515,7 +527,7 @@ describe('postDealToDiscord', () => {
       return { ok: true, status: 200 };
     };
     await postDealToDiscord(HOOK, 'hi', { productImageUrl: 'https://img/u.jpg' });
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }] });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', allowed_mentions: { parse: [] }, embeds: [{ image: { url: 'https://img/u.jpg' } }] });
   });
 
   it('embeds and thread_name coexist', async () => {
@@ -525,7 +537,7 @@ describe('postDealToDiscord', () => {
       return { ok: true, status: 200 };
     };
     await postDealToDiscord(HOOK, 'hi', { threadName: 'Deal X', productImageUrl: 'https://img/u.jpg' });
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', allowed_mentions: { parse: [] }, embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
   });
 });
 
@@ -560,7 +572,7 @@ describe('postDealImageToDiscord', () => {
     assert.equal(seen.method, 'POST');
     assert.equal(seen.url, HOOK);
     assert.ok(seen.data instanceof FormData);
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal', allowed_mentions: { parse: [] } });
     assert.ok(seen.data.get('file') instanceof Blob);
   });
 
@@ -585,14 +597,14 @@ describe('postDealImageToDiscord', () => {
     await assert.rejects(postDealImageToDiscord(HOOK, 'hi', new Blob(['x'])), /Discord 400/);
   });
 
-  it('sends payload_json without flags (per-link suppression lives in the markup)', async () => {
+  it('sends payload_json with mention-suppression flags', async () => {
     let seen = null;
     globalThis.GM_xmlhttpRequest = opts => {
       seen = opts;
       opts.onload({ status: 200 });
     };
     await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal', allowed_mentions: { parse: [] } });
     assert.ok(seen.data.get('file') instanceof Blob);
   });
 
@@ -603,7 +615,7 @@ describe('postDealImageToDiscord', () => {
       opts.onload({ status: 200 });
     };
     await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { productImageUrl: 'https://img/u.jpg' });
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }] });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', allowed_mentions: { parse: [] }, embeds: [{ image: { url: 'https://img/u.jpg' } }] });
   });
 
   it('embeds and thread_name coexist', async () => {
@@ -613,7 +625,7 @@ describe('postDealImageToDiscord', () => {
       opts.onload({ status: 200 });
     };
     await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { threadName: 'Deal X', productImageUrl: 'https://img/u.jpg' });
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', allowed_mentions: { parse: [] }, embeds: [{ image: { url: 'https://img/u.jpg' } }], thread_name: 'Deal X' });
   });
 
   it('sends product bytes as first attachment with inline embeds in order', async () => {
@@ -623,7 +635,7 @@ describe('postDealImageToDiscord', () => {
       opts.onload({ status: 200 });
     };
     await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { productImageBlob: new Blob(['product']) });
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', embeds: [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }] });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', allowed_mentions: { parse: [] }, embeds: [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }] });
     assert.ok(seen.data.get('files[0]') instanceof Blob);
     assert.ok(seen.data.get('files[1]') instanceof Blob);
     assert.equal(seen.data.get('file'), null);
@@ -636,7 +648,7 @@ describe('postDealImageToDiscord', () => {
       opts.onload({ status: 200 });
     };
     await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { productImageBlob: 'https://img/u.jpg' });
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', allowed_mentions: { parse: [] } });
     assert.ok(seen.data.get('file') instanceof Blob);
   });
 });
@@ -668,6 +680,10 @@ describe('fetchImageBlob', () => {
   it('rejects empty blobs', async () => {
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob([]) });
     await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Leeres Bild/);
+  });
+  it('rejects oversized images', async () => {
+    globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob([new Uint8Array(8 * 1024 * 1024 + 1)]) });
+    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Bild zu groß/);
   });
 
   it('rejects non-image MIME but accepts missing MIME', async () => {
@@ -726,7 +742,7 @@ describe('thread_name post paths', () => {
       return { ok: true, status: 200 };
     };
     await postDealToDiscord(HOOK, 'hi', { threadName: 'Deal X' });
-    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', thread_name: 'Deal X' });
+    assert.deepEqual(JSON.parse(seen.opts.body), { content: 'hi', allowed_mentions: { parse: [] }, thread_name: 'Deal X' });
   });
 
   it('postDealImageToDiscord sends thread_name when passed', async () => {
@@ -736,7 +752,7 @@ describe('thread_name post paths', () => {
       opts.onload({ status: 200 });
     };
     await postDealImageToDiscord(HOOK, 'hi', new Blob(['png']), { threadName: 'Deal X' });
-    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', thread_name: 'Deal X' });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', allowed_mentions: { parse: [] }, thread_name: 'Deal X' });
   });
   it('never auto-retries: 429 emits exactly one request', async () => {
     let calls = 0;
@@ -767,6 +783,12 @@ describe('layout recipe', () => {
   it('split history yields two rows', () => {
     const msg = renderLayout(base, '{prevlow}\n{median}');
     assert.deepEqual(msg.split('\n'), ['📉 **CHF 44.95** **-29%**', '📈 Ø-Preis (1J): **CHF 54.05** **-41%**']);
+  });
+  it('escapes markdown in title and dealer, link wrapping intact', () => {
+    assert.equal(escapeDiscordMarkdown('A *B* _C_'), 'A \\*B\\* \\_C\\_');
+    const msg = renderLayout({ title: 'Deal *kracher* _neu_', url: PRODUCT_URL, dealer: 'Shop | Top', dealerUrl: DEALER_URL }, '## {title}\n# {dealer}');
+    assert.ok(msg.includes('[Deal \\*kracher\\* \\_neu\\_]('));
+    assert.ok(msg.includes('Shop \\| Top'));
   });
   it('unknown tokens vanish', () => {
     assert.ok(!renderLayout(base, 'X {foo} Y').includes('{foo}'));

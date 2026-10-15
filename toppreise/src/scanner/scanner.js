@@ -13,10 +13,17 @@ import { scanState } from '../state/store.js';
 
 export const activeFetches = new Map();
 
-async function interruptibleSleep(ms, shouldCancelFn = null) {
+// Single-flight abort for the running batch scan. Next run replaces it.
+let batchController = null;
+export const batchSignal = () => batchController?.signal ?? null;
+// Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
+let originCooldownUntil = 0;
+
+async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
   const step = 100;
   let elapsed = 0;
   while (elapsed < ms) {
+    if (signal?.aborted) return;
     if (shouldCancelFn && shouldCancelFn()) break;
     const wait = Math.min(step, ms - elapsed);
     await new Promise(r => setTimeout(r, wait));
@@ -24,32 +31,122 @@ async function interruptibleSleep(ms, shouldCancelFn = null) {
   }
 }
 
-async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null) {
+const backoffMs = (attempt, baseDelayMs = 400) =>
+  Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
+
+const parseRetryAfterMs = (header, baseDelayMs, attempt) => {
+  if (header != null && String(header).trim() !== '') {
+    const secs = Number(String(header).trim());
+    if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+    const at = Date.parse(String(header).trim());
+    if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+  }
+  return backoffMs(attempt, baseDelayMs);
+};
+
+const isCancelled = (signal, shouldCancelFn) => signal?.aborted || shouldCancelFn?.();
+
+// Central retry: makeRequest(linkedSignal, attempt) must do fetch AND body
+// reads with the linked signal, so the per-attempt timeout below covers body
+// reads too (cleared in finally after makeRequest resolves). Returns the
+// makeRequest value on HTTP 200; returns it on non-429 4xx (caller maps to
+// genuinely-absent); throws transient/cancelled/cooldown otherwise — never
+// writes cache itself.
+async function requestWithRetry(makeRequest, { retries = 1, shouldCancelFn = null, signal = null, baseDelayMs = 400, timeoutMs = 6000 } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (isCancelled(signal, shouldCancelFn)) {
+      const e = new Error('cancelled');
+      e.cancelled = true;
+      throw e;
+    }
+    if (Date.now() < originCooldownUntil) {
+      const e = new Error('cooldown');
+      e.cooldown = true;
+      throw e;
+    }
+    const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const { res, data } = await makeRequest(ctrl.signal, attempt);
+      if (res.ok) return { res, data };
+      if (res.status === 429) {
+        const wait = parseRetryAfterMs(res.headers?.get('Retry-After'), baseDelayMs, attempt);
+        if (attempt < retries) {
+          await interruptibleSleep(wait, shouldCancelFn, signal);
+          continue;
+        }
+        originCooldownUntil = Date.now() + Math.max(wait, baseDelayMs);
+        const e = new Error('429');
+        e.transient = true;
+        throw e;
+      }
+      if (res.status >= 500) {
+        if (attempt < retries) {
+          await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
+          continue;
+        }
+        const e = new Error(`HTTP ${res.status}`);
+        e.transient = true;
+        throw e;
+      }
+      return { res, data };
+    } catch (err) {
+      if (err?.cancelled || err?.cooldown || err?.transient) throw err;
+      if (ctrl.signal.aborted || isCancelled(signal, shouldCancelFn)) {
+        const e = new Error('cancelled');
+        e.cancelled = true;
+        throw e;
+      }
+      if (err?.name === 'AbortError') {
+        const e = new Error('timeout');
+        e.timeout = true;
+        throw e;
+      }
+      if (attempt < retries) {
+        await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
+        continue;
+      }
+      const e = new Error('network');
+      e.transient = true;
+      e.cause = err;
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    }
+  }
+  const e = new Error('network');
+  e.transient = true;
+  throw e;
+}
+
+async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = null, useShipping = null, signal = null) {
   if (!productId) return null;
   const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
   const postBody = `pcspagdpi=${encodeURIComponent(productId)}&pcspagdfdt=0000-00-00&pcspagdtd=&p_pc_ch=&lang=de`;
+  // isShipping true ONLY when shipping was requested AND the data[1] branch
+  // was taken; every other shape is basis-unconfirmed → treat as product.
   const pickSeries = data => {
     const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
     if (Array.isArray(data)) {
       if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
         if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-          return data[1];
+          return { series: data[1], isShipping: true };
         }
-        return data[0]; // Series 0: Produktpreis
+        return { series: data[0], isShipping: false }; // Series 0: Produktpreis
       }
       if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
-        return data; // Raw points [[t1, p1], [t2, p2]]
+        return { series: data, isShipping: false }; // Raw points [[t1, p1], [t2, p2]]
       }
     }
-    if (Array.isArray(data?.series)) return data.series;
-    if (Array.isArray(data?.data)) return data.data;
-    return null;
+    if (Array.isArray(data?.series)) return { series: data.series, isShipping: false };
+    if (Array.isArray(data?.data)) return { series: data.data, isShipping: false };
+    return { series: null, isShipping: false };
   };
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    if (shouldCancelFn && shouldCancelFn()) return null;
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+  try {
+    const { data } = await requestWithRetry(async linkedSignal => {
       const res = await fetch(`${baseUrl}/plugins/product/pricechart`, {
         method: 'POST',
         headers: {
@@ -59,29 +156,20 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
         },
         credentials: 'same-origin',
         body: postBody,
-        signal: controller.signal
+        signal: linkedSignal
       });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const series = pickSeries(await res.json());
-        if (series) return series;
-      } else if (res.status === 429) {
-        const retryAfterHeader = res.headers?.get('Retry-After');
-        const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-        if (attempt < retries) await interruptibleSleep((retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000), shouldCancelFn);
-      } else if (attempt < retries) {
-        await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-      }
-    } catch (err) {
-      if (attempt < retries) {
-        await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-      } else if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
-    }
+      const json = res.ok ? await res.json().catch(() => null) : null;
+      return { res, data: json };
+    }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
+    const pick = pickSeries(data);
+    if (pick.series) return pick;
+  } catch (err) {
+    if (!err?.cancelled && !err?.timeout && !err?.cooldown && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching time series for product', productId, err);
   }
   return null;
 }
 
-export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null) {
+export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null) {
   if (!productId) return null;
   // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
   // the wrong series into the wrong slot, and each mode dedups independently.
@@ -103,75 +191,71 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
   const fetchPromise = (async () => {
     try {
       const baseUrl = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
-      
+
       // 1. Primary fast route: POST JSON time-series (gives series + all aggregates in 1 request)
       try {
-        const timeSeries = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping);
-        if (timeSeries && Array.isArray(timeSeries) && timeSeries.length >= 1) {
-          const analysis = analyzePriceTimeSeries(timeSeries, currentPrice);
+        const pick = await fetchPriceTimeSeries(productId, retries, shouldCancelFn, useShipping, signal);
+        // Basis guard: a product-shape series must never land in the shipping
+        // slot — fall through to the HTML path (which refuses the shipping
+        // slot too and writes a negative entry instead).
+        if (pick?.series && Array.isArray(pick.series) && pick.series.length >= 1 && pick.isShipping === useShipping) {
+          const analysis = analyzePriceTimeSeries(pick.series, currentPrice);
           if (analysis && analysis.tiefstpreis > 0) {
             analysis.isShippingPrice = useShipping;
             setCachedPriceStats(productId, analysis, false, undefined, useShipping);
             return analysis;
           }
         }
-      } catch (seriesErr) {}
+      } catch (seriesErr) {
+        if (seriesErr?.cancelled || seriesErr?.timeout) return null;
+      }
 
-      // 2. Fallback route: GET HTML modal dialog
+      if (isCancelled(signal, shouldCancelFn)) return null;
+
+      // 2. Fallback route: GET HTML modal dialog (carries no basis info)
       const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
       let resHtml = null;
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        if (shouldCancelFn && shouldCancelFn()) return null;
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 7000);
-          resHtml = await fetch(url, {
+      let html = null;
+      try {
+        const out = await requestWithRetry(async linkedSignal => {
+          const res = await fetch(url, {
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
               'Accept': 'text/html, */*; q=0.01'
             },
             credentials: 'same-origin',
-            signal: controller.signal
+            signal: linkedSignal
           });
-          clearTimeout(timeoutId);
-          if (resHtml.ok) break;
-
-          if (resHtml.status === 429) {
-            const retryAfterHeader = resHtml.headers?.get('Retry-After');
-            const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
-            const backoffMs = (retryAfterSec && !isNaN(retryAfterSec)) ? retryAfterSec * 1000 : (1500 + attempt * 1000);
-            if (attempt < retries) {
-              await interruptibleSleep(backoffMs, shouldCancelFn);
-            }
-          } else if (attempt < retries) {
-            await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-          }
-        } catch (fetchErr) {
-          if (attempt < retries) {
-            await interruptibleSleep(400 + attempt * 400, shouldCancelFn);
-          } else {
-            throw fetchErr;
-          }
-        }
-      }
-
-      if (!resHtml || !resHtml.ok) {
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
+          const text = res.ok ? await res.text() : null;
+          return { res, data: text };
+        }, { retries, shouldCancelFn, signal, baseDelayMs: 400, timeoutMs: 7000 });
+        resHtml = out.res;
+        html = out.data;
+      } catch (htmlErr) {
+        // Cancelled/timeout/429/5xx/network/cooldown: transient, never a
+        // negative entry (a failed refresh must not downgrade prev either).
         return null;
       }
-      const html = await resHtml.text();
       const stats = parsePriceStatsFromHtml(html);
       if (stats) {
         stats.isShippingPrice = useShipping;
         if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
+        if (useShipping) {
+          // HTML carries no basis: never substitute a product comparison
+          // into the shipping slot — slot reads unavailable/retry later.
+          setCachedPriceStats(productId, null, true, undefined, true);
+          return null;
+        }
         setCachedPriceStats(productId, stats, false, undefined, useShipping);
         return stats;
       } else {
         if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
       }
     } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
-      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping);
+      // Cancelled/timeout: silent, no negative write. Genuine failures keep
+      // the no-downgrade rule (prev with median survives).
+      if (!err?.cancelled && !err?.timeout && CONFIG.DEBUG) console.warn('[Toppreise Suite] Failed fetching price stats for product', productId, err);
+      if (!err?.cancelled && !err?.timeout && (!prev || !prev.medianPrice)) setCachedPriceStats(productId, null, true, undefined, useShipping);
     } finally {
       activeFetches.delete(fetchKey);
     }
@@ -188,7 +272,8 @@ export async function runProductScanner(options = {}) {
     sortByDiscount = false,
     shouldCancelFn = () => false,
     onProgress = null,
-    onComplete = null
+    onComplete = null,
+    signal = null
   } = options;
 
   const cards = getProductCards();
@@ -201,6 +286,8 @@ export async function runProductScanner(options = {}) {
   for (const card of cards) {
     const pid = getCardProductId(card);
     if (!pid) continue;
+    // Usable entries AND fresh negative markers both skip the fetch (storm
+    // protection); usable-verdicts downstream use hasUsablePriceStats.
     const cached = getCachedPriceStats(pid);
     if (cached) continue;
     const offerCount = extractOfferCount(card);
@@ -221,7 +308,7 @@ export async function runProductScanner(options = {}) {
 
   try {
     for (let i = 0; i < targets.length; i++) {
-      if (shouldCancelFn()) break;
+      if (isCancelled(signal, shouldCancelFn)) break;
       const item = targets[i];
       Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
       try {
@@ -236,8 +323,11 @@ export async function runProductScanner(options = {}) {
 
       let stats = null;
       try {
-        stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })());
-        if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+        stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
+        // Card-identity guard: reused/detached cards must not collect an
+        // earlier request's verification.
+        if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
+        else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
       } finally {
         Object.assign(scanState, { currentlyScanningPid: null });
       }
@@ -248,7 +338,7 @@ export async function runProductScanner(options = {}) {
       // ponytail: progressive paint per verified card (batch CTA asserts
       // badges mid-scan); the pre-fetch full rescan stays removed.
       if (stats) triggerProcessListings();
-      await interruptibleSleep(250, shouldCancelFn);
+      await interruptibleSleep(250, shouldCancelFn, signal);
     }
   } finally {
     Object.assign(scanState, { currentlyScanningPid: null });
@@ -262,9 +352,11 @@ export async function runProductScanner(options = {}) {
 async function runScan({ minDiscount = 30, onProgress = null, onComplete = null } = {}) {
   if (scanState.isBatchChecking) {
     Object.assign(scanState, { batchCancelRequested: true });
+    try { batchController?.abort(); } catch {}
     return;
   }
   Object.assign(scanState, { isBatchChecking: true, batchCancelRequested: false });
+  batchController = new AbortController();
 
   try {
     const isFeed = isNeueToppreisePage();
@@ -273,7 +365,8 @@ async function runScan({ minDiscount = 30, onProgress = null, onComplete = null 
       sortByDiscount: false,
       shouldCancelFn: (() => scanState.batchCancelRequested),
       onProgress,
-      onComplete
+      onComplete,
+      signal: batchController.signal
     });
   } finally {
     Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
@@ -286,4 +379,5 @@ export const runBatchDealCheck = (minDiscount = 30, onProgress = null, onComplet
 
 export function cancelBatchDealCheck() {
   Object.assign(scanState, { batchCancelRequested: true });
+  try { batchController?.abort(); } catch {}
 }

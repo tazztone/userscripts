@@ -17,6 +17,7 @@ import {
   getSharedDeal,
   setSharedDeal,
   statsKey,
+  hasUsablePriceStats,
 } from '../../src/scanner/cache.js';
 import { analyzePriceTimeSeries } from '../../src/domain/price.js';
 import { DAY, HOUR, withConfig } from './helpers.js';
@@ -189,6 +190,27 @@ describe('Bounded Cache Module', () => {
       });
     });
 
+    it('expires per slot: a stale sibling never kills the fresh slot', () => {
+      const s = memStorage();
+      withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
+        setCachedDealer('p1', false, 'Galaxus', '', s);
+        setCachedDealer('p1', true, 'Brack', '', s);
+        const raw = JSON.parse(s.getItem(DEALER_CACHE_PREFIX + 'p1'));
+        raw.p.time = Date.now() - 50 * HOUR;
+        s.setItem(DEALER_CACHE_PREFIX + 'p1', JSON.stringify(raw));
+        assert.equal(getCachedDealer('p1', false, s), null);
+        assert.equal(getCachedDealer('p1', true, s).dealer, 'Brack');
+      });
+    });
+
+    it('reads legacy top-level-time entries through either slot', () => {
+      const s = memStorage();
+      withConfig('REAL_DEAL_CACHE_HOURS', 48, () => {
+        s.setItem(DEALER_CACHE_PREFIX + 'legacy', JSON.stringify({ time: Date.now(), p: { dealer: 'Galaxus', url: '' } }));
+        assert.equal(getCachedDealer('legacy', false, s).dealer, 'Galaxus');
+      });
+    });
+
     it('tolerates corrupt entries and needs no storage', () => {
       const s = memStorage();
       s.setItem(DEALER_CACHE_PREFIX + 'broken', 'kein json{{');
@@ -205,6 +227,21 @@ describe('Bounded Cache Module', () => {
       s.setItem('tp_hist_v1_p1', JSON.stringify({ time: Date.now() }));
       assert.equal(clearPriceStatsCache(s), 2);
       assert.equal(getCachedDealer('p1', false, s), null);
+    });
+  });
+  describe('hasUsablePriceStats', () => {
+    it('rejects negative markers, zero/partial stats and nulls', () => {
+      assert.equal(hasUsablePriceStats(null), false);
+      assert.equal(hasUsablePriceStats(undefined), false);
+      assert.equal(hasUsablePriceStats({ unavailable: true, time: Date.now() }), false);
+      assert.equal(hasUsablePriceStats({ tiefstpreis: 0, time: Date.now() }), false);
+      assert.equal(hasUsablePriceStats({ medianPrice: 0 }), false);
+      assert.equal(hasUsablePriceStats({}), false);
+    });
+    it('accepts tiefstpreis hits and median-only fallback stats', () => {
+      assert.equal(hasUsablePriceStats({ tiefstpreis: 50 }), true);
+      assert.equal(hasUsablePriceStats({ medianPrice: 100 }), true);
+      assert.equal(hasUsablePriceStats({ tiefstpreis: 50, unavailable: false }), true);
     });
   });
   describe('shared-deal memory', () => {

@@ -50,22 +50,26 @@ export const parsePrice = str => {
 export function extractCanonicalPrice(card) {
   if (!card) return { price: 0, el: null };
 
-  if (!card._tpPriceInfo) {
-    const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
-    let fallbackShipping = null;
-    let fallbackProduct = null;
-    if (!mainPriceInfo && card.querySelector) {
-      fallbackShipping = card.querySelector('.priceContainer.shippingPrice .Plugin_Price');
-      fallbackProduct = card.querySelector('.priceContainer.productPrice .Plugin_Price');
-    }
-    card._tpPriceInfo = {
-      mainPriceInfo,
-      mainShipping: mainPriceInfo?.querySelector?.('.shippingPrice .Plugin_Price') || null,
-      mainProduct: mainPriceInfo?.querySelector?.('.productPrice .Plugin_Price') || null,
-      fallbackShipping,
-      fallbackProduct
-    };
+  if (card._tpPriceInfo) {
+    const els = Object.values(card._tpPriceInfo);
+    if (els.some(el => el && !card.contains(el))) delete card._tpPriceInfo;
   }
+  if (!card._tpPriceInfo) {
+     const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
+     let fallbackShipping = null;
+     let fallbackProduct = null;
+     if (!mainPriceInfo && card.querySelector) {
+       fallbackShipping = card.querySelector('.priceContainer.shippingPrice .Plugin_Price');
+       fallbackProduct = card.querySelector('.priceContainer.productPrice .Plugin_Price');
+     }
+     card._tpPriceInfo = {
+       mainPriceInfo,
+       mainShipping: mainPriceInfo?.querySelector?.('.shippingPrice .Plugin_Price') || null,
+       mainProduct: mainPriceInfo?.querySelector?.('.productPrice .Plugin_Price') || null,
+       fallbackShipping,
+       fallbackProduct
+     };
+   }
 
   const { mainPriceInfo, mainShipping, mainProduct, fallbackShipping, fallbackProduct } = card._tpPriceInfo;
 
@@ -162,18 +166,19 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
   if (!(band > 0 && band < 1)) band = 0.50;
   if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
+  const sorted0 = Array.isArray(points) ? [...points].sort((a, b) => a[0] - b[0]) : [];
+  const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
   if (!points || points.length < 3) {
-    return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0 };
-  }
+    return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0, rawMin };
+   }
 
-  const sorted = [...points].sort((a, b) => a[0] - b[0]);
+  const sorted = sorted0;
   const prices = sorted.map(p => p[1]).sort((a, b) => a - b);
   const rawMedian = medianOf(prices);
 
   if (rawMedian <= 0) {
-    return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0 };
-  }
-
+    return { cleanPoints: sorted, filteredOutliers: [], rawMedian: 0, rawMin };
+   }
   const cleanPoints = [];
   const filteredOutliers = [];
   const n = sorted.length;
@@ -202,7 +207,9 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     const j = i;
     let k = j;
     while (k < n && !isNormalAt(k)) k++;
-    const runH = (k - j) * 24;
+    const startTs = sorted[j - 1]?.[0] ?? sorted[j][0];
+    const endTs = sorted[k]?.[0] ?? sorted[k - 1][0];
+    const runH = (endTs - startTs) / 3600000;
     let isGlitch = runH <= maxGlitchHours + 0.5;
     if (isGlitch) for (let m = j; m < k; m++) if (!isLocallySharp(m)) { isGlitch = false; break; }
     if (isGlitch && k - j === 1 && (j === 0 || k === n) && n > 1) { const nb = j === 0 ? 1 : n - 2; if (!isNormalAt(nb)) isGlitch = false; }
@@ -218,7 +225,8 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   return {
     cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
     filteredOutliers,
-    rawMedian
+    rawMedian,
+    rawMin
   };
 }
 
@@ -247,11 +255,22 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
   }).filter(Boolean);
 
   if (rawParsedPoints.length === 0) return null;
+  // Normalize regardless of outlier toggle: validate, sort ascending, dedupe
+  // duplicate timestamps keeping the LAST occurrence.
+  const nowMs = Date.now();
+  const seen = new Map();
+  for (const [ts, pr] of rawParsedPoints) {
+    if (!Number.isFinite(ts) || ts <= 0 || ts > nowMs + 86400000) continue;
+    if (!Number.isFinite(pr) || pr <= 0) continue;
+    seen.set(ts, pr);
+  }
+  const normPoints = [...seen.entries()].sort((a, b) => a[0] - b[0]);
+  if (normPoints.length === 0) return null;
 
   const outlierRejectionEnabled = (CONFIG.OUTLIER_REJECTION_ENABLED !== false);
   const sanitizeResult = outlierRejectionEnabled
-    ? sanitizeTimeSeries(rawParsedPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
-    : { cleanPoints: rawParsedPoints, filteredOutliers: [] };
+    ? sanitizeTimeSeries(normPoints, CONFIG.OUTLIER_DEVIATION_BAND, CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice)
+    : { cleanPoints: normPoints, filteredOutliers: [], rawMin: Math.min(...normPoints.map(p => p[1])) };
 
   const points = sanitizeResult.cleanPoints;
   const filteredOutliers = sanitizeResult.filteredOutliers;
@@ -322,7 +341,8 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
     dataPointCount: points.length,
     timeSeries: points,
     anchorPrice: curr,
-    ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: rawParsedPoints } : null)
+    ...(sanitizeResult.filteredOutliers.length ? { rawTimeSeries: normPoints } : null),
+    rawTiefstpreis: sanitizeResult.rawMin ?? Math.min(...normPoints.map(p => p[1]))
   };
 }
 

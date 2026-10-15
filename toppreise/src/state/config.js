@@ -88,7 +88,7 @@ export const DEFAULTS = Object.freeze({
   ALARM_ENABLED: true,
   ALARM_TARGET_PERCENT: 0.60,
   ALARM_DURATION_DAYS: '730',
-  ALARM_AUTO_SUBMIT: true,
+  ALARM_AUTO_SUBMIT: false,
   OBSERVER_DEBOUNCE_MS: 200,
   DEBUG: false
 });
@@ -127,6 +127,88 @@ export const _setValue = (k, v) => {
   // Secrets nie ins page-lesbare localStorage spiegeln (GM bleibt privat).
   if (!SECRET_KEYS.has(k)) try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + k, JSON.stringify(v)); } catch { /* storage full/private mode */ }
 };
+// Single config schema: every DEFAULTS key validates/coerces through
+// sanitizeConfigValue (init, updateConfig(s), settings import). Unknown keys
+// are rejected (undefined → caller ignores). Bounds below are authoritative.
+export const SETTING_SCHEMA = {
+  FILTER_NEG_ENABLED: { type: 'bool', default: false },
+  FILTER_MIN_ENABLED: { type: 'bool', default: false },
+  FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
+  FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
+  HIDE_UNCHECKED_MODE: { type: 'mode', default: 'dim' },
+  VORTIEF_MODE: { type: 'mode', default: 'dim' },
+  DEALER_MODE: { type: 'mode', default: 'dim' },
+  MARGIN_PERCENT: { type: 'float', default: 0.0, min: 0, max: 50 },
+  DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
+  USE_SHIPPING_PRICE: { type: 'bool', default: true },
+  HEATMAP_ENABLED: { type: 'bool', default: true },
+  HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
+  REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
+  REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
+  NEGATIVE_CACHE_HOURS: { type: 'float', default: 2, min: 0.25, max: 24 },
+  BESTPREISE_MODE_ACTIVE: { type: 'bool', default: false },
+  BESTPREISE_HIDE_UNCHECKED: { type: 'bool', default: false },
+  BESTPREISE_INCLUDE_VORTIEF: { type: 'bool', default: true },
+  BESTPREISE_WEIGHT_RECORD: { type: 'float', default: 0.50, min: 0, max: 1 },
+  BESTPREISE_MIN_POINTS: { type: 'int', default: 5, min: 1, max: 100 },
+  BESTPREISE_MEDIAN_HORIZON_DAYS: { type: 'int', default: 365, min: 0, max: 3650 },
+  OUTLIER_REJECTION_ENABLED: { type: 'bool', default: true },
+  OUTLIER_DEVIATION_BAND: { type: 'float', default: 0.50, min: 0.01, max: 0.50 },
+  OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
+  ENABLE_SPARKLINES: { type: 'bool', default: true },
+  REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
+  REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht' },
+  REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+  DEALER_AUTOFETCH: { type: 'bool', default: false },
+  NEGATIVE_TERMS: { type: 'string', default: '' },
+  DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
+  DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
+  DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
+  DISCORD_FORUM_TITLE: { type: 'bool', default: false },
+  DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}' },
+  MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
+  SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
+  ALARM_ENABLED: { type: 'bool', default: true },
+  ALARM_TARGET_PERCENT: { type: 'float', default: 0.60, min: 0.05, max: 0.99 },
+  ALARM_DURATION_DAYS: { type: 'enum', default: '730', allowed: ['90', '180', '365', '730'] },
+  ALARM_AUTO_SUBMIT: { type: 'bool', default: false },
+  OBSERVER_DEBOUNCE_MS: { type: 'int', default: 200, min: 0, max: 2000 },
+  DEBUG: { type: 'bool', default: false }
+};
+const coerceNumber = raw => {
+  if (typeof raw === 'number') return raw;
+  if (typeof raw === 'boolean') return raw ? 1 : 0;
+  if (typeof raw === 'string' && raw.trim() !== '') return Number(raw);
+  return NaN;
+};
+export function sanitizeConfigValue(key, raw) {
+  const rule = SETTING_SCHEMA[key];
+  if (!rule) {
+    try { if (_getValue('DEBUG', false) === true) console.warn('[Toppreise-Suite] unknown config key ignored', key); } catch {}
+    return undefined;
+  }
+  switch (rule.type) {
+    case 'bool': return raw === true;
+    case 'mode': return raw === 'dim' ? 'dim' : 'hide';
+    case 'int': {
+      const n = coerceNumber(raw);
+      if (!Number.isFinite(n)) return rule.default;
+      return Math.min(rule.max, Math.max(rule.min, Math.round(n)));
+    }
+    case 'float': {
+      const n = coerceNumber(raw);
+      if (!Number.isFinite(n)) return rule.default;
+      return Math.min(rule.max, Math.max(rule.min, n));
+    }
+    case 'enum': {
+      if (rule.allowed.includes(raw)) return raw;
+      const s = String(raw);
+      return rule.allowed.includes(s) ? s : rule.default;
+    }
+    case 'string': return typeof raw === 'string' ? raw : rule.default;
+    default: return rule.default;
+  }
+}
 
 // One-time migration: DEBUG default flipped true→false, but stored true
 // persists via _getValue precedence. No settings UI ever wrote DEBUG
@@ -250,49 +332,49 @@ const paintCycleButtons = (bar, modeKey) => {
 
 
 export const CONFIG = {
-  FILTER_NEG_ENABLED: _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED)),
-  FILTER_MIN_ENABLED: _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED)),
+  FILTER_NEG_ENABLED: sanitizeConfigValue('FILTER_NEG_ENABLED', _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED))),
+  FILTER_MIN_ENABLED: sanitizeConfigValue('FILTER_MIN_ENABLED', _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED))),
   FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
   FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
   HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
   VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
   DEALER_MODE: _modeValue('DEALER_MODE'),
-  MARGIN_PERCENT: parseFloat(_getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
-  DIM_OPACITY: parseFloat(_getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
-  USE_SHIPPING_PRICE: _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE),
-  HEATMAP_ENABLED: _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED),
-  HEATMAP_INTENSITY: parseFloat(_getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-  REAL_DEAL_MIN_DISCOUNT: parseInt(_getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
-  REAL_DEAL_CACHE_HOURS: parseInt(_getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
-  NEGATIVE_CACHE_HOURS: parseInt(_getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
-  BESTPREISE_MODE_ACTIVE: _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE),
-  BESTPREISE_HIDE_UNCHECKED: _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED),
-  BESTPREISE_INCLUDE_VORTIEF: _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF),
-  BESTPREISE_WEIGHT_RECORD: parseFloat(_getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
-  BESTPREISE_MIN_POINTS: parseInt(_getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
-  BESTPREISE_MEDIAN_HORIZON_DAYS: parseInt(_getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
-  OUTLIER_REJECTION_ENABLED: _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED),
-  OUTLIER_DEVIATION_BAND: parseFloat(_getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
-  OUTLIER_MAX_GLITCH_HOURS: parseInt(_getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
-  ENABLE_SPARKLINES: _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES),
-  REVIEW_SEARCH_ENABLED: _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED),
-  REVIEW_SEARCH_KEYWORD: String(_getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
-  REVIEW_SEARCH_AI_MODE: _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE),
-  DEALER_AUTOFETCH: _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH),
-  NEGATIVE_TERMS: _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS),
+  MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
+  DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
+  USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
+  HEATMAP_ENABLED: sanitizeConfigValue('HEATMAP_ENABLED', _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED)),
+  HEATMAP_INTENSITY: sanitizeConfigValue('HEATMAP_INTENSITY', _getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
+  REAL_DEAL_MIN_DISCOUNT: sanitizeConfigValue('REAL_DEAL_MIN_DISCOUNT', _getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
+  REAL_DEAL_CACHE_HOURS: sanitizeConfigValue('REAL_DEAL_CACHE_HOURS', _getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
+  NEGATIVE_CACHE_HOURS: sanitizeConfigValue('NEGATIVE_CACHE_HOURS', _getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
+  BESTPREISE_MODE_ACTIVE: sanitizeConfigValue('BESTPREISE_MODE_ACTIVE', _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE)),
+  BESTPREISE_HIDE_UNCHECKED: sanitizeConfigValue('BESTPREISE_HIDE_UNCHECKED', _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED)),
+  BESTPREISE_INCLUDE_VORTIEF: sanitizeConfigValue('BESTPREISE_INCLUDE_VORTIEF', _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF)),
+  BESTPREISE_WEIGHT_RECORD: sanitizeConfigValue('BESTPREISE_WEIGHT_RECORD', _getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
+  BESTPREISE_MIN_POINTS: sanitizeConfigValue('BESTPREISE_MIN_POINTS', _getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
+  BESTPREISE_MEDIAN_HORIZON_DAYS: sanitizeConfigValue('BESTPREISE_MEDIAN_HORIZON_DAYS', _getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
+  OUTLIER_REJECTION_ENABLED: sanitizeConfigValue('OUTLIER_REJECTION_ENABLED', _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED)),
+  OUTLIER_DEVIATION_BAND: sanitizeConfigValue('OUTLIER_DEVIATION_BAND', _getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
+  OUTLIER_MAX_GLITCH_HOURS: sanitizeConfigValue('OUTLIER_MAX_GLITCH_HOURS', _getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
+  ENABLE_SPARKLINES: sanitizeConfigValue('ENABLE_SPARKLINES', _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES)),
+  REVIEW_SEARCH_ENABLED: sanitizeConfigValue('REVIEW_SEARCH_ENABLED', _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED)),
+  REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
+  REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
+  DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
+  NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
-  DISCORD_SUPPRESS_DEALER_EMBED: _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED),
-  DISCORD_SUPPRESS_PRODUCT_EMBED: _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED),
-  DISCORD_FORUM_TITLE: _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE),
-  DISCORD_LAYOUT: (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT,
-  MIN_OFFERS: parseInt(_getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
-  SORT_BY_OFFERS: _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS),
-  ALARM_ENABLED: _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED),
-  ALARM_TARGET_PERCENT: parseFloat(_getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
-  ALARM_DURATION_DAYS: String(_getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
-  ALARM_AUTO_SUBMIT: _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT),
-  OBSERVER_DEBOUNCE_MS: parseInt(_getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-  DEBUG: _getValue('DEBUG', DEFAULTS.DEBUG)
+  DISCORD_SUPPRESS_DEALER_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_DEALER_EMBED', _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED)),
+  DISCORD_SUPPRESS_PRODUCT_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_PRODUCT_EMBED', _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED)),
+  DISCORD_FORUM_TITLE: sanitizeConfigValue('DISCORD_FORUM_TITLE', _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE)),
+  DISCORD_LAYOUT: sanitizeConfigValue('DISCORD_LAYOUT', (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT),
+  MIN_OFFERS: sanitizeConfigValue('MIN_OFFERS', _getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
+  SORT_BY_OFFERS: sanitizeConfigValue('SORT_BY_OFFERS', _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS)),
+  ALARM_ENABLED: sanitizeConfigValue('ALARM_ENABLED', _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED)),
+  ALARM_TARGET_PERCENT: sanitizeConfigValue('ALARM_TARGET_PERCENT', _getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
+  ALARM_DURATION_DAYS: sanitizeConfigValue('ALARM_DURATION_DAYS', _getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
+  ALARM_AUTO_SUBMIT: sanitizeConfigValue('ALARM_AUTO_SUBMIT', _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT)),
+  OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
+  DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
 };
 export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
 // Corrupt storage must never silently break fills: clamp percent to the
@@ -310,8 +392,10 @@ else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(24, CONFIG.OUTLIER
 
 export const saveConfigKey = (key, val) => {
   if (SECRET_KEYS.has(key)) return;
-  CONFIG[key] = val;
-  _setValue(key, val);
+  const clean = sanitizeConfigValue(key, val);
+  if (clean === undefined) return;
+  CONFIG[key] = clean;
+  _setValue(key, clean);
 };
 // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
 // here (a static import would cycle config ← price-alarm; the concat-IIFE
@@ -612,7 +696,12 @@ export function syncUiControl(key, val, opts = {}) {
 const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
 export function updateConfig(key, val, options = {}) {
   if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
-  else saveConfigKey(key, val);
+  else {
+    const clean = sanitizeConfigValue(key, val);
+    if (clean === undefined) return;
+    val = clean;
+    saveConfigKey(key, val);
+  }
   if (!options.skipUiSync) {
     syncUiControl(key, val);
   }

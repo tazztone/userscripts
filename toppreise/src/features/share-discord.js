@@ -50,14 +50,15 @@ export function withLivePrice(timeSeries, price) {
 export function renderSparklinePng(timeSeries, width = 360, height = 100) {
   return new Promise(resolve => {
     let done = false;
-    const finish = v => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    let svgUrl = null;
+    const finish = v => { if (!done) { done = true; clearTimeout(timer); if (svgUrl) try { URL.revokeObjectURL(svgUrl); } catch {} resolve(v); } };
     const timer = setTimeout(() => finish(null), 3000);
     try {
       if (typeof document === 'undefined') return finish(null);
       const svg = renderDiscordChart(timeSeries, width, height);
       if (!svg) return finish(null);
       const svgText = new XMLSerializer().serializeToString(svg);
-      const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+      svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
       const img = new Image();
       const rasterize = source => () => {
         try {
@@ -65,14 +66,12 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
           canvas.width = width * 2;
           canvas.height = height * 2;
           canvas.getContext('2d').drawImage(source, 0, 0, width * 2, height * 2);
-          URL.revokeObjectURL(svgUrl);
           canvas.toBlob(b => finish(b || null), 'image/png');
         } catch { finish(null); }
       };
       img.onload = rasterize(img);
       // blob:-URL gescheitert (CSP): data-URI als Rastervorlage retryen.
       img.onerror = () => {
-        URL.revokeObjectURL(svgUrl);
         const retry = new Image();
         retry.onload = rasterize(retry);
         retry.onerror = () => finish(null);
@@ -109,6 +108,7 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
           if (res.status >= 200 && res.status < 300 && data) {
             const blob = data instanceof Blob ? data : new Blob([data]);
             if (!blob.size) return reject(new Error('Leeres Bild'));
+            if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu groß'));
             if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
             resolve(blob);
           } else reject(new Error(`Bild-Download ${res.status}`));
@@ -142,7 +142,7 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
       if (!(pngBlob instanceof Blob)) return reject(new Error('Ungültige Bilddaten'));
       if (typeof FormData === 'undefined') return reject(new Error('Kein Multipart-Transport'));
       const form = new FormData();
-      const body = { content };
+      const body = { content, allowed_mentions: { parse: [] } };
       const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
       if (productBlob) {
         body.embeds = [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }];
@@ -212,6 +212,16 @@ export function renderDiscordMarkdownPreview(markdown) {
 const boldNumbers = s => (s || '').replace(/(CHF [\d.'’]+|-?\d+(?:[.,]\d+)?\s*%)/g, '**$1**');
 const withPct = (text, pct) => pct > 0 ? `${text} -${pct}%` : text;
 const cleanTitleOf = title => (title || 'Toppreise-Deal').replace(/\s+/g, ' ').trim().replace(/\[/g, '(').replace(/\]/g, ')');
+export function escapeDiscordMarkdown(s) {
+  return String(s ?? '').replace(/\\/g, '\\\\').replace(/[`*_~|>]/g, '\\$&');
+}
+const isToppreiseProductUrl = u => {
+  try {
+    const parsed = new URL(u);
+    if (parsed.hostname !== 'toppreise.ch' && parsed.hostname !== 'www.toppreise.ch') return false;
+    return parsed.pathname.startsWith('/preisvergleich/');
+  } catch { return false; }
+};
 function tokenText(name, ctx) {
   switch (name) {
     case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
@@ -231,11 +241,11 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
   const link = ((fields || {}).url || '').trim();
   const dealerUrl = (fields || {}).dealerUrl || '';
   const ctx = {
-    cleanTitle: cleanTitleOf((fields || {}).title),
+    cleanTitle: escapeDiscordMarkdown(cleanTitleOf((fields || {}).title)),
     link,
     titleTarget: link ? (((fields || {}).suppressProductEmbed && link) ? `<${link}>` : link) : '',
     priceText: (fields || {}).priceText || '',
-    dealer: String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')'),
+    dealer: escapeDiscordMarkdown(String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')')),
     dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
     offerCount: (fields || {}).offerCount || 0,
     spark: (fields || {}).spark || '',
@@ -310,6 +320,7 @@ export function extractShareData(card) {
     else try { imageUrl = new URL(imageUrl, location.href).href; } catch { imageUrl = ''; }
   }
   if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
+  if (url && !isToppreiseProductUrl(url)) url = '';
   return { title, url, imageUrl };
 }
 
@@ -326,7 +337,7 @@ export function extractDealerUrl(card) {
   if (url && !/^https?:\/\//i.test(url)) {
     try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
   }
-  return url;
+  return /^https:/i.test(url) ? url : '';
 }
 
 // Schema.org-JSON-LD aus statischem HTML lesen: Händlerzeilen sind AJAX-gerendert
@@ -393,6 +404,7 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
   try {
     if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
     if (!/^https?:\/\//i.test(productUrl || '')) return out;
+    if (!isToppreiseProductUrl(productUrl)) return out;
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
     const res = await fetch(productUrl, { signal: ctrl?.signal });
@@ -430,7 +442,7 @@ export function postDealToDiscord(webhookUrl, content, options = {}) {
   return new Promise((resolve, reject) => {
     if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
     const url = webhookUrl.trim();
-    const body = { content };
+    const body = { content, allowed_mentions: { parse: [] } };
     if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
     if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
     const payload = JSON.stringify(body);

@@ -8,6 +8,7 @@
  */
 
 import { CONFIG, setAlarmConfigListener } from '../state/config.js';
+import { openSettingsAt } from '../ui/modal.js';
 import { parsePrice } from '../domain/price.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 
@@ -122,9 +123,20 @@ export function refreshAlarmBellDecor() {
 
 const clearAlarmTimers = modal => {
   const raw = modal.dataset.tpAlarmTimers;
-  if (!raw) return;
-  raw.split(',').forEach(id => clearTimeout(Number(id)));
+  if (raw) raw.split(',').forEach(id => clearTimeout(Number(id)));
   delete modal.dataset.tpAlarmTimers;
+  try { modal._tpAlarmObserver?.disconnect(); } catch {}
+  modal._tpAlarmObserver = null;
+};
+
+const ensureAlarmStatus = modal => {
+  let el = modal.querySelector('.tp-alarm-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'tp-alarm-status';
+    modal.appendChild(el);
+  }
+  return el;
 };
 
 export function processPriceAlarmModal() {
@@ -142,67 +154,79 @@ export function processPriceAlarmModal() {
 
   const presentValue = parsePrice(priceEl.textContent);
   if (!(presentValue > 0)) return;
-  modalContainer.dataset.tpAlarmProcessed = 'true';
 
   const targetPrice = (presentValue * clampAlarmTarget(CONFIG.ALARM_TARGET_PERCENT)).toFixed(2);
   const duration = normalizeAlarmDuration(CONFIG.ALARM_DURATION_DAYS);
   const priceInput = modalContainer.querySelector('input#f_NewInfoMailForm_priceFrom') || modalContainer.querySelector('input[name="im_nimf_pvf"]');
-  if (priceInput) {
-    priceInput.value = targetPrice;
-    priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-    priceInput.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
   const durationHidden = modalContainer.querySelector('input[name="im_nimf_du"]');
+  const durationLi = modalContainer.querySelector(`li[data-value="${duration}"]`);
+  // Missing-controls: no submission, no processed flag — next DOM pass retries.
+  if (!priceInput || (!durationHidden && !durationLi)) return;
+  priceInput.value = targetPrice;
+  priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+  priceInput.dispatchEvent(new Event('change', { bubbles: true }));
   if (durationHidden) {
     durationHidden.value = duration;
     durationHidden.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  modalContainer.querySelector(`li[data-value="${duration}"]`)?.click();
+  durationLi?.click();
+  // Read-back revalidation: partial fills retry on the next observer pass.
+  if (priceInput.value !== targetPrice || (durationHidden && durationHidden.value !== duration)) return;
+  modalContainer.dataset.tpAlarmProcessed = 'true';
 
-  if (CONFIG.ALARM_AUTO_SUBMIT) {
-    const termsCheckbox = modalContainer.querySelector('input#im_nimf_prtrm');
-    if (termsCheckbox) {
-      termsCheckbox.checked = true;
-      termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
+  if (CONFIG.ALARM_AUTO_SUBMIT === true) {
+    const reqModal = modalContainer;
+    const reqValue = priceInput.value;
+    const unconfirmedMsg = '⚠️ Übermittlung nicht bestätigt — bitte prüfen';
+    const flagUnconfirmed = () => {
+      const cur = document.querySelector('.Plugin_NewInfoMailForm');
+      if (!cur) return;
+      const el = ensureAlarmStatus(cur);
+      // Guarded write: the observer watches this subtree, so an unguarded
+      // textContent assignment would re-trigger it into a microtask loop.
+      if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
+    };
     try {
       const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
-      let closeFired = false;
       let fallbackTimer = 0;
-      let observer = null;
-      const clickCloseOnce = () => {
-        if (closeFired) return;
-        closeFired = true;
-        try { observer?.disconnect(); } catch {}
-        clearTimeout(fallbackTimer);
-        const closeBtn = modalContainer.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
-                         document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
-        if (closeBtn) closeBtn.click();
-        else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
-      };
+      // Observe BEFORE submit: close only on a success signal — button/form
+      // detachment alone never closes.
+      const observer = new MutationObserver(() => {
+        if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
+          try { observer.disconnect(); } catch {}
+          clearTimeout(fallbackTimer);
+          reqModal._tpAlarmObserver = null;
+          const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
+                           document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
+          if (closeBtn) closeBtn.click();
+          else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
+        } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
+          try { observer.disconnect(); } catch {}
+          clearTimeout(fallbackTimer);
+        } else {
+          flagUnconfirmed();
+        }
+      });
+      observer.observe(dialogRoot, { childList: true, subtree: true });
+      reqModal._tpAlarmObserver = observer;
+      fallbackTimer = setTimeout(() => {
+        try { observer.disconnect(); } catch {}
+        reqModal._tpAlarmObserver = null;
+        flagUnconfirmed();
+      }, 5000);
       const submitTimer = setTimeout(() => {
-        const submitBtn = modalContainer.querySelector('input.f_submitbtn');
-        if (!submitBtn) {
-          if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Submit-Button gefunden');
-          return;
+        // Pre-submit revalidation: basis/config may have changed mid-wait.
+        if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return;
+        const submitBtn = reqModal.querySelector('input.f_submitbtn');
+        if (!submitBtn || priceInput.value !== reqValue) return;
+        const termsCheckbox = reqModal.querySelector('input#im_nimf_prtrm');
+        if (termsCheckbox) {
+          termsCheckbox.checked = true;
+          termsCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
         submitBtn.click();
-        // Close once the submit round-trips (button/form leaves the DOM or a
-        // success node appears) instead of after a blind delay.
-        const form = submitBtn.closest('form') || submitBtn;
-        observer = new MutationObserver(() => {
-          if (!document.contains(submitBtn) || !document.contains(form) ||
-              modalContainer.querySelector('.success, .confirmation, [class*="success" i], [class*="confirm" i]')) {
-            clickCloseOnce();
-          }
-        });
-        observer.observe(dialogRoot, { childList: true, subtree: true });
-        fallbackTimer = setTimeout(clickCloseOnce, 5000);
-        modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
       }, 300);
-      modalContainer.dataset.tpAlarmTimers = String(submitTimer);
+      modalContainer.dataset.tpAlarmTimers = `${submitTimer},${fallbackTimer}`;
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
     }

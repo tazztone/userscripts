@@ -163,14 +163,14 @@ describe('Price Domain Module', () => {
       assert.equal(dropped.filteredOutliers[0].price, 150);
     });
 
-    it('honours OUTLIER_MAX_GLITCH_HOURS on true outlier span: 120h run kept at 48h and 96h, filtered at 120h', () => {
+    it('honours OUTLIER_MAX_GLITCH_HOURS on true outlier span: 144h run kept at 48h and 120h, filtered at 168h', () => {
       const now = Date.now();
       const series = [
         [now - 12 * DAY, 100],
         [now - 11 * DAY, 100],
         [now - 10 * DAY, 100],
         [now - 9 * DAY, 100],
-        [now - 8 * DAY, 200],   // zigzag run = 96h span, every point locally sharp
+        [now - 8 * DAY, 200],   // zigzag run = 144h neighbor-anchored span, every point locally sharp
         [now - 7 * DAY, 140],
         [now - 6 * DAY, 200],
         [now - 5 * DAY, 140],
@@ -184,16 +184,16 @@ describe('Price Domain Module', () => {
       assert.equal(kept.filteredOutliers.length, 0);
       assert.equal(kept.cleanPoints.filter(p => p[1] === 200).length, 3);
       assert.equal(kept.cleanPoints.filter(p => p[1] === 140).length, 2);
-      const kept96 = withConfig('OUTLIER_MAX_GLITCH_HOURS', 96, () => sanitizeTimeSeries(series, 0.20));
-      assert.equal(kept96.filteredOutliers.length, 0);
-      assert.equal(kept96.cleanPoints.filter(p => p[1] === 200).length, 3);
-      assert.equal(kept96.cleanPoints.filter(p => p[1] === 140).length, 2);
-      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 120, () => sanitizeTimeSeries(series, 0.20));
+      const kept120 = withConfig('OUTLIER_MAX_GLITCH_HOURS', 120, () => sanitizeTimeSeries(series, 0.20));
+      assert.equal(kept120.filteredOutliers.length, 0);
+      assert.equal(kept120.cleanPoints.filter(p => p[1] === 200).length, 3);
+      assert.equal(kept120.cleanPoints.filter(p => p[1] === 140).length, 2);
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 168, () => sanitizeTimeSeries(series, 0.20));
       assert.equal(dropped.filteredOutliers.length, 5);
 
     });
 
-    it('filters a single-point dip at any window (span 24h); a two-point 48h dip at 48h, not 24h', () => {
+    it('filters a single-point dip at 48h (span 48h); a two-point 72h dip at 72h, not 48h', () => {
       const now = Date.now();
       const single = [
         [now - 4 * DAY, 100],
@@ -202,9 +202,11 @@ describe('Price Domain Module', () => {
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-      const droppedSingle = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(single, 0.60));
+      const droppedSingle = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(single, 0.60));
       assert.equal(droppedSingle.filteredOutliers.length, 1);
       assert.equal(droppedSingle.filteredOutliers[0].price, 20);
+      const keptSingle = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(single, 0.60));
+      assert.equal(keptSingle.filteredOutliers.length, 0);
       const pair = [
         [now - 5 * DAY, 100],
         [now - 4 * DAY, 100],
@@ -213,9 +215,9 @@ describe('Price Domain Module', () => {
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-      const droppedPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(pair, 0.60));
+      const droppedPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 72, () => sanitizeTimeSeries(pair, 0.60));
       assert.equal(droppedPair.filteredOutliers.length, 2);
-      const keptPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 24, () => sanitizeTimeSeries(pair, 0.60));
+      const keptPair = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(pair, 0.60));
       assert.equal(keptPair.filteredOutliers.length, 0);
       assert.equal(keptPair.cleanPoints.filter(p => p[1] === 20).length, 2);
     });
@@ -230,7 +232,7 @@ describe('Price Domain Module', () => {
       assert.ok(Math.abs(meds[59] - 930) / 930 < 0.05, `tail ${meds[59]} must track 930`);
     });
 
-    it('treats an exact 48h two-point dip as a glitch at 48h', () => {
+    it('treats an exact 72h two-point dip as a glitch at 72h', () => {
       const now = Date.now();
       const series = [
         [now - 5 * DAY, 100],
@@ -240,7 +242,7 @@ describe('Price Domain Module', () => {
         [now - 1 * DAY, 100],
         [now, 100]
       ];
-      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 48, () => sanitizeTimeSeries(series));
+      const dropped = withConfig('OUTLIER_MAX_GLITCH_HOURS', 72, () => sanitizeTimeSeries(series));
       assert.equal(dropped.filteredOutliers.length, 2);
       assert.ok(!dropped.cleanPoints.some(p => p[1] === 20));
     });
@@ -532,6 +534,57 @@ describe('Price Domain Module', () => {
       assert.ok(clean);
       assert.equal(clean.filteredOutliers.length, 0);
       assert.equal(clean.rawTimeSeries, undefined);
+    });
+
+    it('sorts unsorted input, dedupes timestamps keeping the last, drops invalid points', () => {
+      const now = Date.now();
+      const series = [
+        [now, 100],
+        [now - 2 * DAY, 90],
+        [now - 2 * DAY, 95],
+        [now - 1 * DAY, NaN],
+        [now - 3 * DAY, Infinity],
+        [now - 4 * DAY, 0],
+        [now - 5 * DAY, -10],
+        ['garbage', 80],
+        [now + 2 * DAY, 70],
+        [0, 60],
+        [-1000, 50]
+      ];
+      const analysis = withConfig('OUTLIER_REJECTION_ENABLED', false, () => analyzePriceTimeSeries(series, 100));
+      assert.ok(analysis);
+      assert.deepEqual(analysis.timeSeries, [[now - 2 * DAY, 95], [now, 100]]);
+      assert.equal(analysis.tiefstpreis, 95);
+      assert.equal(analysis.dataPointCount, 2);
+    });
+
+    it('returns null when every point is invalid', () => {
+      const now = Date.now();
+      assert.equal(analyzePriceTimeSeries([[0, 0], [NaN, NaN], ['x', 'y']]), null);
+      assert.equal(analyzePriceTimeSeries([[now + 2 * DAY, 70]]), null);
+      assert.equal(analyzePriceTimeSeries([[now - DAY, 0], [now, -5]]), null);
+    });
+
+    it('exposes rawTiefstpreis at or below the filtered tiefstpreis on glitch fixtures', () => {
+      const now = Date.now();
+      const glitchy = [
+        [now - 10 * DAY, 1300],
+        [now - 9 * DAY, 1250],
+        [now - 7 * DAY, 1200],
+        [now - 6 * DAY, 15],
+        [now - 5 * DAY, 1200],
+        [now - 4 * DAY, 1180],
+        [now - 3 * DAY, 1150],
+        [now - 2 * DAY, 1100],
+        [now - 1 * DAY, 1050],
+        [now, 999]
+      ];
+      const hit = withConfig('OUTLIER_REJECTION_ENABLED', true, () => analyzePriceTimeSeries(glitchy));
+      assert.ok(hit);
+      assert.equal(hit.filteredOutliers.length, 1);
+      assert.equal(hit.rawTiefstpreis, 15);
+      assert.ok(hit.rawTiefstpreis <= hit.tiefstpreis);
+      assert.equal(sanitizeTimeSeries(glitchy).rawMin, 15);
     });
   });
 

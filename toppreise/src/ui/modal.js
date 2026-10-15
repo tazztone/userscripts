@@ -6,7 +6,7 @@
 
 import { showToast } from "./toast.js";
 import { ensureSkeleton } from "./shell.js";
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, sanitizeReviewKeyword } from "../state/config.js";
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, weightText, horizonText, clampMinPoints, clampIntensity01, syncUiControl, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS, sanitizeReviewKeyword, sanitizeConfigValue } from "../state/config.js";
 import { countCachedPriceStats, clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from "../scanner/cache.js";
 import { clearDealerMemory } from "./badges.js";
 import { triggerProcessListings, clearCardCache } from "../page/adapter.js";
@@ -669,41 +669,11 @@ export function setupUI() {
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
           if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
-          // Coerce to the DEFAULTS type: save clamps, import must not store
-          // NaN/garbage (or legacy numeric strings) raw.
-          const def = DEFAULTS[key];
-          let coerced = val;
-          if (typeof def === 'number') {
-            coerced = typeof val === 'number' ? val : parseFloat(val);
-            if (!Number.isFinite(coerced)) continue;
-            if (key === 'MARGIN_PERCENT') coerced = Math.max(0, Math.min(100, coerced));
-            else if (key === 'DIM_OPACITY') coerced = Math.max(0.05, Math.min(0.95, coerced));
-            else if (key === 'ALARM_TARGET_PERCENT') coerced = Math.max(0.05, Math.min(0.99, coerced));
-            else if (key === 'HEATMAP_INTENSITY') coerced = clampIntensity01(coerced);
-            else if (key === 'BESTPREISE_WEIGHT_RECORD') coerced = Math.max(0, Math.min(1, coerced));
-            else if (key === 'BESTPREISE_MIN_POINTS') coerced = clampMinPoints(coerced);
-            else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
-            else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
-            else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.50, Math.max(0.01, coerced));
-            else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(24, Math.round(coerced)));
-            else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
-            else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
-            else if (key === 'NEGATIVE_CACHE_HOURS') coerced = Math.max(1, Math.min(24, Math.round(coerced)));
-            else if (key === 'OBSERVER_DEBOUNCE_MS') coerced = Math.max(50, Math.min(2000, Math.round(coerced)));
-          } else if (typeof def === 'boolean') {
-            if (val === true || val === 'true') coerced = true;
-            else if (val === false || val === 'false') coerced = false;
-            else continue;
-          } else if (typeof def === 'string') {
-            coerced = String(val);
-            if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(coerced)) continue;
-            if (key === 'ALARM_DURATION_DAYS' && !['90', '180', '365', '730'].includes(coerced)) continue;
-            if ((key === 'FILTER_NEG_MODE' || key === 'FILTER_MIN_MODE' || key === 'HIDE_UNCHECKED_MODE' || key === 'VORTIEF_MODE' || key === 'DEALER_MODE') && !['dim', 'hide'].includes(coerced)) continue;
-            if (key === 'SORT_BY_OFFERS' && !['none', 'desc', 'asc', 'discount-desc'].includes(coerced)) continue;
-          } else {
-            continue;
-          }
-          saveConfigKey(key, coerced);
+          // Single schema: sanitize each imported key, drop unknowns/invalid.
+          if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
+          const clean = sanitizeConfigValue(key, val);
+          if (clean === undefined) continue;
+          saveConfigKey(key, clean);
           count++;
         }
         if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) { clearPriceStatsCache(undefined, [STATS_CACHE_PREFIX]); clearDealerMemory(); getProductCards().forEach(clearCardCache); }

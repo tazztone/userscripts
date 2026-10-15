@@ -57,6 +57,7 @@ export function isCacheEntryFresh(parsed, ignoreNegativeCache = false) {
   const ttlMs = (realHours || 48) * 3600 * 1000;
   return ageMs < ttlMs;
 }
+export const hasUsablePriceStats = stats => !!stats && !stats.unavailable && (Number.isFinite(stats?.tiefstpreis) ? stats.tiefstpreis > 0 : Number.isFinite(stats?.medianPrice) && stats.medianPrice > 0);
 
 export function prunePriceStatsCache(storage = (typeof window !== 'undefined' ? window.localStorage : null), forceEvict = false) {
   if (!storage) return;
@@ -284,9 +285,11 @@ export function getCachedDealer(productId, useShipping, storage = (typeof window
     const raw = storage?.getItem(DEALER_CACHE_PREFIX + productId);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!isCacheEntryFresh(parsed)) return null;
     const entry = useShipping ? parsed?.s : parsed?.p;
     if (!entry?.dealer) return null;
+    // Per-slot expiry; legacy entries carry top-level time only.
+    const slotTime = entry.time ?? parsed?.time ?? 0;
+    if (!isCacheEntryFresh({ time: slotTime })) return null;
     return { dealer: entry.dealer, url: entry.url || '', offers: entry.offers || 0 };
   } catch (e) {}
   return null;
@@ -297,7 +300,10 @@ export function setCachedDealer(productId, useShipping, dealer, url, storage = (
   try {
     let prev = {};
     try { prev = JSON.parse(storage?.getItem(DEALER_CACHE_PREFIX + productId) || '{}'); } catch (e) { /* korrupt: neu schreiben */ }
-    const next = { ...prev, time: Date.now(), [useShipping ? 's' : 'p']: { dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0 } };
+    const slot = useShipping ? 's' : 'p';
+    const prevSlot = (prev && typeof prev[slot] === 'object' && prev[slot] !== null) ? prev[slot] : {};
+    const next = { ...prev, [slot]: { ...prevSlot, dealer, url: url || '', offers: Number.isFinite(+offers) ? Math.round(+offers) : 0, time: Date.now() } };
+    delete next.time;
     storage?.setItem(DEALER_CACHE_PREFIX + productId, JSON.stringify(next));
   } catch (e) {}
 }

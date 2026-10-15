@@ -11,7 +11,8 @@ import {
   getInsetHeatStyle,
   getCardDealerRows,
   extractCardDiscount,
-  getCardProductId
+  getCardProductId,
+  dealerLoserFor
 } from '../page/cards.js';
 import { getCardSortableUnit } from '../page/sort.js';
 import { isDiscordWebhookUrl, formatDealMessage, forumRecipeFor, resolveShareFields, extractShareData, extractDealer, extractDealerUrl, sparklineText, withLivePrice, fetchProductInfo, fetchImageBlob, renderSparklinePng, postDealImageToDiscord, postDealToDiscord, buildThreadName, isForumThreadError, discordForumFlagKey } from '../features/share-discord.js';
@@ -22,7 +23,7 @@ import {
 } from '../scanner/scanner.js';
 import { startBatchCheck } from './floating-cta.js';
 import { scanState } from '../state/store.js';
-import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../scanner/cache.js';
+import { getCachedPriceStats, getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal, hasUsablePriceStats } from '../scanner/cache.js';
 import { showToast } from './toast.js';
 import { renderSparkline, openSparklinePopout } from './sparkline.js';
 import { isShippingPriceActive, triggerProcessListings, scheduleProcessListings } from '../page/adapter.js';
@@ -85,14 +86,15 @@ export function clearDealerAutoTried() {
 }
 async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;
-  const currentPid = getCardProductId(card);
-  if (!currentPid) return;
+  const reqPid = getCardProductId(card);
+  if (!reqPid) return;
+  const reqBasis = isShippingPriceActive();
+  const reqPrice = extractCanonicalPrice(card).price;
+  const reqCents = priceToCents(reqPrice);
   badgeDifEl.classList.add('tp-deal-loading');
   badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-  const requestTimePrice = extractCanonicalPrice(card).price;
-  const fetchedStats = await fetchSingleProductPriceStats(currentPid, 1, true, null, Number.isFinite(requestTimePrice) && requestTimePrice > 0 ? requestTimePrice : null);
-  const currentTimePrice = extractCanonicalPrice(card).price;
-  if (!requestTimePrice || !currentTimePrice || priceToCents(requestTimePrice) !== priceToCents(currentTimePrice)) {
+  const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null);
+  if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || isShippingPriceActive() !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
     badgeDifEl.classList.remove('tp-deal-loading');
     triggerProcessListings();
     return;
@@ -100,14 +102,14 @@ async function runSingleDealCheck(card, badgeDifEl) {
   badgeDifEl.classList.remove('tp-deal-loading');
   if (fetchedStats) {
     armFreshDismiss();
-    markFreshVerified(currentPid);
+    markFreshVerified(reqPid);
     triggerProcessListings();
   } else {
     badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
     badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
     badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
     setTimeout(() => {
-      if (badgeDifEl && !getCachedPriceStats(currentPid)) {
+      if (badgeDifEl && !getCachedPriceStats(reqPid)) {
         triggerProcessListings();
       }
     }, 2500);
@@ -131,7 +133,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const heatMode = CONFIG.BESTPREISE_MODE_ACTIVE ? 'bestpreise' : 'browse';
   const heatInfo = getHeatInput(cardPrice, stats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
-  const verified = !!stats && !stats.unavailable;
+  const verified = hasUsablePriceStats(stats);
   const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
 
   // Blind inset wash: every heatable card gets the same prominent signal,
@@ -150,7 +152,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     // desync from the card. Verified-only: unverified cards keep the striped
     // `.tp-is-unverified` cue on the badge while the card body still glows.
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-    if (heatBadgeEl && stats) {
+    if (heatBadgeEl && hasUsablePriceStats(stats)) {
       const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
       heatBadgeEl.style.setProperty('background', badgeHeat.background, 'important');
       heatBadgeEl.style.setProperty('border-color', badgeHeat.border, 'important');
@@ -188,7 +190,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   // (step 6) is the only ungeprüft signal. Loading cards get neither class.
    if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
     card.classList.remove('tp-is-verified');
-   } else if (stats) {
+   } else if (hasUsablePriceStats(stats)) {
      card.classList.add('tp-is-verified');
    } else {
     card.classList.remove('tp-is-verified');
@@ -289,7 +291,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
     }
     // Fresh-injected node missed the heat pass above (it didn't exist yet):
     // re-apply the same badge swatch so first render matches.
-    if (stats && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+    if (hasUsablePriceStats(stats) && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
       if (badgeHeat) {
         badgeDifEl.style.setProperty('background', badgeHeat.background, 'important');
@@ -394,7 +396,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
         } else {
           histPriceEl.remove();
         }
-      } else if (stats) {
+      } else if (hasUsablePriceStats(stats)) {
         // Verified but no qualifying blend — e.g. minimal fallback stats
         // without median, or above-low. Only a verified MARKUP hides in the
         // mode; a verified low without blend stays visible with Vortief edge

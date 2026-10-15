@@ -22,6 +22,10 @@ def page(browser, userscript_content):
     page = browser.new_page()
     page.goto(MOCK_HTML)
     page.evaluate("() => localStorage.clear()")
+    # Full ToppreiseSuite harness (CONFIG/mutators) exists only with DEBUG;
+    # production serves a frozen minimal handle instead. The marker skips the
+    # one-time legacy migration that would otherwise silence stored DEBUG.
+    page.evaluate("() => { localStorage.setItem('tp_suite_v2_DEBUG', 'true'); localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true'); }")
     page.evaluate(userscript_content)
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     yield page
@@ -62,17 +66,26 @@ def seed_verified_deal(page, pid='797571', stats=None, clear=True):
 
 
 def mock_pricechart(page, lows):
-    """Fulfill pricechart requests with PriceChartLegend HTML per pid.
+    """Fulfill pricechart requests per pid.
 
     lows maps pid -> low, or pid -> (low, high). Unlisted pids get a 404 so
     tests never hang on an unmocked fetch.
 
-    Verdict rule (no median/series is synthesized, so getDisplayDelta compares
-    card price P against tiefstpreis L only): P <= L is a deal, P > L is a
-    markup (severe at P >= 1.5*L). The tuple's high only toggles peak-tooltip
-    context, never the kind — e.g. (500, 2400) on the 1800-CHF card is a
-    +260% severe markup (tp-deal-not-low), not a deal, even though 1800 < 2400.
+    Live-faithful split: POST (JSON time-series) returns the [product,
+    shipping] series pair the suite picks per price basis; GET (HTML modal
+    fallback) returns PriceChartLegend HTML. Both carry the same low so the
+    verdict rule holds on either path (no median/series is synthesized, so
+    getDisplayDelta compares card price P against tiefstpreis L only):
+    P <= L is a deal, P > L is a markup (severe at P >= 1.5*L). The tuple's
+    high only toggles peak-tooltip context, never the kind — e.g. (500, 2400)
+    on the 1800-CHF card is a +260% severe markup (tp-deal-not-low), not a
+    deal, even though 1800 < 2400.
     """
+    import json as _json
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+
     def handle_pricechart(route):
         url = route.request.url
         post_data = route.request.post_data or ''
@@ -80,6 +93,15 @@ def mock_pricechart(page, lows):
             if f'p_pc_pid={pid}' in url or str(pid) in post_data:
                 low = lh[0] if isinstance(lh, tuple) else lh
                 high = lh[1] if isinstance(lh, tuple) else None
+                if route.request.method == 'POST':
+                    series = [[_now - (9 - i) * _day, low] for i in range(10)]
+                    route.fulfill(
+                        status=200,
+                        headers={'access-control-allow-origin': '*'},
+                        content_type='application/json',
+                        body=_json.dumps([series, series]),
+                    )
+                    return
                 cols = f'<div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">{low:.2f}</div></div>'
                 if high is not None:
                     cols += f'<div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">{high:.2f}</div></div>'
