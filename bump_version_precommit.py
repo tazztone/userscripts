@@ -63,6 +63,8 @@ def process_script(script_relpath):
         with open(app_path, 'r', encoding='utf-8') as f:
             app_content = f.read()
         new_app_content = re.sub(pattern, lambda m: f"{m.group(1)}{extracted_version}", app_content, count=1)
+        # Runtime version fallback must match the header or build --check fails on drift
+        new_app_content = re.sub(r"(\|\|\s*')\d+\.\d+\.\d+(')", f"\\g<1>{extracted_version}\\g<2>", new_app_content, count=1)
         if new_app_content != app_content:
             with open(app_path, 'w', encoding='utf-8') as f:
                 f.write(new_app_content)
