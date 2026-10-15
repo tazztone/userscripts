@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.259
+// @version      2.18.260
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2677,53 +2677,12 @@ const SHADOW_MODAL_STYLES = `
     if (caption) caption.title = title;
   }
 
-  // ─── MODULE: src/state/config.js ────────────────────────────────────────────
+  // ─── MODULE: src/state/config-store.js ──────────────────────────────────────
   /**
-   * Configuration & Persistent Settings State Layer
-   * Manages defaults, GM_getValue/localStorage synchronization,
-   * active configuration object, and bidirectional UI control sync.
+   * Config storage foundation (split from state/config.js).
+   * Pure logic, zero DOM imports: defaults, GM/localStorage mirror,
+   * single setting schema + sanitizer.
    */
-
-
-
-  // One vocabulary everywhere: the Gewichtete Differenz (weight-blended
-  // Ø-discount + record margin) prints on the badge and drives color + order.
-  // The worked example uses fixed demo numbers so dragging the slider visibly
-  // moves the result (Rek −10%, Ø −25%).
-  function weightText(weightRecord, style) {
-    const w = weightRecord ?? 0.50;
-    if (style === 'short') {
-      const n = Math.round(w * 20) / 20;
-      if (n === 1.00) return '100% Rek';
-      if (n === 0.70) return '70/30';
-      if (n === 0.50) return '50/50';
-      if (n === 0.30) return '30/70';
-      if (n === 0.00) return '100% Med';
-      return `${Math.round(w * 100)}% Rek`;
-    }
-    if (style === 'title') {
-      const pctRec = Math.round(w * 100);
-      return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt die Gewichtete Differenz.`;
-    }
-    const pct = Math.round(w * 100);
-    const weightedDiff = Math.round(((100 - pct) * 25 + pct * 10) / 100);
-    const base = pct === 100 ? 'Rekord-Sortierung (100% Rekord / 0% Ø-Preis)'
-      : pct === 0 ? 'Ø-Sortierung (0% Rekord / 100% Ø-Preis)'
-      : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
-    return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz ${weightedDiff}`;
-  }
-
-  function horizonText(days, style = 'short') {
-    const d = (typeof days !== 'number' || isNaN(days) || days < 0) ? 365 : days;
-    if (style === 'title') {
-      if (d === 0) return 'Median-Berechnungszeitraum: gesamte Historie (Lifetime)';
-      if (d === 365) return 'Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen]';
-      return `Median-Berechnungszeitraum: ${d} Tage`;
-    }
-    if (d === 0) return 'Lifetime';
-    if (d === 365) return '1J';
-    return `${d}T`;
-  }
 
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: false,
@@ -2888,6 +2847,51 @@ const SHADOW_MODAL_STYLES = `
       default: return rule.default;
     }
   }
+  // One vocabulary everywhere: the Gewichtete Differenz (weight-blended
+  // Ø-discount + record margin) prints on the badge and drives color + order.
+  // The worked example uses fixed demo numbers so dragging the slider visibly
+  // moves the result (Rek −10%, Ø −25%).
+  function weightText(weightRecord, style) {
+    const w = weightRecord ?? 0.50;
+    if (style === 'short') {
+      const n = Math.round(w * 20) / 20;
+      if (n === 1.00) return '100% Rek';
+      if (n === 0.70) return '70/30';
+      if (n === 0.50) return '50/50';
+      if (n === 0.30) return '30/70';
+      if (n === 0.00) return '100% Med';
+      return `${Math.round(w * 100)}% Rek`;
+    }
+    if (style === 'title') {
+      const pctRec = Math.round(w * 100);
+      return `Tiefstpreis-Gewichtung: ${100 - pctRec}% Ø-Preis / ${pctRec}% Rekord — Reihenfolge + Farb-Emphase, Badge zeigt die Gewichtete Differenz.`;
+    }
+    const pct = Math.round(w * 100);
+    const weightedDiff = Math.round(((100 - pct) * 25 + pct * 10) / 100);
+    const base = pct === 100 ? 'Rekord-Sortierung (100% Rekord / 0% Ø-Preis)'
+      : pct === 0 ? 'Ø-Sortierung (0% Rekord / 100% Ø-Preis)'
+      : `${pct}% Rekord / ${100 - pct}% Ø-Preis`;
+    return `${base} (Sortierung + Farb-Emphase) · z.B. Rek −10% + Ø −25% → Gewichtete Differenz ${weightedDiff}`;
+  }
+
+  function horizonText(days, style = 'short') {
+    const d = (typeof days !== 'number' || isNaN(days) || days < 0) ? 365 : days;
+    if (style === 'title') {
+      if (d === 0) return 'Median-Berechnungszeitraum: gesamte Historie (Lifetime)';
+      if (d === 365) return 'Median-Berechnungszeitraum: 1 Jahr (365 Tage) [Empfohlen]';
+      return `Median-Berechnungszeitraum: ${d} Tage`;
+    }
+    if (d === 0) return 'Lifetime';
+    if (d === 365) return '1J';
+    return `${d}T`;
+  }
+
+  // ─── MODULE: src/state/config-migrate.js ────────────────────────────────────
+  /**
+   * Config one-time migrations (split from state/config.js).
+   * Storage helpers live in ./config-store.js; side effects run once at import.
+   */
+
 
   // One-time migration: DEBUG default flipped true→false, but stored true
   // persists via _getValue precedence. No settings UI ever wrote DEBUG
@@ -2941,6 +2945,18 @@ const SHADOW_MODAL_STYLES = `
     _setValue('MIGRATED_FILTER_SPLIT', true);
     return { hadMode, modeWasActive };
   }
+
+  // ─── MODULE: src/state/config.js ────────────────────────────────────────────
+  /**
+   * Configuration & Persistent Settings State Layer
+   * Manages defaults, GM_getValue/localStorage synchronization,
+   * active configuration object, and bidirectional UI control sync.
+   */
+
+
+
+
+
   // Shared clamps: single source for the min-points (1–100 data points) and
   // heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
   const clampMinPoints = v => {
@@ -3401,6 +3417,8 @@ const SHADOW_MODAL_STYLES = `
       processListings();
     }
   }
+  // Re-exports: storage/schema/migrate symbols moved to siblings — every
+  // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
 
   // ─── MODULE: src/state/store.js ─────────────────────────────────────────────
   /**

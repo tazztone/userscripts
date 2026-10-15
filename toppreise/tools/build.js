@@ -41,6 +41,8 @@ export function buildBundle() {
     'domain/deal-score.js',
     'scanner/cache.js',
     'ui/mini-toggle.js',
+    'state/config-store.js',
+    'state/config-migrate.js',
     'state/config.js',
     'state/store.js',
     'page/adapter.js',
