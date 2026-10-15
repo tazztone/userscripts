@@ -160,7 +160,7 @@ export function rollingMedians(points) {
 
 export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
   const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
-  if (!(band > 0 && band < 1)) band = 0.60;
+  if (!(band > 0 && band < 1)) band = 0.50;
   if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
   if (!points || points.length < 3) {
     return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0 };

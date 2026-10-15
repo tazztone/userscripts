@@ -42,7 +42,7 @@ export function getPreset(id) {
 export const fmtPreviewMedian = v => String(Number(v.toFixed(2)));
 
 export function previewStats(points, o) {
-  const band = o?.band ?? 0.60;
+  const band = o?.band ?? 0.50;
   const hours = o?.hours ?? 48;
   const enabled = o?.enabled !== false;
   const horizonDays = o?.horizonDays ?? 365;
@@ -240,7 +240,7 @@ export function refreshCalcPreview() {
   const minPoints = minPointsFromIndex(rangeEl ? rangeEl.value : undefined);
   const toggle = document.getElementById('tp-bar-outlier-toggle');
   const enabled = toggle ? toggle.checked : true;
-  const band = Math.min(90, Math.max(5, num('tp-bar-outlier-band-range', 60))) / 100;
+  const band = Math.min(50, Math.max(1, num('tp-bar-outlier-band-range', 50))) / 100;
   const hours = Math.min(168, Math.max(24, num('tp-bar-outlier-hours-range', 48)));
   const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
   const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);

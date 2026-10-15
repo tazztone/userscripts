@@ -256,7 +256,7 @@ function bindOutlierBandControls(wrapper) {
   if (!range) return;
   const readBandPct = () => {
     const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 60 : Math.min(90, Math.max(5, raw));
+    return isNaN(raw) ? 50 : Math.min(50, Math.max(1, raw));
   };
   const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
   paintBandLabel();
@@ -284,7 +284,7 @@ function bindOutlierBandControls(wrapper) {
 }
 
 function buildOutlierBandWrapper() {
-  const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 60;
+  const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 50;
   const wrapper = document.createElement('div');
   wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
   wrapper.id = 'tp-bar-outlier-band-wrapper';
@@ -292,7 +292,7 @@ function buildOutlierBandWrapper() {
   wrapper.innerHTML = `
     <span class="tp-stepper-label">Glitch-Band</span>
     <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
-    <input type="range" id="tp-bar-outlier-band-range" min="5" max="90" step="5" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
+    <input type="range" id="tp-bar-outlier-band-range" min="1" max="50" step="1" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
   bindOutlierBandControls(wrapper);
   return wrapper;
 }
@@ -566,7 +566,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       const resetBtn = bar.querySelector('#tp-bar-calc-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
-          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
+          updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.50, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
           recomputeCachedMedians(365);
           triggerProcessListings();
           const previewSel = document.getElementById('tp-preview-preset-select');
@@ -704,7 +704,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       horizonLabel.title = horizonText(curHorizon, 'title');
     }
   }
-  const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.60;
+  const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.50;
   const bandRange = document.getElementById('tp-bar-outlier-band-range');
   if (bandRange && document.activeElement !== bandRange) {
     bandRange.value = Math.round(curBand * 100);

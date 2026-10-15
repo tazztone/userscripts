@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.256
+// @version      2.18.257
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1888,7 +1888,7 @@ const SHADOW_MODAL_STYLES = `
 
   function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
     const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
-    if (!(band > 0 && band < 1)) band = 0.60;
+    if (!(band > 0 && band < 1)) band = 0.50;
     if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
     if (!points || points.length < 3) {
       return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0 };
@@ -2722,7 +2722,7 @@ const SHADOW_MODAL_STYLES = `
     BESTPREISE_MIN_POINTS: 5,
     BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
     OUTLIER_REJECTION_ENABLED: true,
-    OUTLIER_DEVIATION_BAND: 0.60,
+    OUTLIER_DEVIATION_BAND: 0.50,
     OUTLIER_MAX_GLITCH_HOURS: 48,
     ENABLE_SPARKLINES: true,
     REVIEW_SEARCH_ENABLED: true,
@@ -2957,7 +2957,7 @@ const SHADOW_MODAL_STYLES = `
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
   if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
   if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
-  else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.05, CONFIG.OUTLIER_DEVIATION_BAND));
+  else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.50, Math.max(0.01, CONFIG.OUTLIER_DEVIATION_BAND));
   if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
   else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(24, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
@@ -3198,7 +3198,7 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'OUTLIER_DEVIATION_BAND': {
-              const pct = Math.min(90, Math.max(5, Math.round((val ?? 0.6) * 100)));
+              const pct = Math.min(50, Math.max(1, Math.round((val ?? 0.5) * 100)));
               const bandRange = bar.querySelector('#tp-bar-outlier-band-range');
               if (bandRange && document.activeElement !== bandRange) bandRange.value = pct;
               const bandLabel = bar.querySelector('#tp-bar-outlier-band-label');
@@ -6294,7 +6294,7 @@ const SHADOW_MODAL_STYLES = `
               else if (key === 'BESTPREISE_MIN_POINTS') coerced = clampMinPoints(coerced);
               else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS') coerced = (coerced <= 0 || coerced > 730) ? 0 : Math.min(730, Math.max(30, Math.round(coerced)));
               else if (key === 'REAL_DEAL_MIN_DISCOUNT') coerced = Math.max(5, Math.min(95, Math.round(coerced)));
-              else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.90, Math.max(0.05, coerced));
+              else if (key === 'OUTLIER_DEVIATION_BAND') coerced = Math.min(0.50, Math.max(0.01, coerced));
               else if (key === 'OUTLIER_MAX_GLITCH_HOURS') coerced = Math.min(168, Math.max(24, Math.round(coerced)));
               else if (key === 'MIN_OFFERS') coerced = Math.max(0, Math.round(coerced));
               else if (key === 'REAL_DEAL_CACHE_HOURS') coerced = Math.max(1, Math.min(336, Math.round(coerced)));
@@ -6517,7 +6517,7 @@ const SHADOW_MODAL_STYLES = `
   const fmtPreviewMedian = v => String(Number(v.toFixed(2)));
 
   function previewStats(points, o) {
-    const band = o?.band ?? 0.60;
+    const band = o?.band ?? 0.50;
     const hours = o?.hours ?? 48;
     const enabled = o?.enabled !== false;
     const horizonDays = o?.horizonDays ?? 365;
@@ -6715,7 +6715,7 @@ const SHADOW_MODAL_STYLES = `
     const minPoints = minPointsFromIndex(rangeEl ? rangeEl.value : undefined);
     const toggle = document.getElementById('tp-bar-outlier-toggle');
     const enabled = toggle ? toggle.checked : true;
-    const band = Math.min(90, Math.max(5, num('tp-bar-outlier-band-range', 60))) / 100;
+    const band = Math.min(50, Math.max(1, num('tp-bar-outlier-band-range', 50))) / 100;
     const hours = Math.min(168, Math.max(24, num('tp-bar-outlier-hours-range', 48)));
     const st = previewStats(points, { band, hours, enabled, horizonDays, weightRecord, minPoints, cardPrice, now });
     const { visibleDropped } = cropPreviewWindow(st.clean, st.dropped, st.cutoffTs);
@@ -7030,7 +7030,7 @@ const SHADOW_MODAL_STYLES = `
     if (!range) return;
     const readBandPct = () => {
       const raw = parseInt(range.value, 10);
-      return isNaN(raw) ? 60 : Math.min(90, Math.max(5, raw));
+      return isNaN(raw) ? 50 : Math.min(50, Math.max(1, raw));
     };
     const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
     paintBandLabel();
@@ -7058,7 +7058,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function buildOutlierBandWrapper() {
-    const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 60;
+    const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 50;
     const wrapper = document.createElement('div');
     wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
     wrapper.id = 'tp-bar-outlier-band-wrapper';
@@ -7066,7 +7066,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.innerHTML = `
       <span class="tp-stepper-label">Glitch-Band</span>
       <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
-      <input type="range" id="tp-bar-outlier-band-range" min="5" max="90" step="5" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
+      <input type="range" id="tp-bar-outlier-band-range" min="1" max="50" step="1" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
     bindOutlierBandControls(wrapper);
     return wrapper;
   }
@@ -7340,7 +7340,7 @@ const SHADOW_MODAL_STYLES = `
         const resetBtn = bar.querySelector('#tp-bar-calc-reset');
         if (resetBtn) {
           resetBtn.onclick = () => {
-            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.60, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
+            updateConfigs({ BESTPREISE_WEIGHT_RECORD: 0.50, BESTPREISE_MEDIAN_HORIZON_DAYS: 365, BESTPREISE_MIN_POINTS: 5, OUTLIER_REJECTION_ENABLED: true, OUTLIER_DEVIATION_BAND: 0.50, OUTLIER_MAX_GLITCH_HOURS: 48 }, { skipRender: true });
             recomputeCachedMedians(365);
             triggerProcessListings();
             const previewSel = document.getElementById('tp-preview-preset-select');
@@ -7478,7 +7478,7 @@ const SHADOW_MODAL_STYLES = `
         horizonLabel.title = horizonText(curHorizon, 'title');
       }
     }
-    const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.60;
+    const curBand = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? CONFIG.OUTLIER_DEVIATION_BAND : 0.50;
     const bandRange = document.getElementById('tp-bar-outlier-band-range');
     if (bandRange && document.activeElement !== bandRange) {
       bandRange.value = Math.round(curBand * 100);

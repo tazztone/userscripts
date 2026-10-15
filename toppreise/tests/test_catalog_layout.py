@@ -2491,7 +2491,7 @@ def test_outlier_sliders_in_calc_popover(page: Page):
     assert 'tp-tool-dim' in (page.locator('#tp-bar-outlier-band-wrapper').get_attribute('class') or '')
     assert 'tp-tool-dim' in (page.locator('#tp-bar-outlier-hours-wrapper').get_attribute('class') or '')
     page.click('#tp-bar-calc-reset')
-    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.OUTLIER_DEVIATION_BAND === 0.6 && window.ToppreiseSuite.CONFIG.OUTLIER_MAX_GLITCH_HOURS === 48 && window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED === true")
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.OUTLIER_DEVIATION_BAND === 0.5 && window.ToppreiseSuite.CONFIG.OUTLIER_MAX_GLITCH_HOURS === 48 && window.ToppreiseSuite.CONFIG.OUTLIER_REJECTION_ENABLED === true")
     assert toggle.is_checked()
 
 def test_calc_preview_live_in_calc_popover(page: Page):

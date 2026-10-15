@@ -69,7 +69,7 @@ export const DEFAULTS = Object.freeze({
   BESTPREISE_MIN_POINTS: 5,
   BESTPREISE_MEDIAN_HORIZON_DAYS: 365,
   OUTLIER_REJECTION_ENABLED: true,
-  OUTLIER_DEVIATION_BAND: 0.60,
+  OUTLIER_DEVIATION_BAND: 0.50,
   OUTLIER_MAX_GLITCH_HOURS: 48,
   ENABLE_SPARKLINES: true,
   REVIEW_SEARCH_ENABLED: true,
@@ -304,7 +304,7 @@ if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD 
 CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
 if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 if (!Number.isFinite(CONFIG.OUTLIER_DEVIATION_BAND)) CONFIG.OUTLIER_DEVIATION_BAND = DEFAULTS.OUTLIER_DEVIATION_BAND;
-else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.90, Math.max(0.05, CONFIG.OUTLIER_DEVIATION_BAND));
+else CONFIG.OUTLIER_DEVIATION_BAND = Math.min(0.50, Math.max(0.01, CONFIG.OUTLIER_DEVIATION_BAND));
 if (!Number.isFinite(CONFIG.OUTLIER_MAX_GLITCH_HOURS)) CONFIG.OUTLIER_MAX_GLITCH_HOURS = DEFAULTS.OUTLIER_MAX_GLITCH_HOURS;
 else CONFIG.OUTLIER_MAX_GLITCH_HOURS = Math.min(168, Math.max(24, CONFIG.OUTLIER_MAX_GLITCH_HOURS));
 
@@ -545,7 +545,7 @@ export function syncUiControl(key, val, opts = {}) {
             break;
           }
           case 'OUTLIER_DEVIATION_BAND': {
-            const pct = Math.min(90, Math.max(5, Math.round((val ?? 0.6) * 100)));
+            const pct = Math.min(50, Math.max(1, Math.round((val ?? 0.5) * 100)));
             const bandRange = bar.querySelector('#tp-bar-outlier-band-range');
             if (bandRange && document.activeElement !== bandRange) bandRange.value = pct;
             const bandLabel = bar.querySelector('#tp-bar-outlier-band-label');
