@@ -308,7 +308,7 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
     mode_btn.click()
-    assert mode_btn.inner_text() == 'Aus'
+    assert mode_btn.inner_text() == 'Normal'
     page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
     assert page.locator('#card-negative').is_visible()
     mode_btn.click()
@@ -521,7 +521,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
     assert cta.is_visible()
 
-    # 5. The 3-click cycle previews the ignored products: Aus shows them plain,
+    # 5. The 3-click cycle previews the ignored products: Normal shows them plain,
     # Dimmen shows them as dimmed scan targets (counted again -> CTA back to 2),
     # Verbergen removes them again.
     page.evaluate("() => window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide')")
@@ -530,7 +530,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
     mode_btn.click()
-    assert mode_btn.inner_text() == 'Aus'
+    assert mode_btn.inner_text() == 'Normal'
     page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
     assert page.locator('#card-negative').is_visible()
     assert page.locator('#card-iphone').is_visible()

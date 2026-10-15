@@ -97,8 +97,8 @@ def test_filter_toggles_preserve_settings(page: Page):
     assert min_btn.inner_text() == 'Verbergen'
     neg_btn.click()
     min_btn.click()
-    assert neg_btn.inner_text() == 'Aus'
-    assert min_btn.inner_text() == 'Aus'
+    assert neg_btn.inner_text() == 'Normal'
+    assert min_btn.inner_text() == 'Normal'
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_ENABLED === false")
 
     # OFF dims the corresponding tool gray (cycle buttons themselves stay bright)
@@ -382,11 +382,11 @@ def test_deal_features_enabled_on_category_page(page: Page):
 
 def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     # Unified filter popover: the single filter button owns per-cause rows;
-    # the unchecked row cycles Aus → Dimmen → Verbergen → Aus.
+    # the unchecked row cycles Normal → Dimmen → Verbergen → Normal.
     _open_filter_popover(page)
     assert page.locator('#tp-suite-filter-bar #tp-bar-filter-btn').count() == 1
     unchecked_btn = page.locator('button[data-mode-key="HIDE_UNCHECKED_MODE"]')
-    assert unchecked_btn.inner_text() == 'Aus'
+    assert unchecked_btn.inner_text() == 'Normal'
     _open_filter_popover(page)
     unchecked_btn.click()
     assert unchecked_btn.inner_text() == 'Dimmen'
@@ -396,7 +396,7 @@ def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.HIDE_UNCHECKED_MODE") == 'hide'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
     unchecked_btn.click()
-    assert unchecked_btn.inner_text() == 'Aus'
+    assert unchecked_btn.inner_text() == 'Normal'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
 def test_unchecked_filter_deterministic_regardless_of_checks(page: Page):
@@ -421,11 +421,11 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_INCLUDE_VORTIEF', true)")
     _open_filter_popover(page)
     vortief_btn = page.locator('button[data-mode-key="VORTIEF_MODE"]')
-    # Aus: fallback shown, row badge hidden
-    assert vortief_btn.inner_text() == 'Aus'
+    # Normal: fallback shown, row badge hidden
+    assert vortief_btn.inner_text() == 'Normal'
     assert page.locator('#card-cheapest').is_visible()
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
-    # Aus -> Dimmen: fallback dimmed, row badge + dim counter show
+    # Normal -> Dimmen: fallback dimmed, row badge + dim counter show
     vortief_btn.click()
     assert vortief_btn.inner_text() == 'Dimmen'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is False
@@ -439,9 +439,9 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     page.wait_for_function("() => getComputedStyle(document.querySelector('#card-cheapest')).display === 'none'")
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') != 'none'
-    # Verbergen -> Aus: fallback back, badge hidden
+    # Verbergen -> Normal: fallback back, badge hidden
     vortief_btn.click()
-    assert vortief_btn.inner_text() == 'Aus'
+    assert vortief_btn.inner_text() == 'Normal'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
     page.wait_for_function("() => getComputedStyle(document.querySelector('#card-cheapest')).display !== 'none'")
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') == 'none'
@@ -465,7 +465,7 @@ def test_fallback_row_badge_counts_hidden_and_dimmed(page: Page):
 
 def test_filter_popover_dim_mode(page: Page):
     page.evaluate("() => { window.ToppreiseSuite.updateConfig('FILTER_NEG_ENABLED', true); window.ToppreiseSuite.updateConfig('FILTER_NEG_MODE', 'hide'); window.ToppreiseSuite.updateConfig('NEGATIVE_TERMS', ''); }")
-    # Neg term matching 1 card hides it; the cycle button walks Verbergen -> Aus -> Dimmen -> Verbergen
+    # Neg term matching 1 card hides it; the cycle button walks Verbergen -> Normal -> Dimmen -> Verbergen
     _open_filter_popover(page)
     drop_store_filter(page)
     page.fill('#tp-inline-negative-input', 'Silikon')
@@ -474,18 +474,18 @@ def test_filter_popover_dim_mode(page: Page):
     assert 'tp-filtered' in (page.locator('#card-negative').get_attribute('class') or '')
     assert page.locator('#tp-filter-count').inner_text() == '1'
     assert page.locator('#tp-filter-count').is_visible()
-    # hide -> Aus: filter off, card back with no removal, count hidden
+    # hide -> Normal: filter off, card back with no removal, count hidden
     _open_filter_popover(page)
     mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
     mode_btn.click()
-    assert mode_btn.inner_text() == 'Aus'
+    assert mode_btn.inner_text() == 'Normal'
     page.wait_for_selector('#card-negative:not(.tp-filtered)', state='visible')
     assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert page.locator('#card-negative').is_visible()
     assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') == 'none'
-    # Aus -> Dimmen: button text flips, card dims, dim badge shows
+    # Normal -> Dimmen: button text flips, card dims, dim badge shows
     mode_btn.click()
     assert mode_btn.inner_text() == 'Dimmen'
     page.wait_for_selector('#card-negative.tp-dimmed', state='attached')
@@ -560,9 +560,9 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     assert page.locator('#tp-hide-unchecked-toggle').count() == 0
     _open_filter_popover(page)
 
-    # Two cycle clicks (Aus -> Dimmen -> Verbergen) hide unchecked cards, verified card stays visible
+    # Two cycle clicks (Normal -> Dimmen -> Verbergen) hide unchecked cards, verified card stays visible
     unchecked_btn = page.locator('button[data-mode-key="HIDE_UNCHECKED_MODE"]')
-    assert unchecked_btn.inner_text() == 'Aus'
+    assert unchecked_btn.inner_text() == 'Normal'
     unchecked_btn.click()
     assert unchecked_btn.inner_text() == 'Dimmen'
     unchecked_btn.click()
@@ -576,9 +576,9 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
     assert 'prüfen' in (page.locator('#tp-floating-check-main').text_content() or '').lower()
 
-    # Third click (Verbergen -> Aus) brings unchecked cards back
+    # Third click (Verbergen -> Normal) brings unchecked cards back
     unchecked_btn.click()
-    assert unchecked_btn.inner_text() == 'Aus'
+    assert unchecked_btn.inner_text() == 'Normal'
     page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-unchecked-hidden')")
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
@@ -2650,7 +2650,7 @@ def test_dealer_row_inactive_without_store_filter(page: Page):
     assert 'inaktiv' in (row.text_content() or '')
     assert 'tp-row-inactive' in (row.get_attribute('class') or '')
     assert page.locator('button[data-mode-key="DEALER_MODE"]').is_disabled()
-    assert page.locator('button[data-mode-key="DEALER_MODE"]').inner_text() == 'Aus'
+    assert page.locator('button[data-mode-key="DEALER_MODE"]').inner_text() == 'Normal'
 
 
 def test_toolbar_stacks_below_site_dropdown(page: Page):
@@ -2677,7 +2677,7 @@ def test_filter_modes_default_to_dim_on_fresh_install(page: Page):
     modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
     assert modes == ['dim'] * 5
     _open_filter_popover(page)
-    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Aus'] * 4 + ['Dimmen']
+    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Normal'] * 4 + ['Dimmen']
 
 
 def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):

@@ -222,7 +222,7 @@ const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
 // Filter hide/dim modes: only 'dim' opts into dimming, everything else hides.
 const _modeValue = k => _getValue(k, DEFAULTS[k]) === 'dim' ? 'dim' : 'hide';
 // 3-state filter cycle: each cause row pairs an enable key with a dim/hide
-// mode key. The cycle button derives Aus/Dimmen/Verbergen from the pair —
+// mode key. The cycle button derives Normal/Dimmen/Verbergen from the pair —
 // storage keys unchanged, no migration. Dealer row excluded (2-state preset).
 export const FILTER_CYCLE = Object.freeze({
   FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
@@ -241,9 +241,9 @@ export const cycleStateOf = modeKey => {
 const paintCycleButtons = (bar, modeKey) => {
   const s = cycleStateOf(modeKey);
   bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
-    btn.textContent = s === 'off' ? 'Aus' : s === 'dim' ? 'Dimmen' : 'Verbergen';
+    btn.textContent = s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen';
     btn.classList.toggle('tp-active', s !== 'off');
-    btn.title = s === 'off' ? 'Filter: Aus — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Aus';
+    btn.title = s === 'off' ? 'Filter: Normal — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Normal';
   });
 };
 

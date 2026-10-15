@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.249
+// @version      2.18.250
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2849,7 +2849,7 @@ const SHADOW_MODAL_STYLES = `
   // Filter hide/dim modes: only 'dim' opts into dimming, everything else hides.
   const _modeValue = k => _getValue(k, DEFAULTS[k]) === 'dim' ? 'dim' : 'hide';
   // 3-state filter cycle: each cause row pairs an enable key with a dim/hide
-  // mode key. The cycle button derives Aus/Dimmen/Verbergen from the pair —
+  // mode key. The cycle button derives Normal/Dimmen/Verbergen from the pair —
   // storage keys unchanged, no migration. Dealer row excluded (2-state preset).
   const FILTER_CYCLE = Object.freeze({
     FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
@@ -2868,9 +2868,9 @@ const SHADOW_MODAL_STYLES = `
   const paintCycleButtons = (bar, modeKey) => {
     const s = cycleStateOf(modeKey);
     bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
-      btn.textContent = s === 'off' ? 'Aus' : s === 'dim' ? 'Dimmen' : 'Verbergen';
+      btn.textContent = s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen';
       btn.classList.toggle('tp-active', s !== 'off');
-      btn.title = s === 'off' ? 'Filter: Aus — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Aus';
+      btn.title = s === 'off' ? 'Filter: Normal — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Normal';
     });
   };
 
@@ -6688,16 +6688,16 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  const CYCLE_TITLE = { off: 'Filter: Aus — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Aus' };
+  const CYCLE_TITLE = { off: 'Filter: Normal — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Normal' };
   const CYCLE_TOASTS = {
-    FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', off: '📝 Negativ-Begriffe: AUS' },
-    FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', off: '🔢 Min-Angebote: AUS' },
-    HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte aus — alle werden wieder angezeigt' },
+    FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', off: '📝 Negativ-Begriffe: Normal' },
+    FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', off: '🔢 Min-Angebote: Normal' },
+    HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
     VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', off: 'Fallback-Tiefs eingeschlossen' },
   };
   function paintCycleButton(btn, modeKey) {
     const s = cycleStateOf(modeKey);
-    setTextIfChanged(btn, s === 'off' ? 'Aus' : s === 'dim' ? 'Dimmen' : 'Verbergen');
+    setTextIfChanged(btn, s === 'off' ? 'Normal' : s === 'dim' ? 'Dimmen' : 'Verbergen');
     btn.classList.toggle('tp-active', s !== 'off');
     btn.title = CYCLE_TITLE[s];
   }
@@ -7054,7 +7054,7 @@ const SHADOW_MODAL_STYLES = `
                   <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
                 </div>
                 <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
-                <button class="tp-filter-mode-btn" data-mode-key="FILTER_NEG_MODE">Aus</button>
+                <button class="tp-filter-mode-btn" data-mode-key="FILTER_NEG_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="min" style="display: ${pageHasOffers ? 'flex' : 'none'};">
                 <span class="tp-filter-label" title="Karten mit weniger als N Angeboten dimmen/verbergen">Min-Angebote</span>
@@ -7064,23 +7064,23 @@ const SHADOW_MODAL_STYLES = `
                   <button class="tp-stepper-btn" id="tp-bar-min-plus">+</button>
                 </div>
                 <span class="tp-count-badge" data-row-count="min" style="display: ${minHidden > 0 ? 'inline-flex' : 'none'};">${minHidden > 0 ? minHidden : ''}</span>
-                <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Aus</button>
+                <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="unchecked" style="display: ${isDealFeed ? 'flex' : 'none'};">
-                <span class="tp-filter-label" title="Karten ohne verifizierten Tiefstpreis dimmen/verbergen (grau gestreift, nur Site-%) — Aus = zeigen">Ungeprüfte</span>
+                <span class="tp-filter-label" title="Karten ohne verifizierten Tiefstpreis dimmen/verbergen (grau gestreift, nur Site-%) — Normal = zeigen">Ungeprüfte</span>
                 <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
-                <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Aus</button>
+                <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="vortief" style="display: ${isDealFeed ? 'flex' : 'none'};">
-                <span class="tp-filter-label" title="Verifizierte Tiefs ohne Ø-Vergleich (< Mindestpunkte, nur Vortief-Abstand) dimmen/verbergen — Aus = zeigen">Fallback-Tiefs</span>
+                <span class="tp-filter-label" title="Verifizierte Tiefs ohne Ø-Vergleich (< Mindestpunkte, nur Vortief-Abstand) dimmen/verbergen — Normal = zeigen">Fallback-Tiefs</span>
                 <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
-                <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Aus</button>
+                <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="dealer">
                 <span class="tp-filter-label" title="Karten, deren günstigstes Angebot nicht vom gewählten Händler kommt, dimmen/verbergen — nur aktiv wenn Händler gewählt">Händler</span>
                 <span class="tp-filter-note" data-dealer-note>greift bei gewähltem Händler</span>
                 <span class="tp-count-badge" data-row-count="dealer" style="display: ${dealerHidden > 0 ? 'inline-flex' : 'none'};">${dealerHidden > 0 ? dealerHidden : ''}</span>
-                <button class="tp-filter-mode-btn tp-active" data-mode-key="DEALER_MODE">Aus</button>
+                <button class="tp-filter-mode-btn tp-active" data-mode-key="DEALER_MODE">Normal</button>
               </div>
               <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset">Zurücksetzen</button>
             </div>
@@ -7314,8 +7314,8 @@ const SHADOW_MODAL_STYLES = `
       bar.querySelectorAll('[data-mode-key="DEALER_MODE"]').forEach(btn => {
         if (!dealerActive) {
           btn.classList.toggle('tp-active', false);
-          setTextIfChanged(btn, 'Aus');
-          btn.title = 'Filter: Aus — kein Händler gewählt';
+          setTextIfChanged(btn, 'Normal');
+          btn.title = 'Filter: Normal — kein Händler gewählt';
         } else {
           btn.classList.toggle('tp-active', true);
           setTextIfChanged(btn, mode === 'dim' ? 'Dimmen' : 'Verbergen');
