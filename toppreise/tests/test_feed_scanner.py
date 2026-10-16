@@ -428,12 +428,11 @@ def test_real_deal_neutral_heatmap_on_markup(page: Page):
 
     mock_pricechart(page, {'797571': 1800, '797573': 10})
 
-    # Check card 1 (verified all-time low, no median) -> stays neutral: the
-    # striped-gray Differenz ribbon becomes a verified Tiefstpreis badge, and
-    # without a median there is no % to heat by.
+    # Check card 1 (verified all-time low, no median) -> heats by the badge %
+    # (-67% Differenz): dumb heatmap paints whatever the badge % says.
     page.click('#card-cheapest .badge-dif')
     page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
-    assert 'tp-heat-blend' not in (card1.get_attribute('class') or '')
+    assert 'tp-heat-blend' in (card1.get_attribute('class') or '')
     assert 'tp-is-verified' in (card1.get_attribute('class') or '')
     assert 'tp-is-verified' in (card1.locator('.badge-dif').get_attribute('class') or '')
 
@@ -743,14 +742,15 @@ def test_real_world_toppreise_pricechart_html_parsing(page: Page):
     badge = page.locator('#card-cheapest .badge-dif.tp-deal-not-low')
     assert '+2166%' in (badge.text_content() or '')
 
-    # card-negative has product id 456, price 15 CHF -> let's make mock match 15.00
+    # card-negative has product id 797573, price 15 CHF -> let's make mock match 15.00
     real_negative_html = real_toppreise_html.replace('79.45', '15.00')
-    page.route('**/plugins/product/pricechart*456*', lambda route: route.fulfill(
-        status=200,
-        headers={'access-control-allow-origin': '*'},
-        content_type='text/html',
-        body=real_negative_html
-    ))
+    def handle_pricechart(route):
+        post_data = route.request.post_data or ''
+        if '797573' in post_data or 'p_pc_pid=797573' in route.request.url:
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body=real_negative_html)
+        else:
+            route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, content_type='text/html', body=real_toppreise_html)
+    page.route('**/plugins/product/pricechart*', handle_pricechart)
     page.click('#card-negative .badge-dif')
     page.wait_for_selector('#card-negative .badge-dif.tp-deal-alltime-low', timeout=3000)
     neg_badge = page.locator('#card-negative .badge-dif.tp-deal-alltime-low')
