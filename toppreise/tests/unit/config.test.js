@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount, sanitizeConfigValue } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -80,6 +80,14 @@ describe('Config dual-layer storage', () => {
     for (const k of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE']) {
       assert.equal(DEFAULTS[k], 'dim');
     }
+  });
+
+  it('accepts highlight mode in schema sanitization', () => {
+    assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'highlight'), 'highlight');
+    assert.equal(sanitizeConfigValue('FILTER_NEG_MODE', 'highlight'), 'highlight');
+    assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'dim'), 'dim');
+    assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'hide'), 'hide');
+    assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'invalid'), 'hide');
   });
 
 });

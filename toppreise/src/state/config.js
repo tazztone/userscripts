@@ -50,11 +50,14 @@ export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
 // product keys. Stored old value seeds both new keys once; stale key unread.
 const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
 const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
-// Filter hide/dim modes: only 'dim' opts into dimming, everything else hides.
-const _modeValue = k => _getValue(k, DEFAULTS[k]) === 'dim' ? 'dim' : 'hide';
-// 3-state filter cycle: each cause row pairs an enable key with a dim/hide
-// mode key. The cycle button derives Normal/Dimmen/Verbergen from the pair —
-// storage keys unchanged, no migration. Dealer row excluded (2-state preset).
+// Filter modes: 'dim' dims, 'highlight' highlights, everything else hides.
+const _modeValue = k => {
+  const v = _getValue(k, DEFAULTS[k]);
+  return (v === 'dim' || v === 'highlight') ? v : 'hide';
+};
+// 4-state filter cycle: each cause row pairs an enable key with a mode key.
+// The cycle button derives Normal/Dimmen/Verbergen/Hervorheben from the pair —
+// storage keys unchanged, no migration. Dealer row excluded (preset).
 export const FILTER_CYCLE = Object.freeze({
   FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
   FILTER_MIN_MODE: { enable: 'FILTER_MIN_ENABLED', on: true },
@@ -63,9 +66,9 @@ export const FILTER_CYCLE = Object.freeze({
 });
 export const cycleStateOf = modeKey => {
   const pair = FILTER_CYCLE[modeKey];
-  if (!pair) return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
+  if (!pair) return CONFIG[modeKey] || 'dim';
   if (CONFIG[pair.enable] !== pair.on) return 'off';
-  return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
+  return CONFIG[modeKey] || 'dim';
 };
 // Toolbar owns the cycle button element; config owns the state mapping.
 // Text/class paint shared with the toolbar via ui/mini-toggle.js.
@@ -73,7 +76,13 @@ const paintCycleButtons = (bar, modeKey) => {
   const s = cycleStateOf(modeKey);
   bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
     paintCycleButton(btn, s);
-    btn.title = s === 'off' ? 'Filter: Normal — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Normal';
+    btn.title = s === 'off'
+      ? 'Filter: Normal — klicken für Dimmen'
+      : s === 'dim'
+        ? 'Filter: Dimmen — klicken für Verbergen'
+        : s === 'hide'
+          ? 'Filter: Verbergen — klicken für Hervorheben'
+          : 'Filter: Hervorheben — klicken für Normal';
   });
 };
 

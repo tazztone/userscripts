@@ -147,7 +147,7 @@ export function sanitizeConfigValue(key, raw) {
   }
   switch (rule.type) {
     case 'bool': return raw === true;
-    case 'mode': return raw === 'dim' ? 'dim' : 'hide';
+    case 'mode': return (raw === 'dim' || raw === 'highlight') ? raw : 'hide';
     case 'int': {
       const n = coerceNumber(raw);
       if (!Number.isFinite(n)) return rule.default;

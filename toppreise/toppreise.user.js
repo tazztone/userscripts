@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.296
+// @version      2.18.297
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2900,7 +2900,7 @@ const SHADOW_MODAL_STYLES = `
     }
     switch (rule.type) {
       case 'bool': return raw === true;
-      case 'mode': return raw === 'dim' ? 'dim' : 'hide';
+      case 'mode': return (raw === 'dim' || raw === 'highlight') ? raw : 'hide';
       case 'int': {
         const n = coerceNumber(raw);
         if (!Number.isFinite(n)) return rule.default;
@@ -3074,11 +3074,14 @@ const SHADOW_MODAL_STYLES = `
   // product keys. Stored old value seeds both new keys once; stale key unread.
   const legacySuppressEmbeds = _getValue('DISCORD_SUPPRESS_EMBEDS', null);
   const _layoutRaw = _getValue('DISCORD_LAYOUT', DEFAULTS.DISCORD_LAYOUT);
-  // Filter hide/dim modes: only 'dim' opts into dimming, everything else hides.
-  const _modeValue = k => _getValue(k, DEFAULTS[k]) === 'dim' ? 'dim' : 'hide';
-  // 3-state filter cycle: each cause row pairs an enable key with a dim/hide
-  // mode key. The cycle button derives Normal/Dimmen/Verbergen from the pair —
-  // storage keys unchanged, no migration. Dealer row excluded (2-state preset).
+  // Filter modes: 'dim' dims, 'highlight' highlights, everything else hides.
+  const _modeValue = k => {
+    const v = _getValue(k, DEFAULTS[k]);
+    return (v === 'dim' || v === 'highlight') ? v : 'hide';
+  };
+  // 4-state filter cycle: each cause row pairs an enable key with a mode key.
+  // The cycle button derives Normal/Dimmen/Verbergen/Hervorheben from the pair —
+  // storage keys unchanged, no migration. Dealer row excluded (preset).
   const FILTER_CYCLE = Object.freeze({
     FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
     FILTER_MIN_MODE: { enable: 'FILTER_MIN_ENABLED', on: true },
@@ -3087,9 +3090,9 @@ const SHADOW_MODAL_STYLES = `
   });
   const cycleStateOf = modeKey => {
     const pair = FILTER_CYCLE[modeKey];
-    if (!pair) return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
+    if (!pair) return CONFIG[modeKey] || 'dim';
     if (CONFIG[pair.enable] !== pair.on) return 'off';
-    return CONFIG[modeKey] === 'hide' ? 'hide' : 'dim';
+    return CONFIG[modeKey] || 'dim';
   };
   // Toolbar owns the cycle button element; config owns the state mapping.
   // Text/class paint shared with the toolbar via ui/mini-toggle.js.
@@ -3097,7 +3100,13 @@ const SHADOW_MODAL_STYLES = `
     const s = cycleStateOf(modeKey);
     bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
       paintCycleButton(btn, s);
-      btn.title = s === 'off' ? 'Filter: Normal — klicken für Dimmen' : s === 'dim' ? 'Filter: Dimmen — klicken für Verbergen' : 'Filter: Verbergen — klicken für Normal';
+      btn.title = s === 'off'
+        ? 'Filter: Normal — klicken für Dimmen'
+        : s === 'dim'
+          ? 'Filter: Dimmen — klicken für Verbergen'
+          : s === 'hide'
+            ? 'Filter: Verbergen — klicken für Hervorheben'
+            : 'Filter: Hervorheben — klicken für Normal';
     });
   };
 
@@ -9786,7 +9795,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.296';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.297';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
