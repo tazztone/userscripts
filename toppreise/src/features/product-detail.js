@@ -5,7 +5,7 @@
  */
 
 import { getDetailProductId, getDetailLowestPrice } from '../page/adapter.js';
-import { getCachedPriceStats } from '../scanner/cache.js';
+import { getCardStats } from '../page/cards.js';
 import { getDisplayDelta } from '../domain/deal-score.js';
 import { fetchSingleProductPriceStats } from '../scanner/scanner.js';
 import { pctDrop, pctRise } from '../domain/price.js';
@@ -34,8 +34,7 @@ export async function processProductDetailPage() {
   if (!(currentPrice > 0)) { removeDetailBadge(); return; }
 
   let badge = document.getElementById('tp-detail-deal-badge');
-  const useShipping = priceBasis ? priceBasis === 'shipping' : null;
-  let stats = getCachedPriceStats(pid, false, null, useShipping);
+  let stats = getCardStats(pid, priceBasis);
   if (!stats) {
     await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
     // Stale: a newer run started, the route changed, or the heading died.
@@ -46,7 +45,7 @@ export async function processProductDetailPage() {
     // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
     const fresh = getDetailLowestPrice();
     if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
-    stats = getCachedPriceStats(pid, false, null, useShipping);
+    stats = getCardStats(pid, priceBasis);
   }
   if (stats && stats.tiefstpreis > 0) {
     // Basis gate (same rule as extractCardData): a live price on the other

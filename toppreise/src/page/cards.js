@@ -285,7 +285,7 @@ export const basisMatchesFor = (stats, cardPriceBasis) =>
   typeof stats?.isShippingPrice !== 'boolean'
   || stats.isShippingPrice === (cardPriceBasis === 'shipping');
 // Single scan-eligibility resolver (counter + scanner queue share it):
-function getCardStats(pid, cardBasis) {
+export function getCardStats(pid, cardBasis) {
   if (!pid) return null;
   const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
   if (specific) return specific;

@@ -1,5 +1,5 @@
 import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians, extractCanonicalPrice } from "../domain/price.js";
-import { getCardProductId } from "../page/cards.js";
+import { getCardProductId, getCardStats } from "../page/cards.js";
 import { extractShareData } from "../page/product-offers.js";
 import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } from "../state/config.js";
 import { getCachedPriceStats, fullSeries } from "../scanner/cache.js";
@@ -159,8 +159,9 @@ export function getPageProductOptions(limit = 30) {
     const pid = getCardProductId(card) || card.dataset?.entityId || card.dataset?.tpProductId;
     if (!pid || seen.has(pid)) continue;
     seen.add(pid);
+    const canonical = extractCanonicalPrice(card);
     let entry = null;
-    try { entry = getCachedPriceStats(pid); } catch (e) { continue; }
+    try { entry = getCardStats(pid, canonical?.basis); } catch (e) { continue; }
     if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
     const title = (extractShareData(card).title || card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
@@ -190,10 +191,10 @@ export function refreshCalcPreview() {
   const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? pageOpts.find(o => `page:${o.pid}` === selVal) : null;
   if (pageHit) {
     activePresetId = selVal;
-    const entry = getCachedPriceStats(pageHit.pid) || {};
+    const canonical = extractCanonicalPrice(pageHit.card);
+    const entry = getCardStats(pageHit.pid, canonical?.basis) || {};
     const raw = fullSeries(entry);
     points = Array.isArray(raw) ? raw : [];
-    const canonical = extractCanonicalPrice(pageHit.card);
     const live = canonical?.price;
     cardPrice = (typeof live === 'number' && live > 0) ? live : (entry.anchorPrice || 0);
   } else {

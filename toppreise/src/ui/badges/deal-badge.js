@@ -7,7 +7,7 @@
  */
 
 import { CONFIG } from '../../state/config.js';
-import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDiscount, getCardProductId, dealerLoserFor } from '../../page/cards.js';
+import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDiscount, getCardProductId, dealerLoserFor, getCardStats } from '../../page/cards.js';
 import { getCardSortableUnit } from '../../page/sort.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/price.js';
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
@@ -80,7 +80,7 @@ async function runSingleDealCheck(card, badgeDifEl) {
     }
     badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
     setTimeout(() => {
-      if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCachedPriceStats(reqPid, false, null, reqBasis ? reqBasis === 'shipping' : null))) {
+      if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCardStats(reqPid, reqBasis))) {
         triggerProcessListings();
       }
     }, 2500);

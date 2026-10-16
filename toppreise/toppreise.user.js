@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.311
+// @version      2.18.312
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5868,7 +5868,7 @@ const SHADOW_MODAL_STYLES = `
       }
       badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
       setTimeout(() => {
-        if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCachedPriceStats(reqPid, false, null, reqBasis ? reqBasis === 'shipping' : null))) {
+        if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCardStats(reqPid, reqBasis))) {
           triggerProcessListings();
         }
       }, 2500);
@@ -8125,8 +8125,9 @@ const SHADOW_MODAL_STYLES = `
       const pid = getCardProductId(card) || card.dataset?.entityId || card.dataset?.tpProductId;
       if (!pid || seen.has(pid)) continue;
       seen.add(pid);
+      const canonical = extractCanonicalPrice(card);
       let entry = null;
-      try { entry = getCachedPriceStats(pid); } catch (e) { continue; }
+      try { entry = getCardStats(pid, canonical?.basis); } catch (e) { continue; }
       if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
       const title = (extractShareData(card).title || card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
       const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
@@ -8156,10 +8157,10 @@ const SHADOW_MODAL_STYLES = `
     const pageHit = typeof selVal === 'string' && selVal.startsWith('page:') ? pageOpts.find(o => `page:${o.pid}` === selVal) : null;
     if (pageHit) {
       activePresetId = selVal;
-      const entry = getCachedPriceStats(pageHit.pid) || {};
+      const canonical = extractCanonicalPrice(pageHit.card);
+      const entry = getCardStats(pageHit.pid, canonical?.basis) || {};
       const raw = fullSeries(entry);
       points = Array.isArray(raw) ? raw : [];
-      const canonical = extractCanonicalPrice(pageHit.card);
       const live = canonical?.price;
       cardPrice = (typeof live === 'number' && live > 0) ? live : (entry.anchorPrice || 0);
     } else {
@@ -9644,8 +9645,7 @@ const SHADOW_MODAL_STYLES = `
     if (!(currentPrice > 0)) { removeDetailBadge(); return; }
 
     let badge = document.getElementById('tp-detail-deal-badge');
-    const useShipping = priceBasis ? priceBasis === 'shipping' : null;
-    let stats = getCachedPriceStats(pid, false, null, useShipping);
+    let stats = getCardStats(pid, priceBasis);
     if (!stats) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
       // Stale: a newer run started, the route changed, or the heading died.
@@ -9656,7 +9656,7 @@ const SHADOW_MODAL_STYLES = `
       // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
       const fresh = getDetailLowestPrice();
       if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
-      stats = getCachedPriceStats(pid, false, null, useShipping);
+      stats = getCardStats(pid, priceBasis);
     }
     if (stats && stats.tiefstpreis > 0) {
       // Basis gate (same rule as extractCardData): a live price on the other
@@ -9938,7 +9938,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.311';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.312';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
