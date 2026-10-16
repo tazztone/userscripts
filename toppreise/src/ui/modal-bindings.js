@@ -4,7 +4,7 @@
  */
 
 import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, horizonStoredToUi, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from '../state/config.js';
-import { renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/share-discord.js';
+import { renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.

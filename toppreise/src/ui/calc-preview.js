@@ -1,6 +1,6 @@
 import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians, extractCanonicalPrice } from "../domain/price.js";
 import { getCardProductId } from "../page/cards.js";
-import { extractShareData } from "../features/share-discord.js";
+import { extractShareData } from "../page/product-offers.js";
 import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } from "../state/config.js";
 import { getCachedPriceStats } from "../scanner/cache.js";
 import { SELECTORS } from "../page/selectors.js";

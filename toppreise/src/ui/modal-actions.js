@@ -9,7 +9,8 @@ import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
 import { getProductCards } from '../page/cards.js';
-import { DEFAULT_LAYOUT, validateLayoutRecipe, discordForumFlagKey } from '../features/share-discord.js';
+import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
+import { discordForumFlagKey } from '../features/share-discord.js';
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets } from './modal-bindings.js';
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed } from './modal-template.js';
