@@ -170,3 +170,16 @@ def import_config(page, payload, filename='config.json'):
         fileInput.files = dt.files;
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     }""", [payload, filename])
+
+
+def wait_for_condition(page, predicate_js, error_selector=None, timeout=2000):
+    """Wait for predicate with instant abort if an error selector appears in DOM."""
+    if error_selector:
+        code = f"""() => {{
+            const errEl = document.querySelector('{error_selector}');
+            if (errEl) throw new Error('Terminal error state reached: ' + (errEl.textContent || errEl.className));
+            return ({predicate_js})();
+        }}"""
+    else:
+        code = predicate_js
+    return page.wait_for_function(code, timeout=timeout)
