@@ -162,17 +162,21 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     // Ensure DOM order inside primaryRow matches sortedEntries order without unnecessary detach/re-attach
     const currentChildren = Array.from(primaryRow.children);
     const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
-    let domOrderMatches = true;
-    for (let i = 0; i < targetItems.length; i++) {
-      if (currentChildren[i] !== targetItems[i]) {
-        domOrderMatches = false;
-        break;
+    const cardIndices = currentChildren.map((c, i) => targetItems.includes(c) ? i : -1).filter(i => i !== -1);
+    let domOrderMatches = cardIndices.length === targetItems.length;
+    if (domOrderMatches) {
+      for (let i = 0; i < targetItems.length; i++) {
+        if (currentChildren[cardIndices[i]] !== targetItems[i]) {
+          domOrderMatches = false;
+          break;
+        }
       }
     }
     if (!domOrderMatches) {
       targetItems.forEach((item, idx) => {
-        if (primaryRow.children[idx] !== item) {
-          primaryRow.insertBefore(item, primaryRow.children[idx] || null);
+        const targetPos = cardIndices[idx];
+        if (primaryRow.children[targetPos] !== item) {
+          primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
         }
       });
     }
@@ -241,19 +245,23 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
       if (!isAlreadySorted) {
         children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
+        let restoredViaPlaceholder = false;
         children.forEach(ch => {
           const saved = origPlacement.get(ch);
           if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {
             row.insertBefore(ch, saved.placeholder);
+            restoredViaPlaceholder = true;
           }
         });
-        let prev = null;
-        children.forEach(ch => {
-          if (prev && prev.nextElementSibling !== ch) {
-            prev.after(ch);
-          }
-          prev = ch;
-        });
+        if (!restoredViaPlaceholder) {
+          const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
+          children.forEach((ch, idx) => {
+            const targetPos = cardIndices[idx];
+            if (row.children[targetPos] !== ch) {
+              row.insertBefore(ch, row.children[targetPos] || null);
+            }
+          });
+        }
       }
       // Unhide only script-hidden rows: other inline display:none belongs to the host.
       if (row.classList.contains('tp-empty-product-row-hidden')) {

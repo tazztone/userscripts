@@ -114,4 +114,40 @@ describe('applySorting fallback-tief order', () => {
     assert.deepEqual(row.children, [cardA, cardB, cardC, cardD]);
     assert.equal(cardC.style.order, '2');
   });
+
+  it('breaks offer count ties deterministically using initialOrder', () => {
+    const row = makeRow();
+    const cardA = makeCard(row, 0);
+    const cardB = makeCard(row, 1);
+    cardA.textContent = '3 Angebote';
+    cardB.textContent = '3 Angebote';
+    // Start inverted
+    row.children = [cardB, cardA];
+    withConfig('BESTPREISE_MODE_ACTIVE', false, () =>
+      withConfig('SORT_BY_OFFERS', 'desc', () =>
+        applySorting([cardA, cardB], true)));
+    assert.deepEqual(row.children, [cardA, cardB]);
+  });
+
+  it('restores natural order without displacing non-card elements', () => {
+    const row = makeRow();
+    const notice = { id: 'tp-empty-state-notice', parentElement: row, dataset: {} };
+    row.children.push(notice);
+    const cardA = makeCard(row, 0);
+    const cardB = makeCard(row, 1);
+    // Sort to re-order cards
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false, [
+          { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+          { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, previousLow: 100, dataPointCount: 3 }, displayDelta: { kind: 'new-low' }, dealScore: null }
+        ])));
+    // Restore: when custom sort is disabled
+    withConfig('BESTPREISE_MODE_ACTIVE', false, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false)));
+    assert.equal(row.children[0], notice, 'non-card element should remain in place');
+    assert.equal(row.children[1], cardA);
+    assert.equal(row.children[2], cardB);
+  });
 });

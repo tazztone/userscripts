@@ -460,4 +460,24 @@ describe('unchecked counter parity', () => {
       assert.equal(cd.pid && !cd.stats, false);
     });
   });
+
+  it('negative cache on shipping basis does not bleed into product basis card', () => {
+    withConfig('USE_SHIPPING_PRICE', true, () => {
+      const pid = 'neg-bleed-pid';
+      // Mark shipping as unavailable
+      setCachedPriceStats(pid, null, true, null, true);
+      const card = {
+        dataset: { entityId: pid },
+        textContent: '',
+        _tpPriceInfo: { mainPriceInfo: null, mainShipping: null, mainProduct: null, fallbackShipping: null, fallbackProduct: { textContent: 'CHF 50.00' } },
+        querySelector: () => null,
+        querySelectorAll: () => []
+      };
+      const elig = scanEligibility(card);
+      assert.equal(elig.state, 'unchecked');
+      assert.equal(elig.canScan, true);
+      const cd = extractCardData(card);
+      assert.equal(cd.stats, null);
+    });
+  });
 });

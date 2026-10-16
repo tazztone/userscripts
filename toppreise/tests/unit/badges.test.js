@@ -268,4 +268,40 @@ describe('Verdict badges F-03 & F-04', () => {
     renderModeVerdict(ctx, {}, mockBadge, false, '', null);
     assert.ok(classes.has('tp-deal-alltime-low'), 'Fallback low in mode verdict must have .tp-deal-alltime-low');
   });
+
+  it('renderDealerName and applyFreshGlow suppress chrome on negative cache markers', async () => {
+    const { renderDealerName, applyFreshGlow } = await import('../../src/ui/badges/card-chrome.js');
+    const { scanState } = await import('../../src/state/store.js');
+
+    let removed = false;
+    const dealerEl = { remove: () => { removed = true; } };
+    const card = {
+      querySelector: sel => (sel === '.tp-dealer-name' ? dealerEl : (sel.includes('tp-deal-new-record') ? {} : null)),
+      classList: { toggle: (cls, on) => { if (cls === 'tp-deal-fresh') freshToggled = on; } }
+    };
+    let freshToggled = null;
+    scanState.freshPids.add('neg-pid');
+
+    const ctx = {
+      card,
+      pid: 'neg-pid',
+      stats: { unavailable: true, time: Date.now() },
+      cardPrice: 50,
+      cardPriceEl: null
+    };
+
+    renderDealerName(ctx, {});
+    assert.equal(removed, true, 'dealerEl must be removed for unavailable stats');
+
+    applyFreshGlow(ctx);
+    assert.equal(freshToggled, false, 'fresh deal glow must not apply for unavailable stats');
+    scanState.freshPids.clear();
+  });
+
+  it('renderBadgeSetup returns null early when pid is null', async () => {
+    const { renderBadgeSetup } = await import('../../src/ui/badges/deal-badge.js');
+    const card = { querySelector: () => null };
+    const res = renderBadgeSetup({ card, pid: null }, false);
+    assert.equal(res, null);
+  });
 });

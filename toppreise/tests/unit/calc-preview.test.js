@@ -80,4 +80,16 @@ describe('calc-preview getPageProductOptions', () => {
       else delete globalThis.document;
     }
   });
+
+  it('reconstructs full unstripped series for page products with filtered outliers', async () => {
+    const { fullSeries } = await import('../../src/scanner/cache.js');
+    const now = Date.now();
+    const entry = {
+      timeSeries: [[now - 200000, 100], [now, 100]],
+      filteredOutliers: [{ timestamp: now - 100000, price: 10, hours: 24, ratio: 0.1 }]
+    };
+    const reconstructed = fullSeries(entry);
+    assert.equal(reconstructed.length, 3);
+    assert.deepEqual(reconstructed.map(p => p[1]), [100, 10, 100]);
+  });
 });
