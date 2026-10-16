@@ -9,15 +9,16 @@ Snapshots come from capture-snapshots.py (headed, run once per site change);
 a missing snapshot dir fails with a pointer to it.
 """
 
+import base64
 import functools
+import html
+import io
 import os
-import subprocess
 import sys
 import threading
-import unicodedata
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 from playwright.sync_api import sync_playwright
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -169,76 +170,130 @@ def union(boxes, pad=24):
     return {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0}
 
 
-def annotate(raw_path, origin, callouts, out_path, crop=None):
-    """Numbered discs at callout boxes + ASCII footer strip. Boxes/origin/crop in CSS px."""
-    img = Image.open(raw_path).convert("RGB")
-    if crop:
-        x0 = max(int(crop["x"] * DSF), 0)
-        y0 = max(int(crop["y"] * DSF), 0)
-        x1 = min(int((crop["x"] + crop["width"]) * DSF), img.width)
-        y1 = min(int((crop["y"] + crop["height"]) * DSF), img.height)
-        img = img.crop((x0, y0, x1, y1))
-        origin = {"x": x0 / DSF, "y": y0 / DSF}
-    draw = ImageDraw.Draw(img)
-    num_font, cap_font = body_font(30), body_font(28)
-    for num, box, _caption in callouts:
-        cx = int((box["x"] - origin["x"]) * DSF)
-        cy = int((box["y"] - origin["y"]) * DSF)
-        cx = min(max(cx, 30), img.width - 30)
-        cy = min(max(cy, 30), img.height - 30)
-        draw.ellipse([cx - 26, cy - 26, cx + 26, cy + 26],
-                     fill="#b91c1c", outline="white", width=3)
-        label = str(num)
-        l, t, r, b = draw.textbbox((0, 0), label, font=num_font)
-        draw.text((cx - (r - l) / 2 - l, cy - (b - t) / 2 - t), label,
-                  font=num_font, fill="white")
-    lines = [f"{num}. {' '.join(ascii_only(cap).split())}" for num, _box, cap in callouts]
-    wrapped, max_w = [], img.width - 40
-    for line in lines:
-        while draw.textlength(line, font=cap_font) > max_w and " " in line:
-            cut = line[:int(len(line) * max_w / draw.textlength(line, font=cap_font))].rsplit(" ", 1)[0]
-            wrapped.append(cut)
-            line = "  " + line[len(cut):].lstrip()
-        wrapped.append(line)
-    strip_h = len(wrapped) * 44 + 40
-    footer = Image.new("RGB", (img.width, strip_h), "#0f172a")
-    fd = ImageDraw.Draw(footer)
-    for i, line in enumerate(wrapped):
-        fd.text((20, 20 + i * 44), line, font=cap_font, fill="white")
-    out = Image.new("RGB", (img.width, img.height + strip_h))
-    out.paste(img, (0, 0))
-    out.paste(footer, (0, img.height))
-    out.save(out_path, "WEBP", quality=90, method=6)
+def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
+    """Render numbered callout discs + HTML footer over raw_bytes using browser layout."""
+    img_raw = Image.open(io.BytesIO(raw_bytes))
+    css_w = round(img_raw.width / DSF)
+    css_h = round(img_raw.height / DSF)
+    b64_data = base64.b64encode(raw_bytes).decode("ascii")
+
+    badges_html = []
+    footer_items = []
+    for num, box, caption in callouts:
+        cx = round(box["x"] - origin["x"])
+        cy = round(box["y"] - origin["y"])
+        badges_html.append(
+            f'<div class="tp-shot-badge" style="left: {cx}px; top: {cy}px;">{num}</div>'
+        )
+        escaped_cap = html.escape(caption)
+        footer_items.append(
+            f'<li><span class="tp-shot-num">{num}.</span><span class="tp-shot-text">{escaped_cap}</span></li>'
+        )
+
+    template = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; padding: 0; background: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
+  #tp-shot-wrap {{ display: inline-block; background: #0f172a; line-height: 0; }}
+  .tp-shot-canvas {{ position: relative; width: {css_w}px; height: {css_h}px; }}
+  .tp-shot-canvas > img {{ display: block; width: {css_w}px; height: {css_h}px; }}
+  .tp-shot-badge {{
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #b91c1c;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 22px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    pointer-events: none;
+  }}
+  .tp-shot-footer {{
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 18px 22px;
+    line-height: 1.45;
+  }}
+  .tp-shot-footer ol {{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }}
+  .tp-shot-footer li {{
+    font-size: 13.5px;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }}
+  .tp-shot-num {{
+    color: #f87171;
+    font-weight: 700;
+    min-width: 22px;
+  }}
+  .tp-shot-text {{
+    color: #e2e8f0;
+  }}
+</style>
+</head>
+<body>
+<div id="tp-shot-wrap">
+  <div class="tp-shot-canvas">
+    <img src="data:image/png;base64,{b64_data}">
+    {''.join(badges_html)}
+  </div>
+  <div class="tp-shot-footer">
+    <ol>
+      {''.join(footer_items)}
+    </ol>
+  </div>
+</div>
+</body>
+</html>"""
+
+    annotator_page.set_content(template)
+    container = annotator_page.locator("#tp-shot-wrap")
+    annotated_png = container.screenshot()
+    img = Image.open(io.BytesIO(annotated_png))
+    img.save(out_path, "WEBP", quality=90, method=6)
     print(f"{out_path}: {len(callouts)} callouts")
 
 
-def scene_toolbar(page):
+def scene_toolbar(page, annotator_page):
     page.evaluate("window.scrollTo(0, 0)")
     page.locator("#tp-bar-calc-btn").click()
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
-    # Click handlers keep the popovers exclusive; force both open so one
-    # shot covers every callout (calc left via click, filter via class).
     page.evaluate("""() => {
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
         const minRow = document.querySelector('[data-filter-row="min"]');
         if (minRow) minRow.style.display = 'flex';
     }""")
     page.wait_for_timeout(400)
-    raw = os.path.join(OUT_DIR, ".raw-toolbar.png")
-    page.screenshot(path=raw)
+    raw_bytes = page.screenshot()
     controls = [
         ("#tp-bar-filter-btn", "Filter-Button (Verbergen oder Dimmen je Ursache)"),
         ("#tp-inline-negative-input", "Negativ-Filter (Text, Wortgrenzen)"),
         ("#tp-bar-min-offers-group", "Min-Angebote stepper"),
-        ("[data-filter-row='unchecked']", "Nur gepruefte (ohne verifizierten Tiefstpreis)"),
-        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschliessen"),
+        ("[data-filter-row='unchecked']", "Nur geprüfte (ohne verifizierten Tiefstpreis)"),
+        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschließen"),
         ("#tp-bar-heat-btn", "Heatmap toggle (Farbe = Badge-%)"),
         ("#tp-bar-bestpreise-btn", "Neue-Tiefstpreise-Modus (Feed)"),
         ("#tp-bar-calc-btn", "Berechnungsparameter-Popover (filtert nichts)"),
         ("#tp-bar-weight-wrapper", "Gewichtung Median/Rekord (Slider)"),
-        ("#tp-bar-horizon-wrapper", "O-Zeitraum Slider (Median-Horizont)"),
-        ("#tp-bar-minpoints-wrapper", "Mindestpunkte Slider (duenne Historie -> Fallback)"),
-        ("#tp-floating-check-cta", "Tiefstpreise-pruefen CTA (Batch-Check, floating)"),
+        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum Slider (Median-Horizont)"),
+        ("#tp-bar-minpoints-wrapper", "Mindestpunkte Slider (dünne Historie → Fallback)"),
+        ("#tp-floating-check-cta", "Tiefstpreise prüfen CTA (Batch-Check, floating)"),
     ]
     callouts = []
     for sel, cap in controls:
@@ -247,11 +302,10 @@ def scene_toolbar(page):
             print(f"skip callout: {sel}")
             continue
         callouts.append((len(callouts) + 1, box, cap))
-    annotate(raw, {"x": 0, "y": 0}, callouts, os.path.join(OUT_DIR, "01-toolbar.webp"))
-    os.unlink(raw)
+    render_annotated(annotator_page, raw_bytes, {"x": 0, "y": 0}, callouts, os.path.join(OUT_DIR, "01-toolbar.webp"))
 
 
-def scene_feed_cards(page, pids):
+def scene_feed_cards(page, pids, annotator_page):
     if page.locator("#tp-bar-calc-popover.tp-show").count() > 0:
         page.locator("#tp-bar-calc-btn").click()
         page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
@@ -263,26 +317,24 @@ def scene_feed_cards(page, pids):
     assert page.locator(".tp-share-btn").count() > 0, "share button missing"
     assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
     clip = union(boxes)
-    raw = os.path.join(OUT_DIR, ".raw-feed.png")
-    page.screenshot(path=raw, full_page=True)
+    raw_bytes = page.screenshot(clip=clip)
     deep, markup, fallback = anchors
     callouts = [
         (1, css_box(page, f"{deep} .badge-dif"), "Heat-Ribbon -XX% = Gewichtete Differenz (tiefrot = Tiefstpreis)"),
         (2, css_box(page, f"{markup} .badge-dif"), "+XX% Aufschlag-Morph (Schein-Rabatt durchgestrichen)"),
-        (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief: Vortief-Abstand, Glow von aussen"),
+        (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief: Vortief-Abstand, Glow von außen"),
         (4, boxes[1], "Share-Button (Hover) + nativer title-Tooltip (nicht abbildbar)"),
     ]
     extra = [(f"{deep} .tp-card-subline-row", "Subline: CHF + % verankern beide Beine"),
-             (f"{deep} .tp-dealer-name", "Guenstigster Haendler (direkt zum Angebot)"),
+             (f"{deep} .tp-dealer-name", "Günstigster Händler (direkt zum Angebot)"),
              (f"{deep} .tp-sparkline-container", "Sparkline (Klick = Preisverlauf)")]
     for sel, cap in extra:
         if page.locator(sel).count() > 0:
             callouts.append((len(callouts) + 1, css_box(page, sel), cap))
-    annotate(raw, {"x": 0, "y": 0}, callouts, os.path.join(OUT_DIR, "02-feed-cards.webp"), crop=clip)
-    os.unlink(raw)
+    render_annotated(annotator_page, raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, os.path.join(OUT_DIR, "02-feed-cards.webp"))
 
 
-def scene_search_cards(page, pids):
+def scene_search_cards(page, pids, annotator_page):
     block = page.locator(".Plugin_ProductCollItem").first
     block.scroll_into_view_if_needed()
     # Seed the pids actually inside this block: suite keys cards by their own
@@ -305,34 +357,31 @@ def scene_search_cards(page, pids):
     page.locator(deal).first.hover()
     page.wait_for_timeout(400)
     assert page.locator(".tp-share-btn").count() > 0, "hover share button missing"
-    raw = os.path.join(OUT_DIR, ".raw-search.png")
-    block.screenshot(path=raw)
+    raw_bytes = block.screenshot()
     origin = block.bounding_box()
     callouts = [
-        (1, css_box(page, deal), "Inline-Pill: 1-zeilig ueber dem Preisblock"),
-        (2, css_box(page, unchecked), "Pruefen-Pill: ungeprueft, gestreift, nie Heat-Farbe"),
+        (1, css_box(page, deal), "Inline-Pill: 1-zeilig über dem Preisblock"),
+        (2, css_box(page, unchecked), "Prüfen-Pill: ungeprüft, gestreift, nie Heat-Farbe"),
     ]
     if page.locator(".Plugin_ProductCollItem :text('nstigste Variante')").count() > 0:
         callouts.append((3, css_box(page, ".Plugin_ProductCollItem :text('nstigste Variante')"),
-                         "Guenstigste-Variante Label bleibt nativ positioniert"))
-    annotate(raw, origin, callouts, os.path.join(OUT_DIR, "03-search-cards.webp"))
-    os.unlink(raw)
+                         "Günstigste-Variante Label bleibt nativ positioniert"))
+    render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, "03-search-cards.webp"))
 
 
-def scene_settings(page):
+def scene_settings(page, annotator_page):
     page.locator("#tp-root >> #tp-settings-fab").click()
     dlg = "#tp-root >> #tp-settings-dialog"
     page.wait_for_selector(dlg, state="visible", timeout=10000)
     page.wait_for_timeout(400)
-    raw = os.path.join(OUT_DIR, ".raw-settings.png")
-    page.locator(dlg).screenshot(path=raw)
-    origin = page.locator(dlg).bounding_box()
+    dlg_loc = page.locator(dlg)
+    raw_bytes = dlg_loc.screenshot()
+    origin = dlg_loc.bounding_box()
     headers = page.locator(f"{dlg} >> section[id^='tp-section-'] .tp-section-header")
     callouts = [(i + 1, headers.nth(i).bounding_box(), f"Abschnitt: {headers.nth(i).inner_text()}")
                 for i in range(headers.count())]
     assert callouts, "no settings sections found"
-    annotate(raw, origin, callouts, os.path.join(OUT_DIR, "04-settings-modal.webp"))
-    os.unlink(raw)
+    render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, "04-settings-modal.webp"))
 
 
 def main():
@@ -343,6 +392,9 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch()
             try:
+                annotator_ctx = browser.new_context(viewport={"width": 1920, "height": 3000}, device_scale_factor=DSF)
+                annotator_page = annotator_ctx.new_page()
+
                 # Toolbar scene runs narrow (720px, half width) to pin the
                 # wrapped/responsive site layout; cards keep full width.
                 narrow, _ = open_snapshot(
@@ -351,7 +403,7 @@ def main():
                      "BESTPREISE_HIDE_UNCHECKED": True},
                     viewport={"width": 720, "height": 900})
                 try:
-                    scene_toolbar(narrow)
+                    scene_toolbar(narrow, annotator_page)
                 finally:
                     narrow.context.close()
                 feed, feed_pids = open_snapshot(
@@ -359,7 +411,7 @@ def main():
                     {"BESTPREISE_MODE_ACTIVE": True, "BESTPREISE_WEIGHT_RECORD": 0.50,
                      "BESTPREISE_HIDE_UNCHECKED": True})
                 try:
-                    scene_feed_cards(feed, feed_pids)
+                    scene_feed_cards(feed, feed_pids, annotator_page)
                 finally:
                     feed.context.close()
                 modal, _ = open_snapshot(
@@ -368,14 +420,15 @@ def main():
                      "BESTPREISE_HIDE_UNCHECKED": True},
                     viewport={"width": 1440, "height": 2700})
                 try:
-                    scene_settings(modal)
+                    scene_settings(modal, annotator_page)
                 finally:
                     modal.context.close()
                 search, search_pids = open_snapshot(browser, base, "search", [])
                 try:
-                    scene_search_cards(search, search_pids)
+                    scene_search_cards(search, search_pids, annotator_page)
                 finally:
                     search.context.close()
+                annotator_ctx.close()
             finally:
                 browser.close()
     finally:
