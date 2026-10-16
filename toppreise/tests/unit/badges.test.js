@@ -212,3 +212,60 @@ describe('renderCardEffects median line + sparkline signature', () => {
     assert.notEqual(box.children[0], first);
   });
 });
+
+describe('Verdict badges F-03 & F-04', () => {
+  it('isScanningPid recognizes both batch and single scanning PIDs (F-03)', async () => {
+    const { scanState, isScanningPid } = await import('../../src/state/store.js');
+    scanState.currentlyScanningPid = null;
+    scanState.singleScanningPids.clear();
+
+    assert.equal(isScanningPid('p1'), false);
+    scanState.currentlyScanningPid = 'p1';
+    assert.equal(isScanningPid('p1'), true);
+    assert.equal(isScanningPid('p2'), false);
+
+    scanState.currentlyScanningPid = null;
+    scanState.singleScanningPids.add('p2');
+    assert.equal(isScanningPid('p1'), false);
+    assert.equal(isScanningPid('p2'), true);
+    scanState.singleScanningPids.clear();
+  });
+
+  it('renderModeVerdict adds .tp-deal-alltime-low to fallback lows (F-04)', async () => {
+    const { renderModeVerdict } = await import('../../src/ui/badges/deal-verdict.js');
+    const badgeEl = {
+      classList: new Set(),
+      className: '',
+      title: '',
+      textContent: ''
+    };
+    badgeEl.classList.add = function (...cls) { cls.forEach(c => this.classList.add(c)); };
+    badgeEl.classList.remove = function (...cls) { cls.forEach(c => this.classList.delete(c)); };
+    badgeEl.classList.contains = function (c) { return this.classList.has(c); };
+
+    const classes = new Set();
+    const mockBadge = {
+      classList: {
+        add: (...cls) => cls.forEach(c => classes.add(c)),
+        remove: (...cls) => cls.forEach(c => classes.delete(c)),
+        contains: c => classes.has(c)
+      },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    };
+
+    const ctx = {
+      card: { classList: { remove: () => {} }, querySelector: () => null },
+      pid: 'pFallback',
+      cardPrice: 100,
+      cardPriceEl: null,
+      stats: { tiefstpreis: 100, medianPrice: 0 },
+      dealData: null,
+      displayDelta: null,
+      heatInfo: { pct: 0 }
+    };
+
+    renderModeVerdict(ctx, {}, mockBadge, false, '', null);
+    assert.ok(classes.has('tp-deal-alltime-low'), 'Fallback low in mode verdict must have .tp-deal-alltime-low');
+  });
+});

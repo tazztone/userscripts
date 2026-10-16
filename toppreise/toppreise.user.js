@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.291
+// @version      2.18.292
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3503,10 +3503,15 @@ const SHADOW_MODAL_STYLES = `
     isBatchChecking: false,
     batchCancelRequested: false,
     currentlyScanningPid: null,
+    singleScanningPids: new Set(),
     progress: { completed: 0, total: 0 },
     freshPids: new Set(),
     freshUntil: 0
   };
+
+  function isScanningPid(pid) {
+    return pid != null && (scanState.currentlyScanningPid === pid || scanState.singleScanningPids.has(pid));
+  }
 
   // ─── MODULE: src/page/adapter.js ────────────────────────────────────────────
   /**
@@ -5184,9 +5189,20 @@ const SHADOW_MODAL_STYLES = `
     const reqBasis = cardPriceData.basis;
     const reqPrice = cardPriceData.price;
     const reqCents = priceToCents(reqPrice);
+    const isListView = badgeDifEl.classList.contains('tp-deal-pill');
     badgeDifEl.classList.add('tp-deal-loading');
-    badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-    const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null, null, reqBasis);
+    if (isListView) {
+      badgeDifEl.innerHTML = `<span>⏳</span><p>Prüfe...</p>`;
+    } else {
+      badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
+    }
+    scanState.singleScanningPids.add(reqPid);
+    let fetchedStats = null;
+    try {
+      fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null, null, reqBasis);
+    } finally {
+      scanState.singleScanningPids.delete(reqPid);
+    }
     if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || extractCanonicalPrice(card).basis !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
       badgeDifEl.classList.remove('tp-deal-loading');
       triggerProcessListings();
@@ -5199,7 +5215,11 @@ const SHADOW_MODAL_STYLES = `
       triggerProcessListings();
     } else {
       badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
-      badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
+      if (isListView) {
+        badgeDifEl.innerHTML = `<span>⚠️</span><p>n/v</p>`;
+      } else {
+        badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
+      }
       badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
       setTimeout(() => {
         if (badgeDifEl && !getCachedPriceStats(reqPid)) {
@@ -5268,7 +5288,7 @@ const SHADOW_MODAL_STYLES = `
     // 1b. Geprüft vs ungeprüft card cue: verified cards carry tp-is-verified.
     // Unchecked cards stay at full opacity — the badge-level striped ribbon
     // (step 6) is the only ungeprüft signal. Loading cards get neither class.
-     if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+     if (isScanningPid(pid)) {
       card.classList.remove('tp-is-verified');
      } else if (hasUsablePriceStats(stats)) {
        card.classList.add('tp-is-verified');
@@ -5538,7 +5558,7 @@ const SHADOW_MODAL_STYLES = `
             // prints the shared Vortief-Abstand when measurable, else the
             // preserved site-% — never a glyph. Browse stays gray; the mode
             // adds the feathered edge heat for the same number.
-            badgeDifEl.classList.add('tp-deal-badge-interactive');
+            badgeDifEl.classList.add('tp-deal-badge-interactive', 'tp-deal-alltime-low');
             badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup');
             const prevLowNow = recordRefForPrice(stats, cardPrice).previousLow;
             const dropVsPrev = vortiefDropPct(cardPrice, stats);
@@ -5574,7 +5594,7 @@ const SHADOW_MODAL_STYLES = `
           if (filters.isUnchecked === true) card.classList.add('tp-unchecked-hidden');
           badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
-          if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+          if (isScanningPid(pid)) {
             badgeDifEl.classList.add('tp-deal-loading');
             if (isListView) {
               setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -5609,7 +5629,7 @@ const SHADOW_MODAL_STYLES = `
         card.classList.remove('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record');
 
-        if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+        if (isScanningPid(pid)) {
           badgeDifEl.classList.add('tp-deal-loading');
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -9773,7 +9793,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.290';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.291';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

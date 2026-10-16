@@ -8,7 +8,7 @@ import { CONFIG } from '../../state/config.js';
 import { parsePrice, pctDrop, pctRise, priceToCents, recordRefForPrice } from '../../domain/price.js';
 import { getDisplayDelta, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../../domain/deal-score.js';
 import { hasUsablePriceStats } from '../../scanner/cache.js';
-import { scanState } from '../../state/store.js';
+import { scanState, isScanningPid } from '../../state/store.js';
 import { setHtmlIfChanged, setTextIfChanged, setTitleIfChanged, ensureHistPriceEl } from './dom-helpers.js';
 import { renderBadgeSetup } from './deal-badge.js';
 
@@ -105,7 +105,7 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
           // prints the shared Vortief-Abstand when measurable, else the
           // preserved site-% — never a glyph. Browse stays gray; the mode
           // adds the feathered edge heat for the same number.
-          badgeDifEl.classList.add('tp-deal-badge-interactive');
+          badgeDifEl.classList.add('tp-deal-badge-interactive', 'tp-deal-alltime-low');
           badgeDifEl.classList.remove('tp-deal-not-low', 'tp-is-severe-markup');
           const prevLowNow = recordRefForPrice(stats, cardPrice).previousLow;
           const dropVsPrev = vortiefDropPct(cardPrice, stats);
@@ -141,7 +141,7 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
         if (filters.isUnchecked === true) card.classList.add('tp-unchecked-hidden');
         badgeDifEl.classList.remove('tp-deal-new-record', 'tp-deal-alltime-low');
 
-        if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+        if (isScanningPid(pid)) {
           badgeDifEl.classList.add('tp-deal-loading');
           if (isListView) {
             setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);
@@ -176,7 +176,7 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
       card.classList.remove('tp-unchecked-hidden');
       badgeDifEl.classList.remove('tp-deal-new-record');
 
-      if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+      if (isScanningPid(pid)) {
         badgeDifEl.classList.add('tp-deal-loading');
         if (isListView) {
           setHtmlIfChanged(badgeDifEl, `<span>⏳</span><p>Prüfe...</p>`);

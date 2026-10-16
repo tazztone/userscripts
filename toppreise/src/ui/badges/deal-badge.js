@@ -14,7 +14,7 @@ import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
 import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration } from '../../scanner/cache.js';
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
-import { scanState } from '../../state/store.js';
+import { scanState, isScanningPid } from '../../state/store.js';
 
 // Single-product verify flow. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.
@@ -47,9 +47,20 @@ async function runSingleDealCheck(card, badgeDifEl) {
   const reqBasis = cardPriceData.basis;
   const reqPrice = cardPriceData.price;
   const reqCents = priceToCents(reqPrice);
+  const isListView = badgeDifEl.classList.contains('tp-deal-pill');
   badgeDifEl.classList.add('tp-deal-loading');
-  badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-  const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null, null, reqBasis);
+  if (isListView) {
+    badgeDifEl.innerHTML = `<span>⏳</span><p>Prüfe...</p>`;
+  } else {
+    badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
+  }
+  scanState.singleScanningPids.add(reqPid);
+  let fetchedStats = null;
+  try {
+    fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null, null, reqBasis);
+  } finally {
+    scanState.singleScanningPids.delete(reqPid);
+  }
   if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || extractCanonicalPrice(card).basis !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
     badgeDifEl.classList.remove('tp-deal-loading');
     triggerProcessListings();
@@ -62,7 +73,11 @@ async function runSingleDealCheck(card, badgeDifEl) {
     triggerProcessListings();
   } else {
     badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
-    badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
+    if (isListView) {
+      badgeDifEl.innerHTML = `<span>⚠️</span><p>n/v</p>`;
+    } else {
+      badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
+    }
     badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
     setTimeout(() => {
       if (badgeDifEl && !getCachedPriceStats(reqPid)) {
@@ -131,7 +146,7 @@ export function renderHeat(ctx) {
   // 1b. Geprüft vs ungeprüft card cue: verified cards carry tp-is-verified.
   // Unchecked cards stay at full opacity — the badge-level striped ribbon
   // (step 6) is the only ungeprüft signal. Loading cards get neither class.
-   if (scanState.currentlyScanningPid && scanState.currentlyScanningPid === pid) {
+   if (isScanningPid(pid)) {
     card.classList.remove('tp-is-verified');
    } else if (hasUsablePriceStats(stats)) {
      card.classList.add('tp-is-verified');
