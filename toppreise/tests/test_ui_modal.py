@@ -203,10 +203,7 @@ def test_config_import_invalid_json_shows_error_toast(page: Page):
 
     import_config(page, '{ this is not valid json...', filename='corrupt.json')
 
-    page.wait_for_selector('#tp-root >> .tp-toast', state='attached', timeout=5000)
-    toast = page.locator('#tp-root >> .tp-toast')
-    assert toast.is_visible()
-    assert 'Import fehlgeschlagen' in (toast.text_content() or '')
+    page.wait_for_function("() => (window.ToppreiseSuite.lastToast() || '').includes('Import fehlgeschlagen')")
 
 
 
@@ -216,7 +213,7 @@ def test_config_import_ignores_unknown_and_debug_keys(page: Page):
     page.evaluate("() => { if (window.ToppreiseSuite) window.ToppreiseSuite.CONFIG.DEBUG = true; }")
     import_config(page, {'config': {'UNRECOGNIZED_SECURITY_KEY': 'exploit', 'DEBUG': False, 'MARGIN_PERCENT': 4.2}}, filename='safe_config.json')
 
-    page.wait_for_selector('#tp-root >> .tp-toast', state='attached', timeout=5000)
+    page.wait_for_function("() => Boolean(window.ToppreiseSuite.lastToast && window.ToppreiseSuite.lastToast())")
     res = page.evaluate("""() => ({
         margin: window.ToppreiseSuite?.CONFIG?.MARGIN_PERCENT,
         unknown: window.ToppreiseSuite?.CONFIG?.UNRECOGNIZED_SECURITY_KEY,

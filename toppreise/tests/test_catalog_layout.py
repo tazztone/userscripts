@@ -1634,8 +1634,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     assert page.locator('#tp-bar-horizon-label').inner_text() == '120T'
     assert 'Ø (120T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
     assert hits == []
-    toast = page.locator('#tp-root >> .tp-toast').last
-    assert 'Ø-Vergleichszeitraum' in (toast.text_content() or '')
+    page.wait_for_function("() => (window.ToppreiseSuite.lastToast() || '').includes('Ø-Vergleichszeitraum')")
 
     # Final stop is the Lifetime sentinel: stored 0, labelled Lifetime.
     page.evaluate("""() => {

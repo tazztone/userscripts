@@ -542,9 +542,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
 
     # 4. Triggering a check with 0 visible deals left must toast and terminate cleanly (no hang)
     page.evaluate("() => window.ToppreiseSuite.startBatchCheck()")
-    page.wait_for_selector('#tp-root >> .tp-toast', state='visible')
-    toast = page.locator('#tp-root >> .tp-toast').last
-    assert 'Keine ungeprüften Deals vorhanden' in (toast.text_content() or '')
+    page.wait_for_function("() => (window.ToppreiseSuite.lastToast() || '').includes('Keine ungeprüften Deals vorhanden')")
     assert cta.is_visible()
 
     # 5. The 3-click cycle previews the ignored products: Normal shows them plain,
@@ -643,8 +641,11 @@ def test_product_detail_page_negative_cache_no_recursion(page: Page):
         window.ToppreiseSuite.processProductDetailPage();
     }''')
 
-    # Wait for active fetches to settle
-    page.wait_for_timeout(1000)
+    # Wait for active fetch to set negative cache
+    page.wait_for_function(
+        "() => (localStorage.getItem(window.ToppreiseSuite.statsKey('840582')) || '').includes('unavailable')",
+        timeout=15000
+    )
 
     # Check cache and recursion count
     calls = page.evaluate('window.processDetailCalls')
@@ -1737,8 +1738,7 @@ def test_share_aborts_after_card_reuse(page: Page):
     # could never land the reuse mid-flight. Same-task flip parks every
     # stillFresh check behind the reuse: abort before any post.
     page.evaluate("() => { document.querySelector('#card-cheapest > .tp-share-btn').click(); document.querySelector('#card-cheapest').dataset.entityId = '797574'; }")
-    page.locator('#tp-root >> .tp-toast', has_text='Karte hat sich geändert').wait_for(state='attached', timeout=10000)
-    page.wait_for_timeout(2000)
+    page.wait_for_function("() => (window.ToppreiseSuite.lastToast() || '').includes('Karte hat sich geändert')")
     assert posts == [], f"stale share posted: {posts}"
 
 
