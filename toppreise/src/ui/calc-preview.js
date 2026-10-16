@@ -2,7 +2,7 @@ import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePric
 import { getCardProductId } from "../page/cards.js";
 import { extractShareData } from "../page/product-offers.js";
 import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } from "../state/config.js";
-import { getCachedPriceStats } from "../scanner/cache.js";
+import { getCachedPriceStats, fullSeries } from "../scanner/cache.js";
 import { SELECTORS } from "../page/selectors.js";
 import { DAY_MS, PRESET_DATA_S26, PRESET_DATA_R5, PRESET_DATA_SSD990, PRESET_DATA_SYNTHETIC, expandRleSeries, PRESETS, getPreset } from './calc-preset-data.js';
 export { DAY_MS, PRESET_DATA_S26, PRESET_DATA_R5, PRESET_DATA_SSD990, PRESET_DATA_SYNTHETIC, expandRleSeries, PRESETS, getPreset };
@@ -191,7 +191,8 @@ export function refreshCalcPreview() {
   if (pageHit) {
     activePresetId = selVal;
     const entry = getCachedPriceStats(pageHit.pid) || {};
-    points = Array.isArray(entry.timeSeries) ? entry.timeSeries : [];
+    const raw = fullSeries(entry);
+    points = Array.isArray(raw) ? raw : [];
     const canonical = extractCanonicalPrice(pageHit.card);
     const live = canonical?.price;
     cardPrice = (typeof live === 'number' && live > 0) ? live : (entry.anchorPrice || 0);

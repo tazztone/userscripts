@@ -131,6 +131,7 @@ export const SETTING_SCHEMA = {
   ALARM_TARGET_PERCENT: { type: 'float', default: 0.60, min: 0.05, max: 0.99 },
   ALARM_DURATION_DAYS: { type: 'enum', default: '730', allowed: ['90', '180', '365', '730'] },
   ALARM_AUTO_SUBMIT: { type: 'bool', default: false },
+  ALARM_FALLBACK_TIMEOUT_MS: { type: 'int', default: 5000, min: 1000, max: 30000 },
   OBSERVER_DEBOUNCE_MS: { type: 'int', default: 200, min: 0, max: 2000 },
   DEBUG: { type: 'bool', default: false }
 };

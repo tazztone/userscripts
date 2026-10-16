@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.306
+// @version      2.18.307
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2586,8 +2586,9 @@ const SHADOW_MODAL_STYLES = `
       const prev = memoryCache.get(key);
       if (prev && !prev.unavailable && prev.medianPrice) return;
     }
+    const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
     const payload = isUnavailable
-      ? { unavailable: true, time: Date.now() }
+      ? { unavailable: true, isShippingPrice: s, time: Date.now() }
       : { ...stats, time: Date.now(), medianSig: currentMedianSig() };
 
     lruSet(memoryCache, key, payload);
@@ -2898,6 +2899,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_TARGET_PERCENT: { type: 'float', default: 0.60, min: 0.05, max: 0.99 },
     ALARM_DURATION_DAYS: { type: 'enum', default: '730', allowed: ['90', '180', '365', '730'] },
     ALARM_AUTO_SUBMIT: { type: 'bool', default: false },
+    ALARM_FALLBACK_TIMEOUT_MS: { type: 'int', default: 5000, min: 1000, max: 30000 },
     OBSERVER_DEBOUNCE_MS: { type: 'int', default: 200, min: 0, max: 2000 },
     DEBUG: { type: 'bool', default: false }
   };
@@ -3168,6 +3170,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_TARGET_PERCENT: sanitizeConfigValue('ALARM_TARGET_PERCENT', _getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
     ALARM_DURATION_DAYS: sanitizeConfigValue('ALARM_DURATION_DAYS', _getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
     ALARM_AUTO_SUBMIT: sanitizeConfigValue('ALARM_AUTO_SUBMIT', _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT)),
+    ALARM_FALLBACK_TIMEOUT_MS: sanitizeConfigValue('ALARM_FALLBACK_TIMEOUT_MS', _getValue('ALARM_FALLBACK_TIMEOUT_MS', DEFAULTS.ALARM_FALLBACK_TIMEOUT_MS)),
     OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
     DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
   };
@@ -3941,18 +3944,28 @@ const SHADOW_MODAL_STYLES = `
     typeof stats?.isShippingPrice !== 'boolean'
     || stats.isShippingPrice === (cardPriceBasis === 'shipping');
   // Single scan-eligibility resolver (counter + scanner queue share it):
+  function getCardStats(pid, cardBasis) {
+    if (!pid) return null;
+    const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
+    if (specific) return specific;
+    const fallback = getCachedPriceStats(pid);
+    if (!fallback) return null;
+    if (!fallback.unavailable) return fallback;
+    return basisMatchesFor(fallback, cardBasis) ? fallback : null;
+  }
+
   // usable stats verify, fresh unavailable markers wait out the negative TTL,
   // basis mismatches refetch (no new state), everything else is unchecked.
   function scanEligibility(card) {
     const pid = getCardProductId(card);
     if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
     const cardBasis = extractCanonicalPrice(card).basis;
-    const stats = getCachedPriceStats(pid, false, null, cardBasis === 'shipping') || getCachedPriceStats(pid);
-    if (stats && stats.unavailable) {
-      return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
-    }
+    const stats = getCardStats(pid, cardBasis);
     if (stats && !basisMatchesFor(stats, cardBasis)) {
       return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
+    }
+    if (stats && stats.unavailable) {
+      return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
     }
     if (hasUsablePriceStats(stats)) return { state: 'verified', canScan: false, retryAt: null, reason: null };
     return { state: 'unchecked', canScan: true, retryAt: null, reason: null };
@@ -3963,7 +3976,7 @@ const SHADOW_MODAL_STYLES = `
     const cardPriceEl = priceData.el;
     const cardPrice = priceData.price;
     const cardPriceBasis = priceData.basis;
-    const stats = pid ? (getCachedPriceStats(pid, false, null, cardPriceBasis === 'shipping') || getCachedPriceStats(pid)) : null;
+    const stats = getCardStats(pid, cardPriceBasis);
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
     const basisMatches = basisMatchesFor(stats, cardPriceBasis);
@@ -8130,7 +8143,8 @@ const SHADOW_MODAL_STYLES = `
     if (pageHit) {
       activePresetId = selVal;
       const entry = getCachedPriceStats(pageHit.pid) || {};
-      points = Array.isArray(entry.timeSeries) ? entry.timeSeries : [];
+      const raw = fullSeries(entry);
+      points = Array.isArray(raw) ? raw : [];
       const canonical = extractCanonicalPrice(pageHit.card);
       const live = canonical?.price;
       cardPrice = (typeof live === 'number' && live > 0) ? live : (entry.anchorPrice || 0);
@@ -9616,7 +9630,8 @@ const SHADOW_MODAL_STYLES = `
     if (!(currentPrice > 0)) { removeDetailBadge(); return; }
 
     let badge = document.getElementById('tp-detail-deal-badge');
-    let stats = getCachedPriceStats(pid, false, null, priceBasis === 'shipping') || getCachedPriceStats(pid);
+    const useShipping = priceBasis ? priceBasis === 'shipping' : null;
+    let stats = getCachedPriceStats(pid, false, null, useShipping);
     if (!stats || !stats.tiefstpreis) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
       // Stale: a newer run started, the route changed, or the heading died.
@@ -9627,7 +9642,7 @@ const SHADOW_MODAL_STYLES = `
       // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
       const fresh = getDetailLowestPrice();
       if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
-      stats = getCachedPriceStats(pid, false, null, priceBasis === 'shipping') || getCachedPriceStats(pid);
+      stats = getCachedPriceStats(pid, false, null, useShipping);
     }
     if (stats && stats.tiefstpreis > 0) {
       // Basis gate (same rule as extractCardData): a live price on the other
@@ -9908,7 +9923,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.306';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.307';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

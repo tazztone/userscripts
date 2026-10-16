@@ -285,18 +285,28 @@ export const basisMatchesFor = (stats, cardPriceBasis) =>
   typeof stats?.isShippingPrice !== 'boolean'
   || stats.isShippingPrice === (cardPriceBasis === 'shipping');
 // Single scan-eligibility resolver (counter + scanner queue share it):
+function getCardStats(pid, cardBasis) {
+  if (!pid) return null;
+  const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
+  if (specific) return specific;
+  const fallback = getCachedPriceStats(pid);
+  if (!fallback) return null;
+  if (!fallback.unavailable) return fallback;
+  return basisMatchesFor(fallback, cardBasis) ? fallback : null;
+}
+
 // usable stats verify, fresh unavailable markers wait out the negative TTL,
 // basis mismatches refetch (no new state), everything else is unchecked.
 export function scanEligibility(card) {
   const pid = getCardProductId(card);
   if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
   const cardBasis = extractCanonicalPrice(card).basis;
-  const stats = getCachedPriceStats(pid, false, null, cardBasis === 'shipping') || getCachedPriceStats(pid);
-  if (stats && stats.unavailable) {
-    return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
-  }
+  const stats = getCardStats(pid, cardBasis);
   if (stats && !basisMatchesFor(stats, cardBasis)) {
     return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
+  }
+  if (stats && stats.unavailable) {
+    return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
   }
   if (hasUsablePriceStats(stats)) return { state: 'verified', canScan: false, retryAt: null, reason: null };
   return { state: 'unchecked', canScan: true, retryAt: null, reason: null };
@@ -307,7 +317,7 @@ export function extractCardData(card) {
   const cardPriceEl = priceData.el;
   const cardPrice = priceData.price;
   const cardPriceBasis = priceData.basis;
-  const stats = pid ? (getCachedPriceStats(pid, false, null, cardPriceBasis === 'shipping') || getCachedPriceStats(pid)) : null;
+  const stats = getCardStats(pid, cardPriceBasis);
   const diffVal = extractCardDiff(card);
   const discountVal = extractCardDiscount(card);
   const basisMatches = basisMatchesFor(stats, cardPriceBasis);

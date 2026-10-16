@@ -53,7 +53,7 @@ export function ensureFreshAnalysis(entry) {
   } catch {}
   return entry;
 }
-function fullSeries(entry) {
+export function fullSeries(entry) {
   if (!entry) return null;
   if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
   const base = entry.timeSeries;
@@ -203,8 +203,9 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
     const prev = memoryCache.get(key);
     if (prev && !prev.unavailable && prev.medianPrice) return;
   }
+  const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
   const payload = isUnavailable
-    ? { unavailable: true, time: Date.now() }
+    ? { unavailable: true, isShippingPrice: s, time: Date.now() }
     : { ...stats, time: Date.now(), medianSig: currentMedianSig() };
 
   lruSet(memoryCache, key, payload);
