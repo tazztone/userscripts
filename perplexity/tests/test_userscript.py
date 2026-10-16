@@ -19,7 +19,7 @@ def userscript_content():
 def page(browser, userscript_content):
     page = browser.new_page()
     page.goto(MOCK_HTML)
-    page.evaluate("localStorage.setItem('px_enhancements_CLICK_DELAY_MS', '800')")
+    page.evaluate("localStorage.setItem('px_enhancements_CLICK_DELAY_MS', '400')")
     page.evaluate(userscript_content)
     yield page
     page.close()
@@ -29,7 +29,7 @@ def page(browser, userscript_content):
 def settings_page(browser, userscript_content):
     page = browser.new_page()
     page.goto(MOCK_HTML)
-    page.evaluate("localStorage.setItem('px_enhancements_CLICK_DELAY_MS', '3000')")
+    page.evaluate("localStorage.setItem('px_enhancements_CLICK_DELAY_MS', '600')")
     page.evaluate(userscript_content)
     yield page
     page.close()
@@ -62,7 +62,7 @@ def test_hover_pauses_approval(page: Page):
     button = page.locator('#approve-btn')
     page.wait_for_selector('#approve-btn .px-progress-bar')
     button.hover()
-    page.wait_for_timeout(450)
+    page.wait_for_timeout(100)
     assert button.inner_text() != 'CLICKED'
     assert 'px-paused' in (button.get_attribute('class') or '')
     page.mouse.move(0, 0)
@@ -84,7 +84,7 @@ def test_settings_save_and_disable_cancels_pending_approval(settings_page: Page)
     page.locator('#px-root >> #px-auto-approve-enabled').evaluate('(el) => { el.click(); }')
     page.locator('#px-root >> #px-model-lock-enabled').evaluate('(el) => { el.click(); }')
     page.click('#px-root >> #px-btn-save')
-    page.wait_for_timeout(450)
+    page.wait_for_timeout(100)
     assert page.locator('#approve-btn').inner_text() != 'CLICKED'
     assert page.locator('.px-model-lock-indicator').count() == 0
     assert page.evaluate("localStorage.getItem('px_enhancements_AUTO_APPROVE')") == 'false'
@@ -99,7 +99,7 @@ def test_settings_escape_and_legacy_migration(browser, userscript_content):
     page.click('#px-root >> #px-settings-fab')
     page.wait_for_selector('#px-root >> #px-settings-dialog')
     page.keyboard.press('Escape')
-    page.wait_for_timeout(200)
+    page.locator('#px-root >> #px-settings-dialog').wait_for(state='hidden')
     page.click('#px-root >> #px-settings-fab')
     assert page.locator('#px-root >> #px-model-lock-target').input_value() == 'Sonar 2'
     assert page.evaluate("localStorage.getItem('px_enhancements_TARGET_MODEL')") == '"Sonar 2"'
