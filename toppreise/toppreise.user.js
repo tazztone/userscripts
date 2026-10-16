@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.307
+// @version      2.18.308
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5860,7 +5860,7 @@ const SHADOW_MODAL_STYLES = `
       }
       badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
       setTimeout(() => {
-        if (badgeDifEl && !getCachedPriceStats(reqPid)) {
+        if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCachedPriceStats(reqPid, false, null, reqBasis ? reqBasis === 'shipping' : null))) {
           triggerProcessListings();
         }
       }, 2500);
@@ -5904,7 +5904,7 @@ const SHADOW_MODAL_STYLES = `
         heatBadgeEl.style.removeProperty('color');
         heatBadgeEl.style.removeProperty('box-shadow');
       }
-    } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend')) {
+    } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
       // Tripwire: heat stripped while the badge still claims a verified % means
       // a stats regression slipped through — enable DEBUG to catch it live.
       if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
@@ -6003,6 +6003,7 @@ const SHADOW_MODAL_STYLES = `
   // node (caller runs the no-badge cleanup instead).
   function renderBadgeSetup(ctx, isNeueFeed) {
     const { card, pid, cardPriceEl, stats, effectiveDiff } = ctx;
+    if (!pid) return null;
     // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
     let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     // Remove any legacy floating wrappers if present
@@ -6455,6 +6456,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Share dedupe surviving button re-renders: duplicate clicks for the same
   // pid:basis:price post once (button disabled alone is not enough).
   const shareInFlight = new Set();
@@ -6518,16 +6520,17 @@ const SHADOW_MODAL_STYLES = `
               const { title, url, imageUrl } = extractShareData(card);
               const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
               const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-              let dealer = extractDealer(card, isShippingPriceActive(card));
-              let dealerUrl = extractDealerUrl(card, isShippingPriceActive(card));
+              const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
+              let dealer = extractDealer(card, useShipping);
+              let dealerUrl = extractDealerUrl(card, useShipping);
               // Geladen (page-1) vs. total (JSON-LD-Aggregat): Anzeige/Share
               // nutzen das Total, fällts zurück auf die geladene Anzahl.
-              const cachedDealer = getCachedDealer(snap.pid, isShippingPriceActive(card));
+              const cachedDealer = getCachedDealer(snap.pid, useShipping);
               let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
               let totalOffers = cachedDealer?.totalOffers || 0;
               let offers = totalOffers || loadedOffers;
               if ((!dealer || !dealerUrl || !offers) && url) {
-                const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
+                const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
                 if (!stillFresh()) { abortStale(); return; }
                 if (info) {
                   dealer = dealer || info.dealer;
@@ -6535,6 +6538,11 @@ const SHADOW_MODAL_STYLES = `
                   loadedOffers = loadedOffers || info.offers || 0;
                   totalOffers = totalOffers || info.totalOffers || 0;
                   offers = totalOffers || loadedOffers;
+                  if (info.dealer) {
+                    const dKey = `${snap.pid}:${useShipping ? 's' : 'p'}`;
+                    lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: loadedOffers, totalOffers });
+                    setCachedDealer(snap.pid, useShipping, info.dealer, info.dealerUrl || '', undefined, loadedOffers, totalOffers);
+                  }
                 }
               }
               const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
@@ -6754,7 +6762,7 @@ const SHADOW_MODAL_STYLES = `
     // Der Name verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw.
     // Zeilenlink), Fallback ist die Produktseite — immer neuer Tab.
     const dealerEl = card.querySelector('.tp-dealer-name');
-    if (!stats || !pid) {
+    if (!hasUsablePriceStats(stats) || !pid) {
       dealerEl?.remove();
     } else {
       const useShipping = isShippingPriceActive(card);
@@ -6891,7 +6899,7 @@ const SHADOW_MODAL_STYLES = `
     // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
     // above is the single source of truth for "good deal" — no duplicate math.
     const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
-    const isFresh = !!stats && scanState.freshPids.has(pid) && !!freshBadge;
+    const isFresh = hasUsablePriceStats(stats) && scanState.freshPids.has(pid) && !!freshBadge;
     card.classList.toggle('tp-deal-fresh', isFresh);
   }
 
@@ -9923,7 +9931,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.307';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.308';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

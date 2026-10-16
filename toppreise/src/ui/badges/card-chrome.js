@@ -134,7 +134,7 @@ export function renderDealerName(ctx, filters) {
   // Der Name verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw.
   // Zeilenlink), Fallback ist die Produktseite — immer neuer Tab.
   const dealerEl = card.querySelector('.tp-dealer-name');
-  if (!stats || !pid) {
+  if (!hasUsablePriceStats(stats) || !pid) {
     dealerEl?.remove();
   } else {
     const useShipping = isShippingPriceActive(card);
@@ -271,7 +271,7 @@ export function applyFreshGlow(ctx) {
   // Fresh-deal glow: only newly verified good deals pulse. The badge verdict
   // above is the single source of truth for "good deal" — no duplicate math.
   const freshBadge = card.querySelector('.tp-deal-new-record, .tp-deal-alltime-low');
-  const isFresh = !!stats && scanState.freshPids.has(pid) && !!freshBadge;
+  const isFresh = hasUsablePriceStats(stats) && scanState.freshPids.has(pid) && !!freshBadge;
   card.classList.toggle('tp-deal-fresh', isFresh);
 }
 

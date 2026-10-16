@@ -7,7 +7,8 @@
 import { CONFIG, _getValue, _setValue } from '../../state/config.js';
 import { getDisplayDelta } from '../../domain/deal-score.js';
 import { basisMatchesFor, extractCardData } from '../../page/cards.js';
-import { getCachedDealer, getSharedDeal, setSharedDeal } from '../../scanner/cache.js';
+import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../../scanner/cache.js';
+import { dealerCache } from './deal-badge.js';
 import { priceToCents } from '../../domain/price.js';
 import {
   isDiscordWebhookUrl,
@@ -97,16 +98,17 @@ export function renderShareButton(ctx, cd) {
             const { title, url, imageUrl } = extractShareData(card);
             const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
             const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-            let dealer = extractDealer(card, isShippingPriceActive(card));
-            let dealerUrl = extractDealerUrl(card, isShippingPriceActive(card));
+            const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
+            let dealer = extractDealer(card, useShipping);
+            let dealerUrl = extractDealerUrl(card, useShipping);
             // Geladen (page-1) vs. total (JSON-LD-Aggregat): Anzeige/Share
             // nutzen das Total, fällts zurück auf die geladene Anzahl.
-            const cachedDealer = getCachedDealer(snap.pid, isShippingPriceActive(card));
+            const cachedDealer = getCachedDealer(snap.pid, useShipping);
             let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
             let totalOffers = cachedDealer?.totalOffers || 0;
             let offers = totalOffers || loadedOffers;
             if ((!dealer || !dealerUrl || !offers) && url) {
-              const info = await fetchProductInfo(url, undefined, isShippingPriceActive(card)).catch(() => null);
+              const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
               if (info) {
                 dealer = dealer || info.dealer;
@@ -114,6 +116,11 @@ export function renderShareButton(ctx, cd) {
                 loadedOffers = loadedOffers || info.offers || 0;
                 totalOffers = totalOffers || info.totalOffers || 0;
                 offers = totalOffers || loadedOffers;
+                if (info.dealer) {
+                  const dKey = `${snap.pid}:${useShipping ? 's' : 'p'}`;
+                  lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: loadedOffers, totalOffers });
+                  setCachedDealer(snap.pid, useShipping, info.dealer, info.dealerUrl || '', undefined, loadedOffers, totalOffers);
+                }
               }
             }
             const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);

@@ -80,7 +80,7 @@ async function runSingleDealCheck(card, badgeDifEl) {
     }
     badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
     setTimeout(() => {
-      if (badgeDifEl && !getCachedPriceStats(reqPid)) {
+      if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCachedPriceStats(reqPid, false, null, reqBasis ? reqBasis === 'shipping' : null))) {
         triggerProcessListings();
       }
     }, 2500);
@@ -124,7 +124,7 @@ export function renderHeat(ctx) {
       heatBadgeEl.style.removeProperty('color');
       heatBadgeEl.style.removeProperty('box-shadow');
     }
-  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend')) {
+  } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
     if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
@@ -223,6 +223,7 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
 // node (caller runs the no-badge cleanup instead).
 export function renderBadgeSetup(ctx, isNeueFeed) {
   const { card, pid, cardPriceEl, stats, effectiveDiff } = ctx;
+  if (!pid) return null;
   // 4. Tiefstpreis-Check (Consolidated into Differenz Circle Badge)
   let badgeDifEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
   // Remove any legacy floating wrappers if present
