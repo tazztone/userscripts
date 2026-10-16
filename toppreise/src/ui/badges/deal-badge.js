@@ -190,20 +190,28 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     }
     filters.isDealerLoser = false;
   }
-  const hide = (filters.isNeg && CONFIG.FILTER_NEG_MODE !== 'dim')
-    || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE !== 'dim')
-    || (filters.isDealerLoser && CONFIG.DEALER_MODE !== 'dim')
-    || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE !== 'dim')
-    || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE !== 'dim');
+  const isHide = m => m !== 'dim' && m !== 'highlight';
+  const hide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
+    || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
+    || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
+    || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
+    || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
   const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
     || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
     || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
     || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
     || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
+  const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
+    || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
+    || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
+    || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
+    || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
   filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
   filters.isDimmed = dim;
+  filters.isHighlighted = highlight;
   card.classList.toggle('tp-filtered', hide);
   card.classList.toggle('tp-dimmed', dim);
+  card.classList.toggle('tp-highlighted', highlight);
   const sortUnit = getCardSortableUnit(card);
   if (sortUnit && sortUnit !== card) sortUnit.classList.toggle('tp-col-filtered', hide);
 }

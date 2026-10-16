@@ -142,8 +142,10 @@ export function syncFilterRow(bar, counts, flags) {
       setTextIfChanged(dimCount, dimmedTotal > 0 ? `+${dimmedTotal} gedimmt` : '');
       dimCount.style.display = dimmedTotal > 0 ? 'inline' : 'none';
     }
-    filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0);
-    filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
+    const highlightedTotal = counts.highlighted || 0;
+    filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
+    const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
+    filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
   }
   const setRowCount = (name, n, show) => {
     const badge = bar.querySelector(`[data-row-count="${name}"]`);

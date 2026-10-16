@@ -78,6 +78,10 @@ export const STYLES_CARDS = `
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
   }
+  .tp-highlighted {
+    outline: 2px dashed #0284c7 !important;
+    outline-offset: -2px !important;
+  }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
   .badge.badge-dif.tp-injected-badge,

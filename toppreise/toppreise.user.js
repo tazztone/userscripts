@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.298
+// @version      2.18.299
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -139,6 +139,10 @@ const STYLES_CARDS = `
   .tp-dimmed {
     opacity: var(--tp-dim-opacity, 0.25) !important;
     filter: grayscale(40%) !important;
+  }
+  .tp-highlighted {
+    outline: 2px dashed #0284c7 !important;
+    outline-offset: -2px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
@@ -4026,11 +4030,12 @@ const SHADOW_MODAL_STYLES = `
   function isCardFilteredOut(card, filters = null, opts = null) {
     if (!card) return true;
     const forScan = opts?.forScan === true;
-    const causeHit = f => (f.isNeg && CONFIG.FILTER_NEG_MODE !== 'dim')
-      || (f.isLowOffers && CONFIG.FILTER_MIN_MODE !== 'dim')
-      || (f.isDealerLoser && CONFIG.DEALER_MODE !== 'dim')
-      || (forScan ? false : (f.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE !== 'dim'))
-      || (f.isVortiefExcluded && CONFIG.VORTIEF_MODE !== 'dim');
+    const isHide = m => m !== 'dim' && m !== 'highlight';
+    const causeHit = f => (f.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
+      || (f.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
+      || (f.isDealerLoser && isHide(CONFIG.DEALER_MODE))
+      || (forScan ? false : (f.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE)))
+      || (f.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE));
     const legacyChecks = () => {
       const tab = card.closest?.('.f_tab');
       if (tab && !tab.classList.contains('selected')) return true;
@@ -5348,20 +5353,28 @@ const SHADOW_MODAL_STYLES = `
       }
       filters.isDealerLoser = false;
     }
-    const hide = (filters.isNeg && CONFIG.FILTER_NEG_MODE !== 'dim')
-      || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE !== 'dim')
-      || (filters.isDealerLoser && CONFIG.DEALER_MODE !== 'dim')
-      || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE !== 'dim')
-      || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE !== 'dim');
+    const isHide = m => m !== 'dim' && m !== 'highlight';
+    const hide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
+      || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
+      || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
+      || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
+      || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
     const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
+    const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
+      || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
+      || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
+      || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
+      || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
     filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
     filters.isDimmed = dim;
+    filters.isHighlighted = highlight;
     card.classList.toggle('tp-filtered', hide);
     card.classList.toggle('tp-dimmed', dim);
+    card.classList.toggle('tp-highlighted', highlight);
     const sortUnit = getCardSortableUnit(card);
     if (sortUnit && sortUnit !== card) sortUnit.classList.toggle('tp-col-filtered', hide);
   }
@@ -8068,8 +8081,10 @@ const SHADOW_MODAL_STYLES = `
         setTextIfChanged(dimCount, dimmedTotal > 0 ? `+${dimmedTotal} gedimmt` : '');
         dimCount.style.display = dimmedTotal > 0 ? 'inline' : 'none';
       }
-      filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0);
-      filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal}) — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
+      const highlightedTotal = counts.highlighted || 0;
+      filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
+      const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
+      filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
     }
     const setRowCount = (name, n, show) => {
       const badge = bar.querySelector(`[data-row-count="${name}"]`);
@@ -9640,6 +9655,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       for (const cd of cardDataList) {
         renderCardEffects(cd, cd.filters, isNeueFeed, activeStores);
         if (cd.filters.isDimmed) counts.dimmed++;
+        if (cd.filters.isHighlighted) counts.highlighted = (counts.highlighted || 0) + 1;
         if (cd.filters.isFiltered) counts.filteredCount++;
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
@@ -9818,7 +9834,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.298';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.299';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

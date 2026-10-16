@@ -284,6 +284,21 @@ describe('isCardFilteredOut forScan', () => {
       assert.equal(isCardFilteredOut(fakeCard(), f, { forScan: true }), false);
     });
   });
+
+  it('highlight mode keeps cards visible and not filtered out', () => {
+    const fVortief = { isNeg: false, isLowOffers: false, isDealerLoser: false, isUnchecked: false, isVortiefExcluded: true };
+    withConfig('VORTIEF_MODE', 'highlight', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), fVortief), false);
+    });
+    const fNeg = { isNeg: true, isLowOffers: false, isDealerLoser: false, isUnchecked: false, isVortiefExcluded: false };
+    withConfig('FILTER_NEG_MODE', 'highlight', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), fNeg), false);
+    });
+    const fDealer = { isNeg: false, isLowOffers: false, isDealerLoser: true, isUnchecked: false, isVortiefExcluded: false };
+    withConfig('DEALER_MODE', 'highlight', () => {
+      assert.equal(isCardFilteredOut(fakeCard(), fDealer, { forScan: true }), false);
+    });
+  });
 });
 
 describe('extractOfferCount languages', () => {
