@@ -9,6 +9,7 @@ Snapshots come from capture-snapshots.py (headed, run once per site change);
 a missing snapshot dir fails with a pointer to it.
 """
 
+import argparse
 import base64
 import functools
 import html
@@ -270,7 +271,7 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
     print(f"{out_path}: {len(callouts)} callouts")
 
 
-def scene_toolbar(page, annotator_page):
+def setup_toolbar(page, pids):
     page.evaluate("window.scrollTo(0, 0)")
     page.locator("#tp-bar-calc-btn").click()
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
@@ -302,10 +303,10 @@ def scene_toolbar(page, annotator_page):
             print(f"skip callout: {sel}")
             continue
         callouts.append((len(callouts) + 1, box, cap))
-    render_annotated(annotator_page, raw_bytes, {"x": 0, "y": 0}, callouts, os.path.join(OUT_DIR, "01-toolbar.webp"))
+    return raw_bytes, {"x": 0, "y": 0}, callouts, "01-toolbar.webp"
 
 
-def scene_feed_cards(page, pids, annotator_page):
+def setup_feed_cards(page, pids):
     if page.locator("#tp-bar-calc-popover.tp-show").count() > 0:
         page.locator("#tp-bar-calc-btn").click()
         page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
@@ -331,10 +332,10 @@ def scene_feed_cards(page, pids, annotator_page):
     for sel, cap in extra:
         if page.locator(sel).count() > 0:
             callouts.append((len(callouts) + 1, css_box(page, sel), cap))
-    render_annotated(annotator_page, raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, os.path.join(OUT_DIR, "02-feed-cards.webp"))
+    return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
 
 
-def scene_search_cards(page, pids, annotator_page):
+def setup_search_cards(page, pids):
     block = page.locator(".Plugin_ProductCollItem").first
     block.scroll_into_view_if_needed()
     # Seed the pids actually inside this block: suite keys cards by their own
@@ -366,10 +367,10 @@ def scene_search_cards(page, pids, annotator_page):
     if page.locator(".Plugin_ProductCollItem :text('nstigste Variante')").count() > 0:
         callouts.append((3, css_box(page, ".Plugin_ProductCollItem :text('nstigste Variante')"),
                          "Günstigste-Variante Label bleibt nativ positioniert"))
-    render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, "03-search-cards.webp"))
+    return raw_bytes, origin, callouts, "03-search-cards.webp"
 
 
-def scene_settings(page, annotator_page):
+def setup_settings(page, pids):
     page.locator("#tp-root >> #tp-settings-fab").click()
     dlg = "#tp-root >> #tp-settings-dialog"
     page.wait_for_selector(dlg, state="visible", timeout=10000)
@@ -381,10 +382,77 @@ def scene_settings(page, annotator_page):
     callouts = [(i + 1, headers.nth(i).bounding_box(), f"Abschnitt: {headers.nth(i).inner_text()}")
                 for i in range(headers.count())]
     assert callouts, "no settings sections found"
-    render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, "04-settings-modal.webp"))
+    return raw_bytes, origin, callouts, "04-settings-modal.webp"
+
+
+SCENES = {
+    "toolbar": {
+        "snapshot": "feed",
+        "roles": ["deep", "markup", "fallback"],
+        "config": {
+            "BESTPREISE_MODE_ACTIVE": True,
+            "BESTPREISE_WEIGHT_RECORD": 0.50,
+            "BESTPREISE_HIDE_UNCHECKED": True,
+        },
+        "viewport": {"width": 720, "height": 900},
+        "setup": setup_toolbar,
+    },
+    "feed": {
+        "snapshot": "feed",
+        "roles": ["deep", "markup", "fallback"],
+        "config": {
+            "BESTPREISE_MODE_ACTIVE": True,
+            "BESTPREISE_WEIGHT_RECORD": 0.50,
+            "BESTPREISE_HIDE_UNCHECKED": True,
+        },
+        "viewport": {"width": 1440, "height": 900},
+        "setup": setup_feed_cards,
+    },
+    "settings": {
+        "snapshot": "feed",
+        "roles": ["deep", "markup", "fallback"],
+        "config": {
+            "BESTPREISE_MODE_ACTIVE": True,
+            "BESTPREISE_WEIGHT_RECORD": 0.50,
+            "BESTPREISE_HIDE_UNCHECKED": True,
+        },
+        "viewport": {"width": 1440, "height": 2700},
+        "setup": setup_settings,
+    },
+    "search": {
+        "snapshot": "search",
+        "roles": [],
+        "config": {},
+        "viewport": {"width": 1440, "height": 900},
+        "setup": setup_search_cards,
+    },
+}
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Render or validate offline annotated screenshots.")
+    parser.add_argument("scenes", nargs="*", default=["all"],
+                        help=f"Scenes to run: {', '.join(SCENES.keys())} or 'all'")
+    parser.add_argument("--check", action="store_true",
+                        help="Validate selectors and assertions without writing images")
+    parser.add_argument("--list", action="store_true",
+                        help="List all available scenes")
+    return parser.parse_args()
 
 
 def main():
+    args = parse_args()
+    if args.list:
+        print("Available scenes:")
+        for name, spec in SCENES.items():
+            print(f"  - {name} (snapshot: {spec['snapshot']})")
+        return 0
+
+    target_names = list(SCENES.keys()) if "all" in args.scenes else args.scenes
+    for name in target_names:
+        if name not in SCENES:
+            raise SystemExit(f"Unknown scene '{name}'. Available: {list(SCENES.keys())} or 'all'")
+
     os.makedirs(OUT_DIR, exist_ok=True)
     server = serve_snapshots()
     base = f"http://127.0.0.1:{server.server_port}"
@@ -392,48 +460,36 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch()
             try:
-                annotator_ctx = browser.new_context(viewport={"width": 1920, "height": 3000}, device_scale_factor=DSF)
-                annotator_page = annotator_ctx.new_page()
+                annotator_page = None
+                annotator_ctx = None
+                if not args.check:
+                    annotator_ctx = browser.new_context(viewport={"width": 1920, "height": 3000}, device_scale_factor=DSF)
+                    annotator_page = annotator_ctx.new_page()
 
-                # Toolbar scene runs narrow (720px, half width) to pin the
-                # wrapped/responsive site layout; cards keep full width.
-                narrow, _ = open_snapshot(
-                    browser, base, "feed", ["deep", "markup", "fallback"],
-                    {"BESTPREISE_MODE_ACTIVE": True, "BESTPREISE_WEIGHT_RECORD": 0.50,
-                     "BESTPREISE_HIDE_UNCHECKED": True},
-                    viewport={"width": 720, "height": 900})
-                try:
-                    scene_toolbar(narrow, annotator_page)
-                finally:
-                    narrow.context.close()
-                feed, feed_pids = open_snapshot(
-                    browser, base, "feed", ["deep", "markup", "fallback"],
-                    {"BESTPREISE_MODE_ACTIVE": True, "BESTPREISE_WEIGHT_RECORD": 0.50,
-                     "BESTPREISE_HIDE_UNCHECKED": True})
-                try:
-                    scene_feed_cards(feed, feed_pids, annotator_page)
-                finally:
-                    feed.context.close()
-                modal, _ = open_snapshot(
-                    browser, base, "feed", ["deep", "markup", "fallback"],
-                    {"BESTPREISE_MODE_ACTIVE": True, "BESTPREISE_WEIGHT_RECORD": 0.50,
-                     "BESTPREISE_HIDE_UNCHECKED": True},
-                    viewport={"width": 1440, "height": 2700})
-                try:
-                    scene_settings(modal, annotator_page)
-                finally:
-                    modal.context.close()
-                search, search_pids = open_snapshot(browser, base, "search", [])
-                try:
-                    scene_search_cards(search, search_pids, annotator_page)
-                finally:
-                    search.context.close()
-                annotator_ctx.close()
+                for name in target_names:
+                    spec = SCENES[name]
+                    page, pids = open_snapshot(
+                        browser, base, spec["snapshot"], spec["roles"],
+                        config=spec["config"], viewport=spec.get("viewport")
+                    )
+                    try:
+                        raw_bytes, origin, callouts, out_file = spec["setup"](page, pids)
+                        if args.check:
+                            print(f"[check] OK '{name}': {len(callouts)} callouts resolved ({out_file})")
+                        else:
+                            render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, out_file))
+                    finally:
+                        page.context.close()
+
+                if annotator_ctx:
+                    annotator_ctx.close()
             finally:
                 browser.close()
     finally:
         server.shutdown()
-    print(f"Gallery written to {OUT_DIR}")
+    if not args.check:
+        print(f"Gallery written to {OUT_DIR}")
+    return 0
 
 
 if __name__ == "__main__":
