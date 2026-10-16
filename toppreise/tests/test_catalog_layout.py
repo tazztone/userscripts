@@ -97,6 +97,10 @@ def test_filter_toggles_preserve_settings(page: Page):
     assert min_btn.inner_text() == 'Verbergen'
     neg_btn.click()
     min_btn.click()
+    assert neg_btn.inner_text() == 'Hervorheben'
+    assert min_btn.inner_text() == 'Hervorheben'
+    neg_btn.click()
+    min_btn.click()
     assert neg_btn.inner_text() == 'Normal'
     assert min_btn.inner_text() == 'Normal'
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_ENABLED === false")
@@ -395,6 +399,10 @@ def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.HIDE_UNCHECKED_MODE") == 'hide'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
     unchecked_btn.click()
+    assert unchecked_btn.inner_text() == 'Hervorheben'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.HIDE_UNCHECKED_MODE") == 'highlight'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
+    unchecked_btn.click()
     assert unchecked_btn.inner_text() == 'Normal'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is False
 
@@ -438,7 +446,13 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     page.wait_for_function("() => getComputedStyle(document.querySelector('#card-cheapest')).display === 'none'")
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
     assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') != 'none'
-    # Verbergen -> Normal: fallback back, badge hidden
+    # Verbergen -> Hervorheben: card visible, highlighted inner border, badge visible
+    vortief_btn.click()
+    assert vortief_btn.inner_text() == 'Hervorheben'
+    page.wait_for_function("() => getComputedStyle(document.querySelector('#card-cheapest')).display !== 'none'")
+    page.wait_for_selector('#card-cheapest.tp-highlighted', state='attached')
+    assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
+    # Hervorheben -> Normal: fallback back, badge hidden
     vortief_btn.click()
     assert vortief_btn.inner_text() == 'Normal'
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_INCLUDE_VORTIEF") is True
@@ -478,6 +492,12 @@ def test_filter_popover_dim_mode(page: Page):
     mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Hervorheben'
+    page.wait_for_selector('#card-negative.tp-highlighted', state='attached')
+    assert 'tp-highlighted' in (page.locator('#card-negative').get_attribute('class') or '')
+    assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
+    assert page.locator('#card-negative').is_visible()
     mode_btn.click()
     assert mode_btn.inner_text() == 'Normal'
     page.wait_for_selector('#card-negative:not(.tp-filtered)', state='visible')
@@ -575,7 +595,14 @@ def test_hide_unchecked_toggle_filters_unverified(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-negative'), null, { forScan: true })") is False
     assert 'prüfen' in (page.locator('#tp-floating-check-main').text_content() or '').lower()
 
-    # Third click (Verbergen -> Normal) brings unchecked cards back
+    # Third click (Verbergen -> Hervorheben)
+    unchecked_btn.click()
+    assert unchecked_btn.inner_text() == 'Hervorheben'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_HIDE_UNCHECKED") is True
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.HIDE_UNCHECKED_MODE") == 'highlight'
+    page.wait_for_selector('#card-negative.tp-highlighted', state='attached')
+
+    # Fourth click (Hervorheben -> Normal) brings unchecked cards back
     unchecked_btn.click()
     assert unchecked_btn.inner_text() == 'Normal'
     page.wait_for_function("() => !document.getElementById('card-negative').classList.contains('tp-unchecked-hidden')")

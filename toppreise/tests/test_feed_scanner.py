@@ -324,6 +324,10 @@ def test_mode_sorts_deals_first_markups_stay_visible(page: Page):
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
     mode_btn.click()
+    assert mode_btn.inner_text() == 'Hervorheben'
+    page.wait_for_selector('#card-negative.tp-highlighted', state='attached')
+    assert page.locator('#card-negative').is_visible()
+    mode_btn.click()
     assert mode_btn.inner_text() == 'Normal'
     page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
     assert page.locator('#card-negative').is_visible()
@@ -553,6 +557,11 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
     mode_btn = page.locator('button[data-mode-key="FILTER_NEG_MODE"]')
     assert mode_btn.count() == 1
     assert mode_btn.inner_text() == 'Verbergen'
+    mode_btn.click()
+    assert mode_btn.inner_text() == 'Hervorheben'
+    page.wait_for_selector('#card-negative.tp-highlighted', state='attached')
+    assert page.locator('#card-negative').is_visible()
+    assert page.locator('#card-iphone').is_visible()
     mode_btn.click()
     assert mode_btn.inner_text() == 'Normal'
     page.wait_for_selector('#card-negative:not(.tp-negative-filtered)', state='visible')
