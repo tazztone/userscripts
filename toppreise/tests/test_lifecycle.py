@@ -59,18 +59,21 @@ def test_price_node_replacement_invalidates_memo(page: Page):
 def test_reused_card_rejects_earlier_request_badge(page: Page):
     """Step 5: a card re-keyed mid-request never paints the earlier pid's badge."""
     series = _shipping_series()
-    def delayed_fulfill(route):
-        time.sleep(0.05)
-        route.fulfill(status=200, content_type='application/json', body=json.dumps(series))
-    page.route('**/plugins/product/pricechart', delayed_fulfill)
+    held_routes = []
+    page.route('**/plugins/product/pricechart', lambda route: held_routes.append(route))
 
-    page.locator(BADGE).click()
+    with page.expect_request('**/plugins/product/pricechart'):
+        page.locator(BADGE).click()
+    page.wait_for_function("() => true")
+    assert len(held_routes) == 1
+
     # Re-key the card to another product while the 797571 request is in flight.
     page.evaluate("""() => {
         const card = document.querySelector('#card-cheapest');
         card.dataset.entityId = '797572';
         card.setAttribute('href', '/preisvergleich/Grafikkarten/Nvidia-RTX-4080-p797572');
     }""")
+    held_routes[0].fulfill(status=200, content_type='application/json', body=json.dumps(series))
     page.wait_for_function("() => window.ToppreiseSuite.memoryCache.size > 0")
     badge_cls = page.locator(BADGE).get_attribute('class') or ''
     assert 'tp-deal-alltime-low' not in badge_cls

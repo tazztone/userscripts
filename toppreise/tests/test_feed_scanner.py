@@ -1797,25 +1797,21 @@ def test_sort_disable_restores_original_parents(page: Page):
 
 def test_detail_route_change_during_fetch_paints_nothing(page: Page):
     """Detail route-change during fetch: pid swap mid-flight → no stale badge."""
-    import time as _time
-    fetch_done = [False]
-    def _handle(route):
-        _time.sleep(0.08)
-        route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
-                      content_type='application/json', body='[[0, 0]]')
-        fetch_done[0] = True
-    page.route('**/plugins/product/pricechart*', _handle)
-    page.evaluate("""() => {
-        document.body.innerHTML = `
-          <div class="Plugin_ProductHeading">
-            <h1>SHARP 55HR7265E <a href="/plugins/product/pricechart?p_pc_pid=840582">Preischart</a></h1>
-          </div>
-          <div class="productPrice"><div class="Plugin_Price">350.90</div></div>
-          <div class="shippingPrice"><div class="Plugin_Price">350.90</div></div>
-        `;
-        window.ToppreiseSuite?.processProductDetailPage?.();
-    }""")
-    page.evaluate("() => new Promise(r => setTimeout(r, 20))")
+    held_routes = []
+    page.route('**/plugins/product/pricechart*', lambda route: held_routes.append(route))
+    with page.expect_request('**/plugins/product/pricechart*'):
+        page.evaluate("""() => {
+            document.body.innerHTML = `
+              <div class="Plugin_ProductHeading">
+                <h1>SHARP 55HR7265E <a href="/plugins/product/pricechart?p_pc_pid=840582">Preischart</a></h1>
+              </div>
+              <div class="productPrice"><div class="Plugin_Price">350.90</div></div>
+              <div class="shippingPrice"><div class="Plugin_Price">350.90</div></div>
+            `;
+            window.ToppreiseSuite?.processProductDetailPage?.();
+        }""")
+    page.wait_for_function("() => true")
+    assert len(held_routes) == 1
     # Route change before the fetch resolves: new pid, new price, no new run.
     page.evaluate("""() => {
         document.body.innerHTML = `
@@ -1826,31 +1822,34 @@ def test_detail_route_change_during_fetch_paints_nothing(page: Page):
           <div class="shippingPrice"><div class="Plugin_Price">999.99</div></div>
         `;
     }""")
-    start = _time.time()
-    while not fetch_done[0] and _time.time() - start < 1:
-        _time.sleep(0.01)
-    assert fetch_done[0] is True
+    held_routes[0].fulfill(status=200, headers={'access-control-allow-origin': '*'},
+                           content_type='application/json', body='[[0, 0]]')
+    page.wait_for_function("() => true")
     assert page.locator('#tp-detail-deal-badge').count() == 0
 
 
 def test_reset_during_pending_fetch_keeps_cache_empty(page: Page):
     """Reset-during-pending: cache clear mid-fetch voids the write (generation guard)."""
     import time as _time
+    import json as _json
     _now = int(_time.time() * 1000)
     _day = 86400 * 1000
-    import json as _json
     _series = [[_now - (9 - i) * _day, 10] for i in range(10)]
-    def _handle(route):
-        _time.sleep(0.3)
-        route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
-                      content_type='application/json', body=_json.dumps([_series, _series]))
-    page.route('**/plugins/product/pricechart*', _handle)
-    page.click('#card-negative .badge-dif')
+    held_routes = []
+    page.route('**/plugins/product/pricechart*', lambda route: held_routes.append(route))
+
+    with page.expect_request('**/plugins/product/pricechart*'):
+        page.click('#card-negative .badge-dif')
+    page.wait_for_function("() => true")
+    assert len(held_routes) == 1
+
     # Real reset path: bumps the cache generation mid-flight.
     open_settings(page)
     page.locator('#tp-root >> #tp-settings-dialog').wait_for(state='visible')
     page.click('#tp-root >> #tp-cache-clear-btn')
     page.click('#tp-root >> #tp-btn-close')
+    held_routes[0].fulfill(status=200, headers={'access-control-allow-origin': '*'},
+                           content_type='application/json', body=_json.dumps([_series, _series]))
     page.wait_for_function("() => document.querySelector('#card-negative .badge-dif:not(.tp-deal-loading)') !== null")
     assert page.evaluate("() => window.ToppreiseSuite.memoryCache.size") == 0
     assert page.evaluate("() => Object.keys(localStorage).filter(k => k.startsWith('tp_hist_v1_')).length") == 0
