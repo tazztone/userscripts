@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.292
+// @version      2.18.293
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6011,7 +6011,10 @@ const SHADOW_MODAL_STYLES = `
               // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
               const productBlob = (png && productDl) ? await productDl : null;
               if (!stillFresh()) { abortStale(); return; }
-              const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
+              const productOpt = {
+                ...(productBlob ? { productImageBlob: productBlob } : null),
+                ...(imageUrl ? { productImageUrl: imageUrl } : null)
+              };
               const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
               const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
               const tryRound = async withThread => {
@@ -7427,13 +7430,13 @@ const SHADOW_MODAL_STYLES = `
     }
     for (const card of cards) {
       if (out.length >= limit) break;
-      const pid = card.dataset?.entityId || card.dataset?.tpProductId;
+      const pid = getCardProductId(card) || card.dataset?.entityId || card.dataset?.tpProductId;
       if (!pid || seen.has(pid)) continue;
       seen.add(pid);
       let entry = null;
       try { entry = getCachedPriceStats(pid); } catch (e) { continue; }
       if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
-      const title = (card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      const title = (extractShareData(card).title || card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
       const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
       out.push({ pid, label: esc(`${title || `pid ${pid}`}${med}`), card });
     }
@@ -7463,8 +7466,9 @@ const SHADOW_MODAL_STYLES = `
       activePresetId = selVal;
       const entry = getCachedPriceStats(pageHit.pid) || {};
       points = Array.isArray(entry.timeSeries) ? entry.timeSeries : [];
-      const live = parsePrice(pageHit.card.querySelector('.productPrice .Plugin_Price')?.textContent || '');
-      cardPrice = live > 0 ? live : (entry.anchorPrice || 0);
+      const canonical = extractCanonicalPrice(pageHit.card);
+      const live = canonical?.price;
+      cardPrice = (typeof live === 'number' && live > 0) ? live : (entry.anchorPrice || 0);
     } else {
       const preset = getPreset(selVal);
       activePresetId = preset.id;
@@ -8261,12 +8265,12 @@ const SHADOW_MODAL_STYLES = `
         });
         document.addEventListener('click', e => {
           if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
-          if (e.target && e.target.closest && e.target.closest('#tp-suite-filter-bar')) return;
           for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn'], ['tp-floating-threshold-popover', 'tp-floating-threshold-btn']]) {
             const pop = document.getElementById(popId);
             if (!pop || !pop.classList.contains('tp-show')) continue;
-            pop.classList.remove('tp-show');
             const btn = document.getElementById(btnId);
+            if (pop.contains(e.target) || btn?.contains(e.target)) continue;
+            pop.classList.remove('tp-show');
             if (btn) btn.setAttribute('aria-expanded', 'false');
           }
         });
@@ -8522,17 +8526,6 @@ const SHADOW_MODAL_STYLES = `
       updateConfig('DEALER_AUTOFETCH', next);
       showToast(next ? '🏬 Händler werden beim Prüfen automatisch geladen' : '🏬 Händler nur noch per Klick laden');
     };
-
-    if (!window._tpFloatingCtaDocBound) {
-      window._tpFloatingCtaDocBound = true;
-      document.addEventListener('click', e => {
-        if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
-        const cta = document.getElementById(FLOATING_CTA_ID);
-        if (cta && !cta.contains(e.target)) {
-          cta.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
-        }
-      });
-    }
 
     document.body.appendChild(el);
     return el;
@@ -9793,7 +9786,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.291';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.292';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

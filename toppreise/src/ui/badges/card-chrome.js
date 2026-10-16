@@ -217,7 +217,10 @@ export function renderShareButton(ctx, cd) {
             // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
             const productBlob = (png && productDl) ? await productDl : null;
             if (!stillFresh()) { abortStale(); return; }
-            const productOpt = productBlob ? { productImageBlob: productBlob } : (imageUrl ? { productImageUrl: imageUrl } : null);
+            const productOpt = {
+              ...(productBlob ? { productImageBlob: productBlob } : null),
+              ...(imageUrl ? { productImageUrl: imageUrl } : null)
+            };
             const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
             const tryRound = async withThread => {

@@ -1,4 +1,6 @@
-import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians } from "../domain/price.js";
+import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians, extractCanonicalPrice } from "../domain/price.js";
+import { getCardProductId } from "../page/cards.js";
+import { extractShareData } from "../features/share-discord.js";
 import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } from "../state/config.js";
 import { getCachedPriceStats } from "../scanner/cache.js";
 import { SELECTORS } from "../page/selectors.js";
@@ -154,13 +156,13 @@ export function getPageProductOptions(limit = 30) {
   }
   for (const card of cards) {
     if (out.length >= limit) break;
-    const pid = card.dataset?.entityId || card.dataset?.tpProductId;
+    const pid = getCardProductId(card) || card.dataset?.entityId || card.dataset?.tpProductId;
     if (!pid || seen.has(pid)) continue;
     seen.add(pid);
     let entry = null;
     try { entry = getCachedPriceStats(pid); } catch (e) { continue; }
     if (!entry || entry.unavailable || !Array.isArray(entry.timeSeries) || !entry.timeSeries.length) continue;
-    const title = (card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+    const title = (extractShareData(card).title || card.querySelector('.title')?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     const med = typeof entry.medianPrice === 'number' && entry.medianPrice > 0 ? ` · Ø ${fmtPreviewMedian(entry.medianPrice)}` : '';
     out.push({ pid, label: esc(`${title || `pid ${pid}`}${med}`), card });
   }
@@ -190,8 +192,9 @@ export function refreshCalcPreview() {
     activePresetId = selVal;
     const entry = getCachedPriceStats(pageHit.pid) || {};
     points = Array.isArray(entry.timeSeries) ? entry.timeSeries : [];
-    const live = parsePrice(pageHit.card.querySelector('.productPrice .Plugin_Price')?.textContent || '');
-    cardPrice = live > 0 ? live : (entry.anchorPrice || 0);
+    const canonical = extractCanonicalPrice(pageHit.card);
+    const live = canonical?.price;
+    cardPrice = (typeof live === 'number' && live > 0) ? live : (entry.anchorPrice || 0);
   } else {
     const preset = getPreset(selVal);
     activePresetId = preset.id;

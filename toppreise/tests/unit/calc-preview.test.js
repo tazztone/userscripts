@@ -41,3 +41,43 @@ describe('calc-preview anchor link', () => {
     assert.equal(co.anchorLink, null);
   });
 });
+
+describe('calc-preview getPageProductOptions', () => {
+  it('extracts canonical PID and share title from catalog cards (F-06)', async () => {
+    const { getPageProductOptions } = await import('../../src/ui/calc-preview.js');
+    const { setCachedPriceStats } = await import('../../src/scanner/cache.js');
+    const prevDoc = globalThis.document;
+
+    const dummyStats = {
+      tiefstpreis: 100,
+      medianPrice: 120,
+      timeSeries: [[Date.now() - 86400000, 120], [Date.now(), 100]]
+    };
+    setCachedPriceStats('p999', dummyStats, false, null, false);
+    setCachedPriceStats('p999', dummyStats, false, null, true);
+
+    const mockCard = {
+      dataset: { entityId: 'p999' },
+      querySelector: sel => {
+        if (sel === 'a[href*="/p/"]') return { getAttribute: () => '/de/p/p999', textContent: 'Canon EOS R5' };
+        if (sel.includes('.product-name') || sel.includes('.title')) return { textContent: 'Canon EOS R5' };
+        return null;
+      },
+      querySelectorAll: () => []
+    };
+
+    globalThis.document = {
+      querySelectorAll: sel => (sel.includes('.Plugin_Product, .mixedBrowsingListProduct') ? [mockCard] : [])
+    };
+
+    try {
+      const opts = getPageProductOptions();
+      assert.equal(opts.length, 1);
+      assert.equal(opts[0].pid, 'p999');
+      assert.ok(opts[0].label.includes('Canon EOS R5'));
+    } finally {
+      if (prevDoc) globalThis.document = prevDoc;
+      else delete globalThis.document;
+    }
+  });
+});
