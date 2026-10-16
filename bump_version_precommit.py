@@ -69,6 +69,10 @@ def process_script(script_relpath):
             with open(app_path, 'w', encoding='utf-8') as f:
                 f.write(new_app_content)
             subprocess.run(['git', 'add', app_path], check=True)
+            build_tool = os.path.join(script_dir, 'tools', 'build.js')
+            if os.path.exists(build_tool):
+                subprocess.run(['node', 'tools/build.js'], cwd=script_dir, check=True)
+                subprocess.run(['git', 'add', script_abspath], check=True)
 
     # Sync package.json if it exists
     pkg_path = os.path.join(script_dir, 'package.json')
