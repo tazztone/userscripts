@@ -218,7 +218,11 @@ def scene_toolbar(page):
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
     # Click handlers keep the popovers exclusive; force both open so one
     # shot covers every callout (calc left via click, filter via class).
-    page.evaluate("document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show')")
+    page.evaluate("""() => {
+        document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
+        const minRow = document.querySelector('[data-filter-row="min"]');
+        if (minRow) minRow.style.display = 'flex';
+    }""")
     page.wait_for_timeout(400)
     raw = os.path.join(OUT_DIR, ".raw-toolbar.png")
     page.screenshot(path=raw)
@@ -256,7 +260,7 @@ def scene_feed_cards(page, pids):
     badge = page.locator(f"{anchors[1]} .badge-dif").first
     badge.hover()
     page.wait_for_timeout(400)
-    assert page.locator(".tp-show-share").count() > 0, "hover share button missing"
+    assert page.locator(".tp-share-btn").count() > 0, "share button missing"
     assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
     clip = union(boxes)
     raw = os.path.join(OUT_DIR, ".raw-feed.png")
@@ -300,7 +304,7 @@ def scene_search_cards(page, pids):
     assert page.locator(unchecked).count() > 0, "no unchecked pill left"
     page.locator(deal).first.hover()
     page.wait_for_timeout(400)
-    assert page.locator(".tp-show-share").count() > 0, "hover share button missing"
+    assert page.locator(".tp-share-btn").count() > 0, "hover share button missing"
     raw = os.path.join(OUT_DIR, ".raw-search.png")
     block.screenshot(path=raw)
     origin = block.bounding_box()
