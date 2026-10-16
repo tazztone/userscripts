@@ -59,6 +59,11 @@ export const STYLES_OVERLAYS = `
     border-color: var(--tp-acc-line) !important;
     color: var(--tp-acc-txt) !important;
   }
+  .tp-filter-mode-btn.tp-state-highlight {
+    background: rgba(14, 165, 233, 0.15) !important;
+    border-color: rgba(14, 165, 233, 0.4) !important;
+    color: #0284c7 !important;
+  }
   .tp-calc-head {
     font-weight: 700 !important;
     font-size: var(--tp-fs-lg) !important;

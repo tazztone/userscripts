@@ -8,12 +8,17 @@ import { showToast } from './toast.js';
 import { setTextIfChanged } from './badges.js';
 import { paintCycleButton } from './mini-toggle.js';
 
-const CYCLE_TITLE = { off: 'Filter: Normal — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Normal' };
+const CYCLE_TITLE = {
+  off: 'Filter: Normal — klicken für Dimmen',
+  dim: 'Filter: Dimmen — klicken für Verbergen',
+  hide: 'Filter: Verbergen — klicken für Hervorheben',
+  highlight: 'Filter: Hervorheben — klicken für Normal'
+};
 const CYCLE_TOASTS = {
-  FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', off: '📝 Negativ-Begriffe: Normal' },
-  FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', off: '🔢 Min-Angebote: Normal' },
-  HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
-  VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', off: 'Fallback-Tiefs eingeschlossen' },
+  FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', highlight: '📝 Negativ-Begriffe: Hervorheben', off: '📝 Negativ-Begriffe: Normal' },
+  FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
+  HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
+  VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
 };
 function paintCycleModeButton(btn, modeKey) {
   const s = cycleStateOf(modeKey);
@@ -31,6 +36,9 @@ function cycleFilter(modeKey) {
   } else if (s === 'dim') {
     updateConfig(modeKey, 'hide');
     showToast(toasts.hide);
+  } else if (s === 'hide') {
+    updateConfig(modeKey, 'highlight');
+    showToast(toasts.highlight);
   } else {
     updateConfig(pair.enable, !pair.on);
     showToast(toasts.off);
@@ -81,7 +89,9 @@ export function wireFilterPopover(bar) {
         cycleFilter(modeKey);
         return;
       }
-      updateConfig(modeKey, CONFIG[modeKey] === 'dim' ? 'hide' : 'dim');
+      const cur = CONFIG[modeKey] || 'dim';
+      const next = cur === 'dim' ? 'hide' : cur === 'hide' ? 'highlight' : 'dim';
+      updateConfig(modeKey, next);
     };
     const resetBtn = bar.querySelector('#tp-filter-reset');
     if (resetBtn) {
@@ -151,16 +161,22 @@ export function syncFilterRow(bar, counts, flags) {
   }
   {
     const dealerActive = counts.dealerActive === true;
-    const mode = CONFIG.DEALER_MODE === 'dim' ? 'dim' : 'hide';
+    const mode = CONFIG.DEALER_MODE || 'dim';
     bar.querySelectorAll('[data-mode-key="DEALER_MODE"]').forEach(btn => {
       if (!dealerActive) {
         btn.classList.toggle('tp-active', false);
+        btn.classList.toggle('tp-state-highlight', false);
         setTextIfChanged(btn, 'Normal');
         btn.title = 'Filter: Normal — kein Händler gewählt';
       } else {
         btn.classList.toggle('tp-active', true);
-        setTextIfChanged(btn, mode === 'dim' ? 'Dimmen' : 'Verbergen');
-        btn.title = mode === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen';
+        btn.classList.toggle('tp-state-highlight', mode === 'highlight');
+        setTextIfChanged(btn, mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen');
+        btn.title = mode === 'dim'
+          ? 'Modus: Dimmen — klicken für Verbergen'
+          : mode === 'hide'
+            ? 'Modus: Verbergen — klicken für Hervorheben'
+            : 'Modus: Hervorheben — klicken für Dimmen';
       }
     });
   }

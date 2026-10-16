@@ -405,10 +405,11 @@ export function syncUiControl(key, val, opts = {}) {
             break;
           }
           case 'DEALER_MODE': {
-            const mode = val === 'dim' ? 'dim' : 'hide';
+            const mode = (val === 'dim' || val === 'highlight') ? val : 'hide';
             bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
               btn.classList.toggle('tp-active', true);
-              btn.textContent = mode === 'dim' ? 'Dimmen' : 'Verbergen';
+              btn.classList.toggle('tp-state-highlight', mode === 'highlight');
+              btn.textContent = mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen';
             });
             break;
           }

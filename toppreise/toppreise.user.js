@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.297
+// @version      2.18.298
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1136,6 +1136,11 @@ const STYLES_OVERLAYS = `
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;
     color: var(--tp-acc-txt) !important;
+  }
+  .tp-filter-mode-btn.tp-state-highlight {
+    background: rgba(14, 165, 233, 0.15) !important;
+    border-color: rgba(14, 165, 233, 0.4) !important;
+    color: #0284c7 !important;
   }
   .tp-calc-head {
     font-weight: 700 !important;
@@ -2746,8 +2751,9 @@ const SHADOW_MODAL_STYLES = `
 
   function paintCycleButton(btn, state) {
     if (!btn) return;
-    btn.textContent = state === 'off' ? 'Normal' : state === 'dim' ? 'Dimmen' : 'Verbergen';
+    btn.textContent = state === 'off' ? 'Normal' : state === 'highlight' ? 'Hervorheben' : state === 'dim' ? 'Dimmen' : 'Verbergen';
     btn.classList.toggle('tp-active', state !== 'off');
+    btn.classList.toggle('tp-state-highlight', state === 'highlight');
   }
 
   // ─── MODULE: src/state/config-store.js ──────────────────────────────────────
@@ -3429,10 +3435,11 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'DEALER_MODE': {
-              const mode = val === 'dim' ? 'dim' : 'hide';
+              const mode = (val === 'dim' || val === 'highlight') ? val : 'hide';
               bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
                 btn.classList.toggle('tp-active', true);
-                btn.textContent = mode === 'dim' ? 'Dimmen' : 'Verbergen';
+                btn.classList.toggle('tp-state-highlight', mode === 'highlight');
+                btn.textContent = mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen';
               });
               break;
             }
@@ -7927,12 +7934,17 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  const CYCLE_TITLE = { off: 'Filter: Normal — klicken für Dimmen', dim: 'Filter: Dimmen — klicken für Verbergen', hide: 'Filter: Verbergen — klicken für Normal' };
+  const CYCLE_TITLE = {
+    off: 'Filter: Normal — klicken für Dimmen',
+    dim: 'Filter: Dimmen — klicken für Verbergen',
+    hide: 'Filter: Verbergen — klicken für Hervorheben',
+    highlight: 'Filter: Hervorheben — klicken für Normal'
+  };
   const CYCLE_TOASTS = {
-    FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', off: '📝 Negativ-Begriffe: Normal' },
-    FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', off: '🔢 Min-Angebote: Normal' },
-    HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
-    VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', off: 'Fallback-Tiefs eingeschlossen' },
+    FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', highlight: '📝 Negativ-Begriffe: Hervorheben', off: '📝 Negativ-Begriffe: Normal' },
+    FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
+    HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
+    VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
   };
   function paintCycleModeButton(btn, modeKey) {
     const s = cycleStateOf(modeKey);
@@ -7950,6 +7962,9 @@ const SHADOW_MODAL_STYLES = `
     } else if (s === 'dim') {
       updateConfig(modeKey, 'hide');
       showToast(toasts.hide);
+    } else if (s === 'hide') {
+      updateConfig(modeKey, 'highlight');
+      showToast(toasts.highlight);
     } else {
       updateConfig(pair.enable, !pair.on);
       showToast(toasts.off);
@@ -8000,7 +8015,9 @@ const SHADOW_MODAL_STYLES = `
           cycleFilter(modeKey);
           return;
         }
-        updateConfig(modeKey, CONFIG[modeKey] === 'dim' ? 'hide' : 'dim');
+        const cur = CONFIG[modeKey] || 'dim';
+        const next = cur === 'dim' ? 'hide' : cur === 'hide' ? 'highlight' : 'dim';
+        updateConfig(modeKey, next);
       };
       const resetBtn = bar.querySelector('#tp-filter-reset');
       if (resetBtn) {
@@ -8070,16 +8087,22 @@ const SHADOW_MODAL_STYLES = `
     }
     {
       const dealerActive = counts.dealerActive === true;
-      const mode = CONFIG.DEALER_MODE === 'dim' ? 'dim' : 'hide';
+      const mode = CONFIG.DEALER_MODE || 'dim';
       bar.querySelectorAll('[data-mode-key="DEALER_MODE"]').forEach(btn => {
         if (!dealerActive) {
           btn.classList.toggle('tp-active', false);
+          btn.classList.toggle('tp-state-highlight', false);
           setTextIfChanged(btn, 'Normal');
           btn.title = 'Filter: Normal — kein Händler gewählt';
         } else {
           btn.classList.toggle('tp-active', true);
-          setTextIfChanged(btn, mode === 'dim' ? 'Dimmen' : 'Verbergen');
-          btn.title = mode === 'dim' ? 'Modus: Dimmen — klicken für Verbergen' : 'Modus: Verbergen — klicken für Dimmen';
+          btn.classList.toggle('tp-state-highlight', mode === 'highlight');
+          setTextIfChanged(btn, mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen');
+          btn.title = mode === 'dim'
+            ? 'Modus: Dimmen — klicken für Verbergen'
+            : mode === 'hide'
+              ? 'Modus: Verbergen — klicken für Hervorheben'
+              : 'Modus: Hervorheben — klicken für Dimmen';
         }
       });
     }
@@ -9795,7 +9818,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.297';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.298';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
