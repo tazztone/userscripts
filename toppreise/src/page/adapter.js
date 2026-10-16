@@ -103,6 +103,14 @@ export function triggerProcessListings() {
   } else if (typeof processListings === 'function') {
     processListings();
   }
+  if (isProductDetailPage()) {
+    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processProductDetailPage === 'function') {
+      window.ToppreiseSuite.processProductDetailPage();
+    }
+    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processPriceAlarmModal === 'function') {
+      window.ToppreiseSuite.processPriceAlarmModal();
+    }
+  }
 }
 
 // Trailing 50 ms debounce (not rAF: rAF stalls in background tabs). Parallel

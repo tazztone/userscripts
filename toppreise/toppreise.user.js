@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.308
+// @version      2.18.309
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3646,6 +3646,14 @@ const SHADOW_MODAL_STYLES = `
     } else if (typeof processListings === 'function') {
       processListings();
     }
+    if (isProductDetailPage()) {
+      if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processProductDetailPage === 'function') {
+        window.ToppreiseSuite.processProductDetailPage();
+      }
+      if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processPriceAlarmModal === 'function') {
+        window.ToppreiseSuite.processPriceAlarmModal();
+      }
+    }
   }
 
   // Trailing 50 ms debounce (not rAF: rAF stalls in background tabs). Parallel
@@ -5061,7 +5069,7 @@ const SHADOW_MODAL_STYLES = `
           count: extractOfferCount(c),
           initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
         }));
-        scored.sort((a, b) => CONFIG.SORT_BY_OFFERS === 'desc' ? (b.count - a.count) : (a.count - b.count));
+        scored.sort((a, b) => (CONFIG.SORT_BY_OFFERS === 'desc' ? (b.count - a.count) : (a.count - b.count)) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       }
 
@@ -5171,10 +5179,18 @@ const SHADOW_MODAL_STYLES = `
         const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
         if (!isAlreadySorted) {
           children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-          children.forEach((ch, idx) => {
-            if (row.children[idx] !== ch) {
-              row.insertBefore(ch, row.children[idx] || null);
+          children.forEach(ch => {
+            const saved = origPlacement.get(ch);
+            if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {
+              row.insertBefore(ch, saved.placeholder);
             }
+          });
+          let prev = null;
+          children.forEach(ch => {
+            if (prev && prev.nextElementSibling !== ch) {
+              prev.after(ch);
+            }
+            prev = ch;
           });
         }
         // Unhide only script-hidden rows: other inline display:none belongs to the host.
@@ -9640,7 +9656,7 @@ const SHADOW_MODAL_STYLES = `
     let badge = document.getElementById('tp-detail-deal-badge');
     const useShipping = priceBasis ? priceBasis === 'shipping' : null;
     let stats = getCachedPriceStats(pid, false, null, useShipping);
-    if (!stats || !stats.tiefstpreis) {
+    if (!stats) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
       // Stale: a newer run started, the route changed, or the heading died.
       if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
@@ -9782,7 +9798,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,#tp-detail-deal-badge,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -9826,6 +9842,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
       if (hit) {
+        if ((m.type === 'attributes' || m.type === 'characterData') && isOwnedNode(targetEl)) continue;
         // All-changes-owned skips only pure self-paint: a mixed record (own
         // badge plus a genuine host replacement) still invalidates, or the
         // host update is lost with the badge.
@@ -9931,7 +9948,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.308';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.309';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

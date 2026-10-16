@@ -131,7 +131,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         count: extractOfferCount(c),
         initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
       }));
-      scored.sort((a, b) => CONFIG.SORT_BY_OFFERS === 'desc' ? (b.count - a.count) : (a.count - b.count));
+      scored.sort((a, b) => (CONFIG.SORT_BY_OFFERS === 'desc' ? (b.count - a.count) : (a.count - b.count)) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     }
 
@@ -241,10 +241,18 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
       if (!isAlreadySorted) {
         children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-        children.forEach((ch, idx) => {
-          if (row.children[idx] !== ch) {
-            row.insertBefore(ch, row.children[idx] || null);
+        children.forEach(ch => {
+          const saved = origPlacement.get(ch);
+          if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {
+            row.insertBefore(ch, saved.placeholder);
           }
+        });
+        let prev = null;
+        children.forEach(ch => {
+          if (prev && prev.nextElementSibling !== ch) {
+            prev.after(ch);
+          }
+          prev = ch;
         });
       }
       // Unhide only script-hidden rows: other inline display:none belongs to the host.

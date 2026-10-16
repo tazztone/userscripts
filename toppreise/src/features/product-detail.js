@@ -36,7 +36,7 @@ export async function processProductDetailPage() {
   let badge = document.getElementById('tp-detail-deal-badge');
   const useShipping = priceBasis ? priceBasis === 'shipping' : null;
   let stats = getCachedPriceStats(pid, false, null, useShipping);
-  if (!stats || !stats.tiefstpreis) {
+  if (!stats) {
     await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
     // Stale: a newer run started, the route changed, or the heading died.
     if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
