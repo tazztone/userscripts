@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.302
+// @version      2.18.303
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -141,8 +141,8 @@ const STYLES_CARDS = `
     filter: grayscale(40%) !important;
   }
   .tp-highlighted {
-    outline: 2px dashed #0284c7 !important;
-    outline-offset: -2px !important;
+    outline: 2px dotted var(--tp-heat-color, #0284c7) !important;
+    outline-offset: -4px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
@@ -3891,7 +3891,8 @@ const SHADOW_MODAL_STYLES = `
     if (!c) return null;
     const { acc, safeInt } = c;
     return {
-      glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
+      glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`,
+      color: `rgb(${acc.join(',')})`
     };
   }
 
@@ -5268,6 +5269,7 @@ const SHADOW_MODAL_STYLES = `
         const heat = getInsetHeatStyle(heatInfo.pct, heatIntensity);
         card.classList.toggle('tp-heat-blend', true);
         card.style.setProperty('--tp-heat-glow', heat.glow);
+        card.style.setProperty('--tp-heat-color', heat.color);
         card.style.setProperty('box-shadow', heat.glow, 'important');
       }
       // Badge follows the card heat: same ramp, solid swatch. Synced on every
@@ -5299,6 +5301,7 @@ const SHADOW_MODAL_STYLES = `
       card.style.removeProperty('box-shadow');
       card.classList.remove('tp-heat-blend');
       card.style.removeProperty('--tp-heat-glow');
+      card.style.removeProperty('--tp-heat-color');
       // Undo the badge heat coupling from the apply path above
       const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
       if (heatBadgeEl) {
@@ -9844,7 +9847,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.302';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.303';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

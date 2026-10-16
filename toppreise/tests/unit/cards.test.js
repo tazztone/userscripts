@@ -134,6 +134,7 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       const styles = getInsetHeatStyle(50);
       assert.ok(!('border' in styles));
       assert.ok(styles.glow.startsWith('inset'));
+      assert.ok(styles.color.startsWith('rgb('));
     });
   });
 

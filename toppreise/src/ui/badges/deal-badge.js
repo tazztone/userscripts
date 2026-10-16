@@ -103,6 +103,7 @@ export function renderHeat(ctx) {
       const heat = getInsetHeatStyle(heatInfo.pct, heatIntensity);
       card.classList.toggle('tp-heat-blend', true);
       card.style.setProperty('--tp-heat-glow', heat.glow);
+      card.style.setProperty('--tp-heat-color', heat.color);
       card.style.setProperty('box-shadow', heat.glow, 'important');
     }
     // Badge follows the card heat: same ramp, solid swatch. Synced on every
@@ -134,6 +135,7 @@ export function renderHeat(ctx) {
     card.style.removeProperty('box-shadow');
     card.classList.remove('tp-heat-blend');
     card.style.removeProperty('--tp-heat-glow');
+    card.style.removeProperty('--tp-heat-color');
     // Undo the badge heat coupling from the apply path above
     const heatBadgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
     if (heatBadgeEl) {

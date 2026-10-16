@@ -238,7 +238,8 @@ export function getInsetHeatStyle(dropPct, intensity = 1.0) {
   if (!c) return null;
   const { acc, safeInt } = c;
   return {
-    glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`
+    glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`,
+    color: `rgb(${acc.join(',')})`
   };
 }
 

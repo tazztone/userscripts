@@ -79,8 +79,8 @@ export const STYLES_CARDS = `
     filter: grayscale(40%) !important;
   }
   .tp-highlighted {
-    outline: 2px dashed #0284c7 !important;
-    outline-offset: -2px !important;
+    outline: 2px dotted var(--tp-heat-color, #0284c7) !important;
+    outline-offset: -4px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
