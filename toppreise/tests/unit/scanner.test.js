@@ -66,7 +66,7 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
   it('forceFresh keeps the good entry when the refresh fails', async () => {
     setCachedPriceStats(PID, { tiefstpreis: 50, medianPrice: 100, hoechstpreis: 120 });
     globalThis.fetch = async () => { fetchCalls++; throw new Error('offline'); };
-    const stats = await fetchSingleProductPriceStats(PID, 1, true);
+    const stats = await fetchSingleProductPriceStats(PID, 0, true);
     assert.equal(stats, null);
     assert.ok(fetchCalls > 0);
     const kept = getCachedPriceStats(PID);
