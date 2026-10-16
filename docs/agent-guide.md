@@ -25,7 +25,9 @@ venv/bin/pytest toppreise/tests/test_ui_modal.py
 venv/bin/pytest  # all (auto-parallelized across 4 workers)
 venv/bin/pytest toppreise/tests/test_catalog_layout.py::test_name  # one case
 node --test huggingface/tests/test_logic.js  # HF gate
-bash toppreise/tools/refresh-screenshot.sh
+bash toppreise/tools/refresh-screenshot.sh          # full gallery into docs/shots/*.webp + index.html
+bash toppreise/tools/refresh-screenshot.sh toolbar  # single scene (<4s)
+bash toppreise/tools/refresh-screenshot.sh --check  # dry-run selector gate (no image writes)
 ```
 
 Local `.playwright-browsers` is auto-discovered by `conftest.py`. Fixture: `page.evaluate(bundle)` on `file://mock_*.html` (see `toppreise/tests/conftest.py`); mocks hand-rolled (`page.route`, stub objects). Suites stay placeholder-free; exploration goes in `scratch/`. Parallel `-n 4` and `--import-mode=importlib` configured in `pytest.ini`. Fail-fast defaults in `conftest.py`: 2.5s locator/page timeout (override via `timeout=...` if needed), instant fail on unhandled `pageerror`, expect timeout at 2s, CSS transitions disabled.

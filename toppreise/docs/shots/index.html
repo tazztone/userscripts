@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toppreise.ch Suite — Screenshot Gallery</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #090d16;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    max-width: 1400px;
+    margin: 0 auto 32px;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  h1 { margin: 0; font-size: 24px; color: #f8fafc; font-weight: 700; }
+  .timestamp { color: #64748b; font-size: 13px; }
+  .gallery-grid {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+  .gallery-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+  .card-header {
+    background: #131d35;
+    padding: 14px 20px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .card-header h2 {
+    margin: 0;
+    font-size: 17px;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tag {
+    font-size: 12px;
+    font-family: monospace;
+    background: #1e293b;
+    color: #38bdf8;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+  .meta { font-size: 13px; color: #94a3b8; }
+  .card-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+    gap: 20px;
+    padding: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .card-body { grid-template-columns: 1fr; }
+  }
+  .image-wrap {
+    background: #0b0f19;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #1e293b;
+  }
+  .image-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .legend-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .legend-wrap th {
+    text-align: left;
+    padding: 8px 12px;
+    background: #131d35;
+    color: #94a3b8;
+    border-bottom: 1px solid #1e293b;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .legend-wrap td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #1e293b;
+    vertical-align: top;
+  }
+  .legend-wrap td.num {
+    width: 32px;
+    color: #ef4444;
+    font-weight: 700;
+  }
+  .legend-wrap td.cap {
+    color: #e2e8f0;
+  }
+  .legend-wrap tr:last-child td {
+    border-bottom: none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Toppreise.ch Suite — Screenshot Gallery</h1>
+  <div class="timestamp">Generiert: 2026-10-16 22:11:11 UTC</div>
+</header>
+<main class="gallery-grid">
+  
+        <section class="gallery-card">
+          <div class="card-header">
+            <h2>toolbar <span class="tag">01-toolbar.webp</span></h2>
+            <span class="meta">Snapshot: <strong>feed</strong> · 12 Callouts</span>
+          </div>
+          <div class="card-body">
+            <div class="image-wrap">
+              <a href="01-toolbar.webp" target="_blank" title="Klick für Vollbild">
+                <img src="01-toolbar.webp" alt="toolbar" loading="lazy">
+              </a>
+            </div>
+            <div class="legend-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Element / Beschreibung</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class='num'>1</td><td class='cap'>Filter-Button (Verbergen oder Dimmen je Ursache)</td></tr><tr><td class='num'>2</td><td class='cap'>Negativ-Filter (Text, Wortgrenzen)</td></tr><tr><td class='num'>3</td><td class='cap'>Min-Angebote stepper</td></tr><tr><td class='num'>4</td><td class='cap'>Nur geprüfte (ohne verifizierten Tiefstpreis)</td></tr><tr><td class='num'>5</td><td class='cap'>Fallback-Tiefs ein-/ausschließen</td></tr><tr><td class='num'>6</td><td class='cap'>Heatmap toggle (Farbe = Badge-%)</td></tr><tr><td class='num'>7</td><td class='cap'>Neue-Tiefstpreise-Modus (Feed)</td></tr><tr><td class='num'>8</td><td class='cap'>Berechnungsparameter-Popover (filtert nichts)</td></tr><tr><td class='num'>9</td><td class='cap'>Gewichtung Median/Rekord (Slider)</td></tr><tr><td class='num'>10</td><td class='cap'>Ø-Zeitraum Slider (Median-Horizont)</td></tr><tr><td class='num'>11</td><td class='cap'>Mindestpunkte Slider (dünne Historie → Fallback)</td></tr><tr><td class='num'>12</td><td class='cap'>Tiefstpreise prüfen CTA (Batch-Check, floating)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+        <section class="gallery-card">
+          <div class="card-header">
+            <h2>feed <span class="tag">02-feed-cards.webp</span></h2>
+            <span class="meta">Snapshot: <strong>feed</strong> · 6 Callouts</span>
+          </div>
+          <div class="card-body">
+            <div class="image-wrap">
+              <a href="02-feed-cards.webp" target="_blank" title="Klick für Vollbild">
+                <img src="02-feed-cards.webp" alt="feed" loading="lazy">
+              </a>
+            </div>
+            <div class="legend-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Element / Beschreibung</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class='num'>1</td><td class='cap'>Heat-Ribbon -XX% = Gewichtete Differenz (tiefrot = Tiefstpreis)</td></tr><tr><td class='num'>2</td><td class='cap'>+XX% Aufschlag-Morph (Schein-Rabatt durchgestrichen)</td></tr><tr><td class='num'>3</td><td class='cap'>Fallback-Tief: Vortief-Abstand, Glow von außen</td></tr><tr><td class='num'>4</td><td class='cap'>Share-Button (Hover) + nativer title-Tooltip (nicht abbildbar)</td></tr><tr><td class='num'>5</td><td class='cap'>Subline: CHF + % verankern beide Beine</td></tr><tr><td class='num'>6</td><td class='cap'>Sparkline (Klick = Preisverlauf)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+        <section class="gallery-card">
+          <div class="card-header">
+            <h2>settings <span class="tag">04-settings-modal.webp</span></h2>
+            <span class="meta">Snapshot: <strong>feed</strong> · 7 Callouts</span>
+          </div>
+          <div class="card-body">
+            <div class="image-wrap">
+              <a href="04-settings-modal.webp" target="_blank" title="Klick für Vollbild">
+                <img src="04-settings-modal.webp" alt="settings" loading="lazy">
+              </a>
+            </div>
+            <div class="legend-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Element / Beschreibung</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class='num'>1</td><td class='cap'>Abschnitt: 🖥️ ANSICHT</td></tr><tr><td class='num'>2</td><td class='cap'>Abschnitt: 🌐 REVIEW-SUCHE</td></tr><tr><td class='num'>3</td><td class='cap'>Abschnitt: 💎 SORTIEREN</td></tr><tr><td class='num'>4</td><td class='cap'>Abschnitt: 🧹 FILTERN</td></tr><tr><td class='num'>5</td><td class='cap'>Abschnitt: 🔔 PREISALARM</td></tr><tr><td class='num'>6</td><td class='cap'>Abschnitt: 💬 DISCORD SHARE</td></tr><tr><td class='num'>7</td><td class='cap'>Abschnitt: 💾 DATEN &amp; CACHE</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+        <section class="gallery-card">
+          <div class="card-header">
+            <h2>search <span class="tag">03-search-cards.webp</span></h2>
+            <span class="meta">Snapshot: <strong>search</strong> · 3 Callouts</span>
+          </div>
+          <div class="card-body">
+            <div class="image-wrap">
+              <a href="03-search-cards.webp" target="_blank" title="Klick für Vollbild">
+                <img src="03-search-cards.webp" alt="search" loading="lazy">
+              </a>
+            </div>
+            <div class="legend-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Element / Beschreibung</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class='num'>1</td><td class='cap'>Inline-Pill: 1-zeilig über dem Preisblock</td></tr><tr><td class='num'>2</td><td class='cap'>Prüfen-Pill: ungeprüft, gestreift, nie Heat-Farbe</td></tr><tr><td class='num'>3</td><td class='cap'>Günstigste-Variante Label bleibt nativ positioniert</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+</main>
+</body>
+</html>

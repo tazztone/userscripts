@@ -11,6 +11,7 @@ a missing snapshot dir fails with a pointer to it.
 
 import argparse
 import base64
+from datetime import datetime, timezone
 import functools
 import html
 import io
@@ -440,6 +441,181 @@ def parse_args():
     return parser.parse_args()
 
 
+def generate_gallery_html(out_dir, items):
+    """Generate docs/shots/index.html to review rendered scenes side-by-side with callouts."""
+    cards_html = []
+    for it in items:
+        cap_rows = "".join(
+            f"<tr><td class='num'>{num}</td><td class='cap'>{html.escape(cap)}</td></tr>"
+            for num, _box, cap in it["callouts"]
+        )
+        cards_html.append(f"""
+        <section class="gallery-card">
+          <div class="card-header">
+            <h2>{html.escape(it['name'])} <span class="tag">{html.escape(it['file'])}</span></h2>
+            <span class="meta">Snapshot: <strong>{html.escape(it['snapshot'])}</strong> · {len(it['callouts'])} Callouts</span>
+          </div>
+          <div class="card-body">
+            <div class="image-wrap">
+              <a href="{it['file']}" target="_blank" title="Klick für Vollbild">
+                <img src="{it['file']}" alt="{html.escape(it['name'])}" loading="lazy">
+              </a>
+            </div>
+            <div class="legend-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Element / Beschreibung</th></tr>
+                </thead>
+                <tbody>
+                  {cap_rows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        """)
+
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    doc = f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toppreise.ch Suite — Screenshot Gallery</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0;
+    padding: 24px;
+    background: #090d16;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }}
+  header {{
+    max-width: 1400px;
+    margin: 0 auto 32px;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+  }}
+  h1 {{ margin: 0; font-size: 24px; color: #f8fafc; font-weight: 700; }}
+  .timestamp {{ color: #64748b; font-size: 13px; }}
+  .gallery-grid {{
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }}
+  .gallery-card {{
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }}
+  .card-header {{
+    background: #131d35;
+    padding: 14px 20px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }}
+  .card-header h2 {{
+    margin: 0;
+    font-size: 17px;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }}
+  .tag {{
+    font-size: 12px;
+    font-family: monospace;
+    background: #1e293b;
+    color: #38bdf8;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }}
+  .meta {{ font-size: 13px; color: #94a3b8; }}
+  .card-body {{
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+    gap: 20px;
+    padding: 20px;
+    align-items: start;
+  }}
+  @media (max-width: 900px) {{
+    .card-body {{ grid-template-columns: 1fr; }}
+  }}
+  .image-wrap {{
+    background: #0b0f19;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #1e293b;
+  }}
+  .image-wrap img {{
+    display: block;
+    width: 100%;
+    height: auto;
+  }}
+  .legend-wrap table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }}
+  .legend-wrap th {{
+    text-align: left;
+    padding: 8px 12px;
+    background: #131d35;
+    color: #94a3b8;
+    border-bottom: 1px solid #1e293b;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }}
+  .legend-wrap td {{
+    padding: 8px 12px;
+    border-bottom: 1px solid #1e293b;
+    vertical-align: top;
+  }}
+  .legend-wrap td.num {{
+    width: 32px;
+    color: #ef4444;
+    font-weight: 700;
+  }}
+  .legend-wrap td.cap {{
+    color: #e2e8f0;
+  }}
+  .legend-wrap tr:last-child td {{
+    border-bottom: none;
+  }}
+</style>
+</head>
+<body>
+<header>
+  <h1>Toppreise.ch Suite — Screenshot Gallery</h1>
+  <div class="timestamp">Generiert: {now_iso}</div>
+</header>
+<main class="gallery-grid">
+  {''.join(cards_html)}
+</main>
+</body>
+</html>"""
+    path = os.path.join(out_dir, "index.html")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(doc)
+    print(f"Gallery viewer written to {path}")
+
+
 def main():
     args = parse_args()
     if args.list:
@@ -456,6 +632,7 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     server = serve_snapshots()
     base = f"http://127.0.0.1:{server.server_port}"
+    executed_items = []
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -478,6 +655,12 @@ def main():
                             print(f"[check] OK '{name}': {len(callouts)} callouts resolved ({out_file})")
                         else:
                             render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, out_file))
+                            executed_items.append({
+                                "name": name,
+                                "file": out_file,
+                                "callouts": callouts,
+                                "snapshot": spec["snapshot"],
+                            })
                     finally:
                         page.context.close()
 
@@ -487,7 +670,10 @@ def main():
                 browser.close()
     finally:
         server.shutdown()
+
     if not args.check:
+        if executed_items:
+            generate_gallery_html(OUT_DIR, executed_items)
         print(f"Gallery written to {OUT_DIR}")
     return 0
 
