@@ -178,8 +178,8 @@ def test_config_import_applies_settings(page: Page):
         },
     })
 
-    # Give FileReader a tick
-    page.wait_for_timeout(200)
+    # Wait for FileReader to process import
+    page.wait_for_function("() => window.ToppreiseSuite?.CONFIG?.MARGIN_PERCENT === 7.5")
 
     # Check updated CONFIG and UI fields
     config_state = page.evaluate("""() => ({

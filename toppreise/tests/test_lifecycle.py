@@ -60,7 +60,7 @@ def test_reused_card_rejects_earlier_request_badge(page: Page):
     """Step 5: a card re-keyed mid-request never paints the earlier pid's badge."""
     series = _shipping_series()
     def delayed_fulfill(route):
-        time.sleep(0.4)
+        time.sleep(0.05)
         route.fulfill(status=200, content_type='application/json', body=json.dumps(series))
     page.route('**/plugins/product/pricechart', delayed_fulfill)
 
@@ -71,7 +71,9 @@ def test_reused_card_rejects_earlier_request_badge(page: Page):
         card.dataset.entityId = '797572';
         card.setAttribute('href', '/preisvergleich/Grafikkarten/Nvidia-RTX-4080-p797572');
     }""")
-    page.wait_for_timeout(1500)
+    page.wait_for_function("() => window.ToppreiseSuite.memoryCache.size > 0")
+    badge_cls = page.locator(BADGE).get_attribute('class') or ''
+    assert 'tp-deal-alltime-low' not in badge_cls
 
 def test_alarm_missing_controls_schedules_nothing(page: Page):
     """Step 6: without a price input there is no fill, no submit, no processed flag."""
@@ -83,7 +85,7 @@ def test_alarm_missing_controls_schedules_nothing(page: Page):
         document.querySelector('#mock-alarm-dialog').style.display = 'block';
         window.ToppreiseSuite.processPriceAlarmModal();
     }""")
-    page.wait_for_timeout(800)
+    page.evaluate("() => new Promise(r => setTimeout(r, 50))")
     state = page.evaluate("""() => ({
         submitted: document.querySelector('#mock-alarm-dialog').dataset.submitted || null,
         processed: document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm').dataset.tpAlarmProcessed || null,

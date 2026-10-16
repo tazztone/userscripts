@@ -147,7 +147,6 @@ def test_filter_bar_mounting_safety_and_interaction(page: Page):
     _open_filter_popover(page)
     neg_input = page.locator('#tp-inline-negative-input')
     neg_input.fill('Adapter')
-    page.wait_for_timeout(250)
     assert neg_input.input_value() == 'Adapter'
 
 
@@ -667,7 +666,7 @@ def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
         subline.insertBefore(hist, subline.firstChild);
         priceInfo.appendChild(subline);
     }''')
-    page.wait_for_timeout(100)
+    page.locator('#Plugin_Product_492326 .tp-card-subline-row').wait_for(state='attached')
     markup_span = page.locator('#Plugin_Product_492326 .badge-dif span').bounding_box()
     markup_p = page.locator('#Plugin_Product_492326 .badge-dif p').bounding_box()
     assert markup_span is not None and markup_p is not None
@@ -722,11 +721,10 @@ def test_grid_card_title_and_best_price_badge_clearance(page: Page):
             firstCard.appendChild(badge);
         }
     }''')
-    page.wait_for_timeout(100)
 
     # Verify best price badge position
     badge = card.locator('.tp-best-price-badge')
-    assert badge.is_visible()
+    badge.wait_for(state='visible')
     badge_right = page.evaluate("el => window.getComputedStyle(el).right", badge.element_handle())
     assert badge_right == '68px'
 
@@ -1714,7 +1712,7 @@ def test_merged_blend_subline_rendering(page: Page):
     assert subline.evaluate('el => getComputedStyle(el).textOverflow === "ellipsis"')
     # Normal-width desktop card (user screenshot ~560px): full text fits
     card.evaluate('el => { el.style.flex = "0 0 auto"; el.style.maxWidth = "none"; el.style.width = "600px"; }')
-    page.wait_for_timeout(100)
+    page.wait_for_function("el => el.scrollWidth <= el.clientWidth + 1", subline.element_handle())
     assert subline.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
@@ -2671,7 +2669,6 @@ def test_calc_preview_live_in_calc_popover(page: Page):
 
 def test_toolbar_single_row_sticky(page: Page):
     page.set_viewport_size({'width': 1280, 'height': 800})
-    page.wait_for_timeout(200)
     assert page.evaluate("() => getComputedStyle(document.getElementById('tp-suite-filter-bar')).position") == 'sticky'
     tops = page.evaluate("() => [...document.querySelectorAll('#tp-suite-filter-bar .tp-group')].map(g => g.getBoundingClientRect().top)")
     assert max(tops) - min(tops) < 2
@@ -2680,7 +2677,7 @@ def test_toolbar_single_row_sticky(page: Page):
         window.scrollTo(0, document.body.scrollHeight);
         return window.scrollY;
     }""")
-    page.wait_for_timeout(200)
+    page.wait_for_function("() => window.scrollY > 0")
     assert scrolled > 0
     assert page.locator('#tp-suite-filter-bar').bounding_box()['y'] <= 10
 

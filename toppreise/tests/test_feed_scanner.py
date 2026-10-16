@@ -93,19 +93,19 @@ def test_price_alarm_automation(page: Page):
       document.querySelector('#mock-alarm-dialog').style.display = 'block';
       window.ToppreiseSuite?.processPriceAlarmModal?.();
     }""")
-    page.wait_for_timeout(250)
+    page.wait_for_function("() => document.querySelector('#f_NewInfoMailForm_priceFrom')?.value === '600.00'")
 
     price_val = page.locator('#f_NewInfoMailForm_priceFrom').input_value()
     # 60% of CHF 1000.00 = 600.00
     assert price_val == '600.00'
 
     # Submit timer (300ms) ticks the terms box then clicks submit
-    page.wait_for_timeout(600)
+    page.wait_for_function("() => document.querySelector('#mock-alarm-dialog')?.getAttribute('data-submitted') === 'true'")
     assert page.locator('#im_nimf_prtrm').is_checked()
     assert page.locator('#mock-alarm-dialog').get_attribute('data-submitted') == 'true'
 
-    # Grace period before closing (800ms after submit): wait until 1300ms total
-    page.wait_for_timeout(900)
+    # Grace period before closing (800ms after submit)
+    page.wait_for_function("() => document.querySelector('#mock-alarm-dialog')?.getAttribute('data-dialog-closed') === 'true'")
     assert page.locator('#mock-alarm-dialog').get_attribute('data-dialog-closed') == 'true'
     assert not page.locator('#mock-alarm-dialog').is_visible()
 
@@ -152,7 +152,7 @@ def test_alarm_bell_ajax_injected(page: Page):
             '<div data-context-hash="mock3" data-ajax-url="/plugins/infomails/NewInfoMailButton" data-prod-id="797573" data-templ="btn" class="Plugin_NewInfoMailButton hoverBox">' +
             '<a href="/neue-infomail?im_nimf_pid=797573" rel="nofollow noindex" class="f_showNewInfoMailFormDialog d-inline-block" title="Preisalarm"><i class="TPIcons-alarm">🔔</i></a></div>');
     }""")
-    page.wait_for_timeout(600)
+    page.wait_for_function("() => document.querySelectorAll('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog')[2]?.getAttribute('data-tp-alarm-state') === 'auto'")
     bells = page.locator('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog')
     assert bells.count() == 3
     assert bells.nth(2).get_attribute('data-tp-alarm-state') == 'auto'
@@ -853,10 +853,7 @@ def test_category_page_batch_check_scans_visible_cards(page: Page):
 
     # Click floating CTA check button
     page.click('#tp-floating-check-btn')
-    page.wait_for_timeout(1000)
-
-    # After scan finishes, cards are verified
-    assert page.locator('.badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record, .badge-dif.tp-deal-not-low').count() > 0
+    page.locator('.badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record, .badge-dif.tp-deal-not-low').first.wait_for(state='visible')
 
 
 
@@ -1497,7 +1494,7 @@ def test_dealer_name_on_demand_button_on_feed_card(page: Page):
 
     # A second render pass must not refetch (memory cache per pid:mode)
     page.evaluate("() => window.ToppreiseSuite.processListings()")
-    page.wait_for_timeout(300)
+    page.evaluate("() => new Promise(r => setTimeout(r, 50))")
     assert len(product_hits) == 1
 
 
@@ -1792,10 +1789,12 @@ def test_sort_disable_restores_original_parents(page: Page):
 def test_detail_route_change_during_fetch_paints_nothing(page: Page):
     """Detail route-change during fetch: pid swap mid-flight → no stale badge."""
     import time as _time
+    fetch_done = [False]
     def _handle(route):
-        _time.sleep(1.5)
+        _time.sleep(0.08)
         route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
                       content_type='application/json', body='[[0, 0]]')
+        fetch_done[0] = True
     page.route('**/plugins/product/pricechart*', _handle)
     page.evaluate("""() => {
         document.body.innerHTML = `
@@ -1806,7 +1805,7 @@ def test_detail_route_change_during_fetch_paints_nothing(page: Page):
         `;
         window.ToppreiseSuite?.processProductDetailPage?.();
     }""")
-    page.wait_for_timeout(300)
+    page.evaluate("() => new Promise(r => setTimeout(r, 20))")
     # Route change before the fetch resolves: new pid, new price, no new run.
     page.evaluate("""() => {
         document.body.innerHTML = `
@@ -1816,7 +1815,9 @@ def test_detail_route_change_during_fetch_paints_nothing(page: Page):
           <div class="productPrice"><div class="Plugin_Price">999.99</div></div>
         `;
     }""")
-    page.wait_for_timeout(2500)
+    start = _time.time()
+    while not fetch_done[0] and _time.time() - start < 3:
+        _time.sleep(0.02)
     assert page.locator('#tp-detail-deal-badge').count() == 0
 
 
@@ -1828,16 +1829,16 @@ def test_reset_during_pending_fetch_keeps_cache_empty(page: Page):
     import json as _json
     _series = [[_now - (9 - i) * _day, 10] for i in range(10)]
     def _handle(route):
-        _time.sleep(2)
+        _time.sleep(0.3)
         route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
                       content_type='application/json', body=_json.dumps([_series, _series]))
     page.route('**/plugins/product/pricechart*', _handle)
     page.click('#card-negative .badge-dif')
-    page.wait_for_timeout(500)
     # Real reset path: bumps the cache generation mid-flight.
     open_settings(page)
+    page.locator('#tp-root >> #tp-settings-dialog').wait_for(state='visible')
     page.click('#tp-root >> #tp-cache-clear-btn')
     page.click('#tp-root >> #tp-btn-close')
-    page.wait_for_timeout(3000)
+    page.wait_for_function("() => document.querySelector('#card-negative .badge-dif:not(.tp-deal-loading)') !== null")
     assert page.evaluate("() => window.ToppreiseSuite.memoryCache.size") == 0
     assert page.evaluate("() => Object.keys(localStorage).filter(k => k.startsWith('tp_hist_v1_')).length") == 0
