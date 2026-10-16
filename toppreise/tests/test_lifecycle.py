@@ -97,6 +97,7 @@ def test_alarm_missing_controls_schedules_nothing(page: Page):
 def test_alarm_unconfirmed_submit_keeps_dialog_open_with_warning(page: Page):
     """Step 7: detachment-without-success never closes; the 5s fallback warns instead."""
     page.evaluate("""() => {
+        window.ToppreiseSuite.CONFIG.ALARM_FALLBACK_TIMEOUT_MS = 50;
         window.ToppreiseSuite.CONFIG.ALARM_AUTO_SUBMIT = true;
         // Unconfirmed path: mock detaches the button without AJAX success.
         window.__tpMockAlarmSuccess = false;
@@ -108,7 +109,7 @@ def test_alarm_unconfirmed_submit_keeps_dialog_open_with_warning(page: Page):
     assert page.locator(f'{DIALOG} input#f_NewInfoMailForm_priceFrom').input_value() == '600.00'
     page.wait_for_function(
         "() => document.querySelector('#mock-alarm-dialog').dataset.submitted === 'true'")
-    page.wait_for_selector(f'{DIALOG} .tp-alarm-status', state='visible', timeout=9000)
+    page.wait_for_selector(f'{DIALOG} .tp-alarm-status', state='visible', timeout=2000)
     status = page.locator(f'{DIALOG} .tp-alarm-status').text_content() or ''
     assert 'nicht bestätigt' in status
     dialog = page.locator(DIALOG)

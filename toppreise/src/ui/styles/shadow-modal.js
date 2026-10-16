@@ -223,9 +223,11 @@ export const SHADOW_MODAL_STYLES = `
     display: flex;
     flex-direction: column-reverse;
     gap: 8px;
+    pointer-events: none;
   }
   .tp-toast {
     background: rgba(255,255,255,0.97);
+    pointer-events: none;
     border: 1px solid rgba(56,189,248,0.3);
     color: var(--tp-txt);
     padding: 9px 14px;

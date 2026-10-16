@@ -1811,6 +1811,7 @@ def test_detail_route_change_during_fetch_paints_nothing(page: Page):
             <h1>SHARP 55HR7265E <a href="/plugins/product/pricechart?p_pc_pid=840582">Preischart</a></h1>
           </div>
           <div class="productPrice"><div class="Plugin_Price">350.90</div></div>
+          <div class="shippingPrice"><div class="Plugin_Price">350.90</div></div>
         `;
         window.ToppreiseSuite?.processProductDetailPage?.();
     }""")
@@ -1822,11 +1823,13 @@ def test_detail_route_change_during_fetch_paints_nothing(page: Page):
             <h1>OTHER PRODUCT <a href="/plugins/product/pricechart?p_pc_pid=111111">Preischart</a></h1>
           </div>
           <div class="productPrice"><div class="Plugin_Price">999.99</div></div>
+          <div class="shippingPrice"><div class="Plugin_Price">999.99</div></div>
         `;
     }""")
     start = _time.time()
-    while not fetch_done[0] and _time.time() - start < 3:
-        _time.sleep(0.02)
+    while not fetch_done[0] and _time.time() - start < 1:
+        _time.sleep(0.01)
+    assert fetch_done[0] is True
     assert page.locator('#tp-detail-deal-badge').count() == 0
 
 

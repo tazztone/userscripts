@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.305
+// @version      2.18.306
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1674,9 +1674,11 @@ const SHADOW_MODAL_STYLES = `
     display: flex;
     flex-direction: column-reverse;
     gap: 8px;
+    pointer-events: none;
   }
   .tp-toast {
     background: rgba(255,255,255,0.97);
+    pointer-events: none;
     border: 1px solid rgba(56,189,248,0.3);
     color: var(--tp-txt);
     padding: 9px 14px;
@@ -2812,6 +2814,7 @@ const SHADOW_MODAL_STYLES = `
     ALARM_TARGET_PERCENT: 0.60,
     ALARM_DURATION_DAYS: '730',
     ALARM_AUTO_SUBMIT: false,
+    ALARM_FALLBACK_TIMEOUT_MS: 5000,
     OBSERVER_DEBOUNCE_MS: 200,
     DEBUG: false
   });
@@ -9536,7 +9539,7 @@ const SHADOW_MODAL_STYLES = `
           try { observer.disconnect(); } catch {}
           reqModal._tpAlarmObserver = null;
           flagUnconfirmed();
-        }, 5000);
+        }, CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000);
         const submitTimer = setTimeout(() => {
           // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
           if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
@@ -9905,7 +9908,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.305';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.306';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -251,7 +251,7 @@ export function processPriceAlarmModal() {
         try { observer.disconnect(); } catch {}
         reqModal._tpAlarmObserver = null;
         flagUnconfirmed();
-      }, 5000);
+      }, CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000);
       const submitTimer = setTimeout(() => {
         // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
         if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
