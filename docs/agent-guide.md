@@ -28,7 +28,7 @@ node --test huggingface/tests/test_logic.js  # HF gate
 bash toppreise/tools/refresh-screenshot.sh
 ```
 
-Same `PLAYWRIGHT_BROWSERS_PATH` + `-o addopts` pattern for `test_feed_scanner.py`, `test_catalog_layout.py`, `test_price_logic.py`, `test_floating_cta.py`, `test_heatmap_contrast.py`. Fixture: `page.evaluate(bundle)` on `file://mock_*.html` (see `toppreise/tests/conftest.py`); mocks hand-rolled (`page.route`, stub objects). Suites stay placeholder-free; exploration goes in `scratch/`.
+Same `PLAYWRIGHT_BROWSERS_PATH` + `-o addopts` pattern for `test_feed_scanner.py`, `test_catalog_layout.py`, `test_price_logic.py`, `test_floating_cta.py`, `test_heatmap_contrast.py`. Fixture: `page.evaluate(bundle)` on `file://mock_*.html` (see `toppreise/tests/conftest.py`); mocks hand-rolled (`page.route`, stub objects). Suites stay placeholder-free; exploration goes in `scratch/`. Fail-fast defaults in `conftest.py`: 2.5s locator/page timeout (override via `timeout=...` if needed), instant fail on unhandled `pageerror`, expect timeout at 2s, CSS transitions disabled.
 
 ## Patterns
 

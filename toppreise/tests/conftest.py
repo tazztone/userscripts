@@ -1,7 +1,9 @@
 import os
 import sys
 import pytest
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
+
+expect.set_options(timeout=2000)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MOCK_HTML = f"file://{os.path.join(BASE_DIR, 'mock_toppreise.html')}"
@@ -34,7 +36,10 @@ def userscript_content():
 @pytest.fixture
 def page(browser, userscript_content):
     page = browser.new_page()
+    page.set_default_timeout(2500)
+    page.on("pageerror", lambda err: pytest.fail(f"Unhandled browser exception: {err}"))
     page.goto(MOCK_HTML)
+    page.add_style_tag(content="*, *::before, *::after { transition: none !important; animation: none !important; }")
     page.evaluate("() => localStorage.clear()")
     # Full ToppreiseSuite harness (CONFIG/mutators) exists only with DEBUG;
     # production serves a frozen minimal handle instead. The marker skips the
