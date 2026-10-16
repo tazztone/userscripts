@@ -80,3 +80,35 @@ def test_floating_cta_collapses_but_never_closes(page: Page):
     assert 'tp-collapsed' in (cta.get_attribute('class') or '')
     collapse.click()
     assert 'tp-collapsed' not in (cta.get_attribute('class') or '')
+
+
+def test_floating_cta_popover_threshold_change_updates_count_and_runs_batch(page: Page):
+    # Initial: 3 deals with >= 30% (-67%, -35%, -50%)
+    cta = page.locator('#tp-floating-check-cta')
+    assert '3 Tiefstpreise prüfen' in (cta.text_content() or '')
+
+    # Change to >=50% via floating CTA popover
+    page.click('#tp-floating-threshold-btn')
+    page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="50"]')
+
+    # Count immediately updates: -67% and -50% qualify -> 2
+    assert '2 Tiefstpreise prüfen' in (cta.text_content() or '')
+
+    # Clicking runs batch check without "Keine ungeprüften Deals vorhanden" toast
+    mock_pricechart(page, {'797571': 500, '797573': 500})
+    page.click('#tp-floating-check-btn')
+    page.wait_for_selector('#tp-floating-check-cta.tp-scanning')
+    assert page.locator('#tp-root >> .tp-toast', has_text='Keine ungeprüften Deals vorhanden').count() == 0
+
+
+def test_floating_cta_clicking_positive_count_never_toasts_no_deals(page: Page):
+    # Whenever the floating CTA displays >0 deals, clicking it must launch the scan,
+    # never showing "Keine ungeprüften Deals vorhanden" toast.
+    cta = page.locator('#tp-floating-check-cta')
+    assert '3 Tiefstpreise prüfen' in (cta.text_content() or '')
+
+    mock_pricechart(page, {'797571': 500, '797572': 500, '797573': 500})
+    page.click('#tp-floating-check-btn')
+    page.wait_for_selector('#tp-floating-check-cta.tp-scanning')
+    assert page.locator('#tp-root >> .tp-toast', has_text='Keine ungeprüften Deals vorhanden').count() == 0
+
