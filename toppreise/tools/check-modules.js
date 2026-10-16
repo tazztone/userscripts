@@ -75,108 +75,68 @@ const importedIn = code => {
 };
 // Strip comments, strings, template bodies (preserving ${...} code) and regex
 // literals so UI copy and patterns like /-p(\d+)/ never fire the call scan.
-// Non-newline characters are replaced with spaces to preserve line numbers.
 // Uses a context stack to handle arbitrary nesting of template literals.
 const stripCode = code => {
   let out = '', i = 0;
   const n = code.length;
   const stack = ['code'];
   const braceDepth = [0];
-
-  const isRegexPrefix = () => {
-    return /(\b(?:return|yield|case|typeof|delete|void|default|throw|in|of|instanceof)|[(,=:[!&|?{};>~^%*+-])\s*$/.test(out);
-  };
+  const isRegex = () => /(\b(?:return|yield|case|typeof|delete|void|default|throw)|[(,=:[!&|?{};>~^%*+-])\s*$/.test(out);
 
   while (i < n) {
     const ctx = stack[stack.length - 1];
     const c = code[i], nx = code[i + 1] ?? '';
 
     if (ctx === 'template') {
-      if (c === '\\') { out += '  '; i += 2; continue; }
+      if (c === '\\') { i += 2; continue; }
       if (c === '$' && nx === '{') {
-        out += '  '; i += 2;
-        stack.push('code');
-        braceDepth.push(1);
+        out += ' '; i += 2;
+        stack.push('code'); braceDepth.push(1);
         continue;
       }
-      if (c === '`') {
-        out += ' '; i++;
-        stack.pop();
-        continue;
-      }
-      out += c === '\n' ? '\n' : ' ';
+      if (c === '`') { out += ' '; i++; stack.pop(); continue; }
+      if (c === '\n') out += '\n';
       i++;
       continue;
     }
 
-    if (c === '/' && nx === '/') {
-      while (i < n && code[i] !== '\n') { out += ' '; i++; }
-      continue;
-    }
+    if (c === '/' && nx === '/') { while (i < n && code[i] !== '\n') i++; continue; }
     if (c === '/' && nx === '*') {
-      out += '  '; i += 2;
-      while (i < n && !(code[i] === '*' && code[i + 1] === '/')) {
-        out += code[i] === '\n' ? '\n' : ' ';
-        i++;
-      }
-      out += '  '; i += 2;
+      i += 2;
+      while (i < n && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] === '\n') out += '\n'; i++; }
+      i += 2;
       continue;
     }
     if (c === '"' || c === "'") {
-      const q = c;
-      out += ' '; i++;
+      const q = c; i++;
       while (i < n && code[i] !== '\n') {
-        if (code[i] === '\\') { out += '  '; i += 2; continue; }
-        if (code[i] === q) { out += ' '; i++; break; }
-        out += ' '; i++;
+        if (code[i] === '\\') i++;
+        else if (code[i] === q) { i++; break; }
+        i++;
       }
+      out += ' ';
       continue;
     }
-    if (c === '`') {
-      out += ' '; i++;
-      stack.push('template');
-      continue;
-    }
-    if (c === '/' && isRegexPrefix() && nx !== '/' && nx !== '*') {
-      out += ' '; i++;
+    if (c === '`') { out += ' '; i++; stack.push('template'); continue; }
+    if (c === '/' && isRegex() && nx !== '/' && nx !== '*') {
+      i++;
       while (i < n && code[i] !== '\n') {
-        if (code[i] === '\\') { out += '  '; i += 2; continue; }
-        if (code[i] === '[') {
-          out += ' '; i++;
-          while (i < n && code[i] !== '\n') {
-            if (code[i] === '\\') { out += '  '; i += 2; continue; }
-            if (code[i] === ']') { out += ' '; i++; break; }
-            out += ' '; i++;
-          }
-          continue;
-        }
-        if (code[i] === '/') {
-          out += ' '; i++;
-          while (i < n && /[\w$]/.test(code[i])) { out += ' '; i++; }
-          break;
-        }
-        out += ' '; i++;
+        if (code[i] === '\\') i++;
+        else if (code[i] === '[') { while (i < n && code[i] !== ']' && code[i] !== '\n') { if (code[i] === '\\') i++; i++; } }
+        else if (code[i] === '/') { i++; while (i < n && /[\w$]/.test(code[i])) i++; break; }
+        i++;
       }
+      out += ' ';
       continue;
     }
-
-    if (c === '{') {
-      braceDepth[braceDepth.length - 1]++;
-      out += '{'; i++;
-      continue;
-    }
+    if (c === '{') { braceDepth[braceDepth.length - 1]++; out += '{'; i++; continue; }
     if (c === '}') {
       braceDepth[braceDepth.length - 1]--;
       if (stack.length > 1 && braceDepth[braceDepth.length - 1] === 0) {
-        stack.pop();
-        braceDepth.pop();
-        out += ' '; i++;
-        continue;
+        stack.pop(); braceDepth.pop(); out += ' '; i++; continue;
       }
-      out += '}'; i++;
-      continue;
+      out += '}'; i++; continue;
     }
-
     out += c; i++;
   }
   return out;
@@ -202,13 +162,7 @@ const GLOBALS = new Set([
   'process', 'require', 'module', 'exports', '__dirname', '__filename'
 ]);
 // Language keywords that match the `name(` shape (`if (`, `for (`) — never calls.
-const KEYWORDS = new Set([
-  'if', 'for', 'while', 'switch', 'catch', 'return', 'function', 'class',
-  'import', 'export', 'new', 'typeof', 'void', 'delete', 'throw', 'else',
-  'do', 'try', 'finally', 'case', 'default', 'in', 'of', 'instanceof',
-  'await', 'async', 'yield', 'let', 'const', 'var', 'this', 'super',
-  'extends', 'static', 'get', 'set', 'from', 'as'
-]);
+const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'await', 'async', 'yield', 'function', 'class', 'new', 'typeof', 'void', 'delete', 'throw', 'in', 'of', 'instanceof']);
 // Triaged unresolved names: intent, not leakage. Each entry names why the
 // bare call is correct without an import.
 const UNRESOLVED_EXCEPTIONS = new Set([
