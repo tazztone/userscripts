@@ -1739,7 +1739,7 @@ def test_merged_blend_subline_rendering(page: Page):
     assert subline.evaluate('el => getComputedStyle(el).textOverflow === "ellipsis"')
     # Normal-width desktop card (user screenshot ~560px): full text fits
     card.evaluate('el => { el.style.flex = "0 0 auto"; el.style.maxWidth = "none"; el.style.width = "600px"; }')
-    page.wait_for_function("el => el.scrollWidth <= el.clientWidth + 1", subline.element_handle())
+    page.wait_for_function("el => el.scrollWidth <= el.clientWidth + 1", arg=subline.element_handle())
     assert subline.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
@@ -1884,15 +1884,23 @@ def test_card_elements_and_sparkline_visibility_unclipped(page: Page):
     """
     page.evaluate("""() => {
         localStorage.clear(); if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.clear();
+        const now = Date.now();
+        const d = 86400000;
         localStorage.setItem('tp_hist_v1_797571', JSON.stringify({
             tiefstpreis: 1800,
             previousLow: 2200,
             hoechstpreis: 2500,
             medianPrice: 2300,
             isNewAllTimeLow: true,
-            timeSeries: [[Date.now() - 86400000 * 30, 2400], [Date.now(), 1800]],
+            timeSeries: [
+                [now - d * 30, 2400],
+                [now - d * 20, 2350],
+                [now - d * 15, 2300],
+                [now - d * 5, 2200],
+                [now, 1800]
+            ],
             dataPointCount: 15,
-            time: Date.now()
+            time: now
         }));
             if(window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(window.ToppreiseSuite.statsKey('797571'), JSON.parse(localStorage.getItem('tp_hist_v1_797571')));
         window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
