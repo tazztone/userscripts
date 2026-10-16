@@ -11,8 +11,22 @@ SCRIPT_PATH = os.path.join(os.path.dirname(BASE_DIR), 'toppreise.user.js')
 sys.path.insert(0, BASE_DIR)
 
 
+import subprocess
+
+
 @pytest.fixture(scope='session')
 def userscript_content():
+    # Freshness / drift guard: verify bundle matches src/ before running browser suite
+    build_tool = os.path.join(os.path.dirname(BASE_DIR), 'tools', 'build.js')
+    if os.path.exists(build_tool):
+        check_proc = subprocess.run(['node', build_tool, '--check'], capture_output=True, text=True)
+        if check_proc.returncode != 0:
+            if os.environ.get('CI') or os.environ.get('STRICT_BUILD_CHECK'):
+                pytest.fail(f"toppreise.user.js is out-of-date with src/. Run 'node tools/build.js'. Output:\n{check_proc.stdout}\n{check_proc.stderr}")
+            print("\n[conftest] Stale toppreise.user.js detected; rebuilding bundle for test session...")
+            rebuild_proc = subprocess.run(['node', build_tool], capture_output=True, text=True)
+            if rebuild_proc.returncode != 0:
+                pytest.fail(f"Failed to build toppreise.user.js:\n{rebuild_proc.stderr}")
     with open(SCRIPT_PATH, encoding='utf-8') as script:
         return script.read()
 
