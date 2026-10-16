@@ -6,7 +6,8 @@ import {
   isNeueToppreisePage,
   isProductDetailPage,
   getDetailProductId,
-  getDetailLowestPrice
+  getDetailLowestPrice,
+  triggerProcessListings
 } from '../../src/page/adapter.js';
 import { withConfig } from './helpers.js';
 
@@ -128,6 +129,74 @@ describe('Page Adapter Layer', () => {
         assert.deepEqual(getDetailLowestPrice(), { price: 45, basis: 'shipping' });
       });
       delete globalThis.document;
+    });
+  });
+
+  describe('triggerProcessListings', () => {
+    let origWindow;
+    let origLocation;
+    let origDoc;
+
+    beforeEach(() => {
+      origWindow = globalThis.window;
+      origLocation = globalThis.location;
+      origDoc = globalThis.document;
+    });
+
+    afterEach(() => {
+      if (origWindow === undefined) delete globalThis.window; else globalThis.window = origWindow;
+      if (origLocation === undefined) delete globalThis.location; else globalThis.location = origLocation;
+      if (origDoc === undefined) delete globalThis.document; else globalThis.document = origDoc;
+    });
+
+    it('triggers processListings and priceAlarmModal on search/feed pages', () => {
+      let listingsCalled = 0;
+      let detailCalled = 0;
+      let alarmCalled = 0;
+      globalThis.window = {
+        ToppreiseSuite: {
+          processListings: () => { listingsCalled++; },
+          processProductDetailPage: () => { detailCalled++; },
+          processPriceAlarmModal: () => { alarmCalled++; }
+        }
+      };
+      globalThis.location = { href: 'https://www.toppreise.ch/katalog' };
+      globalThis.document = {
+        body: { classList: { contains: () => false }, getAttribute: () => null },
+        querySelector: () => null,
+        querySelectorAll: () => []
+      };
+
+      triggerProcessListings();
+
+      assert.equal(listingsCalled, 1);
+      assert.equal(detailCalled, 0);
+      assert.equal(alarmCalled, 1);
+    });
+
+    it('triggers processListings, processProductDetailPage, and priceAlarmModal on detail pages', () => {
+      let listingsCalled = 0;
+      let detailCalled = 0;
+      let alarmCalled = 0;
+      globalThis.window = {
+        ToppreiseSuite: {
+          processListings: () => { listingsCalled++; },
+          processProductDetailPage: () => { detailCalled++; },
+          processPriceAlarmModal: () => { alarmCalled++; }
+        }
+      };
+      globalThis.location = { href: 'https://www.toppreise.ch/preisvergleich/Smartphones/APPLE-iPhone-16-Pro-p789012' };
+      globalThis.document = {
+        body: { classList: { contains: () => false }, getAttribute: () => null },
+        querySelector: () => null,
+        querySelectorAll: () => []
+      };
+
+      triggerProcessListings();
+
+      assert.equal(listingsCalled, 1);
+      assert.equal(detailCalled, 1);
+      assert.equal(alarmCalled, 1);
     });
   });
 });

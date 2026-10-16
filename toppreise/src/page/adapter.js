@@ -106,10 +106,14 @@ export function triggerProcessListings() {
   if (isProductDetailPage()) {
     if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processProductDetailPage === 'function') {
       window.ToppreiseSuite.processProductDetailPage();
+    } else if (typeof processProductDetailPage === 'function') {
+      processProductDetailPage();
     }
-    if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processPriceAlarmModal === 'function') {
-      window.ToppreiseSuite.processPriceAlarmModal();
-    }
+  }
+  if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processPriceAlarmModal === 'function') {
+    window.ToppreiseSuite.processPriceAlarmModal();
+  } else if (typeof processPriceAlarmModal === 'function') {
+    processPriceAlarmModal();
   }
 }
 
