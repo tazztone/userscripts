@@ -331,7 +331,7 @@ export function syncUiControl(key, val, opts = {}) {
         }
       }
     } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl error', err);
+      console.warn('[Toppreise-Suite] syncUiControl error', err);
     }
   }
 
@@ -439,7 +439,7 @@ export function syncUiControl(key, val, opts = {}) {
           }
         }
       } catch (err) {
-        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] syncUiControl bar error', err);
+        console.warn('[Toppreise-Suite] syncUiControl bar error', err);
       }
     }
   }
