@@ -52,7 +52,27 @@ export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, 
     const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
     return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
   }
-  return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle Deals verifiziert' };
+  return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle geprüft' };
+}
+
+/**
+ * Pure completion toast message generator (no DOM).
+ * Formats verified vs rejected counts after a batch check.
+ * Unit-tested in tests/unit/floating-cta.test.js.
+ */
+export function batchCompletionToast({ completed = 0, total = 0, fresh = 0, checked = 0, unchecked = 0, minDisc = 30 } = {}) {
+  const scanned = completed > 0 ? completed : total;
+  if (scanned > 0) {
+    const rejected = Math.max(0, scanned - fresh);
+    if (fresh > 0) {
+      if (rejected > 0) {
+        return `${fresh} verifiziert · ${rejected} verworfen`;
+      }
+      return fresh === 1 ? '1 Tiefstpreis verifiziert' : `${fresh} Tiefstpreise verifiziert`;
+    }
+    return checked > 0 ? `Keine Tiefstpreise dabei · ${scanned} verworfen` : 'Keine Prüfung möglich';
+  }
+  return unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden';
 }
 
 
@@ -99,8 +119,7 @@ export function startBatchCheck() {
       triggerProcessListings();
       const fresh = document.querySelectorAll('.tp-deal-fresh').length;
       const checked = (newlyVerified || []).length;
-      if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : checked > 0 ? `Keine Tiefstpreise dabei · ${checked} geprüft` : 'Keine Prüfung möglich');
-      else showToast(unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden');
+      showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
     }
   );
   syncFloatingCTA();

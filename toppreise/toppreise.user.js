@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.313
+// @version      2.18.314
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -9100,7 +9100,27 @@ const SHADOW_MODAL_STYLES = `
       const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
       return { mode: 'idle', mainLabel: `🔍 ${unchecked} ${obj} prüfen`, subLabel: 'Echte Tiefstpreise verifizieren' };
     }
-    return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle Deals verifiziert' };
+    return { mode: 'done', mainLabel: '🔍 0 Tiefstpreise prüfen', subLabel: 'Alle geprüft' };
+  }
+
+  /**
+   * Pure completion toast message generator (no DOM).
+   * Formats verified vs rejected counts after a batch check.
+   * Unit-tested in tests/unit/floating-cta.test.js.
+   */
+  function batchCompletionToast({ completed = 0, total = 0, fresh = 0, checked = 0, unchecked = 0, minDisc = 30 } = {}) {
+    const scanned = completed > 0 ? completed : total;
+    if (scanned > 0) {
+      const rejected = Math.max(0, scanned - fresh);
+      if (fresh > 0) {
+        if (rejected > 0) {
+          return `${fresh} verifiziert · ${rejected} verworfen`;
+        }
+        return fresh === 1 ? '1 Tiefstpreis verifiziert' : `${fresh} Tiefstpreise verifiziert`;
+      }
+      return checked > 0 ? `Keine Tiefstpreise dabei · ${scanned} verworfen` : 'Keine Prüfung möglich';
+    }
+    return unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden';
   }
 
 
@@ -9147,8 +9167,7 @@ const SHADOW_MODAL_STYLES = `
         triggerProcessListings();
         const fresh = document.querySelectorAll('.tp-deal-fresh').length;
         const checked = (newlyVerified || []).length;
-        if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : checked > 0 ? `Keine Tiefstpreise dabei · ${checked} geprüft` : 'Keine Prüfung möglich');
-        else showToast(unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden');
+        showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
       }
     );
     syncFloatingCTA();
@@ -9929,7 +9948,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.313';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.314';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
