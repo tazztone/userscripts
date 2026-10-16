@@ -5,7 +5,15 @@
 
 import { ensureSkeleton } from './shell.js';
 
+let lastToastMessage = '';
+
+export function getLastToastMessage() {
+  return lastToastMessage;
+}
+
 export function showToast(message) {
+  lastToastMessage = message;
+  if (typeof document === 'undefined') return;
   const { shadow } = ensureSkeleton();
   const container = shadow?.getElementById('tp-toast-container');
   if (!container) return;
