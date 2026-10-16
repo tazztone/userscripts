@@ -178,18 +178,18 @@ describe('Bounded Cache Module', () => {
   });
 
   describe('recompute horizon', () => {
-    it('skips cross-mode entries instead of recomputing them', () => {
+    it('recomputes cross-mode entries instead of skipping them (F-07)', () => {
       withConfig('USE_SHIPPING_PRICE', false, () => {
         const now = Date.now();
         const series = [[now - 3 * DAY, 100], [now - 2 * DAY, 100], [now - 1 * DAY, 90], [now, 90]];
-        const stats = analyzePriceTimeSeries(series, 90);
+        const stats = analyzePriceTimeSeries(series, 90, 365);
         stats.isShippingPrice = true;
-        setCachedPriceStats('xmode', stats);
-        const before = memoryCache.get(statsKey('xmode'));
+        setCachedPriceStats('xmode', stats, false, null, true);
         recomputeCachedMedians(30);
-        assert.equal(memoryCache.get(statsKey('xmode')), before);
+        const after = memoryCache.get(statsKey('xmode', true));
+        assert.equal(after.horizonDays, 30);
       });
-      memoryCache.delete(statsKey('xmode'));
+      memoryCache.delete(statsKey('xmode', true));
     });
     it('heals stale-sig memory hits on read without recomputeCachedMedians', () => {
       const now = Date.now();
@@ -452,6 +452,28 @@ describe('Bounded Cache Module', () => {
         assert.equal(recomputeCachedMedians(90, null), 1);
         assert.equal(memoryCache.get(statsKey('legacy')).medianPrice, 780);
       });
+    });
+
+    it('recomputes both _s and _p cache entries regardless of active basis (F-07)', () => {
+      const now = Date.now();
+      const series = [
+        [now - 500 * DAY, 2000],
+        [now - 400 * DAY, 1900],
+        [now - 60 * DAY, 800],
+        [now - 30 * DAY, 780],
+        [now, 750]
+      ];
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        const seedProduct = analyzePriceTimeSeries(series, null, 0);
+        const seedShipping = analyzePriceTimeSeries(series, null, 0);
+        setCachedPriceStats('both1', seedProduct, false, null, false);
+        setCachedPriceStats('both1', seedShipping, false, null, true);
+        assert.equal(recomputeCachedMedians(90, null), 2);
+        assert.equal(memoryCache.get(statsKey('both1', false)).medianPrice, 780);
+        assert.equal(memoryCache.get(statsKey('both1', true)).medianPrice, 780);
+      });
+      memoryCache.delete(statsKey('both1', false));
+      memoryCache.delete(statsKey('both1', true));
     });
 
     it('writes every entry while prune is throttled', () => {

@@ -274,11 +274,6 @@ export function recomputeCachedMedians(horizonDays, storage = null) {
   storage = resolveStorage(storage);
   const sig = currentMedianSig(horizonDays);
   const rewrite = entry => {
-    // Cross-mode entries are left alone (not reinserted); their key slot is
-    // evicted on next read, so a stale basis never recomputes into memory.
-    if (typeof entry?.isShippingPrice === 'boolean') {
-      try { if (entry.isShippingPrice !== isShippingPriceActive()) return null; } catch (e) {}
-    }
     const src = fullSeries(entry);
     if (!Array.isArray(src)) return null;
     const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, horizonDays);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.290
+// @version      2.18.291
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2644,11 +2644,6 @@ const SHADOW_MODAL_STYLES = `
     storage = resolveStorage(storage);
     const sig = currentMedianSig(horizonDays);
     const rewrite = entry => {
-      // Cross-mode entries are left alone (not reinserted); their key slot is
-      // evicted on next read, so a stale basis never recomputes into memory.
-      if (typeof entry?.isShippingPrice === 'boolean') {
-        try { if (entry.isShippingPrice !== isShippingPriceActive()) return null; } catch (e) {}
-      }
       const src = fullSeries(entry);
       if (!Array.isArray(src)) return null;
       const fresh = analyzePriceTimeSeries(src, entry?.anchorPrice ?? null, horizonDays);
@@ -7155,8 +7150,9 @@ const SHADOW_MODAL_STYLES = `
       // Basis toggle keeps both cache slots (entries are keyed per basis): only
       // card memos clear + repaint, no whole-cache wipe, no generation bump.
       if (shippingChanged) { getProductCards().forEach(clearCardCache); }
+      updateConfigs(updates, { skipRender: true });
       if (horizonChanged) recomputeCachedMedians(newHorizon);
-      updateConfigs(updates);
+      triggerProcessListings();
       showToast('Toppreise Suite Einstellungen gespeichert');
       closeModal();
     });
@@ -9777,7 +9773,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.289';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.290';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -236,8 +236,9 @@ export function wireModalActions(els) {
     // Basis toggle keeps both cache slots (entries are keyed per basis): only
     // card memos clear + repaint, no whole-cache wipe, no generation bump.
     if (shippingChanged) { getProductCards().forEach(clearCardCache); }
+    updateConfigs(updates, { skipRender: true });
     if (horizonChanged) recomputeCachedMedians(newHorizon);
-    updateConfigs(updates);
+    triggerProcessListings();
     showToast('Toppreise Suite Einstellungen gespeichert');
     closeModal();
   });
