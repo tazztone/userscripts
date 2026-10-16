@@ -8,7 +8,7 @@ import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal
 
 // Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
 // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
-export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}';
+export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}';
 export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
 
 export function validateLayoutRecipe(recipe) {
@@ -62,7 +62,6 @@ function tokenText(name, ctx) {
     case 'price': return ctx.priceText ? `💰 ${ctx.priceText}` : '';
     case 'dealer': return ctx.dealer ? (ctx.dealerTarget ? `🏬 [${ctx.dealer}](${ctx.dealerTarget})` : `🏬 ${ctx.dealer}`) : '';
     case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
-    case 'spark': return ctx.spark ? `📊 ${ctx.spark}` : '';
     case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
     case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
     case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
@@ -83,7 +82,6 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     dealer: escapeDiscordMarkdown(String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')')),
     dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
     offerCount: (fields || {}).offerCount || 0,
-    spark: (fields || {}).spark || '',
     prevLowText: (fields || {}).prevLowText || '',
     prevLowPct: (fields || {}).prevLowPct || 0,
     medianText: (fields || {}).medianText || '',

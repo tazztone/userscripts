@@ -15,7 +15,6 @@ import {
   formatDealMessage,
   forumRecipeFor,
   resolveShareFields,
-  sparklineText,
   withLivePrice,
   renderSparklinePng,
   postDealImageToDiscord,
@@ -128,7 +127,6 @@ export function renderShareButton(ctx, cd) {
             const fields = {
               title, url, priceText,
               dealer, dealerUrl, offerCount: offers,
-              spark: sparklineText(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)),
               ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
               suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false

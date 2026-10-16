@@ -199,13 +199,12 @@ export function ensureModalSection(shadow) {
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{price}">Preis {price}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{dealer}">Händler {dealer}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{offers}">Angebote {offers}</button>
-            <button type="button" class="tp-btn tp-btn-secondary" data-token="{spark}">Spark {spark}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
           </div>
           <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
+          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
           <pre id="tp-discord-layout-preview"></pre>
           <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
           <span id="tp-discord-layout-error" class="tp-switch-desc"></span>

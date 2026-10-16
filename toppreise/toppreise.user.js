@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.310
+// @version      2.18.311
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2808,7 +2808,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
     DISCORD_FORUM_TITLE: false,
     // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}',
+    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}',
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -2892,7 +2892,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
     DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
     DISCORD_FORUM_TITLE: { type: 'bool', default: false },
-    DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}' },
+    DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}' },
     MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
     SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
     ALARM_ENABLED: { type: 'bool', default: true },
@@ -4583,7 +4583,7 @@ const SHADOW_MODAL_STYLES = `
 
   // Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
   // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
-  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}';
+  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}';
   const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
 
   function validateLayoutRecipe(recipe) {
@@ -4637,7 +4637,6 @@ const SHADOW_MODAL_STYLES = `
       case 'price': return ctx.priceText ? `💰 ${ctx.priceText}` : '';
       case 'dealer': return ctx.dealer ? (ctx.dealerTarget ? `🏬 [${ctx.dealer}](${ctx.dealerTarget})` : `🏬 ${ctx.dealer}`) : '';
       case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
-      case 'spark': return ctx.spark ? `📊 ${ctx.spark}` : '';
       case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
       case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
       case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
@@ -4658,7 +4657,6 @@ const SHADOW_MODAL_STYLES = `
       dealer: escapeDiscordMarkdown(String((fields || {}).dealer || '').replace(/\[/g, '(').replace(/\]/g, ')')),
       dealerTarget: dealerUrl ? ((fields || {}).suppressDealerEmbed ? `<${dealerUrl}>` : dealerUrl) : '',
       offerCount: (fields || {}).offerCount || 0,
-      spark: (fields || {}).spark || '',
       prevLowText: (fields || {}).prevLowText || '',
       prevLowPct: (fields || {}).prevLowPct || 0,
       medianText: (fields || {}).medianText || '',
@@ -4736,20 +4734,6 @@ const SHADOW_MODAL_STYLES = `
     const s = String(webhookUrl || '').trim();
     for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
     return `DISCORD_FORUM:${h.toString(16).padStart(8, '0')}`;
-  }
-
-  // Geprüfte Preishistorie als Text-Sparkline (SVG geht nicht nach Discord).
-  const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-  function sparklineText(timeSeries, width = 20) {
-    if (!Array.isArray(timeSeries)) return '';
-    const all = timeSeries.map(p => (Array.isArray(p) ? +p[1] : 0)).filter(p => p > 0);
-    if (all.length < 2) return '';
-    // Gleichmäßig über die gesamte Historie, nicht nur das letzte Fenster
-    // (ein lange stabiler Tiefpreis sähe sonst fälschlich flach aus).
-    const prices = all.length <= width ? all : Array.from({ length: width }, (_, i) => all[Math.floor((i * all.length) / width)]);
-    const min = Math.min(...prices);
-    const range = Math.max(...prices) - min || 1;
-    return prices.map(p => SPARK_CHARS[Math.min(7, Math.floor(((p - min) / range) * 8))]).join('');
   }
 
   // Historie endet am letzten Sample, nicht am Live-Kartenpreis (kann seitdem
@@ -6574,7 +6558,6 @@ const SHADOW_MODAL_STYLES = `
               const fields = {
                 title, url, priceText,
                 dealer, dealerUrl, offerCount: offers,
-                spark: sparklineText(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)),
                 ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
                 suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
                 suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
@@ -7253,13 +7236,12 @@ const SHADOW_MODAL_STYLES = `
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{price}">Preis {price}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{dealer}">Händler {dealer}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{offers}">Angebote {offers}</button>
-              <button type="button" class="tp-btn tp-btn-secondary" data-token="{spark}">Spark {spark}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
             </div>
             <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {spark} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
             <pre id="tp-discord-layout-preview"></pre>
             <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -7506,11 +7488,11 @@ const SHADOW_MODAL_STYLES = `
   function getLayoutPresets() {
     return {
       kompakt: DEFAULT_LAYOUT,
-      ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{spark}\n{prevlow}\n{median}\n{link}',
+      ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{prevlow}\n{median}\n{link}',
       minimal: '## {title}\n# {price}\n{link}'
     };
   }
-  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '▁▂▃▄▅▆▇', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
   function renderLayoutPreview(els) {
       if (!els.discordLayoutInput || !els.discordLayoutPreview) return;
       const recipe = els.discordLayoutInput.value;
@@ -9956,7 +9938,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.310';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.311';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -76,20 +76,6 @@ export function discordForumFlagKey(webhookUrl) {
   return `DISCORD_FORUM:${h.toString(16).padStart(8, '0')}`;
 }
 
-// Geprüfte Preishistorie als Text-Sparkline (SVG geht nicht nach Discord).
-const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-export function sparklineText(timeSeries, width = 20) {
-  if (!Array.isArray(timeSeries)) return '';
-  const all = timeSeries.map(p => (Array.isArray(p) ? +p[1] : 0)).filter(p => p > 0);
-  if (all.length < 2) return '';
-  // Gleichmäßig über die gesamte Historie, nicht nur das letzte Fenster
-  // (ein lange stabiler Tiefpreis sähe sonst fälschlich flach aus).
-  const prices = all.length <= width ? all : Array.from({ length: width }, (_, i) => all[Math.floor((i * all.length) / width)]);
-  const min = Math.min(...prices);
-  const range = Math.max(...prices) - min || 1;
-  return prices.map(p => SPARK_CHARS[Math.min(7, Math.floor(((p - min) / range) * 8))]).join('');
-}
-
 // Historie endet am letzten Sample, nicht am Live-Kartenpreis (kann seitdem
 // gefallen sein). Für den PNG-Chart den Livepreis anhängen, damit Linie und
 // Endpunkt-Markierung am aktuellen Preis enden. Reine Funktion, nie mutierend.

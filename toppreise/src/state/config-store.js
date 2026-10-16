@@ -40,7 +40,7 @@ export const DEFAULTS = Object.freeze({
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
   DISCORD_FORUM_TITLE: false,
   // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}',
+  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}',
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -124,7 +124,7 @@ export const SETTING_SCHEMA = {
   DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
   DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
   DISCORD_FORUM_TITLE: { type: 'bool', default: false },
-  DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{spark}\n{prevlow}\n{median}\n{link}' },
+  DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}' },
   MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
   SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
   ALARM_ENABLED: { type: 'bool', default: true },

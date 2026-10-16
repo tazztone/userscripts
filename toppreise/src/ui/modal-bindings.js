@@ -73,11 +73,11 @@ export function collectModalElements(shadow) {
 export function getLayoutPresets() {
   return {
     kompakt: DEFAULT_LAYOUT,
-    ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{spark}\n{prevlow}\n{median}\n{link}',
+    ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{prevlow}\n{median}\n{link}',
     minimal: '## {title}\n# {price}\n{link}'
   };
 }
-const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, spark: '▁▂▃▄▅▆▇', prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
 function renderLayoutPreview(els) {
     if (!els.discordLayoutInput || !els.discordLayoutPreview) return;
     const recipe = els.discordLayoutInput.value;

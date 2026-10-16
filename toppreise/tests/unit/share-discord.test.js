@@ -10,7 +10,6 @@ import {
   layoutOverLimitSuffix,
   DEFAULT_LAYOUT,
   resolveShareFields,
-  sparklineText,
   withLivePrice,
   extractShareData,
   extractDealer,
@@ -52,23 +51,6 @@ describe('isDiscordWebhookUrl', () => {
   });
 });
 
-describe('sparklineText', () => {
-  it('maps [t, price] pairs to block chars, newest last', () => {
-    assert.equal(sparklineText([[1, 100], [2, 50], [3, 100]]), '█▁█');
-  });
-
-  it('samples evenly across full history instead of the last window', () => {
-    const series = Array.from({ length: 100 }, (_, i) => [i, i < 80 ? 100 : 50]);
-    assert.equal(sparklineText(series, 20)[0], '█');
-    assert.equal(sparklineText(series, 20).slice(-1), '▁');
-  });
-
-  it('returns empty for short/invalid series', () => {
-    assert.equal(sparklineText([[1, 100]]), '');
-    assert.equal(sparklineText(null), '');
-    assert.equal(sparklineText('x'), '');
-  });
-});
 describe('withLivePrice', () => {
   it('appends the live card price as the final point', () => {
     const ts = [[1700000000, 25.90], [1700100000, 40.00]];
@@ -98,7 +80,6 @@ describe('formatDealMessage', () => {
       dealer: 'Digitec',
       dealerUrl: 'https://www.toppreise.ch/ext_d-aUS0',
       offerCount: 3,
-      spark: '█▁▁',
       prevLowText: 'CHF 44.95',
       prevLowPct: 29,
       medianText: 'Ø-Preis (1J): CHF 54.05',
@@ -108,7 +89,6 @@ describe('formatDealMessage', () => {
       `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`,
       '# 💰 CHF 31.90',
       '# 🏬 [Digitec](https://www.toppreise.ch/ext_d-aUS0) +3',
-      '📊 █▁▁',
       '📉 **CHF 44.95** **-29%**',
       '📈 Ø-Preis (1J): **CHF 54.05** **-41%**',
       PRODUCT_URL
@@ -971,6 +951,9 @@ describe('layout recipe', () => {
   });
   it('unknown tokens vanish', () => {
     assert.ok(!renderLayout(base, 'X {foo} Y').includes('{foo}'));
+  });
+  it('deprecated {spark} token renders empty', () => {
+    assert.equal(renderLayout(base, '{spark}'), '');
   });
   it('· drops empty neighbors', () => {
     assert.equal(renderLayout({ ...base, dealer: '', dealerUrl: '' }, '-# {dealer} · {offers}'), '-# 🛒 3 Angebote');
