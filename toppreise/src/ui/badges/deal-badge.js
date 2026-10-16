@@ -11,7 +11,7 @@ import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDis
 import { getCardSortableUnit } from '../../page/sort.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/price.js';
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
-import { hasUsablePriceStats, bumpCacheGeneration } from '../../scanner/cache.js';
+import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration } from '../../scanner/cache.js';
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState } from '../../state/store.js';

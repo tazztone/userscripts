@@ -4,7 +4,7 @@
  */
 
 import { showToast } from './toast.js';
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, sanitizeReviewKeyword, sanitizeConfigValue } from '../state/config.js';
+import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue } from '../state/config.js';
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';

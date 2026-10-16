@@ -3,13 +3,13 @@
  * Zero-dependency module-boundary gate for the Toppreise Suite.
  * (a) Every JS file under src must appear in tools/build.js MODULES —
  *     catches silently-dropped modules (bundle is concat-IIFE, no resolver).
- * (b) Cross-module call check: a `foo(` call in ui/badges.js or
- *     features/price-alarm.js must resolve to a local binding, an import,
- *     or a known global — else it only works via IIFE leakage. Implemented
- *     via the exporting module's export map (crude but precise: no
- *     false positives from function-local bindings).
+ * (b) Cross-module call check (full tree): a `foo(` call in any src file
+ *     must resolve to a local binding, an import, or a known global — else
+ *     it only works via IIFE leakage. Provided-but-never-imported is a
+ *     failure; ownerless names are warn-only (console.warn, exit stays 0).
+ *     String/comment/regex literals are stripped before scanning so copy
+ *     text never fires the gate.
  *
- * Usage: node tools/check-modules.js (also `npm run lint`)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -73,10 +73,119 @@ const importedIn = code => {
   }
   return names;
 };
+// Strip comments, strings, template bodies (preserving ${...} code) and regex
+// literals so UI copy and patterns like /-p(\d+)/ never fire the call scan.
+// Non-newline characters are replaced with spaces to preserve line numbers.
+// Uses a context stack to handle arbitrary nesting of template literals.
+const stripCode = code => {
+  let out = '', i = 0;
+  const n = code.length;
+  const stack = ['code'];
+  const braceDepth = [0];
+
+  const isRegexPrefix = () => {
+    return /(\b(?:return|yield|case|typeof|delete|void|default|throw|in|of|instanceof)|[(,=:[!&|?{};>~^%*+-])\s*$/.test(out);
+  };
+
+  while (i < n) {
+    const ctx = stack[stack.length - 1];
+    const c = code[i], nx = code[i + 1] ?? '';
+
+    if (ctx === 'template') {
+      if (c === '\\') { out += '  '; i += 2; continue; }
+      if (c === '$' && nx === '{') {
+        out += '  '; i += 2;
+        stack.push('code');
+        braceDepth.push(1);
+        continue;
+      }
+      if (c === '`') {
+        out += ' '; i++;
+        stack.pop();
+        continue;
+      }
+      out += c === '\n' ? '\n' : ' ';
+      i++;
+      continue;
+    }
+
+    if (c === '/' && nx === '/') {
+      while (i < n && code[i] !== '\n') { out += ' '; i++; }
+      continue;
+    }
+    if (c === '/' && nx === '*') {
+      out += '  '; i += 2;
+      while (i < n && !(code[i] === '*' && code[i + 1] === '/')) {
+        out += code[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+      out += '  '; i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const q = c;
+      out += ' '; i++;
+      while (i < n && code[i] !== '\n') {
+        if (code[i] === '\\') { out += '  '; i += 2; continue; }
+        if (code[i] === q) { out += ' '; i++; break; }
+        out += ' '; i++;
+      }
+      continue;
+    }
+    if (c === '`') {
+      out += ' '; i++;
+      stack.push('template');
+      continue;
+    }
+    if (c === '/' && isRegexPrefix() && nx !== '/' && nx !== '*') {
+      out += ' '; i++;
+      while (i < n && code[i] !== '\n') {
+        if (code[i] === '\\') { out += '  '; i += 2; continue; }
+        if (code[i] === '[') {
+          out += ' '; i++;
+          while (i < n && code[i] !== '\n') {
+            if (code[i] === '\\') { out += '  '; i += 2; continue; }
+            if (code[i] === ']') { out += ' '; i++; break; }
+            out += ' '; i++;
+          }
+          continue;
+        }
+        if (code[i] === '/') {
+          out += ' '; i++;
+          while (i < n && /[\w$]/.test(code[i])) { out += ' '; i++; }
+          break;
+        }
+        out += ' '; i++;
+      }
+      continue;
+    }
+
+    if (c === '{') {
+      braceDepth[braceDepth.length - 1]++;
+      out += '{'; i++;
+      continue;
+    }
+    if (c === '}') {
+      braceDepth[braceDepth.length - 1]--;
+      if (stack.length > 1 && braceDepth[braceDepth.length - 1] === 0) {
+        stack.pop();
+        braceDepth.pop();
+        out += ' '; i++;
+        continue;
+      }
+      out += '}'; i++;
+      continue;
+    }
+
+    out += c; i++;
+  }
+  return out;
+};
 const localIn = code => {
   const names = new Set(importedIn(code));
-  for (const m of code.matchAll(/^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
-  for (const m of code.matchAll(/^(?:export\s+)?(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
+  for (const m of code.matchAll(/(?:^|[;{}()\s])(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
+  for (const m of code.matchAll(/(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of code.matchAll(/catch\s*\(\s*([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
   return names;
 };
 
@@ -88,9 +197,30 @@ const GLOBALS = new Set([
   'Event', 'CustomEvent', 'KeyboardEvent', 'MouseEvent', 'Image', 'DOMParser', 'XMLSerializer',
   'JSON', 'Math', 'Number', 'String', 'Array', 'Object', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Date', 'RegExp', 'Error', 'Symbol', 'BigInt',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent', 'decodeURIComponent',
-  'requestAnimationFrame', 'cancelAnimationFrame', 'getComputedStyle',
+  'requestAnimationFrame', 'cancelAnimationFrame', 'getComputedStyle', 'Proxy',
   'GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_xmlhttpRequest', 'GM_info',
   'process', 'require', 'module', 'exports', '__dirname', '__filename'
+]);
+// Language keywords that match the `name(` shape (`if (`, `for (`) — never calls.
+const KEYWORDS = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'function', 'class',
+  'import', 'export', 'new', 'typeof', 'void', 'delete', 'throw', 'else',
+  'do', 'try', 'finally', 'case', 'default', 'in', 'of', 'instanceof',
+  'await', 'async', 'yield', 'let', 'const', 'var', 'this', 'super',
+  'extends', 'static', 'get', 'set', 'from', 'as'
+]);
+// Triaged unresolved names: intent, not leakage. Each entry names why the
+// bare call is correct without an import.
+const UNRESOLVED_EXCEPTIONS = new Set([
+  // typeof-guarded cross-entry late binding: app.js defines it, page/config
+  // call it only when the bundle entry already installed it.
+  'processListings',
+  // Destructured runProductScanner options with defaults — params, not imports.
+  'filterFn', 'shouldCancelFn', 'onProgress',
+  // Promise executor callbacks (resolve/reject) inside Promise callbacks or helper methods
+  'resolve', 'reject',
+  // Helper / callbacks passed as options or arguments
+  'makeRequest', 'onComplete',
 ]);
 
 const providedBy = new Map(); // name -> [files]
@@ -102,17 +232,20 @@ for (const f of srcFiles) {
   }
 }
 
-for (const target of ['ui/badges.js', 'features/price-alarm.js']) {
-  const code = fs.readFileSync(path.join(SRC_DIR, target), 'utf-8');
+for (const target of srcFiles) {
+  const raw = fs.readFileSync(path.join(SRC_DIR, target), 'utf-8');
+  const code = stripCode(raw);
   const local = localIn(code);
   const seen = new Set();
   for (const m of code.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
     const name = m[1];
-    if (seen.has(name) || local.has(name) || GLOBALS.has(name)) continue;
+    if (seen.has(name) || local.has(name) || GLOBALS.has(name) || KEYWORDS.has(name) || UNRESOLVED_EXCEPTIONS.has(name)) continue;
     seen.add(name);
     const owners = providedBy.get(name) ?? [];
-    if (owners.length > 0) {
+    if (owners.length > 0 && !owners.includes(target)) {
       failures.push(`${target}: ${name}( provided by ${owners.join(', ')} but never imported (IIFE leakage)`);
+    } else if (owners.length === 0) {
+      console.warn(`check-modules: unresolved-name warning: ${target}: ${name}( possibly unresolved`);
     }
   }
 }
