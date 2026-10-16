@@ -7,8 +7,10 @@ import {
   parsePriceStatsFromHtml,
   sanitizeTimeSeries,
   analyzePriceTimeSeries,
-  rollingMedians
+  rollingMedians,
+  recordRefForPrice
 } from '../../src/domain/price.js';
+import { isShippingPriceActive } from '../../src/page/adapter.js';
 import { DAY, withConfig, withConfigs } from './helpers.js';
 
 describe('Price Domain Module', () => {
@@ -373,6 +375,19 @@ describe('Price Domain Module', () => {
       const result = sanitizeTimeSeries(series);
       assert.equal(result.rawMedian, 25);
     });
+
+    it('resets filteredOutliers to empty when cleanPoints.length < 2 falls back to sorted (F-05)', () => {
+      const now = Date.now();
+      const series = [
+        [now - 2 * DAY, 100],
+        [now - 1 * DAY, 10],
+        [now, 10]
+      ];
+      const result = sanitizeTimeSeries(series, 0.50, 48);
+      if (result.cleanPoints.length < 2) {
+        assert.equal(result.filteredOutliers.length, 0);
+      }
+    });
   });
 
   describe('analyzePriceTimeSeries', () => {
@@ -605,6 +620,21 @@ describe('Price Domain Module', () => {
       assert.ok(hit.rawTiefstpreis <= hit.tiefstpreis);
       assert.equal(sanitizeTimeSeries(glitchy).rawMin, 15);
     });
+
+    it('does not flag prices above all-time low as new records (F-02)', () => {
+      const now = Date.now();
+      const series = [
+        [now - 3 * DAY, 100],
+        [now - 2 * DAY, 85],
+        [now - 1 * DAY, 90],
+        [now, 90]
+      ];
+      const result = analyzePriceTimeSeries(series, 90);
+      assert.equal(result.tiefstpreis, 85);
+      assert.equal(result.previousLow, 85);
+      assert.equal(result.isNewAllTimeLow, false);
+      assert.equal(result.realDiscountVsPrevLow, 0);
+    });
   });
 
   describe('parsePriceStatsFromHtml', () => {
@@ -676,6 +706,75 @@ describe('Price Domain Module', () => {
       const mockCard = { querySelector: sel => (sel.includes('.priceContainer') ? { textContent: 'CHF 10.00' } : null) };
       assert.equal(extractCanonicalPrice(mockCard).price, 10);
       assert.equal(extractCanonicalPrice(mockCard).price, 10);
+    });
+  });
+
+  describe('recordRefForPrice (F-02)', () => {
+    it('correctly computes record ref when current price is above all-time low', () => {
+      const now = Date.now();
+      const stats = {
+        tiefstpreis: 85,
+        timeSeries: [
+          [now - 3 * DAY, 100],
+          [now - 2 * DAY, 85],
+          [now - 1 * DAY, 90],
+          [now, 90]
+        ]
+      };
+      const ref = recordRefForPrice(stats, 90);
+      assert.equal(ref.isNewRecord, false);
+      assert.equal(ref.previousLow, 85);
+    });
+
+    it('flags new record when current price strictly undercuts historical low', () => {
+      const now = Date.now();
+      const stats = {
+        tiefstpreis: 85,
+        timeSeries: [
+          [now - 2 * DAY, 100],
+          [now - 1 * DAY, 85],
+          [now, 80]
+        ]
+      };
+      const ref = recordRefForPrice(stats, 80);
+      assert.equal(ref.isNewRecord, true);
+      assert.equal(ref.previousLow, 85);
+    });
+
+    it('supports HTML fallback stats when cardPrice < tiefstpreis', () => {
+      const stats = { tiefstpreis: 100 };
+      const refUnder = recordRefForPrice(stats, 95);
+      assert.equal(refUnder.isNewRecord, true);
+      assert.equal(refUnder.previousLow, 100);
+
+      const refAbove = recordRefForPrice(stats, 105);
+      assert.equal(refAbove.isNewRecord, false);
+    });
+  });
+
+  describe('isShippingPriceActive offscreen / hidden card guard (F-08)', () => {
+    it('does not return false when both shipping and product containers are hidden (offsetParent === null)', () => {
+      const card = {
+        _tpPriceInfo: {
+          mainShipping: { closest: () => ({ offsetParent: null, style: {} }) },
+          mainProduct: { closest: () => ({ offsetParent: null, style: {} }) }
+        }
+      };
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        assert.equal(isShippingPriceActive(card), true);
+      });
+    });
+
+    it('returns false when shipping container is hidden but product container is visible', () => {
+      const card = {
+        _tpPriceInfo: {
+          mainShipping: { closest: () => ({ offsetParent: null, style: {} }) },
+          mainProduct: { closest: () => ({ offsetParent: {}, style: {} }) }
+        }
+      };
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        assert.equal(isShippingPriceActive(card), false);
+      });
     });
   });
 });

@@ -233,9 +233,10 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     i = k;
   }
 
+  const useClean = cleanPoints.length >= 2;
   return {
-    cleanPoints: cleanPoints.length >= 2 ? cleanPoints : sorted,
-    filteredOutliers,
+    cleanPoints: useClean ? cleanPoints : sorted,
+    filteredOutliers: useClean ? filteredOutliers : [],
     rawMedian,
     rawMin,
     localMedians
@@ -294,13 +295,21 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
   // Trailing-plateau walk: only points already AT (or below) the current price
   // belong to the current regime. Strict cent comparison — the old 1% band
   // swallowed sub-1% dips into the plateau and overstated micro-records.
+  // When current price is strictly above the historical all-time low, it cannot
+  // be a new record; previousLow is the allTimeLow.
   const currCents = priceToCents(curr);
-  let idx = prices.length - 1;
-  while (idx > 0 && priceToCents(prices[idx]) <= currCents) {
-    idx--;
+  const allTimeLowCents = priceToCents(allTimeLow);
+  let previousLow;
+  if (currCents > allTimeLowCents) {
+    previousLow = allTimeLow;
+  } else {
+    let idx = prices.length - 1;
+    while (idx > 0 && priceToCents(prices[idx]) <= currCents) {
+      idx--;
+    }
+    const historicalPrices = prices.slice(0, idx + 1);
+    previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
   }
-  const historicalPrices = prices.slice(0, idx + 1);
-  const previousLow = historicalPrices.length > 0 ? Math.min(...historicalPrices) : allTimeLow;
 
   const horizonDays = typeof horizonOverride === 'number'
     ? horizonOverride
@@ -363,14 +372,24 @@ export function analyzePriceTimeSeries(series, currentPrice = null, horizonOverr
  * reports an ancient regime low as "Bisher". Re-running the same walk
  * anchored at the live card price returns exactly what the analysis would
  * have produced had it known the price — same walk, right anchor.
- * Stats without a series (HTML fallback) keep their stored values.
+ * Stats without a series (HTML fallback) check for strict undercut of tiefstpreis.
  */
 export function recordRefForPrice(stats, cardPrice) {
   const stored = { previousLow: stats?.previousLow ?? null, isNewRecord: !!stats?.isNewAllTimeLow };
+  if (!(cardPrice > 0)) return stored;
   const pts = stats?.timeSeries;
-  if (!(cardPrice > 0) || !Array.isArray(pts) || pts.length === 0) return stored;
+  if (!Array.isArray(pts) || pts.length === 0) {
+    if (stats?.tiefstpreis && priceToCents(cardPrice) < priceToCents(stats.tiefstpreis)) {
+      return { previousLow: stored.previousLow ?? stats.tiefstpreis, isNewRecord: true };
+    }
+    return stored;
+  }
   const cCents = priceToCents(cardPrice);
   const priceOf = p => (Array.isArray(p) ? p[1] : p?.price);
+  const allTimeLowCents = Math.min(...pts.map(p => priceToCents(priceOf(p))).filter(c => c > 0));
+  if (cCents > allTimeLowCents) {
+    return { previousLow: allTimeLowCents / 100, isNewRecord: false };
+  }
   let idx = pts.length - 1;
   while (idx > 0 && priceToCents(priceOf(pts[idx])) <= cCents) idx--;
   const hist = pts.slice(0, idx + 1).map(priceOf).filter(p => typeof p === 'number' && p > 0);

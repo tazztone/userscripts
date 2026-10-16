@@ -187,7 +187,7 @@ describe('Gewichtete Differenz Domain Module', () => {
         const stats = analyzePriceTimeSeries(series); // production path: no live price
         assert.ok(stats);
         assert.equal(stats.tiefstpreis, 218);
-        assert.equal(stats.previousLow, 319); // stale-anchored at series-last — the trap
+        assert.equal(stats.previousLow, 218); // F-02: series ends at 272 > 218 (all-time low), so previousLow is 218
         assert.equal(recordRefForPrice(stats, 169.47).previousLow, 218);
         const d = getDisplayDelta(169.47, stats);
         assert.equal(d.kind, 'new-low');
