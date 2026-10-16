@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.287
+// @version      2.18.288
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2469,9 +2469,12 @@ const SHADOW_MODAL_STYLES = `
     } catch (e) {}
   }
 
-  function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null) {
+  function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
     if (!productId) return null;
     storage = resolveStorage(storage);
+    const targetShipping = typeof useShippingOverride === 'boolean'
+      ? useShippingOverride
+      : (typeof useShippingOverride === 'string' ? useShippingOverride === 'shipping' : isShippingPriceActive());
     // Mode guard: the series is picked per shipping mode at fetch time and the
     // key is bare, so a cross-mode entry would compare the wrong baseline
     // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
@@ -2480,11 +2483,11 @@ const SHADOW_MODAL_STYLES = `
     const isModeMatch = entry => {
       if (typeof entry?.isShippingPrice !== 'boolean') return true;
       try {
-        return entry.isShippingPrice === isShippingPriceActive();
+        return entry.isShippingPrice === targetShipping;
       } catch (e) { return true; }
     };
     try {
-      const key = statsKey(productId);
+      const key = statsKey(productId, targetShipping);
       if (memoryCache.has(key)) {
         const memData = memoryCache.get(key);
         if (isCacheEntryFresh(memData, ignoreNegativeCache)) {
@@ -3543,17 +3546,17 @@ const SHADOW_MODAL_STYLES = `
       if (/(?:produktsuche|katalog|search|suche)/i.test(currentUrl)) return false;
       if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(currentUrl)) return true;
     }
-    return /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href) ||
+    return (typeof location !== 'undefined' && /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href)) ||
            document.body?.classList.contains('Page_ListTopPriceReductionProducts') ||
            document.body?.classList.contains('Page_ListTop100Products');
   }
   function isSearchPage() {
-    const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? location.href;
+    const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? (typeof location !== 'undefined' ? location.href : '');
     return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
   }
 
   function getDetailProductId() {
-    const match = location.href.match(/-p(\d+)/i) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
+    const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
     if (match) return match[1];
     const chartLink = document.querySelector('a[href*="pricechart"], a[href*="p_pc_pid="]');
     if (chartLink) {
@@ -3566,11 +3569,6 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getDetailLowestPrice() {
-    // Ordered single queries: a grouped selector would return the first match in
-    // document order, not priority order, so a stray early .Plugin_Price could win.
-    // Basis-strict: no cross-basis fallback — a product-only price must never
-    // compare against shipping-inclusive history (scanner.js picks data[1] when
-    // shipping is active), else a live-vs-history mismatch fakes a record low.
     const shipping = isShippingPriceActive();
     const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
     const selectors = shipping ? ['.shippingPrice .Plugin_Price'] : productFirst;
@@ -3582,7 +3580,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function isProductDetailPage() {
-    return /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href) ||
+    return (typeof location !== 'undefined' && /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href)) ||
            /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(document.body?.getAttribute('data-current_url') || '') ||
            document.body?.classList.contains('Page_Product') ||
            document.body?.classList.contains('Page_DetailProduct') ||
@@ -3901,11 +3899,12 @@ const SHADOW_MODAL_STYLES = `
   function scanEligibility(card) {
     const pid = getCardProductId(card);
     if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
-    const stats = getCachedPriceStats(pid);
+    const cardBasis = extractCanonicalPrice(card).basis;
+    const stats = getCachedPriceStats(pid, false, null, cardBasis === 'shipping') || getCachedPriceStats(pid);
     if (stats && stats.unavailable) {
       return { state: 'unavailable', canScan: false, retryAt: (stats.time || Date.now()) + (CONFIG.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000, reason: 'negative-cache' };
     }
-    if (stats && !basisMatchesFor(stats, extractCanonicalPrice(card).basis)) {
+    if (stats && !basisMatchesFor(stats, cardBasis)) {
       return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
     }
     if (hasUsablePriceStats(stats)) return { state: 'verified', canScan: false, retryAt: null, reason: null };
@@ -3917,7 +3916,7 @@ const SHADOW_MODAL_STYLES = `
     const cardPriceEl = priceData.el;
     const cardPrice = priceData.price;
     const cardPriceBasis = priceData.basis;
-    const stats = pid ? getCachedPriceStats(pid) : null;
+    const stats = pid ? (getCachedPriceStats(pid, false, null, cardPriceBasis === 'shipping') || getCachedPriceStats(pid)) : null;
     const diffVal = extractCardDiff(card);
     const discountVal = extractCardDiscount(card);
     const basisMatches = basisMatchesFor(stats, cardPriceBasis);
@@ -4650,6 +4649,11 @@ const SHADOW_MODAL_STYLES = `
           e.timeout = true;
           throw e;
         }
+        if (err?.name === 'SyntaxError') {
+          const e = new Error('invalid-json');
+          e.cause = err;
+          throw e;
+        }
         if (attempt < retries) {
           await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
           continue;
@@ -4758,18 +4762,20 @@ const SHADOW_MODAL_STYLES = `
       );
     });
   }
-  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null) {
+  async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null, preferredBasis = null) {
     if (!productId) return null;
     // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
     // the wrong series into the wrong slot, and each mode dedups independently.
-    const useShipping = isShippingPriceActive();
+    const useShipping = typeof preferredBasis === 'string'
+      ? (preferredBasis === 'shipping')
+      : (typeof preferredBasis === 'boolean' ? preferredBasis : isShippingPriceActive());
     const fetchKey = `${productId}_${useShipping ? 's' : 'p'}`;
     // Generation at network start: a clear/reset mid-flight voids every write below.
     const gen = currentCacheGen();
     // Refresh bypass: always hit the network, but keep the good entry in
     // memory/localStorage until the fetch succeeds — a failed refresh must
     // not downgrade a full analysis to an unavailable marker.
-    const prev = getCachedPriceStats(productId);
+    const prev = getCachedPriceStats(productId, false, null, useShipping);
     if (!forceFresh && prev) {
       if (prev.unavailable) return null;
       return prev;
@@ -4955,7 +4961,10 @@ const SHADOW_MODAL_STYLES = `
           // Pre-fetch identity guard: skip the fetch when the card detached or
           // was reused for another product while queued (post-fetch guard stays).
           if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
-            stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
+            const cardBasis = extractCanonicalPrice(item.card).basis;
+            const cardElig = scanEligibility(item.card);
+            const forceFresh = cardElig.state === 'basis-mismatch';
+            stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
             // Card-identity guard: reused/detached cards must not collect an
             // earlier request's verification.
             if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
@@ -5155,14 +5164,14 @@ const SHADOW_MODAL_STYLES = `
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
     const reqPid = getCardProductId(card);
-    if (!reqPid) return;
-    const reqBasis = isShippingPriceActive();
-    const reqPrice = extractCanonicalPrice(card).price;
+    const cardPriceData = extractCanonicalPrice(card);
+    const reqBasis = cardPriceData.basis;
+    const reqPrice = cardPriceData.price;
     const reqCents = priceToCents(reqPrice);
     badgeDifEl.classList.add('tp-deal-loading');
     badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-    const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null);
-    if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || isShippingPriceActive() !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
+    const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null, null, reqBasis);
+    if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || extractCanonicalPrice(card).basis !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
       badgeDifEl.classList.remove('tp-deal-loading');
       triggerProcessListings();
       return;
@@ -9456,9 +9465,9 @@ const SHADOW_MODAL_STYLES = `
     if (!(currentPrice > 0)) { removeDetailBadge(); return; }
 
     let badge = document.getElementById('tp-detail-deal-badge');
-    let stats = getCachedPriceStats(pid);
+    let stats = getCachedPriceStats(pid, false, null, priceBasis === 'shipping') || getCachedPriceStats(pid);
     if (!stats || !stats.tiefstpreis) {
-      await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice);
+      await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
       // Stale: a newer run started, the route changed, or the heading died.
       if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
         if (pid !== getDetailProductId()) removeDetailBadge();
@@ -9467,7 +9476,7 @@ const SHADOW_MODAL_STYLES = `
       // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
       const fresh = getDetailLowestPrice();
       if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
-      stats = getCachedPriceStats(pid);
+      stats = getCachedPriceStats(pid, false, null, priceBasis === 'shipping') || getCachedPriceStats(pid);
     }
     if (stats && stats.tiefstpreis > 0) {
       // Basis gate (same rule as extractCardData): a live price on the other
@@ -9637,6 +9646,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       if (m.type === 'attributes' && (m.attributeName === 'data-current_url' || m.attributeName === 'data-current-url')) structural = true;
       const target = m.target;
       if (!target) continue;
+      const targetEl = target.nodeType === 1 ? target : target.parentElement;
       // In-card host mutation (price text/attribute swap, node replacement):
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
@@ -9746,7 +9756,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.286';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.287';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

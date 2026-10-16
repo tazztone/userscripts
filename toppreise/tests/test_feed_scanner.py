@@ -597,6 +597,7 @@ def test_product_detail_page_deal_badge(page: Page):
           <div class="Plugin_ProductHeading">
             <h1>SHARP 55HR7265E <a href="/plugins/product/pricechart?p_pc_pid=840582">Preischart</a></h1>
           </div>
+          <div class="shippingPrice"><div class="Plugin_Price">350.90</div></div>
           <div class="productPrice"><div class="Plugin_Price">350.90</div></div>
         `;
         window.ToppreiseSuite?.processProductDetailPage?.();
@@ -627,6 +628,7 @@ def test_product_detail_page_negative_cache_no_recursion(page: Page):
           <div class="Plugin_ProductHeading">
             <h1>SHARP 55HR7265E <a href="/plugins/product/pricechart?p_pc_pid=840582">Preischart</a></h1>
           </div>
+          <div class="shippingPrice"><div class="Plugin_Price">350.90</div></div>
           <div class="productPrice"><div class="Plugin_Price">350.90</div></div>
         `;
         // Inject a spy onto the recursive function to ensure it doesn't infinite loop
@@ -1471,7 +1473,7 @@ def test_dealer_name_on_demand_button_on_feed_card(page: Page):
             status=200,
             headers={'access-control-allow-origin': '*'},
             content_type='text/html',
-            body='<div class="Plugin_DealerRelProdPriceInfo"><span class="title">Galaxus</span></div>'
+            body='<div class="Plugin_DealerRelProdPriceInfo"><span class="title">Galaxus</span><div class="shippingPrice"><div class="Plugin_Price">CHF 1800.00</div></div></div>'
         )
     page.route('**/preisvergleich/**', handle_product)
 
@@ -1515,6 +1517,7 @@ def test_dealer_name_links_directly_to_shop_offer(page: Page):
         content_type='text/html',
         body='<div class="Plugin_Offer">'
              '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer shippingPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
              '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
              '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
              '</div>'
@@ -1551,6 +1554,7 @@ def test_dealer_autofetch_loads_without_click(page: Page):
         content_type='text/html',
         body='<div class="Plugin_Offer">'
              '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer shippingPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
              '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
              '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
              '</div>'
@@ -1583,6 +1587,7 @@ def test_dealer_name_survives_reload_without_refetch(page: Page, userscript_cont
             content_type='text/html',
             body='<div class="Plugin_Offer">'
                  '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+                 '<div class="priceContainer shippingPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
                  '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
                  '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
                  '</div>'
@@ -1634,6 +1639,7 @@ def test_dealer_name_gets_full_row_width(page: Page):
         content_type='text/html',
         body='<div class="Plugin_Offer">'
              '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer shippingPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
              '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
              '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
              '</div>'

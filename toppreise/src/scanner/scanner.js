@@ -120,6 +120,11 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
         e.timeout = true;
         throw e;
       }
+      if (err?.name === 'SyntaxError') {
+        const e = new Error('invalid-json');
+        e.cause = err;
+        throw e;
+      }
       if (attempt < retries) {
         await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
         continue;
@@ -228,18 +233,20 @@ function raceSharedRaw(promise, signal, shouldCancelFn) {
     );
   });
 }
-export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null) {
+export async function fetchSingleProductPriceStats(productId, retries = 1, forceFresh = false, shouldCancelFn = null, currentPrice = null, signal = null, preferredBasis = null) {
   if (!productId) return null;
   // Snapshot the shipping basis once: a mode toggle mid-fetch must not pick
   // the wrong series into the wrong slot, and each mode dedups independently.
-  const useShipping = isShippingPriceActive();
+  const useShipping = typeof preferredBasis === 'string'
+    ? (preferredBasis === 'shipping')
+    : (typeof preferredBasis === 'boolean' ? preferredBasis : isShippingPriceActive());
   const fetchKey = `${productId}_${useShipping ? 's' : 'p'}`;
   // Generation at network start: a clear/reset mid-flight voids every write below.
   const gen = currentCacheGen();
   // Refresh bypass: always hit the network, but keep the good entry in
   // memory/localStorage until the fetch succeeds — a failed refresh must
   // not downgrade a full analysis to an unavailable marker.
-  const prev = getCachedPriceStats(productId);
+  const prev = getCachedPriceStats(productId, false, null, useShipping);
   if (!forceFresh && prev) {
     if (prev.unavailable) return null;
     return prev;
@@ -425,7 +432,10 @@ export async function runProductScanner(options = {}) {
         // Pre-fetch identity guard: skip the fetch when the card detached or
         // was reused for another product while queued (post-fetch guard stays).
         if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
-          stats = await fetchSingleProductPriceStats(item.pid, 2, false, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal);
+          const cardBasis = extractCanonicalPrice(item.card).basis;
+          const cardElig = scanEligibility(item.card);
+          const forceFresh = cardElig.state === 'basis-mismatch';
+          stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
           // Card-identity guard: reused/detached cards must not collect an
           // earlier request's verification.
           if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;

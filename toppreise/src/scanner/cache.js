@@ -118,9 +118,12 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
   } catch (e) {}
 }
 
-export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null) {
+export function getCachedPriceStats(productId, ignoreNegativeCache = false, storage = null, useShippingOverride = null) {
   if (!productId) return null;
   storage = resolveStorage(storage);
+  const targetShipping = typeof useShippingOverride === 'boolean'
+    ? useShippingOverride
+    : (typeof useShippingOverride === 'string' ? useShippingOverride === 'shipping' : isShippingPriceActive());
   // Mode guard: the series is picked per shipping mode at fetch time and the
   // key is bare, so a cross-mode entry would compare the wrong baseline
   // (same wrong-"Bisher" class as a stale series anchor). Legacy entries
@@ -129,11 +132,11 @@ export function getCachedPriceStats(productId, ignoreNegativeCache = false, stor
   const isModeMatch = entry => {
     if (typeof entry?.isShippingPrice !== 'boolean') return true;
     try {
-      return entry.isShippingPrice === isShippingPriceActive();
+      return entry.isShippingPrice === targetShipping;
     } catch (e) { return true; }
   };
   try {
-    const key = statsKey(productId);
+    const key = statsKey(productId, targetShipping);
     if (memoryCache.has(key)) {
       const memData = memoryCache.get(key);
       if (isCacheEntryFresh(memData, ignoreNegativeCache)) {

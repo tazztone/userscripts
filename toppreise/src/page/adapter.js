@@ -50,17 +50,17 @@ export function isNeueToppreisePage() {
     if (/(?:produktsuche|katalog|search|suche)/i.test(currentUrl)) return false;
     if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(currentUrl)) return true;
   }
-  return /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href) ||
+  return (typeof location !== 'undefined' && /(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(location.href)) ||
          document.body?.classList.contains('Page_ListTopPriceReductionProducts') ||
          document.body?.classList.contains('Page_ListTop100Products');
 }
 export function isSearchPage() {
-  const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? location.href;
+  const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? (typeof location !== 'undefined' ? location.href : '');
   return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
 }
 
 export function getDetailProductId() {
-  const match = location.href.match(/-p(\d+)/i) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
+  const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
   if (match) return match[1];
   const chartLink = document.querySelector('a[href*="pricechart"], a[href*="p_pc_pid="]');
   if (chartLink) {
@@ -73,11 +73,6 @@ export function getDetailProductId() {
 }
 
 export function getDetailLowestPrice() {
-  // Ordered single queries: a grouped selector would return the first match in
-  // document order, not priority order, so a stray early .Plugin_Price could win.
-  // Basis-strict: no cross-basis fallback — a product-only price must never
-  // compare against shipping-inclusive history (scanner.js picks data[1] when
-  // shipping is active), else a live-vs-history mismatch fakes a record low.
   const shipping = isShippingPriceActive();
   const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
   const selectors = shipping ? ['.shippingPrice .Plugin_Price'] : productFirst;
@@ -89,7 +84,7 @@ export function getDetailLowestPrice() {
 }
 
 export function isProductDetailPage() {
-  return /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href) ||
+  return (typeof location !== 'undefined' && /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href)) ||
          /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(document.body?.getAttribute('data-current_url') || '') ||
          document.body?.classList.contains('Page_Product') ||
          document.body?.classList.contains('Page_DetailProduct') ||

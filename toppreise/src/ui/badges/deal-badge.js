@@ -43,14 +43,14 @@ export function clearDealerAutoTried() {
 async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;
   const reqPid = getCardProductId(card);
-  if (!reqPid) return;
-  const reqBasis = isShippingPriceActive();
-  const reqPrice = extractCanonicalPrice(card).price;
+  const cardPriceData = extractCanonicalPrice(card);
+  const reqBasis = cardPriceData.basis;
+  const reqPrice = cardPriceData.price;
   const reqCents = priceToCents(reqPrice);
   badgeDifEl.classList.add('tp-deal-loading');
   badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-  const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null);
-  if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || isShippingPriceActive() !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
+  const fetchedStats = await fetchSingleProductPriceStats(reqPid, 1, true, null, Number.isFinite(reqPrice) && reqPrice > 0 ? reqPrice : null, null, reqBasis);
+  if (!card.isConnected || !badgeDifEl.isConnected || getCardProductId(card) !== reqPid || extractCanonicalPrice(card).basis !== reqBasis || priceToCents(extractCanonicalPrice(card).price) !== reqCents) {
     badgeDifEl.classList.remove('tp-deal-loading');
     triggerProcessListings();
     return;
