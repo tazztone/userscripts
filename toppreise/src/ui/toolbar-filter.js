@@ -15,7 +15,7 @@ const CYCLE_TITLE = {
   highlight: 'Filter: Hervorheben — klicken für Normal'
 };
 const CYCLE_TOASTS = {
-  FILTER_NEG_MODE: { dim: '📝 Negativ-Begriffe: Dimmen', hide: '📝 Negativ-Begriffe: Verbergen', highlight: '📝 Negativ-Begriffe: Hervorheben', off: '📝 Negativ-Begriffe: Normal' },
+  FILTER_NEG_MODE: { dim: '📝 Begriffe: Dimmen', hide: '📝 Begriffe: Verbergen', highlight: '📝 Begriffe: Hervorheben', off: '📝 Begriffe: Normal' },
   FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
   HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
   VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
