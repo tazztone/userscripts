@@ -331,12 +331,18 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'vortief' });
     });
 
-    it('stays neutral in the mode when Fallback-Tiefs are excluded', () => {
+    it('heats the Vortief-Abstand even when Fallback-Tiefs are excluded (blind heatmap paints badge %)', () => {
       withConfig('BESTPREISE_INCLUDE_VORTIEF', false, () => {
         const thinStats = { ...microStats, dataPointCount: 3, timeSeries: [[0, 48], [1, 49]] };
         const heat = getHeatInput(23.56, thinStats, -51, 'bestpreise');
-        assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'none' });
+        assert.deepEqual(heat, { value: -51, provisional: false, pct: 51, kind: 'vortief' });
       });
+    });
+
+    it('falls back to siteDiff when fallback-tief has no previous-low drop', () => {
+      const singlePointStats = { tiefstpreis: 36.90, timeSeries: [[0, 36.90]] };
+      const heat = getHeatInput(36.90, singlePointStats, -72, 'bestpreise');
+      assert.deepEqual(heat, { value: -72, provisional: false, pct: 72, kind: 'unverified' });
     });
 
     it('heats the Vortief-Abstand in browse too (blind heatmap)', () => {

@@ -197,13 +197,15 @@ export function getHeatInput(cardPrice, stats, siteDiff, _mode, precomputed = un
       ? display.dRecordRaw : (display.dRecord || 0);
     const dealData = precomputed === undefined ? computeDealScore(stats, cardPrice) : precomputed;
     // Unqualified history: no blend to show. The Vortief-Abstand still heats —
-    // blind inset wash like every other heat (kind 'vortief' only labels the
-    // source for badge text/tooltip, not the visual). Excluded fallbacks stay
-    // gray; dim/hide is their signal.
+    // blind inset wash like every other heat. Heatmap is a dumb view mode:
+    // paints whatever the badge % says (Vortief-Abstand or siteDiff).
     if (!dealData) {
-      if (CONFIG.BESTPREISE_INCLUDE_VORTIEF !== false) {
-        const vortief = vortiefDropPct(cardPrice, stats);
-        if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
+      const vortief = vortiefDropPct(cardPrice, stats);
+      if (vortief >= HEAT_NEUTRAL_DEADBAND_PCT) {
+        return { value: -vortief, provisional: false, pct: vortief, kind: 'vortief' };
+      }
+      if (typeof siteDiff === 'number' && !isNaN(siteDiff) && siteDiff <= -HEAT_NEUTRAL_DEADBAND_PCT) {
+        return { value: siteDiff, provisional: false, pct: -siteDiff, kind: 'unverified' };
       }
       return { value: null, provisional: false, pct: 0, kind: 'none' };
     }
