@@ -168,7 +168,7 @@ const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'aw
 const UNRESOLVED_EXCEPTIONS = new Set([
   // typeof-guarded cross-entry late binding: app.js defines it, page/config
   // call it only when the bundle entry already installed it.
-  'processListings',
+  'processListings', 'processProductDetailPage', 'processPriceAlarmModal',
   // Destructured runProductScanner options with defaults — params, not imports.
   'filterFn', 'shouldCancelFn', 'onProgress',
   // Promise executor callbacks (resolve/reject) inside Promise callbacks or helper methods
