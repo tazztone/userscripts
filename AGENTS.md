@@ -24,7 +24,7 @@ Build-then-test; detail: `docs/agent-guide.md` (§Gates, §Testing).
 
 ```bash
 node toppreise/tools/build.js --check  # drift gate, run pre/post src/ edit
-PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_ui_modal.py -o addopts="--import-mode=importlib"
+PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_ui_modal.py
 ```
 
 `package.json` scripts mirror the node commands. Stage only intended files.
@@ -41,7 +41,7 @@ DOM via `page/selectors.js`; `domain/` pure and Node-tested; async bounded (`sca
 
 ## Runtime/Tooling Preferences
 
-Stock `node` for build/unit, `venv/bin/pytest` for browser tests; versions in `tests/requirements.txt`. Every pytest run needs the browsers-path env plus `-o addopts="--import-mode=importlib"` (see §Development Commands).
+Stock `node` for build/unit, `venv/bin/pytest` for browser tests; versions in `tests/requirements.txt`. Every pytest run needs the browsers-path env (see §Development Commands); importlib mode and `-n auto` parallelization are configured in `pytest.ini`.
 
 ## Testing & QA
 

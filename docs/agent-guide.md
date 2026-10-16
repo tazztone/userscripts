@@ -21,14 +21,14 @@ Zero-degree hits are candidates only: re-check with `rg`/LSP before deleting. Th
 ```bash
 node --test toppreise/tests/unit/*.test.js  # fast layer (<100ms); single file: tests/unit/<name>.test.js
 node --test --test-name-pattern="<name>" toppreise/tests/unit/<f>.test.js  # one case
-PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_ui_modal.py -o addopts="--import-mode=importlib"
-PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest -o addopts="--import-mode=importlib"  # all
-venv/bin/pytest toppreise/tests/test_catalog_layout.py::test_name -o addopts="--import-mode=importlib"  # one case
+PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest toppreise/tests/test_ui_modal.py
+PLAYWRIGHT_BROWSERS_PATH=/home/tazztone/_coding/userscripts/.playwright-browsers venv/bin/pytest  # all (auto-parallelized across cores)
+venv/bin/pytest toppreise/tests/test_catalog_layout.py::test_name  # one case
 node --test huggingface/tests/test_logic.js  # HF gate
 bash toppreise/tools/refresh-screenshot.sh
 ```
 
-Same `PLAYWRIGHT_BROWSERS_PATH` + `-o addopts` pattern for `test_feed_scanner.py`, `test_catalog_layout.py`, `test_price_logic.py`, `test_floating_cta.py`, `test_heatmap_contrast.py`. Fixture: `page.evaluate(bundle)` on `file://mock_*.html` (see `toppreise/tests/conftest.py`); mocks hand-rolled (`page.route`, stub objects). Suites stay placeholder-free; exploration goes in `scratch/`. Fail-fast defaults in `conftest.py`: 2.5s locator/page timeout (override via `timeout=...` if needed), instant fail on unhandled `pageerror`, expect timeout at 2s, CSS transitions disabled.
+Same `PLAYWRIGHT_BROWSERS_PATH` pattern for `test_feed_scanner.py`, `test_catalog_layout.py`, `test_price_logic.py`, `test_floating_cta.py`, `test_heatmap_contrast.py`. Fixture: `page.evaluate(bundle)` on `file://mock_*.html` (see `toppreise/tests/conftest.py`); mocks hand-rolled (`page.route`, stub objects). Suites stay placeholder-free; exploration goes in `scratch/`. Parallel `-n auto` and `--import-mode=importlib` configured in `pytest.ini`. Fail-fast defaults in `conftest.py`: 2.5s locator/page timeout (override via `timeout=...` if needed), instant fail on unhandled `pageerror`, expect timeout at 2s, CSS transitions disabled.
 
 ## Patterns
 
