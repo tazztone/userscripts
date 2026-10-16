@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.286
+// @version      2.18.287
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4033,6 +4033,13 @@ const SHADOW_MODAL_STYLES = `
     return true;
   }
 
+  function scanCandidateState(cd, { isFeed = false, minDiscount = 30 } = {}) {
+    if (!cd?.pid) return null;
+    if (isFeed && (cd.discountVal === null || cd.discountVal < minDiscount)) return null;
+    if (isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return null;
+    return scanEligibility(cd.card);
+  }
+
   // ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────
   /**
    * Interactive SVG Sparkline Component
@@ -4881,7 +4888,9 @@ const SHADOW_MODAL_STYLES = `
 
   async function runProductScanner(options = {}) {
     const {
-      filterFn = () => true,
+      filterFn = null,
+      isFeed = undefined,
+      minDiscount = 30,
       sortByDiscount = false,
       shouldCancelFn = () => false,
       onProgress = null,
@@ -4896,29 +4905,26 @@ const SHADOW_MODAL_STYLES = `
     const pageHasOffers = cards.some(card => extractOfferCount(card) > 0);
     const termsList = parseNegativeTerms();
     const activeStores = extractActiveStores();
-    const isDealFeed = isNeueToppreisePage();
+    const isDealFeed = typeof isFeed === 'boolean' ? isFeed : isNeueToppreisePage();
 
     const seenTargets = new Set();
     for (const card of cards) {
-      const pid = getCardProductId(card);
-      if (!pid) continue;
-      // Shared resolver: usable stats verify, fresh unavailable markers wait
-      // out the negative TTL, basis mismatches refetch into their own slot.
-      const elig = scanEligibility(card);
-      if (!elig.canScan) continue;
-      // Full card data (not a partial struct): scanner, counter and renderer
-      // share one filter verdict, including the dealer rule.
       const cd = extractCardData(card);
-      const targetKey = `${pid}:${cd.cardPriceBasis}`;
+      if (!cd.pid) continue;
+      const targetKey = `${cd.pid}:${cd.cardPriceBasis}`;
       if (seenTargets.has(targetKey)) continue;
-      const filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
-      filters.isDealerLoser = dealerLoserFor(card, activeStores);
-      if (isCardFilteredOut(card, filters, { forScan: true })) continue;
-      const discount = extractCardDiscount(card) ?? 0;
-      if (filterFn({ pid, card, discount })) {
-        seenTargets.add(targetKey);
-        targets.push({ pid, card, discount });
-      }
+
+      cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
+      cd.filters.isDealerLoser = dealerLoserFor(card, activeStores);
+
+      const elig = scanCandidateState(cd, { isFeed: isDealFeed, minDiscount });
+      if (!elig?.canScan) continue;
+
+      const discount = cd.discountVal ?? 0;
+      if (filterFn && !filterFn({ pid: cd.pid, card, discount })) continue;
+
+      seenTargets.add(targetKey);
+      targets.push({ pid: cd.pid, card, discount });
     }
 
     if (sortByDiscount) {
@@ -4988,7 +4994,8 @@ const SHADOW_MODAL_STYLES = `
     try {
       const isFeed = isNeueToppreisePage();
       await runProductScanner({
-        filterFn: (item => isFeed ? (item.discount >= minDiscount) : true),
+        isFeed,
+        minDiscount,
         sortByDiscount: false,
         shouldCancelFn: (() => scanState.batchCancelRequested),
         onProgress,
@@ -8375,7 +8382,7 @@ const SHADOW_MODAL_STYLES = `
         const fresh = document.querySelectorAll('.tp-deal-fresh').length;
         const checked = (newlyVerified || []).length;
         if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : checked > 0 ? `Keine Tiefstpreise dabei · ${checked} geprüft` : 'Keine Prüfung möglich');
-        else showToast('Keine ungeprüften Deals vorhanden');
+        else showToast(unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden');
       }
     );
     syncFloatingCTA();
@@ -8447,6 +8454,7 @@ const SHADOW_MODAL_STYLES = `
         popover.classList.remove('tp-show');
         updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
         showToast(`Nur Differenzen ab ${val}% werden geprüft`);
+        triggerProcessListings();
         syncFloatingCTA();
       };
       popover.appendChild(opt);
@@ -9548,14 +9556,9 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         // Scan bucket from the shared resolver: fresh unavailable markers
         // wait out the negative TTL (counted aside, CTA ignores them).
-        const countScanBucket = extraOk => {
-          if (!cd.pid || !extraOk || isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return;
-          const elig = scanEligibility(cd.card);
-          if (elig.canScan) counts.uncheckedDeals++;
-          else if (elig.state === 'unavailable') counts.unavailableDeals++;
-        };
-        if (isNeueFeed) countScanBucket(cd.discountVal !== null && cd.discountVal >= minDealDiscount);
-        else countScanBucket(true);
+        const elig = scanCandidateState(cd, { isFeed: isNeueFeed, minDiscount: minDealDiscount });
+        if (elig?.canScan) counts.uncheckedDeals++;
+        else if (elig?.state === 'unavailable') counts.unavailableDeals++;
         // Verified markups are removed nowhere, so counted nowhere.
         // (No recompute here: extractCardData already scored with identical inputs.)
         if (cd.dealScore) counts.bestpreiseDeals++;
@@ -9743,7 +9746,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.285';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.286';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

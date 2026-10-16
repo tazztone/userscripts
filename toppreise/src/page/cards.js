@@ -421,3 +421,9 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   return true;
 }
 
+export function scanCandidateState(cd, { isFeed = false, minDiscount = 30 } = {}) {
+  if (!cd?.pid) return null;
+  if (isFeed && (cd.discountVal === null || cd.discountVal < minDiscount)) return null;
+  if (isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return null;
+  return scanEligibility(cd.card);
+}

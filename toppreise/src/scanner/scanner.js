@@ -6,7 +6,7 @@
 
 import { getCachedPriceStats, setCachedPriceStats, currentCacheGen } from './cache.js';
 import { analyzePriceTimeSeries, parsePriceStatsFromHtml, extractCanonicalPrice } from '../domain/price.js';
-import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount, scanEligibility } from '../page/cards.js';
+import { getProductCards, getCardProductId, extractCardDiscount, extractCardData, extractActiveStores, dealerLoserFor, applyCardFilters, isCardFilteredOut, parseNegativeTerms, extractOfferCount, scanEligibility, scanCandidateState } from '../page/cards.js';
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
@@ -358,7 +358,9 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
 
 export async function runProductScanner(options = {}) {
   const {
-    filterFn = () => true,
+    filterFn = null,
+    isFeed = undefined,
+    minDiscount = 30,
     sortByDiscount = false,
     shouldCancelFn = () => false,
     onProgress = null,
@@ -373,29 +375,26 @@ export async function runProductScanner(options = {}) {
   const pageHasOffers = cards.some(card => extractOfferCount(card) > 0);
   const termsList = parseNegativeTerms();
   const activeStores = extractActiveStores();
-  const isDealFeed = isNeueToppreisePage();
+  const isDealFeed = typeof isFeed === 'boolean' ? isFeed : isNeueToppreisePage();
 
   const seenTargets = new Set();
   for (const card of cards) {
-    const pid = getCardProductId(card);
-    if (!pid) continue;
-    // Shared resolver: usable stats verify, fresh unavailable markers wait
-    // out the negative TTL, basis mismatches refetch into their own slot.
-    const elig = scanEligibility(card);
-    if (!elig.canScan) continue;
-    // Full card data (not a partial struct): scanner, counter and renderer
-    // share one filter verdict, including the dealer rule.
     const cd = extractCardData(card);
-    const targetKey = `${pid}:${cd.cardPriceBasis}`;
+    if (!cd.pid) continue;
+    const targetKey = `${cd.pid}:${cd.cardPriceBasis}`;
     if (seenTargets.has(targetKey)) continue;
-    const filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
-    filters.isDealerLoser = dealerLoserFor(card, activeStores);
-    if (isCardFilteredOut(card, filters, { forScan: true })) continue;
-    const discount = extractCardDiscount(card) ?? 0;
-    if (filterFn({ pid, card, discount })) {
-      seenTargets.add(targetKey);
-      targets.push({ pid, card, discount });
-    }
+
+    cd.filters = applyCardFilters(cd, termsList, CONFIG.MIN_OFFERS, pageHasOffers, isDealFeed);
+    cd.filters.isDealerLoser = dealerLoserFor(card, activeStores);
+
+    const elig = scanCandidateState(cd, { isFeed: isDealFeed, minDiscount });
+    if (!elig?.canScan) continue;
+
+    const discount = cd.discountVal ?? 0;
+    if (filterFn && !filterFn({ pid: cd.pid, card, discount })) continue;
+
+    seenTargets.add(targetKey);
+    targets.push({ pid: cd.pid, card, discount });
   }
 
   if (sortByDiscount) {
@@ -465,7 +464,8 @@ async function runScan({ minDiscount = 30, onProgress = null, onComplete = null 
   try {
     const isFeed = isNeueToppreisePage();
     await runProductScanner({
-      filterFn: (item => isFeed ? (item.discount >= minDiscount) : true),
+      isFeed,
+      minDiscount,
       sortByDiscount: false,
       shouldCancelFn: (() => scanState.batchCancelRequested),
       onProgress,

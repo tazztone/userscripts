@@ -14,7 +14,8 @@ import {
   applyCardFilters,
   isCardFilteredOut,
   dealerLoserFor,
-  scanEligibility
+  scanEligibility,
+  scanCandidateState
 } from './page/cards.js';
 import {
   isShippingPriceActive,
@@ -54,7 +55,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.286
+// @version      2.18.287
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -115,14 +116,9 @@ import { processProductDetailPage } from './features/product-detail.js';
         cd.filters.isDealerLoser = dealerLoserFor(cd.card, activeStores);
         // Scan bucket from the shared resolver: fresh unavailable markers
         // wait out the negative TTL (counted aside, CTA ignores them).
-        const countScanBucket = extraOk => {
-          if (!cd.pid || !extraOk || isCardFilteredOut(cd.card, cd.filters, { forScan: true })) return;
-          const elig = scanEligibility(cd.card);
-          if (elig.canScan) counts.uncheckedDeals++;
-          else if (elig.state === 'unavailable') counts.unavailableDeals++;
-        };
-        if (isNeueFeed) countScanBucket(cd.discountVal !== null && cd.discountVal >= minDealDiscount);
-        else countScanBucket(true);
+        const elig = scanCandidateState(cd, { isFeed: isNeueFeed, minDiscount: minDealDiscount });
+        if (elig?.canScan) counts.uncheckedDeals++;
+        else if (elig?.state === 'unavailable') counts.unavailableDeals++;
         // Verified markups are removed nowhere, so counted nowhere.
         // (No recompute here: extractCardData already scored with identical inputs.)
         if (cd.dealScore) counts.bestpreiseDeals++;
@@ -310,7 +306,7 @@ import { processProductDetailPage } from './features/product-detail.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.286';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.287';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

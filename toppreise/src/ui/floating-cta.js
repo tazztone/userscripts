@@ -100,7 +100,7 @@ export function startBatchCheck() {
       const fresh = document.querySelectorAll('.tp-deal-fresh').length;
       const checked = (newlyVerified || []).length;
       if (total > 0) showToast(fresh > 0 ? `${fresh} Tiefstpreise verifiziert` : checked > 0 ? `Keine Tiefstpreise dabei · ${checked} geprüft` : 'Keine Prüfung möglich');
-      else showToast('Keine ungeprüften Deals vorhanden');
+      else showToast(unchecked > 0 ? `Keine Deals ab ≥${minDisc}% zum Prüfen` : 'Keine ungeprüften Deals vorhanden');
     }
   );
   syncFloatingCTA();
@@ -172,6 +172,7 @@ function ensureCta() {
       popover.classList.remove('tp-show');
       updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
       showToast(`Nur Differenzen ab ${val}% werden geprüft`);
+      triggerProcessListings();
       syncFloatingCTA();
     };
     popover.appendChild(opt);
