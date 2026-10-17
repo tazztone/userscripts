@@ -4,7 +4,7 @@
  */
 
 import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, horizonStoredToUi, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from '../state/config.js';
-import { renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
+import { renderLayout, validateLayoutRecipe, getLayoutRecipeNotice, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
 import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 
@@ -82,7 +82,12 @@ const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www
 function renderLayoutPreview(els) {
     if (!els.discordLayoutInput || !els.discordLayoutPreview) return;
     const recipe = els.discordLayoutInput.value;
-    if (els.discordLayoutError) els.discordLayoutError.textContent = validateLayoutRecipe(recipe) || '';
+    const error = validateLayoutRecipe(recipe);
+    const notice = !error ? getLayoutRecipeNotice(recipe) : null;
+    if (els.discordLayoutError) {
+      els.discordLayoutError.textContent = error || notice || '';
+      els.discordLayoutError.style.color = error ? '#ef4444' : notice ? '#d97706' : '';
+    }
     const rendered = renderLayout({
       ...LAYOUT_SAMPLE,
       suppressDealerEmbed: els.discordDealerEmbedToggle ? !els.discordDealerEmbedToggle.checked : true,

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.321
+// @version      2.18.322
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4607,6 +4607,14 @@ const SHADOW_MODAL_STYLES = `
     return unknown.length ? `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}` : null;
   }
 
+  function getLayoutRecipeNotice(recipe) {
+    const value = String(recipe ?? '');
+    if (value.includes('{spark}')) {
+      return '⚠️ {spark} ist veraltet: Preischart wird automatisch als Bild-Anhang angehängt.';
+    }
+    return null;
+  }
+
   function layoutOverLimitSuffix(renderedLength, recipe) {
     if (renderedLength <= 2000) return '';
     return String(recipe ?? '').includes('{title}') ? ' — über Limit, Titel wird gekürzt' : ' — über Limit, wird hart auf 2000 gekürzt';
@@ -7289,7 +7297,7 @@ const SHADOW_MODAL_STYLES = `
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
             </div>
             <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. {link} erscheint nur bei aktivem Toppreise-Embed.</span>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
             <pre id="tp-discord-layout-preview"></pre>
             <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -7545,7 +7553,12 @@ const SHADOW_MODAL_STYLES = `
   function renderLayoutPreview(els) {
       if (!els.discordLayoutInput || !els.discordLayoutPreview) return;
       const recipe = els.discordLayoutInput.value;
-      if (els.discordLayoutError) els.discordLayoutError.textContent = validateLayoutRecipe(recipe) || '';
+      const error = validateLayoutRecipe(recipe);
+      const notice = !error ? getLayoutRecipeNotice(recipe) : null;
+      if (els.discordLayoutError) {
+        els.discordLayoutError.textContent = error || notice || '';
+        els.discordLayoutError.style.color = error ? '#ef4444' : notice ? '#d97706' : '';
+      }
       const rendered = renderLayout({
         ...LAYOUT_SAMPLE,
         suppressDealerEmbed: els.discordDealerEmbedToggle ? !els.discordDealerEmbedToggle.checked : true,
@@ -10008,7 +10021,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.321';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.322';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

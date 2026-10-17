@@ -18,6 +18,14 @@ export function validateLayoutRecipe(recipe) {
   return unknown.length ? `Unbekannte Tokens: ${unknown.map(n => `{${n}}`).join(', ')}` : null;
 }
 
+export function getLayoutRecipeNotice(recipe) {
+  const value = String(recipe ?? '');
+  if (value.includes('{spark}')) {
+    return '⚠️ {spark} ist veraltet: Preischart wird automatisch als Bild-Anhang angehängt.';
+  }
+  return null;
+}
+
 export function layoutOverLimitSuffix(renderedLength, recipe) {
   if (renderedLength <= 2000) return '';
   return String(recipe ?? '').includes('{title}') ? ' — über Limit, Titel wird gekürzt' : ' — über Limit, wird hart auf 2000 gekürzt';

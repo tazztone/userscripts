@@ -6,6 +6,7 @@ import {
   forumRecipeFor,
   renderLayout,
   validateLayoutRecipe,
+  getLayoutRecipeNotice,
   renderDiscordMarkdownPreview,
   layoutOverLimitSuffix,
   DEFAULT_LAYOUT,
@@ -1059,6 +1060,20 @@ describe('validateLayoutRecipe', () => {
   });
   it('accepts the default layout', () => {
     assert.equal(validateLayoutRecipe(DEFAULT_LAYOUT), null);
+  });
+});
+
+describe('getLayoutRecipeNotice', () => {
+  it('returns deprecation notice when {spark} is in recipe', () => {
+    const notice = getLayoutRecipeNotice('## {title}\n{spark}\n# {price}');
+    assert.ok(notice);
+    assert.ok(notice.includes('{spark} ist veraltet'));
+  });
+
+  it('returns null when {spark} is absent', () => {
+    assert.equal(getLayoutRecipeNotice(DEFAULT_LAYOUT), null);
+    assert.equal(getLayoutRecipeNotice('## {title}\n# {price}'), null);
+    assert.equal(getLayoutRecipeNotice(null), null);
   });
 });
 
