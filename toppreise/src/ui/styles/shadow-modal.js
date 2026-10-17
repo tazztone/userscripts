@@ -77,6 +77,11 @@ export const SHADOW_MODAL_STYLES = `
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: var(--tp-mut); }
   #tp-section-unified-suite { display: flex; flex-direction: column; gap: 12px; }
   #tp-section-unified-suite label[title], #tp-section-unified-suite button[title] { cursor: help; }
+  .tp-glossary-term {
+    text-decoration: underline dotted var(--tp-mut) !important;
+    text-underline-offset: 3px !important;
+    cursor: help !important;
+  }
   .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }

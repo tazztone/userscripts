@@ -57,7 +57,7 @@ function buildWeightWrapper() {
   wrapper.id = 'tp-bar-weight-wrapper';
   wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
   wrapper.innerHTML = `
-    <span class="tp-stepper-label">Gewichtung</span>
+    <span class="tp-stepper-label tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtung</span>
     <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
     <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Gewichtung: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
   bindWeightControls(wrapper);

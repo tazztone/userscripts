@@ -53,6 +53,11 @@ export const STYLES_OVERLAYS = `
     gap: 8px !important;
   }
   .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
+  .tp-glossary-term {
+    text-decoration: underline dotted var(--tp-mut) !important;
+    text-underline-offset: 3px !important;
+    cursor: help !important;
+  }
   .tp-row-inactive { opacity: .55 !important; }
   .tp-row-inactive button:disabled { cursor: not-allowed !important; }
   .tp-filter-note {

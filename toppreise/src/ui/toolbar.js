@@ -96,17 +96,17 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="unchecked">
-              <span class="tp-filter-label" title="Ungeprüfte dimmen/verbergen (grau gestreift, nur Differenz) — Normal = zeigen">Ungeprüfte</span>
+              <span class="tp-filter-label tp-glossary-term" title="Angebote ohne geprüfte Preishistorie. Der Rabatt basiert nur auf UVP oder Toppreis.">Ungeprüfte</span>
               <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="vortief">
-              <span class="tp-filter-label" title="Verifizierte Tiefs ohne Ø-Vergleich (< Mindestpunkte, nur Vortief-Abstand) dimmen/verbergen — Normal = zeigen">Fallback-Tiefs</span>
+              <span class="tp-filter-label tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span>
               <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="deal-disc">
-              <span class="tp-filter-label" title="Karten mit weniger als N% Rabatt dimmen/verbergen">Min-Rabatt</span>
+              <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert.">Min-Rabatt</span>
               <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
                 <button class="tp-stepper-btn" id="tp-bar-deal-disc-minus" title="Geringeren Rabatt fordern">-</button>
                 <span id="tp-bar-deal-disc-val" style="min-width: 28px; text-align: center;">${CONFIG.MIN_DEAL_DISCOUNT}%</span>
@@ -131,13 +131,13 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Tiefstpreis-Sortierung: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isSortPage ? 'flex' : 'none'};">
-          💎 Tiefstpreis-Sortierung <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote." style="display: ${isSortPage ? 'flex' : 'none'};">
+          💎 <span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span> <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
         </button>
         <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
-          <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — nur Anzeige, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
+          <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
           <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
-            <div class="tp-calc-head">Berechnungsparameter<span>Nur Anzeige — filtert nichts</span></div>
+            <div class="tp-calc-head"><span class="tp-glossary-term" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">Berechnungsparameter</span><span>Nur Anzeige — filtert nichts</span></div>
             <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset" title="Berechnungsparameter zurücksetzen">Zurücksetzen</button>
           </div>
         </div>

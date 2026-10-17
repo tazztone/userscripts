@@ -66,7 +66,7 @@ export function ensureModalSection(shadow) {
 <div class="tp-section-body" id="tp-section-deals-body">
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Sortiert verifizierte Tiefstpreise nach Gewichteter Differenz; filtert nichts">Tiefstpreis-Sortierung</label>
+            <label><span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span></label>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -92,7 +92,7 @@ export function ensureModalSection(shadow) {
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-filter-body">
         <div class="tp-settings-group">
-          <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, Ungeprüfte, Fallback-Tiefs und Händler stehen im Filter-Popover der Filterleiste.</span>
+          <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, <span class="tp-glossary-term" title="Angebote ohne geprüfte Preishistorie. Der Rabatt basiert nur auf UVP oder Toppreis.">Ungeprüfte</span>, <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span> und Händler stehen im Filter-Popover der Filterleiste.</span>
         </div>
         <div class="tp-settings-group">
           <label title="So viel teurer darf der gewählte Händler als der Bestpreis sein">Preis-Toleranz (%)</label>
@@ -229,7 +229,7 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group">
-          <label title="Mischung aus Rekord- und Ø-Rabatt für Badge, Farbe und Reihenfolge">Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+          <label><span class="tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtete Differenz</span>: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
           <div class="tp-range-container tp-purple">
             <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
             <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
@@ -242,7 +242,7 @@ export function ensureModalSection(shadow) {
             <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
             <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
           </div>
-          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (einfache Fläche, kein Blend).</span>
+          <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tief</span> (einfache Fläche, kein Blend).</span>
         </div>
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
           <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>

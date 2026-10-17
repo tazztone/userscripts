@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.328
+// @version      2.18.329
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1135,6 +1135,11 @@ const STYLES_OVERLAYS = `
     gap: 8px !important;
   }
   .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
+  .tp-glossary-term {
+    text-decoration: underline dotted var(--tp-mut) !important;
+    text-underline-offset: 3px !important;
+    cursor: help !important;
+  }
   .tp-row-inactive { opacity: .55 !important; }
   .tp-row-inactive button:disabled { cursor: not-allowed !important; }
   .tp-filter-note {
@@ -1534,6 +1539,11 @@ const SHADOW_MODAL_STYLES = `
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: var(--tp-mut); }
   #tp-section-unified-suite { display: flex; flex-direction: column; gap: 12px; }
   #tp-section-unified-suite label[title], #tp-section-unified-suite button[title] { cursor: help; }
+  .tp-glossary-term {
+    text-decoration: underline dotted var(--tp-mut) !important;
+    text-underline-offset: 3px !important;
+    cursor: help !important;
+  }
   .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
@@ -7227,7 +7237,7 @@ const SHADOW_MODAL_STYLES = `
   <div class="tp-section-body" id="tp-section-deals-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Sortiert verifizierte Tiefstpreise nach Gewichteter Differenz; filtert nichts">Tiefstpreis-Sortierung</label>
+              <label><span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span></label>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-bestpreise-mode-toggle">
@@ -7253,7 +7263,7 @@ const SHADOW_MODAL_STYLES = `
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-filter-body">
           <div class="tp-settings-group">
-            <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, Ungeprüfte, Fallback-Tiefs und Händler stehen im Filter-Popover der Filterleiste.</span>
+            <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, <span class="tp-glossary-term" title="Angebote ohne geprüfte Preishistorie. Der Rabatt basiert nur auf UVP oder Toppreis.">Ungeprüfte</span>, <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span> und Händler stehen im Filter-Popover der Filterleiste.</span>
           </div>
           <div class="tp-settings-group">
             <label title="So viel teurer darf der gewählte Händler als der Bestpreis sein">Preis-Toleranz (%)</label>
@@ -7390,7 +7400,7 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group">
-            <label title="Mischung aus Rekord- und Ø-Rabatt für Badge, Farbe und Reihenfolge">Gewichtete Differenz: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
+            <label><span class="tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtete Differenz</span>: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
             <div class="tp-range-container tp-purple">
               <input type="range" id="tp-bestpreise-weight-range" min="0" max="100" step="5" value="50">
               <input type="number" id="tp-bestpreise-weight-val" min="0" max="100" step="5" value="50">
@@ -7403,7 +7413,7 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
               <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
             </div>
-            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: Fallback-Tief (einfache Fläche, kein Blend).</span>
+            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tief</span> (einfache Fläche, kein Blend).</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
             <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -8441,7 +8451,7 @@ const SHADOW_MODAL_STYLES = `
     wrapper.id = 'tp-bar-weight-wrapper';
     wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
     wrapper.innerHTML = `
-      <span class="tp-stepper-label">Gewichtung</span>
+      <span class="tp-stepper-label tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtung</span>
       <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
       <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Gewichtung: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
     bindWeightControls(wrapper);
@@ -9067,17 +9077,17 @@ const SHADOW_MODAL_STYLES = `
                 <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="unchecked">
-                <span class="tp-filter-label" title="Ungeprüfte dimmen/verbergen (grau gestreift, nur Differenz) — Normal = zeigen">Ungeprüfte</span>
+                <span class="tp-filter-label tp-glossary-term" title="Angebote ohne geprüfte Preishistorie. Der Rabatt basiert nur auf UVP oder Toppreis.">Ungeprüfte</span>
                 <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="vortief">
-                <span class="tp-filter-label" title="Verifizierte Tiefs ohne Ø-Vergleich (< Mindestpunkte, nur Vortief-Abstand) dimmen/verbergen — Normal = zeigen">Fallback-Tiefs</span>
+                <span class="tp-filter-label tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span>
                 <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="deal-disc">
-                <span class="tp-filter-label" title="Karten mit weniger als N% Rabatt dimmen/verbergen">Min-Rabatt</span>
+                <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert.">Min-Rabatt</span>
                 <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
                   <button class="tp-stepper-btn" id="tp-bar-deal-disc-minus" title="Geringeren Rabatt fordern">-</button>
                   <span id="tp-bar-deal-disc-val" style="min-width: 28px; text-align: center;">${CONFIG.MIN_DEAL_DISCOUNT}%</span>
@@ -9102,13 +9112,13 @@ const SHADOW_MODAL_STYLES = `
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Tiefstpreis-Sortierung: sortiert nach Gewichteter Differenz – filtert nichts" style="display: ${isSortPage ? 'flex' : 'none'};">
-            💎 Tiefstpreis-Sortierung <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote." style="display: ${isSortPage ? 'flex' : 'none'};">
+            💎 <span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span> <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
           </button>
           <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
-            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter — nur Anzeige, filtert nichts">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
+            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
             <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
-              <div class="tp-calc-head">Berechnungsparameter<span>Nur Anzeige — filtert nichts</span></div>
+              <div class="tp-calc-head"><span class="tp-glossary-term" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">Berechnungsparameter</span><span>Nur Anzeige — filtert nichts</span></div>
               <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset" title="Berechnungsparameter zurücksetzen">Zurücksetzen</button>
             </div>
           </div>
@@ -10119,7 +10129,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.328';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.329';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
