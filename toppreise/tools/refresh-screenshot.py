@@ -62,13 +62,13 @@ def seed_stats(role, price):
     p = round(price, 2)
     now = FROZEN_NOW
     if role == "deep":
-        # Deep all-time record low deal (-55% vs median, breakthrough vs record)
+        # Deep all-time record low deal (-60% weighted score, deep ruby glow)
         return {
             "tiefstpreis": p,
-            "previousLow": round(p * 1.5, 2),
-            "hoechstpreis": round(p * 1.6, 2),
-            "medianPrice": round(p * 1.8, 2),
-            "timeSeries": [[now - (30 - i) * 86400000, round(p * (1.8 - i * 0.025), 2)] for i in range(30)],
+            "previousLow": round(p * 2.2, 2),
+            "hoechstpreis": round(p * 2.6, 2),
+            "medianPrice": round(p * 2.5, 2),
+            "timeSeries": [[now - (30 - i) * 86400000, round(p * (2.5 - i * 0.04), 2)] for i in range(30)],
             "dataPointCount": 30,
             "isNewAllTimeLow": True,
         }
@@ -243,39 +243,39 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
         if anchor == "outside-left":
             bx = rel_x - 24
             by = rel_y + bh / 2
-            tx = rel_x
+            tx = rel_x - 4
             ty = by
         elif anchor == "outside-top":
             bx = rel_x + bw / 2
             by = rel_y - 20
             tx = bx
-            ty = rel_y
+            ty = rel_y - 4
         elif anchor == "outside-right":
             bx = rel_x + bw + 24
             by = rel_y + bh / 2
-            tx = rel_x + bw
+            tx = rel_x + bw + 4
             ty = by
         elif anchor == "outside-bottom":
             bx = rel_x + bw / 2
             by = rel_y + bh + 20
             tx = bx
-            ty = rel_y + bh
+            ty = rel_y + bh + 4
         elif anchor == "top-left":
-            bx = rel_x - 14
-            by = rel_y - 14
-            tx = rel_x + 4
-            ty = rel_y + 4
+            bx = rel_x - 18
+            by = rel_y - 18
+            tx = rel_x - 4
+            ty = rel_y - 4
         elif isinstance(anchor, (list, tuple)) and len(anchor) == 2:
             dx, dy = anchor
             bx = rel_x + dx
             by = rel_y + dy
-            tx = rel_x + (4 if dx < 0 else (bw - 4 if dx > bw else dx))
-            ty = rel_y + (4 if dy < 0 else (bh - 4 if dy > bh else dy))
+            tx = rel_x - 4 if dx < 0 else (rel_x + bw + 4 if dx > bw else rel_x + dx)
+            ty = rel_y - 4 if dy < 0 else (rel_y + bh + 4 if dy > bh else rel_y + dy)
         else:
-            bx = rel_x - 14
-            by = rel_y - 14
-            tx = rel_x + 4
-            ty = rel_y + 4
+            bx = rel_x - 18
+            by = rel_y - 18
+            tx = rel_x - 4
+            ty = rel_y - 4
 
         # Clamp badge coordinates so discs never bleed outside the canvas
         bx = max(14, min(css_w - 14, bx))
@@ -393,8 +393,6 @@ def setup_toolbar(page, pids):
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
-        const minRow = document.querySelector('[data-filter-row="min"]');
-        if (minRow) minRow.style.display = 'flex';
     }""")
     page.wait_for_timeout(400)
 
@@ -408,11 +406,12 @@ def setup_toolbar(page, pids):
 
     raw_bytes = page.screenshot(clip=clip)
     controls = [
-        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", "outside-left"),
+        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", [-26, 16]),
         ("#tp-inline-negative-input", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", "outside-top"),
-        ("#tp-bar-min-offers-group", "Min-Angebote Stepper (Marktplatz-Filter)", "outside-top"),
-        ("[data-filter-row='unchecked']", "Nur geprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", "outside-left"),
-        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschließen (geringe Historie)", "outside-left"),
+        ("#tp-bar-min-offers-group", "Min-Angebote Stepper (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", "outside-top"),
+        ("[data-filter-row='unchecked']", "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", "outside-left"),
+        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschliessen (geringe Historie)", "outside-left"),
+        ("[data-filter-row='deal-disc']", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", "outside-left"),
         ("#tp-bar-heat-btn", "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
         ("#tp-bar-bestpreise-btn", "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
         ("#tp-floating-check-cta", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", "outside-right"),
@@ -433,6 +432,16 @@ def setup_calc_popover(page, pids):
     page.evaluate("window.scrollTo(0, 0)")
     page.locator("#tp-bar-calc-btn").click()
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
+    page.wait_for_timeout(300)
+
+    # Select synthetic glitch preset to showcase live glitch detection with red ✕ markers
+    page.evaluate(r"""() => {
+        const sel = document.getElementById('tp-preview-preset-select');
+        if (sel) {
+            sel.value = 'synthetic';
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }""")
     page.wait_for_timeout(400)
 
     pop_box = css_box(page, "#tp-bar-calc-popover")
@@ -440,10 +449,13 @@ def setup_calc_popover(page, pids):
     raw_bytes = page.screenshot(clip=clip)
 
     controls = [
-        ("#tp-calc-preview", "Glitch-Vorschau (Live-Chart mit Median, Rekord, Glitch-Band & Erkennung)", "outside-left"),
         ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", "outside-left"),
         ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", "outside-left"),
-        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierte Historie)", "outside-left"),
+        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", "outside-left"),
+        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", "outside-left"),
+        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", "outside-left"),
+        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", "outside-left"),
+        ("#tp-calc-preview", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", "outside-left"),
     ]
     callouts = []
     for item in controls:
@@ -498,8 +510,8 @@ def setup_feed_cards(page, pids):
         (1, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", "outside-top"),
         (2, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag rot hervorgehoben)", "outside-top"),
         (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", "outside-top"),
-        (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", "outside-left"),
-        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Preisaufschlüsselung (Live-Preis, CHF-Ersparnis und % gegenüber 1J-Median)", "outside-left"),
+        (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-24, 16]),
+        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Preisaufschlüsselung (Live-Preis, CHF-Ersparnis und % gegenüber 1J-Median)", "outside-right"),
         (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", "outside-top"),
         (7, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", "outside-right"),
     ]
@@ -510,6 +522,11 @@ def setup_search_cards(page, pids):
     """Shot 03: Search catalog listing highlighting variant protection and inline verification pills."""
     block = page.locator(".Plugin_ProductCollItem").first
     block.scroll_into_view_if_needed()
+
+    # Remove trailing product items to prevent clipped half-visible cards
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_ProductCollItem ~ .Plugin_ProductCollItem, .Plugin_ProductCollItem ~ .Plugin_Product').forEach(el => el.remove());
+    }""")
 
     block_pids = block.evaluate(r"""el => {
         const out = [], seen = new Set();
@@ -530,8 +547,9 @@ def setup_search_cards(page, pids):
     page.locator(deal).first.hover()
     page.wait_for_timeout(400)
 
-    # Blur active element to remove lingering focus rings (e.g. on alarm bell)
+    # Blur active element and move mouse to remove lingering focus rings (e.g. alarm bell)
     page.evaluate("() => { if (document.activeElement?.blur) document.activeElement.blur(); }")
+    page.mouse.move(0, 0)
     page.wait_for_timeout(200)
 
     b_box = block.bounding_box()
@@ -543,9 +561,9 @@ def setup_search_cards(page, pids):
         (1, css_box(page, deal), "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)", "outside-top"),
         (2, css_box(page, unchecked), "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)", "outside-top"),
     ]
-    if page.locator(".Plugin_ProductCollItem :text('nstigste Variante')").count() > 0:
-        callouts.append((3, css_box(page, ".Plugin_ProductCollItem :text('nstigste Variante')"),
-                         "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-top"))
+    cheapest_variant = try_box(page, ".Plugin_ProductCollItem div.col-12.mt-2")
+    if cheapest_variant:
+        callouts.append((3, cheapest_variant, "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-left"))
 
     series_header = try_box(page, ".Plugin_ProductCollItem .f_select_series, .Plugin_ProductCollItem a[href*='/produktserie/']")
     if series_header:
@@ -554,20 +572,29 @@ def setup_search_cards(page, pids):
     return raw_bytes, origin, callouts, "03-search-cards.webp"
 
 
-def setup_settings(page, pids):
-    """Shot 04: Full settings dialog unconstrained from scroll cutoffs, highlighting key interactive controls."""
+def setup_settings_core(page, pids):
+    """Shot 04a: Settings dialog core sections 1–5 (Ansicht, Review-Suche, Sortieren, Filtern, Preisalarm)."""
     page.locator("#tp-root >> #tp-settings-fab").click()
     dlg = "#tp-root >> #tp-settings-dialog"
     page.wait_for_selector(dlg, state="visible", timeout=10000)
     page.wait_for_timeout(400)
 
-    # Unconstrain scroll overflow so entire dialog renders at 2x resolution
     page.evaluate('''() => {
         const root = document.querySelector("#tp-root")?.shadowRoot;
         const d = root?.querySelector("#tp-settings-dialog");
         const s = root?.querySelector("#tp-settings-sections");
-        if (d) { d.style.maxHeight = "none"; d.style.height = "auto"; }
+        if (d) {
+            d.style.top = "40px";
+            d.style.bottom = "auto";
+            d.style.left = "50%";
+            d.style.right = "auto";
+            d.style.transform = "translateX(-50%)";
+            d.style.maxHeight = "none";
+            d.style.height = "auto";
+        }
         if (s) { s.style.maxHeight = "none"; s.style.overflow = "visible"; }
+        root.querySelector('#tp-section-discord').style.display = 'none';
+        root.querySelector('#tp-section-data').style.display = 'none';
     }''')
     page.wait_for_timeout(300)
 
@@ -577,9 +604,59 @@ def setup_settings(page, pids):
 
     controls = [
         ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", "outside-left"),
+        ("#tp-review-search-toggle", "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus", "outside-left"),
+        ("#tp-bestpreise-mode-toggle", "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz", "outside-left"),
+        ("#tp-margin-range", "Preis-Toleranz (%): Händler-Bestpreis-Marge", "outside-left"),
         ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", "outside-left"),
+    ]
+    callouts = []
+    for sel, cap, anchor in controls:
+        box = try_box(page, f"{dlg} >> {sel}")
+        if box is None:
+            continue
+        callouts.append((len(callouts) + 1, box, cap, anchor))
+    assert len(callouts) >= 3, "fewer than 3 settings core controls resolved"
+    return raw_bytes, origin, callouts, "04a-settings-core.webp"
+
+
+def setup_settings_advanced(page, pids):
+    """Shot 04b: Settings dialog advanced sections 6–7 (Discord Share & Daten/Cache)."""
+    page.locator("#tp-root >> #tp-settings-fab").click()
+    dlg = "#tp-root >> #tp-settings-dialog"
+    page.wait_for_selector(dlg, state="visible", timeout=10000)
+    page.wait_for_timeout(400)
+
+    page.evaluate('''() => {
+        const root = document.querySelector("#tp-root")?.shadowRoot;
+        const d = root?.querySelector("#tp-settings-dialog");
+        const s = root?.querySelector("#tp-settings-sections");
+        if (d) {
+            d.style.top = "40px";
+            d.style.bottom = "auto";
+            d.style.left = "50%";
+            d.style.right = "auto";
+            d.style.transform = "translateX(-50%)";
+            d.style.maxHeight = "none";
+            d.style.height = "auto";
+        }
+        if (s) { s.style.maxHeight = "none"; s.style.overflow = "visible"; }
+        root.querySelector('#tp-section-display').style.display = 'none';
+        root.querySelector('#tp-section-review').style.display = 'none';
+        root.querySelector('#tp-section-deals').style.display = 'none';
+        root.querySelector('#tp-section-filter').style.display = 'none';
+        root.querySelector('#tp-section-alarm').style.display = 'none';
+    }''')
+    page.wait_for_timeout(300)
+
+    dlg_loc = page.locator(dlg)
+    raw_bytes = dlg_loc.screenshot()
+    origin = dlg_loc.bounding_box()
+
+    controls = [
         ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", "outside-left"),
-        ("#tp-discord-layout-preview", "Discord Layout-Baukasten mit Live-Markdown-Vorschau", "outside-left"),
+        ("#tp-discord-layout-chips", "Discord Layout-Baukasten mit variablen Tokens", "outside-left"),
+        ("#tp-discord-layout-preview", "Live-Markdown-Vorschau der generierten Nachricht", "outside-left"),
+        ("#tp-dealer-autofetch-toggle", "Händler automatisch im Hintergrund laden (max. 3 parallel)", "outside-left"),
         ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", "outside-left"),
     ]
     callouts = []
@@ -588,8 +665,8 @@ def setup_settings(page, pids):
         if box is None:
             continue
         callouts.append((len(callouts) + 1, box, cap, anchor))
-    assert len(callouts) >= 3, "fewer than 3 settings controls resolved"
-    return raw_bytes, origin, callouts, "04-settings-modal.webp"
+    assert len(callouts) >= 3, "fewer than 3 settings advanced controls resolved"
+    return raw_bytes, origin, callouts, "04b-settings-advanced.webp"
 
 
 SCENES = {
@@ -632,7 +709,7 @@ SCENES = {
         "viewport": {"width": 1440, "height": 900},
         "setup": setup_search_cards,
     },
-    "settings": {
+    "settings_core": {
         "snapshot": "feed",
         "roles": ["deep", "markup", "fallback"],
         "config": {
@@ -640,8 +717,19 @@ SCENES = {
             "BESTPREISE_WEIGHT_RECORD": 0.50,
             "BESTPREISE_HIDE_UNCHECKED": True,
         },
-        "viewport": {"width": 1440, "height": 3500},
-        "setup": setup_settings,
+        "viewport": {"width": 1440, "height": 2500},
+        "setup": setup_settings_core,
+    },
+    "settings_advanced": {
+        "snapshot": "feed",
+        "roles": ["deep", "markup", "fallback"],
+        "config": {
+            "BESTPREISE_MODE_ACTIVE": True,
+            "BESTPREISE_WEIGHT_RECORD": 0.50,
+            "BESTPREISE_HIDE_UNCHECKED": True,
+        },
+        "viewport": {"width": 1440, "height": 2500},
+        "setup": setup_settings_advanced,
     },
 }
 
