@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.318
+// @version      2.18.319
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2924,7 +2924,7 @@ const SHADOW_MODAL_STYLES = `
     }
     switch (rule.type) {
       case 'bool': return raw === true;
-      case 'mode': return (raw === 'dim' || raw === 'highlight') ? raw : 'hide';
+      case 'mode': return (raw === 'dim' || raw === 'highlight' || raw === 'hide') ? raw : rule.default;
       case 'int': {
         const n = coerceNumber(raw);
         if (!Number.isFinite(n)) return rule.default;
@@ -4363,9 +4363,9 @@ const SHADOW_MODAL_STYLES = `
   function renderSparkline(timeSeries, width, height, opts = {}) {
     if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
     const axes = opts && opts.axes === true;
-    const prices = timeSeries.map(p => Array.isArray(p) ? +p[1] : 0).filter(p => p > 0);
-
-    if (prices.length < 2) return null;
+    const valid = timeSeries.filter(p => Array.isArray(p) && +p[1] > 0);
+    if (valid.length < 2) return null;
+    const prices = valid.map(p => +p[1]);
 
     const min = Math.min(...prices);
     const max = Math.max(...prices);
@@ -4450,7 +4450,7 @@ const SHADOW_MODAL_STYLES = `
 
       // X time grid from timestamps (ms or s); young listings span < 1 month, so
       // bucket granularity falls back with span: months → weeks → days.
-      const tsMs = timeSeries.map(p => {
+      const tsMs = valid.map(p => {
         const ts = Array.isArray(p) ? +p[0] : NaN;
         if (!Number.isFinite(ts)) return NaN;
         return ts < 1e12 ? ts * 1000 : ts;
@@ -6970,7 +6970,7 @@ const SHADOW_MODAL_STYLES = `
         <div>🚫 <strong>Alle ${cards.length} Angebote auf dieser Seite sind durch aktive Filter ausgeblendet.</strong></div>
         <div class="tp-empty-state-actions">
           ${counts.uncheckedDeals > 0 ? `<button class="tp-empty-state-btn" id="tp-empty-check-deals-btn" style="border-color: #3b82f6; color: #2563eb;" title="Prüft Differenzen ≥ ${minDisc}% (ungeprüft ≠ Tiefstpreis)">🔍 Tiefstpreise prüfen (≥${minDisc}%)</button>` : ''}
-          ${(counts.uncheckedDeals || 0) > 0 || CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? `✓ Ungeprüfte aktiv ausgeblendet (${counts.uncheckedHidden || 0}) – klicken zum Aufheben` : `Ungeprüfte ausblenden (${counts.uncheckedHidden || 0}) – entfernt sie aus der Liste`}">${CONFIG.BESTPREISE_HIDE_UNCHECKED === true ? 'Alle anzeigen' : 'Ungeprüfte ausblenden'}</button>` : ''}
+          ${CONFIG.BESTPREISE_HIDE_UNCHECKED === true && CONFIG.HIDE_UNCHECKED_MODE === 'hide' ? `<button class="tp-empty-state-btn" id="tp-empty-hide-unchecked-btn" title="Ungeprüfte wieder einblenden (${counts.uncheckedHidden || 0})">Ungeprüfte einblenden</button>` : ''}
           <button class="tp-empty-state-btn" id="tp-empty-toggle-filters-btn" title="Alle Filter pausieren (alles anzeigen)">⚡ Filter ausschalten</button>
         </div>
       `;
@@ -6982,9 +6982,8 @@ const SHADOW_MODAL_STYLES = `
         startBatchCheck();
       });
       emptyNotice.querySelector('#tp-empty-hide-unchecked-btn')?.addEventListener('click', () => {
-        const next = !CONFIG.BESTPREISE_HIDE_UNCHECKED;
-        updateConfig('BESTPREISE_HIDE_UNCHECKED', next);
-        showToast(next ? '✓ Ungeprüfte werden ausgeblendet (Filtergrund, entfernt)' : '✓ Ungeprüfte aus — alle werden wieder angezeigt');
+        updateConfig('BESTPREISE_HIDE_UNCHECKED', false);
+        showToast('✓ Ungeprüfte aus — alle werden wieder angezeigt');
       });
 
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
@@ -7672,6 +7671,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function wireModalActions(els) {
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -7874,6 +7874,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
       if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
+      if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
       if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
         const rawWebhook = String(els.discordWebhookInput.value || '').trim();
         if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
@@ -7901,7 +7902,10 @@ const SHADOW_MODAL_STYLES = `
       }
       // Basis toggle keeps both cache slots (entries are keyed per basis): only
       // card memos clear + repaint, no whole-cache wipe, no generation bump.
-      if (shippingChanged) { getProductCards().forEach(clearCardCache); }
+      if (shippingChanged) {
+        cancelBatchDealCheck();
+        getProductCards().forEach(clearCardCache);
+      }
       updateConfigs(updates, { skipRender: true });
       if (horizonChanged) recomputeCachedMedians(newHorizon);
       triggerProcessListings();
@@ -9119,6 +9123,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const FLOATING_CTA_ID = 'tp-floating-check-cta';
   const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
 
@@ -9206,7 +9211,7 @@ const SHADOW_MODAL_STYLES = `
         for (const item of newlyVerified || []) markFreshVerified(item.pid);
         // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
-        const fresh = document.querySelectorAll('.tp-deal-fresh').length;
+        const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
         const checked = (newlyVerified || []).length;
         showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
       }
@@ -9943,6 +9948,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       : document.body?.classList.contains('showshippingprice') ? 's' : 'x';
     if (cur === lastPriceBasis) return;
     lastPriceBasis = cur;
+    cancelBatchDealCheck();
     getProductCards().forEach(clearCardCache);
     triggerProcessListings();
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -9989,7 +9995,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.318';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.319';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

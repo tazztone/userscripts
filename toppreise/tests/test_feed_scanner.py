@@ -1146,7 +1146,7 @@ def test_gewichtete_differenz_computation_and_weights(page: Page):
     }""")
     assert tier3_flat is None
 
-    # Test 6: Exclusion: 0% blend (price matches low and median, zero savings)
+    # Test 6: Neutral 0% deal (price matches low and median, zero savings, qualified neutral deal)
     zero_score = page.evaluate("""() => {
         const stats = {
             tiefstpreis: 1000,
@@ -1157,7 +1157,9 @@ def test_gewichtete_differenz_computation_and_weights(page: Page):
         };
         return window.ToppreiseSuite.computeDealScore(stats, 1000);
     }""")
-    assert zero_score is None
+    assert zero_score is not None
+    assert zero_score['weightedDiff'] == 0
+    assert zero_score['isZeroMargin'] is True
 
 
 

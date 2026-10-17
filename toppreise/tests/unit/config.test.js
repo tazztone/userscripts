@@ -87,7 +87,7 @@ describe('Config dual-layer storage', () => {
     assert.equal(sanitizeConfigValue('FILTER_NEG_MODE', 'highlight'), 'highlight');
     assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'dim'), 'dim');
     assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'hide'), 'hide');
-    assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'invalid'), 'hide');
+    assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'invalid'), 'dim');
   });
 
 });

@@ -9,6 +9,7 @@ import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
 import { getProductCards } from '../page/cards.js';
+import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
 import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-discord.js';
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets } from './modal-bindings.js';
@@ -217,6 +218,7 @@ export function wireModalActions(els) {
     if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
     if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
+    if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
     if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
       const rawWebhook = String(els.discordWebhookInput.value || '').trim();
       if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
@@ -244,7 +246,10 @@ export function wireModalActions(els) {
     }
     // Basis toggle keeps both cache slots (entries are keyed per basis): only
     // card memos clear + repaint, no whole-cache wipe, no generation bump.
-    if (shippingChanged) { getProductCards().forEach(clearCardCache); }
+    if (shippingChanged) {
+      cancelBatchDealCheck();
+      getProductCards().forEach(clearCardCache);
+    }
     updateConfigs(updates, { skipRender: true });
     if (horizonChanged) recomputeCachedMedians(newHorizon);
     triggerProcessListings();

@@ -29,6 +29,7 @@ import { setTextIfChanged } from "./badges.js";
 import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
+import { getCardProductId } from "../page/cards.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 export const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
@@ -117,7 +118,7 @@ export function startBatchCheck() {
       for (const item of newlyVerified || []) markFreshVerified(item.pid);
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
-      const fresh = document.querySelectorAll('.tp-deal-fresh').length;
+      const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
       const checked = (newlyVerified || []).length;
       showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
     }

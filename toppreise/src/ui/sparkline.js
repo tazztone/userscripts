@@ -8,9 +8,9 @@
 export function renderSparkline(timeSeries, width, height, opts = {}) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
   const axes = opts && opts.axes === true;
-  const prices = timeSeries.map(p => Array.isArray(p) ? +p[1] : 0).filter(p => p > 0);
-
-  if (prices.length < 2) return null;
+  const valid = timeSeries.filter(p => Array.isArray(p) && +p[1] > 0);
+  if (valid.length < 2) return null;
+  const prices = valid.map(p => +p[1]);
 
   const min = Math.min(...prices);
   const max = Math.max(...prices);
@@ -95,7 +95,7 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
 
     // X time grid from timestamps (ms or s); young listings span < 1 month, so
     // bucket granularity falls back with span: months → weeks → days.
-    const tsMs = timeSeries.map(p => {
+    const tsMs = valid.map(p => {
       const ts = Array.isArray(p) ? +p[0] : NaN;
       if (!Number.isFinite(ts)) return NaN;
       return ts < 1e12 ? ts * 1000 : ts;
