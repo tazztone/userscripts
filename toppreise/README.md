@@ -41,7 +41,7 @@ Requires a userscript manager browser extension:
 ### 🔥 Visual Signals, Sparklines & Card Enhancements
 
 * **Single-Hue Deal Heatmap (Grau→Rot):** Verified deals glow with a customizable inset color ramp proportional to deal depth (neutral gray for small or zero discounts → warm amber → deep ruby for major discounts). Unverified cards show a striped-gray badge with provisional card warmth.
-* **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`) feature a subtle outer glow and display the Vortief-Abstand instead of a blend. Qualified deals with 0% savings display a neutral-gray 0% badge.
+* **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`). Display the Vortief-Abstand instead of a blend (no `⚖️`) and can be filtered independently (Normal/Dim/Hide). Qualified deals with 0% savings display a neutral-gray 0% badge.
 * **Newly Verified Glow (*Neu*-Puls):** Freshly verified deals pulse with an emerald outline and `Neu` indicator for ≥5s until the next user interaction (click, scroll, keypress).
 * **Interactive SVG Sparklines:** Renders a compact mini price-trend chart on verified product cards. Clicking the sparkline opens a full-resolution modal chart with price and date axes.
 * **1-Click Google Review Search (`🌐`):** Appends a quick-search icon to product titles that opens a Google search for `<Product> Testbericht` (or custom keyword) in a new tab, with optional **Google AI Mode (`&udm=50`)**.

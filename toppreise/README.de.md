@@ -41,7 +41,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 ### 🔥 Visuelle Signale, Sparklines & Karten-Design
 
 * **Kontinuierliche Heatmap (Grau→Rot-Skala):** Verifizierte Deals leuchten proportional zur Gewichteten Differenz (neutrales Grau bei geringem Rabatt → warmes Bernstein → tiefes Rubinrot bei Rekord-Deals). Ungeprüfte Karten tragen ein grau gestreiftes Badge mit vorläufiger Kartenwärme.
-* **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`) erhalten einen dezenten Außen-Glow und zeigen den Vortief-Abstand statt des Blends. Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
+* **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`). Zeigen den Vortief-Abstand statt des Blends (ohne `⚖️`) und lassen sich separat filtern (Normal/Dimmen/Verbergen). Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
 * **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren mindestens 5s lang mit Kontur und `Neu`-Markierung bis zur nächsten Nutzerinteraktion.
 * **Interaktive SVG-Sparklines:** Kompakte Mini-Preiskurve direkt auf geprüften Karten. Klick auf die Sparkline öffnet den großen interaktiven Chart-Dialog mit Preis- und Monatsachsen.
 * **1-Klick Review-Suche (`🌐`):** Such-Icon am Produkttitel öffnet Google mit `<Produktname> Testbericht` (oder Wunschbegriff) in neuem Tab, optional mit **Google-KI-Modus (`&udm=50`)**.
