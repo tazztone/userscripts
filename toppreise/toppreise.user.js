@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.329
+// @version      2.18.330
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1547,22 +1547,15 @@ const SHADOW_MODAL_STYLES = `
   .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
-  .tp-section-header { background:none; border:none; padding:4px 0; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; font-family:inherit; }
+  .tp-section-header { background:none; border:none; padding:4px 0; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; }
   .tp-section-header:focus-visible { outline:2px solid var(--tp-focus); outline-offset:2px; border-radius:6px; }
+  .tp-section-header .tp-chevron { color: var(--tp-mut); font-size: 14px; }
   .tp-section-header .tp-chevron::after { content:"▾"; display:inline-block; transition:transform .15s ease; }
   section.tp-collapsed .tp-section-header .tp-chevron::after { transform:rotate(-90deg); }
   section.tp-collapsed .tp-section-body { display:none; }
   .tp-danger-zone { border:1px solid rgba(239,68,68,.45); border-radius:10px; padding:10px 12px; }
   .tp-btn-danger { border:1px solid rgba(239,68,68,.6); color:#b91c1c; background:rgba(239,68,68,.08); }
-  .tp-section-display { border-color: rgba(16, 185, 129, 0.35); }
-  .tp-section-display .tp-section-header { color: var(--tp-acc-txt); }
-  .tp-section-deals { border-color: rgba(139, 92, 246, 0.35); }
-  .tp-section-deals .tp-section-header { color: var(--tp-acc2); }
-  .tp-section-alarm { border-color: rgba(59, 130, 246, 0.35); }
-  .tp-section-alarm .tp-section-header { color: var(--tp-blue-soft); }
-  .tp-section-discord { border-color: rgba(56, 189, 248, 0.35); }
-  .tp-section-discord .tp-section-header { color: var(--tp-sky); }
-  .tp-section-data .tp-section-header { color: var(--tp-dim); }
+  .tp-section-card { border-color: var(--tp-line-soft); }
   .tp-field-dark { width: 100%; background: var(--tp-bg); color: var(--tp-txt); border: 1px solid var(--tp-line-soft); border-radius: var(--tp-r-sm); padding: 6px 10px; font-size: var(--tp-fs-md); margin-top: 4px; box-sizing: border-box; }
   select.tp-field-dark { font-size: var(--tp-fs-lg); }
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
@@ -7287,14 +7280,14 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group">
-            <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
+            <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis (%)</label>
             <div class="tp-range-container tp-blue">
               <input type="range" id="tp-alarm-target-range" min="5" max="99" step="5" value="60">
               <input type="number" id="tp-alarm-target-val" min="5" max="99" step="1" value="60">
             </div>
           </div>
           <div class="tp-settings-group">
-            <label title="Laufzeit des Preisalarms">Laufzeit Dauer</label>
+            <label title="Laufzeit des Preisalarms">Laufzeit</label>
             <div class="tp-segmented-control tp-segmented-control-blue">
               <input type="radio" id="tp-dur-90" name="tp-alarm-duration" value="90"><label for="tp-dur-90">3 Monate</label>
               <input type="radio" id="tp-dur-180" name="tp-alarm-duration" value="180"><label for="tp-dur-180">6 Monate</label>
@@ -10129,7 +10122,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.329';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.330';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

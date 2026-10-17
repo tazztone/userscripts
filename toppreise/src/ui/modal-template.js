@@ -116,14 +116,14 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis</label>
+          <label title="Zielpreis als Prozent des aktuellen Preises für den Preisalarm.">Preisalarm Zielpreis (%)</label>
           <div class="tp-range-container tp-blue">
             <input type="range" id="tp-alarm-target-range" min="5" max="99" step="5" value="60">
             <input type="number" id="tp-alarm-target-val" min="5" max="99" step="1" value="60">
           </div>
         </div>
         <div class="tp-settings-group">
-          <label title="Laufzeit des Preisalarms">Laufzeit Dauer</label>
+          <label title="Laufzeit des Preisalarms">Laufzeit</label>
           <div class="tp-segmented-control tp-segmented-control-blue">
             <input type="radio" id="tp-dur-90" name="tp-alarm-duration" value="90"><label for="tp-dur-90">3 Monate</label>
             <input type="radio" id="tp-dur-180" name="tp-alarm-duration" value="180"><label for="tp-dur-180">6 Monate</label>
