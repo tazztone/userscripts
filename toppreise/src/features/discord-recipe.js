@@ -72,8 +72,9 @@ function tokenText(name, ctx) {
 export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
   recipe = String(recipe || '').replace(/\r/g, '');
   if (!recipe.trim()) recipe = DEFAULT_LAYOUT;
-  const link = ((fields || {}).url || '').trim();
-  const dealerUrl = (fields || {}).dealerUrl || '';
+  const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
+  const link = escapeUrlParens(((fields || {}).url || '').trim());
+  const dealerUrl = escapeUrlParens((fields || {}).dealerUrl || '');
   const ctx = {
     cleanTitle: escapeDiscordMarkdown(cleanTitleOf((fields || {}).title)),
     link,

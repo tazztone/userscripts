@@ -10,7 +10,7 @@ import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
 import { getProductCards } from '../page/cards.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
-import { discordForumFlagKey } from '../features/share-discord.js';
+import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-discord.js';
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets } from './modal-bindings.js';
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed } from './modal-template.js';
@@ -217,9 +217,17 @@ export function wireModalActions(els) {
     if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
     if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
-    if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
-    if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(els.discordWebhookInput.value || '').trim();
-    if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
+    if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
+      const rawWebhook = String(els.discordWebhookInput.value || '').trim();
+      if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
+        els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
+        els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+        els.discordWebhookInput.focus();
+        showToast('Ungültige Discord-Webhook-URL');
+        return;
+      }
+      updates.DISCORD_WEBHOOK_URL = rawWebhook;
+    }
     if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
     if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
     if (els.discordLayoutInput) {

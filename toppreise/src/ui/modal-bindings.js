@@ -5,6 +5,7 @@
 
 import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, horizonStoredToUi, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from '../state/config.js';
 import { renderLayout, validateLayoutRecipe, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
+import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.
@@ -128,7 +129,7 @@ export function syncFieldsFromConfig(els) {
     if (els.discordWebhookInput) els.discordWebhookInput.value = '';
     if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
     if (els.discordWebhookReveal) { els.discordWebhookReveal.style.display = ''; els.discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
-    if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+    if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = isDiscordWebhookUrl(CONFIG.DISCORD_WEBHOOK_URL) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
     if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
     if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
     if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;

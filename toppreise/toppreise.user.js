@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.317
+// @version      2.18.318
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4661,8 +4661,9 @@ const SHADOW_MODAL_STYLES = `
   function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     recipe = String(recipe || '').replace(/\r/g, '');
     if (!recipe.trim()) recipe = DEFAULT_LAYOUT;
-    const link = ((fields || {}).url || '').trim();
-    const dealerUrl = (fields || {}).dealerUrl || '';
+    const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
+    const link = escapeUrlParens(((fields || {}).url || '').trim());
+    const dealerUrl = escapeUrlParens((fields || {}).dealerUrl || '');
     const ctx = {
       cleanTitle: escapeDiscordMarkdown(cleanTitleOf((fields || {}).title)),
       link,
@@ -4732,7 +4733,7 @@ const SHADOW_MODAL_STYLES = `
 
   const isDiscordWebhookUrl = url =>
     typeof url === 'string' &&
-    /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
+    /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/[\w-]+(?:\?[^\s#]*)?$/.test(url.trim());
 
   // Forum-/Media-Channel brauchen thread_name (sonst 405/400, nichts erstellt).
   // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).
@@ -7457,6 +7458,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Element-lookup table: one record, shared by sync/bind/actions.
   function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
@@ -7578,7 +7580,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
       if (els.discordWebhookReveal) { els.discordWebhookReveal.style.display = ''; els.discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
-      if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = CONFIG.DISCORD_WEBHOOK_URL ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+      if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = isDiscordWebhookUrl(CONFIG.DISCORD_WEBHOOK_URL) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
       if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
       if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
       if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
@@ -7872,9 +7874,17 @@ const SHADOW_MODAL_STYLES = `
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
       if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
-      if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
-      if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') updates.DISCORD_WEBHOOK_URL = String(els.discordWebhookInput.value || '').trim();
-      if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
+      if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
+        const rawWebhook = String(els.discordWebhookInput.value || '').trim();
+        if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
+          els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
+          els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+          els.discordWebhookInput.focus();
+          showToast('Ungültige Discord-Webhook-URL');
+          return;
+        }
+        updates.DISCORD_WEBHOOK_URL = rawWebhook;
+      }
       if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
       if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
       if (els.discordLayoutInput) {
@@ -9979,7 +9989,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.317';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.318';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -58,7 +58,7 @@ export {
 
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
-  /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/.+/.test(url.trim());
+  /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/[\w-]+(?:\?[^\s#]*)?$/.test(url.trim());
 
 // Forum-/Media-Channel brauchen thread_name (sonst 405/400, nichts erstellt).
 // Thread-/Channel-Namen: 1-100 Zeichen (Discord Channel-Doku).

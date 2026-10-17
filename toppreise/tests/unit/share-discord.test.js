@@ -39,6 +39,7 @@ describe('isDiscordWebhookUrl', () => {
     assert.equal(isDiscordWebhookUrl(HOOK), true);
     assert.equal(isDiscordWebhookUrl('https://ptb.discord.com/api/webhooks/1/tok'), true);
     assert.equal(isDiscordWebhookUrl('https://canary.discord.com/api/webhooks/1/tok'), true);
+    assert.equal(isDiscordWebhookUrl(`${HOOK}?wait=true`), true);
   });
 
   it('rejects garbage, wrong hosts and non-strings', () => {
@@ -46,6 +47,8 @@ describe('isDiscordWebhookUrl', () => {
     assert.equal(isDiscordWebhookUrl('https://discord.com/channels/1/2'), false);
     assert.equal(isDiscordWebhookUrl('http://discord.com/api/webhooks/1/tok'), false);
     assert.equal(isDiscordWebhookUrl('https://evil.com/api/webhooks/1/tok'), false);
+    assert.equal(isDiscordWebhookUrl(`${HOOK} with spaces`), false);
+    assert.equal(isDiscordWebhookUrl(`${HOOK}<script>`), false);
     assert.equal(isDiscordWebhookUrl(null), false);
     assert.equal(isDiscordWebhookUrl(undefined), false);
   });
@@ -948,6 +951,14 @@ describe('layout recipe', () => {
     const msg = renderLayout({ title: 'Deal *kracher* _neu_', url: PRODUCT_URL, dealer: 'Shop | Top', dealerUrl: DEALER_URL }, '## {title}\n# {dealer}');
     assert.ok(msg.includes('[Deal \\*kracher\\* \\_neu\\_]('));
     assert.ok(msg.includes('Shop \\| Top'));
+  });
+  it('percent-encodes parentheses in URLs to preserve markdown links and preview', () => {
+    const parenUrl = 'https://www.toppreise.ch/preisvergleich/SSD-(2TB)-p12345';
+    const msg = renderLayout({ title: 'SSD (2TB)', url: parenUrl }, '## {title}');
+    assert.ok(msg.includes('(https://www.toppreise.ch/preisvergleich/SSD-%282TB%29-p12345)'));
+    const preview = renderDiscordMarkdownPreview(msg);
+    assert.ok(preview.includes('class="tp-md-link"'));
+    assert.ok(preview.includes('https://www.toppreise.ch/preisvergleich/SSD-%282TB%29-p12345'));
   });
   it('unknown tokens vanish', () => {
     assert.ok(!renderLayout(base, 'X {foo} Y').includes('{foo}'));
