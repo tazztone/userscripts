@@ -2800,3 +2800,30 @@ def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_NEG_MODE") == 'hide'
 
+
+def test_catalog_cards_precede_unsorted_offer_separator(page: Page):
+    page.evaluate("""() => {
+        const row = document.querySelector('#product-grid-row-1');
+        const sep = document.createElement('div');
+        sep.className = 'Plugin_ProductOfferSeparator col-12';
+        sep.id = 'test-offer-separator';
+        sep.textContent = 'Treffer in unsortierten Angeboten';
+        const off = document.createElement('div');
+        off.className = 'Plugin_Offer col-12';
+        off.id = 'test-offer-item';
+        off.textContent = 'Unsorted Offer';
+        row.appendChild(sep);
+        row.appendChild(off);
+    }""")
+    page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
+
+    card_orders = page.evaluate("() => Array.from(document.querySelectorAll('#product-grid-row-1 .Plugin_Product')).map(el => parseInt(el.style.order || '0', 10))")
+    sep_order = page.evaluate("() => parseInt(document.getElementById('test-offer-separator').style.order || '0', 10)")
+    off_order = page.evaluate("() => parseInt(document.getElementById('test-offer-item').style.order || '0', 10)")
+
+    assert len(card_orders) > 0
+    for order in card_orders:
+        assert order < sep_order
+        assert order < off_order
+
+

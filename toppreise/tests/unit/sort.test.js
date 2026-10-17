@@ -21,7 +21,16 @@ describe('applySorting fallback-tief order', () => {
       id: 'product-list',
       children: [],
       closest: () => null,
-      querySelector: () => null,
+      querySelector: (sel) => {
+        if (!sel) return null;
+        return row.children.find(c => {
+          if (c.matches?.(sel)) return true;
+          if (typeof c.classList?.contains === 'function') {
+            return sel.split(',').map(s => s.trim().replace(/^\./, '')).some(cls => c.classList.contains(cls));
+          }
+          return false;
+        }) || null;
+      },
       classList: { add() {}, remove() {}, contains: () => false },
       style: { setProperty() {} },
       appendChild(el) {
@@ -81,8 +90,8 @@ describe('applySorting fallback-tief order', () => {
     f.row.children = [f.cardB, f.cardA];
     run(f, false);
     assert.equal(f.row.children[0], f.cardA);
-    assert.equal(f.cardA.style.order, '0');
-    assert.equal(f.cardB.style.order, '1');
+    assert.equal(f.cardA.style.order, '-2');
+    assert.equal(f.cardB.style.order, '-1');
   });
 
   it('keeps badge-% order when filter is on (Aus)', () => {
@@ -112,7 +121,7 @@ describe('applySorting fallback-tief order', () => {
         withConfig('SORT_BY_OFFERS', 'none', () =>
           applySorting([cardA, cardB, cardC, cardD], false, data))));
     assert.deepEqual(row.children, [cardA, cardB, cardC, cardD]);
-    assert.equal(cardC.style.order, '2');
+    assert.equal(cardC.style.order, '-2');
   });
 
   it('strictly ranks tiers: verified deals > fallback-tiefs > unchecked/unavailable > markups', () => {
@@ -175,5 +184,41 @@ describe('applySorting fallback-tief order', () => {
     assert.equal(row.children[0], notice, 'non-card element should remain in place');
     assert.equal(row.children[1], cardA);
     assert.equal(row.children[2], cardB);
+  });
+
+  it('keeps cards strictly ahead of untracked trailing non-card siblings', () => {
+    const row1 = makeRow();
+    const row2 = makeRow();
+    const cardA = makeCard(row1, 0);
+    const cardB = makeCard(row2, 1);
+    const separator = {
+      classList: { contains: cls => cls === 'Plugin_ProductOfferSeparator' },
+      parentElement: row1,
+      style: { order: '' },
+      dataset: {}
+    };
+    const offer = {
+      classList: { contains: cls => cls === 'Plugin_Offer' },
+      parentElement: row1,
+      style: { order: '' },
+      dataset: {}
+    };
+    row1.children = [cardA, separator, offer];
+    row2.children = [cardB];
+
+    const data = [
+      { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+      { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 10, dMedian: 10, dRecord: 10 } }
+    ];
+
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false, data)));
+
+    assert.deepEqual(row1.children, [cardB, cardA, separator, offer]);
+    assert.equal(cardB.style.order, '-2');
+    assert.equal(cardA.style.order, '-1');
+    assert.equal(separator.style.order, '');
+    assert.equal(offer.style.order, '');
   });
 });

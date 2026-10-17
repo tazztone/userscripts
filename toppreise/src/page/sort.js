@@ -153,14 +153,16 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     sortedEntries = uniqueEntries;
 
     // Move sortable items into primaryRow and apply CSS flex order
+    const trailingAnchor = primaryRow.querySelector?.('.Plugin_ProductOfferSeparator, .Plugin_Offer') || null;
     sortedEntries.forEach((entry, rank) => {
       const item = entry.item;
       if (item) {
         if (item.parentElement !== primaryRow) {
-          primaryRow.appendChild(item);
+          primaryRow.insertBefore(item, trailingAnchor);
         }
-        if (item.style.order !== String(rank)) {
-          item.style.setProperty('order', String(rank), 'important');
+        const flexOrder = String(rank - sortedEntries.length);
+        if (item.style.order !== flexOrder) {
+          item.style.setProperty('order', flexOrder, 'important');
         }
       }
     });
