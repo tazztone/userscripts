@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility, getCardEffectiveDiscount } from '../../src/page/cards.js';
 import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
 import { withConfig } from './helpers.js';
 
@@ -216,9 +216,9 @@ describe('applyCardFilters split', () => {
       withConfig('BESTPREISE_HIDE_UNCHECKED', false, () =>
         withConfig('BESTPREISE_INCLUDE_VORTIEF', true, fn))));
 
-  it('never removes verified markups and exposes the five removal causes only', () => {
+  it('never removes verified markups and exposes the six removal causes only', () => {
     const f = quietFlags(() => applyCardFilters(base({}), [], 0, false));
-    assert.deepEqual(Object.keys(f).sort(), ['isDealerLoser', 'isLowOffers', 'isNeg', 'isUnchecked', 'isVortiefExcluded']);
+    assert.deepEqual(Object.keys(f).sort(), ['isBelowMinDiscount', 'isDealerLoser', 'isLowOffers', 'isNeg', 'isUnchecked', 'isVortiefExcluded']);
   });
 
   it('excludes at-low fallback instead when Fallback-Tiefs are off', () => {
@@ -227,10 +227,10 @@ describe('applyCardFilters split', () => {
     assert.equal(f.isVortiefExcluded, true);
   });
 
-  it('never excludes fallbacks off the deal feed (no switch there)', () => {
+  it('excludes fallbacks across all pages when Fallback-Tiefs are off (universal)', () => {
     const f = quietFlags(() => withConfig('BESTPREISE_INCLUDE_VORTIEF', false, () =>
       applyCardFilters(base({ displayDelta: { kind: 'at-low' } }), [], 0, false, false)));
-    assert.equal(f.isVortiefExcluded, false);
+    assert.equal(f.isVortiefExcluded, true);
   });
 
   it('filters unchecked cards when Ungeprüfte is on', () => {
@@ -498,6 +498,90 @@ describe('unchecked counter parity', () => {
       assert.equal(elig.canScan, true);
       const cd = extractCardData(card);
       assert.equal(cd.stats, null);
+    });
+  });
+});
+
+describe('Min-Rabatt threshold filter core', () => {
+  it('getCardEffectiveDiscount uses dealScore when available', () => {
+    const cd = {
+      dealScore: { weightedDiff: 25 },
+      cardPrice: 100,
+      stats: { tiefstpreis: 100, medianPrice: 130 }
+    };
+    assert.equal(getCardEffectiveDiscount(cd), 25);
+  });
+
+  it('getCardEffectiveDiscount uses vortiefDropPct for fallback low', () => {
+    const cd = {
+      dealScore: null,
+      cardPrice: 80,
+      verifiedStats: { tiefstpreis: 100, previousLow: 100, timeSeries: [{ price: 100 }, { price: 120 }] },
+      displayDelta: { kind: 'new-low', prevLow: 100 }
+    };
+    assert.equal(getCardEffectiveDiscount(cd), 20);
+  });
+
+  it('getCardEffectiveDiscount returns negative markup for verified markups', () => {
+    const cd = {
+      dealScore: null,
+      cardPrice: 120,
+      verifiedStats: { tiefstpreis: 100, timeSeries: [{ p: 100 }, { p: 100 }] },
+      displayDelta: { kind: 'above-low', markup: 20 },
+      discountVal: 15 // fake site badge should be ignored
+    };
+    assert.equal(getCardEffectiveDiscount(cd), -20);
+  });
+
+  it('getCardEffectiveDiscount falls back to discountVal for unverified cards', () => {
+    const cd = {
+      dealScore: null,
+      stats: null,
+      discountVal: 15
+    };
+    assert.equal(getCardEffectiveDiscount(cd), 15);
+  });
+
+  it('applyCardFilters sets isBelowMinDiscount when enabled and below threshold', () => {
+    withConfig('FILTER_DEAL_DISCOUNT_ENABLED', true, () => {
+      withConfig('MIN_DEAL_DISCOUNT', 20, () => {
+        const cdLow = { dealScore: { weightedDiff: 15 }, card: {} };
+        const resLow = applyCardFilters(cdLow, [], 0, true);
+        assert.equal(resLow.isBelowMinDiscount, true);
+
+        const cdHigh = { dealScore: { weightedDiff: 25 }, card: {} };
+        const resHigh = applyCardFilters(cdHigh, [], 0, true);
+        assert.equal(resHigh.isBelowMinDiscount, false);
+      });
+    });
+  });
+
+  it('applyCardFilters ignores threshold when disabled or MIN_DEAL_DISCOUNT is 0', () => {
+    withConfig('FILTER_DEAL_DISCOUNT_ENABLED', false, () => {
+      withConfig('MIN_DEAL_DISCOUNT', 20, () => {
+        const cd = { dealScore: { weightedDiff: 10 }, card: {} };
+        assert.equal(applyCardFilters(cd, [], 0, true).isBelowMinDiscount, false);
+      });
+    });
+    withConfig('FILTER_DEAL_DISCOUNT_ENABLED', true, () => {
+      withConfig('MIN_DEAL_DISCOUNT', 0, () => {
+        const cd = { dealScore: { weightedDiff: 0 }, card: {} };
+        assert.equal(applyCardFilters(cd, [], 0, true).isBelowMinDiscount, false);
+      });
+    });
+  });
+
+  it('isCardFilteredOut respects FILTER_DEAL_DISCOUNT_MODE and bypasses forScan', () => {
+    const filters = { isBelowMinDiscount: true };
+    const card = { classList: { contains: () => false } };
+
+    withConfig('FILTER_DEAL_DISCOUNT_MODE', 'dim', () => {
+      assert.equal(isCardFilteredOut(card, filters), false);
+    });
+    withConfig('FILTER_DEAL_DISCOUNT_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(card, filters), true);
+      // forScan bypasses isBelowMinDiscount
+      assert.equal(isCardFilteredOut(card, filters, { forScan: true }), false);
     });
   });
 });

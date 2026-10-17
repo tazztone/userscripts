@@ -316,7 +316,7 @@ export function renderEmptyState(cards, counts) {
     });
 
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-      updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
+      updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, FILTER_DEAL_DISCOUNT_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

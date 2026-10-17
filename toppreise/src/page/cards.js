@@ -6,8 +6,8 @@
 
 import { SELECTORS } from './selectors.js';
 import { CONFIG, clampIntensity01 } from '../state/config.js';
-import { extractCanonicalPrice, parsePrice } from '../domain/price.js';
-import { computeDealScore, getDisplayDelta } from '../domain/deal-score.js';
+import { extractCanonicalPrice, parsePrice, pctRise } from '../domain/price.js';
+import { computeDealScore, getDisplayDelta, vortiefDropPct } from '../domain/deal-score.js';
 import { getCachedPriceStats, hasUsablePriceStats } from '../scanner/cache.js';
 import { isShippingPriceActive } from './adapter.js';
 
@@ -347,21 +347,27 @@ export function extractCardData(card) {
   };
 }
 
+export function getCardEffectiveDiscount(cd) {
+  if (cd.dealScore) return cd.dealScore.weightedDiff;
+  const vStats = cd.verifiedStats ?? cd.stats;
+  if (hasUsablePriceStats(vStats)) {
+    return (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')
+      ? (vortiefDropPct(cd.cardPrice, vStats) || 0)
+      : -((cd.displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0)) || 0);
+  }
+  return cd.discountVal || 0;
+}
+
 export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
    const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
    const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-  // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
-  // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
-  // Ungeprüfte is config-only: it must not depend on scan state, otherwise the
-  // first check on a checkless page hides everything as a side effect.
-  // Fallback exclusion is deal-feed-only: the toolbar row (the only control)
-  // renders solely there, so browse pages must never dim/hide with no switch.
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-   const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-  const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
-  const isDealerLoser = false;
-  return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser };
+   const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
+   const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
+   const isDealerLoser = false;
+   return { isNeg, isLowOffers, isBelowMinDiscount, isVortiefExcluded, isUnchecked, isDealerLoser };
 }
 export function dealerLoserFor(card, activeStores) {
   if (!activeStores || activeStores.length === 0) return false;
@@ -397,6 +403,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   const causeHit = f => (f.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
     || (f.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
     || (f.isDealerLoser && isHide(CONFIG.DEALER_MODE))
+    || (!forScan && f.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
     || (forScan ? false : (f.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE)))
     || (f.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE));
   const legacyChecks = () => {
@@ -419,6 +426,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   const f = {
     isNeg: card.classList?.contains('tp-negative-filtered') === true,
     isLowOffers: card.classList?.contains('tp-min-offers-filtered') === true,
+    isBelowMinDiscount: !!card.classList?.contains('tp-deal-disc-filtered'),
     isVortiefExcluded: card.classList?.contains('tp-vortief-excluded') === true,
     isUnchecked: card.classList?.contains('tp-unchecked-hidden') === true,
     isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
@@ -433,6 +441,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
   f.isNeg = f.isNeg || recomp.isNeg;
   f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
+  f.isBelowMinDiscount = f.isBelowMinDiscount || recomp.isBelowMinDiscount;
   if (!causeHit(f)) return legacyChecks();
   return true;
 }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.326
+// @version      2.18.327
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2782,11 +2782,14 @@ const SHADOW_MODAL_STYLES = `
   const DEFAULTS = Object.freeze({
     FILTER_NEG_ENABLED: false,
     FILTER_MIN_ENABLED: false,
+    FILTER_DEAL_DISCOUNT_ENABLED: false,
     FILTER_NEG_MODE: 'dim',
     FILTER_MIN_MODE: 'dim',
+    FILTER_DEAL_DISCOUNT_MODE: 'dim',
     HIDE_UNCHECKED_MODE: 'dim',
     VORTIEF_MODE: 'dim',
     DEALER_MODE: 'dim',
+    MIN_DEAL_DISCOUNT: 0,
     MARGIN_PERCENT: 0.0,
     DIM_OPACITY: 0.25,
     USE_SHIPPING_PRICE: true,
@@ -2867,11 +2870,14 @@ const SHADOW_MODAL_STYLES = `
   const SETTING_SCHEMA = {
     FILTER_NEG_ENABLED: { type: 'bool', default: false },
     FILTER_MIN_ENABLED: { type: 'bool', default: false },
+    FILTER_DEAL_DISCOUNT_ENABLED: { type: 'bool', default: false },
     FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
     FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
+    FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },
     HIDE_UNCHECKED_MODE: { type: 'mode', default: 'dim' },
     VORTIEF_MODE: { type: 'mode', default: 'dim' },
     DEALER_MODE: { type: 'mode', default: 'dim' },
+    MIN_DEAL_DISCOUNT: { type: 'int', default: 0, min: 0, max: 50 },
     MARGIN_PERCENT: { type: 'float', default: 0.0, min: 0, max: 50 },
     DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
     USE_SHIPPING_PRICE: { type: 'bool', default: true },
@@ -3109,6 +3115,7 @@ const SHADOW_MODAL_STYLES = `
   const FILTER_CYCLE = Object.freeze({
     FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
     FILTER_MIN_MODE: { enable: 'FILTER_MIN_ENABLED', on: true },
+    FILTER_DEAL_DISCOUNT_MODE: { enable: 'FILTER_DEAL_DISCOUNT_ENABLED', on: true },
     HIDE_UNCHECKED_MODE: { enable: 'BESTPREISE_HIDE_UNCHECKED', on: true },
     VORTIEF_MODE: { enable: 'BESTPREISE_INCLUDE_VORTIEF', on: false },
   });
@@ -3138,11 +3145,14 @@ const SHADOW_MODAL_STYLES = `
   const CONFIG = {
     FILTER_NEG_ENABLED: sanitizeConfigValue('FILTER_NEG_ENABLED', _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED))),
     FILTER_MIN_ENABLED: sanitizeConfigValue('FILTER_MIN_ENABLED', _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED))),
+    FILTER_DEAL_DISCOUNT_ENABLED: sanitizeConfigValue('FILTER_DEAL_DISCOUNT_ENABLED', _getValue('FILTER_DEAL_DISCOUNT_ENABLED', DEFAULTS.FILTER_DEAL_DISCOUNT_ENABLED)),
     FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
     FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
+    FILTER_DEAL_DISCOUNT_MODE: _modeValue('FILTER_DEAL_DISCOUNT_MODE'),
     HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
     VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
     DEALER_MODE: _modeValue('DEALER_MODE'),
+    MIN_DEAL_DISCOUNT: sanitizeConfigValue('MIN_DEAL_DISCOUNT', _getValue('MIN_DEAL_DISCOUNT', DEFAULTS.MIN_DEAL_DISCOUNT)),
     MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
     DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
     USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
@@ -3448,6 +3458,7 @@ const SHADOW_MODAL_STYLES = `
             }
             case 'FILTER_NEG_MODE':
             case 'FILTER_MIN_MODE':
+            case 'FILTER_DEAL_DISCOUNT_MODE':
             case 'HIDE_UNCHECKED_MODE':
             case 'VORTIEF_MODE': {
               paintCycleButtons(bar, key);
@@ -3472,9 +3483,19 @@ const SHADOW_MODAL_STYLES = `
               bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !val);
               break;
             }
+            case 'FILTER_DEAL_DISCOUNT_ENABLED': {
+              paintCycleButtons(bar, 'FILTER_DEAL_DISCOUNT_MODE');
+              bar.querySelector('#tp-bar-deal-disc-group')?.classList.toggle('tp-tool-dim', !val);
+              break;
+            }
             case 'MIN_OFFERS': {
               const minVal = bar.querySelector('#tp-bar-min-val');
               if (minVal) minVal.textContent = val;
+              break;
+            }
+            case 'MIN_DEAL_DISCOUNT': {
+              const discVal = bar.querySelector('#tp-bar-deal-disc-val');
+              if (discVal) discVal.textContent = `${val}%`;
               break;
             }
             case 'REAL_DEAL_MIN_DISCOUNT': {
@@ -4030,21 +4051,27 @@ const SHADOW_MODAL_STYLES = `
     };
   }
 
+  function getCardEffectiveDiscount(cd) {
+    if (cd.dealScore) return cd.dealScore.weightedDiff;
+    const vStats = cd.verifiedStats ?? cd.stats;
+    if (hasUsablePriceStats(vStats)) {
+      return (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')
+        ? (vortiefDropPct(cd.cardPrice, vStats) || 0)
+        : -((cd.displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0)) || 0);
+    }
+    return cd.discountVal || 0;
+  }
+
   function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
      const isNeg = CONFIG.FILTER_NEG_ENABLED ? matchesNegativeTerms(cd.card, termsList) : false;
      const isLowOffers = CONFIG.FILTER_MIN_ENABLED ? !!(pageHasOffers && minOffers > 0 && cd.offerCount < minOffers) : false;
-    // Removal causes are Negativ, Min-Angebote, Händler (set downstream),
-    // Ungeprüfte, Fallback-ausgeschlossen. Verified markups are removed nowhere.
-    // Ungeprüfte is config-only: it must not depend on scan state, otherwise the
-    // first check on a checkless page hides everything as a side effect.
-    // Fallback exclusion is deal-feed-only: the toolbar row (the only control)
-    // renders solely there, so browse pages must never dim/hide with no switch.
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
-     const isVortiefExcluded = isDealFeed && CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-    const isUnchecked = isDealFeed && CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
-    const isDealerLoser = false;
-    return { isNeg, isLowOffers, isVortiefExcluded, isUnchecked, isDealerLoser };
+     const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
+     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
+     const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
+     const isDealerLoser = false;
+     return { isNeg, isLowOffers, isBelowMinDiscount, isVortiefExcluded, isUnchecked, isDealerLoser };
   }
   function dealerLoserFor(card, activeStores) {
     if (!activeStores || activeStores.length === 0) return false;
@@ -4080,6 +4107,7 @@ const SHADOW_MODAL_STYLES = `
     const causeHit = f => (f.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
       || (f.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
       || (f.isDealerLoser && isHide(CONFIG.DEALER_MODE))
+      || (!forScan && f.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
       || (forScan ? false : (f.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE)))
       || (f.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE));
     const legacyChecks = () => {
@@ -4102,6 +4130,7 @@ const SHADOW_MODAL_STYLES = `
     const f = {
       isNeg: card.classList?.contains('tp-negative-filtered') === true,
       isLowOffers: card.classList?.contains('tp-min-offers-filtered') === true,
+      isBelowMinDiscount: !!card.classList?.contains('tp-deal-disc-filtered'),
       isVortiefExcluded: card.classList?.contains('tp-vortief-excluded') === true,
       isUnchecked: card.classList?.contains('tp-unchecked-hidden') === true,
       isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
@@ -4116,6 +4145,7 @@ const SHADOW_MODAL_STYLES = `
     const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
     f.isNeg = f.isNeg || recomp.isNeg;
     f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
+    f.isBelowMinDiscount = f.isBelowMinDiscount || recomp.isBelowMinDiscount;
     if (!causeHit(f)) return legacyChecks();
     return true;
   }
@@ -6029,6 +6059,7 @@ const SHADOW_MODAL_STYLES = `
     // 2. Filters
     card.classList.toggle('tp-negative-filtered', filters.isNeg);
     card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
+    card.classList.toggle('tp-deal-disc-filtered', !!filters.isBelowMinDiscount);
     card.classList.toggle('tp-vortief-excluded', filters.isVortiefExcluded === true);
 
     // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
@@ -6060,16 +6091,19 @@ const SHADOW_MODAL_STYLES = `
     const hide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
       || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
       || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
+      || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
       || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
       || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
     const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
+      || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
     const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
+      || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
     filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
@@ -7036,7 +7070,7 @@ const SHADOW_MODAL_STYLES = `
       });
 
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-        updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
+        updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, FILTER_DEAL_DISCOUNT_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
     } else if (emptyNotice) {
@@ -9859,7 +9893,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, uncheckedDeals: 0, unavailableDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
+      const counts = { neg: 0, min: 0, dealDisc: 0, uncheckedDeals: 0, unavailableDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
@@ -9885,6 +9919,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.filters.isFiltered) counts.filteredCount++;
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
+        if (cd.filters.isBelowMinDiscount) counts.dealDisc++;
         if (cd.filters.isUnchecked) counts.uncheckedHidden++;
         if (cd.filters.isVortiefExcluded) counts.vortief++;
         if (cd.filters.isDealerLoser) counts.dealer++;
@@ -10049,7 +10084,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.326';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.327';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

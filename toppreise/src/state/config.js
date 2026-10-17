@@ -61,6 +61,7 @@ const _modeValue = k => {
 export const FILTER_CYCLE = Object.freeze({
   FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
   FILTER_MIN_MODE: { enable: 'FILTER_MIN_ENABLED', on: true },
+  FILTER_DEAL_DISCOUNT_MODE: { enable: 'FILTER_DEAL_DISCOUNT_ENABLED', on: true },
   HIDE_UNCHECKED_MODE: { enable: 'BESTPREISE_HIDE_UNCHECKED', on: true },
   VORTIEF_MODE: { enable: 'BESTPREISE_INCLUDE_VORTIEF', on: false },
 });
@@ -90,11 +91,14 @@ const paintCycleButtons = (bar, modeKey) => {
 export const CONFIG = {
   FILTER_NEG_ENABLED: sanitizeConfigValue('FILTER_NEG_ENABLED', _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED))),
   FILTER_MIN_ENABLED: sanitizeConfigValue('FILTER_MIN_ENABLED', _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED))),
+  FILTER_DEAL_DISCOUNT_ENABLED: sanitizeConfigValue('FILTER_DEAL_DISCOUNT_ENABLED', _getValue('FILTER_DEAL_DISCOUNT_ENABLED', DEFAULTS.FILTER_DEAL_DISCOUNT_ENABLED)),
   FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
   FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
+  FILTER_DEAL_DISCOUNT_MODE: _modeValue('FILTER_DEAL_DISCOUNT_MODE'),
   HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
   VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
   DEALER_MODE: _modeValue('DEALER_MODE'),
+  MIN_DEAL_DISCOUNT: sanitizeConfigValue('MIN_DEAL_DISCOUNT', _getValue('MIN_DEAL_DISCOUNT', DEFAULTS.MIN_DEAL_DISCOUNT)),
   MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
   DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
   USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
@@ -400,6 +404,7 @@ export function syncUiControl(key, val, opts = {}) {
           }
           case 'FILTER_NEG_MODE':
           case 'FILTER_MIN_MODE':
+          case 'FILTER_DEAL_DISCOUNT_MODE':
           case 'HIDE_UNCHECKED_MODE':
           case 'VORTIEF_MODE': {
             paintCycleButtons(bar, key);
@@ -424,9 +429,19 @@ export function syncUiControl(key, val, opts = {}) {
             bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !val);
             break;
           }
+          case 'FILTER_DEAL_DISCOUNT_ENABLED': {
+            paintCycleButtons(bar, 'FILTER_DEAL_DISCOUNT_MODE');
+            bar.querySelector('#tp-bar-deal-disc-group')?.classList.toggle('tp-tool-dim', !val);
+            break;
+          }
           case 'MIN_OFFERS': {
             const minVal = bar.querySelector('#tp-bar-min-val');
             if (minVal) minVal.textContent = val;
+            break;
+          }
+          case 'MIN_DEAL_DISCOUNT': {
+            const discVal = bar.querySelector('#tp-bar-deal-disc-val');
+            if (discVal) discVal.textContent = `${val}%`;
             break;
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
