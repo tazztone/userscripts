@@ -4,12 +4,19 @@
 
 **English Version** · **[🇩🇪 Deutsche Version](README.de.md)**
 
-An all-in-one userscript suite (`v2.18.314`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
+An all-in-one userscript suite (`v2.18.330`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
 
-![Toolbar: alle Filter, Heatmap, Batch-CTA](docs/shots/01-toolbar.webp)
-![Feed-Karten: Heat-Deal, Aufschlag-Morph, Fallback-Tief, Share-Hover](docs/shots/02-feed-cards.webp)
-![Such-Karten: Inline-Pill, Pruefen-Pill, guenstigste Variante](docs/shots/03-search-cards.webp)
-![Einstellungen: alle Bereiche auf einer Seite](docs/shots/04-settings-modal.webp)
+![Feed Cards Overview: Deal Heatmap, Markup Exposure, Fallback Low, and 1-Click Share](docs/shots/02-feed-cards.webp)
+
+| # | Signal / Feature | Description |
+|---|---|---|
+| ① | **Single-Hue Deal Heatmap** | Proportional color glow (deep ruby for all-time record lows, warm amber for strong discounts). |
+| ② | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
+| ③ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
+| ④ | **1-Click Discord Share** | Hover button to post deal details, interactive chart PNG, and merchant offer directly to your Discord webhook. |
+| ⑤ | **Transparent Deal Subline** | Displays live price, absolute CHF savings, and percentage discount vs. 1-year rolling median. |
+| ⑥ | **Direct Merchant Jump** | Direct link to the cheapest dealer offer without intermediary tracking redirects. |
+| ⑦ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
 
 ---
 
@@ -30,6 +37,15 @@ Requires a userscript manager browser extension:
 
 ### 🔍 Real Deal Verification & Weighted Deal Score (*Gewichtete Differenz*)
 
+![Calculation Parameters & Glitch Rejection Live Preview](docs/shots/01b-calc-popover.webp)
+
+| # | Parameter / Component | Description |
+|---|---|---|
+| ① | **Live Glitch Preview Chart** | Real-time SVG visualization showing rolling median, record floor, outlier tolerance band, and detected glitches. |
+| ② | **Deal Weighting Slider** | Balances scoring between breakthrough record margin and rolling median savings. |
+| ③ | **Average Time Horizon** | Configures rolling median window (30 to 730 days or Lifetime) to prevent obsolete launch MSRP bias. |
+| ④ | **Minimum Data Points** | Threshold of historical price observations required before qualifying for weighted deal scoring. |
+
 * **On-Demand & Batch Verification:** Click any product's Differenz badge (`🔍`) or use the floating **Batch-Check CTA** (bottom-left) to fetch full historical price series for all visible deals meeting your discount threshold (`≥20%–60%`), with a live progress counter and cancel button.
 * **Weighted Deal Score (`⚖️`):** Verified all-time lows are scored using a customizable blend between **discount vs. rolling median (`Ø-Preis`)** and **breakthrough margin vs. the previous all-time low (`Rekord`)**. This produces a single metric that drives the badge percentage, card heat color, and feed ranking.
 * **Rolling Median Time Horizon (30–730 Days + Lifetime):** Prevents distorted baseline prices on aging tech (e.g. 2-year-old GPUs or TVs with obsolete launch MSRPs). Adjusting the horizon immediately recomputes all cached mediane locally without network requests.
@@ -47,6 +63,19 @@ Requires a userscript manager browser extension:
 * **1-Click Google Review Search (`🌐`):** Appends a quick-search icon to product titles that opens a Google search for `<Product> Testbericht` (or custom keyword) in a new tab, with optional **Google AI Mode (`&udm=50`)**.
 
 ### 🧹 Sticky Filter Bar & Grid Sorting
+
+![Sticky Filter Bar & In-Place Grid Sorting](docs/shots/01a-toolbar.webp)
+
+| # | Control | Description |
+|---|---|---|
+| ① | **Filter Button** | Opens multi-mode filter controls (Hide, Dim, Highlight per cause). |
+| ② | **Negative Keywords** | Instant exclusion by keywords with live word-boundary matching. |
+| ③ | **Minimum Offers** | Filters out marketplace offers with fewer than $N$ merchants. |
+| ④ | **Verified Deals Only** | Dim or hide deals lacking verified historical price series. |
+| ⑤ | **Fallback Lows Toggle** | Filter or dim verified offers with sparse history. |
+| ⑥ | **Heatmap Toggle** | Switches continuous deal color wash on/off. |
+| ⑦ | **Best-Price Sorting** | Sorts listings by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
+| ⑧ | **Batch Verification CTA** | One-click batch scanner to verify all visible offers meeting discount criteria. |
 
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
@@ -98,6 +127,15 @@ Requires a userscript manager browser extension:
 
 The userscript dynamically tailors its UI to the current page type:
 
+![Variant Grouping & Inline Deal Pills in Product Search](docs/shots/03-search-cards.webp)
+
+| # | Feature | Description |
+|---|---|---|
+| ① | **Verified Deal Pill** | Compact inline pill showing true weighted discount above current merchant price. |
+| ② | **Unverified Scan Pill** | Striped-gray badge indicating unverified catalog item; click to fetch price history. |
+| ③ | **Cheapest Variant Preserved** | Native site highlights preserved in their original DOM position. |
+| ④ | **Grouped Family Protection** | Container keeps product variants (e.g. AirPods 5) grouped without breaking grid layout. |
+
 * **Deal Feeds (`/neue-toppreise`):** Displays the full suite: consolidated filter button (`🧹 Filter (N)`), continuous heatmap toggle, `💎 Tiefstpreis-Sortierung`, floating batch scanner, and calculation popover (`⚖️`).
 * **Catalog & Search Listings (`/produktsuche/...`):** Streamlined toolbar with complete protection for grouped product families (`.Plugin_ProductCollItem`). Grouped variants (such as AirPods with or without wireless charging case) remain locked in their native collection containers, preserving Bootstrap grid integrity without splitting cards. Inline deal pills (`.tp-deal-pill`) sit neatly above prices.
 * **Product Detail Pages (`/preisvergleich/...-p...`):** Hides the top filter bar and embeds a dedicated Tiefstpreis badge next to the main product title and price.
@@ -107,6 +145,16 @@ The userscript dynamically tailors its UI to the current page type:
 ## ⚙️ Configuration & Modal Settings
 
 Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements:
+
+![Shadow DOM Settings Dialog: Key Controls](docs/shots/04-settings-modal.webp)
+
+| # | Setting / Action | Description |
+|---|---|---|
+| ① | **Dimmer Opacity Slider** | Adjusts background opacity of filtered and dimmed listings. |
+| ② | **Price Alarm Auto-Fill** | Pre-fills target price percentage (5%–99%) and duration (3–24 months). |
+| ③ | **Discord Webhook Integration** | Configures confidential webhook URL for one-click deal sharing (never committed). |
+| ④ | **Discord Template Builder** | Custom recipe tokens with live Markdown preview and link suppression toggles. |
+| ⑤ | **Local Data & Cache Management** | Sparkline toggles, merchant auto-fetch, TTL adjustments, and cache purge/export. |
 
 1. **🖥️ Display (*Anzeige*):** Filter representation mode (`Hervorheben`, `Dimmen`, `Verbergen`), price tolerance margin (%), dimmer opacity slider, shipping-basis toggle, and default secondary sort order (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 2. **💎 Deals & Tiefstpreise:** Heatmap toggle and intensity slider (20%–100%), weighted deal blend slider (median vs. record low), minimum history data points threshold (1–100), analysis horizon slider (30–730 days or Lifetime), and batch scan discount threshold.

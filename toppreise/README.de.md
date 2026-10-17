@@ -4,12 +4,19 @@
 
 **[🇬🇧 English Version](README.md)** · **Deutsche Version**
 
-Umfassende Userscript-Suite (`v2.18.314`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
+Umfassende Userscript-Suite (`v2.18.330`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
 
-![Toolbar: alle Filter, Heatmap, Batch-CTA](docs/shots/01-toolbar.webp)
-![Feed-Karten: Heat-Deal, Aufschlag-Morph, Fallback-Tief, Share-Hover](docs/shots/02-feed-cards.webp)
-![Such-Karten: Inline-Pill, Pruefen-Pill, guenstigste Variante](docs/shots/03-search-cards.webp)
-![Einstellungen: alle Bereiche auf einer Seite](docs/shots/04-settings-modal.webp)
+![Deal-Karten im Überblick: Rabatt-Heatmap, Schein-Rabatt-Erkennung, Fallback-Tief und 1-Klick-Share](docs/shots/02-feed-cards.webp)
+
+| # | Signal / Funktion | Beschreibung |
+|---|---|---|
+| ① | **Single-Hue Deal-Heatmap** | Proportionales Leuchten nach Deal-Tiefe (tiefes Rubinrot bei Rekord-Tiefstpreisen, warmes Bernstein bei soliden Rabatten). |
+| ② | **Schein-Rabatt entlarvt** | Deckt Fake-Rabatte auf: Streicht die angebliche Ersparnis durch und hebt den echten Aufschlag (+XX%) über dem Tief hervor. |
+| ③ | **Fallback-Tief** | Verifizierter Tiefstpreis bei wenigen Datenpunkten (< minPoints): Zeigt den Abstand zum vorherigen Tiefstpreis. |
+| ④ | **1-Klick Discord-Share** | Erscheint bei Hover zum direkten Teilen von Deal-Details, Chart-PNG und Händlerlink via Webhook. |
+| ⑤ | **Transparente Subline** | Zeigt den Live-Preis, die absolute CHF-Ersparnis und den Prozentwert gegenüber dem 1-Jahres-Median. |
+| ⑥ | **Direkter Händlerlink** | Direktsprung zum günstigsten Anbieter ohne zwischengeschaltete Tracking-Umwege. |
+| ⑦ | **Mini-Trend Sparkline** | Kompakte 30-Tage-Preiskurve; Klick öffnet den interaktiven Vollbild-Chart. |
 
 ---
 
@@ -30,6 +37,15 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 ### 🔍 Tiefstpreis-Prüfung & Gewichtete Differenz
 
+![Berechnungsparameter & Glitch-Erkennung](docs/shots/01b-calc-popover.webp)
+
+| # | Parameter / Element | Beschreibung |
+|---|---|---|
+| ① | **Glitch-Vorschau (Live-Chart)** | Interaktive SVG-Vorschau mit rolling Median, Allzeit-Rekord, Glitch-Toleranzband und Ausreißer-Erkennung. |
+| ② | **Gewichtung Rekord / Median** | Schieberegler zur Abstimmung zwischen Rekord-Durchbruch und Ersparnis gegenüber dem Median. |
+| ③ | **Ø-Zeitraum (Median-Horizont)** | Einstellbares Zeitfenster (30 bis 730 Tage oder Lifetime), um veraltete Launch-Preise auszublenden. |
+| ④ | **Mindestpunkte** | Erforderliche Anzahl historischer Datenpunkte für die qualifizierte Deal-Bewertung. |
+
 * **Prüfung auf Abruf & Batch-Checker:** Klicke auf das Differenz-Badge (`🔍`) einer Karte oder nutze den schwebenden **Batch-Checker** (unten links), um alle sichtbaren Deals ab dem Schwellenwert (`≥20%–60%`) nacheinander abzufragen (mit Live-Zähler und Abbruch-Option).
 * **Gewichtete Differenz (`⚖️`):** Verifizierte Tiefstpreise werden anhand einer frei wählbaren Mischung aus **Median-Rabatt (`Ø-Preis`)** und **Rekordmarge (`Rekord`)** bewertet. Diese Kennzahl steuert Badge-Prozentwert, Heatmap-Farbe und Feed-Reihenfolge.
 * **Rollierender Median-Zeithorizont (30–730 Tage + Lifetime):** Verhindert verzerrte Marktpreise bei älteren Produkten (z. B. 2 Jahre alte Grafikkarten mit hoher Launch-UVP). Ein Wechsel rechnet alle gecachten Mediane sofort lokal neu — ohne erneute Netzabfrage.
@@ -47,6 +63,19 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 * **1-Klick Review-Suche (`🌐`):** Such-Icon am Produkttitel öffnet Google mit `<Produktname> Testbericht` (oder Wunschbegriff) in neuem Tab, optional mit **Google-KI-Modus (`&udm=50`)**.
 
 ### 🧹 Sticky Filterleiste & Grid-Sortierung
+
+![Sticky Filterleiste & Schnellfilter](docs/shots/01a-toolbar.webp)
+
+| # | Steuerelement | Beschreibung |
+|---|---|---|
+| ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler (Verbergen, Dimmen, Hervorheben pro Ursache). |
+| ② | **Negativ-Filter** | Sofortiger Ausschluss unerwünschter Begriffe mit wortgenauer Erkennung. |
+| ③ | **Min-Angebote** | Filtert Angebote mit weniger als $N$ gelisteten Händlern aus. |
+| ④ | **Nur geprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
+| ⑤ | **Fallback-Tiefs** | Steuert die Sichtbarkeit von Angeboten mit geringer Datenpunktdichte. |
+| ⑥ | **Heatmap-Umschalter** | Schaltet das proportionale Farbglühen der Karten ein oder aus. |
+| ⑦ | **Tiefstpreis-Sortierung** | Sortiert die Einträge im Raster nach authentischem gewichtetem Deal-Score (`💎`). |
+| ⑧ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt. |
 
 * **Kontextsensitive Leiste:** Passt sich automatisch an Deal-Feeds (`/neue-toppreise`), Suchseiten (`/produktsuche/...`) und Produktseiten an.
 * **4-stufiger Filter pro Ursache:** Jeder Filtergrund kann unabhängig geschaltet werden zwischen **Normal**, **Dimmen** (einstellbare Deckkraft), **Verbergen** und **Hervorheben** (gepunkteter Rahmen):
@@ -97,6 +126,15 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
+![Variantengruppierung und Inline-Pills in der Produktsuche](docs/shots/03-search-cards.webp)
+
+| # | Element | Beschreibung |
+|---|---|---|
+| ① | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Anzeige über dem Preis für geprüfte Tiefstpreise. |
+| ② | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
+| ③ | **Günstigste Variante** | Native Toppreise-Hervorhebung bleibt an ihrer ursprünglichen Position erhalten. |
+| ④ | **Produktfamilien-Schutz** | Hält Varianten (z. B. AirPods 5) sauber im gemeinsamen Container zusammen. |
+
 * **Tiefstpreis-Feeds (`/neue-toppreise`):** Zeigt die vollständige Toolbar mit konsolidiertem Filter-Button (`🧹 Filter (N)`), Heatmap, `💎 Tiefstpreis-Sortierung`, Batch-Scanner und Berechnungsparametern (`⚖️`).
 * **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber über den Preisen.
 * **Produkt-Detailseiten (`/preisvergleich/...-p...`):** Filterleiste wird ausgeblendet; ein dezentes Tiefstpreis-Badge wird direkt neben dem Haupttitel und Hauptpreis eingebettet.
@@ -106,6 +144,16 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 ## ⚙️ Einstellungen & Konfiguration
 
 Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellungsmenü (`#tp-root`). Dank gekapseltem Shadow DOM und nativem HTML5 `<dialog>` (`showModal()`) im Top Layer des Browsers ist es immun gegen CSS- und z-Index-Konflikte der Hauptseite:
+
+![Shadow DOM Einstellungen: alle Bereiche übersichtlich gegliedert](docs/shots/04-settings-modal.webp)
+
+| # | Einstellung / Bereich | Beschreibung |
+|---|---|---|
+| ① | **Dimmungs-Deckkraft** | Regelt die Transparenz gedimmter und ausgefilterter Angebote im Raster. |
+| ② | **Preisalarm Auto-Fill** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%) und Alarmdauer. |
+| ③ | **Discord Webhook** | Vertrauliche Webhook-URL für das 1-Klick Teilen verifizierter Deals. |
+| ④ | **Layout-Baukasten** | Frei anpassbare Nachrichtenvorlage mit Live-Markdown-Vorschau. |
+| ⑤ | **Daten- & Cache-Verwaltung** | Sparkline-Optionen, Händler-Autoload, Cache-TTL und Ein-Klick-Bereinigung. |
 
 1. **🖥️ Anzeige:** Filterdarstellung (`Hervorheben`, `Dimmen`, `Verbergen`), Preistoleranz (%), Deckkraft-Regler für gedimmte Karten, Versandkosten-Vergleich und Standard-Sortierung (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 2. **💎 Deals & Tiefstpreise:** Heatmap an/aus und Intensität (20%–100%), Schieberegler für Gewichtete Differenz (Median vs. Rekord), Mindest-Datenpunkte (1–100), Analyse-Zeithorizont (30–730 Tage oder Lifetime) und Prüf-Vorauswahl für den Scanner.
