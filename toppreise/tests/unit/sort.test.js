@@ -101,7 +101,7 @@ describe('applySorting fallback-tief order', () => {
     assert.equal(f.row.children[0], f.cardA);
   });
 
-  it('keeps site-%-only fallback at 0, above -100 markup cards', () => {
+  it('keeps site-%-only fallback at 0, above Tier 0 markup cards', () => {
     const row = makeRow();
     const cardA = makeCard(row, 0);
     const cardB = makeCard(row, 1);
@@ -112,7 +112,7 @@ describe('applySorting fallback-tief order', () => {
       { card: cardB, cardPrice: 77, stats: { tiefstpreis: 100, previousLow: 100, dataPointCount: 3 }, displayDelta: { kind: 'new-low' }, dealScore: null },
       // No previousLow → vortiefDropPct 0, tied with unchecked
       { card: cardC, cardPrice: 90, stats: { tiefstpreis: 100, dataPointCount: 3 }, displayDelta: { kind: 'at-low' }, dealScore: null },
-      // Verified markup sinks at -100
+      // Verified markup sinks in Tier 0 (weightedDiff: -20)
       { card: cardD, cardPrice: 120, stats: { tiefstpreis: 100, dataPointCount: 3 }, displayDelta: { kind: 'above-low', markup: 20 }, dealScore: null },
     ];
     row.children = [cardD, cardC, cardB, cardA];
@@ -122,6 +122,26 @@ describe('applySorting fallback-tief order', () => {
           applySorting([cardA, cardB, cardC, cardD], false, data))));
     assert.deepEqual(row.children, [cardA, cardB, cardC, cardD]);
     assert.equal(cardC.style.order, '-2');
+  });
+
+  it('ranks markup cards by ascending markup percentage in Tier 0', () => {
+    const row = makeRow();
+    const card69 = makeCard(row, 0); // +69%
+    const card11 = makeCard(row, 1); // +11%
+    const card6A = makeCard(row, 2); // +6% (initialOrder 2)
+    const card6B = makeCard(row, 3); // +6% (initialOrder 3)
+    const data = [
+      { card: card69, cardPrice: 169, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 69 }, dealScore: null },
+      { card: card11, cardPrice: 111, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 11 }, dealScore: null },
+      { card: card6A, cardPrice: 106, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 6 }, dealScore: null },
+      { card: card6B, cardPrice: 106, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 6 }, dealScore: null },
+    ];
+    row.children = [card69, card11, card6A, card6B];
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([card69, card11, card6A, card6B], false, data)));
+    // Expect +6% (card6A then card6B by initialOrder), then +11%, then +69%
+    assert.deepEqual(row.children, [card6A, card6B, card11, card69]);
   });
 
   it('strictly ranks tiers: verified deals > fallback-tiefs > unchecked/unavailable > markups', () => {

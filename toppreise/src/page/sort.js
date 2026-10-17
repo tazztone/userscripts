@@ -11,7 +11,8 @@ import {
   extractCardDiscount,
   extractOfferCount
 } from './cards.js';
-import { computeDealScore, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
+import { computeDealScore, getDisplayDelta, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
+import { pctRise } from '../domain/price.js';
 import { hasUsablePriceStats } from '../scanner/cache.js';
 
 // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
@@ -89,6 +90,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
         const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
         const usable = hasUsablePriceStats(vStats);
+        const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cd.cardPrice, vStats) : null);
         let tier = 1; // unchecked or unavailable
         let weightedDiff = 0;
         if (dealData) {
@@ -96,14 +98,15 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
           // and the card burns with it, so the feed ranks by it too.
           tier = 3;
           weightedDiff = dealData.weightedDiff;
-        } else if (usable && (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')) {
+        } else if (usable && (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low')) {
           // Verified low without blend: rank by Vortief-Abstand — the same
           // number the ribbon prints and the edge heat burns with.
           tier = 2;
           weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
         } else if (usable) {
           tier = 0; // verified above-low markup
-          weightedDiff = -100;
+          const markup = displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0);
+          weightedDiff = -Math.max(0, markup || 0);
         }
         return {
           card: c,
