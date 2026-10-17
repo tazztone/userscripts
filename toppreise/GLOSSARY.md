@@ -63,8 +63,10 @@ Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich (keine Gewichtete Dif
 - Datenpunkten unterhalb der Mindest-Datenpunkte-Schwelle (`pointsCount < minPoints`).
 - Fehlender Zeitreihe / fehlendem Median (z. B. HTML-Fallback nach fehlschlagender JSON-API, nur statischer Tiefstpreis bekannt).
 - Flacher Historie (<2% Varianz zwischen Höchst- und Tiefstpreis).
-- Keiner positiven Ersparnis gegenüber Median oder vorherigem Rekord (`dMedian <= 0 && dRecord <= 0`).
 _Avoid_: Vortief (als UI-Text), dünne Historie
+
+**Neutraler 0%-Deal**:
+Verifizierter Tiefstpreis mit qualifizierter Historie, dessen aktueller Preis genau dem rollierenden Median entspricht (`dMedian = 0%`, kein neuer Rekord `dRecord = 0%`). Badge zeigt `0%` / `Tiefstpreis`, Karte bleibt neutral-grau (Deadband), sortiert mit 0% Gewichteter Differenz und wird **nicht** vom Fallback-Tiefs-Filter erfasst.
 
 **Ungeprüfte**:
 Filtergrund: verbirgt, dimmt oder hebt ungeprüfte Karten hervor wenn aktiv (je Modus) — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
