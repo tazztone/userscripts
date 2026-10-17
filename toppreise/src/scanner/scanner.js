@@ -438,7 +438,6 @@ export async function runProductScanner(options = {}) {
       const item = targets[idx];
       scanState.batchScanningPids.add(item.pid);
       scanState.currentlyScanningPid = item.pid;
-      Object.assign(scanState, { progress: { completed, total } });
       try {
         const badgeEl = item.card.querySelector('.badge-dif, [class*="badge-dif"]');
         if (badgeEl) {
@@ -473,9 +472,9 @@ export async function runProductScanner(options = {}) {
       completed++;
       Object.assign(scanState, { progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
-      // ponytail: progressive paint per verified card (batch CTA asserts
-      // badges mid-scan); the pre-fetch full rescan stays removed.
-      if (stats) triggerProcessListings();
+      // Progressive paint per card: renders newly verified deals and ensures
+      // failed/null card fetches immediately restore non-loading badge state.
+      triggerProcessListings();
       await interruptibleSleep(250, shouldCancelFn, signal);
     }
   }

@@ -866,6 +866,32 @@ def test_category_page_batch_check_scans_visible_cards(page: Page):
 
 
 
+def test_batch_check_cleans_up_loading_badge_on_fetch_failure(page: Page):
+    # Setup mock where fetch fails with 404 for pricechart
+    page.evaluate('''() => {
+        document.body.className = 'color_bg Page_Browsing showproductprice';
+        document.body.setAttribute('data-current_url', '/produktsuche/TV-Video/TV-Geraete-Zubehoer/TV-Geraete-c986');
+        window.localStorage.clear();
+        document.querySelectorAll('.badge-dif').forEach(b => b.remove());
+
+        window.fetch = async function(url, opts) {
+            return { ok: false, status: 404, headers: new Headers(), json: async () => null, text: async () => '', clone() { return this; } };
+        };
+
+        window.ToppreiseSuite?.processListings?.();
+    }''')
+    page.wait_for_selector('#tp-floating-check-cta', state='visible', timeout=5000)
+
+    # Click floating CTA check button
+    page.click('#tp-floating-check-btn')
+
+    # Wait for scanner to finish (CTA loses .tp-scanning)
+    page.wait_for_selector('#tp-floating-check-cta:not(.tp-scanning)', state='attached', timeout=5000)
+    # Verify no cards remain stuck in tp-deal-loading
+    assert page.locator('.badge-dif.tp-deal-loading').count() == 0
+
+
+
 def test_sparkline_renders_with_cached_timeseries(page: Page):
     # Enable sparklines for testing
     page.evaluate("""() => {
