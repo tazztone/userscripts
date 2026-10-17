@@ -12,6 +12,7 @@ import {
   extractOfferCount
 } from './cards.js';
 import { computeDealScore, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
+import { hasUsablePriceStats } from '../scanner/cache.js';
 
 // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
 // The placeholder comment marks the exact pre-sort position; restore inserts
@@ -87,28 +88,33 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
         const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
         const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
-        let weightedDiff = -100;
+        const usable = hasUsablePriceStats(vStats);
+        let tier = 1; // unchecked or unavailable
+        let weightedDiff = 0;
         if (dealData) {
           // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
           // and the card burns with it, so the feed ranks by it too.
+          tier = 3;
           weightedDiff = dealData.weightedDiff;
-        } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
+        } else if (usable && (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')) {
           // Verified low without blend: rank by Vortief-Abstand — the same
           // number the ribbon prints and the edge heat burns with.
-          // Exclusion dims/hides via applyCardFilters only; sort never reads BESTPREISE_INCLUDE_VORTIEF.
+          tier = 2;
           weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
-        } else if (!vStats) {
-          weightedDiff = 0;
+        } else if (usable) {
+          tier = 0; // verified above-low markup
+          weightedDiff = -100;
         }
         return {
           card: c,
           item: getCardSortableUnit(c),
+          tier,
           weightedDiff,
           dMed: dealData ? dealData.dMedian : 0,
           initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
         };
       });
-      scored.sort((a, b) => (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+      scored.sort((a, b) => (b.tier - a.tier) || (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.

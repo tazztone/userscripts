@@ -264,6 +264,11 @@ describe('Price Domain Module', () => {
       const stripped = sanitizeTimeSeries(series, 0.60, 48, 99.99);
       assert.equal(stripped.filteredOutliers.length, 1);
       assert.equal(stripped.filteredOutliers[0].price, 35);
+
+      // 5% tolerance: live price moving within 5% (e.g. 34.50 vs 35) keeps the tail drop
+      const anchoredTolerance = sanitizeTimeSeries(series, 0.60, 48, 34.50);
+      assert.equal(anchoredTolerance.filteredOutliers.length, 0);
+      assert.ok(anchoredTolerance.cleanPoints.some(p => p[1] === 35));
     });
 
     it('filters a two-point 30h glitch run with a 72h window', () => {

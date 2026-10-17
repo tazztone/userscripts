@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.316
+// @version      2.18.317
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1926,7 +1926,11 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
-    const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
+    const isLiveAnchored = p => {
+      if (typeof currentPrice !== 'number' || !(currentPrice > 0)) return false;
+      if (priceToCents(p) === priceToCents(currentPrice)) return true;
+      return Math.abs(p - currentPrice) / Math.max(p, currentPrice) <= 0.05;
+    };
     if (!(band > 0 && band < 1)) band = 0.50;
     if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
     const sorted0 = Array.isArray(points) ? [...points].sort((a, b) => a[0] - b[0]) : [];
@@ -4945,6 +4949,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
   // The placeholder comment marks the exact pre-sort position; restore inserts
   // before it when still connected, else appends, then re-sorts by tpInitialOrder.
@@ -5019,28 +5024,33 @@ const SHADOW_MODAL_STYLES = `
           const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
           const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
           const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
-          let weightedDiff = -100;
+          const usable = hasUsablePriceStats(vStats);
+          let tier = 1; // unchecked or unavailable
+          let weightedDiff = 0;
           if (dealData) {
             // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
             // and the card burns with it, so the feed ranks by it too.
+            tier = 3;
             weightedDiff = dealData.weightedDiff;
-          } else if (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low') {
+          } else if (usable && (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')) {
             // Verified low without blend: rank by Vortief-Abstand — the same
             // number the ribbon prints and the edge heat burns with.
-            // Exclusion dims/hides via applyCardFilters only; sort never reads BESTPREISE_INCLUDE_VORTIEF.
+            tier = 2;
             weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
-          } else if (!vStats) {
-            weightedDiff = 0;
+          } else if (usable) {
+            tier = 0; // verified above-low markup
+            weightedDiff = -100;
           }
           return {
             card: c,
             item: getCardSortableUnit(c),
+            tier,
             weightedDiff,
             dMed: dealData ? dealData.dMedian : 0,
             initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
           };
         });
-        scored.sort((a, b) => (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+        scored.sort((a, b) => (b.tier - a.tier) || (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
@@ -9969,7 +9979,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.316';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.317';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

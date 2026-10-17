@@ -174,7 +174,11 @@ export function rollingMedians(points) {
 }
 
 export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
-  const isLiveAnchored = p => typeof currentPrice === 'number' && currentPrice > 0 && priceToCents(p) === priceToCents(currentPrice);
+  const isLiveAnchored = p => {
+    if (typeof currentPrice !== 'number' || !(currentPrice > 0)) return false;
+    if (priceToCents(p) === priceToCents(currentPrice)) return true;
+    return Math.abs(p - currentPrice) / Math.max(p, currentPrice) <= 0.05;
+  };
   if (!(band > 0 && band < 1)) band = 0.50;
   if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
   const sorted0 = Array.isArray(points) ? [...points].sort((a, b) => a[0] - b[0]) : [];

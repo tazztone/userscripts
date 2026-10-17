@@ -115,6 +115,32 @@ describe('applySorting fallback-tief order', () => {
     assert.equal(cardC.style.order, '2');
   });
 
+  it('strictly ranks tiers: verified deals > fallback-tiefs > unchecked/unavailable > markups', () => {
+    const row = makeRow();
+    const cardDeal0 = makeCard(row, 0); // tier 3: verified 0% deal
+    const cardFallback0 = makeCard(row, 1); // tier 2: 0% fallback-tief
+    const cardUnchecked = makeCard(row, 2); // tier 1: unchecked card
+    const cardUnavailable = makeCard(row, 3); // tier 1: unavailable card
+    const cardMarkup = makeCard(row, 4); // tier 0: verified markup
+    const data = [
+      { card: cardDeal0, cardPrice: 100, stats: { tiefstpreis: 100, medianPrice: 100, dataPointCount: 10 }, dealScore: { weightedDiff: 0, dMedian: 0, dRecord: 0 } },
+      { card: cardFallback0, cardPrice: 100, stats: { tiefstpreis: 100, dataPointCount: 3 }, displayDelta: { kind: 'at-low' }, dealScore: null },
+      { card: cardUnchecked, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+      { card: cardUnavailable, cardPrice: 100, stats: { unavailable: true }, displayDelta: null, dealScore: null },
+      { card: cardMarkup, cardPrice: 150, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 50 }, dealScore: null },
+    ];
+    // Start shuffled
+    row.children = [cardMarkup, cardUnavailable, cardUnchecked, cardFallback0, cardDeal0];
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardDeal0, cardFallback0, cardUnchecked, cardUnavailable, cardMarkup], false, data)));
+    assert.equal(row.children[0], cardDeal0, 'tier 3 verified deal must rank first');
+    assert.equal(row.children[1], cardFallback0, 'tier 2 fallback-tief must rank second');
+    assert.equal(row.children[2], cardUnchecked, 'tier 1 unchecked must rank ahead of markup');
+    assert.equal(row.children[3], cardUnavailable, 'tier 1 unavailable must rank ahead of markup');
+    assert.equal(row.children[4], cardMarkup, 'tier 0 markup must rank last');
+  });
+
   it('breaks offer count ties deterministically using initialOrder', () => {
     const row = makeRow();
     const cardA = makeCard(row, 0);
