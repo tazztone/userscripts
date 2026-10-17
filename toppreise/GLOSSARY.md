@@ -55,7 +55,7 @@ _Avoid_: Gedimmte (für Entfernte)
  _Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung)
 
 **Neue Tiefstpreise**:
-Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts. Dieselbe Sortierung steht auf /produktsuche/* als „Tiefstpreis-Sortierung" bereit.
+Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts. Sortiert deterministisch nach Tiers: verifizierte Deals mit Gewichteter Differenz (inkl. neutraler 0%-Deals) > verifizierte Fallback-Tiefs > Ungeprüfte / nicht verfügbare Karten > verifizierte schlechte Deals (Aufschläge). Dieselbe Sortierung steht auf /produktsuche/* als „Tiefstpreis-Sortierung" bereit.
 _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
