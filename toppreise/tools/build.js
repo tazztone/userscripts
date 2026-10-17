@@ -181,7 +181,14 @@ function main() {
     return;
   }
 
-  fs.writeFileSync(OUTPUT_FILE, bundle, 'utf-8');
+  const tmpFile = `${OUTPUT_FILE}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    fs.writeFileSync(tmpFile, bundle, 'utf-8');
+    fs.renameSync(tmpFile, OUTPUT_FILE);
+  } catch (err) {
+    try { fs.unlinkSync(tmpFile); } catch {}
+    throw err;
+  }
   console.log(`✅ Successfully generated ${path.relative(process.cwd(), OUTPUT_FILE)}:`);
   console.log(`   • Size : ${bundleSizeKb} KB`);
   console.log(`   • Lines: ${bundleLines}`);
