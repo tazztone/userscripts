@@ -429,12 +429,16 @@ export async function runProductScanner(options = {}) {
   const total = targets.length;
   let completed = 0;
   const newlyVerified = [];
+  let nextIdx = 0;
 
-  try {
-    for (let i = 0; i < targets.length; i++) {
-      if (isCancelled(signal, shouldCancelFn)) break;
-      const item = targets[i];
-      Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
+  async function worker() {
+    while (!isCancelled(signal, shouldCancelFn)) {
+      const idx = nextIdx++;
+      if (idx >= targets.length) break;
+      const item = targets[idx];
+      scanState.batchScanningPids.add(item.pid);
+      scanState.currentlyScanningPid = item.pid;
+      Object.assign(scanState, { progress: { completed, total } });
       try {
         const badgeEl = item.card.querySelector('.badge-dif, [class*="badge-dif"]');
         if (badgeEl) {
@@ -460,7 +464,10 @@ export async function runProductScanner(options = {}) {
           else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
         }
       } finally {
-        Object.assign(scanState, { currentlyScanningPid: null });
+        scanState.batchScanningPids.delete(item.pid);
+        if (scanState.currentlyScanningPid === item.pid) {
+          scanState.currentlyScanningPid = scanState.batchScanningPids.values().next().value ?? null;
+        }
       }
 
       completed++;
@@ -471,7 +478,19 @@ export async function runProductScanner(options = {}) {
       if (stats) triggerProcessListings();
       await interruptibleSleep(250, shouldCancelFn, signal);
     }
+  }
+
+  try {
+    const worker1 = worker();
+    const worker2 = (async () => {
+      if (targets.length > 1) {
+        await interruptibleSleep(125, shouldCancelFn, signal);
+      }
+      if (!isCancelled(signal, shouldCancelFn)) await worker();
+    })();
+    await Promise.all([worker1, worker2]);
   } finally {
+    scanState.batchScanningPids.clear();
     Object.assign(scanState, { currentlyScanningPid: null });
   }
 

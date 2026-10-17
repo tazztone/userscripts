@@ -229,6 +229,11 @@ describe('Verdict badges F-03 & F-04', () => {
     assert.equal(isScanningPid('p1'), false);
     assert.equal(isScanningPid('p2'), true);
     scanState.singleScanningPids.clear();
+
+    scanState.batchScanningPids.add('p3');
+    assert.equal(isScanningPid('p3'), true);
+    scanState.batchScanningPids.clear();
+    assert.equal(isScanningPid('p3'), false);
   });
 
   it('renderModeVerdict adds .tp-deal-alltime-low to fallback lows (F-04)', async () => {

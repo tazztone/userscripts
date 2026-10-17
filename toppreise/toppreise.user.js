@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.322
+// @version      2.18.323
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3539,13 +3539,18 @@ const SHADOW_MODAL_STYLES = `
     batchCancelRequested: false,
     currentlyScanningPid: null,
     singleScanningPids: new Set(),
+    batchScanningPids: new Set(),
     progress: { completed: 0, total: 0 },
     freshPids: new Set(),
     freshUntil: 0
   };
 
   function isScanningPid(pid) {
-    return pid != null && (scanState.currentlyScanningPid === pid || scanState.singleScanningPids.has(pid));
+    return pid != null && (
+      scanState.currentlyScanningPid === pid ||
+      scanState.singleScanningPids.has(pid) ||
+      scanState.batchScanningPids.has(pid)
+    );
   }
 
   // ─── MODULE: src/page/adapter.js ────────────────────────────────────────────
@@ -5655,12 +5660,16 @@ const SHADOW_MODAL_STYLES = `
     const total = targets.length;
     let completed = 0;
     const newlyVerified = [];
+    let nextIdx = 0;
 
-    try {
-      for (let i = 0; i < targets.length; i++) {
-        if (isCancelled(signal, shouldCancelFn)) break;
-        const item = targets[i];
-        Object.assign(scanState, { currentlyScanningPid: item.pid, progress: { completed, total } });
+    async function worker() {
+      while (!isCancelled(signal, shouldCancelFn)) {
+        const idx = nextIdx++;
+        if (idx >= targets.length) break;
+        const item = targets[idx];
+        scanState.batchScanningPids.add(item.pid);
+        scanState.currentlyScanningPid = item.pid;
+        Object.assign(scanState, { progress: { completed, total } });
         try {
           const badgeEl = item.card.querySelector('.badge-dif, [class*="badge-dif"]');
           if (badgeEl) {
@@ -5686,7 +5695,10 @@ const SHADOW_MODAL_STYLES = `
             else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
           }
         } finally {
-          Object.assign(scanState, { currentlyScanningPid: null });
+          scanState.batchScanningPids.delete(item.pid);
+          if (scanState.currentlyScanningPid === item.pid) {
+            scanState.currentlyScanningPid = scanState.batchScanningPids.values().next().value ?? null;
+          }
         }
 
         completed++;
@@ -5697,7 +5709,19 @@ const SHADOW_MODAL_STYLES = `
         if (stats) triggerProcessListings();
         await interruptibleSleep(250, shouldCancelFn, signal);
       }
+    }
+
+    try {
+      const worker1 = worker();
+      const worker2 = (async () => {
+        if (targets.length > 1) {
+          await interruptibleSleep(125, shouldCancelFn, signal);
+        }
+        if (!isCancelled(signal, shouldCancelFn)) await worker();
+      })();
+      await Promise.all([worker1, worker2]);
     } finally {
+      scanState.batchScanningPids.clear();
       Object.assign(scanState, { currentlyScanningPid: null });
     }
 
@@ -10021,7 +10045,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.322';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.323';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

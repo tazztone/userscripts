@@ -8,11 +8,16 @@ export const scanState = {
   batchCancelRequested: false,
   currentlyScanningPid: null,
   singleScanningPids: new Set(),
+  batchScanningPids: new Set(),
   progress: { completed: 0, total: 0 },
   freshPids: new Set(),
   freshUntil: 0
 };
 
 export function isScanningPid(pid) {
-  return pid != null && (scanState.currentlyScanningPid === pid || scanState.singleScanningPids.has(pid));
+  return pid != null && (
+    scanState.currentlyScanningPid === pid ||
+    scanState.singleScanningPids.has(pid) ||
+    scanState.batchScanningPids.has(pid)
+  );
 }
