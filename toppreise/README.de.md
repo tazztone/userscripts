@@ -41,15 +41,18 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 | # | Parameter / Element | Beschreibung |
 |---|---|---|
-| ① | **Glitch-Vorschau (Live-Chart)** | Interaktive SVG-Vorschau mit rolling Median, Allzeit-Rekord, Glitch-Toleranzband und Ausreißer-Erkennung. |
-| ② | **Gewichtung Rekord / Median** | Schieberegler zur Abstimmung zwischen Rekord-Durchbruch und Ersparnis gegenüber dem Median. |
-| ③ | **Ø-Zeitraum (Median-Horizont)** | Einstellbares Zeitfenster (30 bis 730 Tage oder Lifetime), um veraltete Launch-Preise auszublenden. |
-| ④ | **Mindestpunkte** | Erforderliche Anzahl historischer Datenpunkte für die qualifizierte Deal-Bewertung. |
+| ① | **Gewichtung Median / Rekord** | Schieberegler zur Abstimmung zwischen Rekord-Durchbruch und Ersparnis gegenüber dem Median. |
+| ② | **Ø-Zeitraum (Median-Horizont)** | Einstellbares Zeitfenster (30 bis 730 Tage oder Lifetime), um veraltete Launch-Preise auszublenden. |
+| ③ | **Mindestpunkte** | Erforderliche Anzahl historischer Datenpunkte für die qualifizierte Deal-Bewertung. |
+| ④ | **Ausreisser filtern** | Aktiviert die automatische Erkennung und Verwerfung von Preissprüngen. |
+| ⑤ | **Glitch-Band** | Einstellbares Toleranzband (±1%–50%) um den Median. |
+| ⑥ | **Glitch-Fenster** | Maximale Dauer eines Preissprungs (24h–168h), der als Glitch verworfen wird. |
+| ⑦ | **Glitch-Vorschau (Live-Chart)** | Interaktive SVG-Vorschau mit Ø-Preis, Allzeit-Rekord, Glitch-Band und erkannten Glitches (rote ✕-Marker). |
 
 * **Prüfung auf Abruf & Batch-Checker:** Klicke auf das Differenz-Badge (`🔍`) einer Karte oder nutze den schwebenden **Batch-Checker** (unten links), um alle sichtbaren Deals ab dem Schwellenwert (`≥20%–60%`) nacheinander abzufragen (mit Live-Zähler und Abbruch-Option).
 * **Gewichtete Differenz (`⚖️`):** Verifizierte Tiefstpreise werden anhand einer frei wählbaren Mischung aus **Median-Rabatt (`Ø-Preis`)** und **Rekordmarge (`Rekord`)** bewertet. Diese Kennzahl steuert Badge-Prozentwert, Heatmap-Farbe und Feed-Reihenfolge.
 * **Rollierender Median-Zeithorizont (30–730 Tage + Lifetime):** Verhindert verzerrte Marktpreise bei älteren Produkten (z. B. 2 Jahre alte Grafikkarten mit hoher Launch-UVP). Ein Wechsel rechnet alle gecachten Mediane sofort lokal neu — ohne erneute Netzabfrage.
-* **Multi-Pass Preisfehler- & Ausreißer-Filter:** Erkennt und ignoriert automatisch kurzzeitige Fehllistings (z. B. ein CHF 15 Handy-Case, das versehentlich unter einem CHF 1'200 Smartphone gelistet war) mittels rollierendem ±15-Punkte-Lokalmedian (konfigurierbares Glitch-Band `±1%–50%`, Glitch-Fenster `24h–168h`), mit interaktiver Live-SVG-Vorschau im `⚖️`-Popover.
+* **Multi-Pass Preisfehler- & Ausreisser-Filter:** Erkennt und ignoriert automatisch kurzzeitige Fehllistings (z. B. ein CHF 15 Handy-Case, das versehentlich unter einem CHF 1'200 Smartphone gelistet war) mittels rollierendem ±15-Punkte-Lokalmedian (konfigurierbares Glitch-Band `±1%–50%`, Glitch-Fenster `24h–168h`), mit interaktiver Live-SVG-Vorschau im `⚖️`-Popover.
 * **Entlarvung von Schein-Rabatten:** Produkte über ihrem historischen Tief erhalten ein auffälliges `Aufschlag (+XX%)`-Badge mit durchgestrichener ungeprüfter Differenz (`~~-YY%~~`) und Anzeige des echten Tiefstpreises unter dem Preis.
 * **Transparente Subline & Günstigster Händler (`🏬`):** Zeigt die Aufschlüsselung (`📉 CHF 2'399.00 (-X%) · Ø (1J) CHF 2'450.00 (-Y%)`) und den günstigsten Händlernamen mit Direktlink zum Angebot, optional mit automatischem Nachladen im Hintergrund (`max. 3 parallel`).
 * **Versandkosten-Basis (`inkl. Versand`):** Preishistorien ohne (`_p`) und mit Versand (`_s`) werden getrennt gecacht und ausgewertet, sodass Preisbasen niemals vermischt werden.
@@ -70,16 +73,17 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 |---|---|---|
 | ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler (Verbergen, Dimmen, Hervorheben pro Ursache). |
 | ② | **Negativ-Filter** | Sofortiger Ausschluss unerwünschter Begriffe mit wortgenauer Erkennung. |
-| ③ | **Min-Angebote** | Filtert Angebote mit weniger als $N$ gelisteten Händlern aus. |
-| ④ | **Nur geprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
+| ③ | **Min-Angebote** | Filtert Angebote mit weniger als $N$ Händlern aus (nur auf Seiten mit Händlerzeilen aktiv). |
+| ④ | **Ungeprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
 | ⑤ | **Fallback-Tiefs** | Steuert die Sichtbarkeit von Angeboten mit geringer Datenpunktdichte. |
-| ⑥ | **Heatmap-Umschalter** | Schaltet das proportionale Farbglühen der Karten ein oder aus. |
-| ⑦ | **Tiefstpreis-Sortierung** | Sortiert die Einträge im Raster nach authentischem gewichtetem Deal-Score (`💎`). |
-| ⑧ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt. |
+| ⑥ | **Min-Rabatt** | Filtert Angebote mit weniger als $X$% Rabatt aus. |
+| ⑦ | **Heatmap-Umschalter** | Schaltet das proportionale Farbglühen der Karten ein oder aus. |
+| ⑧ | **Tiefstpreis-Sortierung** | Sortiert die Einträge im Raster nach authentischem gewichtetem Deal-Score (`💎`). |
+| ⑨ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt. |
 
 * **Kontextsensitive Leiste:** Passt sich automatisch an Deal-Feeds (`/neue-toppreise`), Suchseiten (`/produktsuche/...`) und Produktseiten an.
 * **4-stufiger Filter pro Ursache:** Jeder Filtergrund kann unabhängig geschaltet werden zwischen **Normal**, **Dimmen** (einstellbare Deckkraft), **Verbergen** und **Hervorheben** (gepunkteter Rahmen):
-  * **Negativer Textfilter:** Unerwünschte Begriffe ausschließen (Komma/Semikolon/Zeilenumbruch; lange Begriffe `>3` Zeichen als Teilstring, kurze Begriffe `≤3` Zeichen wortgenau).
+  * **Negativer Textfilter:** Unerwünschte Begriffe ausschliessen (Komma/Semikolon/Zeilenumbruch; lange Begriffe `>3` Zeichen als Teilstring, kurze Begriffe `≤3` Zeichen wortgenau).
   * **Mindest-Angebote:** Marktplatz-Einträge mit weniger als $N$ Händlern filtern.
   * **Ungeprüfte:** Unverifizierte Angebote im Feed ausblenden oder dimmen.
   * **Fallback-Tiefs:** Sichtbarkeit von Tiefstpreisen mit dünner Historie steuern.
@@ -90,7 +94,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 ### 🔔 Preisalarm Auto-Filler
 
 * **Sofortiges Ausfüllen:** Klick auf Toppreises Alarm-Glocke setzt Zielpreis (`5%–99%`, Standard `60%`) und Laufzeit (`3`, `6`, `12` oder `24` Monate), passend zum Schweizer Währungsformat (`CHF 1'299.–`).
-* **Modi:** **Nur Ausfüllen** (Standard: manuell prüfen und absenden) oder **Auto-Submit** (akzeptiert AGB und sendet direkt ab; schließt erst nach bestätigter Server-Übermittlung).
+* **Modi:** **Nur Ausfüllen** (Standard: manuell prüfen und absenden) oder **Auto-Submit** (akzeptiert AGB und sendet direkt ab; schliesst erst nach bestätigter Server-Übermittlung).
 
 ### 💬 1-Klick Discord Deal-Sharing (`📤`)
 
@@ -108,7 +112,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | **Batch-Checker-CTA** | Schwebend unten links | Alle sichtbaren Deals ab Mindestdifferenz (`≥X%`) mit einem Klick prüfen; Schalter für automatisches Händlerladen (`🏬`). |
 | **Differenz-Badge (`🔍` / `⚖️`)** | Oben rechts auf Karte | Einzelprodukt prüfen oder Historie aktualisieren. |
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |
-| **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den großen interaktiven Preishistorien-Chart. |
+| **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den grossen interaktiven Preishistorien-Chart. |
 | **Share-Button (`📤`)** | Unten links auf Deal-Karte | Postet Deal, Text-Übersicht und PNG-Chart an den Discord-Webhook. |
 | **Review-Suche (`🌐`)** | Hinter dem Produkttitel | Öffnet Google-Suche nach Testberichten in neuem Tab (optional mit KI-Modus `&udm=50`). |
 | **Einstellungen-Button (`⚙️`)** | Schwebend unten rechts | Öffnet das gekapselte Shadow-DOM-Einstellungsmenü. |
@@ -118,7 +122,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | Taste | Kontext | Aktion |
 | --- | --- | --- |
 | `/` | Beliebig auf Listenseiten | Fokussiert sofort das Texteingabefeld des Negativ-Filters (inaktiv bei Texteingabe). |
-| `Escape` | Einstellungsdialog oder Filter | Schließt das Einstellungsmenü bzw. hebt den Filter-Fokus auf. |
+| `Escape` | Einstellungsdialog oder Filter | Schliesst das Einstellungsmenü bzw. hebt den Filter-Fokus auf. |
 
 ---
 
@@ -143,17 +147,31 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
 ## ⚙️ Einstellungen & Konfiguration
 
-Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellungsmenü (`#tp-root`). Dank gekapseltem Shadow DOM und nativem HTML5 `<dialog>` (`showModal()`) im Top Layer des Browsers ist es immun gegen CSS- und z-Index-Konflikte der Hauptseite:
+Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellungsmenü (`#tp-root`). Dank gekapseltem Shadow DOM und nativem HTML5 `<dialog>` (`showModal()`) im Top Layer des Browsers ist es immun gegen CSS- und z-Index-Konflikte der Hauptseite. Gegliedert in Basis- und Erweiterte Einstellungen:
 
-![Shadow DOM Einstellungen: alle Bereiche übersichtlich gegliedert](docs/shots/04-settings-modal.webp)
+### Basis-Einstellungen (Bereiche 1–5: Anzeige, Review, Sortierung, Filter, Preisalarm)
+
+![Shadow DOM Einstellungen: Basis-Bereiche](docs/shots/04a-settings-core.webp)
 
 | # | Einstellung / Bereich | Beschreibung |
 |---|---|---|
 | ① | **Dimmungs-Deckkraft** | Regelt die Transparenz gedimmter und ausgefilterter Angebote im Raster. |
-| ② | **Preisalarm Auto-Fill** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%) und Alarmdauer. |
-| ③ | **Discord Webhook** | Vertrauliche Webhook-URL für das 1-Klick Teilen verifizierter Deals. |
-| ④ | **Layout-Baukasten** | Frei anpassbare Nachrichtenvorlage mit Live-Markdown-Vorschau. |
-| ⑤ | **Daten- & Cache-Verwaltung** | Sparkline-Optionen, Händler-Autoload, Cache-TTL und Ein-Klick-Bereinigung. |
+| ② | **Review-Suche (🌐)** | Konfiguriert die Google-Suche mit optionalem KI-Modus (`&udm=50`). |
+| ③ | **Tiefstpreis-Sortierung** | Aktiviert die Sortierung nach authentischem gewichtetem Deal-Score (`💎`). |
+| ④ | **Preis-Toleranz (%)** | Erlaubter Aufschlag gegenüber dem Bestpreis für den bevorzugten Händler. |
+| ⑤ | **Preisalarm Auto-Fill** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%) und Alarmdauer. |
+
+### Erweiterte Einstellungen (Bereiche 6–7: Discord Share & Daten/Cache)
+
+![Shadow DOM Einstellungen: Erweiterte Bereiche](docs/shots/04b-settings-advanced.webp)
+
+| # | Einstellung / Bereich | Beschreibung |
+|---|---|---|
+| ① | **Discord Webhook** | Vertrauliche Webhook-URL für das 1-Klick Teilen verifizierter Deals. |
+| ② | **Layout-Baukasten** | Frei anpassbare Bausteine mit variablen Tokens (`{title}`, `{price}`, `{dealer}`, etc.). |
+| ③ | **Live-Markdown-Vorschau** | Sofortige Vorschau der generierten Discord-Nachricht. |
+| ④ | **Händler-Autoload** | Lädt den günstigsten Händler automatisch im Hintergrund nach (max. 3 parallel). |
+| ⑤ | **Daten- & Cache-Verwaltung** | Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`), Cache-TTL und Konfigurations-Export. |
 
 1. **🖥️ Anzeige:** Filterdarstellung (`Hervorheben`, `Dimmen`, `Verbergen`), Preistoleranz (%), Deckkraft-Regler für gedimmte Karten, Versandkosten-Vergleich und Standard-Sortierung (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 2. **💎 Deals & Tiefstpreise:** Heatmap an/aus und Intensität (20%–100%), Schieberegler für Gewichtete Differenz (Median vs. Rekord), Mindest-Datenpunkte (1–100), Analyse-Zeithorizont (30–730 Tage oder Lifetime) und Prüf-Vorauswahl für den Scanner.

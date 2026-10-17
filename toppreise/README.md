@@ -41,10 +41,13 @@ Requires a userscript manager browser extension:
 
 | # | Parameter / Component | Description |
 |---|---|---|
-| ① | **Live Glitch Preview Chart** | Real-time SVG visualization showing rolling median, record floor, outlier tolerance band, and detected glitches. |
-| ② | **Deal Weighting Slider** | Balances scoring between breakthrough record margin and rolling median savings. |
-| ③ | **Average Time Horizon** | Configures rolling median window (30 to 730 days or Lifetime) to prevent obsolete launch MSRP bias. |
-| ④ | **Minimum Data Points** | Threshold of historical price observations required before qualifying for weighted deal scoring. |
+| ① | **Deal Weighting Slider** | Balances scoring between breakthrough record margin and rolling median savings. |
+| ② | **Average Time Horizon (*Ø-Zeitraum*)** | Configures rolling median window (30 to 730 days or Lifetime) to prevent obsolete launch MSRP bias. |
+| ③ | **Minimum Data Points** | Threshold of historical observations required before qualifying for weighted deal scoring. |
+| ④ | **Glitch Filter Switch** | Enables automated price-spike rejection using moving median windows. |
+| ⑤ | **Glitch Deviation Band** | Configures tolerance threshold (±1%–50%) around the median before a point is treated as an outlier. |
+| ⑥ | **Glitch Window Duration** | Sets maximum anomaly duration (24h–168h) for transient indexing glitches. |
+| ⑦ | **Live Glitch Preview Chart** | Real-time SVG visualization showing Ø-price, record floor, glitch band, and detected glitches (red ✕ markers). |
 
 * **On-Demand & Batch Verification:** Click any product's Differenz badge (`🔍`) or use the floating **Batch-Check CTA** (bottom-left) to fetch full historical price series for all visible deals meeting your discount threshold (`≥20%–60%`), with a live progress counter and cancel button.
 * **Weighted Deal Score (`⚖️`):** Verified all-time lows are scored using a customizable blend between **discount vs. rolling median (`Ø-Preis`)** and **breakthrough margin vs. the previous all-time low (`Rekord`)**. This produces a single metric that drives the badge percentage, card heat color, and feed ranking.
@@ -70,12 +73,13 @@ Requires a userscript manager browser extension:
 |---|---|---|
 | ① | **Filter Button** | Opens multi-mode filter controls (Hide, Dim, Highlight per cause). |
 | ② | **Negative Keywords** | Instant exclusion by keywords with live word-boundary matching. |
-| ③ | **Minimum Offers** | Filters out marketplace offers with fewer than $N$ merchants. |
-| ④ | **Verified Deals Only** | Dim or hide deals lacking verified historical price series. |
+| ③ | **Minimum Offers** | Filters out marketplace offers with fewer than $N$ merchants (active only on pages with dealer rows). |
+| ④ | **Unverified Offers (*Ungeprüfte*)** | Dim or hide deals lacking verified historical price series. |
 | ⑤ | **Fallback Lows Toggle** | Filter or dim verified offers with sparse history. |
-| ⑥ | **Heatmap Toggle** | Switches continuous deal color wash on/off. |
-| ⑦ | **Best-Price Sorting** | Sorts listings by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
-| ⑧ | **Batch Verification CTA** | One-click batch scanner to verify all visible offers meeting discount criteria. |
+| ⑥ | **Minimum Discount (*Min-Rabatt*)** | Filter out deals with less than $X$% discount. |
+| ⑦ | **Heatmap Toggle** | Switches continuous deal color wash on/off. |
+| ⑧ | **Best-Price Sorting** | Sorts listings by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
+| ⑨ | **Batch Verification CTA** | One-click batch scanner to verify all visible offers meeting discount criteria. |
 
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
@@ -144,17 +148,31 @@ The userscript dynamically tailors its UI to the current page type:
 
 ## ⚙️ Configuration & Modal Settings
 
-Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements:
+Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Split into Core and Advanced views for legibility:
 
-![Shadow DOM Settings Dialog: Key Controls](docs/shots/04-settings-modal.webp)
+### Core Settings (Sections 1–5: Display, Review, Sorting, Filtering, Price Alarm)
+
+![Shadow DOM Settings Dialog: Core Controls](docs/shots/04a-settings-core.webp)
 
 | # | Setting / Action | Description |
 |---|---|---|
 | ① | **Dimmer Opacity Slider** | Adjusts background opacity of filtered and dimmed listings. |
-| ② | **Price Alarm Auto-Fill** | Pre-fills target price percentage (5%–99%) and duration (3–24 months). |
-| ③ | **Discord Webhook Integration** | Configures confidential webhook URL for one-click deal sharing (never committed). |
-| ④ | **Discord Template Builder** | Custom recipe tokens with live Markdown preview and link suppression toggles. |
-| ⑤ | **Local Data & Cache Management** | Sparkline toggles, merchant auto-fetch, TTL adjustments, and cache purge/export. |
+| ② | **Review Search (🌐)** | Configures Google Review quick search with optional AI overview mode (`&udm=50`). |
+| ③ | **Best-Price Sorting** | Enables ranking by weighted deal quality score (`💎 Tiefstpreis-Sortierung`). |
+| ④ | **Price Tolerance Margin (%)** | Sets allowable premium over best price when evaluating preferred merchant deals. |
+| ⑤ | **Price Alarm Auto-Fill** | Pre-fills target price percentage (5%–99%) and duration (3–24 months). |
+
+### Advanced Settings (Sections 6–7: Discord Share & Data/Cache)
+
+![Shadow DOM Settings Dialog: Advanced Controls](docs/shots/04b-settings-advanced.webp)
+
+| # | Setting / Action | Description |
+|---|---|---|
+| ① | **Discord Webhook Integration** | Configures confidential webhook URL for one-click deal sharing (never committed). |
+| ② | **Discord Layout Chips** | Variable token builder (`{title}`, `{price}`, `{dealer}`, `{prevlow}`, `{median}`, `{link}`). |
+| ③ | **Live Markdown Preview** | Instant preview of the rendered Discord embed and message structure. |
+| ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically (max. 3 parallel). |
+| ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
 
 1. **🖥️ Display (*Anzeige*):** Filter representation mode (`Hervorheben`, `Dimmen`, `Verbergen`), price tolerance margin (%), dimmer opacity slider, shipping-basis toggle, and default secondary sort order (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 2. **💎 Deals & Tiefstpreise:** Heatmap toggle and intensity slider (20%–100%), weighted deal blend slider (median vs. record low), minimum history data points threshold (1–100), analysis horizon slider (30–730 days or Lifetime), and batch scan discount threshold.
