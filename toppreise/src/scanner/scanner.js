@@ -308,6 +308,18 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
           setCachedPriceStats(productId, analysis, false, undefined, useShipping, gen);
           return analysis;
         }
+      } else if (!pick.isShipping && useShipping) {
+        // Opportunistic product slot cache: we received a valid product-basis
+        // series while querying in shipping mode. Guard against overwriting
+        // existing richer/anchored product stats.
+        const existing = getCachedPriceStats(productId, false, null, false);
+        if (!existing || !existing.medianPrice) {
+          const prodAnalysis = analyzePriceTimeSeries(pick.series, null);
+          if (prodAnalysis && prodAnalysis.tiefstpreis > 0) {
+            prodAnalysis.isShippingPrice = false;
+            setCachedPriceStats(productId, prodAnalysis, false, undefined, false, gen);
+          }
+        }
       }
     }
 

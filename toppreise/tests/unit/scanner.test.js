@@ -100,9 +100,31 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     // Shipping slot reads unavailable/retry-later …
     const shipEntry = getCachedPriceStats(pid);
     assert.ok(shipEntry?.unavailable);
-    assert.equal(hasUsablePriceStats(shipEntry), false);
-    // … and the product slot stays untouched.
-    assert.equal(memoryCache.has(statsKey(pid, false)), false);
+    // … and the product slot is opportunistically populated with valid product stats.
+    const prodEntry = getCachedPriceStats(pid, false, null, false);
+    assert.ok(prodEntry);
+    assert.equal(prodEntry.isShippingPrice, false);
+    assert.ok(prodEntry.tiefstpreis > 0);
+  });
+
+  it('opportunistic product cache never overwrites existing product stats with medianPrice', async () => {
+    CONFIG.USE_SHIPPING_PRICE = true;
+    const pid = 'test-pid-ship-mismatch-no-overwrite';
+    const priorStats = { tiefstpreis: 88, medianPrice: 99, isShippingPrice: false, time: Date.now() };
+    setCachedPriceStats(pid, priorStats, false, null, false);
+
+    globalThis.fetch = async (url, opts) => {
+      fetchCalls++;
+      if (opts?.method === 'POST') return { ok: true, json: async () => freshSeries };
+      return { ok: false, status: 404, headers: { get: () => null } };
+    };
+
+    const stats = await fetchSingleProductPriceStats(pid, 0, true);
+    assert.equal(stats, null);
+    // Prior product stats remain untouched
+    const prodEntry = getCachedPriceStats(pid, false, null, false);
+    assert.equal(prodEntry.tiefstpreis, 88);
+    assert.equal(prodEntry.medianPrice, 99);
   });
 
   it('cancelled fetches return null and write no negative entry', async () => {

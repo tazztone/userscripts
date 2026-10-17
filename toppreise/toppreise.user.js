@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.320
+// @version      2.18.321
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5526,6 +5526,18 @@ const SHADOW_MODAL_STYLES = `
             setCachedPriceStats(productId, analysis, false, undefined, useShipping, gen);
             return analysis;
           }
+        } else if (!pick.isShipping && useShipping) {
+          // Opportunistic product slot cache: we received a valid product-basis
+          // series while querying in shipping mode. Guard against overwriting
+          // existing richer/anchored product stats.
+          const existing = getCachedPriceStats(productId, false, null, false);
+          if (!existing || !existing.medianPrice) {
+            const prodAnalysis = analyzePriceTimeSeries(pick.series, null);
+            if (prodAnalysis && prodAnalysis.tiefstpreis > 0) {
+              prodAnalysis.isShippingPrice = false;
+              setCachedPriceStats(productId, prodAnalysis, false, undefined, false, gen);
+            }
+          }
         }
       }
 
@@ -9996,7 +10008,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.320';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.321';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
