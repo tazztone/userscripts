@@ -312,27 +312,40 @@ def setup_feed_cards(page, pids):
         page.locator("#tp-bar-calc-btn").click()
         page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
     anchors = [f'a[href*="-p{pid}"]' for pid in pids[:3]]
-    boxes = [css_box(page, sel) for sel in anchors]
-    badge = page.locator(f"{anchors[1]} .badge-dif").first
-    badge.hover()
-    page.wait_for_timeout(400)
-    assert page.locator(".tp-share-btn").count() > 0, "share button missing"
-    assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
-    clip = union(boxes)
-    raw_bytes = page.screenshot(clip=clip)
     deep, markup, fallback = anchors
+
+    # Prepend dealer badge on deep deal card for demonstration
+    page.evaluate(r'''([pid, deepSel]) => {
+        const card = document.querySelector(deepSel);
+        if (!card) return;
+        const d = document.createElement('a');
+        d.className = 'tp-dealer-name';
+        d.textContent = '🏬 Digitec';
+        d.href = 'https://www.toppreise.ch';
+        const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+        priceInfo.insertBefore(d, priceInfo.firstChild);
+    }''', [pids[0], deep])
+
+    # Hover on deep card to display the Discord 1-Click Share button
+    card0 = page.locator(deep).first
+    card0.hover()
+    page.wait_for_timeout(400)
+    assert page.locator(f"{deep} > .tp-share-btn").count() > 0, "share button missing on deep deal"
+    assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
+
+    boxes = [css_box(page, sel) for sel in anchors]
+    clip = union(boxes, pad=16)
+    raw_bytes = page.screenshot(clip=clip)
+
     callouts = [
         (1, css_box(page, f"{deep} .badge-dif"), "Heat-Ribbon -XX% = Gewichtete Differenz (tiefrot = Tiefstpreis)"),
         (2, css_box(page, f"{markup} .badge-dif"), "+XX% Aufschlag-Morph (Schein-Rabatt durchgestrichen)"),
         (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief: Vortief-Abstand, Glow von außen"),
-        (4, boxes[1], "Share-Button (Hover) + nativer title-Tooltip (nicht abbildbar)"),
+        (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (Hover)"),
+        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Subline: CHF + % verankern beide Beine"),
+        (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (direkt zum Angebot)"),
+        (7, css_box(page, f"{deep} .tp-sparkline-container"), "Mini-Trend Sparkline (Klick = Preisverlauf)"),
     ]
-    extra = [(f"{deep} .tp-card-subline-row", "Subline: CHF + % verankern beide Beine"),
-             (f"{deep} .tp-dealer-name", "Günstigster Händler (direkt zum Angebot)"),
-             (f"{deep} .tp-sparkline-container", "Sparkline (Klick = Preisverlauf)")]
-    for sel, cap in extra:
-        if page.locator(sel).count() > 0:
-            callouts.append((len(callouts) + 1, css_box(page, sel), cap))
     return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
 
 
@@ -402,9 +415,8 @@ SCENES = {
         "snapshot": "feed",
         "roles": ["deep", "markup", "fallback"],
         "config": {
-            "BESTPREISE_MODE_ACTIVE": True,
-            "BESTPREISE_WEIGHT_RECORD": 0.50,
-            "BESTPREISE_HIDE_UNCHECKED": True,
+            "BESTPREISE_MODE_ACTIVE": False,
+            "HEATMAP_ACTIVE": True,
         },
         "viewport": {"width": 1440, "height": 900},
         "setup": setup_feed_cards,
