@@ -1402,8 +1402,9 @@ def test_batch_check_offerless_feed_with_min_offers(page: Page):
     # Counter sees 3 unchecked deals (-67%, -35%, -50%) despite Min=2:
     # offer-less feed => pageHasOffers False => no low-offers filtering
     page.wait_for_function("() => document.querySelector('#tp-floating-check-main').textContent.includes('3 Tiefstpreise prüfen')")
-    # Offer signals stripped above => pageHasOffers False => row hides (dead control otherwise)
-    assert page.evaluate("() => getComputedStyle(document.querySelector('[data-filter-row=\"min\"]')).display") == 'none'
+    # Offer signals stripped above => pageHasOffers False => row stays visible but greys out as inactive
+    assert 'tp-row-inactive' in (page.locator('[data-filter-row="min"]').get_attribute('class') or '')
+    assert page.locator('[data-filter-row="min"] [data-min-note]').inner_text() == 'inaktiv – keine Angebote auf Seite'
 
     # The exact predicate the scanner uses (no-arg recompute) must agree
     assert page.evaluate("() => window.ToppreiseSuite.isCardFilteredOut(document.querySelector('#card-cheapest'))") is False

@@ -996,12 +996,12 @@ def test_tiefstpreis_sort_visible_on_search_page(page: Page):
     natural = page.evaluate("() => Array.from(document.querySelectorAll('#product-list .Plugin_Product')).map(c => c.id)")
     assert natural.index('card-cheapest') < natural.index('card-expensive') < natural.index('card-negative')
 
-    # Sort button visible under action name; feed-only filter rows stay hidden
+    # Sort button visible under action name; filter rows are universal
     btn = page.locator('#tp-bar-bestpreise-btn')
     assert btn.is_visible()
     assert 'Tiefstpreis-Sortierung' in (btn.inner_text() or '')
-    assert page.evaluate("() => document.querySelector('[data-filter-row=\"unchecked\"]').style.display") == 'none'
-    assert page.evaluate("() => document.querySelector('[data-filter-row=\"vortief\"]').style.display") == 'none'
+    assert page.evaluate("() => document.querySelector('[data-filter-row=\"unchecked\"]').style.display") != 'none'
+    assert page.evaluate("() => document.querySelector('[data-filter-row=\"vortief\"]').style.display") != 'none'
 
     # Mode on overrides site order with badge-% order
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
@@ -2771,10 +2771,10 @@ def test_toolbar_stacks_below_site_dropdown(page: Page):
 
 def test_filter_modes_default_to_dim_on_fresh_install(page: Page):
     # Fresh-install state comes from the page fixture (cleared storage + bundle).
-    modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
-    assert modes == ['dim'] * 5
+    modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
+    assert modes == ['dim'] * 6
     _open_filter_popover(page)
-    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Normal'] * 4 + ['Dimmen']
+    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Normal'] * 5 + ['Dimmen']
 
 
 def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):
@@ -2825,5 +2825,43 @@ def test_catalog_cards_precede_unsorted_offer_separator(page: Page):
     for order in card_orders:
         assert order < sep_order
         assert order < off_order
+
+
+def test_universal_filter_rows_and_min_discount_filter(page: Page):
+    _open_filter_popover(page)
+
+    # 1. All filter rows are rendered universally
+    for row_name in ['neg', 'min', 'unchecked', 'vortief', 'deal-disc', 'dealer']:
+        row = page.locator(f'[data-filter-row="{row_name}"]')
+        assert row.is_visible(), f'row {row_name} must be visible'
+
+    # 2. Min-Rabatt stepper increments and syncs config
+    disc_val = page.locator('#tp-bar-deal-disc-val')
+    assert disc_val.inner_text() == '0%'
+
+    page.click('#tp-bar-deal-disc-plus')
+    assert disc_val.inner_text() == '5%'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.MIN_DEAL_DISCOUNT") == 5
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_DEAL_DISCOUNT_ENABLED") is True
+
+    page.click('#tp-bar-deal-disc-plus')
+    assert disc_val.inner_text() == '10%'
+    page.click('#tp-bar-deal-disc-minus')
+    assert disc_val.inner_text() == '5%'
+
+    # 3. Cycle button toggles modes
+    mode_btn = page.locator('[data-mode-key="FILTER_DEAL_DISCOUNT_MODE"]')
+    assert mode_btn.inner_text() == 'Dimmen'
+    page.click('[data-mode-key="FILTER_DEAL_DISCOUNT_MODE"]')
+    assert mode_btn.inner_text() == 'Verbergen'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_DEAL_DISCOUNT_MODE") == 'hide'
+
+    # 4. Reset button restores defaults
+    page.click('#tp-filter-reset')
+    assert disc_val.inner_text() == '0%'
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.MIN_DEAL_DISCOUNT") == 0
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_DEAL_DISCOUNT_ENABLED") is False
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTER_DEAL_DISCOUNT_MODE") == 'dim'
+    assert mode_btn.inner_text() == 'Normal'
 
 

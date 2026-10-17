@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount, sanitizeConfigValue } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -157,3 +157,34 @@ describe('horizon UI mapping (range sentinel + typed values)', () => {
     assert.equal(horizonStoredToUi(365), 365);
   });
 });
+
+describe('FILTER_CYCLE deal discount mapping', () => {
+  it('registers FILTER_DEAL_DISCOUNT_MODE in FILTER_CYCLE', () => {
+    assert.deepEqual(FILTER_CYCLE.FILTER_DEAL_DISCOUNT_MODE, { enable: 'FILTER_DEAL_DISCOUNT_ENABLED', on: true });
+  });
+
+  it('cycleStateOf derives off when disabled, mode when enabled', () => {
+    const prevEn = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED;
+    const prevMode = CONFIG.FILTER_DEAL_DISCOUNT_MODE;
+    try {
+      CONFIG.FILTER_DEAL_DISCOUNT_ENABLED = false;
+      CONFIG.FILTER_DEAL_DISCOUNT_MODE = 'dim';
+      assert.equal(cycleStateOf('FILTER_DEAL_DISCOUNT_MODE'), 'off');
+
+      CONFIG.FILTER_DEAL_DISCOUNT_ENABLED = true;
+      CONFIG.FILTER_DEAL_DISCOUNT_MODE = 'hide';
+      assert.equal(cycleStateOf('FILTER_DEAL_DISCOUNT_MODE'), 'hide');
+    } finally {
+      CONFIG.FILTER_DEAL_DISCOUNT_ENABLED = prevEn;
+      CONFIG.FILTER_DEAL_DISCOUNT_MODE = prevMode;
+    }
+  });
+
+  it('sanitizes MIN_DEAL_DISCOUNT bounds (0..50)', () => {
+    assert.equal(sanitizeConfigValue('MIN_DEAL_DISCOUNT', -10), 0);
+    assert.equal(sanitizeConfigValue('MIN_DEAL_DISCOUNT', 25), 25);
+    assert.equal(sanitizeConfigValue('MIN_DEAL_DISCOUNT', 75), 50);
+    assert.equal(sanitizeConfigValue('MIN_DEAL_DISCOUNT', 'garbage'), 0);
+  });
+});
+

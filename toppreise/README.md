@@ -51,9 +51,10 @@ Requires a userscript manager browser extension:
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
   * **Negative Keywords:** Exclude unwanted terms (comma/semicolon/newline lists; long terms `>3` chars match as substrings, short terms `≤3` chars enforce word boundaries).
-  * **Minimum Offer Count:** Filter out marketplace listings with fewer than $N$ merchants.
-  * **Unverified (*Ungeprüfte*):** Dim or hide unverified offers on deal feeds.
-  * **Fallback Lows (*Fallback-Tiefs*):** Control visibility of low-history verified offers.
+  * **Minimum Offer Count:** Filter out marketplace listings with fewer than $N$ merchants (shows inactive notice on pages without offer counts).
+  * **Minimum Discount (*Min-Rabatt*):** Filter out offers below a minimum deal discount percentage (stepped 0%–50% in 5% increments).
+  * **Unverified (*Ungeprüfte*):** Dim or hide unverified offers across all pages.
+  * **Fallback Lows (*Fallback-Tiefs*):** Control visibility of low-history verified offers across all pages.
   * **Selected Dealer Best-Price Check:** Highlights cards with an emerald border and `Toppreis` badge when your active dealer filter holds the cheapest offer (within a configurable `0%–50%` price tolerance margin).
 * **Live Grid Sorting:** Sort listings in-place by **Weighted Deal Score (`Tiefstpreis-Sortierung`)** (ranked across clear tiers: verified deals including 0%-deals > fallback lows > unverified/unavailable > markups), **% Discount (`% Rabatt ⬇`)**, or **Offer Count (`Meiste ⬇` / `Wenigste ⬆`)**, with clean restoration to natural DOM order when disabled.
 * **Empty State Recovery:** If all products are hidden by active filters, an interactive prompt provides instant one-click recovery buttons (`[ ⚡ Filter ausschalten ]`, `[ 🔍 Tiefstpreise prüfen ]`, or `[ Ungeprüfte einblenden ]`).
