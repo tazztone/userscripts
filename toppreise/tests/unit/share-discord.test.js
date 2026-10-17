@@ -72,6 +72,18 @@ describe('withLivePrice', () => {
     const ts = [[1700000000, 18.59]];
     assert.equal(withLivePrice(ts, 18.59), ts); // already current, no duplicate
   });
+
+  it('prevents duplicate tail points caused by float precision quirks', () => {
+    const tsFloat = [[1700000000, 19.90]];
+    // 19.900000000002 or arithmetic float rounding to same cents
+    assert.equal(withLivePrice(tsFloat, 19.900000000002), tsFloat);
+    const tsMath = [[1700000000, 0.3]];
+    assert.equal(withLivePrice(tsMath, 0.1 + 0.2), tsMath);
+    // Malformed point in series does not throw
+    const tsMalformed = [[1700000000, null]];
+    const out = withLivePrice(tsMalformed, 25.00);
+    assert.equal(out.length, 2);
+  });
 });
 
 describe('formatDealMessage', () => {

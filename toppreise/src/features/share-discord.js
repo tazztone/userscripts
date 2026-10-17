@@ -5,6 +5,7 @@
  */
 
 import { renderDiscordChart } from '../ui/sparkline.js';
+import { priceToCents } from '../domain/price.js';
 
 // Re-export layout, recipe, and offer extraction for backwards compatibility and tests
 import {
@@ -83,7 +84,7 @@ export function withLivePrice(timeSeries, price) {
   if (!Array.isArray(timeSeries) || timeSeries.length === 0) return timeSeries;
   if (!(price > 0)) return timeSeries;
   const last = timeSeries[timeSeries.length - 1];
-  if (Array.isArray(last) && +last[1] === price) return timeSeries;
+  if (Array.isArray(last) && priceToCents(last[1]) === priceToCents(price)) return timeSeries;
   return [...timeSeries, [Date.now(), price]];
 }
 
