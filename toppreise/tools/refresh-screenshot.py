@@ -4,7 +4,7 @@ Usage (repo root, no display needed): toppreise/tools/refresh-screenshot.sh
 
 Headless and offline: serves toppreise/tools/snapshots/ over loopback,
 injects the current bundle, seeds deterministic histories (frozen clock),
-captures 4 bounding-box-driven crops into toppreise/docs/shots/*.webp.
+captures 5 bounding-box-driven crops into toppreise/docs/shots/*.webp.
 Snapshots come from capture-snapshots.py (headed, run once per site change);
 a missing snapshot dir fails with a pointer to it.
 """
@@ -16,6 +16,7 @@ import functools
 import html
 import io
 import os
+import re
 import sys
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -59,16 +60,33 @@ PRICE_JS = """(pids) => Object.fromEntries(pids.map(pid => {
 
 def seed_stats(role, price):
     p = round(price, 2)
+    now = FROZEN_NOW
     if role == "deep":
-        return {"tiefstpreis": p, "hoechstpreis": round(p * 1.4, 2),
-                "medianPrice": round(p * 2, 2),
-                "timeSeries": [round(p * (2 - i * 0.03), 2) for i in range(30)]}
+        # Deep all-time record low deal (-55% vs median, breakthrough vs record)
+        return {
+            "tiefstpreis": p,
+            "previousLow": round(p * 1.5, 2),
+            "hoechstpreis": round(p * 1.6, 2),
+            "medianPrice": round(p * 1.8, 2),
+            "timeSeries": [[now - (30 - i) * 86400000, round(p * (1.8 - i * 0.025), 2)] for i in range(30)],
+            "dataPointCount": 30,
+            "isNewAllTimeLow": True,
+        }
     if role == "markup":
-        return {"tiefstpreis": round(p * 0.5, 2), "hoechstpreis": round(p * 0.6, 2),
-                "medianPrice": round(p * 0.55, 2), "isNewAllTimeLow": False}
+        # Deceptive markup: price is 100% above historical low, site discount is fake
+        return {
+            "tiefstpreis": round(p * 0.5, 2),
+            "hoechstpreis": round(p * 0.6, 2),
+            "medianPrice": round(p * 0.55, 2),
+            "isNewAllTimeLow": False,
+        }
     if role == "fallback":
-        return {"tiefstpreis": p, "previousLow": round(p * 1.15, 2),
-                "dataPointCount": 3}
+        # Sparse history fallback low (< minPoints)
+        return {
+            "tiefstpreis": p,
+            "previousLow": round(p * 1.15, 2),
+            "dataPointCount": 3,
+        }
     raise ValueError(f"unknown seed role {role}")
 
 
@@ -79,6 +97,7 @@ def seed_roles(page, pid_roles, config):
         assert prices.get(pid, 0) > 0, f"no card price for {pid}"
         entries[pid] = seed_stats(role, prices[pid])
     page.evaluate(SEED_JS, [entries, config])
+
 
 SEED_JS = """([entries, config]) => {
   localStorage.clear();
@@ -93,31 +112,49 @@ SEED_JS = """([entries, config]) => {
 }"""
 
 
-def ascii_only(s):
-    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+class StripHandler(SimpleHTTPRequestHandler):
+    """Serves vendored snapshots while stripping high-DPI srcset attributes that 404 offline."""
 
-
-def body_font(size):
-    try:
-        out = subprocess.run(["fc-match", "--format=%{file}", "DejaVu Sans:bold"],
-                             capture_output=True, text=True, timeout=10)
-        path = (out.stdout or "").strip()
-        if path and os.path.exists(path):
-            return ImageFont.truetype(path, size)
-    except Exception:
-        pass
-    return ImageFont.load_default()
-
-
-class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
+
+    def do_GET(self):
+        # Route retina/logo requests directly to vendored logo asset
+        if "tp_@2x.png" in self.path or "tp.png" in self.path:
+            logo_path = os.path.join(SNAP_DIR, "feed", "assets", "fd2db4d7de08.png")
+            if os.path.exists(logo_path):
+                with open(logo_path, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        # Strip srcset and data-srcset attributes so Chromium loads local 1x assets
+        if self.path.endswith("index.html"):
+            path = self.translate_path(self.path)
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                content = re.sub(r'\s+srcset="[^"]*"', '', content)
+                content = re.sub(r'\s+data-srcset="[^"]*"', '', content)
+                data = content.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        super().do_GET()
 
 
 def serve_snapshots():
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        functools.partial(QuietHandler, directory=SNAP_DIR))
+        functools.partial(StripHandler, directory=SNAP_DIR))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
@@ -127,6 +164,18 @@ def stub_pricechart(page):
     page.route("**/plugins/product/pricechart*",
                lambda route: route.fulfill(status=200, content_type="text/html",
                                            body=LEGEND_HTML))
+    # Route external ad or image tracking scripts to a clean neutral response
+    svg_ph = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">'
+        '<rect width="80" height="80" rx="8" fill="#1e293b"/>'
+        '<path d="M25 55 L38 38 L48 50 L55 42 L65 55 Z" fill="#475569"/>'
+        '<circle cx="35" cy="30" r="4" fill="#64748b"/>'
+        '</svg>'
+    )
+    page.route(
+        lambda url: any(x in url for x in ["imgsrv.toppreise.ch", "securepubads", "doubleclick"]),
+        lambda route: route.fulfill(status=200, content_type="image/svg+xml", body=svg_ph)
+    )
 
 
 def open_snapshot(browser, base, name, roles, config=None, viewport=None):
@@ -164,28 +213,84 @@ def try_box(page, selector):
         return None
 
 
-def union(boxes, pad=24):
+def union(boxes, pad=32):
     x0 = min(b["x"] for b in boxes) - pad
     y0 = min(b["y"] for b in boxes) - pad
     x1 = max(b["x"] + b["width"] for b in boxes) + pad
     y1 = max(b["y"] + b["height"] for b in boxes) + pad
-    return {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0}
+    return {"x": max(0, x0), "y": max(0, y0), "width": x1 - x0, "height": y1 - y0}
 
 
 def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
-    """Render numbered callout discs + HTML footer over raw_bytes using browser layout."""
+    """Render numbered callout discs + SVG leader lines + HTML footer over raw_bytes."""
     img_raw = Image.open(io.BytesIO(raw_bytes))
     css_w = round(img_raw.width / DSF)
     css_h = round(img_raw.height / DSF)
     b64_data = base64.b64encode(raw_bytes).decode("ascii")
 
     badges_html = []
+    svg_leaders = []
     footer_items = []
-    for num, box, caption in callouts:
-        cx = round(box["x"] - origin["x"])
-        cy = round(box["y"] - origin["y"])
+    for item in callouts:
+        num, box, caption = item[0], item[1], item[2]
+        anchor = item[3] if len(item) > 3 else "top-left"
+
+        rel_x = box["x"] - origin["x"]
+        rel_y = box["y"] - origin["y"]
+        bw = box["width"]
+        bh = box["height"]
+
+        if anchor == "outside-left":
+            bx = rel_x - 24
+            by = rel_y + bh / 2
+            tx = rel_x
+            ty = by
+        elif anchor == "outside-top":
+            bx = rel_x + bw / 2
+            by = rel_y - 20
+            tx = bx
+            ty = rel_y
+        elif anchor == "outside-right":
+            bx = rel_x + bw + 24
+            by = rel_y + bh / 2
+            tx = rel_x + bw
+            ty = by
+        elif anchor == "outside-bottom":
+            bx = rel_x + bw / 2
+            by = rel_y + bh + 20
+            tx = bx
+            ty = rel_y + bh
+        elif anchor == "top-left":
+            bx = rel_x - 14
+            by = rel_y - 14
+            tx = rel_x + 4
+            ty = rel_y + 4
+        elif isinstance(anchor, (list, tuple)) and len(anchor) == 2:
+            dx, dy = anchor
+            bx = rel_x + dx
+            by = rel_y + dy
+            tx = rel_x + (4 if dx < 0 else (bw - 4 if dx > bw else dx))
+            ty = rel_y + (4 if dy < 0 else (bh - 4 if dy > bh else dy))
+        else:
+            bx = rel_x - 14
+            by = rel_y - 14
+            tx = rel_x + 4
+            ty = rel_y + 4
+
+        # Clamp badge coordinates so discs never bleed outside the canvas
+        bx = max(14, min(css_w - 14, bx))
+        by = max(14, min(css_h - 14, by))
+
+        dist = ((bx - tx) ** 2 + (by - ty) ** 2) ** 0.5
+        if dist > 8:
+            svg_leaders.append(
+                f'<line x1="{bx:.1f}" y1="{by:.1f}" x2="{tx:.1f}" y2="{ty:.1f}" '
+                f'stroke="#f87171" stroke-width="1.5" stroke-dasharray="3 3"/>'
+                f'<circle cx="{tx:.1f}" cy="{ty:.1f}" r="2.5" fill="#f87171"/>'
+            )
+
         badges_html.append(
-            f'<div class="tp-shot-badge" style="left: {cx}px; top: {cy}px;">{num}</div>'
+            f'<div class="tp-shot-badge" style="left: {bx:.1f}px; top: {by:.1f}px;">{num}</div>'
         )
         escaped_cap = html.escape(caption)
         footer_items.append(
@@ -202,6 +307,14 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
   #tp-shot-wrap {{ display: inline-block; background: #0f172a; line-height: 0; }}
   .tp-shot-canvas {{ position: relative; width: {css_w}px; height: {css_h}px; }}
   .tp-shot-canvas > img {{ display: block; width: {css_w}px; height: {css_h}px; }}
+  .tp-shot-leaders {{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
+  }}
   .tp-shot-badge {{
     position: absolute;
     transform: translate(-50%, -50%);
@@ -215,7 +328,7 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
     font-weight: 700;
     line-height: 22px;
     text-align: center;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     z-index: 100;
     pointer-events: none;
   }}
@@ -253,6 +366,9 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
 <div id="tp-shot-wrap">
   <div class="tp-shot-canvas">
     <img src="data:image/png;base64,{b64_data}">
+    <svg class="tp-shot-leaders" viewBox="0 0 {css_w} {css_h}">
+      {''.join(svg_leaders)}
+    </svg>
     {''.join(badges_html)}
   </div>
   <div class="tp-shot-footer">
@@ -273,44 +389,86 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
 
 
 def setup_toolbar(page, pids):
+    """Shot 01a: Sticky toolbar with filter popover open, cleanly cropped without top whitespace."""
     page.evaluate("window.scrollTo(0, 0)")
-    page.locator("#tp-bar-calc-btn").click()
-    page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
     page.evaluate("""() => {
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
         const minRow = document.querySelector('[data-filter-row="min"]');
         if (minRow) minRow.style.display = 'flex';
     }""")
     page.wait_for_timeout(400)
-    raw_bytes = page.screenshot()
+
+    tb_box = css_box(page, "#tp-suite-filter-bar")
+    pop_box = css_box(page, "#tp-bar-filter-popover")
+    cta_box = try_box(page, "#tp-floating-check-cta")
+    boxes = [tb_box, pop_box]
+    if cta_box:
+        boxes.append(cta_box)
+    clip = union(boxes, pad=32)
+
+    raw_bytes = page.screenshot(clip=clip)
     controls = [
-        ("#tp-bar-filter-btn", "Filter-Button (Verbergen oder Dimmen je Ursache)"),
-        ("#tp-inline-negative-input", "Negativ-Filter (Text, Wortgrenzen)"),
-        ("#tp-bar-min-offers-group", "Min-Angebote stepper"),
-        ("[data-filter-row='unchecked']", "Nur geprüfte (ohne verifizierten Tiefstpreis)"),
-        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschließen"),
-        ("#tp-bar-heat-btn", "Heatmap toggle (Farbe = Badge-%)"),
-        ("#tp-bar-bestpreise-btn", "Neue-Tiefstpreise-Modus (Feed)"),
-        ("#tp-bar-calc-btn", "Berechnungsparameter-Popover (filtert nichts)"),
-        ("#tp-bar-weight-wrapper", "Gewichtung Median/Rekord (Slider)"),
-        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum Slider (Median-Horizont)"),
-        ("#tp-bar-minpoints-wrapper", "Mindestpunkte Slider (dünne Historie → Fallback)"),
-        ("#tp-floating-check-cta", "Tiefstpreise prüfen CTA (Batch-Check, floating)"),
+        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", "outside-left"),
+        ("#tp-inline-negative-input", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", "outside-top"),
+        ("#tp-bar-min-offers-group", "Min-Angebote Stepper (Marktplatz-Filter)", "outside-top"),
+        ("[data-filter-row='unchecked']", "Nur geprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", "outside-left"),
+        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschließen (geringe Historie)", "outside-left"),
+        ("#tp-bar-heat-btn", "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
+        ("#tp-bar-bestpreise-btn", "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
+        ("#tp-floating-check-cta", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", "outside-right"),
     ]
     callouts = []
-    for sel, cap in controls:
+    for item in controls:
+        sel, cap = item[0], item[1]
+        anchor = item[2] if len(item) > 2 else "top-left"
         box = try_box(page, sel)
         if box is None:
-            print(f"skip callout: {sel}")
             continue
-        callouts.append((len(callouts) + 1, box, cap))
-    return raw_bytes, {"x": 0, "y": 0}, callouts, "01-toolbar.webp"
+        callouts.append((len(callouts) + 1, box, cap, anchor))
+    return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "01a-toolbar.webp"
+
+
+def setup_calc_popover(page, pids):
+    """Shot 01b: Calculation popover featuring live glitch preview chart and mathematical parameters."""
+    page.evaluate("window.scrollTo(0, 0)")
+    page.locator("#tp-bar-calc-btn").click()
+    page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
+    page.wait_for_timeout(400)
+
+    pop_box = css_box(page, "#tp-bar-calc-popover")
+    clip = union([pop_box], pad=32)
+    raw_bytes = page.screenshot(clip=clip)
+
+    controls = [
+        ("#tp-calc-preview", "Glitch-Vorschau (Live-Chart mit Median, Rekord, Glitch-Band & Erkennung)", "outside-left"),
+        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", "outside-left"),
+        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", "outside-left"),
+        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierte Historie)", "outside-left"),
+    ]
+    callouts = []
+    for item in controls:
+        sel, cap = item[0], item[1]
+        anchor = item[2] if len(item) > 2 else "outside-left"
+        box = try_box(page, sel)
+        if box is None:
+            continue
+        callouts.append((len(callouts) + 1, box, cap, anchor))
+    return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "01b-calc-popover.webp"
 
 
 def setup_feed_cards(page, pids):
+    """Shot 02: Hero deal cards demonstrating authentic record low, deceptive markup exposure, and fallback low."""
     if page.locator("#tp-bar-calc-popover.tp-show").count() > 0:
         page.locator("#tp-bar-calc-btn").click()
         page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
+
+    # Hide trailing card rows so row 1 is cleanly isolated without partial bottom cutoffs
+    page.evaluate("""() => {
+        const style = document.createElement('style');
+        style.textContent = '.mixedBrowsingListProduct:nth-of-type(n+4), .Plugin_Product:nth-of-type(n+4) { display: none !important; }';
+        document.head.appendChild(style);
+    }""")
+
     anchors = [f'a[href*="-p{pid}"]' for pid in pids[:3]]
     deep, markup, fallback = anchors
 
@@ -326,7 +484,6 @@ def setup_feed_cards(page, pids):
         priceInfo.insertBefore(d, priceInfo.firstChild);
     }''', [pids[0], deep])
 
-    # Hover on deep card to display the Discord 1-Click Share button
     card0 = page.locator(deep).first
     card0.hover()
     page.wait_for_timeout(400)
@@ -334,26 +491,26 @@ def setup_feed_cards(page, pids):
     assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
 
     boxes = [css_box(page, sel) for sel in anchors]
-    clip = union(boxes, pad=16)
+    clip = union(boxes, pad=32)
     raw_bytes = page.screenshot(clip=clip)
 
     callouts = [
-        (1, css_box(page, f"{deep} .badge-dif"), "Heat-Ribbon -XX% = Gewichtete Differenz (tiefrot = Tiefstpreis)"),
-        (2, css_box(page, f"{markup} .badge-dif"), "+XX% Aufschlag-Morph (Schein-Rabatt durchgestrichen)"),
-        (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief: Vortief-Abstand, Glow von außen"),
-        (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (Hover)"),
-        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Subline: CHF + % verankern beide Beine"),
-        (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (direkt zum Angebot)"),
-        (7, css_box(page, f"{deep} .tp-sparkline-container"), "Mini-Trend Sparkline (Klick = Preisverlauf)"),
+        (1, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", "outside-top"),
+        (2, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag rot hervorgehoben)", "outside-top"),
+        (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", "outside-top"),
+        (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", "outside-left"),
+        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Preisaufschlüsselung (Live-Preis, CHF-Ersparnis und % gegenüber 1J-Median)", "outside-left"),
+        (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", "outside-top"),
+        (7, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", "outside-right"),
     ]
     return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
 
 
 def setup_search_cards(page, pids):
+    """Shot 03: Search catalog listing highlighting variant protection and inline verification pills."""
     block = page.locator(".Plugin_ProductCollItem").first
     block.scroll_into_view_if_needed()
-    # Seed the pids actually inside this block: suite keys cards by their own
-    # href rule, so manifest-global pids may miss.
+
     block_pids = block.evaluate(r"""el => {
         const out = [], seen = new Set();
         for (const a of el.querySelectorAll('a[href]')) {
@@ -365,37 +522,73 @@ def setup_search_cards(page, pids):
     assert block_pids, "no pids in first CollItem"
     seed_roles(page, [(block_pids[0], "deep")], {})
     page.wait_for_timeout(800)
+
     deal = ".Plugin_ProductCollItem .tp-deal-pill.tp-is-verified"
     unchecked = ".Plugin_ProductCollItem .tp-deal-pill:not(.tp-is-verified)"
     assert page.locator(deal).count() > 0, "no verified pill rendered"
     assert page.locator(unchecked).count() > 0, "no unchecked pill left"
     page.locator(deal).first.hover()
     page.wait_for_timeout(400)
-    assert page.locator(".tp-share-btn").count() > 0, "hover share button missing"
-    raw_bytes = block.screenshot()
-    origin = block.bounding_box()
+
+    # Blur active element to remove lingering focus rings (e.g. on alarm bell)
+    page.evaluate("() => { if (document.activeElement?.blur) document.activeElement.blur(); }")
+    page.wait_for_timeout(200)
+
+    b_box = block.bounding_box()
+    clip = union([b_box], pad=16)
+    raw_bytes = page.screenshot(clip=clip)
+    origin = {"x": clip["x"], "y": clip["y"]}
+
     callouts = [
-        (1, css_box(page, deal), "Inline-Pill: 1-zeilig über dem Preisblock"),
-        (2, css_box(page, unchecked), "Prüfen-Pill: ungeprüft, gestreift, nie Heat-Farbe"),
+        (1, css_box(page, deal), "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)", "outside-top"),
+        (2, css_box(page, unchecked), "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)", "outside-top"),
     ]
     if page.locator(".Plugin_ProductCollItem :text('nstigste Variante')").count() > 0:
         callouts.append((3, css_box(page, ".Plugin_ProductCollItem :text('nstigste Variante')"),
-                         "Günstigste-Variante Label bleibt nativ positioniert"))
+                         "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-top"))
+
+    series_header = try_box(page, ".Plugin_ProductCollItem .f_select_series, .Plugin_ProductCollItem a[href*='/produktserie/']")
+    if series_header:
+        callouts.append((4, series_header, "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)", "outside-left"))
+
     return raw_bytes, origin, callouts, "03-search-cards.webp"
 
 
 def setup_settings(page, pids):
+    """Shot 04: Full settings dialog unconstrained from scroll cutoffs, highlighting key interactive controls."""
     page.locator("#tp-root >> #tp-settings-fab").click()
     dlg = "#tp-root >> #tp-settings-dialog"
     page.wait_for_selector(dlg, state="visible", timeout=10000)
     page.wait_for_timeout(400)
+
+    # Unconstrain scroll overflow so entire dialog renders at 2x resolution
+    page.evaluate('''() => {
+        const root = document.querySelector("#tp-root")?.shadowRoot;
+        const d = root?.querySelector("#tp-settings-dialog");
+        const s = root?.querySelector("#tp-settings-sections");
+        if (d) { d.style.maxHeight = "none"; d.style.height = "auto"; }
+        if (s) { s.style.maxHeight = "none"; s.style.overflow = "visible"; }
+    }''')
+    page.wait_for_timeout(300)
+
     dlg_loc = page.locator(dlg)
     raw_bytes = dlg_loc.screenshot()
     origin = dlg_loc.bounding_box()
-    headers = page.locator(f"{dlg} >> section[id^='tp-section-'] .tp-section-header")
-    callouts = [(i + 1, headers.nth(i).bounding_box(), f"Abschnitt: {headers.nth(i).inner_text()}")
-                for i in range(headers.count())]
-    assert callouts, "no settings sections found"
+
+    controls = [
+        ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", "outside-left"),
+        ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", "outside-left"),
+        ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", "outside-left"),
+        ("#tp-discord-layout-preview", "Discord Layout-Baukasten mit Live-Markdown-Vorschau", "outside-left"),
+        ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", "outside-left"),
+    ]
+    callouts = []
+    for sel, cap, anchor in controls:
+        box = try_box(page, f"{dlg} >> {sel}")
+        if box is None:
+            continue
+        callouts.append((len(callouts) + 1, box, cap, anchor))
+    assert len(callouts) >= 3, "fewer than 3 settings controls resolved"
     return raw_bytes, origin, callouts, "04-settings-modal.webp"
 
 
@@ -408,8 +601,19 @@ SCENES = {
             "BESTPREISE_WEIGHT_RECORD": 0.50,
             "BESTPREISE_HIDE_UNCHECKED": True,
         },
-        "viewport": {"width": 720, "height": 900},
+        "viewport": {"width": 1280, "height": 900},
         "setup": setup_toolbar,
+    },
+    "calc": {
+        "snapshot": "feed",
+        "roles": ["deep", "markup", "fallback"],
+        "config": {
+            "BESTPREISE_MODE_ACTIVE": True,
+            "BESTPREISE_WEIGHT_RECORD": 0.50,
+            "BESTPREISE_HIDE_UNCHECKED": True,
+        },
+        "viewport": {"width": 1280, "height": 900},
+        "setup": setup_calc_popover,
     },
     "feed": {
         "snapshot": "feed",
@@ -421,6 +625,13 @@ SCENES = {
         "viewport": {"width": 1440, "height": 900},
         "setup": setup_feed_cards,
     },
+    "search": {
+        "snapshot": "search",
+        "roles": [],
+        "config": {},
+        "viewport": {"width": 1440, "height": 900},
+        "setup": setup_search_cards,
+    },
     "settings": {
         "snapshot": "feed",
         "roles": ["deep", "markup", "fallback"],
@@ -429,15 +640,8 @@ SCENES = {
             "BESTPREISE_WEIGHT_RECORD": 0.50,
             "BESTPREISE_HIDE_UNCHECKED": True,
         },
-        "viewport": {"width": 1440, "height": 2700},
+        "viewport": {"width": 1440, "height": 3500},
         "setup": setup_settings,
-    },
-    "search": {
-        "snapshot": "search",
-        "roles": [],
-        "config": {},
-        "viewport": {"width": 1440, "height": 900},
-        "setup": setup_search_cards,
     },
 }
 
@@ -459,7 +663,7 @@ def generate_gallery_html(out_dir, items):
     for it in items:
         cap_rows = "".join(
             f"<tr><td class='num'>{num}</td><td class='cap'>{html.escape(cap)}</td></tr>"
-            for num, _box, cap in it["callouts"]
+            for num, _box, cap, *_ in it["callouts"]
         )
         cards_html.append(f"""
         <section class="gallery-card">
@@ -652,7 +856,7 @@ def main():
                 annotator_page = None
                 annotator_ctx = None
                 if not args.check:
-                    annotator_ctx = browser.new_context(viewport={"width": 1920, "height": 3000}, device_scale_factor=DSF)
+                    annotator_ctx = browser.new_context(viewport={"width": 1920, "height": 4500}, device_scale_factor=DSF)
                     annotator_page = annotator_ctx.new_page()
 
                 for name in target_names:
