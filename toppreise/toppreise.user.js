@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.315
+// @version      2.18.316
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3974,7 +3974,10 @@ const SHADOW_MODAL_STYLES = `
   function scanEligibility(card) {
     const pid = getCardProductId(card);
     if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
-    const cardBasis = extractCanonicalPrice(card).basis;
+    const { price: cardPrice, basis: cardBasis } = extractCanonicalPrice(card);
+    if (!(cardPrice > 0) || !cardBasis) {
+      return { state: 'verified', canScan: false, retryAt: null, reason: 'no-price' };
+    }
     const stats = getCardStats(pid, cardBasis);
     if (stats && !basisMatchesFor(stats, cardBasis)) {
       return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
@@ -5515,6 +5518,12 @@ const SHADOW_MODAL_STYLES = `
       }
 
       if (isCancelled(signal, shouldCancelFn)) return null;
+
+      if (useShipping) {
+        // HTML modal dialog carries no shipping basis: skip request entirely
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, true, gen);
+        return null;
+      }
 
       // 2. Fallback route: GET HTML modal dialog (carries no basis info)
       const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
@@ -9960,7 +9969,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.315';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.316';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

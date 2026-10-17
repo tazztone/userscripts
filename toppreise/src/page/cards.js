@@ -300,7 +300,10 @@ export function getCardStats(pid, cardBasis) {
 export function scanEligibility(card) {
   const pid = getCardProductId(card);
   if (!pid) return { state: 'verified', canScan: false, retryAt: null, reason: 'no-pid' };
-  const cardBasis = extractCanonicalPrice(card).basis;
+  const { price: cardPrice, basis: cardBasis } = extractCanonicalPrice(card);
+  if (!(cardPrice > 0) || !cardBasis) {
+    return { state: 'verified', canScan: false, retryAt: null, reason: 'no-price' };
+  }
   const stats = getCardStats(pid, cardBasis);
   if (stats && !basisMatchesFor(stats, cardBasis)) {
     return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };

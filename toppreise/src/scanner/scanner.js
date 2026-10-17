@@ -313,6 +313,12 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
 
     if (isCancelled(signal, shouldCancelFn)) return null;
 
+    if (useShipping) {
+      // HTML modal dialog carries no shipping basis: skip request entirely
+      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, true, gen);
+      return null;
+    }
+
     // 2. Fallback route: GET HTML modal dialog (carries no basis info)
     const url = `${baseUrl}/plugins/product/pricechart?p_pc_pid=${encodeURIComponent(productId)}`;
     let resHtml = null;

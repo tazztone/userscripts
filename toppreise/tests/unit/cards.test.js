@@ -89,27 +89,47 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
   });
 
   describe('scanEligibility', () => {
-    it('buckets no-pid, unavailable, verified and unchecked cards', () => {
+    it('buckets no-pid, no-price, unavailable, verified and unchecked cards', () => {
       withConfig('USE_SHIPPING_PRICE', false, () => {
         const noPid = scanEligibility({ dataset: {} });
         assert.equal(noPid.canScan, false);
         assert.equal(noPid.state, 'verified');
         assert.equal(noPid.reason, 'no-pid');
+
+        const noPrice = scanEligibility({
+          dataset: { entityId: 'noprice1' },
+          _tpPriceInfo: { mainPriceInfo: null, mainShipping: null, mainProduct: null, fallbackShipping: null, fallbackProduct: { textContent: 'CHF 0.00' } }
+        });
+        assert.equal(noPrice.canScan, false);
+        assert.equal(noPrice.state, 'verified');
+        assert.equal(noPrice.reason, 'no-price');
+
+        const noBasis = scanEligibility({
+          dataset: { entityId: 'nobasis1' }
+        });
+        assert.equal(noBasis.canScan, false);
+        assert.equal(noBasis.state, 'verified');
+        assert.equal(noBasis.reason, 'no-price');
+
+        const stubPrice = { mainPriceInfo: null, mainShipping: null, mainProduct: null, fallbackShipping: null, fallbackProduct: { textContent: 'CHF 100' } };
+
         setCachedPriceStats('neg1', {}, true);
-        const neg = scanEligibility({ dataset: { entityId: 'neg1' } });
+        const neg = scanEligibility({ dataset: { entityId: 'neg1' }, _tpPriceInfo: stubPrice });
         assert.equal(neg.canScan, false);
         assert.equal(neg.state, 'unavailable');
         assert.ok(neg.retryAt > Date.now());
+
         setCachedPriceStats('ok1', { tiefstpreis: 100 });
-        const ok = scanEligibility({ dataset: { entityId: 'ok1' } });
+        const ok = scanEligibility({ dataset: { entityId: 'ok1' }, _tpPriceInfo: stubPrice });
         assert.equal(ok.canScan, false);
         assert.equal(ok.state, 'verified');
-        const fresh = scanEligibility({ dataset: { entityId: 'new1' } });
+
+        const fresh = scanEligibility({ dataset: { entityId: 'new1' }, _tpPriceInfo: stubPrice });
         assert.equal(fresh.canScan, true);
         assert.equal(fresh.state, 'unchecked');
       });
       withConfig('USE_SHIPPING_PRICE', false, () => {
-        for (const pid of ['neg1', 'ok1']) memoryCache.delete(statsKey(pid));
+        for (const pid of ['neg1', 'ok1', 'new1']) memoryCache.delete(statsKey(pid));
       });
     });
     it('marks basis mismatches as scannable', () => {
