@@ -83,7 +83,7 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
 
-    it('returns null if the calculated blend is 0%', () => {
+    it('returns a neutral 0%-deal when qualified history has 0% savings', () => {
       const zeroSavingsStats = {
         tiefstpreis: 100,
         hoechstpreis: 200,
@@ -93,7 +93,10 @@ describe('Gewichtete Differenz Domain Module', () => {
         dataPointCount: 10,
         timeSeries: new Array(10).fill([0, 100])
       };
-      assert.equal(computeDealScore(zeroSavingsStats, 100), null);
+      const result = computeDealScore(zeroSavingsStats, 100);
+      assert.ok(result);
+      assert.equal(result.weightedDiff, 0);
+      assert.equal(result.isZeroMargin, true);
     });
 
     it('keeps at-low non-records qualified at 100% Rek (weight never filters)', () => {
@@ -256,11 +259,11 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.deepEqual(getHeatInput(0, {}, 53), { value: null, provisional: false, pct: 0, kind: 'unknown' });
     });
 
-    it('blends record breakthroughs without a median (HTML fallback)', () => {
-      // dRecord 10, no median -> blend 5 at 50/50, raw blend exactly 5 -> heated.
+    it('treats record breakthroughs without a median as Fallback-Tief (Vortief-Abstand)', () => {
+      // dRecord 10, no median -> strictly Fallback-Tief with Vortief-Abstand 10%
       withConfig('BESTPREISE_WEIGHT_RECORD', 0.50, () => {
         const heat = getHeatInput(1800, { tiefstpreis: 1800, previousLow: 2000, isNewAllTimeLow: true }, -35);
-        assert.deepEqual(heat, { value: -5, provisional: false, pct: 5, kind: 'blend' });
+        assert.deepEqual(heat, { value: -10, provisional: false, pct: 10, kind: 'vortief' });
       });
     });
 

@@ -25,8 +25,12 @@ export function computeDealScore(stats, cardPrice, opts = {}) {
     : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
 
   // History Qualification Gate:
-  // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
-  const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
+  // Requires a rolling median price for the blend. Without median, or if data points are
+  // below the threshold, or variance < 2%, the card cannot qualify for a blend and
+  // degrades to a Fallback-Tief.
+  if (!stats.medianPrice || stats.medianPrice <= 0) return null;
+
+  const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : 5);
   if (pointsCount < minPoints) return null;
   if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
       ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
@@ -53,19 +57,18 @@ export function computeDealScore(stats, cardPrice, opts = {}) {
     : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
   // Qualification is weight-independent: a Tiefstpreis qualifies on real
-  // saving in EITHER component. Gating on the blend hid every
-  // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
-  // "Sortierung + Farb-Emphase", never filtering. Clamp to >= 1 so qualified
-  // deals keep sorting above unchecked cards (0) and hidden non-deals (-100).
-  if (dMedian <= 0 && dRecord <= 0) return null;
+  // saving in EITHER component. A qualified deal with 0% savings (at-low matching
+  // the median) is a neutral 0%-deal (weightedDiff: 0).
+  const isZeroMargin = dMedian <= 0 && dRecord <= 0;
   const wMedian = 1 - wRecord;
-  const weightedDiff = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
+  const weightedDiff = isZeroMargin ? 0 : Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
 
   return {
     weightedDiff,
-    dMedian,
-    dRecord,
+    dMedian: Math.max(0, dMedian),
+    dRecord: Math.max(0, dRecord),
     isNewRecord,
+    isZeroMargin,
     prevLow,
     medianPrice: stats.medianPrice
   };

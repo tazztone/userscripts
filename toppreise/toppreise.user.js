@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.314
+// @version      2.18.315
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2177,8 +2177,12 @@ const SHADOW_MODAL_STYLES = `
       : (typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50);
 
     // History Qualification Gate:
-    // Minimum data points in Preishistorie (configurable, default 5), and >2% variance across history
-    const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : (stats.timeSeries ? 0 : 5));
+    // Requires a rolling median price for the blend. Without median, or if data points are
+    // below the threshold, or variance < 2%, the card cannot qualify for a blend and
+    // degrades to a Fallback-Tief.
+    if (!stats.medianPrice || stats.medianPrice <= 0) return null;
+
+    const pointsCount = stats.dataPointCount ?? (Array.isArray(stats.timeSeries) ? stats.timeSeries.length : 5);
     if (pointsCount < minPoints) return null;
     if (stats.hoechstpreis && stats.tiefstpreis > 0 &&
         ((stats.hoechstpreis - stats.tiefstpreis) / stats.tiefstpreis) < 0.02) {
@@ -2205,19 +2209,18 @@ const SHADOW_MODAL_STYLES = `
       : (isNewRecord ? (stats.realDiscountVsPrevLow || 0) : 0);
 
     // Qualification is weight-independent: a Tiefstpreis qualifies on real
-    // saving in EITHER component. Gating on the blend hid every
-    // non-record at 100% Rek (0×Ø + 1×0 = 0) although the slider only promises
-    // "Sortierung + Farb-Emphase", never filtering. Clamp to >= 1 so qualified
-    // deals keep sorting above unchecked cards (0) and hidden non-deals (-100).
-    if (dMedian <= 0 && dRecord <= 0) return null;
+    // saving in EITHER component. A qualified deal with 0% savings (at-low matching
+    // the median) is a neutral 0%-deal (weightedDiff: 0).
+    const isZeroMargin = dMedian <= 0 && dRecord <= 0;
     const wMedian = 1 - wRecord;
-    const weightedDiff = Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
+    const weightedDiff = isZeroMargin ? 0 : Math.max(1, Math.round(wMedian * dMedian + wRecord * dRecord));
 
     return {
       weightedDiff,
-      dMedian,
-      dRecord,
+      dMedian: Math.max(0, dMedian),
+      dRecord: Math.max(0, dRecord),
       isNewRecord,
+      isZeroMargin,
       prevLow,
       medianPrice: stats.medianPrice
     };
@@ -6155,11 +6158,12 @@ const SHADOW_MODAL_STYLES = `
           const badgePct = heatInfo.pct;
 
           // Ribbon carries the blend (ADR-0005): emoji + number, no words —
-          // the CHF-anchored split lives in the subline below.
+          // the CHF-anchored split lives in the subline below. Neutral 0%-deals show 0%.
+          const pctText = badgePct === 0 ? '0%' : `-${badgePct}%`;
           if (isListView) {
-            setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
+            setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>${pctText}</p>`);
           } else {
-            setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
+            setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>${pctText}</p>`);
           }
 
           // Tooltip: only what the card doesn't show (outlier count) + action hint.
@@ -6176,10 +6180,11 @@ const SHADOW_MODAL_STYLES = `
           const hasRecordPart = dealData.isNewRecord && dealData.dRecord > 0;
           let histPriceEl = ensureHistPriceEl(card, cardPriceEl);
 
-          if (showPrevLow || showMedianLine) {
+          if (showPrevLow || showMedianLine || dealData.isZeroMargin) {
             const parts = [];
             if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecordPart ? ` (-${dealData.dRecord}%)` : ''}`);
             if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+            else if (dealData.isZeroMargin && medianVal) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (0%)`);
             if (dealData.isNewRecord && showPrevLow) {
               histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
               setTextIfChanged(histPriceEl, parts.join(' · '));
@@ -6187,7 +6192,10 @@ const SHADOW_MODAL_STYLES = `
             } else {
               histPriceEl.className = 'tp-card-historical-price tp-is-at-low' + (showPrevLow ? ' tp-with-prev' : '');
               setTextIfChanged(histPriceEl, parts.join(' · '));
-              setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}.` : ''}${outlierText}`);
+              const sublineTip = dealData.isZeroMargin
+                ? `Allzeit-Tiefstpreis! Entspricht dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)} (0% Differenz).${outlierText}`
+                : `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}.` : ''}${outlierText}`;
+              setTitleIfChanged(histPriceEl, sublineTip);
             }
           } else {
             histPriceEl.remove();
@@ -6327,13 +6335,14 @@ const SHADOW_MODAL_STYLES = `
             const prevTip = prevLow && priceToCents(prevLow) > priceToCents(cardPrice)
               ? ` vs. vorheriges Tief (CHF ${prevLow.toFixed(2)})` : '';
 
-            if (badgePct > 0) {
+            if (badgePct > 0 || (dealData && dealData.weightedDiff === 0)) {
               // Tooltip: action hint only — badge + pill carry the verified numbers.
               setTitleIfChanged(badgeDifEl, '[Klicken: erneut prüfen]');
+              const pctText = (dealData && dealData.weightedDiff === 0) ? '0%' : `-${badgePct}%`;
               if (isListView) {
-                setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
+                setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>${pctText}</p>`);
               } else {
-                setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
+                setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>${pctText}</p>`);
               }
             } else if (realDropVsPrev > 0) {
               setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip} · Fallback-Tief ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
@@ -6384,7 +6393,7 @@ const SHADOW_MODAL_STYLES = `
           // The previous low is always shown when known & distinct — never
           // dropped in favour of the Ø line.
           const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
-          const showMedianLine = stats.medianPrice && stats.medianPrice > cardPrice;
+          const showMedianLine = !!(stats.medianPrice && stats.medianPrice > cardPrice);
           const horizonLabel = medianHorizonLabel(stats);
           let histPriceEl = card.querySelector('.tp-card-historical-price');
           if (isNonBest) {
@@ -6392,19 +6401,22 @@ const SHADOW_MODAL_STYLES = `
             histPriceEl.className = 'tp-card-historical-price tp-is-markup';
             setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
             setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`);
-          } else if (showPrevLow || showMedianLine) {
+          } else if (showPrevLow || showMedianLine || dealData?.isZeroMargin) {
             histPriceEl = ensureHistPriceEl(card, cardPriceEl);
             const parts = [];
             const dMedBrowse = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
             if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${isNewRecord ? ` (-${realDropVsPrev}%)` : ''}`);
             if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
+            else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (0%)`);
             histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
             setTextIfChanged(histPriceEl, parts.join(' · '));
             if (isNewRecord && showPrevLow) {
               setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)${showMedianLine ? ` · Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}` : ''}`);
             } else {
-              const dMedian = dMedBrowse;
-              setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`);
+              const sublineTip = dealData?.isZeroMargin
+                ? `Allzeit-Tiefstpreis! Entspricht dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)} (0% Differenz).`
+                : `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedBrowse}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`;
+              setTitleIfChanged(histPriceEl, sublineTip);
             }
           } else if (histPriceEl) {
             histPriceEl.remove();
@@ -9948,7 +9960,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.314';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.315';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

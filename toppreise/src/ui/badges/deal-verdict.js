@@ -41,11 +41,12 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
         const badgePct = heatInfo.pct;
 
         // Ribbon carries the blend (ADR-0005): emoji + number, no words —
-        // the CHF-anchored split lives in the subline below.
+        // the CHF-anchored split lives in the subline below. Neutral 0%-deals show 0%.
+        const pctText = badgePct === 0 ? '0%' : `-${badgePct}%`;
         if (isListView) {
-          setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
+          setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>${pctText}</p>`);
         } else {
-          setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
+          setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>${pctText}</p>`);
         }
 
         // Tooltip: only what the card doesn't show (outlier count) + action hint.
@@ -62,10 +63,11 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
         const hasRecordPart = dealData.isNewRecord && dealData.dRecord > 0;
         let histPriceEl = ensureHistPriceEl(card, cardPriceEl);
 
-        if (showPrevLow || showMedianLine) {
+        if (showPrevLow || showMedianLine || dealData.isZeroMargin) {
           const parts = [];
           if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecordPart ? ` (-${dealData.dRecord}%)` : ''}`);
           if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+          else if (dealData.isZeroMargin && medianVal) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (0%)`);
           if (dealData.isNewRecord && showPrevLow) {
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
             setTextIfChanged(histPriceEl, parts.join(' · '));
@@ -73,7 +75,10 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
           } else {
             histPriceEl.className = 'tp-card-historical-price tp-is-at-low' + (showPrevLow ? ' tp-with-prev' : '');
             setTextIfChanged(histPriceEl, parts.join(' · '));
-            setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}.` : ''}${outlierText}`);
+            const sublineTip = dealData.isZeroMargin
+              ? `Allzeit-Tiefstpreis! Entspricht dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)} (0% Differenz).${outlierText}`
+              : `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dealData.dMedian}% unter dem ${horizonLabel}-Median von CHF ${medianVal.toFixed(2)}.` : ''}${outlierText}`;
+            setTitleIfChanged(histPriceEl, sublineTip);
           }
         } else {
           histPriceEl.remove();
@@ -213,13 +218,14 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
           const prevTip = prevLow && priceToCents(prevLow) > priceToCents(cardPrice)
             ? ` vs. vorheriges Tief (CHF ${prevLow.toFixed(2)})` : '';
 
-          if (badgePct > 0) {
+          if (badgePct > 0 || (dealData && dealData.weightedDiff === 0)) {
             // Tooltip: action hint only — badge + pill carry the verified numbers.
             setTitleIfChanged(badgeDifEl, '[Klicken: erneut prüfen]');
+            const pctText = (dealData && dealData.weightedDiff === 0) ? '0%' : `-${badgePct}%`;
             if (isListView) {
-              setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>-${badgePct}%</p>`);
+              setHtmlIfChanged(badgeDifEl, `<span>⚖️</span><p>${pctText}</p>`);
             } else {
-              setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>-${badgePct}%</p>`);
+              setHtmlIfChanged(badgeDifEl, `<div class="text">⚖️</div><p>${pctText}</p>`);
             }
           } else if (realDropVsPrev > 0) {
             setTitleIfChanged(badgeDifEl, `Tiefstpreis bestätigt · -${realDropVsPrev}%${prevTip} · Fallback-Tief ohne Ø-Vergleich\n[Klicken: erneut prüfen]`);
@@ -270,7 +276,7 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
         // The previous low is always shown when known & distinct — never
         // dropped in favour of the Ø line.
         const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(cardPrice));
-        const showMedianLine = stats.medianPrice && stats.medianPrice > cardPrice;
+        const showMedianLine = !!(stats.medianPrice && stats.medianPrice > cardPrice);
         const horizonLabel = medianHorizonLabel(stats);
         let histPriceEl = card.querySelector('.tp-card-historical-price');
         if (isNonBest) {
@@ -278,19 +284,22 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
           histPriceEl.className = 'tp-card-historical-price tp-is-markup';
           setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
           setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`);
-        } else if (showPrevLow || showMedianLine) {
+        } else if (showPrevLow || showMedianLine || dealData?.isZeroMargin) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);
           const parts = [];
           const dMedBrowse = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
           if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${isNewRecord ? ` (-${realDropVsPrev}%)` : ''}`);
           if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
+          else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (0%)`);
           histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
           setTextIfChanged(histPriceEl, parts.join(' · '));
           if (isNewRecord && showPrevLow) {
             setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)} (-${realDropVsPrev}%)${showMedianLine ? ` · Ø-Preis (${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)}` : ''}`);
           } else {
-            const dMedian = dMedBrowse;
-            setTitleIfChanged(histPriceEl, `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedian}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`);
+            const sublineTip = dealData?.isZeroMargin
+              ? `Allzeit-Tiefstpreis! Entspricht dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)} (0% Differenz).`
+              : `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief lag bei CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMedBrowse}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}`;
+            setTitleIfChanged(histPriceEl, sublineTip);
           }
         } else if (histPriceEl) {
           histPriceEl.remove();
