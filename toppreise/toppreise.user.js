@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.327
+// @version      2.18.328
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1136,6 +1136,12 @@ const STYLES_OVERLAYS = `
   }
   .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
   .tp-row-inactive { opacity: .55 !important; }
+  .tp-row-inactive button:disabled { cursor: not-allowed !important; }
+  .tp-filter-note {
+    font-size: var(--tp-fs-xs) !important;
+    color: var(--tp-mut) !important;
+    white-space: nowrap !important;
+  }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;
@@ -8758,6 +8764,7 @@ const SHADOW_MODAL_STYLES = `
   const CYCLE_TOASTS = {
     FILTER_NEG_MODE: { dim: '📝 Begriffe: Dimmen', hide: '📝 Begriffe: Verbergen', highlight: '📝 Begriffe: Hervorheben', off: '📝 Begriffe: Normal' },
     FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
+    FILTER_DEAL_DISCOUNT_MODE: { dim: '📉 Min-Rabatt: Dimmen', hide: '📉 Min-Rabatt: Verbergen', highlight: '📉 Min-Rabatt: Hervorheben', off: '📉 Min-Rabatt: Normal' },
     HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
     VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
   };
@@ -8837,7 +8844,7 @@ const SHADOW_MODAL_STYLES = `
       const resetBtn = bar.querySelector('#tp-filter-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
-          updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, NEGATIVE_TERMS: '' });
+          updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', FILTER_DEAL_DISCOUNT_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, FILTER_DEAL_DISCOUNT_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, MIN_DEAL_DISCOUNT: 0, NEGATIVE_TERMS: '' });
           showToast('Filter zurückgesetzt');
         };
       }
@@ -8852,12 +8859,23 @@ const SHADOW_MODAL_STYLES = `
 
     bar.querySelector('#tp-bar-min-minus').onclick = () => updateMinOffers(-1);
     bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
+
+    const updateMinDiscount = delta => {
+      const next = Math.max(0, Math.min(50, CONFIG.MIN_DEAL_DISCOUNT + delta));
+      if (next !== CONFIG.MIN_DEAL_DISCOUNT) {
+        updateConfigs({ MIN_DEAL_DISCOUNT: next, FILTER_DEAL_DISCOUNT_ENABLED: next > 0 });
+      }
+    };
+
+    bar.querySelector('#tp-bar-deal-disc-minus')?.addEventListener('click', () => updateMinDiscount(-5));
+    bar.querySelector('#tp-bar-deal-disc-plus')?.addEventListener('click', () => updateMinDiscount(5));
   }
 
   function syncFilterRow(bar, counts, flags) {
     const { isDealFeed = false, pageHasOffers = false } = flags || {};
     const negHidden = counts.neg || 0;
     const minHidden = counts.min || 0;
+    const dealDiscHidden = counts.dealDisc || 0;
     const vortiefHidden = counts.vortief || 0;
     const uncheckedHiddenCount = counts.uncheckedHidden || 0;
     const dealerHidden = counts.dealer || 0;
@@ -8886,7 +8904,7 @@ const SHADOW_MODAL_STYLES = `
       const highlightedTotal = counts.highlighted || 0;
       filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
       const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
-      filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
+      filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Rabatt:${dealDiscHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
     }
     const setRowCount = (name, n, show) => {
       const badge = bar.querySelector(`[data-row-count="${name}"]`);
@@ -8896,10 +8914,11 @@ const SHADOW_MODAL_STYLES = `
     };
     setRowCount('neg', negHidden, negHidden > 0);
     setRowCount('min', minHidden, minHidden > 0);
+    setRowCount('deal-disc', dealDiscHidden, dealDiscHidden > 0);
     setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
     setRowCount('vortief', vortiefHidden, vortiefHidden > 0);
     setRowCount('dealer', dealerHidden, dealerHidden > 0);
-    for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
+    for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
       bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleModeButton(btn, key));
     }
     {
@@ -8923,10 +8942,6 @@ const SHADOW_MODAL_STYLES = `
         }
       });
     }
-    const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
-    if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-    const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
-    if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
     const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
     if (dealerRow) {
       dealerRow.classList.toggle('tp-row-inactive', !(counts.dealerActive === true));
@@ -8936,13 +8951,22 @@ const SHADOW_MODAL_STYLES = `
       if (dealerBtn) dealerBtn.disabled = !(counts.dealerActive === true);
     }
 
+    const minRow = bar.querySelector('[data-filter-row="min"]');
+    if (minRow) {
+      minRow.classList.toggle('tp-row-inactive', !pageHasOffers);
+      const note = minRow.querySelector('[data-min-note]');
+      if (note) setTextIfChanged(note, pageHasOffers ? '' : 'inaktiv – keine Angebote auf Seite');
+      minRow.querySelectorAll('button').forEach(btn => { btn.disabled = !pageHasOffers; });
+    }
+
     bar.querySelector('.tp-input-field-box')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_NEG_ENABLED);
     bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_MIN_ENABLED);
+    bar.querySelector('#tp-bar-deal-disc-group')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_DEAL_DISCOUNT_ENABLED);
 
-    const minRow = bar.querySelector('[data-filter-row="min"]');
-    if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
     const minVal = bar.querySelector('#tp-bar-min-val');
     if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
+    const dealDiscVal = bar.querySelector('#tp-bar-deal-disc-val');
+    if (dealDiscVal) dealDiscVal.textContent = `${CONFIG.MIN_DEAL_DISCOUNT}%`;
   }
 
   // ─── MODULE: src/ui/toolbar.js ──────────────────────────────────────────────
@@ -9031,8 +9055,9 @@ const SHADOW_MODAL_STYLES = `
                 <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="FILTER_NEG_MODE">Normal</button>
               </div>
-              <div class="tp-filter-row" data-filter-row="min" style="display: ${pageHasOffers ? 'flex' : 'none'};">
+              <div class="tp-filter-row" data-filter-row="min">
                 <span class="tp-filter-label" title="Karten mit weniger als N Angeboten dimmen/verbergen">Min-Angebote</span>
+                <span class="tp-filter-note" data-min-note></span>
                 <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: flex;">
                   <button class="tp-stepper-btn" id="tp-bar-min-minus" title="Weniger Angebote fordern">-</button>
                   <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
@@ -9041,15 +9066,25 @@ const SHADOW_MODAL_STYLES = `
                 <span class="tp-count-badge" data-row-count="min" style="display: ${minHidden > 0 ? 'inline-flex' : 'none'};">${minHidden > 0 ? minHidden : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Normal</button>
               </div>
-              <div class="tp-filter-row" data-filter-row="unchecked" style="display: ${isDealFeed ? 'flex' : 'none'};">
+              <div class="tp-filter-row" data-filter-row="unchecked">
                 <span class="tp-filter-label" title="Ungeprüfte dimmen/verbergen (grau gestreift, nur Differenz) — Normal = zeigen">Ungeprüfte</span>
                 <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Normal</button>
               </div>
-              <div class="tp-filter-row" data-filter-row="vortief" style="display: ${isDealFeed ? 'flex' : 'none'};">
+              <div class="tp-filter-row" data-filter-row="vortief">
                 <span class="tp-filter-label" title="Verifizierte Tiefs ohne Ø-Vergleich (< Mindestpunkte, nur Vortief-Abstand) dimmen/verbergen — Normal = zeigen">Fallback-Tiefs</span>
                 <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
+              </div>
+              <div class="tp-filter-row" data-filter-row="deal-disc">
+                <span class="tp-filter-label" title="Karten mit weniger als N% Rabatt dimmen/verbergen">Min-Rabatt</span>
+                <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
+                  <button class="tp-stepper-btn" id="tp-bar-deal-disc-minus" title="Geringeren Rabatt fordern">-</button>
+                  <span id="tp-bar-deal-disc-val" style="min-width: 28px; text-align: center;">${CONFIG.MIN_DEAL_DISCOUNT}%</span>
+                  <button class="tp-stepper-btn" id="tp-bar-deal-disc-plus" title="Höheren Rabatt fordern">+</button>
+                </div>
+                <span class="tp-count-badge" data-row-count="deal-disc" style="display: none;"></span>
+                <button class="tp-filter-mode-btn" data-mode-key="FILTER_DEAL_DISCOUNT_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="dealer">
                 <span class="tp-filter-label" title="Karten, deren günstigstes Angebot nicht vom gewählten Händler kommt, dimmen/verbergen — nur aktiv wenn Händler gewählt">Händler</span>
@@ -10084,7 +10119,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.327';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.328';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -17,6 +17,7 @@ const CYCLE_TITLE = {
 const CYCLE_TOASTS = {
   FILTER_NEG_MODE: { dim: '📝 Begriffe: Dimmen', hide: '📝 Begriffe: Verbergen', highlight: '📝 Begriffe: Hervorheben', off: '📝 Begriffe: Normal' },
   FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
+  FILTER_DEAL_DISCOUNT_MODE: { dim: '📉 Min-Rabatt: Dimmen', hide: '📉 Min-Rabatt: Verbergen', highlight: '📉 Min-Rabatt: Hervorheben', off: '📉 Min-Rabatt: Normal' },
   HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
   VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
 };
@@ -96,7 +97,7 @@ export function wireFilterPopover(bar) {
     const resetBtn = bar.querySelector('#tp-filter-reset');
     if (resetBtn) {
       resetBtn.onclick = () => {
-        updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, NEGATIVE_TERMS: '' });
+        updateConfigs({ FILTER_NEG_MODE: 'dim', FILTER_MIN_MODE: 'dim', FILTER_DEAL_DISCOUNT_MODE: 'dim', HIDE_UNCHECKED_MODE: 'dim', VORTIEF_MODE: 'dim', DEALER_MODE: 'dim', FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, FILTER_DEAL_DISCOUNT_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, MIN_OFFERS: 0, MIN_DEAL_DISCOUNT: 0, NEGATIVE_TERMS: '' });
         showToast('Filter zurückgesetzt');
       };
     }
@@ -111,12 +112,23 @@ export function wireFilterPopover(bar) {
 
   bar.querySelector('#tp-bar-min-minus').onclick = () => updateMinOffers(-1);
   bar.querySelector('#tp-bar-min-plus').onclick = () => updateMinOffers(1);
+
+  const updateMinDiscount = delta => {
+    const next = Math.max(0, Math.min(50, CONFIG.MIN_DEAL_DISCOUNT + delta));
+    if (next !== CONFIG.MIN_DEAL_DISCOUNT) {
+      updateConfigs({ MIN_DEAL_DISCOUNT: next, FILTER_DEAL_DISCOUNT_ENABLED: next > 0 });
+    }
+  };
+
+  bar.querySelector('#tp-bar-deal-disc-minus')?.addEventListener('click', () => updateMinDiscount(-5));
+  bar.querySelector('#tp-bar-deal-disc-plus')?.addEventListener('click', () => updateMinDiscount(5));
 }
 
 export function syncFilterRow(bar, counts, flags) {
   const { isDealFeed = false, pageHasOffers = false } = flags || {};
   const negHidden = counts.neg || 0;
   const minHidden = counts.min || 0;
+  const dealDiscHidden = counts.dealDisc || 0;
   const vortiefHidden = counts.vortief || 0;
   const uncheckedHiddenCount = counts.uncheckedHidden || 0;
   const dealerHidden = counts.dealer || 0;
@@ -145,7 +157,7 @@ export function syncFilterRow(bar, counts, flags) {
     const highlightedTotal = counts.highlighted || 0;
     filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
     const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
-    filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
+    filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Rabatt:${dealDiscHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
   }
   const setRowCount = (name, n, show) => {
     const badge = bar.querySelector(`[data-row-count="${name}"]`);
@@ -155,10 +167,11 @@ export function syncFilterRow(bar, counts, flags) {
   };
   setRowCount('neg', negHidden, negHidden > 0);
   setRowCount('min', minHidden, minHidden > 0);
+  setRowCount('deal-disc', dealDiscHidden, dealDiscHidden > 0);
   setRowCount('unchecked', uncheckedHiddenCount, uncheckedHiddenCount > 0);
   setRowCount('vortief', vortiefHidden, vortiefHidden > 0);
   setRowCount('dealer', dealerHidden, dealerHidden > 0);
-  for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
+  for (const key of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE']) {
     bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => paintCycleModeButton(btn, key));
   }
   {
@@ -182,10 +195,6 @@ export function syncFilterRow(bar, counts, flags) {
       }
     });
   }
-  const uncheckedRow = bar.querySelector('[data-filter-row="unchecked"]');
-  if (uncheckedRow) uncheckedRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
-  const vortiefRow = bar.querySelector('[data-filter-row="vortief"]');
-  if (vortiefRow) vortiefRow.style.setProperty('display', isDealFeed ? 'flex' : 'none', 'important');
   const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
   if (dealerRow) {
     dealerRow.classList.toggle('tp-row-inactive', !(counts.dealerActive === true));
@@ -195,11 +204,20 @@ export function syncFilterRow(bar, counts, flags) {
     if (dealerBtn) dealerBtn.disabled = !(counts.dealerActive === true);
   }
 
+  const minRow = bar.querySelector('[data-filter-row="min"]');
+  if (minRow) {
+    minRow.classList.toggle('tp-row-inactive', !pageHasOffers);
+    const note = minRow.querySelector('[data-min-note]');
+    if (note) setTextIfChanged(note, pageHasOffers ? '' : 'inaktiv – keine Angebote auf Seite');
+    minRow.querySelectorAll('button').forEach(btn => { btn.disabled = !pageHasOffers; });
+  }
+
   bar.querySelector('.tp-input-field-box')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_NEG_ENABLED);
   bar.querySelector('#tp-bar-min-offers-group')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_MIN_ENABLED);
+  bar.querySelector('#tp-bar-deal-disc-group')?.classList.toggle('tp-tool-dim', !CONFIG.FILTER_DEAL_DISCOUNT_ENABLED);
 
-  const minRow = bar.querySelector('[data-filter-row="min"]');
-  if (minRow) minRow.style.setProperty('display', pageHasOffers ? 'flex' : 'none', 'important');
   const minVal = bar.querySelector('#tp-bar-min-val');
   if (minVal) minVal.textContent = CONFIG.MIN_OFFERS;
+  const dealDiscVal = bar.querySelector('#tp-bar-deal-disc-val');
+  if (dealDiscVal) dealDiscVal.textContent = `${CONFIG.MIN_DEAL_DISCOUNT}%`;
 }

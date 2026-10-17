@@ -84,8 +84,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_NEG_MODE">Normal</button>
             </div>
-            <div class="tp-filter-row" data-filter-row="min" style="display: ${pageHasOffers ? 'flex' : 'none'};">
+            <div class="tp-filter-row" data-filter-row="min">
               <span class="tp-filter-label" title="Karten mit weniger als N Angeboten dimmen/verbergen">Min-Angebote</span>
+              <span class="tp-filter-note" data-min-note></span>
               <div class="tp-bar-stepper-group" id="tp-bar-min-offers-group" style="display: flex;">
                 <button class="tp-stepper-btn" id="tp-bar-min-minus" title="Weniger Angebote fordern">-</button>
                 <span id="tp-bar-min-val" style="min-width: 14px; text-align: center;">${CONFIG.MIN_OFFERS}</span>
@@ -94,15 +95,25 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <span class="tp-count-badge" data-row-count="min" style="display: ${minHidden > 0 ? 'inline-flex' : 'none'};">${minHidden > 0 ? minHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_MIN_MODE">Normal</button>
             </div>
-            <div class="tp-filter-row" data-filter-row="unchecked" style="display: ${isDealFeed ? 'flex' : 'none'};">
+            <div class="tp-filter-row" data-filter-row="unchecked">
               <span class="tp-filter-label" title="Ungeprüfte dimmen/verbergen (grau gestreift, nur Differenz) — Normal = zeigen">Ungeprüfte</span>
               <span class="tp-count-badge" data-row-count="unchecked" style="display: ${uncheckedHiddenCount > 0 ? 'inline-flex' : 'none'};">${uncheckedHiddenCount > 0 ? uncheckedHiddenCount : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="HIDE_UNCHECKED_MODE">Normal</button>
             </div>
-            <div class="tp-filter-row" data-filter-row="vortief" style="display: ${isDealFeed ? 'flex' : 'none'};">
+            <div class="tp-filter-row" data-filter-row="vortief">
               <span class="tp-filter-label" title="Verifizierte Tiefs ohne Ø-Vergleich (< Mindestpunkte, nur Vortief-Abstand) dimmen/verbergen — Normal = zeigen">Fallback-Tiefs</span>
               <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
+            </div>
+            <div class="tp-filter-row" data-filter-row="deal-disc">
+              <span class="tp-filter-label" title="Karten mit weniger als N% Rabatt dimmen/verbergen">Min-Rabatt</span>
+              <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
+                <button class="tp-stepper-btn" id="tp-bar-deal-disc-minus" title="Geringeren Rabatt fordern">-</button>
+                <span id="tp-bar-deal-disc-val" style="min-width: 28px; text-align: center;">${CONFIG.MIN_DEAL_DISCOUNT}%</span>
+                <button class="tp-stepper-btn" id="tp-bar-deal-disc-plus" title="Höheren Rabatt fordern">+</button>
+              </div>
+              <span class="tp-count-badge" data-row-count="deal-disc" style="display: none;"></span>
+              <button class="tp-filter-mode-btn" data-mode-key="FILTER_DEAL_DISCOUNT_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="dealer">
               <span class="tp-filter-label" title="Karten, deren günstigstes Angebot nicht vom gewählten Händler kommt, dimmen/verbergen — nur aktiv wenn Händler gewählt">Händler</span>

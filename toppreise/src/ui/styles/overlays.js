@@ -54,6 +54,12 @@ export const STYLES_OVERLAYS = `
   }
   .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
   .tp-row-inactive { opacity: .55 !important; }
+  .tp-row-inactive button:disabled { cursor: not-allowed !important; }
+  .tp-filter-note {
+    font-size: var(--tp-fs-xs) !important;
+    color: var(--tp-mut) !important;
+    white-space: nowrap !important;
+  }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;
