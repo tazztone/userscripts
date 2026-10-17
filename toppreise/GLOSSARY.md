@@ -59,7 +59,11 @@ Reine Feed-Sortierung nach Gewichteter Differenz; filtert nichts. Dieselbe Sorti
 _Avoid_: Tiefstpreise-Modus (als Filter), Nur Tiefstpreise
 
 **Fallback-Tief**:
-Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich; heizt wie jeder andere Deal (blinde Heatmap), entfernt, gedimmt oder hervorgehoben im Tiefstpreise-Feed wenn „Fallback-Tiefs" an ist (Modus je Ursache). Normal = gezeigt, Dimmen/Verbergen/Hervorheben = Filtergrund aktiv.
+Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich (keine Gewichtete Differenz berechenbar); zeigt ersatzweise den Vortief-Abstand. Heizt wie jeder andere Deal (blinde Heatmap), entfernt, gedimmt oder hervorgehoben im Tiefstpreise-Feed wenn „Fallback-Tiefs" an ist (Modus je Ursache). Normal = gezeigt, Dimmen/Verbergen/Hervorheben = Filtergrund aktiv. Tritt auf bei:
+- Datenpunkten unterhalb der Mindest-Datenpunkte-Schwelle (`pointsCount < minPoints`).
+- Fehlender Zeitreihe / fehlendem Median (z. B. HTML-Fallback nach fehlschlagender JSON-API, nur statischer Tiefstpreis bekannt).
+- Flacher Historie (<2% Varianz zwischen Höchst- und Tiefstpreis).
+- Keiner positiven Ersparnis gegenüber Median oder vorherigem Rekord (`dMedian <= 0 && dRecord <= 0`).
 _Avoid_: Vortief (als UI-Text), dünne Historie
 
 **Ungeprüfte**:
