@@ -19,13 +19,20 @@ toppreise/site/
 1. **Dual-Track Video Showcase**:
    - Tab 1: **Quick Demo (1 min)** — 9:16 vertical video (`short.mp4` / `short_DE.mp4`).
    - Tab 2: **Full Walkthrough (7 min)** — 16:9 HD horizontal video (`explainer.mp4` / `explainer_DE.mp4`).
+   - **Ambient Glow Theater**: Blurred gradient backdrop canvas matching video play area.
    - **Aspect Ratio Handling**: CSS `object-fit: contain` with centered flex container ensures letterboxing without clipping across both aspect ratios.
    - **Keyboard Controls**: Press `Space` or `K` anywhere on page to toggle video playback.
-2. **Instant Bilingual Switcher (EN / DE)**:
-   - Client-side JSON dictionary switches headlines, feature cards, install instructions, and underlying MP4 video streams without page reloads.
-3. **1-Click Userscript Installation**:
+2. **Interactive Deal Calculation Simulator**:
+   - Test authentic Toppreise Deal formulas in Swiss Francs (CHF).
+   - Dynamic store switcher (Digitec, Galaxus, Brack.ch, MediaMarkt).
+   - Real-time deal weighting slider (Rekord vs. 1-Year Median savings) and dynamic badge glow (Ruby for all-time low, Amber for solid deal, Red warning for deceptive markup).
+3. **Draggable Before / After Comparison Slider**:
+   - Touch & mouse-draggable split screen comparing unverified stock Toppreise retail gaslighting with verified Toppreise Suite intelligence.
+4. **Instant Bilingual Switcher (EN / DE)**:
+   - Client-side JSON dictionary switches headlines, feature cards, simulator labels, install instructions, and underlying MP4 video streams without page reloads.
+5. **1-Click Userscript Installation**:
    - Direct CTA links to the raw user script bundle: `https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js`.
-4. **Sister Userscripts Navigation**:
+6. **Sister Userscripts Navigation**:
    - Links to Perplexity Enhancements and Hugging Face Heart & Filter scripts in footer.
 
 ---
