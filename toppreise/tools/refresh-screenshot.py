@@ -248,49 +248,82 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
         bw = box["width"]
         bh = box["height"]
 
+        is_small = (bw <= 28 and bh <= 28)
+
         if anchor == "outside-left":
-            bx = rel_x - 36
+            bx = rel_x - 52
             by = rel_y + bh / 2
-            tx = rel_x - 4
-            ty = by
+            tx = (rel_x + bw / 2) if is_small else (rel_x - 8)
+            ty = (rel_y + bh / 2) if is_small else by
         elif anchor == "outside-top":
             bx = rel_x + bw / 2
-            by = rel_y - 28
+            by = rel_y - 32
             tx = bx
-            ty = rel_y - 4
+            ty = (rel_y + bh / 2) if is_small else (rel_y - 6)
         elif anchor == "outside-right":
-            bx = rel_x + bw + 36
+            bx = rel_x + bw + 52
             by = rel_y + bh / 2
-            tx = rel_x + bw + 4
-            ty = by
+            tx = (rel_x + bw / 2) if is_small else (rel_x + bw + 8)
+            ty = (rel_y + bh / 2) if is_small else by
         elif anchor == "outside-bottom":
             bx = rel_x + bw / 2
-            by = rel_y + bh + 28
+            by = rel_y + bh + 32
             tx = bx
-            ty = rel_y + bh + 4
+            ty = (rel_y + bh / 2) if is_small else (rel_y + bh + 6)
         elif anchor == "top-left":
-            bx = rel_x - 28
-            by = rel_y - 24
-            tx = rel_x - 4
-            ty = rel_y - 4
+            bx = rel_x - 36
+            by = rel_y - 28
+            tx = (rel_x + bw / 2) if is_small else (rel_x - 8)
+            ty = (rel_y + bh / 2) if is_small else (rel_y - 6)
+        elif isinstance(anchor, dict):
+            bx = anchor["bx"] if "bx" in anchor else (rel_x + anchor.get("dx", -52))
+            by = anchor["by"] if "by" in anchor else ((rel_y + bh / 2) if anchor.get("dy", 0) == 0 else rel_y + anchor["dy"])
+            if "tx" in anchor:
+                tx = anchor["tx"]
+            else:
+                if is_small:
+                    tx = rel_x + bw / 2
+                else:
+                    tx = (rel_x - 8) if bx < rel_x else ((rel_x + bw + 8) if bx > rel_x + bw else bx)
+            if "ty" in anchor:
+                ty = anchor["ty"]
+            else:
+                if is_small:
+                    ty = rel_y + bh / 2
+                else:
+                    ty = (rel_y - 6) if by < rel_y else ((rel_y + bh + 6) if by > rel_y + bh else by)
         elif isinstance(anchor, (list, tuple)) and len(anchor) == 2:
             dx, dy = anchor
             bx = rel_x + dx
-            by = rel_y + dy
-            tx = rel_x - 4 if dx < 0 else (rel_x + bw + 4 if dx > bw else rel_x + dx)
-            ty = rel_y - 4 if dy < 0 else (rel_y + bh + 4 if dy > bh else rel_y + dy)
+            by = (rel_y + bh / 2) if dy == 0 else (rel_y + dy)
+            if is_small:
+                tx = rel_x + bw / 2
+                ty = rel_y + bh / 2
+            else:
+                if dx < 0:
+                    tx = rel_x - 8
+                elif dx > bw:
+                    tx = rel_x + bw + 8
+                else:
+                    tx = rel_x + dx
+                if dy < 0:
+                    ty = rel_y - 6
+                elif dy > bh:
+                    ty = rel_y + bh + 6
+                else:
+                    ty = rel_y + bh / 2 if (dx < 0 or dx > bw) else rel_y + dy
         else:
-            bx = rel_x - 28
-            by = rel_y - 24
-            tx = rel_x - 4
-            ty = rel_y - 4
+            bx = rel_x - 36
+            by = rel_y - 28
+            tx = (rel_x + bw / 2) if is_small else (rel_x - 8)
+            ty = (rel_y + bh / 2) if is_small else (rel_y - 6)
 
         # Clamp badge coordinates so discs never bleed outside the canvas
         bx = max(14, min(css_w - 14, bx))
         by = max(14, min(css_h - 14, by))
 
         dist = ((bx - tx) ** 2 + (by - ty) ** 2) ** 0.5
-        if dist > 6:
+        if dist > 4:
             svg_leaders.append(
                 f'<line x1="{bx:.1f}" y1="{by:.1f}" x2="{tx:.1f}" y2="{ty:.1f}" '
                 f'stroke="#f97316" stroke-width="1.8" stroke-dasharray="3 3"/>'
@@ -367,10 +400,10 @@ def setup_toolbar(page, pids):
     """Shot 01a: Sticky toolbar filter popover and batch scanner, cleanly focused on filter controls."""
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
-        document.body.style.paddingLeft = '80px';
+        document.body.style.paddingLeft = '90px';
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
         // Cleanly hide background cards and host page noise
-        document.querySelectorAll('.Plugin_MainTopHead, .Plugin_GeneralBreadcrumb, .breadcrumb, #breadcrumb, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .filterBoxContainer, .sidebarWrapper, .tpContentSidebar, .sidebar, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .mainContent, #pageContent, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_CategoryList, [class*="Breadcrumb"], [class*="Hint"]').forEach(el => el.style.setProperty('display', 'none', 'important'));
+        document.querySelectorAll('.Plugin_MainTopHead, .Plugin_GeneralBreadcrumb, .breadcrumb, #breadcrumb, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .filterBoxContainer, .sidebarWrapper, .tpContentSidebar, .sidebar, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .mainContent, #pageContent, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_CategoryList, .Plugin_IgnoredCategories, [class*="Breadcrumb"], [class*="Hint"]').forEach(el => el.style.setProperty('display', 'none', 'important'));
         // Hide right-hand toolbar groups so 01a focuses strictly on filter button and popover
         document.querySelectorAll('.tp-group-view, .tp-group-deals, .tp-divider').forEach(el => el.style.setProperty('display', 'none', 'important'));
         // Position floating CTA right below the filter popover with a clean gap
@@ -378,12 +411,15 @@ def setup_toolbar(page, pids):
         const pop = document.getElementById('tp-bar-filter-popover');
         if (cta && pop) {
             const popRect = pop.getBoundingClientRect();
-            cta.style.position = 'absolute';
-            cta.style.bottom = 'auto';
-            cta.style.top = (popRect.bottom + 24) + 'px';
-            cta.style.left = popRect.left + 'px';
-            cta.style.right = 'auto';
-            cta.style.width = 'max-content';
+            cta.style.setProperty('position', 'absolute', 'important');
+            cta.style.setProperty('bottom', 'auto', 'important');
+            cta.style.setProperty('top', (popRect.bottom + 24) + 'px', 'important');
+            cta.style.setProperty('left', popRect.left + 'px', 'important');
+            cta.style.setProperty('right', 'auto', 'important');
+            cta.style.setProperty('width', 'max-content', 'important');
+            cta.style.setProperty('animation', 'none', 'important');
+            cta.style.setProperty('transform', 'none', 'important');
+            cta.style.setProperty('transition', 'none', 'important');
         }
     }""")
     page.wait_for_timeout(400)
@@ -395,17 +431,16 @@ def setup_toolbar(page, pids):
     boxes = [btn_box, pop_box]
     if cta_box:
         boxes.append(cta_box)
-    clip = union(boxes, pad=64)
-
+    clip = union(boxes, pad=80)
     raw_bytes = page.screenshot(clip=clip)
     controls = [
-        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", "outside-top"),
-        ("[data-filter-row='neg'] .tp-filter-label", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", "outside-left"),
-        ("[data-filter-row='min'] .tp-filter-label", "Min-Angebote (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", "outside-left"),
-        ("[data-filter-row='unchecked'] .tp-filter-label", "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", "outside-left"),
-        ("[data-filter-row='vortief'] .tp-filter-label", "Fallback-Tiefs ein-/ausschliessen (geringe Historie)", "outside-left"),
-        ("[data-filter-row='deal-disc'] .tp-filter-label", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", "outside-left"),
-        ("#tp-floating-check-btn", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", "outside-left"),
+        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", {"bx": 32}),
+        ("[data-filter-row='neg'] .tp-filter-label", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", {"bx": 32}),
+        ("[data-filter-row='min'] .tp-filter-label", "Min-Angebote (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", {"bx": 32}),
+        ("[data-filter-row='unchecked'] .tp-filter-label", "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", {"bx": 32}),
+        ("[data-filter-row='vortief'] .tp-filter-label", "Fallback-Tiefs ein-/ausschliessen (geringe Historie)", {"bx": 32}),
+        ("[data-filter-row='deal-disc'] .tp-filter-label", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", {"bx": 32}),
+        ("#tp-floating-check-btn", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", {"bx": 32}),
     ]
     callouts = []
     for item in controls:
@@ -422,9 +457,9 @@ def setup_calc_popover(page, pids):
     """Shot 01b: Calculation popover featuring live glitch preview chart and mathematical parameters."""
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
-        document.body.style.paddingLeft = '80px';
-        // Cleanly hide all background page content and categories
-        document.querySelectorAll('.mainContent, .leftColumn, #pageContent, .mainTopHeadContentWrapper, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .tpContentSidebar, .sidebarWrapper, .sidebar, .Plugin_CategoryList').forEach(el => el.style.setProperty('display', 'none', 'important'));
+        document.body.style.paddingLeft = '90px';
+        // Cleanly hide all background page content, tabs, time period and categories
+        document.querySelectorAll('.mainContent, .leftColumn, #pageContent, .mainTopHeadContentWrapper, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .tpContentSidebar, .sidebarWrapper, .sidebar, .Plugin_CategoryList, .Plugin_IgnoredCategories, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .Plugin_Tab, .f_Plugin_Tab, .Plugin_Sort, .f_Plugin_Sort, .breadcrumb, #breadcrumb, [class*="Breadcrumb"], ul[class*="Tabs"], .Plugin_Tabs, .tabs, .tabWrapper, .Plugin_NavigationTab, .f_Plugin_NavigationTab, .Plugin_CollItemHead, .navigationTab, #feed-tabs, .tabbedContainer, .Plugin_TopProductListNavigation, .contentBox').forEach(el => el.style.setProperty('display', 'none', 'important'));
         // Hide toolbar buttons except calc button so no partial buttons are visible
         document.querySelectorAll('#tp-suite-filter-bar .tp-group:not(.tp-group-deals), #tp-suite-filter-bar .tp-divider, #tp-bar-bestpreise-btn').forEach(el => el.style.setProperty('display', 'none', 'important'));
     }""")
@@ -444,17 +479,17 @@ def setup_calc_popover(page, pids):
 
     wrap_box = css_box(page, "#tp-bar-calc-wrap")
     pop_box = css_box(page, "#tp-bar-calc-popover")
-    clip = union([wrap_box, pop_box], pad=64)
+    clip = union([wrap_box, pop_box], pad=88)
     raw_bytes = page.screenshot(clip=clip)
 
     controls = [
-        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", "outside-left"),
-        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", "outside-left"),
-        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", "outside-left"),
-        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", "outside-left"),
-        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", "outside-left"),
-        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", "outside-left"),
-        ("#tp-calc-preview svg", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", [-54, 20]),
+        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", {"bx": 36}),
+        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", {"bx": 36}),
+        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", {"bx": 36}),
+        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", {"bx": 36}),
+        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", {"bx": 36}),
+        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", {"bx": 36}),
+        ("#tp-calc-preview svg", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", {"bx": 36, "dy": 24}),
     ]
     callouts = []
     for item in controls:
@@ -508,23 +543,23 @@ def setup_feed_cards(page, pids):
     tb_box = css_box(page, "#tp-suite-filter-bar")
     card_boxes = [css_box(page, sel) for sel in anchors]
     boxes = [tb_box, *card_boxes]
-    clip = union(boxes, pad=32)
+    clip = union(boxes, pad=56)
     clip["y"] = max(0, tb_box["y"] - 14)
-    bottom_y = max(b["y"] + b["height"] for b in card_boxes) + 24
+    bottom_y = max(b["y"] + b["height"] for b in card_boxes) + 56
     clip["height"] = bottom_y - clip["y"]
     raw_bytes = page.screenshot(clip=clip)
 
     callouts = [
         (1, css_box(page, "#tp-bar-heat-btn"), "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
         (2, css_box(page, "#tp-bar-bestpreise-btn"), "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
-        (3, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", [48, 12]),
-        (4, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)", [48, 12]),
-        (5, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", [48, 12]),
-        (6, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", "outside-left"),
-        (7, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", [20, 24]),
-        (8, css_box(page, f"{deep} .tp-dealer-name .tp-dealer-icon"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-44, 0]),
-        (9, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", [48, 0]),
-        (10, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", [-36, -22]),
+        (3, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", {"dx": 38, "dy": -28}),
+        (4, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)", {"dx": 38, "dy": -28}),
+        (5, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", {"dx": 38, "dy": -28}),
+        (6, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-48, 0]),
+        (7, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", {"dx": 48, "dy": 38}),
+        (8, css_box(page, f"{deep} .tp-dealer-name .tp-dealer-icon"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-50, 0]),
+        (9, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", {"dx": 30, "dy": 38}),
+        (10, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", {"dx": 10, "dy": 42}),
     ]
     return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
 
@@ -589,10 +624,10 @@ def setup_search_cards(page, pids):
 
     b_box = block.bounding_box()
     clip = {
-        "x": max(0, b_box["x"] - 56),
+        "x": max(0, b_box["x"] - 68),
         "y": max(0, b_box["y"] - 2),
-        "width": b_box["width"] + 112,
-        "height": b_box["height"] + 20,
+        "width": b_box["width"] + 128,
+        "height": b_box["height"] + 24,
     }
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
@@ -607,7 +642,7 @@ def setup_search_cards(page, pids):
 
     series_header = try_box(page, ".Plugin_ProductCollItem .product-name .bold") or try_box(page, ".Plugin_ProductCollItem .f_select_series, .Plugin_ProductCollItem a[href*='/produktserie/']")
     if series_header:
-        callouts.append((4, series_header, "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)", [-48, 0]))
+        callouts.append((4, series_header, "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)", [-50, 0]))
 
     return raw_bytes, origin, callouts, "03-search-cards.webp"
 
@@ -640,16 +675,16 @@ def setup_settings_core(page, pids):
 
     dlg_loc = page.locator(dlg)
     dlg_box = dlg_loc.bounding_box()
-    clip = union([dlg_box], pad=48)
+    clip = union([dlg_box], pad=56)
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", [-36, 0]),
-        ("#tp-review-search-toggle", "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus", [-36, 0]),
-        ("#tp-bestpreise-mode-toggle", "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz", [-36, 0]),
-        ("#tp-margin-range", "Preis-Toleranz (%): Händler-Bestpreis-Marge", [-36, 0]),
-        ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", [-36, 0]),
+        ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", [-44, 0]),
+        ("#tp-review-search-toggle", "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus", [-44, 0]),
+        ("#tp-bestpreise-mode-toggle", "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz", [-44, 0]),
+        ("#tp-margin-range", "Preis-Toleranz (%): Händler-Bestpreis-Marge", [-44, 0]),
+        ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", [-44, 0]),
     ]
     callouts = []
     for sel, cap, anchor in controls:
@@ -692,16 +727,16 @@ def setup_settings_advanced(page, pids):
 
     dlg_loc = page.locator(dlg)
     dlg_box = dlg_loc.bounding_box()
-    clip = union([dlg_box], pad=48)
+    clip = union([dlg_box], pad=56)
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", [-36, 0]),
-        ("#tp-discord-layout-chips", "Discord Layout-Baukasten mit variablen Tokens", [-36, 0]),
-        ("#tp-discord-layout-preview", "Live-Markdown-Vorschau der generierten Nachricht", [-36, 0]),
-        ("#tp-dealer-autofetch-toggle", "Händler automatisch im Hintergrund laden (max. 3 parallel)", [-36, 0]),
-        ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", [-36, 0]),
+        ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", [-44, 0]),
+        ("#tp-discord-layout-chips", "Discord Layout-Baukasten mit variablen Tokens", [-44, 0]),
+        ("#tp-discord-layout-preview", "Live-Markdown-Vorschau der generierten Nachricht", [-44, 0]),
+        ("#tp-dealer-autofetch-toggle", "Händler automatisch im Hintergrund laden (max. 3 parallel)", [-44, 0]),
+        ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", [-44, 0]),
     ]
     callouts = []
     for sel, cap, anchor in controls:
