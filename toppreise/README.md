@@ -77,7 +77,7 @@ Requires a userscript manager browser extension:
 
 | # | Control | Description |
 |---|---|---|
-| ① | **Filter Button** | Opens multi-mode filter controls (🧹 Filter (N) / +N dimmed ▼; Hide, Dim, Highlight per cause). |
+| ① | **Filter Button** | Opens multi-mode filter controls; button displays color-coded state pills (amber for hidden, yellow for dimmed, green for highlighted). |
 | ② | **Negative Keywords (*Begriffe*)** | Instant exclusion by keywords with live word-boundary matching. |
 | ③ | **Minimum Offers** | Filters out marketplace offers with fewer than **N** merchants (active only on pages with dealer rows). |
 | ④ | **Unverified Offers (*Ungeprüfte*)** | Dim or hide deals lacking verified historical price series. |
@@ -143,7 +143,7 @@ The userscript dynamically tailors its UI to the current page type:
 | ② | **Unverified Scan Pill** | Striped-gray badge indicating unverified catalog item; click to fetch price history. |
 
 * **Deal Feeds (`/neue-toppreise`):** Displays the full suite: consolidated filter button (`🧹 Filter (N)`), continuous heatmap toggle, `💎 Tiefstpreis-Sortierung`, floating batch scanner, and calculation popover (`⚖️`).
-* **Catalog & Search Listings (`/produktsuche/...`):** Streamlined toolbar with complete protection for grouped product families (`.Plugin_ProductCollItem`). Grouped variants (such as AirPods with or without wireless charging case) remain locked in their native collection containers, preserving Bootstrap grid integrity without splitting cards. Inline deal pills (`.tp-deal-pill`) sit neatly above prices.
+* **Catalog & Search Listings (`/produktsuche/...`):** Streamlined toolbar with complete protection for grouped product families (`.Plugin_ProductCollItem`). Grouped variants (such as AirPods with or without wireless charging case) remain locked in their native collection containers, preserving Bootstrap grid integrity without splitting cards. Inline deal pills (`.tp-deal-pill`) sit neatly next to product titles.
 * **Product Detail Pages (`/preisvergleich/...-p...`):** Hides the top filter bar and embeds a dedicated Tiefstpreis badge next to the main product title and price.
 
 ---

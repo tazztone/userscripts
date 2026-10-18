@@ -77,7 +77,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 | # | Steuerelement | Beschreibung |
 |---|---|---|
-| ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler (🧹 Filter (N) / +N gedimmt ▼; Verbergen, Dimmen, Hervorheben pro Ursache). |
+| ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler; der Button zeigt farbige Zähler-Pills (Bernstein für verbergen, Gelb für dimmen, Grün für hervorheben). |
 | ② | **Begriffe (Negativ-Filter)** | Sofortiger Ausschluss unerwünschter Begriffe mit wortgenauer Erkennung. |
 | ③ | **Min-Angebote** | Filtert Angebote mit weniger als **N** Händlern aus (nur auf Seiten mit Händlerzeilen aktiv). |
 | ④ | **Ungeprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
@@ -142,7 +142,7 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 | ② | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
 
 * **Tiefstpreis-Feeds (`/neue-toppreise`):** Zeigt die vollständige Toolbar mit konsolidiertem Filter-Button (`🧹 Filter (N)`), Heatmap, `💎 Tiefstpreis-Sortierung`, Batch-Scanner und Berechnungsparametern (`⚖️`).
-* **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber über den Preisen.
+* **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber neben den Produkttiteln.
 * **Produkt-Detailseiten (`/preisvergleich/...-p...`):** Filterleiste wird ausgeblendet; ein dezentes Tiefstpreis-Badge wird direkt neben dem Haupttitel und Hauptpreis eingebettet.
 
 ---
