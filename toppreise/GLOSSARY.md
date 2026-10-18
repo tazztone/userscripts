@@ -54,7 +54,7 @@ Durch einen Filtergrund verborgene Karten (`tp-filtered`). Gedimmte (`tp-dimmed`
 _Avoid_: Gedimmte (für Entfernte)
 
  **Ansicht**:
- Rein visuelle Darstellung ohne Entfernen: Heatmap-Farbe, Streifen, Kanten-Glow, Badge-Texte sowie per-cause Dimmen (`tp-dimmed`, Deckkraft per Dimmer-Einstellung) und Hervorheben (`tp-highlighted`). Ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge, solange ihr Filtergrund nicht auf Dimmen steht.
+ Rein visuelle Darstellung ohne Entfernen: Deal-Intensität / Heatmap-Farbe (warmes Bernstein bis Rubinrot für Rabatte, farblos/transparent für 0% und Aufschläge), Streifen, Kanten-Glow, Badge-Texte sowie per-cause Dimmen (`tp-dimmed`, Deckkraft per Dimmer-Einstellung) und Hervorheben (`tp-highlighted`). Ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge, solange ihr Filtergrund nicht auf Dimmen steht.
  _Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung)
 
 **Neue Tiefstpreise**:
@@ -69,7 +69,7 @@ Verifizierter Tiefstpreis ohne qualifizierten Ø-Vergleich (keine Gewichtete Dif
 _Avoid_: Vortief (als UI-Text), dünne Historie
 
 **Neutraler 0%-Deal**:
-Verifizierter Tiefstpreis mit qualifizierter Historie, dessen aktueller Preis genau dem rollierenden Median entspricht (`dMedian = 0%`, kein neuer Rekord `dRecord = 0%`). Badge zeigt `0%` / `Tiefstpreis`, Karte bleibt neutral-grau (Deadband), sortiert mit 0% Gewichteter Differenz und wird **nicht** vom Fallback-Tiefs-Filter erfasst.
+Verifizierter Tiefstpreis mit qualifizierter Historie, dessen aktueller Preis genau dem rollierenden Median entspricht (`dMedian = 0%`, kein neuer Rekord `dRecord = 0%`). Badge zeigt `0%` / `Tiefstpreis`, Karte bleibt farblos / ohne Glow (0% Intensität), sortiert mit 0% Gewichteter Differenz und wird **nicht** vom Fallback-Tiefs-Filter erfasst.
 
 **Ungeprüfte**:
 Filtergrund: verbirgt, dimmt oder hebt ungeprüfte Karten hervor wenn aktiv (je Modus) — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
