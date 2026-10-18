@@ -75,13 +75,14 @@ export const STYLES_OVERLAYS = `
   }
   .tp-row-inactive { opacity: .55 !important; }
   .tp-row-inactive button:disabled { cursor: not-allowed !important; }
+  .tp-row-inactive #tp-bar-min-offers-group { display: none !important; }
   .tp-filter-note {
     font-size: var(--tp-fs-xs) !important;
     color: var(--tp-mut) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    max-width: 155px !important;
+    flex: 1 1 auto !important;
   }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;

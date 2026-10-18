@@ -364,57 +364,53 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
 
 
 def setup_toolbar(page, pids):
-    """Shot 01a: Sticky toolbar filter popover and batch scanner, tightly cropped to filter controls."""
+    """Shot 01a: Sticky toolbar filter popover and batch scanner, cleanly focused on filter controls."""
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
-        document.body.style.paddingLeft = '48px';
+        document.body.style.paddingLeft = '80px';
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
-        // Hide breadcrumbs, header, categories list, sidebar, alerts, and hints
-        document.querySelectorAll('.Plugin_MainTopHead, .Plugin_GeneralBreadcrumb, .breadcrumb, #breadcrumb, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .filterBoxContainer, .sidebarWrapper, .tpContentSidebar, .sidebar, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert').forEach(el => el.style.display = 'none');
-        // Isolate top row of cards so trailing rows do not get partially cut off
-        document.querySelectorAll('.mixedBrowsingListProduct:nth-of-type(n+4), .Plugin_Product:nth-of-type(n+4)').forEach(el => el.style.display = 'none');
-        // Position floating CTA right below the filter popover
+        // Cleanly hide background cards and host page noise
+        document.querySelectorAll('.Plugin_MainTopHead, .Plugin_GeneralBreadcrumb, .breadcrumb, #breadcrumb, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .filterBoxContainer, .sidebarWrapper, .tpContentSidebar, .sidebar, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .mainContent, #pageContent, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_CategoryList, [class*="Breadcrumb"], [class*="Hint"]').forEach(el => el.style.setProperty('display', 'none', 'important'));
+        // Hide right-hand toolbar groups so 01a focuses strictly on filter button and popover
+        document.querySelectorAll('.tp-group-view, .tp-group-deals, .tp-divider').forEach(el => el.style.setProperty('display', 'none', 'important'));
+        // Position floating CTA right below the filter popover with a clean gap
         const cta = document.getElementById('tp-floating-check-cta');
-        if (cta) {
+        const pop = document.getElementById('tp-bar-filter-popover');
+        if (cta && pop) {
+            const popRect = pop.getBoundingClientRect();
+            cta.style.position = 'absolute';
             cta.style.bottom = 'auto';
-            cta.style.top = '390px';
-            cta.style.left = '48px';
+            cta.style.top = (popRect.bottom + 24) + 'px';
+            cta.style.left = popRect.left + 'px';
             cta.style.right = 'auto';
             cta.style.width = 'max-content';
         }
     }""")
     page.wait_for_timeout(400)
 
-    tb_box = css_box(page, "#tp-suite-filter-bar")
+    btn_box = css_box(page, "#tp-bar-filter-btn")
     pop_box = css_box(page, "#tp-bar-filter-popover")
     cta_box = try_box(page, "#tp-floating-check-btn") or try_box(page, "#tp-floating-check-cta")
 
-    x0 = max(0, tb_box["x"] - 20)
-    x1 = pop_box["x"] + pop_box["width"] + 24
-    y0 = max(0, tb_box["y"] - 16)
-    y1 = (cta_box["y"] + cta_box["height"] + 28) if cta_box else (pop_box["y"] + pop_box["height"] + 28)
-
-    clip = {
-        "x": x0,
-        "y": y0,
-        "width": x1 - x0,
-        "height": y1 - y0,
-    }
+    boxes = [btn_box, pop_box]
+    if cta_box:
+        boxes.append(cta_box)
+    clip = union(boxes, pad=64)
 
     raw_bytes = page.screenshot(clip=clip)
     controls = [
-        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", [-40, 16]),
-        ("#tp-inline-negative-input", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", [-48, 0]),
-        ("[data-filter-row='min']", "Min-Angebote Stepper (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", [-48, 0]),
-        ("[data-filter-row='unchecked']", "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", [-48, 0]),
-        ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschliessen (geringe Historie)", [-48, 0]),
-        ("[data-filter-row='deal-disc']", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", [-48, 0]),
-        ("#tp-floating-check-btn", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", [-44, 0]),
+        ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", "outside-top"),
+        ("[data-filter-row='neg'] .tp-filter-label", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", "outside-left"),
+        ("[data-filter-row='min'] .tp-filter-label", "Min-Angebote (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", "outside-left"),
+        ("[data-filter-row='unchecked'] .tp-filter-label", "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", "outside-left"),
+        ("[data-filter-row='vortief'] .tp-filter-label", "Fallback-Tiefs ein-/ausschliessen (geringe Historie)", "outside-left"),
+        ("[data-filter-row='deal-disc'] .tp-filter-label", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", "outside-left"),
+        ("#tp-floating-check-btn", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", "outside-left"),
     ]
     callouts = []
     for item in controls:
         sel, cap = item[0], item[1]
-        anchor = item[2] if len(item) > 2 else "top-left"
+        anchor = item[2] if len(item) > 2 else "outside-left"
         box = try_box(page, sel)
         if box is None:
             continue
@@ -426,8 +422,11 @@ def setup_calc_popover(page, pids):
     """Shot 01b: Calculation popover featuring live glitch preview chart and mathematical parameters."""
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
-        document.body.style.paddingLeft = '60px';
-        document.querySelectorAll('.mainContent, .leftColumn, #pageContent, .mainTopHeadContentWrapper, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert').forEach(el => el.style.opacity = '0');
+        document.body.style.paddingLeft = '80px';
+        // Cleanly hide all background page content and categories
+        document.querySelectorAll('.mainContent, .leftColumn, #pageContent, .mainTopHeadContentWrapper, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .tpContentSidebar, .sidebarWrapper, .sidebar, .Plugin_CategoryList').forEach(el => el.style.setProperty('display', 'none', 'important'));
+        // Hide toolbar buttons except calc button so no partial buttons are visible
+        document.querySelectorAll('#tp-suite-filter-bar .tp-group:not(.tp-group-deals), #tp-suite-filter-bar .tp-divider, #tp-bar-bestpreise-btn').forEach(el => el.style.setProperty('display', 'none', 'important'));
     }""")
     page.locator("#tp-bar-calc-btn").click()
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
@@ -443,18 +442,19 @@ def setup_calc_popover(page, pids):
     }""")
     page.wait_for_timeout(400)
 
+    wrap_box = css_box(page, "#tp-bar-calc-wrap")
     pop_box = css_box(page, "#tp-bar-calc-popover")
-    clip = union([pop_box], pad=56)
+    clip = union([wrap_box, pop_box], pad=64)
     raw_bytes = page.screenshot(clip=clip)
 
     controls = [
-        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", [-50, 0]),
-        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", "outside-right"),
-        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", [-50, 0]),
-        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", "outside-right"),
-        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", [-50, 0]),
-        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", "outside-right"),
-        ("#tp-calc-preview svg", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", [-50, 20]),
+        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", "outside-left"),
+        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", "outside-left"),
+        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", "outside-left"),
+        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", "outside-left"),
+        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", "outside-left"),
+        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", "outside-left"),
+        ("#tp-calc-preview svg", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", [-54, 20]),
     ]
     callouts = []
     for item in controls:
@@ -517,14 +517,14 @@ def setup_feed_cards(page, pids):
     callouts = [
         (1, css_box(page, "#tp-bar-heat-btn"), "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
         (2, css_box(page, "#tp-bar-bestpreise-btn"), "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
-        (3, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", [-36, 16]),
-        (4, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)", [-36, 16]),
-        (5, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", [36, 16]),
-        (6, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-48, 12]),
-        (7, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", [-48, 16]),
-        (8, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-54, 0]),
+        (3, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", [48, 12]),
+        (4, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)", [48, 12]),
+        (5, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", [48, 12]),
+        (6, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", "outside-left"),
+        (7, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", [20, 24]),
+        (8, css_box(page, f"{deep} .tp-dealer-name .tp-dealer-icon"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-44, 0]),
         (9, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", [48, 0]),
-        (10, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", [40, -18]),
+        (10, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", [-36, -22]),
     ]
     return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
 
@@ -533,7 +533,7 @@ def setup_search_cards(page, pids):
     """Shot 03: Search catalog listing highlighting variant protection and inline verification pills."""
     page.evaluate("""() => {
         document.body.style.paddingLeft = '50px';
-        document.querySelectorAll('.Plugin_PriceSwitch, .f_Plugin_PriceSwitch, .Plugin_Sort, .f_Plugin_Sort, .filterBoxContainer, .breadcrumb, #breadcrumb, .Plugin_MainTopHead').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.Plugin_PriceSwitch, .f_Plugin_PriceSwitch, .Plugin_Sort, .f_Plugin_Sort, .filterBoxContainer, .breadcrumb, #breadcrumb, .Plugin_MainTopHead, [class*="ViewSwitch"], .top_content_wrapper, .Plugin_TopHead, .Plugin_CategoryList, .Plugin_CollItemHead').forEach(el => el.remove());
     }""")
     page.wait_for_timeout(200)
 
@@ -542,14 +542,17 @@ def setup_search_cards(page, pids):
 
     # Isolate the AirPods block: remove following and preceding items, sidebar, and pagination
     page.evaluate("""() => {
-        document.querySelectorAll('.Plugin_ProductCollItem ~ .Plugin_ProductCollItem, .Plugin_ProductCollItem ~ .Plugin_Product, .tpContentSidebar, .sidebarWrapper, .filterBoxContainer, .sidebar, .pagination, .Plugin_Pagination, .f_Plugin_Pagination, .Plugin_PriceSwitch').forEach(el => el.remove());
+        document.querySelectorAll('.Plugin_ProductCollItem ~ .Plugin_ProductCollItem, .Plugin_ProductCollItem ~ .Plugin_Product, .tpContentSidebar, .sidebarWrapper, .filterBoxContainer, .sidebar, .pagination, .Plugin_Pagination, .f_Plugin_Pagination, .Plugin_PriceSwitch, .f_Plugin_PriceSwitch').forEach(el => el.remove());
         let prev = document.querySelector('.Plugin_ProductCollItem')?.previousElementSibling;
         while (prev) {
-            prev.style.display = 'none';
-            prev = prev.previousElementSibling;
+            prev.remove();
+            prev = document.querySelector('.Plugin_ProductCollItem')?.previousElementSibling;
         }
         const coll = document.querySelector('.Plugin_ProductCollItem');
-        if (coll) coll.style.maxWidth = '780px';
+        if (coll) {
+            coll.style.maxWidth = '540px';
+            coll.style.margin = '0';
+        }
         // Wrap the günstigste Variante text inside a span so its bounding box tightly fits the label (not 440px container)
         const el = Array.from(document.querySelectorAll('.Plugin_ProductCollItem div')).find(d => d.textContent.includes('günstigste Variante') && !d.querySelector('div'));
         if (el) {
@@ -586,10 +589,10 @@ def setup_search_cards(page, pids):
 
     b_box = block.bounding_box()
     clip = {
-        "x": max(0, b_box["x"] - 48),
-        "y": max(0, b_box["y"] - 32),
-        "width": min(880, b_box["width"] + 72),
-        "height": b_box["height"] + 64,
+        "x": max(0, b_box["x"] - 56),
+        "y": max(0, b_box["y"] - 2),
+        "width": b_box["width"] + 112,
+        "height": b_box["height"] + 20,
     }
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}

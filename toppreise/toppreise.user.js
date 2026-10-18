@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.335
+// @version      2.18.336
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1184,13 +1184,14 @@ const STYLES_OVERLAYS = `
   }
   .tp-row-inactive { opacity: .55 !important; }
   .tp-row-inactive button:disabled { cursor: not-allowed !important; }
+  .tp-row-inactive #tp-bar-min-offers-group { display: none !important; }
   .tp-filter-note {
     font-size: var(--tp-fs-xs) !important;
     color: var(--tp-mut) !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    max-width: 155px !important;
+    flex: 1 1 auto !important;
   }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -9061,7 +9062,9 @@ const SHADOW_MODAL_STYLES = `
     if (minRow) {
       minRow.classList.toggle('tp-row-inactive', !pageHasOffers);
       const note = minRow.querySelector('[data-min-note]');
+      const stepper = minRow.querySelector('#tp-bar-min-offers-group');
       if (note) setTextIfChanged(note, pageHasOffers ? '' : 'inaktiv – keine Angebote auf Seite');
+      if (stepper) stepper.style.display = pageHasOffers ? 'inline-flex' : 'none';
       minRow.querySelectorAll('button').forEach(btn => { btn.disabled = !pageHasOffers; });
     }
 
@@ -10225,7 +10228,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.335';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.336';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

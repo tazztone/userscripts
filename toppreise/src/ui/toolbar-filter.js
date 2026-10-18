@@ -208,7 +208,9 @@ export function syncFilterRow(bar, counts, flags) {
   if (minRow) {
     minRow.classList.toggle('tp-row-inactive', !pageHasOffers);
     const note = minRow.querySelector('[data-min-note]');
+    const stepper = minRow.querySelector('#tp-bar-min-offers-group');
     if (note) setTextIfChanged(note, pageHasOffers ? '' : 'inaktiv – keine Angebote auf Seite');
+    if (stepper) stepper.style.display = pageHasOffers ? 'inline-flex' : 'none';
     minRow.querySelectorAll('button').forEach(btn => { btn.disabled = !pageHasOffers; });
   }
 
