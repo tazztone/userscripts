@@ -243,123 +243,143 @@
       </div>
     </section>
 
-    <!-- SECTION 3: INTERACTIVE DEAL CALCULATION SIMULATOR -->
+    <!-- SECTION 3: AUTHENTIC DEAL-SCORE & GLITCH-FILTER ENGINE -->
     <section class="scroll-mt-24" id="simulator">
       <div class="text-center max-w-3xl mx-auto mb-10">
         <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-primary font-mono text-xs mb-3">
-          <span class="material-symbols-outlined text-[16px]">calculate</span>
-          <span>Interactive Formula Engine</span>
+          <span class="material-symbols-outlined text-[16px]">query_stats</span>
+          <span id="sim-section-badge">Live-Historie &amp; Berechnungs-Engine</span>
         </div>
-        <h2 class="text-3xl md:text-4xl font-bold text-on-surface tracking-tight" id="sim-section-title">Simulate Authentic Deal Scoring</h2>
+        <h2 class="text-3xl md:text-4xl font-bold text-on-surface tracking-tight" id="sim-section-title">Authentische Deal-Score &amp; Glitch-Simulation</h2>
         <p class="text-sm md:text-base text-on-surface-variant mt-2" id="sim-section-subtitle">
-          Test how Toppreise Suite scores authentic all-time lows and exposes deceptive retail inflation in Swiss Francs (CHF).
+          Teste die Berechnungslogik von Toppreise Suite direkt an echten Toppreise.ch Preishistorien mit lückenloser Glitch-Filterung.
         </p>
       </div>
 
       <!-- Simulator Glass Card -->
-      <div class="glass-panel rounded-2xl p-6 md:p-8 relative border border-outline/40 shadow-2xl max-w-5xl mx-auto">
-        <div class="flex flex-wrap items-center justify-between pb-5 mb-6 border-b border-outline/30 gap-4">
-          <div class="flex items-center space-x-2">
-            <span class="w-3 h-3 rounded-full bg-primary"></span>
-            <span class="w-3 h-3 rounded-full bg-secondary"></span>
-            <span class="w-3 h-3 rounded-full bg-tertiary"></span>
-            <span class="font-mono text-xs text-on-surface-variant ml-2">toppreise_calculator.js [Verified Engine]</span>
+      <div class="glass-panel rounded-2xl p-6 md:p-8 relative border border-outline/40 shadow-2xl max-w-5xl mx-auto space-y-6">
+        <!-- Engine Header Bar: Preset Select & Telemetry -->
+        <div class="flex flex-wrap items-center justify-between pb-4 border-b border-outline/30 gap-4">
+          <div class="flex items-center gap-3">
+            <label class="font-mono text-xs text-on-surface font-semibold flex items-center gap-1.5" for="sim-preset-select">
+              <span class="material-symbols-outlined text-[18px] text-primary">history</span>
+              <span id="sim-preset-label">Reale Historie:</span>
+            </label>
+            <select id="sim-preset-select" class="bg-surface-container border border-outline hover:border-primary/50 text-white rounded-lg px-3 py-1.5 font-mono text-xs outline-none focus:border-primary">
+              <option value="s26" selected>📱 Galaxy S26 Ultra (230 Tage)</option>
+              <option value="ssd990">💾 Samsung 990 PRO (4 Jahre)</option>
+              <option value="r5">📷 Canon EOS R5 (6 Jahre)</option>
+              <option value="synthetic">🧪 Glitch-Demo (Marketplace-Spikes)</option>
+            </select>
           </div>
-          <div class="flex items-center gap-2 font-mono text-xs text-tertiary">
-            <span class="material-symbols-outlined text-[16px]">lock_reset</span>
-            <span>Zero Tracking • 100% Client-Side</span>
+
+          <div class="flex items-center gap-3 font-mono text-xs text-on-surface-variant">
+            <span class="px-2.5 py-1 rounded bg-surface-container border border-outline flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-secondary"></span>
+              <span id="sim-telemetry-points">230 Punkte aktiv</span>
+            </span>
+            <span class="px-2.5 py-1 rounded bg-surface-container border border-outline text-error flex items-center gap-1.5" id="sim-telemetry-glitches-wrap">
+              <span class="material-symbols-outlined text-[14px]">cleaning_services</span>
+              <span id="sim-telemetry-glitches">0 Glitches gefiltert</span>
+            </span>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <!-- Left Column: Inputs -->
-          <div class="lg:col-span-5 space-y-5">
-            <!-- Merchant Selection -->
-            <div>
-              <label class="block font-mono text-xs text-on-surface mb-2">Simulated Swiss Merchant</label>
-              <div class="grid grid-cols-4 gap-2 text-xs font-mono">
-                <button class="sim-store-btn px-2 py-2 rounded-xl bg-surface-container-high border border-primary/60 text-primary font-semibold flex items-center justify-center transition-all" type="button">Digitec</button>
-                <button class="sim-store-btn px-2 py-2 rounded-xl bg-surface-container border border-outline text-on-surface-variant flex items-center justify-center hover:border-on-surface-variant transition-all" type="button">Galaxus</button>
-                <button class="sim-store-btn px-2 py-2 rounded-xl bg-surface-container border border-outline text-on-surface-variant flex items-center justify-center hover:border-on-surface-variant transition-all" type="button">Brack.ch</button>
-                <button class="sim-store-btn px-2 py-2 rounded-xl bg-surface-container border border-outline text-on-surface-variant flex items-center justify-center hover:border-on-surface-variant transition-all" type="button">MediaMarkt</button>
-              </div>
+        <!-- Real SVG Chart Display -->
+        <div class="bg-[#0b0d12] rounded-xl border border-outline/30 p-3 sm:p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2 px-1 text-[11px] font-mono text-on-surface-variant">
+            <div class="flex items-center gap-3 flex-wrap">
+              <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-[#3b82f6]"></span> <span id="lbl-chart-trace">Kursverlauf</span></span>
+              <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-[#64748b] border-t border-dashed"></span> <span id="lbl-chart-med">Rolling Median</span></span>
+              <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-[#feb700] border-t border-dashed"></span> <span id="lbl-chart-rec">Rekordtief</span></span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-[#3b82f6]/20 border border-[#3b82f6]/40 rounded-sm"></span> <span id="lbl-chart-band">Toleranzband</span></span>
+              <span class="flex items-center gap-1 text-error"><span class="font-bold">✕</span> <span id="lbl-chart-glitch">Ignorierte Glitches</span></span>
             </div>
+            <div class="text-[10px] text-slate-500 font-mono hidden sm:block">Toppreise Suite SVG Engine</div>
+          </div>
 
-            <!-- Current Offer & Claimed Cut -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block font-mono text-xs text-on-surface mb-1" for="input-price">Current Price (CHF)</label>
-                <div class="relative">
-                  <span class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-on-surface-variant">CHF</span>
-                  <input class="w-full bg-surface-container-lowest border border-outline rounded-xl pl-12 pr-3 py-2 font-mono text-lg font-bold text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none" id="input-price" step="1" type="number" value="389"/>
-                </div>
-              </div>
-              <div>
-                <label class="block font-mono text-xs text-on-surface mb-1" for="input-claimed">Claimed Discount</label>
-                <input class="w-full bg-surface-container-lowest border border-outline rounded-xl px-3 py-2 font-mono text-lg font-bold text-error focus:border-primary focus:ring-1 focus:ring-primary outline-none" id="input-claimed" type="text" value="-35%"/>
-              </div>
+          <div class="w-full h-[180px] sm:h-[210px] relative">
+            <svg id="sim-chart-svg" viewBox="0 0 700 200" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+              <!-- Dynamically rendered via SVG Engine -->
+            </svg>
+          </div>
+        </div>
+
+        <!-- Interactive Sliders Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <!-- 1. Simulated Offer Price -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs font-mono">
+              <label for="sim-input-price" class="text-on-surface font-semibold" id="lbl-price">Angebotspreis (CHF):</label>
+              <span class="text-primary font-bold" id="sim-price-display">CHF 799.00</span>
             </div>
-
-            <!-- Historical Benchmarks -->
-            <div class="p-4 rounded-xl bg-surface-container-low border border-outline/30 space-y-3 font-mono text-xs">
-              <div class="flex justify-between items-center">
-                <span class="text-on-surface-variant">Historical All-Time Low:</span>
-                <span class="text-tertiary font-bold">CHF 320.00</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-on-surface-variant">1-Year Rolling Median (Ø):</span>
-                <span class="text-on-surface font-bold">CHF 460.00</span>
-              </div>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-on-surface-variant">CHF</span>
+              <input type="number" id="sim-input-price" value="799" step="1" class="w-full bg-surface-container-lowest border border-outline rounded-xl pl-12 pr-3 py-2 font-mono text-base font-bold text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none"/>
             </div>
+            <p class="text-[11px] font-mono text-on-surface-variant" id="desc-price">Ändere den Preis, um den Schwellenübergang zum Allzeit-Tief zu testen.</p>
+          </div>
 
-            <!-- Deal Weighting Slider -->
-            <div class="p-4 rounded-xl bg-surface-container-low border border-outline/30 space-y-2">
-              <div class="flex justify-between items-center text-xs font-mono">
-                <span class="text-on-surface-variant">Deal Weighting (⚖️ Rekord vs Ø):</span>
-                <span class="text-secondary font-bold" id="slider-weight-val">50% Rekord / 50% Ø</span>
-              </div>
-              <input class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary" id="weight-slider" max="100" min="0" type="range" value="50"/>
-              <p class="text-[11px] font-mono text-on-surface-variant/80">Balances score between breakthrough margin vs. record low and rolling median savings.</p>
+          <!-- 2. Deal Weighting Slider -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs font-mono">
+              <span class="text-on-surface font-semibold" id="lbl-weight">Gewichtung (⚖️ Rekord vs Ø):</span>
+              <span class="text-secondary font-bold" id="sim-weight-val">50% / 50%</span>
+            </div>
+            <input type="range" id="sim-weight-slider" min="0" max="100" value="50" class="w-full h-2 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary mt-2"/>
+            <div class="flex justify-between text-[10px] font-mono text-on-surface-variant">
+              <span>100% Median</span>
+              <span>50/50</span>
+              <span>100% Rekord</span>
             </div>
           </div>
 
-          <!-- Right Column: Live Telemetry & Verified Breakdown -->
-          <div class="lg:col-span-7 space-y-4">
-            <!-- Simulated Deal Card Result -->
-            <div class="p-5 rounded-xl border transition-all" id="sim-result-box">
-              <div class="flex items-center justify-between pb-3 border-b border-outline/30">
-                <div class="flex items-center gap-2">
-                  <span class="w-3 h-3 rounded-full" id="sim-indicator-dot"></span>
-                  <span class="font-bold text-base text-on-surface" id="sim-status-title">Authentic Bargain Detected</span>
-                </div>
-                <span class="px-2.5 py-0.5 rounded text-xs font-mono font-bold" id="sim-badge-pill">-15% Deal</span>
-              </div>
+          <!-- 3. Glitch Filter Controls -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs font-mono">
+              <span class="text-on-surface font-semibold" id="lbl-band">Glitch-Toleranz (±Band):</span>
+              <span class="text-tertiary font-bold" id="sim-band-val">±50%</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="range" id="sim-band-slider" min="20" max="80" step="5" value="50" class="w-full h-2 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-tertiary"/>
+              <label class="flex items-center gap-1.5 cursor-pointer text-xs font-mono text-on-surface whitespace-nowrap">
+                <input type="checkbox" id="sim-glitch-toggle" checked class="rounded border-outline text-primary focus:ring-0 cursor-pointer"/>
+                <span id="lbl-toggle">Aktiv</span>
+              </label>
+            </div>
+            <p class="text-[11px] font-mono text-on-surface-variant" id="desc-band">Filtert Marketplace-Fake-Rabatte und kurzzeitige Preisfehler.</p>
+          </div>
+        </div>
 
-              <div class="mt-4 space-y-3 font-mono text-xs">
-                <div class="flex justify-between items-center">
-                  <span class="text-on-surface-variant">Savings vs 1-Year Median (CHF 460):</span>
-                  <span class="text-tertiary font-bold" id="sim-median-saving">-15.4%</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-on-surface-variant">Distance vs Previous Record Low (CHF 320):</span>
-                  <span class="text-on-surface font-bold" id="sim-record-distance">+21.5% above record</span>
-                </div>
-                <div class="pt-3 border-t border-outline/30 flex justify-between items-center text-sm">
-                  <span class="font-semibold text-on-surface">Weighted Deal Score (💎):</span>
-                  <span class="font-extrabold text-lg text-primary" id="sim-final-score">-15%</span>
-                </div>
-              </div>
+        <!-- Telemetry Verdict & Formula Card -->
+        <div class="p-5 rounded-xl border border-outline/40 bg-surface-container-low transition-all" id="sim-score-card">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-outline/20">
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full bg-primary" id="sim-score-dot"></span>
+              <span class="font-bold text-base text-white" id="sim-score-headline">Verifizierter Allzeit-Tiefstpreis!</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded text-xs font-mono font-bold bg-primary text-white" id="sim-badge-score">💎 -15% Deal</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 font-mono text-xs">
+            <div class="p-3 rounded-lg bg-surface-container/60 border border-outline/20 space-y-1">
+              <div class="text-on-surface-variant" id="lbl-dist-rec">Abstand zu Allzeit-Tief:</div>
+              <div class="text-base font-bold text-white" id="sim-res-record">0.0% (am Rekord)</div>
+              <div class="text-[10px] text-slate-400" id="sim-sub-record">Bisheriges Tief: CHF 799.00</div>
             </div>
 
-            <!-- Dynamic Alert Explanation -->
-            <div class="p-4 rounded-xl bg-surface-container-low border border-outline/30 flex items-start gap-3">
-              <span class="material-symbols-outlined text-[24px] text-secondary mt-0.5" id="sim-alert-icon">info</span>
-              <div>
-                <h4 class="text-sm font-semibold text-secondary" id="sim-alert-title">Deceptive Markup Shield Active</h4>
-                <p class="text-xs text-on-surface-variant mt-1" id="sim-alert-desc">
-                  The retailer's claimed -35% discount is calculated against an obsolete launch MSRP. Toppreise Suite exposes that the authentic weighted discount is actually -15%.
-                </p>
-              </div>
+            <div class="p-3 rounded-lg bg-surface-container/60 border border-outline/20 space-y-1">
+              <div class="text-on-surface-variant" id="lbl-dist-med">Ersparnis vs. Rolling Median:</div>
+              <div class="text-base font-bold text-secondary" id="sim-res-median">-14.2%</div>
+              <div class="text-[10px] text-slate-400" id="sim-sub-median">Bereinigter Median: CHF 931.70</div>
+            </div>
+
+            <div class="p-3 rounded-lg bg-surface-container/60 border border-outline/20 space-y-1">
+              <div class="text-on-surface-variant" id="lbl-dist-blend">Gewichteter Deal-Score:</div>
+              <div class="text-base font-bold text-primary" id="sim-res-blend">-14% Deal</div>
+              <div class="text-[10px] text-slate-400" id="sim-sub-blend">50% Rekord / 50% Median</div>
             </div>
           </div>
         </div>
@@ -380,66 +400,143 @@
       </div>
 
       <!-- Comparison Slider Box -->
-      <div class="comparison-container max-w-5xl mx-auto rounded-2xl border border-outline/50 shadow-2xl bg-surface-container-lowest h-[400px] relative" id="compareSliderWrap">
+      <div class="comparison-container max-w-4xl mx-auto rounded-2xl border border-outline/50 shadow-2xl bg-[#0e1015] h-[450px] sm:h-[420px] md:h-[400px] relative overflow-hidden select-none" id="compareSliderWrap">
         <!-- Stock Toppreise (Base / Right) -->
-        <div class="absolute inset-0 w-full h-full p-6 md:p-10 bg-[#16161a] flex flex-col justify-between">
-          <div class="flex items-center justify-between">
-            <span class="px-3 py-1 rounded bg-error/20 border border-error/40 text-error font-mono text-xs font-semibold uppercase">
-              Standard Toppreise (Unverified)
+        <div class="absolute inset-0 w-full h-full p-4 sm:p-6 md:p-8 flex flex-col justify-between bg-[#121318]">
+          <div class="flex items-center justify-between pb-2 border-b border-white/5">
+            <span class="px-2.5 py-1 rounded bg-error/20 border border-error/40 text-error font-mono text-xs font-semibold uppercase flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+              Standard Toppreise (Ungeprüft)
             </span>
             <span class="text-xs font-mono text-error flex items-center gap-1">
               <span class="material-symbols-outlined text-[16px]">warning</span>
-              Fake Discount Unchecked
+              Veralteter UVP-Streichpreis
             </span>
           </div>
 
-          <div class="max-w-md space-y-4">
-            <div class="text-lg font-bold text-on-surface">AMD Ryzen 7 7800X3D Processor</div>
-            <div class="flex items-baseline gap-3">
-              <span class="text-3xl font-mono font-bold text-on-surface">CHF 379.00</span>
-              <span class="text-base font-mono line-through text-on-surface-variant">CHF 529.00</span>
-              <span class="px-2 py-0.5 rounded bg-error/30 text-error font-mono text-xs font-bold">-28% Rabatt</span>
+          <!-- Authentic Native Card Clone -->
+          <div class="bg-[#1a1c24] border border-[#2b2d3c] rounded-xl p-4 sm:p-5 relative shadow-md">
+            <div class="flex items-start gap-4">
+              <!-- Thumbnail -->
+              <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-[#252834] border border-white/5 flex items-center justify-center flex-shrink-0 text-slate-400">
+                <span class="material-symbols-outlined text-[36px]">smartphone</span>
+              </div>
+              <!-- Meta -->
+              <div class="space-y-1.5 pr-14 flex-1">
+                <div class="text-[11px] font-mono text-slate-400">Smartphones &amp; Mobiltelefone</div>
+                <div class="text-base sm:text-lg font-bold text-white leading-snug">Samsung Galaxy S24 Ultra 512GB (Titanium Black)</div>
+                <div class="flex items-baseline gap-2.5 flex-wrap">
+                  <span class="text-xl sm:text-2xl font-mono font-bold text-[#10b981]">CHF 1'049.00</span>
+                  <span class="text-xs sm:text-sm font-mono line-through text-slate-400">UVP CHF 1'699.00</span>
+                </div>
+                <div class="text-xs font-mono text-slate-300 pt-1 flex items-center justify-between flex-wrap gap-2">
+                  <span>Günstigster Händler: <span class="text-white font-semibold">Digitec</span> (CHF 1'049.00)</span>
+                  <span class="text-slate-400">24 Angebote</span>
+                </div>
+              </div>
             </div>
-            <p class="text-xs text-on-surface-variant">
-              The shop claims a -28% discount vs an obsolete launch price. You have no way of knowing if this is actually a good deal or an inflated markup.
-            </p>
+
+            <!-- Native Red Badge -->
+            <div class="absolute top-4 right-4 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#dc2626] text-white flex flex-col items-center justify-center text-center shadow-lg pointer-events-none">
+              <span class="text-[8px] sm:text-[9px] uppercase font-semibold leading-tight">Differenz</span>
+              <p class="text-xs sm:text-sm font-extrabold leading-tight">-38%</p>
+            </div>
           </div>
 
-          <div class="text-xs font-mono text-on-surface-variant">← Drag slider left to uncover Toppreise Suite verification</div>
+          <div class="text-xs font-mono text-slate-400 flex items-center justify-between">
+            <span class="flex items-center gap-1.5 text-error">
+              <span class="material-symbols-outlined text-[15px]">info</span>
+              Ungeprüfte Differenz gegen 2024-Startpreis. Kein Nachweis echter Ersparnis.
+            </span>
+            <span class="hidden sm:inline text-slate-500">← Schieberegler nach links ziehen</span>
+          </div>
         </div>
 
         <!-- Toppreise Suite Overlay (Left / Top) -->
-        <div class="absolute inset-y-0 left-0 overflow-hidden bg-[#1c1d24] border-r-2 border-primary shadow-[0_0_20px_rgba(255,79,114,0.5)] flex flex-col justify-between p-6 md:p-10" id="compareOverlay" style="width: 50%;">
-          <div class="w-[700px] max-w-none flex flex-col justify-between h-full">
-            <div class="flex items-center justify-between">
-              <span class="px-3 py-1 rounded bg-primary/20 border border-primary/40 text-primary font-mono text-xs font-semibold uppercase">
-                Toppreise Suite Verified
+        <div class="absolute inset-y-0 left-0 overflow-hidden bg-[#161720] border-r-2 border-primary shadow-[0_0_24px_rgba(255,79,114,0.6)] flex flex-col justify-between" id="compareOverlay" style="width: 50%;">
+          <div class="w-[760px] sm:w-[896px] max-w-none p-4 sm:p-6 md:p-8 flex flex-col justify-between h-full">
+            <div class="flex items-center justify-between pb-2 border-b border-primary/20">
+              <span class="px-2.5 py-1 rounded bg-primary/20 border border-primary/40 text-primary font-mono text-xs font-semibold uppercase flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                Toppreise Suite Verifiziert
               </span>
               <span class="text-xs font-mono text-tertiary flex items-center gap-1">
                 <span class="material-symbols-outlined text-[16px]">verified</span>
-                Verified All-Time Low
+                Verifizierter Allzeit-Tiefstpreis
               </span>
             </div>
 
-            <div class="max-w-md space-y-4">
-              <div class="text-lg font-bold text-on-surface">AMD Ryzen 7 7800X3D Processor</div>
-              <div class="flex items-baseline gap-3">
-                <span class="text-3xl font-mono font-bold text-tertiary">CHF 379.00</span>
-                <span class="px-2 py-0.5 rounded bg-primary/30 border border-primary/50 text-primary font-mono text-xs font-bold neon-ruby-glow">💎 -14% Rekord-Tief</span>
-                <span class="px-2 py-0.5 rounded bg-surface-container font-mono text-xs text-secondary">Ø 1J: CHF 440</span>
+            <!-- Suite Decorated Card Clone -->
+            <div class="bg-[#1e202b] border border-primary/60 rounded-xl p-4 sm:p-5 relative shadow-[0_0_24px_rgba(255,79,114,0.35)]">
+              <div class="flex items-start gap-4">
+                <!-- Thumbnail -->
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-[#252834] border border-primary/30 flex items-center justify-center flex-shrink-0 text-primary">
+                  <span class="material-symbols-outlined text-[36px]">smartphone</span>
+                </div>
+                <!-- Meta -->
+                <div class="space-y-1.5 pr-14 flex-1">
+                  <div class="text-[11px] font-mono text-primary flex items-center gap-2">
+                    <span>Smartphones &amp; Mobiltelefone</span>
+                    <span class="px-1.5 py-0.2 rounded bg-primary/20 text-primary text-[10px] font-bold">HISTORIE GEPRÜFT</span>
+                  </div>
+                  <div class="text-base sm:text-lg font-bold text-white leading-snug">Samsung Galaxy S24 Ultra 512GB (Titanium Black)</div>
+                  
+                  <!-- Price & Subline -->
+                  <div class="space-y-1">
+                    <div class="flex items-baseline gap-2.5 flex-wrap">
+                      <span class="text-xl sm:text-2xl font-mono font-bold text-tertiary">CHF 1'049.00</span>
+                      <span class="px-2 py-0.5 rounded bg-primary/30 border border-primary/50 text-primary font-mono text-xs font-bold neon-ruby-glow">💎 -15% Deal</span>
+                    </div>
+                    <!-- Authentic Subline -->
+                    <div class="text-xs font-mono text-secondary flex items-center gap-1.5 flex-wrap">
+                      <span>📉 Vorheriges Tief: CHF 1'049.00 (-15%)</span>
+                      <span class="text-slate-500">·</span>
+                      <span>Ø 1J: CHF 1'235.00 (-15%)</span>
+                    </div>
+                  </div>
+
+                  <!-- Sparkline & Direct Link -->
+                  <div class="pt-1.5 flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+                    <div class="flex items-center gap-2 text-slate-300">
+                      <span class="px-1.5 py-0.5 rounded bg-surface-container border border-outline text-[11px] text-primary flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+                        Direktlink
+                      </span>
+                      <span>Digitec (Keine Umleitung)</span>
+                    </div>
+
+                    <!-- Mini Sparkline SVG -->
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[10px] text-slate-400">30T Trend:</span>
+                      <svg width="64" height="18" viewBox="0 0 64 18" class="overflow-visible">
+                        <polyline points="0,14 12,13 24,15 36,11 48,12 60,3" fill="none" stroke="#ff4f72" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="60" cy="3" r="2.5" fill="#ff4f72"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p class="text-xs text-on-surface-variant">
-                Verified against 365-day price history! Glitch filter rejected 2 marketplace anomalies. Directly links to cheapest dealer without affiliate redirects.
-              </p>
+
+              <!-- Suite Ruby Ribbon -->
+              <div class="absolute top-4 right-4 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-[#ff4f72] to-[#b3143c] text-white flex flex-col items-center justify-center text-center shadow-[0_0_16px_rgba(255,79,114,0.85)] pointer-events-none">
+                <span class="text-[9px] leading-tight">💎</span>
+                <p class="text-xs sm:text-sm font-extrabold leading-tight">-15%</p>
+                <span class="text-[7px] sm:text-[8px] uppercase tracking-tighter opacity-80">Rekord</span>
+              </div>
             </div>
 
-            <div class="text-xs font-mono text-primary font-semibold">1-Click Discord Share • Automated Price Alarm • Heatmap Active</div>
+            <div class="text-xs font-mono text-tertiary flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[15px]">check_circle</span>
+                230 Tage Kursverlauf geprüft · 2 Marketplace-Ausreisser ignoriert · 1-Klick Discord Share
+              </span>
+            </div>
           </div>
         </div>
 
         <!-- Draggable Handle Bar -->
         <div class="absolute top-0 bottom-0 -ml-4 w-8 flex items-center justify-center cursor-ew-resize z-20" id="compareHandle" style="left: 50%;">
-          <div class="w-8 h-8 rounded-full bg-primary-container text-white flex items-center justify-center shadow-lg border border-white/20">
+          <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shadow-2xl border border-white/40 neon-ruby-glow">
             <span class="material-symbols-outlined text-[18px]">code</span>
           </div>
         </div>
@@ -641,10 +738,10 @@
         videoSectionSubtitle: "Watch how authentic price verification and deceptive markup shields activate seamlessly on Toppreise.ch.",
         tabShort: "Quick Demo (1 min)",
         tabExplainer: "Full Walkthrough (7 min)",
-        simSectionTitle: "Simulate Authentic Deal Scoring",
-        simSectionSubtitle: "Test how Toppreise Suite scores authentic all-time lows and exposes deceptive retail inflation in Swiss Francs (CHF).",
+        simSectionTitle: "Authentic Deal Score & Glitch Simulation",
+        simSectionSubtitle: "Test Toppreise Suite verification directly on authentic Toppreise.ch price histories with moving-median glitch rejection.",
         compSectionTitle: "Stock Toppreise vs. Toppreise Suite",
-        compSectionSubtitle: "Drag the split slider to compare unverified retail gaslighting with verified price intelligence.",
+        compSectionSubtitle: "Drag the split slider to compare unverified retail MSRP markups with authentic historical price intelligence.",
         featuresTitle: "Engineered for Smart Shoppers",
         featuresSubtitle: "Never overpay again. Authentic deal verification, zero tracking redirects.",
         f1Title: "Real Deal Verification",
@@ -683,10 +780,10 @@
         videoSectionSubtitle: "Erlebe, wie die Preisverifikation und die Scheinrabatt-Erkennung direkt auf Toppreise.ch greifen.",
         tabShort: "Kurzübersicht (1 Min)",
         tabExplainer: "Ausführliches Video (7 Min)",
-        simSectionTitle: "Deal-Score & Berechnungen simulieren",
-        simSectionSubtitle: "Teste, wie Toppreise Suite Allzeit-Tiefs bewertet und Scheinrabatte in Schweizer Franken (CHF) entlarvt.",
+        simSectionTitle: "Authentische Deal-Score & Glitch-Simulation",
+        simSectionSubtitle: "Teste die Berechnungslogik von Toppreise Suite direkt an echten Toppreise.ch Preishistorien mit lückenloser Glitch-Filterung.",
         compSectionTitle: "Standard-Toppreise vs. Toppreise Suite",
-        compSectionSubtitle: "Verschiebe den Slider, um unüberprüfte Rabattversprechen mit verifizierten Daten zu vergleichen.",
+        compSectionSubtitle: "Verschiebe den Slider, um unüberprüfte UVP-Streichpreise mit verifizierten Preisdaten zu vergleichen.",
         featuresTitle: "Entwickelt für clevere Schnäppchenjäger",
         featuresSubtitle: "Nie wieder überzahlen. Verifizierte Signale, ohne Tracking-Umleitungen.",
         f1Title: "Echte Deal-Verifikation",
@@ -932,104 +1029,248 @@
       }
     });
 
-    // Simulator Interactive Calculation Logic
-    const priceInput = document.getElementById('input-price');
-    const weightSlider = document.getElementById('weight-slider');
-    const sliderWeightVal = document.getElementById('slider-weight-val');
+    // Real Presets RLE from toppreise/src/ui/calc-preset-data.js
+    const PRESET_S26 = [2,1249,3,1188.05,1,1131.8,1,1136.75,1,1188.05,1,1112.1,3,1079.6,1,1042.25,1,1029.35,1,1030.6,1,1021.45,2,1041.75,1,1010.55,1,1030.45,1,1033.1,1,1032.3,1,1012,1,1010.2,2,1025.55,1,1011.65,1,1005.35,1,997.5,1,996.2,1,1008.7,2,1014.35,1,1013.75,1,1012.45,1,989.15,1,987.7,1,987.75,1,987.25,1,1026.5,1,1026.1,1,1027.2,1,1006.9,1,1032.85,1,992.65,2,992.4,1,971,1,1015.65,1,999.4,1,990.15,3,981.7,1,969.4,1,961.75,1,956.6,1,956.75,1,957.3,1,955.45,1,949.3,1,950,1,944.1,1,957.9,1,964.35,1,939.6,1,939.55,1,939.35,1,939.4,1,945.95,1,946.45,1,947.75,3,949.75,1,945.65,1,937.75,1,943.4,1,946.95,3,944.25,1,943.9,1,946.75,1,936.75,1,934.7,4,937.4,1,937.65,1,943.25,1,935.85,3,927.65,1,926.45,2,934,2,933.7,1,933.9,1,935.6,8,934,1,942.25,1,934,1,931.7,2,927.95,1,927.75,1,935.6,1,934.75,1,930.1,1,936.15,1,930.95,1,933.85,1,924.7,1,928.1,2,927,1,924.95,3,923.65,1,924.25,2,925,1,924.35,1,924.4,2,921.95,1,928.5,1,924.85,1,921.7,1,920.5,3,923.5,1,923.95,1,928,1,926.5,4,927.4,1,919.2,1,920.8,1,921.5,1,922.25,2,917.55,1,918.1,1,915.85,1,915.6,1,915.7,1,914.9,3,918.95,1,917.45,1,917.9,1,919.1,1,920.2,1,928.7,1,921.45,1,922.05,1,922.55,1,921.55,5,928.7,1,927,1,928.7,1,928.2,9,928.7,9,929,1,847,3,929,1,960.35,6,929,3,948.65,4,949,4,948.65,1,956.5,1,959,1,956.8,1,955.75,2,953.25,1,959];
+    const PRESET_SYNTHETIC = [37,429,1,425,1,422,1,428,1,419,1,424,1,421,1,427,1,423,1,418,1,426,1,150,1,429,1,424,1,420,1,426,1,890,1,422,1,419,1,425,1,421,1,427,1,423,1,420];
+    const PRESET_SSD990 = [3,310.1,1,296.2,3,294.75,1,293.4,1,292.9,1,291.25,1,291.5,6,291.65,1,288.4,3,291.65,1,287.9,1,290.2,1,288.5,1,287.75,3,290.5,4,291.65,1,300.9,1,290,1,294.4,1,293.85,1,294.4,1,293.5,1,293.8,3,296.8,1,296.7,1,296.85,1,296.9,21,296.8,2,296.9,2,295.75,1,293,2,292,1,291.6,6,292,1,290,1,291.85,2,292,1,290.3,1,287.35,2,284.95,2,285.2,1,285.25,1,285.2,1,284.95,1,285,6,284.95,1,276.8,1,292.1,1,284.85,2,284.9,1,283.09,1,282.23,1,281.71,1,282.17,4,282.6,1,283.12,1,282.49,1,278.25,1,277.9,1,274.25,6,274.3,1,274.35,3,274.3,1,275.8,1,278.75,5,279,1,277.4,1,277,1,275.7,4,276,1,277,1,275,1,275.35,1,275.4,1,275.35,1,275.05,1,275.5,2,217,1,216.9,2,216.95,1,216.9,1,216.85,6,215.35,1,215,1,215.05,1,212.65,1,212.9,2,212.2,1,212.15,1,211.75,1,212.55,1,211.6,2,212.1,1,212.15,1,212.75,1,212.45,1,207.7,1,206.2,1,205.25,1,205.8,1,205.75,1,205.35,1,205,1,201.25,1,200.95,4,199.65,1,203.5,1,202.31,1,208.78,5,208,4,189,1,208,7,189,2,208,1,207.99,1,207.5,5,205,2,203.65,3,203.1,1,203,1,203.1,1,199.4,1,206.08,1,198.9,1,198.7,1,198.65,1,205.86,1,187.3,1,186.95,1,202,3,188.15,8,178,1,179,2,178.9,12,178,1,177.95,1,178,4,164.75,1,164.46,1,164.25,1,164.6,1,164.65,1,164.5,1,164.35,1,164.2,1,160.4,1,160.35,1,160.9,3,160.25,1,160.45,1,161.6,1,161.35,1,161.3,3,160.14,1,160.17,1,158.25,1,157.8,1,157.75,1,158.55,2,158,1,157.4,1,157.45,1,154.35,1,158.2,3,157.35,1,157.3,1,157.15,1,157,2,149,1,153.1,1,154,1,153.9,1,158,1,156.8,1,156.65,1,156.5,1,156.35,1,156.2,1,156.05,1,156.2,1,155.6,1,154.25,1,152.55,1,152.5,1,152.55,1,152.4,1,149.15,1,149.75,1,149.65,3,149.75,2,150.5,1,152,1,155.02,3,155.33,1,155.76,1,155.15,1,155.05,1,155.5,2,155.63,1,155.4,1,154.85,1,155.13,1,155.44,1,153.05,3,151.1,1,151.6,1,151.3,1,151.25,1,150.95,3,151.3,1,151.2,1,151.45,1,151.3,1,151.85,1,151.5,2,151.6,1,148.55,11,129,2,151,1,150.9,1,151.9,2,151,4,152.9,6,153.9,1,149.5,1,149.75,1,149.6,1,149.85,3,149.75,1,152.71,1,147.24,1,147.62,1,147.32,1,147.23,2,145.96,1,132.87,1,149.9,1,149.75,1,139,1,136.63,2,136.8,1,136.97,1,137.73,1,137.04,1,137.09,1,137.38,2,137.96,1,138.1,1,138.46,1,143.54,1,141.62,1,142.45,1,144.75,1,143.09,1,143.78,1,143.8,1,143.71,1,139.3,1,143.9,1,140.45,1,143.93,2,151,1,153.9,1,152.9,1,122.18,2,122.47,1,122.39,1,122.66,1,133.52,1,133.29,1,138.03,1,139.83,2,153,1,164.99,1,148.33,1,147.26,1,155.65,2,149.77,1,149.88,1,154.04,1,149.15,1,148.85,3,149.4,3,161,1,160.9,1,161,4,161.9,2,152.9,6,151.9,1,152.9,5,149.9,7,150.9,5,156.9,1,165.9,2,161.9,4,162.9,1,167.85,1,168.4,1,168,1,153.71,1,143.46,1,143.18,1,153.32,1,152,1,142.48,1,152,1,142.39,1,152,3,151.9,2,152,1,153.25,1,154.15,1,155.05,1,155.95,1,163.3,1,154.2,1,155.22,1,155.24,1,150.77,2,155.18,1,151.04,1,145.11,1,162,6,163.3,1,155.76,1,159,1,156.3,4,154,1,152.62,5,148.9,2,141.9,1,142.35,3,142.3,1,142.35,2,142.8,1,143.35,3,144.25,1,143.55,1,144.2,1,150.63,1,144.85,4,144,1,143.7,1,144.65,1,144.8,1,169.5,2,168,2,146,12,152.1,1,163,1,169.25,1,170,1,160.54,1,161,2,160.78,1,148.44,1,148.1,2,148.83,1,149.04,1,148.15,1,147.82,1,148.6,1,148.8,1,144.55,1,148.75,4,148.85,1,149.4,2,146.92,1,166.1,1,162,1,164,1,163,1,167.1,1,166.05,1,166.3,3,166,2,165.7,1,165.35,1,164.9,3,163.35,1,163.4,1,161.88,1,161.9,1,161.61,1,158.89,3,166.6,1,157.68,1,157.99,1,158.43,3,156.23,1,156.68,1,157.11,1,157.01,1,157.67,3,157.52,1,158.33,1,157.85,2,157.9,3,159.45,1,155.99,1,156.12,1,156.46,1,156.44,3,156.65,1,156.34,1,156.36,1,156,1,156.41,3,157.8,1,156.51,1,156.61,1,155.52,1,147.63,1,147.73,2,147.62,1,147.69,1,147.83,1,147.62,1,146.12,1,145.98,3,146.35,1,146.41,1,145.81,1,145.89,1,144.57,2,143.86,1,143,1,143.93,1,143.79,1,144.38,1,145.27,2,144.94,1,145.17,1,145.42,1,149.22,1,149.62,1,150.16,2,149.93,1,149.79,1,145.24,1,144.48,2,144.3,2,144.24,1,144.1,2,141.94,1,140.24,1,140.64,1,140.69,1,145.53,1,140.66,3,143.37,1,139.41,1,140.05,1,146.84,1,139.37,1,139.45,1,138.68,1,139.78,1,140.1,2,140.78,1,140.65,1,140,1,139.66,1,139.62,1,139.86,2,140.48,1,140.58,1,139.34,1,139.55,1,140.17,1,140.06,2,138.89,1,139.06,1,142.2,1,140.27,1,138.62,3,140.36,1,140.27,1,152.45,1,153.15,1,143.72,1,143.03,2,146.94,1,147.43,1,144,1,147.24,1,146.97,3,147.3,1,146.97,1,146.74,1,140.42,1,140.55,3,141.05,1,140.82,1,140.85,2,141.22,2,142.9,1,145.74,1,145.48,1,145.36,1,129.48,1,133.52,1,130.83,3,130.5,1,144.62,1,145,1,144.85,3,145.16,1,144.77,1,99.95,1,142.9,1,121.87,3,142.9,1,141.9,6,142.9,1,114.19,1,142.9,2,143.86,3,143.53,1,143.7,1,143.27,1,143.47,1,144.08,1,145.1,2,138.77,2,139,1,145.05,1,144.08,3,143.73,2,147.9,6,148.9,1,149.9,2,148.9,3,150.95,1,152.1,1,152.35,1,152.2,1,155.05,3,152.7,2,153.65,1,156.15,1,155.55,3,155.15,1,153.35,1,153.7,1,153.5,1,153.4,3,151.7,1,152.15,1,151.45,1,151.25,1,151.55,3,151.6,1,147.7,1,147.9,1,151.65,1,151.4,1,151.9,2,153.7,1,150.85,1,150.65,1,150.8,1,151.3,2,150.8,1,151.8,1,151.75,2,151.7,1,151.4,3,148.05,1,147.9,1,147.5,1,147.4,1,146.85,3,146.15,1,147.05,1,147.1,1,151.05,1,153.15,3,149.05,1,151.9,1,152.1,1,152.55,1,147.25,3,146.95,1,147.45,1,147.8,1,148.2,1,152.4,2,152.6,1,152.8,1,152.55,1,149.55,1,149.35,1,148.9,1,149.35,1,150.25,1,150.15,1,149.3,1,150,1,149.55,1,150,3,148.85,1,148.05,1,146.9,1,145.65,1,147.1,1,144.7,1,145.05,1,145.3,1,145.25,1,145,1,145.65,1,145.4,5,145.95,1,146.6,1,147.4,1,147.65,1,145.55,1,145.75,1,141.35,1,140.69,1,144.55,1,144.45,3,144.8,1,144.05,1,143.1,2,139.62,3,139.15,1,139.46,1,139.68,1,139.97,1,140.12,1,139.27,3,139.38,1,139.78,1,138.94,1,139.22,1,139.31,2,137.4,1,143.9,1,143.6,1,144.05,1,144.4,3,141.35,1,141.45,1,141.55,1,140.75,1,110.97,4,139.95,1,140.2,1,140.5,1,140.8,3,139.01,1,139.52,1,136.17,1,136.27,1,136.07,3,136.44,1,136.04,1,135.91,1,135.53,1,135.79,3,135.5,1,135.33,1,134.99,1,135.08,1,139.95,1,140.15,1,140.25,1,140.35,1,140.15,1,135.82,1,126.39,1,126.15,1,126.1,1,139.4,1,139.6,1,139.35,1,139.4,1,138.55,1,138.45,3,138.8,1,138.55,1,138.7,1,135.28,1,138.35,3,138.45,1,138.4,1,137.85,5,137.75,1,126.11,1,138.4,1,138.3,4,128.95,1,129.76,1,129.95,1,143,1,139.6,3,139.35,1,139.7,1,139.35,1,139.25,1,138.85,2,139.2,1,129.46,1,123.78,1,123.38,1,123.23,1,122.9,1,123.3,2,123.26,1,123.32,2,123.46,26,129.47,1,137.1,1,128.38,1,136.84,1,136.89,2,136.7,1,136.57,1,136.29,1,136.23,1,136.47,1,136.55,2,136.16,1,136.3,1,136.17,1,136.06,1,135.69,1,135.45,2,135.36,1,133.67,1,133.31,1,133.44,1,133.55,1,138.41,1,133.63,1,138.58,1,138.64,1,133.71,1,133.49,1,134.12,3,129.95,3,139.95,3,144.95,1,144.5,1,143.5,1,142.5,1,138.97,1,140.08,1,139.5,1,138.5,1,137.5,2,137.3,1,147.1,6,162.8,2,169.95,1,143.24,2,169.95,3,179,5,184.95,1,170.59,1,170.3,1,169.72,1,169.49,2,169.81,1,169.76,1,169.94,1,169.74,1,169.66,1,169.34,1,169.27,1,178.58,1,178.48,7,184.95,1,184.35,1,183.35,1,182.35,1,181.35,1,180.35,1,179.35,1,178.35,7,184.95,1,204.86,2,206,1,184.95,7,206,2,205.53,1,205.14,1,184.95,1,204.41,1,204.1,1,203.85,2,197.16,1,196.48,1,204.55,1,204.07,1,204.1,1,204.19,2,203.98,1,204.1,1,203.1,1,202.39,1,203.56,1,203.25,2,202.82,1,202.83,1,213.61,1,214.05,1,213.64,1,213.82,2,214.1,1,214,1,214.18,1,213.67,1,213.89,1,213.92,1,212.88,1,216.49,1,220.08,1,221.63,1,235.95,1,235.85,6,184.95,1,234.49,1,235.68,1,235.19,3,263,2,235.87,1,237.48,2,237.26,1,237.27,1,237.76,1,240.5,1,248.84,1,238.99,2,241.53,1,241.5,1,240.57,1,242.28,1,243.63,1,243.73,1,244.13,1,243.93,2,243.82,1,243.79,1,243.91,1,244.31,2,244.6,1,244.61,1,243.55,1,242.67,1,242.93,1,243.2,2,242.24,1,242.4,1,241.81,1,241.51,1,242.14,1,242.22,2,242.33,1,242.5,1,242.67,1,243.36,1,251.58,1,249.84,2,249.62,4,264,2,276.15,2,265.93,1,266.52,2,265.49,2,265.17,1,269.99,1,270.02,1,270.12,1,270.49,1,270.11,1,269.78,2,271.36,1,275.3,1,274.85,1,288.35,1,288.7,1,288.4,2,288.65,1,288.4,1,289,1,289.6,1,289.7,3,289.9,1,289.85,2,289.7,1,289.8,16,289.7,1,279.95,5,289.7,2,291.6,1,291.8,1,292.2,5,294.7,1,292,1,293.35,1,294.75,1,294.7,3,293.05,1,294.7,3,189,10,294.7,11,294.65,4,294.95,1,294.65,1,285.5,14,294.65,1,305.55,3,304.8,1,306.85,1,298.7,13,299,2,298.7,2,299,1,298.7,1,299,1,298.7,1,307.15,1,307.9,1,307.45,1,310.25,1,311.45,1,219,2,311.45,6,310.3];
+
+    const PRESETS = {
+      s26: { id: 's26', label: '📱 Galaxy S26 Ultra (230d)', cardPrice: 799, rle: PRESET_S26 },
+      ssd990: { id: 'ssd990', label: '💾 Samsung 990 PRO (4J)', cardPrice: 89.95, rle: PRESET_SSD990 },
+      r5: { id: 'r5', label: '📷 Canon EOS R5 (6J)', cardPrice: 1299, rle: PRESET_R5 },
+      synthetic: { id: 'synthetic', label: '🧪 Glitch-Demo (60 Pkt)', cardPrice: 400, rle: PRESET_SYNTHETIC }
+    };
+
+    function expandRle(flat) {
+      const pts = [];
+      if (!Array.isArray(flat) || flat.length < 2) return pts;
+      let total = 0;
+      for (let i = 0; i + 1 < flat.length; i += 2) total += Math.max(0, flat[i] | 0);
+      const now = Date.now();
+      let ts = now - (total - 1) * 86400000;
+      for (let i = 0; i + 1 < flat.length; i += 2) {
+        const count = Math.max(0, flat[i] | 0);
+        const price = flat[i + 1];
+        for (let k = 0; k < count; k++) {
+          pts.push([ts, price]);
+          ts += 86400000;
+        }
+      }
+      return pts;
+    }
+
+    function calcLocalMedians(pts, windowSize = 31) {
+      const half = windowSize >> 1;
+      const res = [];
+      const n = pts.length;
+      for (let i = 0; i < n; i++) {
+        const start = Math.max(0, i - half);
+        const end = Math.min(n, i + half + 1);
+        const slice = pts.slice(start, end).map(p => p[1]).sort((a, b) => a - b);
+        const m = slice.length >> 1;
+        res.push(slice.length % 2 ? slice[m] : (slice[m - 1] + slice[m]) / 2);
+      }
+      return res;
+    }
+
+    function sanitizeSeries(pts, band = 0.50, enabled = true) {
+      if (!enabled || !pts || pts.length < 3) return { clean: pts || [], dropped: [], localMedians: [] };
+      const localMedians = calcLocalMedians(pts);
+      const clean = [];
+      const dropped = [];
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const med = localMedians[i];
+        if (med > 0 && Math.abs(p[1] - med) / med > band) {
+          dropped.push({ timestamp: p[0], price: p[1] });
+        } else {
+          clean.push(p);
+        }
+      }
+      return { clean: clean.length >= 2 ? clean : pts, dropped, localMedians };
+    }
+
+    const simPresetSelect = document.getElementById('sim-preset-select');
+    const simInputPrice = document.getElementById('sim-input-price');
+    const simWeightSlider = document.getElementById('sim-weight-slider');
+    const simBandSlider = document.getElementById('sim-band-slider');
+    const simGlitchToggle = document.getElementById('sim-glitch-toggle');
+
+    if (simPresetSelect) {
+      simPresetSelect.addEventListener('change', () => {
+        const p = PRESETS[simPresetSelect.value] || PRESETS.s26;
+        if (simInputPrice) simInputPrice.value = p.cardPrice;
+        updateSimulator();
+      });
+    }
 
     function updateSimulator() {
-      const price = parseFloat(priceInput.value) || 0;
-      const weight = parseInt(weightSlider.value, 10) / 100; // 0 to 1
-      sliderWeightVal.textContent = `${Math.round(weight * 100)}% Rekord / ${100 - Math.round(weight * 100)}% Ø`;
+      const presetId = simPresetSelect ? simPresetSelect.value : 's26';
+      const preset = PRESETS[presetId] || PRESETS.s26;
+      const rawPoints = expandRle(preset.rle);
+      const price = parseFloat(simInputPrice ? simInputPrice.value : preset.cardPrice) || 0;
+      const weight = (parseInt(simWeightSlider ? simWeightSlider.value : 50, 10)) / 100;
+      const band = (parseInt(simBandSlider ? simBandSlider.value : 50, 10)) / 100;
+      const glitchEnabled = simGlitchToggle ? simGlitchToggle.checked : true;
 
-      const recordLow = 320.00;
-      const rollingMedian = 460.00;
+      // Update Slider Label Displays
+      const weightValEl = document.getElementById('sim-weight-val');
+      if (weightValEl) weightValEl.textContent = `${Math.round(weight * 100)}% / ${100 - Math.round(weight * 100)}%`;
+      const bandValEl = document.getElementById('sim-band-val');
+      if (bandValEl) bandValEl.textContent = `±${Math.round(band * 100)}%`;
+      const priceDispEl = document.getElementById('sim-price-display');
+      if (priceDispEl) priceDispEl.textContent = `CHF ${price.toFixed(2)}`;
 
-      // Deal Margins
-      const vsRecord = ((price - recordLow) / recordLow) * 100;
-      const vsMedian = ((price - rollingMedian) / rollingMedian) * 100;
+      // Run Sanitization & Telemetry
+      const { clean, dropped, localMedians } = sanitizeSeries(rawPoints, band, glitchEnabled);
+
+      const ptsTelemetry = document.getElementById('sim-telemetry-points');
+      if (ptsTelemetry) ptsTelemetry.textContent = `${clean.length} Punkte aktiv`;
+      const glitchTelemetry = document.getElementById('sim-telemetry-glitches');
+      if (glitchTelemetry) glitchTelemetry.textContent = `${dropped.length} Glitch${dropped.length === 1 ? '' : 'es'} gefiltert`;
+
+      // Statistics
+      const prices = clean.map(p => p[1]).sort((a, b) => a - b);
+      const recordLow = prices.length ? prices[0] : price;
+      const midIdx = prices.length >> 1;
+      const median = prices.length ? (prices.length % 2 ? prices[midIdx] : (prices[midIdx - 1] + prices[midIdx]) / 2) : price;
+
+      const vsRecord = recordLow > 0 ? ((price - recordLow) / recordLow) * 100 : 0;
+      const vsMedian = median > 0 ? ((price - median) / median) * 100 : 0;
 
       // Weighted Score
-      // If below record low, savings vs record is positive
       const recordSaving = Math.max(0, -vsRecord);
       const medianSaving = Math.max(0, -vsMedian);
       const weightedScore = -Math.round((recordSaving * weight) + (medianSaving * (1 - weight)));
 
-      const box = document.getElementById('sim-result-box');
-      const dot = document.getElementById('sim-indicator-dot');
-      const title = document.getElementById('sim-status-title');
-      const pill = document.getElementById('sim-badge-pill');
-      const medianText = document.getElementById('sim-median-saving');
-      const recordText = document.getElementById('sim-record-distance');
-      const finalScore = document.getElementById('sim-final-score');
-      const alertTitle = document.getElementById('sim-alert-title');
-      const alertDesc = document.getElementById('sim-alert-desc');
-      const alertIcon = document.getElementById('sim-alert-icon');
+      // Render Telemetry Cards
+      const cardEl = document.getElementById('sim-score-card');
+      const dotEl = document.getElementById('sim-score-dot');
+      const headlineEl = document.getElementById('sim-score-headline');
+      const badgeEl = document.getElementById('sim-badge-score');
+      const resRecEl = document.getElementById('sim-res-record');
+      const subRecEl = document.getElementById('sim-sub-record');
+      const resMedEl = document.getElementById('sim-res-median');
+      const subMedEl = document.getElementById('sim-sub-median');
+      const resBlendEl = document.getElementById('sim-res-blend');
+      const subBlendEl = document.getElementById('sim-sub-blend');
 
-      medianText.textContent = `${vsMedian > 0 ? '+' : ''}${vsMedian.toFixed(1)}%`;
-      recordText.textContent = `${vsRecord > 0 ? '+' : ''}${vsRecord.toFixed(1)}%`;
+      if (resRecEl) resRecEl.textContent = `${vsRecord <= 0 ? '' : '+'}${vsRecord.toFixed(1)}% ${vsRecord <= 0 ? '(am/unter Rekord)' : 'über Rekord'}`;
+      if (subRecEl) subRecEl.textContent = `Bisheriges Tief: CHF ${recordLow.toFixed(2)}`;
+      if (resMedEl) resMedEl.textContent = `${vsMedian <= 0 ? '' : '+'}${vsMedian.toFixed(1)}%`;
+      if (subMedEl) subMedEl.textContent = `Bereinigter Median: CHF ${median.toFixed(2)}`;
+      if (resBlendEl) resBlendEl.textContent = `${weightedScore}% Deal`;
+      if (subBlendEl) subBlendEl.textContent = `${Math.round(weight * 100)}% Rekord / ${100 - Math.round(weight * 100)}% Median`;
 
       if (price <= recordLow) {
-        // All-Time Record Low
-        box.className = 'p-5 rounded-xl border border-primary/50 bg-primary/10 neon-ruby-glow transition-all';
-        dot.className = 'w-3 h-3 rounded-full bg-primary shadow-[0_0_10px_#ff4f72]';
-        title.textContent = currentLang === 'de' ? 'Allzeit-Rekordtief bestätigt!' : 'All-Time Record Low Confirmed!';
-        pill.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-primary text-white';
-        pill.textContent = `${weightedScore}% REKORD`;
-        finalScore.textContent = `${weightedScore}%`;
-        finalScore.className = 'font-extrabold text-lg text-primary';
-        alertTitle.textContent = currentLang === 'de' ? 'Echtes Allzeit-Tief' : 'Authentic Record Low';
-        alertDesc.textContent = currentLang === 'de' 
-          ? `Historisch tiefster Preis überhaupt! Unterbietet das bisherige Rekordtief von CHF ${recordLow.toFixed(2)}.`
-          : `Lowest price in historical recording! Breaks past previous record floor of CHF ${recordLow.toFixed(2)}.`;
-        alertIcon.textContent = 'verified';
-        alertIcon.className = 'material-symbols-outlined text-[24px] text-primary mt-0.5';
-      } else if (price < rollingMedian) {
-        // Strong Deal
-        box.className = 'p-5 rounded-xl border border-secondary/50 bg-secondary/10 neon-amber-glow transition-all';
-        dot.className = 'w-3 h-3 rounded-full bg-secondary shadow-[0_0_10px_#feb700]';
-        title.textContent = currentLang === 'de' ? 'Attraktiver Rabatt unter Median' : 'Solid Deal Below Rolling Median';
-        pill.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-secondary text-surface';
-        pill.textContent = `${vsMedian.toFixed(0)}%`;
-        finalScore.textContent = `${vsMedian.toFixed(0)}%`;
-        finalScore.className = 'font-extrabold text-lg text-secondary';
-        alertTitle.textContent = currentLang === 'de' ? 'Scheinrabatt korrigiert' : 'Deceptive Cut Corrected';
-        alertDesc.textContent = currentLang === 'de'
-          ? `Der Händler behauptet -35% Streichpreis. Toppreise Suite errechnet echten Abstand von ${vsMedian.toFixed(1)}% zum Jahresmedian.`
-          : `The retailer advertises -35%. Toppreise Suite reveals the authentic savings are ${vsMedian.toFixed(1)}% below the 1-year median.`;
-        alertIcon.textContent = 'info';
-        alertIcon.className = 'material-symbols-outlined text-[24px] text-secondary mt-0.5';
+        if (headlineEl) headlineEl.textContent = currentLang === 'de' ? 'Allzeit-Rekordtief bestätigt!' : 'All-Time Record Low Confirmed!';
+        if (badgeEl) {
+          badgeEl.className = 'px-2.5 py-1 rounded text-xs font-mono font-bold bg-primary text-white neon-ruby-glow';
+          badgeEl.textContent = `💎 ${weightedScore}% REKORD`;
+        }
+        if (dotEl) dotEl.className = 'w-3 h-3 rounded-full bg-primary shadow-[0_0_10px_#ff4f72]';
+      } else if (price < median) {
+        if (headlineEl) headlineEl.textContent = currentLang === 'de' ? 'Solider Rabatt unter Median' : 'Solid Deal Below Median';
+        if (badgeEl) {
+          badgeEl.className = 'px-2.5 py-1 rounded text-xs font-mono font-bold bg-secondary text-surface neon-amber-glow';
+          badgeEl.textContent = `⚖️ ${vsMedian.toFixed(0)}% Deal`;
+        }
+        if (dotEl) dotEl.className = 'w-3 h-3 rounded-full bg-secondary shadow-[0_0_10px_#feb700]';
       } else {
-        // Deceptive Markup Warning
-        box.className = 'p-5 rounded-xl border border-error/50 bg-error/10 transition-all';
-        dot.className = 'w-3 h-3 rounded-full bg-error';
-        title.textContent = currentLang === 'de' ? 'Warnung: Scheinerparnis entlarvt!' : 'Warning: Deceptive Markup Exposed!';
-        pill.className = 'px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-error text-white';
-        pill.textContent = `+${vsRecord.toFixed(0)}% AUFSCHLAG`;
-        finalScore.textContent = `+${vsRecord.toFixed(0)}%`;
-        finalScore.className = 'font-extrabold text-lg text-error';
-        alertTitle.textContent = currentLang === 'de' ? 'Finger weg: Kein echtes Schnäppchen' : 'Caution: Fake Markdown';
-        alertDesc.textContent = currentLang === 'de'
-          ? `Trotz Rabattbanner liegt der Preis +${vsRecord.toFixed(1)}% über dem historischen Rekordtief!`
-          : `Despite a sale tag, this offer is actually +${vsRecord.toFixed(1)}% higher than the authentic historical floor!`;
-        alertIcon.textContent = 'warning';
-        alertIcon.className = 'material-symbols-outlined text-[24px] text-error mt-0.5';
+        if (headlineEl) headlineEl.textContent = currentLang === 'de' ? 'Scheinerparnis entlarvt!' : 'Deceptive Markup Exposed!';
+        if (badgeEl) {
+          badgeEl.className = 'px-2.5 py-1 rounded text-xs font-mono font-bold bg-error text-white';
+          badgeEl.textContent = `⚠️ +${vsRecord.toFixed(0)}% AUFSCHLAG`;
+        }
+        if (dotEl) dotEl.className = 'w-3 h-3 rounded-full bg-error';
       }
+
+      // Render Real SVG Chart
+      const svg = document.getElementById('sim-chart-svg');
+      if (!svg || !clean.length) return;
+
+      const W = 700;
+      const H = 200;
+      const padL = 60;
+      const padR = 25;
+      const padT = 18;
+      const padB = 25;
+
+      const allPointsWithDropped = [...clean, ...dropped];
+      const allPrices = allPointsWithDropped.map(p => p[1]);
+      allPrices.push(price);
+      if (median > 0) allPrices.push(median);
+
+      const minP = Math.min(...allPrices) * 0.95;
+      const maxP = Math.max(...allPrices) * 1.05;
+      const minTs = rawPoints[0][0];
+      const maxTs = rawPoints[rawPoints.length - 1][0];
+
+      const getX = ts => padL + ((ts - minTs) / (maxTs - minTs || 1)) * (W - padL - padR);
+      const getY = p => padT + ((maxP - p) / (maxP - minP || 1)) * (H - padT - padB);
+
+      let svgHtml = '';
+
+      // Y-Axis Horizontal Grid Lines & Ticks
+      const steps = 4;
+      for (let s = 0; s <= steps; s++) {
+        const val = minP + (s / steps) * (maxP - minP);
+        const yPos = getY(val);
+        svgHtml += `<line x1="${padL}" x2="${W - padR}" y1="${yPos.toFixed(1)}" y2="${yPos.toFixed(1)}" stroke="#2c2e3b" stroke-dasharray="2 2" stroke-width="1"/>`;
+        svgHtml += `<text x="${padL - 8}" y="${(yPos + 3.5).toFixed(1)}" fill="#64748b" font-size="9" font-family="monospace" text-anchor="end">${val.toFixed(0)}</text>`;
+      }
+
+      // Tolerance Band Polygon (if enabled)
+      if (glitchEnabled && localMedians && localMedians.length === rawPoints.length) {
+        const topPts = [];
+        const botPts = [];
+        for (let i = 0; i < rawPoints.length; i++) {
+          const x = getX(rawPoints[i][0]).toFixed(1);
+          const topY = getY(localMedians[i] * (1 + band)).toFixed(1);
+          const botY = getY(localMedians[i] * (1 - band)).toFixed(1);
+          topPts.push(`${x},${topY}`);
+          botPts.unshift(`${x},${botY}`);
+        }
+        svgHtml += `<polygon points="${topPts.join(' ')} ${botPts.join(' ')}" fill="#3b82f6" fill-opacity="0.08"/>`;
+      }
+
+      // Median Line
+      if (median > 0) {
+        const yMed = getY(median).toFixed(1);
+        svgHtml += `<line x1="${padL}" x2="${W - padR}" y1="${yMed}" y2="${yMed}" stroke="#64748b" stroke-width="1" stroke-dasharray="4 3"/>`;
+      }
+
+      // Record Low Line
+      if (recordLow > 0) {
+        const yRec = getY(recordLow).toFixed(1);
+        svgHtml += `<line x1="${padL}" x2="${W - padR}" y1="${yRec}" y2="${yRec}" stroke="#feb700" stroke-width="1" stroke-dasharray="4 3" opacity="0.8"/>`;
+      }
+
+      // Main Clean Trace Polyline
+      const tracePoints = clean.map(p => `${getX(p[0]).toFixed(1)},${getY(p[1]).toFixed(1)}`).join(' ');
+      svgHtml += `<polyline points="${tracePoints}" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+      // Dropped Glitches: red ✕ marks
+      dropped.forEach(d => {
+        const gx = getX(d.timestamp).toFixed(1);
+        const gy = getY(d.price).toFixed(1);
+        svgHtml += `<text x="${gx}" y="${gy}" fill="#f43f5e" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle" dominant-baseline="central">✕</text>`;
+      });
+
+      // Current Simulated Price Anchor
+      const anchorY = getY(price).toFixed(1);
+      const anchorX = (W - padR).toFixed(1);
+      svgHtml += `<line x1="${padL}" x2="${anchorX}" y1="${anchorY}" y2="${anchorY}" stroke="#ff4f72" stroke-dasharray="3 3" stroke-width="1"/>`;
+      svgHtml += `<circle cx="${anchorX}" cy="${anchorY}" r="4" fill="#ff4f72" stroke="#ffffff" stroke-width="1.5"/>`;
+
+      svg.innerHTML = svgHtml;
     }
 
-    priceInput.addEventListener('input', updateSimulator);
-    weightSlider.addEventListener('input', updateSimulator);
+    if (simInputPrice) simInputPrice.addEventListener('input', updateSimulator);
+    if (simWeightSlider) simWeightSlider.addEventListener('input', updateSimulator);
+    if (simBandSlider) simBandSlider.addEventListener('input', updateSimulator);
+    if (simGlitchToggle) simGlitchToggle.addEventListener('change', updateSimulator);
 
-    // Merchant Switcher styling
-    const storeBtns = document.querySelectorAll('.sim-store-btn');
-    storeBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        storeBtns.forEach(b => {
-          b.className = 'sim-store-btn px-2 py-2 rounded-xl bg-surface-container border border-outline text-on-surface-variant flex items-center justify-center hover:border-on-surface-variant transition-all';
-        });
-        btn.className = 'sim-store-btn px-2 py-2 rounded-xl bg-surface-container-high border border-primary/60 text-primary font-semibold flex items-center justify-center transition-all';
-      });
-    });
 
     // Comparison Split Drag Logic
     const sliderWrap = document.getElementById('compareSliderWrap');
