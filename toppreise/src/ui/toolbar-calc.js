@@ -155,16 +155,16 @@ function buildHorizonWrapper() {
 function bindOutlierControls(wrapper) {
   const toggle = wrapper.querySelector('#tp-bar-outlier-toggle');
   if (!toggle) return;
-  syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
+  syncMiniToggle(toggle, CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreisser-Filter');
   paintOutlierDim();
   toggle.onchange = () => {
     const v = toggle.checked;
     updateConfig('OUTLIER_REJECTION_ENABLED', v, { skipRender: true });
     recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
     triggerProcessListings();
-    syncMiniToggle(toggle, toggle.checked, 'Ausreißer-Filter');
+    syncMiniToggle(toggle, toggle.checked, 'Ausreisser-Filter');
     paintOutlierDim();
-    showToast(toggle.checked ? 'Ausreißer-Filter AN — Glitches werden ignoriert' : 'Ausreißer-Filter AUS — Rohhistorie wird verwendet');
+    showToast(toggle.checked ? 'Ausreisser-Filter AN — Glitches werden ignoriert' : 'Ausreisser-Filter AUS — Rohhistorie wird verwendet');
   };
 }
 
@@ -174,11 +174,11 @@ function buildOutlierWrapper() {
   wrapper.id = 'tp-bar-outlier-wrapper';
   wrapper.title = 'Kurze Preissprünge (Band und Fenster unten einstellbar) als Feed-Glitches ignorieren. AUS = Rohhistorie verwenden.';
   wrapper.innerHTML = `
-    <label class="tp-mini-switch" title="Ausreißer-Filter">
+    <label class="tp-mini-switch" title="Ausreisser-Filter">
       <input type="checkbox" id="tp-bar-outlier-toggle" ${CONFIG.OUTLIER_REJECTION_ENABLED !== false ? 'checked' : ''}>
       <span class="tp-mini-slider"></span>
     </label>
-    <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreißer filtern</span>`;
+    <span class="tp-weight-label" id="tp-bar-outlier-label">🧹 Ausreisser filtern</span>`;
   bindOutlierControls(wrapper);
   return wrapper;
 }
@@ -221,7 +221,7 @@ function bindOutlierBandControls(wrapper) {
     updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
     recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
     triggerProcessListings();
-    showToast(`Ausreißer-Band: ±${pct} % — live aktualisiert`);
+    showToast(`Ausreisser-Band: ±${pct} % — live aktualisiert`);
   };
 }
 
@@ -316,7 +316,7 @@ export function buildCalcControls(popover, resetBtn) {
 }
 
 export function syncCalcControls() {
-  syncMiniToggle(document.getElementById('tp-bar-outlier-toggle'), CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreißer-Filter');
+  syncMiniToggle(document.getElementById('tp-bar-outlier-toggle'), CONFIG.OUTLIER_REJECTION_ENABLED !== false, 'Ausreisser-Filter');
   // Strictness lives in the Tiefstpreise mode now — no separate toggle to sync.
   const curWeight = typeof CONFIG.BESTPREISE_WEIGHT_RECORD === 'number' ? CONFIG.BESTPREISE_WEIGHT_RECORD : 0.50;
   const weightRange = document.getElementById('tp-bar-weight-range');

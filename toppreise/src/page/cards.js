@@ -197,9 +197,9 @@ export function extractCardDiscount(card) {
 // (-40% mid discount) -> deep ruby/red (-100% max savings).
 // Markups and 0% deals return null (transparent / no heat effect).
 const HEAT_STOPS = [
-  { t: 0.00, base: [65, 38, 10],   acc: [245, 158, 11],  border: [251, 191, 36, 0.60] }, // Warm Amber (-1%)
-  { t: 0.40, base: [85, 28, 14],   acc: [234, 88, 12],   border: [249, 115, 22, 0.85] }, // Coral / Vermilion (-40%)
-  { t: 1.00, base: [110, 15, 35],  acc: [225, 29, 72],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
+  { t: 0.00, base: [65, 38, 10],   acc: [180, 83, 9],    border: [245, 158, 11, 0.75] }, // Warm Amber (-1%)
+  { t: 0.40, base: [85, 28, 14],   acc: [200, 50, 15],   border: [234, 88, 12, 0.85] },  // Coral / Vermilion (-40%)
+  { t: 1.00, base: [110, 15, 35],  acc: [215, 25, 55],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
 ];
 
 function heatRamp(t) {

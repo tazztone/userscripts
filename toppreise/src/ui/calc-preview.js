@@ -259,7 +259,7 @@ export function refreshCalcPreview() {
   svg.innerHTML = s;
   const n = visibleDropped.length;
   if (!enabled) {
-    legend.textContent = 'Ausreißer-Filter aus — Rohhistorie';
+    legend.textContent = 'Ausreisser-Filter aus — Rohhistorie';
   } else {
     legend.innerHTML = `<span class="tp-pv-chip">🧹 ${n} Glitch${n === 1 ? '' : 'es'}</span><span class="tp-pv-chip">📊 ${st.windowCount} Pkt ${st.activeCount >= minPoints ? '✓' : '✗'}</span>`;
   }

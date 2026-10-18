@@ -66,8 +66,8 @@ export function renderModeVerdict(ctx, filters, badgeDifEl, isListView, sitePctT
         if (showPrevLow || showMedianLine || dealData.isZeroMargin) {
           const parts = [];
           if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecordPart ? ` (-${dealData.dRecord}%)` : ''}`);
-          if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
-          else if (dealData.isZeroMargin && medianVal) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (0%)`);
+          if (showMedianLine) parts.push(`Ø${horizonLabel} CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+          else if (dealData.isZeroMargin && medianVal) parts.push(`Ø${horizonLabel} CHF ${medianVal.toFixed(2)} (0%)`);
           if (dealData.isNewRecord && showPrevLow) {
             histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
             setTextIfChanged(histPriceEl, parts.join(' · '));
@@ -289,8 +289,8 @@ export function renderBrowseVerdict(ctx, filters, isNeueFeed, badgeDifEl, isList
           const parts = [];
           const dMedBrowse = showMedianLine ? pctDrop(stats.medianPrice, cardPrice) : 0;
           if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${isNewRecord ? ` (-${realDropVsPrev}%)` : ''}`);
-          if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
-          else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`Ø (${horizonLabel}) CHF ${stats.medianPrice.toFixed(2)} (0%)`);
+          if (showMedianLine) parts.push(`Ø${horizonLabel} CHF ${stats.medianPrice.toFixed(2)} (-${dMedBrowse}%)`);
+          else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`Ø${horizonLabel} CHF ${stats.medianPrice.toFixed(2)} (0%)`);
           histPriceEl.className = 'tp-card-historical-price ' + (isNewRecord && showPrevLow ? 'tp-is-record-low' : 'tp-is-at-low') + (showPrevLow ? ' tp-with-prev' : '');
           setTextIfChanged(histPriceEl, parts.join(' · '));
           if (isNewRecord && showPrevLow) {

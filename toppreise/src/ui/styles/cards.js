@@ -307,32 +307,48 @@ export const STYLES_CARDS = `
   }
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
-     markups stay neutral gray with the +XX% text carrying the signal. */
-  .badge.badge-dif.tp-deal-not-low p.tp-markup-val {
+     markups stay completely colorless/neutral: translucent white capsule with
+     neutral slate text. Red and amber are strictly reserved for discounts. */
+  .badge.badge-dif.tp-deal-not-low,
+  .badge-dif.tp-deal-not-low {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1.5px solid var(--tp-line-soft, #cbd5e1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+    color: #475569 !important;
+  }
+  .badge.badge-dif.tp-deal-not-low .text,
+  .badge-dif.tp-deal-not-low .text {
+    color: #64748b !important;
+  }
+  .badge.badge-dif.tp-deal-not-low p.tp-markup-val,
+  .badge-dif.tp-deal-not-low p.tp-markup-val,
+  .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val,
+  .badge.badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val,
+  .badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val {
     font-size: 13px !important;
     font-weight: 800 !important;
     margin: 0 !important;
     line-height: 1.1 !important;
-    color: #ffffff !important;
+    color: #334155 !important;
   }
-  /* List-view pills sit on a white capsule, so the +XX% needs the dark
-     amber instead of the feed-badge white above. */
   .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val {
-    color: #b45309 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
   }
-  .badge.badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val,
-  .badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val { color: #b45309 !important; }
   .badge.badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount,
-  .badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount { color: #64748b !important; }
-  .badge.badge-dif.tp-deal-not-low .tp-fake-discount {
+  .badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount,
+  .badge.badge-dif.tp-deal-not-low .tp-fake-discount,
+  .badge-dif.tp-deal-not-low .tp-fake-discount {
     font-size: 9.5px !important;
     display: block !important;
     line-height: 1 !important;
     margin-top: 1px !important;
-    color: #ffffff !important;
+    color: #64748b !important;
   }
   .tp-card-historical-price {
-    font: 500 11px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font: 500 10.5px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    letter-spacing: -0.2px !important;
     color: #64748b !important;
     text-align: right !important;
     margin: 0 !important;

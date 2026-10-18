@@ -78,7 +78,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <div class="tp-filter-row" data-filter-row="neg">
               <span class="tp-filter-label" title="Namen mit diesen Wörtern dimmen/verbergen (kommagetrennt, Wortgrenzen)">Begriffe</span>
               <div class="tp-input-field-box">
-                <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter (Text)" placeholder="Wörter ausschließen..." value="">
+                <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter (Text)" placeholder="Wörter ausschliessen..." value="">
                 <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
               </div>
               <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
@@ -127,7 +127,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Heatmap: Farbe folgt der Badge-% (rot = Tiefstpreis, grau = kein Rabatt, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
@@ -137,7 +137,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
         <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
           <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
           <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
-            <div class="tp-calc-head"><span class="tp-glossary-term" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">Berechnungsparameter</span><span>Nur Anzeige — filtert nichts</span></div>
+            <div class="tp-calc-head"><span class="tp-glossary-term" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">Berechnungsparameter</span><span>Formel für Deal-Score & Preishistorie</span></div>
             <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset" title="Berechnungsparameter zurücksetzen">Zurücksetzen</button>
           </div>
         </div>

@@ -181,8 +181,8 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
     it('ramps from warm amber at -1% to deep ruby at -100%', () => {
       const shallow = getBadgeHeatStyle(-1);
       const deep = getBadgeHeatStyle(-100);
-      assert.ok(shallow.background.startsWith('rgba(245,'));
-      assert.ok(deep.background.startsWith('rgba(225,'));
+      assert.ok(shallow.background.startsWith('rgba(181,'));
+      assert.ok(deep.background.startsWith('rgba(215,'));
     });
 
     it('steps visibly with deal size', () => {

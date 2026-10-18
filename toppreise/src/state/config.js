@@ -378,7 +378,7 @@ export function syncUiControl(key, val, opts = {}) {
             break;
           }
           case 'OUTLIER_REJECTION_ENABLED': {
-            syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), val !== false, 'Ausreißer-Filter');
+            syncMiniToggle(bar.querySelector('#tp-bar-outlier-toggle'), val !== false, 'Ausreisser-Filter');
             const dim = val === false;
             for (const id of ['tp-bar-outlier-band-wrapper', 'tp-bar-outlier-hours-wrapper']) {
               const wrap = bar.querySelector('#' + id);

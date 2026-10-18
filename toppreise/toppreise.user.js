@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.331
+// @version      2.18.332
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -369,34 +369,44 @@ const STYLES_CARDS = `
   }
   /* 3A/3B/2A retired: record (gold), at-low (emerald) and markup (amber/rose)
      no longer paint. Verified Tiefstpreise get the badge-% heat color inline;
-     markups stay neutral dark slate with amber +XX% text carrying the signal. */
-  .badge.badge-dif.tp-deal-not-low {
-    background: #1e293b !important;
-    border: 1.5px solid #64748b !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+     markups stay completely colorless/neutral: translucent white capsule with
+     neutral slate text. Red and amber are strictly reserved for discounts. */
+  .badge.badge-dif.tp-deal-not-low,
+  .badge-dif.tp-deal-not-low {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1.5px solid var(--tp-line-soft, #cbd5e1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+    color: #475569 !important;
   }
-  .badge.badge-dif.tp-deal-not-low p.tp-markup-val {
+  .badge.badge-dif.tp-deal-not-low .text,
+  .badge-dif.tp-deal-not-low .text {
+    color: #64748b !important;
+  }
+  .badge.badge-dif.tp-deal-not-low p.tp-markup-val,
+  .badge-dif.tp-deal-not-low p.tp-markup-val,
+  .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val,
+  .badge.badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val,
+  .badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val {
     font-size: 13px !important;
     font-weight: 800 !important;
     margin: 0 !important;
     line-height: 1.1 !important;
-    color: #f59e0b !important;
+    color: #334155 !important;
   }
-  /* List-view pills sit on a white capsule, so the +XX% needs the dark
-     amber instead of the feed-badge white above. */
   .badge.badge-dif.tp-deal-pill.tp-deal-not-low p.tp-markup-val {
-    color: #b45309 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
   }
-  .badge.badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val,
-  .badge-dif.tp-injected-badge.tp-deal-not-low p.tp-markup-val { color: #b45309 !important; }
   .badge.badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount,
-  .badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount { color: #64748b !important; }
-  .badge.badge-dif.tp-deal-not-low .tp-fake-discount {
+  .badge-dif.tp-injected-badge.tp-deal-not-low .tp-fake-discount,
+  .badge.badge-dif.tp-deal-not-low .tp-fake-discount,
+  .badge-dif.tp-deal-not-low .tp-fake-discount {
     font-size: 9.5px !important;
     display: block !important;
     line-height: 1 !important;
     margin-top: 1px !important;
-    color: #94a3b8 !important;
+    color: #64748b !important;
   }
   .tp-card-historical-price {
     font: 500 10.5px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -3916,9 +3926,9 @@ const SHADOW_MODAL_STYLES = `
   // (-40% mid discount) -> deep ruby/red (-100% max savings).
   // Markups and 0% deals return null (transparent / no heat effect).
   const HEAT_STOPS = [
-    { t: 0.00, base: [65, 38, 10],   acc: [245, 158, 11],  border: [251, 191, 36, 0.60] }, // Warm Amber (-1%)
-    { t: 0.40, base: [85, 28, 14],   acc: [234, 88, 12],   border: [249, 115, 22, 0.85] }, // Coral / Vermilion (-40%)
-    { t: 1.00, base: [110, 15, 35],  acc: [225, 29, 72],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
+    { t: 0.00, base: [65, 38, 10],   acc: [180, 83, 9],    border: [245, 158, 11, 0.75] }, // Warm Amber (-1%)
+    { t: 0.40, base: [85, 28, 14],   acc: [200, 50, 15],   border: [234, 88, 12, 0.85] },  // Coral / Vermilion (-40%)
+    { t: 1.00, base: [110, 15, 35],  acc: [215, 25, 55],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
   ];
 
   function heatRamp(t) {
@@ -6305,8 +6315,8 @@ const SHADOW_MODAL_STYLES = `
           if (showPrevLow || showMedianLine || dealData.isZeroMargin) {
             const parts = [];
             if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecordPart ? ` (-${dealData.dRecord}%)` : ''}`);
-            if (showMedianLine) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
-            else if (dealData.isZeroMargin && medianVal) parts.push(`Ø (${horizonLabel}) CHF ${medianVal.toFixed(2)} (0%)`);
+            if (showMedianLine) parts.push(`Ø${horizonLabel} CHF ${medianVal.toFixed(2)} (-${dealData.dMedian}%)`);
+            else if (dealData.isZeroMargin && medianVal) parts.push(`Ø${horizonLabel} CHF ${medianVal.toFixed(2)} (0%)`);
             if (dealData.isNewRecord && showPrevLow) {
               histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
               setTextIfChanged(histPriceEl, parts.join(' · '));
@@ -7197,7 +7207,7 @@ const SHADOW_MODAL_STYLES = `
             </div>
           </div>
           <div class="tp-settings-group">
-            <label title="Stärke der Karten- und Badge-Farbe">Heatmap-Intensität (%)</label>
+            <label title="Stärke der Karten- und Badge-Farbe (subtil bei kleinen Rabatten, intensiv bei Top-Deals; 0% und Aufschläge bleiben farblos)">Deal-Intensität / Heatmap (%)</label>
             <div class="tp-range-container tp-rose">
               <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
               <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
@@ -9111,7 +9121,7 @@ const SHADOW_MODAL_STYLES = `
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Heatmap: Farbe folgt der Badge-% (rot = Tiefstpreis, grau = kein Rabatt, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
@@ -10132,7 +10142,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.331';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.332';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

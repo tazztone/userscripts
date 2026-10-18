@@ -23,7 +23,7 @@ export function ensureModalSection(shadow) {
           </div>
         </div>
         <div class="tp-settings-group">
-          <label title="Stärke der Karten- und Badge-Farbe">Heatmap-Intensität (%)</label>
+          <label title="Stärke der Karten- und Badge-Farbe (subtil bei kleinen Rabatten, intensiv bei Top-Deals; 0% und Aufschläge bleiben farblos)">Deal-Intensität / Heatmap (%)</label>
           <div class="tp-range-container tp-rose">
             <input type="range" id="tp-heatmap-intensity-range" min="20" max="100" step="5" value="100">
             <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
@@ -133,8 +133,8 @@ export function ensureModalSection(shadow) {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Alarmformular sofort einreichen und schließen">Automatisch Absenden & Schließen</label>
-            <span class="tp-switch-desc">Formular direkt einreichen und Dialog schließen</span>
+            <label title="Alarmformular sofort einreichen und schliessen">Automatisch Absenden & Schliessen</label>
+            <span class="tp-switch-desc">Formular direkt einreichen und Dialog schliessen</span>
           </div>
           <label class="tp-switch tp-blue">
             <input type="checkbox" id="tp-alarm-autosubmit-toggle">
@@ -204,7 +204,7 @@ export function ensureModalSection(shadow) {
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
           </div>
           <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Größe via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
+          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
           <pre id="tp-discord-layout-preview"></pre>
           <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
           <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -216,7 +216,7 @@ export function ensureModalSection(shadow) {
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-data-body" data-collapse="tp-section-data"><span class="tp-section-title">💾 Daten & Cache</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-data-body">
         <div class="tp-settings-group">
-          <span class="tp-switch-desc tp-field-hint">Ausreißer-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
+          <span class="tp-switch-desc tp-field-hint">Ausreisser-Filter (Glitch-Erkennung): siehe ⚖️-Popover in der Filterleiste.</span>
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
