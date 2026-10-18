@@ -109,6 +109,9 @@ The Toppreise design project is registered on Stitch:
 
 - **Project Title**: `Toppreise.ch Suite`
 - **Project ID**: `3774864796664946048`
+- **Canvas Link**: [https://stitch.google.com/projects/3774864796664946048](https://stitch.google.com/projects/3774864796664946048)
+- **Active Screen ID**: `2a1031c8411e4035a603851b9cdf6736` (PricePulse Developer Landing Page)
+- **Screen Canvas**: [Direct Canvas Node Link](https://stitch.google.com/projects/3774864796664946048?node-id=2a1031c8411e4035a603851b9cdf6736)
 
 To list all existing projects:
 ```bash
