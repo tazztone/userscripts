@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.345
+// @version      2.18.346
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4259,8 +4259,10 @@ const SHADOW_MODAL_STYLES = `
      const kind = cd.displayDelta?.kind;
      const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
      const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
-     const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
+     const stats = cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats;
+     const isVerified = !!cd.dealScore || hasUsablePriceStats(stats);
+     const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(stats);
+     const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && isVerified && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
      const isDealerLoser = false;
      return { isNeg, isLowOffers, isBelowMinDiscount, isVortiefExcluded, isUnchecked, isDealerLoser };
   }
@@ -9366,7 +9368,7 @@ const SHADOW_MODAL_STYLES = `
                 <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="deal-disc">
-                <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert.">Min-Rabatt</span>
+                <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Geprüfte Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert; ungeprüfte bleiben sichtbar.">Min-Rabatt</span>
                 <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
                   <button class="tp-stepper-btn" id="tp-bar-deal-disc-minus" title="Geringeren Rabatt fordern">-</button>
                   <span id="tp-bar-deal-disc-val" style="min-width: 28px; text-align: center;">${CONFIG.MIN_DEAL_DISCOUNT}%</span>
@@ -10408,7 +10410,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.345';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.346';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

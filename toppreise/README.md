@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.345)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.346)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -98,14 +98,14 @@ Requires a userscript manager browser extension:
 | ③ | **Minimum Offers** | Filters out marketplace offers with fewer than **N** merchants (active only on pages with dealer rows). |
 | ④ | **Unverified Offers (*Ungeprüfte*)** | Dim or hide deals lacking verified historical price series. |
 | ⑤ | **Fallback Lows Toggle** | Filter or dim verified offers with sparse history. |
-| ⑥ | **Minimum Discount (*Min-Rabatt*)** | Filter out deals with less than **X%** discount. |
+| ⑥ | **Minimum Discount (*Min-Rabatt*)** | Filter out verified deals with less than **X%** discount (unverified deals remain visible). |
 | ⑦ | **Batch Verification CTA** | One-click batch scanner (`🔍 Tiefstpreise prüfen`) to verify all visible offers meeting discount criteria. |
 
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
   * **Negative Keywords:** Exclude unwanted terms (comma/semicolon/newline lists; long terms `>3` chars match as substrings, short terms `≤3` chars enforce word boundaries).
   * **Minimum Offer Count:** Filter out marketplace listings with fewer than **N** merchants (shows inactive notice on pages without offer counts).
-  * **Minimum Discount (*Min-Rabatt*):** Filter out offers below a minimum deal discount percentage (stepped 0%–50% in 5% increments).
+  * **Minimum Discount (*Min-Rabatt*):** Filter out verified offers below a minimum deal discount percentage (stepped 0%–50% in 5% increments; unverified offers remain visible).
   * **Unverified (*Ungeprüfte*):** Dim or hide unverified offers across all pages.
   * **Fallback Lows (*Fallback-Tiefs*):** Control visibility of low-history verified offers across all pages.
   * **Selected Dealer Best-Price Check:** Highlights cards with an emerald border and `Toppreis` badge when your active dealer filter holds the cheapest offer (within a configurable `0%–50%` price tolerance margin).

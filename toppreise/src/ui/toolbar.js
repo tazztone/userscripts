@@ -106,7 +106,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="deal-disc">
-              <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert.">Min-Rabatt</span>
+              <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Geprüfte Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert; ungeprüfte bleiben sichtbar.">Min-Rabatt</span>
               <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
                 <button class="tp-stepper-btn" id="tp-bar-deal-disc-minus" title="Geringeren Rabatt fordern">-</button>
                 <span id="tp-bar-deal-disc-val" style="min-width: 28px; text-align: center;">${CONFIG.MIN_DEAL_DISCOUNT}%</span>

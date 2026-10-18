@@ -373,8 +373,10 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
    const kind = cd.displayDelta?.kind;
    const isVortief = !cd.dealScore && (kind === 'at-low' || kind === 'new-low');
    const isVortiefExcluded = CONFIG.BESTPREISE_INCLUDE_VORTIEF === false && isVortief;
-   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats);
-   const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
+   const stats = cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats;
+   const isVerified = !!cd.dealScore || hasUsablePriceStats(stats);
+   const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(stats);
+   const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && isVerified && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
    const isDealerLoser = false;
    return { isNeg, isLowOffers, isBelowMinDiscount, isVortiefExcluded, isUnchecked, isDealerLoser };
 }

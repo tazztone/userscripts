@@ -595,6 +595,35 @@ describe('Min-Rabatt threshold filter core', () => {
     });
   });
 
+  it('applyCardFilters does not apply Min-Rabatt to unverified or unavailable cards', () => {
+    withConfig('FILTER_DEAL_DISCOUNT_ENABLED', true, () => {
+      withConfig('MIN_DEAL_DISCOUNT', 20, () => {
+        // Unverified card with no discount
+        const cdUnverifiedNoDisc = { dealScore: null, stats: null, discountVal: 0, card: {} };
+        assert.equal(applyCardFilters(cdUnverifiedNoDisc, [], 0, true).isBelowMinDiscount, false);
+
+        // Unverified card with native site discount below threshold
+        const cdUnverifiedWithDisc = { dealScore: null, stats: null, discountVal: 10, card: {} };
+        assert.equal(applyCardFilters(cdUnverifiedWithDisc, [], 0, true).isBelowMinDiscount, false);
+
+        // Unavailable history (checked, no history on Toppreise)
+        const cdUnavailable = { dealScore: null, stats: { unavailable: true }, discountVal: 10, card: {} };
+        assert.equal(applyCardFilters(cdUnavailable, [], 0, true).isBelowMinDiscount, false);
+
+        // Verified fallback low with drop below threshold
+        const cdVerifiedFallbackLow = {
+          dealScore: null,
+          cardPrice: 90,
+          verifiedStats: { tiefstpreis: 100, previousLow: 100, timeSeries: [{ price: 100 }, { price: 120 }] },
+          displayDelta: { kind: 'new-low', prevLow: 100 },
+          card: {}
+        };
+        // drop is 10%, threshold is 20% -> should be below min discount
+        assert.equal(applyCardFilters(cdVerifiedFallbackLow, [], 0, true).isBelowMinDiscount, true);
+      });
+    });
+  });
+
   it('applyCardFilters ignores threshold when disabled or MIN_DEAL_DISCOUNT is 0', () => {
     withConfig('FILTER_DEAL_DISCOUNT_ENABLED', false, () => {
       withConfig('MIN_DEAL_DISCOUNT', 20, () => {

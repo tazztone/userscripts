@@ -98,7 +98,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | ③ | **Min-Angebote** | Filtert Angebote mit weniger als **N** Händlern aus (nur auf Seiten mit Händlerzeilen aktiv). |
 | ④ | **Ungeprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
 | ⑤ | **Fallback-Tiefs** | Steuert die Sichtbarkeit von Angeboten mit geringer Datenpunktdichte. |
-| ⑥ | **Min-Rabatt** | Filtert Angebote mit weniger als **X%** Rabatt aus. |
+| ⑥ | **Min-Rabatt** | Filtert geprüfte Angebote mit weniger als **X%** Rabatt aus (ungeprüfte bleiben sichtbar). |
 | ⑦ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt (`🔍 Tiefstpreise prüfen`). |
 
 * **Kontextsensitive Leiste:** Passt sich automatisch an Deal-Feeds (`/neue-toppreise`), Suchseiten (`/produktsuche/...`) und Produktseiten an.

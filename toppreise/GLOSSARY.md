@@ -47,7 +47,7 @@ Eine einzelne Ursache (Negativ, Min-Angebote, Min-Rabatt, Händler, Ungeprüfte,
 _Avoid_: Ursache (in UI-Texten)
 
 **Min-Rabatt**:
-Mindest-Rabatt in Prozent (0–50 % in 5-%-Schritten). Karten mit weniger Rabatt (oder verifizierte Aufschläge) greifen als Filtergrund.
+Mindest-Rabatt in Prozent (0–50 % in 5-%-Schritten). Geprüfte Karten mit weniger Rabatt (oder verifizierte Aufschläge) greifen als Filtergrund; ungeprüfte Karten bleiben vom Min-Rabatt unberührt.
 
 **Gefilterte**:
 Durch einen Filtergrund verborgene Karten (`tp-filtered`). Gedimmte (`tp-dimmed`) und hervorgehobene (`tp-highlighted`) Karten bleiben sichtbar.
