@@ -173,8 +173,8 @@ export function medianHorizonLabel(stats) {
  * Heat follows the badge % only (blend, Vortief-Abstand, or site-%), never
  * the verification state. Returns { value, provisional, pct, kind }:
  * - verified deal   -> blend % the badge shows (weight-blended Ø-discount +
- *                      record-margin at the slider mix), null inside the ±5%
- *                      deadband (number still prints, card stays gray)
+ *                      record-margin at the slider mix), null inside the ±1%
+ *                      deadband (HEAT_NEUTRAL_DEADBAND_PCT) (number still prints, card stays gray)
  * - verified markup -> null (no deal, no color — the +XX% badge text
  *                      carries the markup signal)
  * - verified but unqualified (thin/flat history, no dealData) -> Vortief-Abstand
@@ -213,7 +213,7 @@ export function getHeatInput(cardPrice, stats, siteDiff, _mode, precomputed = un
       return { value: null, provisional: false, pct: 0, kind: 'none' };
     }
     const pct = dealData.weightedDiff;
-    // ±5% deadband (documented noise guard): a tiny blend shows in the
+    // ±1% deadband (HEAT_NEUTRAL_DEADBAND_PCT noise guard): a tiny blend shows in the
     // badge text but stays gray on the card — decided on the raw blend.
     const rawBlend = (1 - weight) * levelRaw + weight * recordRaw;
     if (!(rawBlend >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind: 'blend' };

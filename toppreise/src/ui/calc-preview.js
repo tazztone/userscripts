@@ -54,9 +54,10 @@ export function previewStats(points, o) {
 
   const varianceOk = tiefstpreis > 0 && (hoechstpreis - tiefstpreis) / tiefstpreis >= 0.02;
   const qualifies = clean.length >= minPoints && varianceOk
-    && priceToCents(cardPrice) <= priceToCents(tiefstpreis) && (dMedian > 0 || dRecord > 0);
+    && priceToCents(cardPrice) <= priceToCents(tiefstpreis) && median > 0;
+  const isZeroMargin = dMedian <= 0 && dRecord <= 0;
   const badge = qualifies
-    ? Math.max(1, Math.round((1 - weightRecord) * dMedian + weightRecord * dRecord))
+    ? (isZeroMargin ? 0 : Math.max(1, Math.round((1 - weightRecord) * dMedian + weightRecord * dRecord)))
     : null;
   const recordLow = live.previousLow ?? 0;
   const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
@@ -312,7 +313,8 @@ export function refreshCalcPreview() {
   }
   if (st.qualifies) {
     const w = Math.round(weightRecord * 100);
-    blend.innerHTML = `<span class="badge-dif tp-deal-alltime-low">⚖️ −${st.badge}%</span><span class="tp-pv-formula"><i style="width:${100 - w}%"></i><b style="width:${w}%"></b></span>`;
+    const pctText = st.badge === 0 ? '0%' : `−${st.badge}%`;
+    blend.innerHTML = `<span class="badge-dif tp-deal-alltime-low">⚖️ ${pctText}</span><span class="tp-pv-formula"><i style="width:${100 - w}%"></i><b style="width:${w}%"></b></span>`;
   } else {
     blend.textContent = 'kein Tiefstpreis zum Demo-Preis – kein Badge';
   }

@@ -92,4 +92,31 @@ describe('calc-preview getPageProductOptions', () => {
     assert.equal(reconstructed.length, 3);
     assert.deepEqual(reconstructed.map(p => p[1]), [100, 10, 100]);
   });
+
+  it('qualifies 0%-margin verified all-time low deals with badge: 0', () => {
+    const now = Date.now();
+    const points = [
+      [now - 86400000 * 10, 100],
+      [now - 86400000 * 8, 105],
+      [now - 86400000 * 5, 100],
+      [now - 86400000 * 4, 100],
+      [now - 86400000 * 3, 100],
+      [now - 86400000 * 2, 100],
+      [now, 100]
+    ];
+    const st = previewStats(points, {
+      band: 0.50,
+      hours: 48,
+      enabled: true,
+      horizonDays: 365,
+      weightRecord: 0.50,
+      minPoints: 5,
+      cardPrice: 100,
+      now
+    });
+    assert.equal(st.qualifies, true);
+    assert.equal(st.badge, 0);
+    assert.equal(st.dMedian, 0);
+    assert.equal(st.dRecord, 0);
+  });
 });
