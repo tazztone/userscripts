@@ -20,7 +20,8 @@ export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
     const removed = clearPriceStatsCache();
     clearDealerMemory();
-    if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+    const diskLimit = (els.cacheDiskVal && parseInt(els.cacheDiskVal.value, 10)) || CONFIG.CACHE_DISK_LIMIT || 300;
+    if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
     triggerProcessListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
   });
@@ -83,7 +84,7 @@ export function wireModalActions(els) {
     updateConfigs({ ...DEFAULTS });
     updateBodyClasses();
     syncFieldsFromConfig(els);
-    if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+    if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
     showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
   });
 
@@ -221,6 +222,8 @@ export function wireModalActions(els) {
     }
     if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
     if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
+    if (els.cacheMemoryVal) { const rawM = parseInt(els.cacheMemoryVal.value, 10); updates.CACHE_MEMORY_LIMIT = isNaN(rawM) ? 500 : rawM; }
+    if (els.cacheDiskVal) { const rawD = parseInt(els.cacheDiskVal.value, 10); updates.CACHE_DISK_LIMIT = isNaN(rawD) ? 300 : rawD; }
     if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
     if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
     if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;

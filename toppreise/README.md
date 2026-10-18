@@ -32,7 +32,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.344)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.345)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -182,13 +182,13 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
 6. **💬 Discord Share:** Confidential webhook URL (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, etc.), presets, and live Markdown preview.
-7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
+7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, configurable RAM & disk cache limits, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
 
 ---
 
 ## 🔒 Privacy, Storage & Permissions
 
-* **Local-First Caching:** Price series (`tp_hist_v1_*`), merchant metadata (`tp_dealer_v1_*`), and shared-deal markers (`tp_shared_v1_*`) are stored in `localStorage` backed by an in-memory 500-item LRU cache and automatically pruned by TTL (48h for valid data, 2h for unavailable charts).
+* **Local-First Caching:** Price series (`tp_hist_v1_*`), merchant metadata (`tp_dealer_v1_*`), and shared-deal markers (`tp_shared_v1_*`) are stored in `localStorage` backed by an in-memory LRU cache with configurable limits (default: 500 RAM / 300 disk items) and automatically pruned by TTL (48h for valid data, 2h for unavailable charts).
 * **Two-Layer Persistence:** Preferences and negative filters use a resilient 2-layer storage architecture (`GM_setValue` / `GM_getValue` with domain `localStorage` auto-healing backup) that survives userscript reinstalls.
 * **Webhook Confidentiality:** Your `DISCORD_WEBHOOK_URL` is saved exclusively in private userscript manager storage (`GM_setValue`). It is **never** mirrored to page-accessible `localStorage` and is automatically stripped from JSON configuration exports.
 * **Granted Permissions:**

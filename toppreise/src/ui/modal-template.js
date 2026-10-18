@@ -291,6 +291,22 @@ export function ensureModalSection(shadow) {
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
         </div>
+        <div class="tp-settings-group">
+          <label title="Maximale Anzahl an Preishistorien im Arbeitsspeicher (LRU)">RAM-Cache Limit (Einträge)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-cache-memory-range" min="100" max="2000" step="50" value="500">
+            <input type="number" id="tp-cache-memory-val" min="100" max="2000" step="50" value="500">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Hält bis zu N Einträge im Arbeitsspeicher (Standard: 500). Ältere Einträge weichen per LRU.</span>
+        </div>
+        <div class="tp-settings-group">
+          <label title="Maximale Anzahl an Preishistorien im Browser-Speicher (localStorage)">Festplatten-Cache Limit (Einträge)</label>
+          <div class="tp-range-container">
+            <input type="range" id="tp-cache-disk-range" min="100" max="1000" step="50" value="300">
+            <input type="number" id="tp-cache-disk-val" min="100" max="1000" step="50" value="300">
+          </div>
+          <span class="tp-switch-desc tp-field-hint">Maximaler lokaler Browser-Speicher (Standard: 300). Bei Überschreitung wird auf 80% bereinigt.</span>
+        </div>
         <div class="tp-settings-group tp-danger-zone">
           <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
           <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>

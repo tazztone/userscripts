@@ -408,17 +408,22 @@ def test_cache_settings_and_clear_button(page: Page):
     # Open settings modal
     open_settings(page)
 
-    # Verify cache count label displays 2 items
+    # Verify cache count label displays 2 items with disk limit
     stats_label = page.locator('#tp-root >> #tp-cache-stats-label')
-    assert '2 Einträge' in (stats_label.text_content() or '')
+    assert '2 / 300 Einträge' in (stats_label.text_content() or '')
 
     # Change Cache TTL to 72 hours and Neg TTL to 6 hours
     page.select_option('#tp-root >> #tp-cache-ttl-select', '72')
     page.select_option('#tp-root >> #tp-cache-neg-ttl-select', '6')
 
+    # Change RAM and Disk cache limits
+    page.fill('#tp-root >> #tp-cache-memory-val', '750')
+    page.fill('#tp-root >> #tp-cache-disk-val', '400')
+    assert '2 / 400 Einträge' in (stats_label.text_content() or '')
+
     # Click Clear Cache button
     page.click('#tp-root >> #tp-cache-clear-btn')
-    assert '0 Einträge' in (stats_label.text_content() or '')
+    assert '0 / 400 Einträge' in (stats_label.text_content() or '')
 
     # Verify localStorage items were removed
     remaining_keys = page.evaluate("""() => {
@@ -437,6 +442,8 @@ def test_cache_settings_and_clear_button(page: Page):
 
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_CACHE_HOURS") == 72
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.NEGATIVE_CACHE_HOURS") == 6
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.CACHE_MEMORY_LIMIT") == 750
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.CACHE_DISK_LIMIT") == 400
 
 
 

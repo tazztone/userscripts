@@ -75,6 +75,23 @@ describe('Bounded Cache Module', () => {
       assert.equal(memoryCache.has(statsKey('p2')), false); // Oldest, evicted
       assert.equal(memoryCache.has(statsKey('p501')), true);
     });
+
+    it('respects configurable CACHE_MEMORY_LIMIT and trims lazily on insertion', () => {
+      withConfig('CACHE_MEMORY_LIMIT', 150, () => {
+        for (let i = 1; i <= 150; i++) {
+          setCachedPriceStats(`m${i}`, { tiefstpreis: i }, false, null);
+        }
+        assert.equal(memoryCache.size, 150);
+
+        withConfig('CACHE_MEMORY_LIMIT', 100, () => {
+          setCachedPriceStats('m151', { tiefstpreis: 151 }, false, null);
+          assert.equal(memoryCache.size, 100);
+          assert.equal(memoryCache.has(statsKey('m151')), true);
+          assert.equal(memoryCache.has(statsKey('m51')), false);
+          assert.equal(memoryCache.has(statsKey('m52')), true);
+        });
+      });
+    });
   });
 
   describe('isCacheEntryFresh', () => {
@@ -383,6 +400,24 @@ describe('Bounded Cache Module', () => {
       assert.notEqual(s.getItem('tp_hist_v1_fast_new'), null);
       assert.equal(s.getItem('tp_hist_v1_leg_old'), null);
       assert.notEqual(s.getItem('tp_hist_v1_leg_new'), null);
+    });
+
+    it('respects configurable CACHE_DISK_LIMIT and prunes to 80% low-water mark', () => {
+      const s = memStorage();
+      const now = Date.now();
+      withConfig('CACHE_DISK_LIMIT', 200, () => {
+        for (let i = 0; i < 220; i++) {
+          s.setItem(`tp_hist_v1_d${i}`, `{"time":${now - (220 - i) * 1000},"tiefstpreis":${i}}`);
+        }
+        assert.equal(s.length, 220);
+        prunePriceStatsCache(s);
+        // Target: Math.round(200 * 0.8) = 160
+        assert.equal(s.length, 160);
+        assert.equal(s.getItem('tp_hist_v1_d0'), null);
+        assert.equal(s.getItem('tp_hist_v1_d59'), null);
+        assert.notEqual(s.getItem('tp_hist_v1_d60'), null);
+        assert.notEqual(s.getItem('tp_hist_v1_d219'), null);
+      });
     });
   });
 

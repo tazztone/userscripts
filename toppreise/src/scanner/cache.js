@@ -21,10 +21,10 @@ export const SHARED_CACHE_PREFIX = 'tp_shared_v1_';
 const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX, SHARED_CACHE_PREFIX];
 export const MAX_MEMORY_CACHE_ITEMS = 500;
 
-export function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
+export function lruSet(map, key, val, cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
   map.delete(key);
   map.set(key, val);
-  if (map.size > cap) map.delete(map.keys().next().value);
+  while (map.size > cap) map.delete(map.keys().next().value);
 }
 
 export const memoryCache = new Map();
@@ -113,9 +113,13 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
       entries.sort((a, b) => a.time - b.time);
       const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
       entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
-    } else if (entries.length > 300) {
-      entries.sort((a, b) => a.time - b.time);
-      entries.slice(0, entries.length - 250).forEach(e => storage.removeItem(e.key));
+    } else {
+      const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+      if (entries.length > diskLimit) {
+        entries.sort((a, b) => a.time - b.time);
+        const target = Math.max(50, Math.round(diskLimit * 0.8));
+        entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
+      }
     }
   } catch (e) {}
 }

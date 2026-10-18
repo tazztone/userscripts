@@ -42,6 +42,10 @@ export function collectModalElements(shadow) {
   const bestpreiseHorizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
   const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
   const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
+  const cacheMemoryRange = shadow.getElementById('tp-cache-memory-range');
+  const cacheMemoryVal = shadow.getElementById('tp-cache-memory-val');
+  const cacheDiskRange = shadow.getElementById('tp-cache-disk-range');
+  const cacheDiskVal = shadow.getElementById('tp-cache-disk-val');
   const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
   const cacheClearBtn = shadow.getElementById('tp-cache-clear-btn');
   const dataResetBtn = shadow.getElementById('tp-data-reset-btn');
@@ -67,7 +71,7 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -127,9 +131,13 @@ export function syncFieldsFromConfig(els) {
 
     if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
     if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
+    if (els.cacheMemoryRange) els.cacheMemoryRange.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
+    if (els.cacheMemoryVal) els.cacheMemoryVal.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
+    if (els.cacheDiskRange) els.cacheDiskRange.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
+    if (els.cacheDiskVal) els.cacheDiskVal.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
     if (els.cacheStatsLabel) {
       const count = countCachedPriceStats();
-      els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+      els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
     }
 
     if (els.discordWebhookInput) els.discordWebhookInput.value = '';
@@ -186,6 +194,13 @@ export function bindControlPairs(els) {
   bindDual(els.alarmTargetRange, els.alarmTargetVal);
   bindDual(els.heatmapIntensityRange, els.heatmapIntensityVal);
   bindDual(els.realDealMinRange, els.realDealMinVal);
+  bindDual(els.cacheMemoryRange, els.cacheMemoryVal);
+  bindDual(els.cacheDiskRange, els.cacheDiskVal, () => {
+    if (els.cacheStatsLabel && els.cacheDiskVal) {
+      const count = countCachedPriceStats();
+      els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${els.cacheDiskVal.value || 300} Einträge`;
+    }
+  });
 
   bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
   bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw, meta) => {

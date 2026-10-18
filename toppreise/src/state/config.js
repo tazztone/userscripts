@@ -108,6 +108,8 @@ export const CONFIG = {
   REAL_DEAL_MIN_DISCOUNT: sanitizeConfigValue('REAL_DEAL_MIN_DISCOUNT', _getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
   REAL_DEAL_CACHE_HOURS: sanitizeConfigValue('REAL_DEAL_CACHE_HOURS', _getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
   NEGATIVE_CACHE_HOURS: sanitizeConfigValue('NEGATIVE_CACHE_HOURS', _getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
+  CACHE_MEMORY_LIMIT: sanitizeConfigValue('CACHE_MEMORY_LIMIT', _getValue('CACHE_MEMORY_LIMIT', DEFAULTS.CACHE_MEMORY_LIMIT)),
+  CACHE_DISK_LIMIT: sanitizeConfigValue('CACHE_DISK_LIMIT', _getValue('CACHE_DISK_LIMIT', DEFAULTS.CACHE_DISK_LIMIT)),
   BESTPREISE_MODE_ACTIVE: sanitizeConfigValue('BESTPREISE_MODE_ACTIVE', _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE)),
   BESTPREISE_HIDE_UNCHECKED: sanitizeConfigValue('BESTPREISE_HIDE_UNCHECKED', _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED)),
   BESTPREISE_INCLUDE_VORTIEF: sanitizeConfigValue('BESTPREISE_INCLUDE_VORTIEF', _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF)),
@@ -265,6 +267,20 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         case 'REAL_DEAL_MIN_DISCOUNT': {
           const range = shadow.getElementById('tp-real-deal-min-range');
           const valEl = shadow.getElementById('tp-real-deal-min-val');
+          if (range) range.value = val;
+          if (valEl) valEl.value = val;
+          break;
+        }
+        case 'CACHE_MEMORY_LIMIT': {
+          const range = shadow.getElementById('tp-cache-memory-range');
+          const valEl = shadow.getElementById('tp-cache-memory-val');
+          if (range) range.value = val;
+          if (valEl) valEl.value = val;
+          break;
+        }
+        case 'CACHE_DISK_LIMIT': {
+          const range = shadow.getElementById('tp-cache-disk-range');
+          const valEl = shadow.getElementById('tp-cache-disk-val');
           if (range) range.value = val;
           if (valEl) valEl.value = val;
           break;

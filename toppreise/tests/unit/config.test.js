@@ -207,5 +207,38 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     syncUiControl('DISCORD_FORUM_TITLE', false, {}, shadow);
     assert.equal(shadow._toggle.checked, false);
   });
+
+  it('sanitizes CACHE_MEMORY_LIMIT (100..2000, default 500)', () => {
+    assert.equal(DEFAULTS.CACHE_MEMORY_LIMIT, 500);
+    assert.equal(sanitizeConfigValue('CACHE_MEMORY_LIMIT', 50), 100);
+    assert.equal(sanitizeConfigValue('CACHE_MEMORY_LIMIT', 750), 750);
+    assert.equal(sanitizeConfigValue('CACHE_MEMORY_LIMIT', 5000), 2000);
+    assert.equal(sanitizeConfigValue('CACHE_MEMORY_LIMIT', 'invalid'), 500);
+  });
+
+  it('sanitizes CACHE_DISK_LIMIT (100..1000, default 300)', () => {
+    assert.equal(DEFAULTS.CACHE_DISK_LIMIT, 300);
+    assert.equal(sanitizeConfigValue('CACHE_DISK_LIMIT', 20), 100);
+    assert.equal(sanitizeConfigValue('CACHE_DISK_LIMIT', 450), 450);
+    assert.equal(sanitizeConfigValue('CACHE_DISK_LIMIT', 2500), 1000);
+    assert.equal(sanitizeConfigValue('CACHE_DISK_LIMIT', 'invalid'), 300);
+  });
+
+  it('syncUiControl synchronizes CACHE_MEMORY_LIMIT and CACHE_DISK_LIMIT inputs', () => {
+    const elements = {};
+    const shadow = {
+      getElementById(id) {
+        if (!elements[id]) elements[id] = { value: null };
+        return elements[id];
+      }
+    };
+    syncUiControl('CACHE_MEMORY_LIMIT', 750, {}, shadow);
+    assert.equal(elements['tp-cache-memory-range'].value, 750);
+    assert.equal(elements['tp-cache-memory-val'].value, 750);
+
+    syncUiControl('CACHE_DISK_LIMIT', 450, {}, shadow);
+    assert.equal(elements['tp-cache-disk-range'].value, 450);
+    assert.equal(elements['tp-cache-disk-val'].value, 450);
+  });
 });
 

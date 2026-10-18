@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.344
+// @version      2.18.345
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2553,10 +2553,10 @@ const SHADOW_MODAL_STYLES = `
   const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX, SHARED_CACHE_PREFIX];
   const MAX_MEMORY_CACHE_ITEMS = 500;
 
-  function lruSet(map, key, val, cap = MAX_MEMORY_CACHE_ITEMS) {
+  function lruSet(map, key, val, cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
     map.delete(key);
     map.set(key, val);
-    if (map.size > cap) map.delete(map.keys().next().value);
+    while (map.size > cap) map.delete(map.keys().next().value);
   }
 
   const memoryCache = new Map();
@@ -2645,9 +2645,13 @@ const SHADOW_MODAL_STYLES = `
         entries.sort((a, b) => a.time - b.time);
         const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
         entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
-      } else if (entries.length > 300) {
-        entries.sort((a, b) => a.time - b.time);
-        entries.slice(0, entries.length - 250).forEach(e => storage.removeItem(e.key));
+      } else {
+        const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+        if (entries.length > diskLimit) {
+          entries.sort((a, b) => a.time - b.time);
+          const target = Math.max(50, Math.round(diskLimit * 0.8));
+          entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
+        }
       }
     } catch (e) {}
   }
@@ -2946,6 +2950,8 @@ const SHADOW_MODAL_STYLES = `
     REAL_DEAL_MIN_DISCOUNT: 30,
     REAL_DEAL_CACHE_HOURS: 48,
     NEGATIVE_CACHE_HOURS: 2,
+    CACHE_MEMORY_LIMIT: 500,
+    CACHE_DISK_LIMIT: 300,
     BESTPREISE_MODE_ACTIVE: false,
     BESTPREISE_HIDE_UNCHECKED: false,
     BESTPREISE_INCLUDE_VORTIEF: true,
@@ -3035,6 +3041,8 @@ const SHADOW_MODAL_STYLES = `
     REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
     REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
     NEGATIVE_CACHE_HOURS: { type: 'float', default: 2, min: 0.25, max: 24 },
+    CACHE_MEMORY_LIMIT: { type: 'int', default: 500, min: 100, max: 2000 },
+    CACHE_DISK_LIMIT: { type: 'int', default: 300, min: 100, max: 1000 },
     BESTPREISE_MODE_ACTIVE: { type: 'bool', default: false },
     BESTPREISE_HIDE_UNCHECKED: { type: 'bool', default: false },
     BESTPREISE_INCLUDE_VORTIEF: { type: 'bool', default: true },
@@ -3311,6 +3319,8 @@ const SHADOW_MODAL_STYLES = `
     REAL_DEAL_MIN_DISCOUNT: sanitizeConfigValue('REAL_DEAL_MIN_DISCOUNT', _getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
     REAL_DEAL_CACHE_HOURS: sanitizeConfigValue('REAL_DEAL_CACHE_HOURS', _getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
     NEGATIVE_CACHE_HOURS: sanitizeConfigValue('NEGATIVE_CACHE_HOURS', _getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
+    CACHE_MEMORY_LIMIT: sanitizeConfigValue('CACHE_MEMORY_LIMIT', _getValue('CACHE_MEMORY_LIMIT', DEFAULTS.CACHE_MEMORY_LIMIT)),
+    CACHE_DISK_LIMIT: sanitizeConfigValue('CACHE_DISK_LIMIT', _getValue('CACHE_DISK_LIMIT', DEFAULTS.CACHE_DISK_LIMIT)),
     BESTPREISE_MODE_ACTIVE: sanitizeConfigValue('BESTPREISE_MODE_ACTIVE', _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE)),
     BESTPREISE_HIDE_UNCHECKED: sanitizeConfigValue('BESTPREISE_HIDE_UNCHECKED', _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED)),
     BESTPREISE_INCLUDE_VORTIEF: sanitizeConfigValue('BESTPREISE_INCLUDE_VORTIEF', _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF)),
@@ -3468,6 +3478,20 @@ const SHADOW_MODAL_STYLES = `
           case 'REAL_DEAL_MIN_DISCOUNT': {
             const range = shadow.getElementById('tp-real-deal-min-range');
             const valEl = shadow.getElementById('tp-real-deal-min-val');
+            if (range) range.value = val;
+            if (valEl) valEl.value = val;
+            break;
+          }
+          case 'CACHE_MEMORY_LIMIT': {
+            const range = shadow.getElementById('tp-cache-memory-range');
+            const valEl = shadow.getElementById('tp-cache-memory-val');
+            if (range) range.value = val;
+            if (valEl) valEl.value = val;
+            break;
+          }
+          case 'CACHE_DISK_LIMIT': {
+            const range = shadow.getElementById('tp-cache-disk-range');
+            const valEl = shadow.getElementById('tp-cache-disk-val');
             if (range) range.value = val;
             if (valEl) valEl.value = val;
             break;
@@ -7613,6 +7637,22 @@ const SHADOW_MODAL_STYLES = `
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
           </div>
+          <div class="tp-settings-group">
+            <label title="Maximale Anzahl an Preishistorien im Arbeitsspeicher (LRU)">RAM-Cache Limit (Einträge)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-cache-memory-range" min="100" max="2000" step="50" value="500">
+              <input type="number" id="tp-cache-memory-val" min="100" max="2000" step="50" value="500">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Hält bis zu N Einträge im Arbeitsspeicher (Standard: 500). Ältere Einträge weichen per LRU.</span>
+          </div>
+          <div class="tp-settings-group">
+            <label title="Maximale Anzahl an Preishistorien im Browser-Speicher (localStorage)">Festplatten-Cache Limit (Einträge)</label>
+            <div class="tp-range-container">
+              <input type="range" id="tp-cache-disk-range" min="100" max="1000" step="50" value="300">
+              <input type="number" id="tp-cache-disk-val" min="100" max="1000" step="50" value="300">
+            </div>
+            <span class="tp-switch-desc tp-field-hint">Maximaler lokaler Browser-Speicher (Standard: 300). Bei Überschreitung wird auf 80% bereinigt.</span>
+          </div>
           <div class="tp-settings-group tp-danger-zone">
             <span class="tp-switch-desc">Gefahrenzone: löscht Cache und setzt alle Einstellungen zurück.</span>
             <button type="button" id="tp-data-reset-btn" class="tp-btn tp-btn-danger" title="Löscht Preis- und Händler-Cache und setzt ALLE Einstellungen (inkl. Discord-Webhook) auf Standard zurück.">🧨 Alle Daten löschen</button>
@@ -7752,6 +7792,10 @@ const SHADOW_MODAL_STYLES = `
     const bestpreiseHorizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
     const cacheTtlSelect = shadow.getElementById('tp-cache-ttl-select');
     const cacheNegTtlSelect = shadow.getElementById('tp-cache-neg-ttl-select');
+    const cacheMemoryRange = shadow.getElementById('tp-cache-memory-range');
+    const cacheMemoryVal = shadow.getElementById('tp-cache-memory-val');
+    const cacheDiskRange = shadow.getElementById('tp-cache-disk-range');
+    const cacheDiskVal = shadow.getElementById('tp-cache-disk-val');
     const cacheStatsLabel = shadow.getElementById('tp-cache-stats-label');
     const cacheClearBtn = shadow.getElementById('tp-cache-clear-btn');
     const dataResetBtn = shadow.getElementById('tp-data-reset-btn');
@@ -7777,7 +7821,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -7837,9 +7881,13 @@ const SHADOW_MODAL_STYLES = `
 
       if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
       if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
+      if (els.cacheMemoryRange) els.cacheMemoryRange.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
+      if (els.cacheMemoryVal) els.cacheMemoryVal.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
+      if (els.cacheDiskRange) els.cacheDiskRange.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
+      if (els.cacheDiskVal) els.cacheDiskVal.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
       if (els.cacheStatsLabel) {
         const count = countCachedPriceStats();
-        els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+        els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
       }
 
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
@@ -7896,6 +7944,13 @@ const SHADOW_MODAL_STYLES = `
     bindDual(els.alarmTargetRange, els.alarmTargetVal);
     bindDual(els.heatmapIntensityRange, els.heatmapIntensityVal);
     bindDual(els.realDealMinRange, els.realDealMinVal);
+    bindDual(els.cacheMemoryRange, els.cacheMemoryVal);
+    bindDual(els.cacheDiskRange, els.cacheDiskVal, () => {
+      if (els.cacheStatsLabel && els.cacheDiskVal) {
+        const count = countCachedPriceStats();
+        els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${els.cacheDiskVal.value || 300} Einträge`;
+      }
+    });
 
     bindDual(els.bestpreiseWeightRange, els.bestpreiseWeightVal, v => updateWeightDesc(els, v));
     bindDual(els.bestpreiseHorizonRange, els.bestpreiseHorizonVal, (raw, meta) => {
@@ -7942,7 +7997,8 @@ const SHADOW_MODAL_STYLES = `
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
       clearDealerMemory();
-      if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+      const diskLimit = (els.cacheDiskVal && parseInt(els.cacheDiskVal.value, 10)) || CONFIG.CACHE_DISK_LIMIT || 300;
+      if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
       triggerProcessListings();
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
@@ -8005,7 +8061,7 @@ const SHADOW_MODAL_STYLES = `
       updateConfigs({ ...DEFAULTS });
       updateBodyClasses();
       syncFieldsFromConfig(els);
-      if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = 'Lokaler Cache: 0 Einträge';
+      if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
       showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
     });
 
@@ -8143,6 +8199,8 @@ const SHADOW_MODAL_STYLES = `
       }
       if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
       if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
+      if (els.cacheMemoryVal) { const rawM = parseInt(els.cacheMemoryVal.value, 10); updates.CACHE_MEMORY_LIMIT = isNaN(rawM) ? 500 : rawM; }
+      if (els.cacheDiskVal) { const rawD = parseInt(els.cacheDiskVal.value, 10); updates.CACHE_DISK_LIMIT = isNaN(rawD) ? 300 : rawD; }
       if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
       if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
       if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
@@ -10350,7 +10408,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.344';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.345';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
