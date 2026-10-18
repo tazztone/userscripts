@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toppreise.ch Suite - Power Filter & Deal Verification</title>
+  <meta name="description" content="All-in-one userscript suite for Toppreise.ch: verifies authentic all-time low prices, exposes fake discounts, and automates deal alerts.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card-bg: #121826;
+      --card-border: #1f293d;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #f59e0b;
+      --ruby: #f43f5e;
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header & Nav */
+    header {
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      background: rgba(11, 15, 23, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--text);
+    }
+    .logo-badge {
+      font-size: 0.75rem;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Lang Toggle */
+    .lang-switcher {
+      display: inline-flex;
+      background: #182234;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .lang-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .lang-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none !important;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid var(--card-border);
+    }
+    .btn-secondary:hover {
+      background: #27354a;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 72px 0 48px;
+    }
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--ruby);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: 2.75rem;
+      line-height: 1.2;
+      font-weight: 800;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, #60a5fa, #f43f5e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      margin: 0 auto 32px;
+    }
+    .hero-cta {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Video Section */
+    .video-section {
+      margin: 40px 0 80px;
+    }
+    .video-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+    }
+    .video-tabs {
+      display: flex;
+      background: #0d1320;
+      border-bottom: 1px solid var(--card-border);
+      padding: 8px 16px;
+      gap: 8px;
+    }
+    .video-tab {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .video-tab.active {
+      background: #1e293b;
+      color: #fff;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      background: #000;
+    }
+    video {
+      width: 100%;
+      display: block;
+      max-height: 600px;
+      outline: none;
+    }
+
+    /* Feature Grid */
+    .features {
+      padding: 40px 0 80px;
+    }
+    .section-title {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .section-title h2 {
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+    .section-title p {
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-2px);
+      border-color: #2e3e5c;
+    }
+    .feature-icon {
+      font-size: 1.75rem;
+      margin-bottom: 16px;
+      display: inline-block;
+    }
+    .feature-card h3 {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Installation */
+    .install-box {
+      background: linear-gradient(180deg, #131c2e, #0f1624);
+      border: 1px solid #23334d;
+      border-radius: 16px;
+      padding: 48px 32px;
+      text-align: center;
+      margin: 40px 0 80px;
+    }
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin: 36px 0;
+      flex-wrap: wrap;
+    }
+    .step {
+      flex: 1;
+      min-width: 240px;
+      max-width: 300px;
+      text-align: left;
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: var(--radius);
+      border: 1px solid var(--card-border);
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+    }
+    .step h4 {
+      margin-bottom: 6px;
+    }
+    .step p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--card-border);
+      padding: 40px 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2rem; }
+      .nav-actions .btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="container nav">
+      <div class="logo">
+        <span>💎 Toppreise.ch Suite</span>
+        <span class="logo-badge">v2.18.345</span>
+      </div>
+      <div class="nav-actions">
+        <div class="lang-switcher">
+          <button class="lang-btn active" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="de">DE</button>
+        </div>
+        <a href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js" class="btn btn-primary" id="nav-install-btn">
+          Install Userscript
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-pill">
+        <span>⚡</span>
+        <span id="hero-badge">Verified All-Time Lows & Deceptive Markup Shield</span>
+      </div>
+      <h1 id="hero-title">
+        Stop falling for fake discounts.<br>
+        <span>True historical price intelligence.</span>
+      </h1>
+      <p id="hero-subtitle">
+        An all-in-one userscript suite for Toppreise.ch that verifies authentic all-time record lows against complete price history, filters out noise, and auto-fills price alarms.
+      </p>
+      <div class="hero-cta">
+        <a href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js" class="btn btn-primary" id="cta-install-btn">
+          <span>🚀</span> Install Userscript (Free)
+        </a>
+        <a href="https://github.com/tazztone/userscripts/tree/main/toppreise" class="btn btn-secondary">
+          <span>⭐</span> View on GitHub
+        </a>
+      </div>
+    </section>
+
+    <!-- Video Showcase Section -->
+    <section class="video-section">
+      <div class="video-card">
+        <div class="video-tabs">
+          <button class="video-tab active" data-tab="short" id="tab-short-btn">
+            <span>⚡</span> Quick Demo (1 min)
+          </button>
+          <button class="video-tab" data-tab="explainer" id="tab-explainer-btn">
+            <span>🎥</span> Full Walkthrough
+          </button>
+        </div>
+        <div class="video-container">
+          <video id="main-video" controls playsinline preload="metadata">
+            <source id="video-source" src="https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section class="features">
+      <div class="section-title">
+        <h2 id="features-title">Engineered for Smart Shoppers</h2>
+        <p id="features-subtitle">Never overpay again. Verified deal signals, zero tracking redirects.</p>
+      </div>
+      <div class="grid">
+        <div class="feature-card">
+          <span class="feature-icon">🔍</span>
+          <h3 id="f1-title">Real Deal Verification</h3>
+          <p id="f1-desc">Scans the full historical price series of any deal. Uses rolling median baselines (30–730 days) to prevent obsolete launch MSRP bias.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🛡️</span>
+          <h3 id="f2-title">Deceptive Markup Shield</h3>
+          <p id="f2-desc">Unmasks fake retail discounts. Crosses out artificial percentage cuts and shows true markup above historical floor.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">📊</span>
+          <h3 id="f3-title">Glitch Filter</h3>
+          <p id="f3-desc">Automated price-spike and marketplace anomaly rejection using moving median windows and configurable deviation bands.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🔥</span>
+          <h3 id="f4-title">Proportional Deal Heatmap</h3>
+          <p id="f4-desc">Single-hue color wash highlighting authentic bargains at a glance: deep ruby for all-time record lows, warm amber for strong savings.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🔔</span>
+          <h3 id="f5-title">1-Click Price Alarms</h3>
+          <p id="f5-desc">Auto-fills Toppreise price alarm targets using calculated break-even formulas or historical record thresholds.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🚀</span>
+          <h3 id="f6-title">Direct Dealer Links</h3>
+          <p id="f6-desc">Bypasses tracking hops and affiliate redirects. Jump straight to the merchant product page with clean links.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation Steps -->
+    <section class="install-box">
+      <h2 id="install-title">Get Started in 30 Seconds</h2>
+      <p id="install-subtitle" style="color: var(--text-muted); margin-top: 8px;">Works on Firefox, Chrome, Brave, and Safari with Violentmonkey or Tampermonkey.</p>
+      
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h4 id="step1-title">Install Manager</h4>
+          <p id="step1-desc">Install <a href="https://violentmonkey.github.io/" target="_blank" rel="noopener">Violentmonkey</a> (recommended) or <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> extension.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h4 id="step2-title">Add Userscript</h4>
+          <p id="step2-desc">Click the Install Userscript button and confirm the installation in your userscript manager prompt.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h4 id="step3-title">Browse Toppreise</h4>
+          <p id="step3-desc">Open any deal or category page on <a href="https://www.toppreise.ch" target="_blank" rel="noopener">Toppreise.ch</a> — deal indicators activate automatically.</p>
+        </div>
+      </div>
+
+      <a href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js" class="btn btn-primary" style="font-size: 1.05rem; padding: 12px 28px;">
+        👉 <span id="btn-install-large">Install Userscript (v2.18.345)</span>
+      </a>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>© 2026 Toppreise.ch Suite. Open-source under MIT License.</p>
+      <p style="margin-top: 6px;">
+        <a href="https://github.com/tazztone/userscripts">GitHub Repository</a> · 
+        <a href="https://github.com/tazztone/userscripts/tree/main/toppreise/README.md">Documentation</a> · 
+        <a href="https://github.com/tazztone/userscripts/releases/tag/media-v1">Release Assets</a>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    const videos = {
+      en: {
+        short: "https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4",
+        explainer: "https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4"
+      },
+      de: {
+        short: "https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4",
+        explainer: "https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4"
+      }
+    };
+
+    const i18n = {
+      en: {
+        heroBadge: "Verified All-Time Lows & Deceptive Markup Shield",
+        heroTitle: "Stop falling for fake discounts.<br><span>True historical price intelligence.</span>",
+        heroSubtitle: "An all-in-one userscript suite for Toppreise.ch that verifies authentic all-time record lows against complete price history, filters out noise, and auto-fills price alarms.",
+        installBtn: "Install Userscript",
+        installBtnLarge: "Install Userscript (v2.18.345)",
+        tabShort: "⚡ Quick Demo (1 min)",
+        tabExplainer: "🎥 Full Walkthrough",
+        featuresTitle: "Engineered for Smart Shoppers",
+        featuresSubtitle: "Never overpay again. Verified deal signals, zero tracking redirects.",
+        f1Title: "Real Deal Verification",
+        f1Desc: "Scans the full historical price series of any deal. Uses rolling median baselines (30–730 days) to prevent obsolete launch MSRP bias.",
+        f2Title: "Deceptive Markup Shield",
+        f2Desc: "Unmasks fake retail discounts. Crosses out artificial percentage cuts and shows true markup above historical floor.",
+        f3Title: "Glitch Filter",
+        f3Desc: "Automated price-spike and marketplace anomaly rejection using moving median windows and configurable deviation bands.",
+        f4Title: "Proportional Deal Heatmap",
+        f4Desc: "Single-hue color wash highlighting authentic bargains at a glance: deep ruby for all-time record lows, warm amber for strong savings.",
+        f5Title: "1-Click Price Alarms",
+        f5Desc: "Auto-fills Toppreise price alarm targets using calculated break-even formulas or historical record thresholds.",
+        f6Title: "Direct Dealer Links",
+        f6Desc: "Bypasses tracking hops and affiliate redirects. Jump straight to the merchant product page with clean links.",
+        installTitle: "Get Started in 30 Seconds",
+        installSubtitle: "Works on Firefox, Chrome, Brave, and Safari with Violentmonkey or Tampermonkey.",
+        step1Title: "Install Manager",
+        step1Desc: "Install Violentmonkey (recommended) or Tampermonkey browser extension.",
+        step2Title: "Add Userscript",
+        step2Desc: "Click the Install Userscript button and confirm the installation in your userscript manager prompt.",
+        step3Title: "Browse Toppreise",
+        step3Desc: "Open any deal or category page on Toppreise.ch — deal indicators activate automatically."
+      },
+      de: {
+        heroBadge: "Verifizierte Tiefstpreise & Schutz vor Scheinerparnissen",
+        heroTitle: "Schluss mit Fake-Rabatten.<br><span>Echte historische Preis-Intelligenz.</span>",
+        heroSubtitle: "Die All-in-One Userscript-Suite für Toppreise.ch: Prüft echte Allzeit-Tiefstpreise gegen den lückenlosen Kursverlauf, entlarvt Scheinerparnisse und automatisiert Preiswecker.",
+        installBtn: "Userscript installieren",
+        installBtnLarge: "Userscript installieren (v2.18.345)",
+        tabShort: "⚡ Kurzübersicht (1 Min)",
+        tabExplainer: "🎥 Ausführliches Video",
+        featuresTitle: "Entwickelt für clevere Schnäppchenjäger",
+        featuresSubtitle: "Nie wieder überzahlen. Verifizierte Signale, ohne Tracking-Umleitungen.",
+        f1Title: "Echte Deal-Verifikation",
+        f1Desc: "Prüft lückenlose historische Kursverläufe. Rolling-Median (30–730 Tage) verhindert Verzerrungen durch veraltete UVP-Starts.",
+        f2Title: "Scheinrabatt-Erkennung",
+        f2Desc: "Enttarnt künstliche Streichpreise: Streicht gefälschte Shop-Rabatte durch und beziffert den wahren Aufschlag über dem Rekordtief.",
+        f3Title: "Glitch-Filter",
+        f3Desc: "Automatische Erkennung und Bereinigung von Preisspitzen, Marketplace-Fehlern und Ausreissern mittels gleitendem Median.",
+        f4Title: "Proportionale Deal-Heatmap",
+        f4Desc: "Farbglühen visualisiert echte Schnäppchen sofort: Tiefes Rubinrot für Allzeit-Tiefs, warmes Bernstein für solide Rabatte.",
+        f5Title: "1-Klick Preiswecker",
+        f5Desc: "Befüllt Toppreise-Preisalarme automatisch mit präzisen Break-Even-Zielpreisen oder historischen Schwellenwerten.",
+        f6Title: "Direkte Händler-Links",
+        f6Desc: "Umgeht Affiliate-Tracking und Weiterleitungsschleifen direkt zur eigentlichen Angebotsseite des Händlers.",
+        installTitle: "In 30 Sekunden startklar",
+        installSubtitle: "Funktioniert auf Firefox, Chrome, Brave und Safari mit Violentmonkey oder Tampermonkey.",
+        step1Title: "Manager installieren",
+        step1Desc: "Erweiterung Violentmonkey (empfohlen) oder Tampermonkey im Browser installieren.",
+        step2Title: "Script hinzufügen",
+        step2Desc: "Auf 'Userscript installieren' klicken und im Dialog des Managers bestätigen.",
+        step3Title: "Toppreise öffnen",
+        step3Desc: "Beliebige Angebots- oder Kategorieseite auf Toppreise.ch öffnen – Analyse startet automatisch."
+      }
+    };
+
+    let currentLang = 'en';
+    let currentTab = 'short';
+
+    const videoEl = document.getElementById('main-video');
+    const sourceEl = document.getElementById('video-source');
+
+    function updateVideo() {
+      const isPaused = videoEl.paused;
+      const targetUrl = videos[currentLang][currentTab];
+      if (sourceEl.src !== targetUrl) {
+        sourceEl.src = targetUrl;
+        videoEl.load();
+        if (!isPaused) {
+          videoEl.play();
+        }
+      }
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+      });
+      document.documentElement.lang = lang;
+
+      const t = i18n[lang];
+      document.getElementById('hero-badge').textContent = t.heroBadge;
+      document.getElementById('hero-title').innerHTML = t.heroTitle;
+      document.getElementById('hero-subtitle').textContent = t.heroSubtitle;
+      document.getElementById('nav-install-btn').textContent = t.installBtn;
+      document.getElementById('btn-install-large').textContent = t.installBtnLarge;
+      document.getElementById('tab-short-btn').innerHTML = `<span>⚡</span> ${t.tabShort}`;
+      document.getElementById('tab-explainer-btn').innerHTML = `<span>🎥</span> ${t.tabExplainer}`;
+      document.getElementById('features-title').textContent = t.featuresTitle;
+      document.getElementById('features-subtitle').textContent = t.featuresSubtitle;
+      document.getElementById('f1-title').textContent = t.f1Title;
+      document.getElementById('f1-desc').textContent = t.f1Desc;
+      document.getElementById('f2-title').textContent = t.f2Title;
+      document.getElementById('f2-desc').textContent = t.f2Desc;
+      document.getElementById('f3-title').textContent = t.f3Title;
+      document.getElementById('f3-desc').textContent = t.f3Desc;
+      document.getElementById('f4-title').textContent = t.f4Title;
+      document.getElementById('f4-desc').textContent = t.f4Desc;
+      document.getElementById('f5-title').textContent = t.f5Title;
+      document.getElementById('f5-desc').textContent = t.f5Desc;
+      document.getElementById('f6-title').textContent = t.f6Title;
+      document.getElementById('f6-desc').textContent = t.f6Desc;
+      document.getElementById('install-title').textContent = t.installTitle;
+      document.getElementById('install-subtitle').textContent = t.installSubtitle;
+      document.getElementById('step1-title').textContent = t.step1Title;
+      document.getElementById('step1-desc').innerHTML = t.step1Desc;
+      document.getElementById('step2-title').textContent = t.step2Title;
+      document.getElementById('step2-desc').textContent = t.step2Desc;
+      document.getElementById('step3-title').textContent = t.step3Title;
+      document.getElementById('step3-desc').innerHTML = t.step3Desc;
+
+      updateVideo();
+    }
+
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+    });
+
+    document.querySelectorAll('.video-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.video-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        updateVideo();
+      });
+    });
+  </script>
+</body>
+</html>
