@@ -106,12 +106,12 @@
       [
         4,
         null,
-        "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)"
+        "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)"
       ],
       [
         5,
         null,
-        "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)"
+        "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)"
       ],
       [
         6,

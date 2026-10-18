@@ -536,6 +536,7 @@ def setup_feed_cards(page, pids):
 
     card0 = page.locator(deep).first
     card0.hover()
+    card0.evaluate("el => { el.style.outline = '2px solid rgba(239, 68, 68, 0.7)'; el.style.outlineOffset = '-1px'; }")
     page.wait_for_timeout(400)
     assert page.locator(f"{deep} > .tp-share-btn").count() > 0, "share button missing on deep deal"
     assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
@@ -548,20 +549,37 @@ def setup_feed_cards(page, pids):
     bottom_y = max(b["y"] + b["height"] for b in card_boxes) + 56
     clip["height"] = bottom_y - clip["y"]
     raw_bytes = page.screenshot(clip=clip)
+    origin = {"x": clip["x"], "y": clip["y"]}
+
+    c1_box = css_box(page, deep)
+    r2_box = css_box(page, f"{fallback} .badge-dif")
+    r3_box = css_box(page, f"{markup} .badge-dif")
 
     callouts = [
         (1, css_box(page, "#tp-bar-heat-btn"), "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
         (2, css_box(page, "#tp-bar-bestpreise-btn"), "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
-        (3, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", {"dx": 38, "dy": -28}),
-        (4, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)", {"dx": 38, "dy": -28}),
-        (5, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", {"dx": 38, "dy": -28}),
+        (3, c1_box, "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)",
+         {"bx": c1_box["x"] - origin["x"] + c1_box["width"] / 2,
+          "by": c1_box["y"] - origin["y"] - 26,
+          "tx": c1_box["x"] - origin["x"] + c1_box["width"] / 2,
+          "ty": c1_box["y"] - origin["y"]}),
+        (4, r2_box, "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)",
+         {"bx": r2_box["x"] - origin["x"] + r2_box["width"] / 2,
+          "by": r2_box["y"] - origin["y"] - 26,
+          "tx": r2_box["x"] - origin["x"] + r2_box["width"] / 2,
+          "ty": r2_box["y"] - origin["y"] + 4}),
+        (5, r3_box, "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)",
+         {"bx": r3_box["x"] - origin["x"] + r3_box["width"] / 2,
+          "by": r3_box["y"] - origin["y"] - 26,
+          "tx": r3_box["x"] - origin["x"] + r3_box["width"] / 2,
+          "ty": r3_box["y"] - origin["y"] + 4}),
         (6, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-48, 0]),
         (7, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", {"dx": 48, "dy": 38}),
         (8, css_box(page, f"{deep} .tp-dealer-name .tp-dealer-icon"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-50, 0]),
         (9, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", {"dx": 30, "dy": 38}),
         (10, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", {"dx": 10, "dy": 42}),
     ]
-    return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
+    return raw_bytes, origin, callouts, "02-feed-cards.webp"
 
 
 def setup_search_cards(page, pids):
