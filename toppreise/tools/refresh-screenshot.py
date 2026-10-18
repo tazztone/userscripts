@@ -332,34 +332,6 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
     z-index: 100;
     pointer-events: none;
   }}
-  .tp-shot-footer {{
-    background: #0f172a;
-    color: #f8fafc;
-    padding: 18px 22px;
-    line-height: 1.45;
-  }}
-  .tp-shot-footer ol {{
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }}
-  .tp-shot-footer li {{
-    font-size: 13.5px;
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-  }}
-  .tp-shot-num {{
-    color: #f87171;
-    font-weight: 700;
-    min-width: 22px;
-  }}
-  .tp-shot-text {{
-    color: #e2e8f0;
-  }}
 </style>
 </head>
 <body>
@@ -370,11 +342,6 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
       {''.join(svg_leaders)}
     </svg>
     {''.join(badges_html)}
-  </div>
-  <div class="tp-shot-footer">
-    <ol>
-      {''.join(footer_items)}
-    </ol>
   </div>
 </div>
 </body>
