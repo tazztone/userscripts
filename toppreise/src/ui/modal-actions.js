@@ -239,6 +239,7 @@ export function wireModalActions(els) {
       }
       updates.DISCORD_WEBHOOK_URL = rawWebhook;
     }
+    if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
     if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
     if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
     if (els.discordLayoutInput) {

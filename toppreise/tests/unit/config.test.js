@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -192,6 +192,20 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     assert.equal(sanitizeConfigValue('HIDE_ADS', true), true);
     assert.equal(sanitizeConfigValue('HIDE_ADS', false), false);
     assert.equal(sanitizeConfigValue('HIDE_ADS', 'foo'), false);
+  });
+
+  it('syncUiControl synchronizes DISCORD_FORUM_TITLE checkbox', () => {
+    const shadow = {
+      getElementById(id) {
+        if (id === 'tp-discord-forum-title-toggle') return this._toggle;
+        return null;
+      },
+      _toggle: { checked: false }
+    };
+    syncUiControl('DISCORD_FORUM_TITLE', true, {}, shadow);
+    assert.equal(shadow._toggle.checked, true);
+    syncUiControl('DISCORD_FORUM_TITLE', false, {}, shadow);
+    assert.equal(shadow._toggle.checked, false);
   });
 });
 

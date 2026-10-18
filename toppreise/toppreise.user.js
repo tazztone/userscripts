@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.340
+// @version      2.18.341
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3377,9 +3377,9 @@ const SHADOW_MODAL_STYLES = `
     document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
   }
 
-  function syncUiControl(key, val, opts = {}) {
+  function syncUiControl(key, val, opts = {}, shadowRoot = null) {
     // 1. Sync Settings Modal (Shadow DOM) if open/exists
-    const shadow = uiShadowRoot || (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
+    const shadow = shadowRoot ?? opts?.shadowRoot ?? uiShadowRoot ?? (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
     if (shadow) {
       try {
         switch (key) {
@@ -3513,6 +3513,11 @@ const SHADOW_MODAL_STYLES = `
           case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
             const toggle = shadow.getElementById('tp-discord-product-embed-toggle');
             if (toggle) toggle.checked = val === false;
+            break;
+          }
+          case 'DISCORD_FORUM_TITLE': {
+            const toggle = shadow.getElementById('tp-discord-forum-title-toggle');
+            if (toggle) toggle.checked = val === true;
             break;
           }
           case 'ALARM_ENABLED': {
@@ -8155,6 +8160,7 @@ const SHADOW_MODAL_STYLES = `
         }
         updates.DISCORD_WEBHOOK_URL = rawWebhook;
       }
+      if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
       if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
       if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
       if (els.discordLayoutInput) {
@@ -10341,7 +10347,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.340';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.341';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

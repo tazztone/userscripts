@@ -176,9 +176,9 @@ export function updateBodyClasses() {
   document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
 }
 
-export function syncUiControl(key, val, opts = {}) {
+export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
   // 1. Sync Settings Modal (Shadow DOM) if open/exists
-  const shadow = uiShadowRoot || (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
+  const shadow = shadowRoot ?? opts?.shadowRoot ?? uiShadowRoot ?? (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
   if (shadow) {
     try {
       switch (key) {
@@ -312,6 +312,11 @@ export function syncUiControl(key, val, opts = {}) {
         case 'DISCORD_SUPPRESS_PRODUCT_EMBED': {
           const toggle = shadow.getElementById('tp-discord-product-embed-toggle');
           if (toggle) toggle.checked = val === false;
+          break;
+        }
+        case 'DISCORD_FORUM_TITLE': {
+          const toggle = shadow.getElementById('tp-discord-forum-title-toggle');
+          if (toggle) toggle.checked = val === true;
           break;
         }
         case 'ALARM_ENABLED': {
