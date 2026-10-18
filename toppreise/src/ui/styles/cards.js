@@ -262,6 +262,17 @@ export const STYLES_CARDS = `
     line-height: 1 !important;
     cursor: pointer !important;
     text-decoration: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_ProductOffers):is(:hover, :focus-within) .tp-review-search-btn,
+  .tp-review-search-btn:focus-visible {
+    opacity: 0.85 !important;
+    pointer-events: auto !important;
+  }
+  .tp-review-search-btn:hover {
+    opacity: 1 !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {

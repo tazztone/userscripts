@@ -73,6 +73,45 @@ export function cropPreviewWindow(clean, dropped, cutoffTs) {
 
 const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 40 };
 
+export function computeXAxisTicks(t0, t1, fracX) {
+  const span = t1 - t0;
+  if (span <= 0) return [];
+  const DAY = 86400000;
+  const spanDays = span / DAY;
+  let stepDays, labelFn;
+  if (spanDays <= 3) {
+    stepDays = 0.5;
+    labelFn = (d) => d === 0 ? 'Jetzt' : `-${Math.round(d * 24)}h`;
+  } else if (spanDays <= 14) {
+    stepDays = 2;
+    labelFn = (d) => d === 0 ? 'Heute' : `-${d}T`;
+  } else if (spanDays <= 35) {
+    stepDays = 7;
+    labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 7)}W`;
+  } else if (spanDays <= 120) {
+    stepDays = 30;
+    labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 30)}M`;
+  } else if (spanDays <= 450) {
+    stepDays = 90;
+    labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 30)}M`;
+  } else if (spanDays <= 1200) {
+    stepDays = 365;
+    labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 365)}J`;
+  } else {
+    stepDays = 730;
+    labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 365)}J`;
+  }
+
+  const ticks = [];
+  for (let d = 0; d <= spanDays + 0.001; d += stepDays) {
+    const ts = t1 - d * DAY;
+    if (ts < t0 - 1000) break;
+    const x = fracX(ts);
+    ticks.push({ x, label: labelFn(d), ts });
+  }
+  return ticks;
+}
+
 export function previewCoords(clean, o = {}) {
   const w = o.w || 296;
   const h = o.h || 110;
@@ -123,7 +162,8 @@ export function previewCoords(clean, o = {}) {
   const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
   const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
   if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
-  return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, anchorLink, ticks, recordY, rawAttr, fracX };
+  const xTicks = n >= 2 ? computeXAxisTicks(t0, t1, fracX) : [];
+  return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, anchorLink, ticks, xTicks, recordY, rawAttr, fracX };
 }
 
 let activePresetId = 's26';
@@ -232,11 +272,18 @@ export function refreshCalcPreview() {
     s += `<line class="tp-pv-cut" x1="${f1(cx)}" x2="${f1(cx)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#64748b" stroke-dasharray="3 2" stroke-width="1"/>`;
     s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
   }
+  if (Array.isArray(co.xTicks)) {
+    for (const xt of co.xTicks) {
+      s += `<line class="tp-pv-xgrid" x1="${f1(xt.x)}" x2="${f1(xt.x)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#475569" stroke-opacity="0.22" stroke-dasharray="2 2" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`;
+      s += `<text class="tp-pv-xlabel" x="${f1(xt.x)}" y="${110 - PV_MARGIN.bottom + 11}" font-size="8" fill="#64748b" text-anchor="middle">${xt.label}</text>`;
+    }
+  }
   if (co.ribbonAttr != null) s += `<polygon class="tp-pv-band" points="${co.ribbonAttr}" fill="#3b82f6" opacity="0.08"/>`;
   for (const edge of [co.ribbonTopAttr, co.ribbonBotAttr]) {
     if (edge != null) s += `<polyline class="tp-pv-band-edge" points="${edge}" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
   }
   for (const t of co.ticks) {
+    s += `<line class="tp-pv-ygrid" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(t.y)}" y2="${f1(t.y)}" stroke="#475569" stroke-opacity="0.18" stroke-dasharray="2 2" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`;
     s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
   }
   if (st.recordLow > 0 && st.dRecord > 0 && co.recordY !== null) {

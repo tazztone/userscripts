@@ -31,7 +31,7 @@ export const STYLES_OVERLAYS = `
     position: absolute !important;
     left: 0 !important;
     top: calc(100% + 8px) !important;
-    width: 360px !important;
+    width: 390px !important;
     max-height: min(70vh, 560px) !important;
     overflow-y: auto !important;
     display: none !important;
@@ -52,7 +52,22 @@ export const STYLES_OVERLAYS = `
     align-items: center !important;
     gap: 8px !important;
   }
-  .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
+  .tp-filter-row .tp-filter-label {
+    flex: 0 0 95px !important;
+    width: 95px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .tp-filter-row [data-row-count] {
+    margin-left: auto !important;
+  }
+  .tp-filter-row:not(:has([data-row-count]:not([style*="display: none"]))) .tp-filter-mode-btn {
+    margin-left: auto !important;
+  }
+  .tp-filter-row .tp-bar-stepper-group {
+    margin-left: auto !important;
+  }
   .tp-glossary-term {
     text-decoration: underline dotted var(--tp-mut) !important;
     text-underline-offset: 3px !important;
@@ -64,6 +79,9 @@ export const STYLES_OVERLAYS = `
     font-size: var(--tp-fs-xs) !important;
     color: var(--tp-mut) !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 155px !important;
   }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -76,15 +94,22 @@ export const STYLES_OVERLAYS = `
     color: #0284c7 !important;
   }
   .tp-calc-head {
-    font-weight: 700 !important;
-    font-size: var(--tp-fs-lg) !important;
-    color: var(--tp-txt) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
   }
-  .tp-calc-head span {
+  .tp-calc-head .tp-glossary-term {
+    font-weight: 700 !important;
+    font-size: var(--tp-fs-md) !important;
+    color: var(--tp-txt) !important;
+    line-height: 1.3 !important;
+  }
+  .tp-calc-head span:not(.tp-glossary-term) {
     display: block !important;
-    font-weight: 500 !important;
+    font-weight: 400 !important;
     font-size: var(--tp-fs-xs) !important;
     color: var(--tp-mut) !important;
+    line-height: 1.3 !important;
   }
   #tp-bar-calc-popover .tp-threshold-wrapper {
     background: transparent !important;

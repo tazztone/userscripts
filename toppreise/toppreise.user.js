@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.333
+// @version      2.18.334
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -324,6 +324,17 @@ const STYLES_CARDS = `
     line-height: 1 !important;
     cursor: pointer !important;
     text-decoration: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_ProductOffers):is(:hover, :focus-within) .tp-review-search-btn,
+  .tp-review-search-btn:focus-visible {
+    opacity: 0.85 !important;
+    pointer-events: auto !important;
+  }
+  .tp-review-search-btn:hover {
+    opacity: 1 !important;
   }
   .badge.badge-dif.tp-deal-badge-interactive:hover,
   .badge-dif.tp-deal-badge-interactive:hover {
@@ -1129,7 +1140,7 @@ const STYLES_OVERLAYS = `
     position: absolute !important;
     left: 0 !important;
     top: calc(100% + 8px) !important;
-    width: 360px !important;
+    width: 390px !important;
     max-height: min(70vh, 560px) !important;
     overflow-y: auto !important;
     display: none !important;
@@ -1150,7 +1161,22 @@ const STYLES_OVERLAYS = `
     align-items: center !important;
     gap: 8px !important;
   }
-  .tp-filter-row .tp-filter-label { flex: 1 1 auto !important; }
+  .tp-filter-row .tp-filter-label {
+    flex: 0 0 95px !important;
+    width: 95px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .tp-filter-row [data-row-count] {
+    margin-left: auto !important;
+  }
+  .tp-filter-row:not(:has([data-row-count]:not([style*="display: none"]))) .tp-filter-mode-btn {
+    margin-left: auto !important;
+  }
+  .tp-filter-row .tp-bar-stepper-group {
+    margin-left: auto !important;
+  }
   .tp-glossary-term {
     text-decoration: underline dotted var(--tp-mut) !important;
     text-underline-offset: 3px !important;
@@ -1162,6 +1188,9 @@ const STYLES_OVERLAYS = `
     font-size: var(--tp-fs-xs) !important;
     color: var(--tp-mut) !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 155px !important;
   }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
@@ -1174,15 +1203,22 @@ const STYLES_OVERLAYS = `
     color: #0284c7 !important;
   }
   .tp-calc-head {
-    font-weight: 700 !important;
-    font-size: var(--tp-fs-lg) !important;
-    color: var(--tp-txt) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
   }
-  .tp-calc-head span {
+  .tp-calc-head .tp-glossary-term {
+    font-weight: 700 !important;
+    font-size: var(--tp-fs-md) !important;
+    color: var(--tp-txt) !important;
+    line-height: 1.3 !important;
+  }
+  .tp-calc-head span:not(.tp-glossary-term) {
     display: block !important;
-    font-weight: 500 !important;
+    font-weight: 400 !important;
     font-size: var(--tp-fs-xs) !important;
     color: var(--tp-mut) !important;
+    line-height: 1.3 !important;
   }
   #tp-bar-calc-popover .tp-threshold-wrapper {
     background: transparent !important;
@@ -8205,6 +8241,45 @@ const SHADOW_MODAL_STYLES = `
 
   const PV_MARGIN = { top: 8, right: 10, bottom: 16, left: 40 };
 
+  function computeXAxisTicks(t0, t1, fracX) {
+    const span = t1 - t0;
+    if (span <= 0) return [];
+    const DAY = 86400000;
+    const spanDays = span / DAY;
+    let stepDays, labelFn;
+    if (spanDays <= 3) {
+      stepDays = 0.5;
+      labelFn = (d) => d === 0 ? 'Jetzt' : `-${Math.round(d * 24)}h`;
+    } else if (spanDays <= 14) {
+      stepDays = 2;
+      labelFn = (d) => d === 0 ? 'Heute' : `-${d}T`;
+    } else if (spanDays <= 35) {
+      stepDays = 7;
+      labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 7)}W`;
+    } else if (spanDays <= 120) {
+      stepDays = 30;
+      labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 30)}M`;
+    } else if (spanDays <= 450) {
+      stepDays = 90;
+      labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 30)}M`;
+    } else if (spanDays <= 1200) {
+      stepDays = 365;
+      labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 365)}J`;
+    } else {
+      stepDays = 730;
+      labelFn = (d) => d === 0 ? 'Heute' : `-${Math.round(d / 365)}J`;
+    }
+
+    const ticks = [];
+    for (let d = 0; d <= spanDays + 0.001; d += stepDays) {
+      const ts = t1 - d * DAY;
+      if (ts < t0 - 1000) break;
+      const x = fracX(ts);
+      ticks.push({ x, label: labelFn(d), ts });
+    }
+    return ticks;
+  }
+
   function previewCoords(clean, o = {}) {
     const w = o.w || 296;
     const h = o.h || 110;
@@ -8255,7 +8330,8 @@ const SHADOW_MODAL_STYLES = `
     const rawAttr = o.raw?.length ? o.raw.map(p => `${f1(fracX(p[0]))},${f1(y(p[1]))}`).join(' ') : null;
     const ticks = [{ y: y(hi), label: fmtPreviewMedian(hi) }, { y: y(lo), label: fmtPreviewMedian(lo) }];
     if (o.median > 0) { const my = y(o.median); if (Math.abs(my - y(hi)) >= 10 && Math.abs(my - y(lo)) >= 10) ticks.splice(1, 0, { y: my, label: fmtPreviewMedian(o.median) }); }
-    return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, anchorLink, ticks, recordY, rawAttr, fracX };
+    const xTicks = n >= 2 ? computeXAxisTicks(t0, t1, fracX) : [];
+    return { pointsAttr, ribbonAttr, ribbonTopAttr, ribbonBotAttr, medianY, glitchXY, anchor, anchorLink, ticks, xTicks, recordY, rawAttr, fracX };
   }
 
   let activePresetId = 's26';
@@ -8364,11 +8440,18 @@ const SHADOW_MODAL_STYLES = `
       s += `<line class="tp-pv-cut" x1="${f1(cx)}" x2="${f1(cx)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#64748b" stroke-dasharray="3 2" stroke-width="1"/>`;
       s += `<text x="${f1(cx + 3)}" y="${PV_MARGIN.top + 8}" font-size="8" fill="#64748b">${horizonText(horizonDays)}</text>`;
     }
+    if (Array.isArray(co.xTicks)) {
+      for (const xt of co.xTicks) {
+        s += `<line class="tp-pv-xgrid" x1="${f1(xt.x)}" x2="${f1(xt.x)}" y1="${PV_MARGIN.top}" y2="${110 - PV_MARGIN.bottom}" stroke="#475569" stroke-opacity="0.22" stroke-dasharray="2 2" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`;
+        s += `<text class="tp-pv-xlabel" x="${f1(xt.x)}" y="${110 - PV_MARGIN.bottom + 11}" font-size="8" fill="#64748b" text-anchor="middle">${xt.label}</text>`;
+      }
+    }
     if (co.ribbonAttr != null) s += `<polygon class="tp-pv-band" points="${co.ribbonAttr}" fill="#3b82f6" opacity="0.08"/>`;
     for (const edge of [co.ribbonTopAttr, co.ribbonBotAttr]) {
       if (edge != null) s += `<polyline class="tp-pv-band-edge" points="${edge}" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
     }
     for (const t of co.ticks) {
+      s += `<line class="tp-pv-ygrid" x1="${PV_MARGIN.left}" x2="${296 - PV_MARGIN.right}" y1="${f1(t.y)}" y2="${f1(t.y)}" stroke="#475569" stroke-opacity="0.18" stroke-dasharray="2 2" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`;
       s += `<text x="36" y="${f1(t.y + 3)}" font-size="9" fill="#64748b" text-anchor="end">${t.label}</text>`;
     }
     if (st.recordLow > 0 && st.dRecord > 0 && co.recordY !== null) {
@@ -10142,7 +10225,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.333';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.334';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
