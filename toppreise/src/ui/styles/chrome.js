@@ -465,4 +465,34 @@ export const STYLES_CHROME = `
     background: var(--tp-warn) !important;
     color: #fff !important;
   }
+  .tp-pill {
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: var(--tp-r-pill) !important;
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 700 !important;
+    display: inline-flex;
+    align-items: center !important;
+    justify-content: center !important;
+    font-variant-numeric: tabular-nums !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+    margin: 0 2px !important;
+  }
+  .tp-bar-btn .tp-pill.tp-pill-hide,
+  .tp-pill.tp-pill-hide {
+    background: #ea580c !important;
+    color: #ffffff !important;
+  }
+  .tp-bar-btn .tp-pill.tp-pill-dim,
+  .tp-pill.tp-pill-dim {
+    background: #eab308 !important;
+    color: #451a03 !important;
+  }
+  .tp-bar-btn .tp-pill.tp-pill-hl,
+  .tp-pill.tp-pill-hl {
+    background: #10b981 !important;
+    color: #ffffff !important;
+  }
 `;

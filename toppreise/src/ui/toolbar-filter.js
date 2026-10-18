@@ -142,6 +142,7 @@ export function syncFilterRow(bar, counts, flags) {
 
   const hiddenTotal = counts.filteredCount || 0;
   const dimmedTotal = counts.dimmed || 0;
+  const highlightedTotal = counts.highlighted || 0;
   const filterBtn = bar.querySelector('#tp-bar-filter-btn');
   if (filterBtn) {
     const filterCount = bar.querySelector('#tp-filter-count');
@@ -151,10 +152,14 @@ export function syncFilterRow(bar, counts, flags) {
     }
     const dimCount = bar.querySelector('#tp-filter-dim-count');
     if (dimCount) {
-      setTextIfChanged(dimCount, dimmedTotal > 0 ? `+${dimmedTotal} gedimmt` : '');
-      dimCount.style.display = dimmedTotal > 0 ? 'inline' : 'none';
+      setTextIfChanged(dimCount, dimmedTotal > 0 ? String(dimmedTotal) : '');
+      dimCount.style.display = dimmedTotal > 0 ? 'inline-flex' : 'none';
     }
-    const highlightedTotal = counts.highlighted || 0;
+    const hlCount = bar.querySelector('#tp-filter-hl-count');
+    if (hlCount) {
+      setTextIfChanged(hlCount, highlightedTotal > 0 ? String(highlightedTotal) : '');
+      hlCount.style.display = highlightedTotal > 0 ? 'inline-flex' : 'none';
+    }
     filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
     const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
     filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Rabatt:${dealDiscHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
@@ -178,21 +183,14 @@ export function syncFilterRow(bar, counts, flags) {
     const dealerActive = counts.dealerActive === true;
     const mode = CONFIG.DEALER_MODE || 'dim';
     bar.querySelectorAll('[data-mode-key="DEALER_MODE"]').forEach(btn => {
-      if (!dealerActive) {
-        btn.classList.toggle('tp-active', false);
-        btn.classList.toggle('tp-state-highlight', false);
-        setTextIfChanged(btn, 'Normal');
-        btn.title = 'Filter: Normal — kein Händler gewählt';
-      } else {
-        btn.classList.toggle('tp-active', true);
-        btn.classList.toggle('tp-state-highlight', mode === 'highlight');
-        setTextIfChanged(btn, mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen');
-        btn.title = mode === 'dim'
+      paintCycleButton(btn, dealerActive ? mode : 'off');
+      btn.title = !dealerActive
+        ? 'Filter: Normal — kein Händler gewählt'
+        : mode === 'dim'
           ? 'Modus: Dimmen — klicken für Verbergen'
           : mode === 'hide'
             ? 'Modus: Verbergen — klicken für Hervorheben'
             : 'Modus: Hervorheben — klicken für Dimmen';
-      }
     });
   }
   const dealerRow = bar.querySelector('[data-filter-row="dealer"]');

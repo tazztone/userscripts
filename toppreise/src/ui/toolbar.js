@@ -73,7 +73,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       <div class="tp-filter-main-row">
       <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
         <div class="tp-calc-wrap">
-          <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter – Verbergen oder Dimmen je Ursache"><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge" id="tp-filter-count" style="display: none;"></span><span id="tp-filter-dim-count" style="display: none;"></span> ▾</button>
+          <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter – Verbergen oder Dimmen je Ursache"><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge tp-pill tp-pill-hide" id="tp-filter-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-dim" id="tp-filter-dim-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-hl" id="tp-filter-hl-count" style="display: none;"></span> ▾</button>
           <div class="tp-calc-popover" id="tp-bar-filter-popover" role="group" aria-label="Filter">
             <div class="tp-filter-row" data-filter-row="neg">
               <span class="tp-filter-label" title="Namen mit diesen Wörtern dimmen/verbergen (kommagetrennt, Wortgrenzen)">Begriffe</span>
@@ -102,7 +102,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             </div>
             <div class="tp-filter-row" data-filter-row="vortief">
               <span class="tp-filter-label tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span>
-              <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
+              <span class="tp-count-badge" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="deal-disc">

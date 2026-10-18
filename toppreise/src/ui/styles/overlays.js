@@ -91,7 +91,7 @@ export const STYLES_OVERLAYS = `
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
     background: #ffffff !important;
-    color: var(--tp-txt) !important;
+    color: var(--tp-txt-dim, #64748b) !important;
     cursor: pointer !important;
     display: inline-flex !important;
     align-items: center !important;
@@ -103,15 +103,25 @@ export const STYLES_OVERLAYS = `
     font-size: 9px !important;
     opacity: 0.6 !important;
   }
-  .tp-filter-mode-btn.tp-active {
-    background: var(--tp-acc-soft) !important;
-    border-color: var(--tp-acc-line) !important;
-    color: var(--tp-acc-txt) !important;
+  .tp-filter-mode-btn.tp-state-normal {
+    background: #ffffff !important;
+    border-color: var(--tp-line) !important;
+    color: var(--tp-txt-dim, #64748b) !important;
+  }
+  .tp-filter-mode-btn.tp-state-dim {
+    background: rgba(234, 179, 8, 0.16) !important;
+    border-color: rgba(234, 179, 8, 0.45) !important;
+    color: #854d0e !important;
+  }
+  .tp-filter-mode-btn.tp-state-hide {
+    background: rgba(249, 115, 22, 0.16) !important;
+    border-color: rgba(249, 115, 22, 0.45) !important;
+    color: #9a3412 !important;
   }
   .tp-filter-mode-btn.tp-state-highlight {
-    background: rgba(14, 165, 233, 0.15) !important;
-    border-color: rgba(14, 165, 233, 0.4) !important;
-    color: #0284c7 !important;
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: rgba(16, 185, 129, 0.45) !important;
+    color: #047857 !important;
   }
   .tp-calc-head {
     display: flex !important;

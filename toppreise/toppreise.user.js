@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.337
+// @version      2.18.338
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -78,8 +78,10 @@ const STYLES_CARDS = `
   .mixedBrowsingListProduct.tp-heat-blend {
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
   }
+  .tp-heat-blend .product-name,
   .tp-heat-blend .product-name a,
   .tp-heat-blend a.product-name,
+  .tp-heat-blend .Plugin_ProductName,
   .tp-heat-blend .Plugin_ProductName a {
     color: #0f172a !important;
   }
@@ -1110,6 +1112,36 @@ const STYLES_CHROME = `
     background: var(--tp-warn) !important;
     color: #fff !important;
   }
+  .tp-pill {
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: var(--tp-r-pill) !important;
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 700 !important;
+    display: inline-flex;
+    align-items: center !important;
+    justify-content: center !important;
+    font-variant-numeric: tabular-nums !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+    margin: 0 2px !important;
+  }
+  .tp-bar-btn .tp-pill.tp-pill-hide,
+  .tp-pill.tp-pill-hide {
+    background: #ea580c !important;
+    color: #ffffff !important;
+  }
+  .tp-bar-btn .tp-pill.tp-pill-dim,
+  .tp-pill.tp-pill-dim {
+    background: #eab308 !important;
+    color: #451a03 !important;
+  }
+  .tp-bar-btn .tp-pill.tp-pill-hl,
+  .tp-pill.tp-pill-hl {
+    background: #10b981 !important;
+    color: #ffffff !important;
+  }
 `;
 
 /** Overlays part (split from ui/styles.js): calc/filter popovers, floating CTA, responsive queries. */
@@ -1205,7 +1237,7 @@ const STYLES_OVERLAYS = `
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
     background: #ffffff !important;
-    color: var(--tp-txt) !important;
+    color: var(--tp-txt-dim, #64748b) !important;
     cursor: pointer !important;
     display: inline-flex !important;
     align-items: center !important;
@@ -1217,15 +1249,25 @@ const STYLES_OVERLAYS = `
     font-size: 9px !important;
     opacity: 0.6 !important;
   }
-  .tp-filter-mode-btn.tp-active {
-    background: var(--tp-acc-soft) !important;
-    border-color: var(--tp-acc-line) !important;
-    color: var(--tp-acc-txt) !important;
+  .tp-filter-mode-btn.tp-state-normal {
+    background: #ffffff !important;
+    border-color: var(--tp-line) !important;
+    color: var(--tp-txt-dim, #64748b) !important;
+  }
+  .tp-filter-mode-btn.tp-state-dim {
+    background: rgba(234, 179, 8, 0.16) !important;
+    border-color: rgba(234, 179, 8, 0.45) !important;
+    color: #854d0e !important;
+  }
+  .tp-filter-mode-btn.tp-state-hide {
+    background: rgba(249, 115, 22, 0.16) !important;
+    border-color: rgba(249, 115, 22, 0.45) !important;
+    color: #9a3412 !important;
   }
   .tp-filter-mode-btn.tp-state-highlight {
-    background: rgba(14, 165, 233, 0.15) !important;
-    border-color: rgba(14, 165, 233, 0.4) !important;
-    color: #0284c7 !important;
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: rgba(16, 185, 129, 0.45) !important;
+    color: #047857 !important;
   }
   .tp-calc-head {
     display: flex !important;
@@ -2861,8 +2903,11 @@ const SHADOW_MODAL_STYLES = `
   function paintCycleButton(btn, state) {
     if (!btn) return;
     btn.textContent = state === 'off' ? 'Normal' : state === 'highlight' ? 'Hervorheben' : state === 'dim' ? 'Dimmen' : 'Verbergen';
-    btn.classList.toggle('tp-active', state !== 'off');
+    btn.classList.toggle('tp-state-normal', state === 'off');
+    btn.classList.toggle('tp-state-dim', state === 'dim');
+    btn.classList.toggle('tp-state-hide', state === 'hide');
     btn.classList.toggle('tp-state-highlight', state === 'highlight');
+    btn.classList.toggle('tp-active', state !== 'off');
   }
 
   // ─── MODULE: src/state/config-store.js ──────────────────────────────────────
@@ -3560,9 +3605,7 @@ const SHADOW_MODAL_STYLES = `
             case 'DEALER_MODE': {
               const mode = (val === 'dim' || val === 'highlight') ? val : 'hide';
               bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
-                btn.classList.toggle('tp-active', true);
-                btn.classList.toggle('tp-state-highlight', mode === 'highlight');
-                btn.textContent = mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen';
+                paintCycleButton(btn, mode);
               });
               break;
             }
@@ -9027,6 +9070,7 @@ const SHADOW_MODAL_STYLES = `
 
     const hiddenTotal = counts.filteredCount || 0;
     const dimmedTotal = counts.dimmed || 0;
+    const highlightedTotal = counts.highlighted || 0;
     const filterBtn = bar.querySelector('#tp-bar-filter-btn');
     if (filterBtn) {
       const filterCount = bar.querySelector('#tp-filter-count');
@@ -9036,10 +9080,14 @@ const SHADOW_MODAL_STYLES = `
       }
       const dimCount = bar.querySelector('#tp-filter-dim-count');
       if (dimCount) {
-        setTextIfChanged(dimCount, dimmedTotal > 0 ? `+${dimmedTotal} gedimmt` : '');
-        dimCount.style.display = dimmedTotal > 0 ? 'inline' : 'none';
+        setTextIfChanged(dimCount, dimmedTotal > 0 ? String(dimmedTotal) : '');
+        dimCount.style.display = dimmedTotal > 0 ? 'inline-flex' : 'none';
       }
-      const highlightedTotal = counts.highlighted || 0;
+      const hlCount = bar.querySelector('#tp-filter-hl-count');
+      if (hlCount) {
+        setTextIfChanged(hlCount, highlightedTotal > 0 ? String(highlightedTotal) : '');
+        hlCount.style.display = highlightedTotal > 0 ? 'inline-flex' : 'none';
+      }
       filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
       const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
       filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Rabatt:${dealDiscHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
@@ -9063,21 +9111,14 @@ const SHADOW_MODAL_STYLES = `
       const dealerActive = counts.dealerActive === true;
       const mode = CONFIG.DEALER_MODE || 'dim';
       bar.querySelectorAll('[data-mode-key="DEALER_MODE"]').forEach(btn => {
-        if (!dealerActive) {
-          btn.classList.toggle('tp-active', false);
-          btn.classList.toggle('tp-state-highlight', false);
-          setTextIfChanged(btn, 'Normal');
-          btn.title = 'Filter: Normal — kein Händler gewählt';
-        } else {
-          btn.classList.toggle('tp-active', true);
-          btn.classList.toggle('tp-state-highlight', mode === 'highlight');
-          setTextIfChanged(btn, mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen');
-          btn.title = mode === 'dim'
+        paintCycleButton(btn, dealerActive ? mode : 'off');
+        btn.title = !dealerActive
+          ? 'Filter: Normal — kein Händler gewählt'
+          : mode === 'dim'
             ? 'Modus: Dimmen — klicken für Verbergen'
             : mode === 'hide'
               ? 'Modus: Verbergen — klicken für Hervorheben'
               : 'Modus: Hervorheben — klicken für Dimmen';
-        }
       });
     }
     const dealerRow = bar.querySelector('[data-filter-row="dealer"]');
@@ -9184,7 +9225,7 @@ const SHADOW_MODAL_STYLES = `
         <div class="tp-filter-main-row">
         <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
           <div class="tp-calc-wrap">
-            <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter – Verbergen oder Dimmen je Ursache"><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge" id="tp-filter-count" style="display: none;"></span><span id="tp-filter-dim-count" style="display: none;"></span> ▾</button>
+            <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter – Verbergen oder Dimmen je Ursache"><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge tp-pill tp-pill-hide" id="tp-filter-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-dim" id="tp-filter-dim-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-hl" id="tp-filter-hl-count" style="display: none;"></span> ▾</button>
             <div class="tp-calc-popover" id="tp-bar-filter-popover" role="group" aria-label="Filter">
               <div class="tp-filter-row" data-filter-row="neg">
                 <span class="tp-filter-label" title="Namen mit diesen Wörtern dimmen/verbergen (kommagetrennt, Wortgrenzen)">Begriffe</span>
@@ -9213,7 +9254,7 @@ const SHADOW_MODAL_STYLES = `
               </div>
               <div class="tp-filter-row" data-filter-row="vortief">
                 <span class="tp-filter-label tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span>
-                <span class="tp-count-badge tp-count-warn" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
+                <span class="tp-count-badge" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="deal-disc">
@@ -10259,7 +10300,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.337';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.338';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

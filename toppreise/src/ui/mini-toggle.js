@@ -21,6 +21,9 @@ export function syncMiniToggle(input, enabled, titleBase) {
 export function paintCycleButton(btn, state) {
   if (!btn) return;
   btn.textContent = state === 'off' ? 'Normal' : state === 'highlight' ? 'Hervorheben' : state === 'dim' ? 'Dimmen' : 'Verbergen';
-  btn.classList.toggle('tp-active', state !== 'off');
+  btn.classList.toggle('tp-state-normal', state === 'off');
+  btn.classList.toggle('tp-state-dim', state === 'dim');
+  btn.classList.toggle('tp-state-hide', state === 'hide');
   btn.classList.toggle('tp-state-highlight', state === 'highlight');
+  btn.classList.toggle('tp-active', state !== 'off');
 }

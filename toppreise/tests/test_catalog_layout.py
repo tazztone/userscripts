@@ -439,7 +439,7 @@ def test_fallback_bar_pill_toggles_vortief_exclusion(page: Page):
     page.wait_for_selector('#card-cheapest.tp-dimmed', state='attached')
     assert page.locator('#card-cheapest').is_visible()
     assert page.locator('[data-row-count="vortief"]').evaluate('el => getComputedStyle(el).display') != 'none'
-    assert 'gedimmt' in (page.locator('#tp-filter-dim-count').text_content() or '')
+    assert int(page.locator('#tp-filter-dim-count').inner_text()) >= 1
     # Dimmen -> Verbergen: fallback removed, header count + row badge show
     vortief_btn.click()
     assert vortief_btn.inner_text() == 'Verbergen'
@@ -512,7 +512,7 @@ def test_filter_popover_dim_mode(page: Page):
     assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
     assert page.locator('#card-negative').is_visible()
     assert page.locator('#tp-filter-count').evaluate('el => getComputedStyle(el).display') == 'none'
-    assert page.locator('#tp-filter-dim-count').inner_text() == '+1 gedimmt'
+    assert page.locator('#tp-filter-dim-count').inner_text() == '1'
     assert page.locator('#tp-filter-dim-count').is_visible()
     # Dimmen -> Verbergen: full cycle back on the same row
     mode_btn.click()

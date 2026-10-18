@@ -16,8 +16,10 @@ export const STYLES_CARDS = `
   .mixedBrowsingListProduct.tp-heat-blend {
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
   }
+  .tp-heat-blend .product-name,
   .tp-heat-blend .product-name a,
   .tp-heat-blend a.product-name,
+  .tp-heat-blend .Plugin_ProductName,
   .tp-heat-blend .Plugin_ProductName a {
     color: #0f172a !important;
   }

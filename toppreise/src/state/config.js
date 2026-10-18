@@ -413,9 +413,7 @@ export function syncUiControl(key, val, opts = {}) {
           case 'DEALER_MODE': {
             const mode = (val === 'dim' || val === 'highlight') ? val : 'hide';
             bar.querySelectorAll(`[data-mode-key="${key}"]`).forEach(btn => {
-              btn.classList.toggle('tp-active', true);
-              btn.classList.toggle('tp-state-highlight', mode === 'highlight');
-              btn.textContent = mode === 'highlight' ? 'Hervorheben' : mode === 'dim' ? 'Dimmen' : 'Verbergen';
+              paintCycleButton(btn, mode);
             });
             break;
           }
