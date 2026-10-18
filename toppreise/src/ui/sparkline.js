@@ -193,6 +193,7 @@ export function closeSparklinePopout() {
 export function openSparklinePopout(timeSeries) {
   if (typeof document === 'undefined') return null;
   closeSparklinePopout();
+  const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
   const svg = renderDiscordChart(timeSeries, 560, 220);
   if (!svg) return null;
   svg.style.maxWidth = '100%';
@@ -216,8 +217,19 @@ export function openSparklinePopout(timeSeries) {
   closeBtn.textContent = '✕';
   closeBtn.setAttribute('aria-label', 'Schliessen');
   closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
-  const onKey = e => { if (e.key === 'Escape') close(); };
-  function close() { document.removeEventListener('keydown', onKey); activePopoutCleanup = null; closeSparklinePopout(); }
+  const onKey = e => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      close();
+    }
+  };
+  function close() {
+    document.removeEventListener('keydown', onKey);
+    activePopoutCleanup = null;
+    closeSparklinePopout();
+    try { prevFocus?.focus?.(); } catch {}
+  }
   activePopoutCleanup = close;
   document.addEventListener('keydown', onKey);
   closeBtn.addEventListener('click', close);

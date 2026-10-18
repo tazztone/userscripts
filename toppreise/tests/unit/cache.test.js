@@ -367,6 +367,23 @@ describe('Bounded Cache Module', () => {
       assert.notEqual(s.getItem('tp_hist_v1_e25'), null);
       assert.notEqual(s.getItem('tp_hist_v1_e99'), null);
     });
+
+    it('prunes entries using fast regex and falls back to JSON.parse for legacy keys', () => {
+      const s = memStorage();
+      const now = Date.now();
+      // Fast format (time first)
+      s.setItem('tp_hist_v1_fast_old', `{"time":${now - 15 * DAY},"tiefstpreis":50}`);
+      s.setItem('tp_hist_v1_fast_new', `{"time":${now - 1 * DAY},"tiefstpreis":60}`);
+      // Legacy format (time not first)
+      s.setItem('tp_hist_v1_leg_old', JSON.stringify({ tiefstpreis: 70, time: now - 15 * DAY }));
+      s.setItem('tp_hist_v1_leg_new', JSON.stringify({ tiefstpreis: 80, time: now - 1 * DAY }));
+
+      prunePriceStatsCache(s);
+      assert.equal(s.getItem('tp_hist_v1_fast_old'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_fast_new'), null);
+      assert.equal(s.getItem('tp_hist_v1_leg_old'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_leg_new'), null);
+    });
   });
 
   describe('recomputeCachedMedians', () => {

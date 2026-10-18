@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.343
+// @version      2.18.344
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2624,12 +2624,14 @@ const SHADOW_MODAL_STYLES = `
         const key = storage.key(i);
         if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
           try {
-            const val = JSON.parse(storage.getItem(key) || '{}');
-            const age = now - (val.time || 0);
-            if (!val.time || age > maxAgeMs) {
+            const raw = storage.getItem(key) || '';
+            const fastTime = raw.match(/^\{"time":(\d+)/);
+            const itemTime = fastTime ? Number(fastTime[1]) : (JSON.parse(raw || '{}').time || 0);
+            const age = now - itemTime;
+            if (!itemTime || age > maxAgeMs) {
               keysToRemove.push(key);
             } else {
-              entries.push({ key, time: val.time });
+              entries.push({ key, time: itemTime });
             }
           } catch (e) {
             keysToRemove.push(key);
@@ -2737,8 +2739,8 @@ const SHADOW_MODAL_STYLES = `
     }
     const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
     const payload = isUnavailable
-      ? { unavailable: true, isShippingPrice: s, time: Date.now() }
-      : { ...stats, time: Date.now(), medianSig: currentMedianSig() };
+      ? { time: Date.now(), unavailable: true, isShippingPrice: s }
+      : { time: Date.now(), medianSig: currentMedianSig(), ...stats };
 
     lruSet(memoryCache, key, payload);
 
@@ -4748,6 +4750,7 @@ const SHADOW_MODAL_STYLES = `
   function openSparklinePopout(timeSeries) {
     if (typeof document === 'undefined') return null;
     closeSparklinePopout();
+    const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
     const svg = renderDiscordChart(timeSeries, 560, 220);
     if (!svg) return null;
     svg.style.maxWidth = '100%';
@@ -4771,8 +4774,19 @@ const SHADOW_MODAL_STYLES = `
     closeBtn.textContent = '✕';
     closeBtn.setAttribute('aria-label', 'Schliessen');
     closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
-    const onKey = e => { if (e.key === 'Escape') close(); };
-    function close() { document.removeEventListener('keydown', onKey); activePopoutCleanup = null; closeSparklinePopout(); }
+    const onKey = e => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        close();
+      }
+    };
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      activePopoutCleanup = null;
+      closeSparklinePopout();
+      try { prevFocus?.focus?.(); } catch {}
+    }
     activePopoutCleanup = close;
     document.addEventListener('keydown', onKey);
     closeBtn.addEventListener('click', close);
@@ -10336,7 +10350,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.343';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.344';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

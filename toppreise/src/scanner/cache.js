@@ -92,12 +92,14 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
       const key = storage.key(i);
       if (key && CACHE_PREFIXES.some(p => key.startsWith(p))) {
         try {
-          const val = JSON.parse(storage.getItem(key) || '{}');
-          const age = now - (val.time || 0);
-          if (!val.time || age > maxAgeMs) {
+          const raw = storage.getItem(key) || '';
+          const fastTime = raw.match(/^\{"time":(\d+)/);
+          const itemTime = fastTime ? Number(fastTime[1]) : (JSON.parse(raw || '{}').time || 0);
+          const age = now - itemTime;
+          if (!itemTime || age > maxAgeMs) {
             keysToRemove.push(key);
           } else {
-            entries.push({ key, time: val.time });
+            entries.push({ key, time: itemTime });
           }
         } catch (e) {
           keysToRemove.push(key);
@@ -205,8 +207,8 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   }
   const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
   const payload = isUnavailable
-    ? { unavailable: true, isShippingPrice: s, time: Date.now() }
-    : { ...stats, time: Date.now(), medianSig: currentMedianSig() };
+    ? { time: Date.now(), unavailable: true, isShippingPrice: s }
+    : { time: Date.now(), medianSig: currentMedianSig(), ...stats };
 
   lruSet(memoryCache, key, payload);
 
