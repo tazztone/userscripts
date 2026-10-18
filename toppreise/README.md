@@ -4,7 +4,7 @@
 
 **English Version** · **[🇩🇪 Deutsche Version](README.de.md)**
 
-An all-in-one userscript suite (`v2.18.335`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
+An all-in-one userscript suite (`v2.18.336`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
 
 ![Feed Cards Overview: Toolbar Actions, Deal Heatmap, Markup Exposure, Fallback Low, and 1-Click Share](docs/shots/02-feed-cards.webp)
 

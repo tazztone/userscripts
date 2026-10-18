@@ -4,7 +4,7 @@
 
 **[🇬🇧 English Version](README.md)** · **Deutsche Version**
 
-Umfassende Userscript-Suite (`v2.18.335`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
+Umfassende Userscript-Suite (`v2.18.336`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
 
 ![Deal-Karten im Überblick: Toolbar-Aktionen, Rabatt-Heatmap, Schein-Rabatt-Erkennung, Fallback-Tief und 1-Klick-Share](docs/shots/02-feed-cards.webp)
 
@@ -32,7 +32,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.335)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.336)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
