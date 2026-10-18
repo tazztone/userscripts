@@ -125,7 +125,7 @@ export function applyVerifiedCue(ctx) {
 
 // Dealer name left of price (step 8). Owns the loadDealer closure.
 export function renderDealerName(ctx, filters) {
-  const { card, pid, cardPriceEl, stats } = ctx;
+  const { card, pid, cardPriceEl, stats, heatInfo } = ctx;
   // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
   // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
   // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
@@ -218,7 +218,13 @@ export function renderDealerName(ctx, filters) {
       // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
       // parallele Fetches — fertige lösen per triggerProcessListings die
       // nächste Staffel aus (Kaskade statt Request-Sturm).
-      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
+      // Nur ausführen, wenn die effektive Badge-% die gesetzte Schwelle erreicht.
+      const isMarkup = ctx.displayDelta?.kind === 'above-low' || heatInfo?.kind === 'markup';
+      const effectivePct = !isMarkup
+        ? (heatInfo?.pct ?? ctx.dealData?.weightedDiff ?? 0)
+        : 0;
+      const meetsDealThreshold = effectivePct >= realDealMinDiscount();
+      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
         dealerAutoTried.add(dKey);
         btn.disabled = true;
         loadDealer();

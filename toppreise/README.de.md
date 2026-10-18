@@ -1,4 +1,4 @@
-![Toppreise.ch Suite banner](banner.jpg)
+![Toppreise.ch Suite banner](banner.webp)
 
 # Toppreise.ch Suite: Power-Filter & Preisalarm-Autofill
 
@@ -172,7 +172,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 | ① | **Discord Webhook** | Vertrauliche Webhook-URL für das 1-Klick Teilen verifizierter Deals. |
 | ② | **Layout-Baukasten** | Frei anpassbare Bausteine mit variablen Tokens (`{title}`, `{price}`, `{dealer}`, etc.). |
 | ③ | **Live-Markdown-Vorschau** | Sofortige Vorschau der generierten Discord-Nachricht. |
-| ④ | **Händler-Autoload** | Lädt den günstigsten Händler automatisch im Hintergrund nach (max. 3 parallel). |
+| ④ | **Händler-Autoload** | Lädt den günstigsten Händler für Deals ab Schwelle automatisch im Hintergrund nach (max. 3 parallel). |
 | ⑤ | **Daten- & Cache-Verwaltung** | Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`), Cache-TTL und Konfigurations-Export. |
 
 1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten und Deal-Intensität / Heatmap-Stärke (20%–100%).

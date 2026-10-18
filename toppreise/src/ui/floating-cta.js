@@ -167,7 +167,7 @@ function ensureCta() {
         <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
         <span id="tp-floating-check-count">🔍</span>
       </button>
-      <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen mitladen (max. 3 parallel)">
+      <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">
         <input type="checkbox" id="tp-floating-dealer-toggle">
         <span>🏬 Händler laden</span>
       </label>

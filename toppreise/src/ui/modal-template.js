@@ -220,7 +220,7 @@ export function ensureModalSection(shadow) {
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
+            <label title="Lädt den günstigsten Händler für Deals ab Schwelle automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
             <span class="tp-switch-desc">Erfordert zusätzliche Produktseiten-Abfragen (max. 3 parallel)</span>
           </div>
           <label class="tp-switch tp-purple">

@@ -1,4 +1,4 @@
-![Toppreise.ch Suite banner](banner.jpg)
+![Toppreise.ch Suite banner](banner.webp)
 
 # Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 
@@ -32,7 +32,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.338)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.339)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -173,7 +173,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | ① | **Discord Webhook Integration** | Configures confidential webhook URL for one-click deal sharing (never committed). |
 | ② | **Discord Layout Chips** | Variable token builder (`{title}`, `{price}`, `{dealer}`, `{prevlow}`, `{median}`, `{link}`). |
 | ③ | **Live Markdown Preview** | Instant preview of the rendered Discord embed and message structure. |
-| ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically (max. 3 parallel). |
+| ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically for deals meeting threshold (max. 3 parallel). |
 | ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
 
 1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards and deal intensity / heatmap strength (20%–100%).

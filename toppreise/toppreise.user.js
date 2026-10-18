@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.338
+// @version      2.18.339
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -7019,7 +7019,7 @@ const SHADOW_MODAL_STYLES = `
 
   // Dealer name left of price (step 8). Owns the loadDealer closure.
   function renderDealerName(ctx, filters) {
-    const { card, pid, cardPriceEl, stats } = ctx;
+    const { card, pid, cardPriceEl, stats, heatInfo } = ctx;
     // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
     // Katalog löst synchron aus extractDealer (kein Fetch); Feed ohne DOM-Zeile
     // bekommt einen 🏬-Button, der fetchProductInfo einmalig pro pid:Modus holt
@@ -7112,7 +7112,13 @@ const SHADOW_MODAL_STYLES = `
         // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
         // parallele Fetches — fertige lösen per triggerProcessListings die
         // nächste Staffel aus (Kaskade statt Request-Sturm).
-        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
+        // Nur ausführen, wenn die effektive Badge-% die gesetzte Schwelle erreicht.
+        const isMarkup = ctx.displayDelta?.kind === 'above-low' || heatInfo?.kind === 'markup';
+        const effectivePct = !isMarkup
+          ? (heatInfo?.pct ?? ctx.dealData?.weightedDiff ?? 0)
+          : 0;
+        const meetsDealThreshold = effectivePct >= realDealMinDiscount();
+        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
           dealerAutoTried.add(dKey);
           btn.disabled = true;
           loadDealer();
@@ -7515,7 +7521,7 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Lädt den günstigsten Händler pro verifizierter Karte automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
+              <label title="Lädt den günstigsten Händler für Deals ab Schwelle automatisch (statt per 🏬-Klick).">Händler automatisch laden</label>
               <span class="tp-switch-desc">Erfordert zusätzliche Produktseiten-Abfragen (max. 3 parallel)</span>
             </div>
             <label class="tp-switch tp-purple">
@@ -9564,7 +9570,7 @@ const SHADOW_MODAL_STYLES = `
           <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
           <span id="tp-floating-check-count">🔍</span>
         </button>
-        <label id="tp-floating-dealer-row" title="Günstigste Händler beim Prüfen mitladen (max. 3 parallel)">
+        <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">
           <input type="checkbox" id="tp-floating-dealer-toggle">
           <span>🏬 Händler laden</span>
         </label>
@@ -10300,7 +10306,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.338';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.339';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
