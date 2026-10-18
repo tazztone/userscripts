@@ -211,6 +211,34 @@
               Your browser does not support HTML5 video.
             </video>
           </div>
+
+          <!-- Video Controls & Chapters Bar -->
+          <div class="bg-surface-container-high px-4 py-3.5 border-t border-outline/40 space-y-3">
+            <!-- Chapter Markers -->
+            <div class="flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+              <div class="flex items-center gap-1.5 text-on-surface-variant">
+                <span class="material-symbols-outlined text-[16px] text-secondary">bookmark</span>
+                <span id="chapter-label">Chapters:</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5" id="chapter-buttons">
+                <!-- Dynamically populated via JS -->
+              </div>
+            </div>
+
+            <!-- Playback Speed Controls -->
+            <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-outline/20 text-xs font-mono">
+              <div class="flex items-center gap-1 text-on-surface-variant">
+                <span class="material-symbols-outlined text-[15px]">speed</span>
+                <span>Playback Speed:</span>
+              </div>
+              <div class="flex items-center space-x-1" id="speed-buttons">
+                <button class="speed-btn px-2.5 py-0.5 rounded bg-primary/20 text-primary font-bold transition-all" data-speed="1" type="button">1x</button>
+                <button class="speed-btn px-2.5 py-0.5 rounded text-on-surface-variant hover:text-white transition-all" data-speed="1.25" type="button">1.25x</button>
+                <button class="speed-btn px-2.5 py-0.5 rounded text-on-surface-variant hover:text-white transition-all" data-speed="1.5" type="button">1.5x</button>
+                <button class="speed-btn px-2.5 py-0.5 rounded text-on-surface-variant hover:text-white transition-all" data-speed="2" type="button">2x</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -491,6 +519,11 @@
     <!-- SECTION 6: QUICK INSTALLATION GUIDE -->
     <section class="glass-panel-elevated rounded-2xl p-8 md:p-12 text-center max-w-4xl mx-auto space-y-8" id="install">
       <div>
+        <!-- Browser Auto-Detection Callout -->
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-container border border-outline text-xs font-mono text-on-surface mb-3" id="browser-detect-banner">
+          <span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+          <span id="browser-detect-text">Detected Browser: Checking...</span>
+        </div>
         <h2 class="text-3xl font-bold text-on-surface" id="install-title">Get Started in 30 Seconds</h2>
         <p class="text-sm md:text-base text-on-surface-variant mt-2" id="install-subtitle">
           Compatible with Violentmonkey and Tampermonkey on Firefox, Chrome, Brave, and Safari.
@@ -498,12 +531,21 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-        <div class="glass-panel p-5 rounded-xl border border-outline/40 space-y-2">
-          <div class="w-7 h-7 rounded-full bg-primary-container text-white flex items-center justify-center font-bold text-xs">1</div>
+        <div class="glass-panel p-5 rounded-xl border border-outline/40 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="w-7 h-7 rounded-full bg-primary-container text-white flex items-center justify-center font-bold text-xs">1</div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-tertiary/20 text-tertiary font-bold" id="step1-badge">Recommended</span>
+          </div>
           <h4 class="font-bold text-on-surface text-sm" id="step1-title">Install Manager</h4>
           <p class="text-xs text-on-surface-variant" id="step1-desc">
-            Install <a href="https://violentmonkey.github.io/" target="_blank" rel="noopener" class="text-primary hover:underline">Violentmonkey</a> (recommended) or <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener" class="text-primary hover:underline">Tampermonkey</a> in your browser.
+            Install Violentmonkey (recommended) or Tampermonkey in your browser.
           </p>
+          <div class="pt-1.5">
+            <a id="btn-browser-install" href="https://violentmonkey.github.io/" target="_blank" rel="noopener" class="w-full py-2 px-3 rounded-lg bg-surface-container-highest hover:bg-surface-container border border-outline text-xs font-mono text-white flex items-center justify-center gap-1.5 transition-all">
+              <span class="material-symbols-outlined text-[16px] text-tertiary">extension</span>
+              <span id="btn-browser-install-text">Get Violentmonkey</span>
+            </a>
+          </div>
         </div>
 
         <div class="glass-panel p-5 rounded-xl border border-outline/40 space-y-2">
@@ -523,13 +565,27 @@
         </div>
       </div>
 
-      <div class="pt-4">
-        <a class="px-8 py-4 rounded-xl bg-gradient-to-r from-primary-container to-primary text-white text-lg font-bold shadow-[0_0_28px_rgba(255,79,114,0.55)] hover:shadow-[0_0_36px_rgba(255,79,114,0.75)] active:scale-95 transition-all inline-flex items-center gap-2" href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js">
+      <!-- Action Buttons: Install + Copy Script URL -->
+      <div class="pt-4 flex flex-wrap items-center justify-center gap-4">
+        <a class="px-8 py-4 rounded-xl bg-gradient-to-r from-primary-container to-primary text-white text-base md:text-lg font-bold shadow-[0_0_28px_rgba(255,79,114,0.55)] hover:shadow-[0_0_36px_rgba(255,79,114,0.75)] active:scale-95 transition-all inline-flex items-center gap-2" href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js">
           <span class="material-symbols-outlined text-[24px]">download</span>
           <span id="btn-install-large">Install Userscript (v2.18.345)</span>
         </a>
+
+        <button id="btn-copy-url" class="px-5 py-4 rounded-xl bg-surface-container border border-outline hover:border-primary/50 text-on-surface text-sm font-mono font-semibold transition-all active:scale-95 inline-flex items-center gap-2" type="button">
+          <span class="material-symbols-outlined text-[20px] text-secondary" id="copy-icon">content_copy</span>
+          <span id="copy-text">Copy Script URL</span>
+        </button>
       </div>
     </section>
+
+    <!-- Floating Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+      <div class="glass-panel-elevated px-4 py-3 rounded-xl shadow-2xl border border-tertiary/50 text-white font-mono text-xs flex items-center gap-2.5">
+        <span class="material-symbols-outlined text-tertiary text-[18px]">check_circle</span>
+        <span id="toast-message">Userscript URL copied to clipboard!</span>
+      </div>
+    </div>
 
   </main>
 
@@ -611,7 +667,10 @@
         step2Desc: "Click the install button below. Confirm the installation prompt in your userscript manager.",
         step3Title: "Browse Toppreise",
         step3Desc: "Open any deal on Toppreise.ch — verified deal indicators activate automatically!",
-        btnInstallLarge: "Install Userscript (v2.18.345)"
+        btnInstallLarge: "Install Userscript (v2.18.345)",
+        chapterLabel: "Chapters:",
+        copyScriptBtn: "Copy Script URL",
+        toastCopied: "Userscript URL copied to clipboard!"
       },
       de: {
         heroBadge: "Verifizierte Tiefstpreise & Schutz vor Scheinerparnissen",
@@ -650,7 +709,42 @@
         step2Desc: "Auf 'Userscript installieren' klicken und im Dialog des Managers bestätigen.",
         step3Title: "Toppreise öffnen",
         step3Desc: "Beliebige Angebots- oder Kategorieseite auf Toppreise.ch öffnen – Analyse startet automatisch.",
-        btnInstallLarge: "Userscript installieren (v2.18.345)"
+        btnInstallLarge: "Userscript installieren (v2.18.345)",
+        chapterLabel: "Kapitel:",
+        copyScriptBtn: "Skript-URL kopieren",
+        toastCopied: "Userscript-URL in die Zwischenablage kopiert!"
+      }
+    };
+
+    // Video Chapters Mapping
+    const chapters = {
+      explainer: {
+        en: [
+          { time: 0, label: "00:00 Feed Overview" },
+          { time: 75, label: "01:15 Deal Score" },
+          { time: 150, label: "02:30 Glitch Filter" },
+          { time: 250, label: "04:10 Markups" },
+          { time: 345, label: "05:45 Price Alarms" }
+        ],
+        de: [
+          { time: 0, label: "00:00 Feed-Übersicht" },
+          { time: 75, label: "01:15 Tiefstpreis-Score" },
+          { time: 150, label: "02:30 Glitch-Filter" },
+          { time: 250, label: "04:10 Scheinerparnisse" },
+          { time: 345, label: "05:45 Preiswecker" }
+        ]
+      },
+      short: {
+        en: [
+          { time: 0, label: "00:00 Scan Deals" },
+          { time: 25, label: "00:25 Verify Record" },
+          { time: 50, label: "00:50 Dealer Link" }
+        ],
+        de: [
+          { time: 0, label: "00:00 Angebote scannen" },
+          { time: 25, label: "00:25 Rekord prüfen" },
+          { time: 50, label: "00:50 Händler-Sprung" }
+        ]
       }
     };
 
@@ -659,6 +753,51 @@
 
     const videoEl = document.getElementById('main-video');
     const sourceEl = document.getElementById('video-source');
+
+    function renderChapters() {
+      const container = document.getElementById('chapter-buttons');
+      const label = document.getElementById('chapter-label');
+      if (label && i18n[currentLang]) label.textContent = i18n[currentLang].chapterLabel;
+      if (!container) return;
+      container.innerHTML = '';
+
+      const list = (chapters[currentTab] && chapters[currentTab][currentLang]) || (chapters[currentTab] && chapters[currentTab]['en']) || [];
+      list.forEach(ch => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chapter-btn px-2.5 py-1 rounded-lg bg-surface-container border border-outline hover:border-primary/50 text-on-surface-variant hover:text-white transition-all text-xs font-mono flex items-center gap-1 active:scale-95';
+        btn.innerHTML = `<span class="text-secondary text-[10px]">▶</span><span>${ch.label}</span>`;
+        btn.addEventListener('click', () => {
+          videoEl.currentTime = ch.time;
+          if (videoEl.paused) videoEl.play();
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    function detectBrowser() {
+      const ua = navigator.userAgent;
+      let browser = 'Chrome';
+      let storeUrl = 'https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag';
+
+      if (ua.includes('Firefox') || ua.includes('FxiOS')) {
+        browser = 'Firefox';
+        storeUrl = 'https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/';
+      } else if (ua.includes('Edg/')) {
+        browser = 'Edge';
+        storeUrl = 'https://microsoftedge.microsoft.com/addons/detail/violentmonkey/eeagobfjdenkkddmbclomhiblgggliao';
+      } else if (ua.includes('Safari') && !ua.includes('Chrome')) {
+        browser = 'Safari';
+        storeUrl = 'https://apps.apple.com/app/userscripts/id1463298887';
+      }
+
+      const badge = document.getElementById('browser-detect-text');
+      const btn = document.getElementById('btn-browser-install');
+      const btnText = document.getElementById('btn-browser-install-text');
+      if (badge) badge.textContent = (currentLang === 'de' ? 'Erkannter Browser: ' : 'Detected Browser: ') + browser;
+      if (btn) btn.href = storeUrl;
+      if (btnText) btnText.textContent = (currentLang === 'de' ? 'Violentmonkey für ' : 'Get Violentmonkey for ') + browser;
+    }
 
     function updateVideo() {
       const isPaused = videoEl.paused;
@@ -671,6 +810,7 @@
           videoEl.play();
         }
       }
+      renderChapters();
     }
 
     function setLanguage(lang) {
@@ -721,9 +861,48 @@
       document.getElementById('step3-title').textContent = t.step3Title;
       document.getElementById('step3-desc').innerHTML = t.step3Desc;
       document.getElementById('btn-install-large').textContent = t.btnInstallLarge;
+      const copyBtnEl = document.getElementById('copy-text');
+      if (copyBtnEl) copyBtnEl.textContent = t.copyScriptBtn;
 
       updateVideo();
       updateSimulator();
+      detectBrowser();
+    }
+
+    // Playback Speed Controls
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const speed = parseFloat(btn.dataset.speed);
+        videoEl.playbackRate = speed;
+        document.querySelectorAll('.speed-btn').forEach(b => {
+          b.className = 'speed-btn px-2.5 py-0.5 rounded text-on-surface-variant hover:text-white transition-all';
+        });
+        btn.className = 'speed-btn px-2.5 py-0.5 rounded bg-primary/20 text-primary font-bold transition-all';
+      });
+    });
+
+    // Copy Userscript URL Button & Toast
+    const copyBtn = document.getElementById('btn-copy-url');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-message');
+    let toastTimer = null;
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const url = 'https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js';
+        navigator.clipboard.writeText(url).then(() => {
+          if (toast && toastMsg) {
+            toastMsg.textContent = i18n[currentLang].toastCopied;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+              toast.classList.remove('translate-y-0', 'opacity-100');
+              toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 2500);
+          }
+        });
+      });
     }
 
     document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -884,8 +1063,10 @@
       });
     }
 
-    // Initial calculation run
+    // Initial calculation, browser detection, and chapter track run
     updateSimulator();
+    detectBrowser();
+    renderChapters();
   </script>
 </body>
 </html>
