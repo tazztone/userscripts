@@ -347,8 +347,8 @@ export const STYLES_CARDS = `
     color: #64748b !important;
   }
   .tp-card-historical-price {
-    font: 500 10.5px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    letter-spacing: -0.2px !important;
+    font: 500 8.8px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    letter-spacing: -0.35px !important;
     color: #64748b !important;
     text-align: right !important;
     margin: 0 !important;

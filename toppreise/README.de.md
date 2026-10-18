@@ -4,7 +4,7 @@
 
 **[🇬🇧 English Version](README.md)** · **Deutsche Version**
 
-Umfassende Userscript-Suite (`v2.18.330`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
+Umfassende Userscript-Suite (`v2.18.333`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
 
 ![Deal-Karten im Überblick: Rabatt-Heatmap, Schein-Rabatt-Erkennung, Fallback-Tief und 1-Klick-Share](docs/shots/02-feed-cards.webp)
 
@@ -14,9 +14,12 @@ Umfassende Userscript-Suite (`v2.18.330`) für **Toppreise.ch**: Verifiziert ech
 | ② | **Schein-Rabatt entlarvt** | Deckt Fake-Rabatte auf: Streicht die angebliche Ersparnis durch und hebt den echten Aufschlag (+XX%) über dem Tief hervor. |
 | ③ | **Fallback-Tief** | Verifizierter Tiefstpreis bei wenigen Datenpunkten (< minPoints): Zeigt den Abstand zum vorherigen Tiefstpreis. |
 | ④ | **1-Klick Discord-Share** | Erscheint bei Hover zum direkten Teilen von Deal-Details, Chart-PNG und Händlerlink via Webhook. |
-| ⑤ | **Transparente Subline** | Zeigt den Live-Preis, die absolute CHF-Ersparnis und den Prozentwert gegenüber dem 1-Jahres-Median. |
+| ⑤ | **Transparente Deal-Subline** | Zeigt den Vortief-Abstand in % sowie den 1-Jahres-Ø mit prozentualem Abstand. |
 | ⑥ | **Direkter Händlerlink** | Direktsprung zum günstigsten Anbieter ohne zwischengeschaltete Tracking-Umwege. |
 | ⑦ | **Mini-Trend Sparkline** | Kompakte 30-Tage-Preiskurve; Klick öffnet den interaktiven Vollbild-Chart. |
+
+> [!NOTE]
+> **Deal-Score-Berechnung Card ①:** −65% = 50/50-Mix aus −60% (vs. Vortief) und −70% (vs. 1-Jahres-Ø).
 
 ---
 
@@ -26,7 +29,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.330)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.333)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
@@ -62,7 +65,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 * **Kontinuierliche Heatmap (Grau→Rot-Skala):** Verifizierte Deals leuchten proportional zur Gewichteten Differenz (neutrales Grau bei geringem Rabatt → warmes Bernstein → tiefes Rubinrot bei Rekord-Deals). Ungeprüfte Karten tragen ein grau gestreiftes Badge mit vorläufiger Kartenwärme.
 * **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`). Zeigen den Vortief-Abstand statt des Blends (ohne `⚖️`) und lassen sich separat filtern (Normal/Dimmen/Verbergen). Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
 * **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren mindestens 5s lang mit Kontur und `Neu`-Markierung bis zur nächsten Nutzerinteraktion.
-* **Interaktive SVG-Sparklines:** Kompakte Mini-Preiskurve direkt auf geprüften Karten. Klick auf die Sparkline öffnet den großen interaktiven Chart-Dialog mit Preis- und Monatsachsen.
+* **Interaktive SVG-Sparklines:** Kompakte Mini-Preiskurve direkt auf geprüften Karten. Klick auf die Sparkline öffnet den grossen interaktiven Chart-Dialog mit Preis- und Monatsachsen.
 * **1-Klick Review-Suche (`🌐`):** Such-Icon am Produkttitel öffnet Google mit `<Produktname> Testbericht` (oder Wunschbegriff) in neuem Tab, optional mit **Google-KI-Modus (`&udm=50`)**.
 
 ### 🧹 Sticky Filterleiste & Grid-Sortierung
@@ -149,7 +152,7 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
 Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellungsmenü (`#tp-root`). Dank gekapseltem Shadow DOM und nativem HTML5 `<dialog>` (`showModal()`) im Top Layer des Browsers ist es immun gegen CSS- und z-Index-Konflikte der Hauptseite. Gegliedert in Basis- und Erweiterte Einstellungen:
 
-### Basis-Einstellungen (Bereiche 1–5: Anzeige, Review, Sortierung, Filter, Preisalarm)
+### Basis-Einstellungen (Bereiche 1–5: Ansicht, Review-Suche, Sortieren, Filtern, Preisalarm)
 
 ![Shadow DOM Einstellungen: Basis-Bereiche](docs/shots/04a-settings-core.webp)
 
@@ -173,11 +176,13 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 | ④ | **Händler-Autoload** | Lädt den günstigsten Händler automatisch im Hintergrund nach (max. 3 parallel). |
 | ⑤ | **Daten- & Cache-Verwaltung** | Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`), Cache-TTL und Konfigurations-Export. |
 
-1. **🖥️ Anzeige:** Filterdarstellung (`Hervorheben`, `Dimmen`, `Verbergen`), Preistoleranz (%), Deckkraft-Regler für gedimmte Karten, Versandkosten-Vergleich und Standard-Sortierung (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
-2. **💎 Deals & Tiefstpreise:** Heatmap an/aus und Intensität (20%–100%), Schieberegler für Gewichtete Differenz (Median vs. Rekord), Mindest-Datenpunkte (1–100), Analyse-Zeithorizont (30–730 Tage oder Lifetime) und Prüf-Vorauswahl für den Scanner.
-3. **🔔 Preisalarm:** Zielpreis-Prozentsatz (Standard 60%), Laufzeit (3 bis 24 Monate) und Auto-Submit-Schalter.
-4. **💬 Discord Share:** Webhook-URL, Layout-Baukasten mit Tokens, Live-Markdown-Vorschau, Presets und Embed-Unterdrückung für Links.
-5. **💾 Daten & Cache:** Sparklines an/aus, Händler-Autoload, Cache-Dauer (24h bis 14 Tage), Negativ-Cache (1h bis 24h), Live-Zähler, Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`) sowie JSON-Konfigurations-Export und -Import.
+1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten und Deal-Intensität / Heatmap-Stärke (20%–100%).
+2. **🌐 Review-Suche:** Schalter für Google-Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (z. B. „Testbericht“) und Google-KI-Modus (`&udm=50`).
+3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
+4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.
+5. **🔔 Preisalarm:** Zielpreis-Prozentsatz (5%–99%, Standard 60%), Laufzeit (3, 6, 12, 24 Monate) und automatisches Absenden & Schliessen.
+6. **💬 Discord Share:** Webhook-URL (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, etc.), Presets und Live-Markdown-Vorschau.
+7. **💾 Daten & Cache:** Händler-Autoload, Gewichtete Differenz (Sortierung + Farb-Emphase), Mindest-Datenpunkte, Median-Berechnungszeitraum, Prüf-Vorauswahl für Batch-Check, Versandkosten-Basis (`inkl. Versand`), Sparklines, Cache-TTL, Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`) und Konfigurations-Export/Import.
 
 ---
 
@@ -185,10 +190,10 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 * **Lokaler Cache:** Preishistorien (`tp_hist_v1_*`), Händlerdaten (`tp_dealer_v1_*`) und Deal-Marker (`tp_shared_v1_*`) liegen in `localStorage` mit einem 500-Einträge-LRU-Speicher im Arbeitsspeicher und werden per TTL bereinigt (48h für gültige Daten, 2h für nicht verfügbare Charts).
 * **2-Ebenen-Persistenz:** Einstellungen und Negativfilter nutzen ein ausfallsicheres System (`GM_setValue` / `GM_getValue` mit automatischem `localStorage`-Backup), das Skript-Neuinstallationen übersteht.
-* **Sicherheit des Discord-Webhooks:** Die Webhook-URL wird ausschließlich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangt **niemals** in das seitenlesbare `localStorage` und wird bei JSON-Exporten automatisch entfernt.
+* **Sicherheit des Discord-Webhooks:** Die Webhook-URL wird ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangt **niemals** in das seitenlesbare `localStorage` und wird bei JSON-Exporten automatisch entfernt.
 * **Erforderliche Berechtigungen:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolierte Speicherung der Einstellungen.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`): Ausschließlich für den Download von Produktbildern für Deal-Anhänge und das Senden an den konfigurierten Discord-Webhook.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`): Ausschliesslich für den Download von Produktbildern für Deal-Anhänge und das Senden an den konfigurierten Discord-Webhook.
 
 ---
 
@@ -198,7 +203,7 @@ Der Quellcode ist modular in 45 ESM-Dateien unter `src/` gegliedert (jede `<25 K
 
 ```text
 src/
-├── domain/       # Reine Preisberechnung, Ausreißer-Filter, Median & Deal-Scoring
+├── domain/       # Reine Preisberechnung, Ausreisser-Filter, Median & Deal-Scoring
 ├── scanner/      # LRU/localStorage-Cache & ratenbegrenzter Batch-Scanner
 ├── page/         # DOM-Selektoren, Seiten-Adapter, Extraktion & Grid-Sortierung
 ├── state/        # Konfigurationsschema, Migrationen, GM/Storage-Sync & Scan-Store
@@ -216,7 +221,7 @@ node toppreise/tools/build.js
 # Prüft Bundle-Integrität gegen Drift (CI-Gate)
 node toppreise/tools/build.js --check
 
-# Prüft Modulgrößen (25 KB Richtwert)
+# Prüft Modulgrössen (25 KB Richtwert)
 node toppreise/tools/check-modules.js
 
 # Überprüft die JavaScript-Syntax des Bundles

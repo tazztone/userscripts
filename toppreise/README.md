@@ -4,7 +4,7 @@
 
 **English Version** · **[🇩🇪 Deutsche Version](README.de.md)**
 
-An all-in-one userscript suite (`v2.18.330`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
+An all-in-one userscript suite (`v2.18.333`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
 
 ![Feed Cards Overview: Deal Heatmap, Markup Exposure, Fallback Low, and 1-Click Share](docs/shots/02-feed-cards.webp)
 
@@ -14,9 +14,12 @@ An all-in-one userscript suite (`v2.18.330`) for **Toppreise.ch** that verifies 
 | ② | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
 | ③ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
 | ④ | **1-Click Discord Share** | Hover button to post deal details, interactive chart PNG, and merchant offer directly to your Discord webhook. |
-| ⑤ | **Transparent Deal Subline** | Displays live price, absolute CHF savings, and percentage discount vs. 1-year rolling median. |
+| ⑤ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
 | ⑥ | **Direct Merchant Jump** | Direct link to the cheapest dealer offer without intermediary tracking redirects. |
 | ⑦ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
+
+> [!NOTE]
+> **Deal score formula Card ①:** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
 
 ---
 
@@ -150,7 +153,7 @@ The userscript dynamically tailors its UI to the current page type:
 
 Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Split into Core and Advanced views for legibility:
 
-### Core Settings (Sections 1–5: Display, Review, Sorting, Filtering, Price Alarm)
+### Core Settings (Sections 1–5: Display, Review Search, Sorting, Filtering, Price Alarm)
 
 ![Shadow DOM Settings Dialog: Core Controls](docs/shots/04a-settings-core.webp)
 
@@ -174,11 +177,13 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically (max. 3 parallel). |
 | ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
 
-1. **🖥️ Display (*Anzeige*):** Filter representation mode (`Hervorheben`, `Dimmen`, `Verbergen`), price tolerance margin (%), dimmer opacity slider, shipping-basis toggle, and default secondary sort order (`Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
-2. **💎 Deals & Tiefstpreise:** Heatmap toggle and intensity slider (20%–100%), weighted deal blend slider (median vs. record low), minimum history data points threshold (1–100), analysis horizon slider (30–730 days or Lifetime), and batch scan discount threshold.
-3. **🔔 Price Alarm:** Target price percentage (default 60%), alarm duration (3 to 24 months), and Auto-Submit toggle.
-4. **💬 Discord Share:** Webhook URL, layout template builder, Markdown live preview, preset selector, and merchant/product link embed suppression switches.
-5. **💾 Data & Cache:** Mini sparkline display toggle, dealer autoload toggle, price cache TTL (24h to 14 days), negative cache TTL (1h to 24h), live entry counters, one-click cache purge (`🗑️ Cache leeren`), full data reset (`🧨 Alle Daten löschen`), and JSON configuration import/export.
+1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards and deal intensity / heatmap strength (20%–100%).
+2. **🌐 Review Search (*Review-Suche*):** Google search toggle (`🌐`) on product titles, custom search term (e.g. "Testbericht"), and Google AI mode (`&udm=50`).
+3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
+4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
+5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
+6. **💬 Discord Share:** Confidential webhook URL (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, etc.), presets, and live Markdown preview.
+7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
 
 ---
 

@@ -1734,7 +1734,7 @@ def test_filter_button_shows_hidden_count(page: Page):
 
 
 def test_bestpreise_button_readable_on_light_background(page: Page):
-    """Aktiver Tiefstpreise-Button ist opak mit weißer Schrift — lesbar in der dunklen Bar."""
+    """Aktiver Tiefstpreise-Button ist opak mit weisser Schrift — lesbar in der dunklen Bar."""
     page.evaluate("() => window.ToppreiseSuite.updateConfig('BESTPREISE_MODE_ACTIVE', true)")
     page.wait_for_selector('#tp-bar-bestpreise-btn.tp-bestpreise-active', state='attached', timeout=5000)
     # Active restyle transitions color over 0.15s; assert only once settled white.
