@@ -26,29 +26,19 @@ Umfassende Userscript-Suite (`v2.18.341`) für **Toppreise.ch**: Verifiziert ech
 
 ---
 
-## 🎬 Video-Demos & Walkthroughs
+## 🎬 Video-Demos & Interaktive Showcase
 
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4" controls width="100%"></video>
+[![Toppreise Suite Video Demos ansehen](docs/shots/poster-explainer.webp)](https://tazztone.github.io/userscripts/)
 
-<details>
-<summary><b>🇬🇧 English Quick Demo (1-min video)</b></summary>
+> 🌐 **Interaktiver Web-Player:** Schaue dir die Video-Demos mit sofortiger Sprachumschaltung (DE/EN), Kurzdemos und Feature-Walkthroughs direkt auf unserer **[Dokumentationsseite](https://tazztone.github.io/userscripts/)** an.
 
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4" controls width="100%"></video>
-
-</details>
-
-<details>
-<summary><b>🎥 Ausführliches Erklärungsvideo (Deutsch & Englisch)</b></summary>
-
-### 🇩🇪 Ausführliche Erklärung
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4" controls width="100%"></video>
-
-### 🇬🇧 English Walkthrough
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4" controls width="100%"></video>
-
-</details>
-
-> 🌐 **Interaktive Dokumentation:** Die interaktive Demo und Dokumentation gibt es auch auf der **[Toppreise Suite Dokumentationsseite](https://tazztone.github.io/userscripts/)**.
+### Direkte Video-Downloads & Mirrors
+| Demo-Clip | Dauer | Format | Sprache | Direkter Download |
+|---|---|---|---|---|
+| **Kurzübersicht** | 1 Min | 9:16 Vertikales MP4 | 🇩🇪 Deutsch | [⬇️ `short_DE.mp4` herunterladen](https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4) |
+| **Quick Demo** | 1 Min | 9:16 Vertikales MP4 | 🇬🇧 English | [⬇️ `short.mp4` herunterladen](https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4) |
+| **Ausführliche Erklärung** | 7 Min | 16:9 HD MP4 | 🇩🇪 Deutsch | [⬇️ `explainer_DE.mp4` herunterladen](https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4) |
+| **Full Walkthrough** | 7 Min | 16:9 HD MP4 | 🇬🇧 English | [⬇️ `explainer.mp4` herunterladen](https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4) |
 
 ---
 

@@ -26,29 +26,19 @@ An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies 
 
 ---
 
-## 🎬 Video Demos & Walkthroughs
+## 🎬 Video Demos & Interactive Showcase
 
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4" controls width="100%"></video>
+[![Watch Toppreise Suite Video Demos](docs/shots/poster-explainer.webp)](https://tazztone.github.io/userscripts/)
 
-<details>
-<summary><b>🇩🇪 Kurzübersicht auf Deutsch (1-Minuten Video)</b></summary>
+> 🌐 **Interactive Live Player:** Watch the video demos with instant EN/DE language switching, quick demo loops, and feature walkthroughs on our **[Documentation Site](https://tazztone.github.io/userscripts/)**.
 
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4" controls width="100%"></video>
-
-</details>
-
-<details>
-<summary><b>🎥 Full Explainer Walkthrough (English & Deutsch)</b></summary>
-
-### 🇬🇧 English Walkthrough
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4" controls width="100%"></video>
-
-### 🇩🇪 Ausführliche Erklärung
-<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4" controls width="100%"></video>
-
-</details>
-
-> 🌐 **Interactive Documentation:** You can also explore the live showcase on the **[Toppreise Suite Documentation Site](https://tazztone.github.io/userscripts/)**.
+### Direct Video Downloads & Mirrors
+| Demo Clip | Duration | Format | Language | Direct Link |
+|---|---|---|---|---|
+| **Quick Demo** | 1 min | 9:16 Vertical MP4 | 🇬🇧 English | [⬇️ Download `short.mp4`](https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4) |
+| **Kurzübersicht** | 1 min | 9:16 Vertical MP4 | 🇩🇪 Deutsch | [⬇️ Download `short_DE.mp4`](https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4) |
+| **Full Walkthrough** | 7 min | 16:9 HD MP4 | 🇬🇧 English | [⬇️ Download `explainer.mp4`](https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4) |
+| **Ausführliche Erklärung** | 7 min | 16:9 HD MP4 | 🇩🇪 Deutsch | [⬇️ Download `explainer_DE.mp4`](https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4) |
 
 ---
 

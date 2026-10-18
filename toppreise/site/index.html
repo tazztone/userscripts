@@ -223,11 +223,16 @@
       position: relative;
       width: 100%;
       background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     video {
       width: 100%;
       display: block;
-      max-height: 600px;
+      max-height: 640px;
+      object-fit: contain;
+      background: #000;
       outline: none;
     }
 
@@ -397,7 +402,7 @@
           </button>
         </div>
         <div class="video-container">
-          <video id="main-video" controls playsinline preload="metadata">
+          <video id="main-video" controls playsinline preload="metadata" poster="poster-short.webp">
             <source id="video-source" src="https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4" type="video/mp4">
             Your browser does not support HTML5 video.
           </video>
@@ -482,10 +487,20 @@
         <a href="https://github.com/tazztone/userscripts/tree/main/toppreise/README.md">Documentation</a> · 
         <a href="https://github.com/tazztone/userscripts/releases/tag/media-v1">Release Assets</a>
       </p>
+      <p style="margin-top: 8px; font-size: 0.8rem; color: #64748b;">
+        Other Userscripts: 
+        <a href="https://github.com/tazztone/userscripts/tree/main/perplexity" style="color: #64748b;">Perplexity Enhancements</a> · 
+        <a href="https://github.com/tazztone/userscripts/tree/main/huggingface" style="color: #64748b;">Hugging Face Heart & Filter</a>
+      </p>
     </div>
   </footer>
 
   <script>
+    const posters = {
+      short: "poster-short.webp",
+      explainer: "poster-explainer.webp"
+    };
+
     const videos = {
       en: {
         short: "https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4",
@@ -571,6 +586,7 @@
     function updateVideo() {
       const isPaused = videoEl.paused;
       const targetUrl = videos[currentLang][currentTab];
+      videoEl.poster = posters[currentTab];
       if (sourceEl.src !== targetUrl) {
         sourceEl.src = targetUrl;
         videoEl.load();
@@ -579,6 +595,18 @@
         }
       }
     }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.code === 'Space' || e.key === 'k') {
+        e.preventDefault();
+        if (videoEl.paused) {
+          videoEl.play();
+        } else {
+          videoEl.pause();
+        }
+      }
+    });
 
     function setLanguage(lang) {
       currentLang = lang;
