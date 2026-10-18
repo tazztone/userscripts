@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.341
+// @version      2.18.342
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -148,7 +148,7 @@ const STYLES_CARDS = `
     filter: grayscale(40%) !important;
   }
   .tp-highlighted {
-    outline: 2px dotted var(--tp-heat-color, #0284c7) !important;
+    outline: 2px dotted var(--tp-acc, #10b981) !important;
     outline-offset: -4px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
@@ -2471,8 +2471,8 @@ const SHADOW_MODAL_STYLES = `
    * Heat follows the badge % only (blend, Vortief-Abstand, or site-%), never
    * the verification state. Returns { value, provisional, pct, kind }:
    * - verified deal   -> blend % the badge shows (weight-blended Ø-discount +
-   *                      record-margin at the slider mix), null inside the ±5%
-   *                      deadband (number still prints, card stays gray)
+   *                      record-margin at the slider mix), null inside the ±1%
+   *                      deadband (HEAT_NEUTRAL_DEADBAND_PCT) (number still prints, card stays gray)
    * - verified markup -> null (no deal, no color — the +XX% badge text
    *                      carries the markup signal)
    * - verified but unqualified (thin/flat history, no dealData) -> Vortief-Abstand
@@ -2511,7 +2511,7 @@ const SHADOW_MODAL_STYLES = `
         return { value: null, provisional: false, pct: 0, kind: 'none' };
       }
       const pct = dealData.weightedDiff;
-      // ±5% deadband (documented noise guard): a tiny blend shows in the
+      // ±1% deadband (HEAT_NEUTRAL_DEADBAND_PCT noise guard): a tiny blend shows in the
       // badge text but stays gray on the card — decided on the raw blend.
       const rawBlend = (1 - weight) * levelRaw + weight * recordRaw;
       if (!(rawBlend >= HEAT_NEUTRAL_DEADBAND_PCT)) return { value: null, provisional: false, pct, kind: 'blend' };
@@ -8344,9 +8344,10 @@ const SHADOW_MODAL_STYLES = `
 
     const varianceOk = tiefstpreis > 0 && (hoechstpreis - tiefstpreis) / tiefstpreis >= 0.02;
     const qualifies = clean.length >= minPoints && varianceOk
-      && priceToCents(cardPrice) <= priceToCents(tiefstpreis) && (dMedian > 0 || dRecord > 0);
+      && priceToCents(cardPrice) <= priceToCents(tiefstpreis) && median > 0;
+    const isZeroMargin = dMedian <= 0 && dRecord <= 0;
     const badge = qualifies
-      ? Math.max(1, Math.round((1 - weightRecord) * dMedian + weightRecord * dRecord))
+      ? (isZeroMargin ? 0 : Math.max(1, Math.round((1 - weightRecord) * dMedian + weightRecord * dRecord)))
       : null;
     const recordLow = live.previousLow ?? 0;
     const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
@@ -8602,7 +8603,8 @@ const SHADOW_MODAL_STYLES = `
     }
     if (st.qualifies) {
       const w = Math.round(weightRecord * 100);
-      blend.innerHTML = `<span class="badge-dif tp-deal-alltime-low">⚖️ −${st.badge}%</span><span class="tp-pv-formula"><i style="width:${100 - w}%"></i><b style="width:${w}%"></b></span>`;
+      const pctText = st.badge === 0 ? '0%' : `−${st.badge}%`;
+      blend.innerHTML = `<span class="badge-dif tp-deal-alltime-low">⚖️ ${pctText}</span><span class="tp-pv-formula"><i style="width:${100 - w}%"></i><b style="width:${w}%"></b></span>`;
     } else {
       blend.textContent = 'kein Tiefstpreis zum Demo-Preis – kein Badge';
     }
@@ -10347,7 +10349,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.341';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.342';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

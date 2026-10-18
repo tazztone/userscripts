@@ -86,7 +86,7 @@ export const STYLES_CARDS = `
     filter: grayscale(40%) !important;
   }
   .tp-highlighted {
-    outline: 2px dotted var(--tp-heat-color, #0284c7) !important;
+    outline: 2px dotted var(--tp-acc, #10b981) !important;
     outline-offset: -4px !important;
   }
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
