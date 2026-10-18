@@ -13,8 +13,8 @@ An all-in-one userscript suite (`v2.18.336`) for **Toppreise.ch** that verifies 
 | ① | **Heatmap Toggle** | Switches continuous deal color wash on/off in the sticky toolbar. |
 | ② | **Best-Price Sorting** | Sorts listings in-place by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
 | ③ | **Single-Hue Deal Heatmap** | Proportional color glow (deep ruby for all-time record lows, warm amber for strong discounts). |
-| ④ | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
-| ⑤ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
+| ④ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
+| ⑤ | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
 | ⑥ | **1-Click Discord Share** | Hover button to post deal details, interactive chart PNG, and merchant offer directly to your Discord webhook. |
 | ⑦ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
 | ⑧ | **Cheapest Dealer (`🏬`)** | Direct link to the cheapest merchant offer without intermediary tracking redirects. |
@@ -22,7 +22,7 @@ An all-in-one userscript suite (`v2.18.336`) for **Toppreise.ch** that verifies 
 | ⑩ | **1-Click Review Search (`🌐`)** | Appears on hover next to product title; opens a Google search for tests/reviews in a new tab. |
 
 > [!NOTE]
-> **Deal score formula Card ③:** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
+> **Deal score formula (Card 1, Callout ③):** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
 
 ---
 
@@ -77,18 +77,18 @@ Requires a userscript manager browser extension:
 
 | # | Control | Description |
 |---|---|---|
-| ① | **Filter Button** | Opens multi-mode filter controls (Hide, Dim, Highlight per cause). |
-| ② | **Negative Keywords** | Instant exclusion by keywords with live word-boundary matching. |
-| ③ | **Minimum Offers** | Filters out marketplace offers with fewer than $N$ merchants (active only on pages with dealer rows). |
+| ① | **Filter Button** | Opens multi-mode filter controls (🧹 Filter (N) / +N dimmed ▼; Hide, Dim, Highlight per cause). |
+| ② | **Negative Keywords (*Begriffe*)** | Instant exclusion by keywords with live word-boundary matching. |
+| ③ | **Minimum Offers** | Filters out marketplace offers with fewer than **N** merchants (active only on pages with dealer rows). |
 | ④ | **Unverified Offers (*Ungeprüfte*)** | Dim or hide deals lacking verified historical price series. |
 | ⑤ | **Fallback Lows Toggle** | Filter or dim verified offers with sparse history. |
-| ⑥ | **Minimum Discount (*Min-Rabatt*)** | Filter out deals with less than $X$% discount. |
+| ⑥ | **Minimum Discount (*Min-Rabatt*)** | Filter out deals with less than **X%** discount. |
 | ⑦ | **Batch Verification CTA** | One-click batch scanner (`🔍 Tiefstpreise prüfen`) to verify all visible offers meeting discount criteria. |
 
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
   * **Negative Keywords:** Exclude unwanted terms (comma/semicolon/newline lists; long terms `>3` chars match as substrings, short terms `≤3` chars enforce word boundaries).
-  * **Minimum Offer Count:** Filter out marketplace listings with fewer than $N$ merchants (shows inactive notice on pages without offer counts).
+  * **Minimum Offer Count:** Filter out marketplace listings with fewer than **N** merchants (shows inactive notice on pages without offer counts).
   * **Minimum Discount (*Min-Rabatt*):** Filter out offers below a minimum deal discount percentage (stepped 0%–50% in 5% increments).
   * **Unverified (*Ungeprüfte*):** Dim or hide unverified offers across all pages.
   * **Fallback Lows (*Fallback-Tiefs*):** Control visibility of low-history verified offers across all pages.
@@ -139,7 +139,7 @@ The userscript dynamically tailors its UI to the current page type:
 
 | # | Feature | Description |
 |---|---|---|
-| ① | **Verified Deal Pill** | Compact inline pill showing true weighted discount above current merchant price. |
+| ① | **Verified Deal Pill** | Compact inline pill next to product title showing true weighted discount. |
 | ② | **Unverified Scan Pill** | Striped-gray badge indicating unverified catalog item; click to fetch price history. |
 
 * **Deal Feeds (`/neue-toppreise`):** Displays the full suite: consolidated filter button (`🧹 Filter (N)`), continuous heatmap toggle, `💎 Tiefstpreis-Sortierung`, floating batch scanner, and calculation popover (`⚖️`).

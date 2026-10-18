@@ -13,8 +13,8 @@ Umfassende Userscript-Suite (`v2.18.336`) für **Toppreise.ch**: Verifiziert ech
 | ① | **Heatmap-Umschalter** | Schaltet das proportionale Farbglühen der Karten in der Sticky-Leiste ein oder aus. |
 | ② | **Tiefstpreis-Sortierung** | Sortiert Angebote im Raster nach authentischem gewichtetem Deal-Score (`💎 Tiefstpreis-Sortierung`). |
 | ③ | **Single-Hue Deal-Heatmap** | Proportionales Leuchten nach Deal-Tiefe (tiefes Rubinrot bei Rekord-Tiefstpreisen, warmes Bernstein bei soliden Rabatten). |
-| ④ | **Schein-Rabatt entlarvt** | Deckt Fake-Rabatte auf: Streicht die angebliche Ersparnis durch und hebt den echten Aufschlag (+XX%) über dem Tief hervor. |
-| ⑤ | **Fallback-Tief** | Verifizierter Tiefstpreis bei wenigen Datenpunkten (< minPoints): Zeigt den Abstand zum vorherigen Tiefstpreis. |
+| ④ | **Fallback-Tief** | Verifizierter Tiefstpreis bei wenigen Datenpunkten (< minPoints): Zeigt den Abstand zum vorherigen Tiefstpreis. |
+| ⑤ | **Schein-Rabatt entlarvt** | Deckt Fake-Rabatte auf: Streicht die angebliche Ersparnis durch und hebt den echten Aufschlag (+XX%) über dem Tief hervor. |
 | ⑥ | **1-Klick Discord-Share** | Erscheint bei Hover zum direkten Teilen von Deal-Details, Chart-PNG und Händlerlink via Webhook. |
 | ⑦ | **Transparente Deal-Subline** | Zeigt den Vortief-Abstand in % sowie den 1-Jahres-Ø mit prozentualem Abstand. |
 | ⑧ | **Günstigster Händler (`🏬`)** | Direktsprung zum günstigsten Anbieter ohne zwischengeschaltete Tracking-Umwege. |
@@ -22,7 +22,7 @@ Umfassende Userscript-Suite (`v2.18.336`) für **Toppreise.ch**: Verifiziert ech
 | ⑩ | **1-Klick Review-Suche (`🌐`)** | Erscheint bei Hover am Produkttitel; öffnet eine Google-Suche nach Testberichten in neuem Tab. |
 
 > [!NOTE]
-> **Deal-Score-Berechnung Karte ③:** −65% = 50/50-Mix aus −60% (vs. Vortief) und −70% (vs. 1-Jahres-Ø).
+> **Deal-Score-Berechnung (Karte 1, Callout ③):** −65% = 50/50-Mix aus −60% (vs. Vortief) und −70% (vs. 1-Jahres-Ø).
 
 ---
 
@@ -77,18 +77,18 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 | # | Steuerelement | Beschreibung |
 |---|---|---|
-| ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler (Verbergen, Dimmen, Hervorheben pro Ursache). |
-| ② | **Negativ-Filter** | Sofortiger Ausschluss unerwünschter Begriffe mit wortgenauer Erkennung. |
-| ③ | **Min-Angebote** | Filtert Angebote mit weniger als $N$ Händlern aus (nur auf Seiten mit Händlerzeilen aktiv). |
+| ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler (🧹 Filter (N) / +N gedimmt ▼; Verbergen, Dimmen, Hervorheben pro Ursache). |
+| ② | **Begriffe (Negativ-Filter)** | Sofortiger Ausschluss unerwünschter Begriffe mit wortgenauer Erkennung. |
+| ③ | **Min-Angebote** | Filtert Angebote mit weniger als **N** Händlern aus (nur auf Seiten mit Händlerzeilen aktiv). |
 | ④ | **Ungeprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
 | ⑤ | **Fallback-Tiefs** | Steuert die Sichtbarkeit von Angeboten mit geringer Datenpunktdichte. |
-| ⑥ | **Min-Rabatt** | Filtert Angebote mit weniger als $X$% Rabatt aus. |
+| ⑥ | **Min-Rabatt** | Filtert Angebote mit weniger als **X%** Rabatt aus. |
 | ⑦ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt (`🔍 Tiefstpreise prüfen`). |
 
 * **Kontextsensitive Leiste:** Passt sich automatisch an Deal-Feeds (`/neue-toppreise`), Suchseiten (`/produktsuche/...`) und Produktseiten an.
 * **4-stufiger Filter pro Ursache:** Jeder Filtergrund kann unabhängig geschaltet werden zwischen **Normal**, **Dimmen** (einstellbare Deckkraft), **Verbergen** und **Hervorheben** (gepunkteter Rahmen):
   * **Negativer Textfilter:** Unerwünschte Begriffe ausschliessen (Komma/Semikolon/Zeilenumbruch; lange Begriffe `>3` Zeichen als Teilstring, kurze Begriffe `≤3` Zeichen wortgenau).
-  * **Mindest-Angebote:** Marktplatz-Einträge mit weniger als $N$ Händlern filtern.
+  * **Mindest-Angebote:** Marktplatz-Einträge mit weniger als **N** Händlern filtern.
   * **Ungeprüfte:** Unverifizierte Angebote im Feed ausblenden oder dimmen.
   * **Fallback-Tiefs:** Sichtbarkeit von Tiefstpreisen mit dünner Historie steuern.
   * **Händler-Bestpreis-Prüfung:** Hebt Karten mit grünem Rahmen und `Toppreis`-Badge hervor, wenn der gefilterte Shop das beste Angebot hält (innerhalb einer Toleranz von `0%–50%`).
@@ -138,7 +138,7 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
 | # | Element | Beschreibung |
 |---|---|---|
-| ① | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Anzeige über dem Preis für geprüfte Tiefstpreise. |
+| ① | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Pill neben dem Produkttitel für geprüfte Tiefstpreise. |
 | ② | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
 
 * **Tiefstpreis-Feeds (`/neue-toppreise`):** Zeigt die vollständige Toolbar mit konsolidiertem Filter-Button (`🧹 Filter (N)`), Heatmap, `💎 Tiefstpreis-Sortierung`, Batch-Scanner und Berechnungsparametern (`⚖️`).
