@@ -359,6 +359,7 @@ def setup_toolbar(page, pids):
     """Shot 01a: Sticky toolbar with filter popover open, cleanly cropped without top whitespace."""
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
+        document.body.style.paddingLeft = '48px';
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
     }""")
     page.wait_for_timeout(400)
@@ -375,7 +376,7 @@ def setup_toolbar(page, pids):
     controls = [
         ("#tp-bar-filter-btn", "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)", [-26, 16]),
         ("#tp-inline-negative-input", "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)", "outside-top"),
-        ("#tp-bar-min-offers-group", "Min-Angebote Stepper (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", "outside-top"),
+        ("[data-filter-row='min']", "Min-Angebote Stepper (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)", "outside-left"),
         ("[data-filter-row='unchecked']", "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)", "outside-left"),
         ("[data-filter-row='vortief']", "Fallback-Tiefs ein-/ausschliessen (geringe Historie)", "outside-left"),
         ("[data-filter-row='deal-disc']", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", "outside-left"),
@@ -397,6 +398,10 @@ def setup_toolbar(page, pids):
 def setup_calc_popover(page, pids):
     """Shot 01b: Calculation popover featuring live glitch preview chart and mathematical parameters."""
     page.evaluate("window.scrollTo(0, 0)")
+    page.evaluate("""() => {
+        document.body.style.paddingLeft = '60px';
+        document.querySelectorAll('.mainContent, .leftColumn, #pageContent, .mainTopHeadContentWrapper, .mixedBrowsingListProduct, .Plugin_Product').forEach(el => el.style.opacity = '0');
+    }""")
     page.locator("#tp-bar-calc-btn").click()
     page.wait_for_selector("#tp-bar-calc-popover.tp-show", timeout=10000)
     page.wait_for_timeout(300)
@@ -412,17 +417,17 @@ def setup_calc_popover(page, pids):
     page.wait_for_timeout(400)
 
     pop_box = css_box(page, "#tp-bar-calc-popover")
-    clip = union([pop_box], pad=32)
+    clip = union([pop_box], pad=56)
     raw_bytes = page.screenshot(clip=clip)
 
     controls = [
-        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", "outside-left"),
-        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", "outside-left"),
-        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", "outside-left"),
-        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", "outside-left"),
-        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", "outside-left"),
-        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", "outside-left"),
-        ("#tp-calc-preview", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", "outside-left"),
+        ("#tp-bar-weight-wrapper", "Gewichtung Median / Rekord (Schieberegler für Deal-Score)", [-38, 0]),
+        ("#tp-bar-horizon-wrapper", "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)", [-38, 0]),
+        ("#tp-bar-minpoints-wrapper", "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)", [-38, 0]),
+        ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", [-38, 0]),
+        ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", [-38, 0]),
+        ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", [-38, 0]),
+        ("#tp-calc-preview", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", [-38, 0]),
     ]
     callouts = []
     for item in controls:
@@ -470,7 +475,7 @@ def setup_feed_cards(page, pids):
     assert page.locator(".tp-is-verified").count() > 0, "no verified deal rendered"
 
     boxes = [css_box(page, sel) for sel in anchors]
-    clip = union(boxes, pad=32)
+    clip = union(boxes, pad=36)
     raw_bytes = page.screenshot(clip=clip)
 
     callouts = [
@@ -478,8 +483,8 @@ def setup_feed_cards(page, pids):
         (2, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag rot hervorgehoben)", "outside-top"),
         (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", "outside-top"),
         (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-24, 16]),
-        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Preisaufschlüsselung (Live-Preis, CHF-Ersparnis und % gegenüber 1J-Median)", "outside-right"),
-        (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", "outside-top"),
+        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Preisaufschlüsselung (Live-Preis, CHF-Ersparnis und % gegenüber 1J-Median)", "outside-bottom"),
+        (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-24, 0]),
         (7, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", "outside-right"),
     ]
     return raw_bytes, {"x": clip["x"], "y": clip["y"]}, callouts, "02-feed-cards.webp"
@@ -487,6 +492,9 @@ def setup_feed_cards(page, pids):
 
 def setup_search_cards(page, pids):
     """Shot 03: Search catalog listing highlighting variant protection and inline verification pills."""
+    page.evaluate('document.body.style.paddingLeft = "50px"')
+    page.wait_for_timeout(200)
+
     block = page.locator(".Plugin_ProductCollItem").first
     block.scroll_into_view_if_needed()
 
@@ -520,7 +528,7 @@ def setup_search_cards(page, pids):
     page.wait_for_timeout(200)
 
     b_box = block.bounding_box()
-    clip = union([b_box], pad=16)
+    clip = union([b_box], pad=48)
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
@@ -528,13 +536,13 @@ def setup_search_cards(page, pids):
         (1, css_box(page, deal), "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)", "outside-top"),
         (2, css_box(page, unchecked), "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)", "outside-top"),
     ]
-    cheapest_variant = try_box(page, ".Plugin_ProductCollItem div.col-12.mt-2")
+    cheapest_variant = try_box(page, ".Plugin_ProductCollItem :text('günstigste Variante')")
     if cheapest_variant:
-        callouts.append((3, cheapest_variant, "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-left"))
+        callouts.append((3, cheapest_variant, "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-bottom"))
 
     series_header = try_box(page, ".Plugin_ProductCollItem .f_select_series, .Plugin_ProductCollItem a[href*='/produktserie/']")
     if series_header:
-        callouts.append((4, series_header, "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)", "outside-left"))
+        callouts.append((4, series_header, "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)", [-36, 0]))
 
     return raw_bytes, origin, callouts, "03-search-cards.webp"
 
@@ -566,15 +574,17 @@ def setup_settings_core(page, pids):
     page.wait_for_timeout(300)
 
     dlg_loc = page.locator(dlg)
-    raw_bytes = dlg_loc.screenshot()
-    origin = dlg_loc.bounding_box()
+    dlg_box = dlg_loc.bounding_box()
+    clip = union([dlg_box], pad=48)
+    raw_bytes = page.screenshot(clip=clip)
+    origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", "outside-left"),
-        ("#tp-review-search-toggle", "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus", "outside-left"),
-        ("#tp-bestpreise-mode-toggle", "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz", "outside-left"),
-        ("#tp-margin-range", "Preis-Toleranz (%): Händler-Bestpreis-Marge", "outside-left"),
-        ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", "outside-left"),
+        ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", [-36, 0]),
+        ("#tp-review-search-toggle", "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus", [-36, 0]),
+        ("#tp-bestpreise-mode-toggle", "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz", [-36, 0]),
+        ("#tp-margin-range", "Preis-Toleranz (%): Händler-Bestpreis-Marge", [-36, 0]),
+        ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", [-36, 0]),
     ]
     callouts = []
     for sel, cap, anchor in controls:
@@ -616,15 +626,17 @@ def setup_settings_advanced(page, pids):
     page.wait_for_timeout(300)
 
     dlg_loc = page.locator(dlg)
-    raw_bytes = dlg_loc.screenshot()
-    origin = dlg_loc.bounding_box()
+    dlg_box = dlg_loc.bounding_box()
+    clip = union([dlg_box], pad=48)
+    raw_bytes = page.screenshot(clip=clip)
+    origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", "outside-left"),
-        ("#tp-discord-layout-chips", "Discord Layout-Baukasten mit variablen Tokens", "outside-left"),
-        ("#tp-discord-layout-preview", "Live-Markdown-Vorschau der generierten Nachricht", "outside-left"),
-        ("#tp-dealer-autofetch-toggle", "Händler automatisch im Hintergrund laden (max. 3 parallel)", "outside-left"),
-        ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", "outside-left"),
+        ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", [-36, 0]),
+        ("#tp-discord-layout-chips", "Discord Layout-Baukasten mit variablen Tokens", [-36, 0]),
+        ("#tp-discord-layout-preview", "Live-Markdown-Vorschau der generierten Nachricht", [-36, 0]),
+        ("#tp-dealer-autofetch-toggle", "Händler automatisch im Hintergrund laden (max. 3 parallel)", [-36, 0]),
+        ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", [-36, 0]),
     ]
     callouts = []
     for sel, cap, anchor in controls:

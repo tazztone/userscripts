@@ -26,7 +26,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.314)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.330)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
