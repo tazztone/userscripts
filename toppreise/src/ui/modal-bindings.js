@@ -121,7 +121,7 @@ export function syncFieldsFromConfig(els) {
       const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
       if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = horizonStoredToUi(stored);
       if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
-      if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+      if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
     }
 
     if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
@@ -192,7 +192,7 @@ export function bindControlPairs(els) {
     // is literal so values like 1000 round-trip through the schema (max 3650).
     const fromNumber = meta?.source === 'number';
     const v = fromNumber ? (isNaN(raw) ? 365 : raw) : horizonUiToStored(raw);
-    if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+    if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
     if (v === 0) {
       if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;
       if (els.bestpreiseHorizonVal && meta?.source !== 'number') els.bestpreiseHorizonVal.value = 0;

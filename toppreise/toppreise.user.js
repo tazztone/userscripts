@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.336
+// @version      2.18.337
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -77,6 +77,11 @@ const STYLES_CARDS = `
   .Plugin_Product.tp-heat-blend,
   .mixedBrowsingListProduct.tp-heat-blend {
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
+  }
+  .tp-heat-blend .product-name a,
+  .tp-heat-blend a.product-name,
+  .tp-heat-blend .Plugin_ProductName a {
+    color: #0f172a !important;
   }
   /* Fresh-deal glow (transient, post-verification): outline-only so the heat
   box-shadow underneath keeps showing the deal color. "Neu" pill is a
@@ -434,7 +439,7 @@ const STYLES_CARDS = `
     pointer-events: auto !important;
   }
   .tp-card-historical-price.tp-is-record-low {
-    color: #065f46 !important;
+    color: #0f172a !important;
     font-weight: 700 !important;
   }
   .tp-card-historical-price.tp-is-at-low {
@@ -779,7 +784,7 @@ const STYLES_CHROME = `
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
-    accent-color: #0284c7 !important;
+    accent-color: #6366f1 !important;
     cursor: pointer !important;
     height: 14px !important;
     margin: 0 !important;
@@ -1193,6 +1198,25 @@ const STYLES_OVERLAYS = `
     text-overflow: ellipsis !important;
     flex: 1 1 auto !important;
   }
+  .tp-filter-mode-btn {
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 600 !important;
+    padding: 2px 7px !important;
+    border: 1px solid var(--tp-line) !important;
+    border-radius: var(--tp-r-md) !important;
+    background: #ffffff !important;
+    color: var(--tp-txt) !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    line-height: 1.4 !important;
+  }
+  .tp-filter-mode-btn::after {
+    content: " ▾";
+    font-size: 9px !important;
+    opacity: 0.6 !important;
+  }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;
@@ -1208,11 +1232,18 @@ const STYLES_OVERLAYS = `
     flex-direction: column !important;
     gap: 2px !important;
   }
-  .tp-calc-head .tp-glossary-term {
+  .tp-calc-head .tp-glossary-term,
+  .tp-threshold-wrapper .tp-stepper-label.tp-glossary-term {
     font-weight: 700 !important;
     font-size: var(--tp-fs-md) !important;
     color: var(--tp-txt) !important;
     line-height: 1.3 !important;
+    text-decoration: none !important;
+  }
+  .tp-threshold-wrapper .tp-stepper-label.tp-glossary-term {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
   }
   .tp-calc-head span:not(.tp-glossary-term) {
     display: block !important;
@@ -3361,7 +3392,7 @@ const SHADOW_MODAL_STYLES = `
             const horizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
             if (horizonVal) horizonVal.value = stored;
             const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
-            if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+            if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
             // Toolbar range mirrors the modal control (skip while interacting).
             if (typeof document !== 'undefined') {
               const barRange = document.getElementById('tp-bar-horizon-range');
@@ -7463,7 +7494,7 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-bestpreise-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(DEFAULTS.BESTPREISE_MIN_POINTS)}">
               <input type="number" id="tp-bestpreise-minpoints-val" min="1" max="100" step="1" value="5">
             </div>
-            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen Ø-Vergleich (Blend). Darunter: <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tief</span> (einfache Fläche, kein Blend).</span>
+            <span class="tp-switch-desc tp-field-hint">Nur Historien ab dieser Punktzahl bekommen einen gewichteten Ø-Vergleich (⚖️/💎). Darunter: <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tief</span> (Abstand zum Vortief, ohne Ø-Vergleich).</span>
           </div>
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
             <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>
@@ -7471,7 +7502,7 @@ const SHADOW_MODAL_STYLES = `
               <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
               <input type="number" id="tp-bestpreise-horizon-val" min="0" max="3650" step="1" value="365">
             </div>
-            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis</span>
+            <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.</span>
           </div>
           <div class="tp-settings-group">
             <label title="Nur Differenzen ab diesem Wert automatisch prüfen">Prüf-Vorauswahl: Mindest-Differenz für Batch-Check (%)</label>
@@ -7720,7 +7751,7 @@ const SHADOW_MODAL_STYLES = `
         const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
         if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = horizonStoredToUi(stored);
         if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
-        if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+        if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
       }
 
       if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
@@ -7791,7 +7822,7 @@ const SHADOW_MODAL_STYLES = `
       // is literal so values like 1000 round-trip through the schema (max 3650).
       const fromNumber = meta?.source === 'number';
       const v = fromNumber ? (isNaN(raw) ? 365 : raw) : horizonUiToStored(raw);
-      if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+      if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(v)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
       if (v === 0) {
         if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = 760;
         if (els.bestpreiseHorizonVal && meta?.source !== 'number') els.bestpreiseHorizonVal.value = 0;
@@ -10228,7 +10259,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.336';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.337';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

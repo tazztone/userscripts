@@ -139,7 +139,7 @@ export const STYLES_CHROME = `
   }
   #tp-bar-minpoints-range {
     width: 56px !important;
-    accent-color: #0284c7 !important;
+    accent-color: #6366f1 !important;
     cursor: pointer !important;
     height: 14px !important;
     margin: 0 !important;

@@ -84,6 +84,25 @@ export const STYLES_OVERLAYS = `
     text-overflow: ellipsis !important;
     flex: 1 1 auto !important;
   }
+  .tp-filter-mode-btn {
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 600 !important;
+    padding: 2px 7px !important;
+    border: 1px solid var(--tp-line) !important;
+    border-radius: var(--tp-r-md) !important;
+    background: #ffffff !important;
+    color: var(--tp-txt) !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    line-height: 1.4 !important;
+  }
+  .tp-filter-mode-btn::after {
+    content: " ▾";
+    font-size: 9px !important;
+    opacity: 0.6 !important;
+  }
   .tp-filter-mode-btn.tp-active {
     background: var(--tp-acc-soft) !important;
     border-color: var(--tp-acc-line) !important;
@@ -99,11 +118,18 @@ export const STYLES_OVERLAYS = `
     flex-direction: column !important;
     gap: 2px !important;
   }
-  .tp-calc-head .tp-glossary-term {
+  .tp-calc-head .tp-glossary-term,
+  .tp-threshold-wrapper .tp-stepper-label.tp-glossary-term {
     font-weight: 700 !important;
     font-size: var(--tp-fs-md) !important;
     color: var(--tp-txt) !important;
     line-height: 1.3 !important;
+    text-decoration: none !important;
+  }
+  .tp-threshold-wrapper .tp-stepper-label.tp-glossary-term {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
   }
   .tp-calc-head span:not(.tp-glossary-term) {
     display: block !important;

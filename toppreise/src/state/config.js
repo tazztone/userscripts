@@ -245,7 +245,7 @@ export function syncUiControl(key, val, opts = {}) {
           const horizonVal = shadow.getElementById('tp-bestpreise-horizon-val');
           if (horizonVal) horizonVal.value = stored;
           const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
-          if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} — Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis`;
+          if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
           // Toolbar range mirrors the modal control (skip while interacting).
           if (typeof document !== 'undefined') {
             const barRange = document.getElementById('tp-bar-horizon-range');

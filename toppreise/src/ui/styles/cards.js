@@ -16,6 +16,11 @@ export const STYLES_CARDS = `
   .mixedBrowsingListProduct.tp-heat-blend {
     box-shadow: var(--tp-heat-glow, 0 2px 8px rgba(0,0,0,0.25)) !important;
   }
+  .tp-heat-blend .product-name a,
+  .tp-heat-blend a.product-name,
+  .tp-heat-blend .Plugin_ProductName a {
+    color: #0f172a !important;
+  }
   /* Fresh-deal glow (transient, post-verification): outline-only so the heat
   box-shadow underneath keeps showing the deal color. "Neu" pill is a
   pseudo-element — zero DOM bookkeeping, auto-cleans with the class. */
@@ -372,7 +377,7 @@ export const STYLES_CARDS = `
     pointer-events: auto !important;
   }
   .tp-card-historical-price.tp-is-record-low {
-    color: #065f46 !important;
+    color: #0f172a !important;
     font-weight: 700 !important;
   }
   .tp-card-historical-price.tp-is-at-low {
