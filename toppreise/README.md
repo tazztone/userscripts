@@ -26,6 +26,32 @@ An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies 
 
 ---
 
+## 🎬 Video Demos & Walkthroughs
+
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4" controls width="100%"></video>
+
+<details>
+<summary><b>🇩🇪 Kurzübersicht auf Deutsch (1-Minuten Video)</b></summary>
+
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4" controls width="100%"></video>
+
+</details>
+
+<details>
+<summary><b>🎥 Full Explainer Walkthrough (English & Deutsch)</b></summary>
+
+### 🇬🇧 English Walkthrough
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4" controls width="100%"></video>
+
+### 🇩🇪 Ausführliche Erklärung
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4" controls width="100%"></video>
+
+</details>
+
+> 🌐 **Interactive Documentation:** You can also explore the live showcase on the **[Toppreise Suite Documentation Site](https://tazztone.github.io/userscripts/)**.
+
+---
+
 ## 🚀 Quick Install
 
 Requires a userscript manager browser extension:

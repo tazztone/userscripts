@@ -26,13 +26,39 @@ Umfassende Userscript-Suite (`v2.18.341`) für **Toppreise.ch**: Verifiziert ech
 
 ---
 
+## 🎬 Video-Demos & Walkthroughs
+
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short_DE.mp4" controls width="100%"></video>
+
+<details>
+<summary><b>🇬🇧 English Quick Demo (1-min video)</b></summary>
+
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/short.mp4" controls width="100%"></video>
+
+</details>
+
+<details>
+<summary><b>🎥 Ausführliches Erklärungsvideo (Deutsch & Englisch)</b></summary>
+
+### 🇩🇪 Ausführliche Erklärung
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer_DE.mp4" controls width="100%"></video>
+
+### 🇬🇧 English Walkthrough
+<video src="https://github.com/tazztone/userscripts/releases/download/media-v1/explainer.mp4" controls width="100%"></video>
+
+</details>
+
+> 🌐 **Interaktive Dokumentation:** Die interaktive Demo und Dokumentation gibt es auch auf der **[Toppreise Suite Dokumentationsseite](https://tazztone.github.io/userscripts/)**.
+
+---
+
 ## 🚀 Installation
 
 Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.341)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.345)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
