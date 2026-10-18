@@ -193,13 +193,13 @@ export function extractCardDiscount(card) {
   return diff === null ? null : (diff === 0 ? 0 : -diff);
 }
 
-// Single-hue deal ramp: neutral slate (0% = no deal) -> warm amber -> deep ruby
-// (-100% = max savings). Markups render no color (neutral gray card); the
-// badge TEXT (+XX%) carries the markup signal instead.
+// Deal-Intensität ramp: warm amber (-1% entry discount) -> coral/vermilion
+// (-40% mid discount) -> deep ruby/red (-100% max savings).
+// Markups and 0% deals return null (transparent / no heat effect).
 const HEAT_STOPS = [
-  { t: 0.00, base: [24, 32, 44],   acc: [45, 58, 76],    border: [71, 85, 105, 0.50] },
-  { t: 0.50, base: [75, 42, 12],   acc: [170, 62, 10],   border: [251, 115, 36, 0.88] },
-  { t: 1.00, base: [98, 14, 32],   acc: [210, 20, 55],   border: [244, 63, 94, 0.95] }
+  { t: 0.00, base: [65, 38, 10],   acc: [245, 158, 11],  border: [251, 191, 36, 0.60] }, // Warm Amber (-1%)
+  { t: 0.40, base: [85, 28, 14],   acc: [234, 88, 12],   border: [249, 115, 22, 0.85] }, // Coral / Vermilion (-40%)
+  { t: 1.00, base: [110, 15, 35],  acc: [225, 29, 72],   border: [244, 63, 94, 0.95] }   // Blazing Ruby/Red (-100%)
 ];
 
 function heatRamp(t) {
@@ -233,23 +233,27 @@ const heatColor = (diff, intensity) => {
 // no border. Inset (never outer): an outer box-shadow paints past the border
 // box and bleeds onto neighboring cards — inset clips at the card's own edge
 // by construction, no per-layout tuning.
+// Non-discounts (dropPct <= 0) return null (transparent / no heat).
 export function getInsetHeatStyle(dropPct, intensity = 1.0) {
-  const c = heatColor(-Math.abs(dropPct), intensity);
+  const d = typeof dropPct === 'number' ? dropPct : parseFloat(dropPct);
+  if (isNaN(d) || d <= 0) return null;
+  const c = heatColor(-Math.abs(d), intensity);
   if (!c) return null;
-  const { acc, safeInt } = c;
+  const { acc, safeInt, t } = c;
+  const alpha = (0.18 + 0.42 * t) * safeInt;
   return {
-    glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${(0.50 * safeInt).toFixed(2)})`,
+    glow: `inset 0 0 30px 10px rgba(${acc.join(',')},${alpha.toFixed(2)})`,
     color: `rgb(${acc.join(',')})`
   };
 }
 
 // Badge reuses the card logic: solid swatch from the same ramp so the badge
-// color always matches the card heat. The provisional flag still yields paler
-// output, but callers now skip heat for unverified cards (tp-is-unverified
-// paints them striped-gray instead). At full intensity verified output is
-// identical to the legacy fixed alphas.
+// color always matches the card heat. Non-discounts (diffPercent >= 0)
+// return null so badges remain transparent/colorless.
 export function getBadgeHeatStyle(diffPercent, provisional = false, intensity = 1.0) {
-  const c = heatColor(diffPercent, intensity);
+  const d = typeof diffPercent === 'number' ? diffPercent : parseFloat(diffPercent);
+  if (isNaN(d) || d >= 0) return null;
+  const c = heatColor(d, intensity);
   if (!c) return null;
   const { acc, borderRgb, borderAlpha, safeInt } = c;
   const alpha = (provisional ? 0.55 : 0.95) * safeInt;

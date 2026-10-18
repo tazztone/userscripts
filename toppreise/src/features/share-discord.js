@@ -90,7 +90,7 @@ export function withLivePrice(timeSeries, price) {
   return [...timeSeries, [Date.now(), price]];
 }
 
-// Preischart als PNG für Discord: vorhandenes SVG groß rendern, rastern, als
+// Preischart als PNG für Discord: vorhandenes SVG gross rendern, rastern, als
 // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
 export function renderSparklinePng(timeSeries, width = 360, height = 100) {
   return new Promise(resolve => {
@@ -153,7 +153,7 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
           if (res.status >= 200 && res.status < 300 && data) {
             const blob = data instanceof Blob ? data : new Blob([data]);
             if (!blob.size) return reject(new Error('Leeres Bild'));
-            if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu groß'));
+            if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
             if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
             resolve(blob);
           } else reject(new Error(`Bild-Download ${res.status}`));

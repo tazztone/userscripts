@@ -244,9 +244,10 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
 
-    it('applies a ±5% neutral deadband on the raw blend (number prints, card stays gray)', () => {
-      assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0).value, null);
+    it('applies a < 1% neutral deadband on the raw blend (number prints, card stays gray)', () => {
+      assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 90.5 }, 0).value, null);
       assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 87 }, 0).value, null);
+      assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0).value, -2);
       assert.equal(getHeatInput(90, { tiefstpreis: 90, medianPrice: 100 }, 0).value, -5);
     });
 
@@ -386,9 +387,9 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
 
-    it('keeps a tiny blend in the badge text but gray on the card (±5% guard)', () => {
-      const heat = getHeatInput(90, { tiefstpreis: 90, medianPrice: 93 }, 0, 'browse');
-      assert.equal(heat.pct, 2);
+    it('keeps a tiny blend in the badge text but gray on the card (< 1% guard)', () => {
+      const heat = getHeatInput(90, { tiefstpreis: 90, medianPrice: 90.5 }, 0, 'browse');
+      assert.equal(heat.pct, 1);
       assert.equal(heat.kind, 'blend');
       assert.equal(heat.value, null);
     });
@@ -430,11 +431,11 @@ describe('Gewichtete Differenz Domain Module', () => {
       assert.equal(isSignificantRecord(d), true);
     });
 
-    it('keeps a tiny blend in the badge text but gray on the card (raw blend < 5)', () => {
-      // dMedian 5, no record -> blend 3 at 50/50, raw blend 2.45 < 5 deadband
+    it('keeps a tiny blend in the badge text but gray on the card (raw blend < 1)', () => {
+      // dMedian 0.5, no record -> raw blend < 1 deadband
       withConfig('BESTPREISE_WEIGHT_RECORD', 0.50, () => {
-        const heat = getHeatInput(190.20, { tiefstpreis: 190.20, medianPrice: 200 }, 0, 'browse');
-        assert.deepEqual(heat, { value: null, provisional: false, pct: 3, kind: 'blend' });
+        const heat = getHeatInput(199.50, { tiefstpreis: 199.50, medianPrice: 200 }, 0, 'browse');
+        assert.deepEqual(heat, { value: null, provisional: false, pct: 0, kind: 'blend' });
       });
     });
 

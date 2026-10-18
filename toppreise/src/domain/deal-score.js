@@ -10,7 +10,7 @@ import { CONFIG, clampMinPoints } from '../state/config.js';
 // Display thresholds (documented in UI: badge titles, heatmap toggle, settings).
 // Badge % is the Gewichtete Differenz (weight-blended Ø-discount +
 // record-margin) — never the unverified site Differenz once history is verified.
-export const HEAT_NEUTRAL_DEADBAND_PCT = 5;
+export const HEAT_NEUTRAL_DEADBAND_PCT = 1;
 export const MIN_SIGNIFICANT_RECORD_PCT = 2;
 
 

@@ -6,7 +6,7 @@
 import { priceToCents, recordRefForPrice } from '../domain/price.js';
 import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal-score.js';
 
-// Baukasten-Layout: je Zeile ein Baustein, Größe via # / ## / -# am
+// Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
 // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
 export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}';
 export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);

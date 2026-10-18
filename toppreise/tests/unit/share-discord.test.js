@@ -858,7 +858,7 @@ describe('fetchImageBlob', () => {
   });
   it('rejects oversized images', async () => {
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob([new Uint8Array(8 * 1024 * 1024 + 1)]) });
-    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Bild zu groß/);
+    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Bild zu gro[ßs]/);
   });
 
   it('rejects non-image MIME but accepts missing MIME', async () => {

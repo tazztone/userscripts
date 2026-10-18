@@ -156,6 +156,12 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       assert.ok(styles.glow.startsWith('inset'));
       assert.ok(styles.color.startsWith('rgb('));
     });
+
+    it('returns null for non-discounts (0% and markups stay transparent)', () => {
+      assert.equal(getInsetHeatStyle(0), null);
+      assert.equal(getInsetHeatStyle(-5), null);
+      assert.equal(getInsetHeatStyle(NaN), null);
+    });
   });
 
   describe('getBadgeHeatStyle (badge reuses the card ramp)', () => {
@@ -164,6 +170,19 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       assert.ok(badge.background.startsWith('rgba('));
       assert.ok(!badge.background.includes('gradient'));
       assert.ok(badge.border.startsWith('rgba('));
+    });
+
+    it('returns null for non-discounts (0% and markups stay colorless)', () => {
+      assert.equal(getBadgeHeatStyle(0), null);
+      assert.equal(getBadgeHeatStyle(15), null);
+      assert.equal(getBadgeHeatStyle(NaN), null);
+    });
+
+    it('ramps from warm amber at -1% to deep ruby at -100%', () => {
+      const shallow = getBadgeHeatStyle(-1);
+      const deep = getBadgeHeatStyle(-100);
+      assert.ok(shallow.background.startsWith('rgba(245,'));
+      assert.ok(deep.background.startsWith('rgba(225,'));
     });
 
     it('steps visibly with deal size', () => {
