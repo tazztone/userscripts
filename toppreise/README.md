@@ -141,8 +141,6 @@ The userscript dynamically tailors its UI to the current page type:
 |---|---|---|
 | ① | **Verified Deal Pill** | Compact inline pill showing true weighted discount above current merchant price. |
 | ② | **Unverified Scan Pill** | Striped-gray badge indicating unverified catalog item; click to fetch price history. |
-| ③ | **Cheapest Variant Preserved** | Native site highlights preserved in their original DOM position. |
-| ④ | **Grouped Family Protection** | Container keeps product variants (e.g. AirPods 5) grouped without breaking grid layout. |
 
 * **Deal Feeds (`/neue-toppreise`):** Displays the full suite: consolidated filter button (`🧹 Filter (N)`), continuous heatmap toggle, `💎 Tiefstpreis-Sortierung`, floating batch scanner, and calculation popover (`⚖️`).
 * **Catalog & Search Listings (`/produktsuche/...`):** Streamlined toolbar with complete protection for grouped product families (`.Plugin_ProductCollItem`). Grouped variants (such as AirPods with or without wireless charging case) remain locked in their native collection containers, preserving Bootstrap grid integrity without splitting cards. Inline deal pills (`.tp-deal-pill`) sit neatly above prices.

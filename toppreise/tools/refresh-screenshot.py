@@ -588,14 +588,6 @@ def setup_search_cards(page, pids):
             coll.style.maxWidth = '540px';
             coll.style.margin = '0';
         }
-        // Wrap the günstigste Variante text inside a span so its bounding box tightly fits the label (not 440px container)
-        const el = Array.from(document.querySelectorAll('.Plugin_ProductCollItem div')).find(d => d.textContent.includes('günstigste Variante') && !d.querySelector('div'));
-        if (el) {
-            const span = document.createElement('span');
-            span.id = 'tp-cheapest-variant-label';
-            while (el.firstChild) span.appendChild(el.firstChild);
-            el.appendChild(span);
-        }
     }""")
 
     block_pids = block.evaluate(r"""el => {
@@ -623,26 +615,30 @@ def setup_search_cards(page, pids):
     page.wait_for_timeout(200)
 
     b_box = block.bounding_box()
+    pad = 16
     clip = {
-        "x": max(0, b_box["x"] - 68),
-        "y": max(0, b_box["y"] - 2),
-        "width": b_box["width"] + 128,
-        "height": b_box["height"] + 24,
+        "x": max(0, b_box["x"] - pad),
+        "y": max(0, b_box["y"] - pad),
+        "width": b_box["width"] + pad * 2,
+        "height": b_box["height"] + pad * 2,
     }
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
+    deal_box = css_box(page, deal)
+    unchecked_box = css_box(page, unchecked)
     callouts = [
-        (1, css_box(page, deal), "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)", [-20, -26]),
-        (2, css_box(page, unchecked), "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)", [-20, -26]),
+        (1, deal_box, "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)",
+         {"bx": deal_box["x"] - origin["x"] + deal_box["width"] + 36,
+          "by": deal_box["y"] - origin["y"] + deal_box["height"] / 2,
+          "tx": deal_box["x"] - origin["x"] + deal_box["width"] + 4,
+          "ty": deal_box["y"] - origin["y"] + deal_box["height"] / 2}),
+        (2, unchecked_box, "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)",
+         {"bx": unchecked_box["x"] - origin["x"] + unchecked_box["width"] + 36,
+          "by": unchecked_box["y"] - origin["y"] + unchecked_box["height"] / 2,
+          "tx": unchecked_box["x"] - origin["x"] + unchecked_box["width"] + 4,
+          "ty": unchecked_box["y"] - origin["y"] + unchecked_box["height"] / 2}),
     ]
-    cheapest_variant = try_box(page, "#tp-cheapest-variant-label") or try_box(page, ".Plugin_ProductCollItem :text('günstigste Variante')")
-    if cheapest_variant:
-        callouts.append((3, cheapest_variant, "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-bottom"))
-
-    series_header = try_box(page, ".Plugin_ProductCollItem .product-name .bold") or try_box(page, ".Plugin_ProductCollItem .f_select_series, .Plugin_ProductCollItem a[href*='/produktserie/']")
-    if series_header:
-        callouts.append((4, series_header, "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)", [-50, 0]))
 
     return raw_bytes, origin, callouts, "03-search-cards.webp"
 

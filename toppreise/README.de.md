@@ -140,8 +140,6 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 |---|---|---|
 | ① | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Anzeige über dem Preis für geprüfte Tiefstpreise. |
 | ② | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
-| ③ | **Günstigste Variante** | Native Toppreise-Hervorhebung bleibt an ihrer ursprünglichen Position erhalten. |
-| ④ | **Produktfamilien-Schutz** | Hält Varianten (z. B. AirPods 5) sauber im gemeinsamen Container zusammen. |
 
 * **Tiefstpreis-Feeds (`/neue-toppreise`):** Zeigt die vollständige Toolbar mit konsolidiertem Filter-Button (`🧹 Filter (N)`), Heatmap, `💎 Tiefstpreis-Sortierung`, Batch-Scanner und Berechnungsparametern (`⚖️`).
 * **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber über den Preisen.
