@@ -100,7 +100,12 @@ export function matchesNegativeTerms(card, termsList) {
   let text = card._tpTextLower;
   if (text === undefined) {
     const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-    const joined = [...(nodes ?? [])].map(el => el.textContent).join(' ');
+    const joined = [...(nodes ?? [])].map(el => {
+      if (!el.querySelector?.('[class*="tp-"]')) return el.textContent;
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('[class*="tp-"]').forEach(n => n.remove());
+      return clone.textContent;
+    }).join(' ');
     if (joined.trim()) text = joined.toLowerCase();
     else {
       const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
@@ -293,7 +298,7 @@ export function getCardStats(pid, cardBasis) {
   if (!pid) return null;
   const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
   if (specific) return specific;
-  const fallback = getCachedPriceStats(pid);
+  const fallback = getCachedPriceStats(pid, false, null, cardBasis !== 'shipping');
   if (!fallback) return null;
   if (!fallback.unavailable) return fallback;
   return basisMatchesFor(fallback, cardBasis) ? fallback : null;

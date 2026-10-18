@@ -274,17 +274,6 @@ export function renderBadgeSetup(ctx, isNeueFeed) {
         card.appendChild(badgeDifEl);
       }
     }
-    // Fresh-injected node missed the heat pass above (it didn't exist yet):
-    // re-apply the same badge swatch so first render matches.
-    if (hasUsablePriceStats(stats) && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-      const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
-      if (badgeHeat) {
-        badgeDifEl.style.setProperty('background', badgeHeat.background, 'important');
-        badgeDifEl.style.setProperty('border-color', badgeHeat.border, 'important');
-        badgeDifEl.style.setProperty('color', '#ffffff', 'important');
-        badgeDifEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
-      }
-    }
     // Snapshot keyed to product: a reused card node (new pid) must re-read
     // the host badge instead of printing the previous product's number.
     if (badgeDifEl.dataset.tpOriginalPid !== (pid ?? '') || !('tpOriginalDiscount' in badgeDifEl.dataset) || badgeDifEl.dataset.tpOriginalDiscount === '') {

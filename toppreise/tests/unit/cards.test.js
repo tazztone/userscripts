@@ -218,6 +218,26 @@ describe('Page & Card Layer - Container Defense & Heatmap', () => {
       };
       assert.equal(matchesNegativeTerms(nativeHit, terms), true);
     });
+
+    it('ignores suite-injected elements inside querySelectorAll matched nodes', () => {
+      const terms = parseNegativeTerms('prüfen');
+      const detailEl = {
+        textContent: 'Apple iPhone 15 Pro 🌐 prüfen',
+        querySelector: sel => (sel.includes('[class*="tp-"]') ? { className: 'tp-review-search-btn' } : null),
+        cloneNode: () => {
+          let cleaned = false;
+          return {
+            querySelectorAll: sel => (sel === '[class*="tp-"]' ? [{ remove: () => { cleaned = true; } }] : []),
+            get textContent() { return cleaned ? 'Apple iPhone 15 Pro' : 'Apple iPhone 15 Pro 🌐 prüfen'; }
+          };
+        }
+      };
+      const card = {
+        querySelectorAll: sel => (sel.includes('.productDetails') ? [detailEl] : []),
+        textContent: 'Apple iPhone 15 Pro 🌐 prüfen'
+      };
+      assert.equal(matchesNegativeTerms(card, terms), false);
+    });
   });
 });
 

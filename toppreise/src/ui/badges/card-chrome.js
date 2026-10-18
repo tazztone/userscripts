@@ -344,9 +344,9 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   const heatInfo = getHeatInput(cardPrice, vStats, diffVal, heatMode, dealData);
   const effectiveDiff = heatInfo.value;
   const ctx = { card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+  renderBadgeVerdict(ctx, filters, isNeueFeed);
   renderHeat(ctx);
   renderFilterVerdict(ctx, filters, activeStores);
-  renderBadgeVerdict(ctx, filters, isNeueFeed);
   renderSparklineRow(ctx);
   applyVerifiedCue(ctx);
   renderShareButton(ctx, cd);

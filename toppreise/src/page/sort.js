@@ -32,6 +32,8 @@ export function getCardSortableUnit(card) {
   return card;
 }
 
+let nextInitialOrder = 0;
+
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
   const list = cards || [];
 
@@ -54,13 +56,13 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
 
   // Record initial order on every card plus the original placement of every
   // sortable item — independent of item identity (item === card included).
-  list.forEach((c, idx) => {
+  list.forEach(c => {
     if (!c.dataset.tpInitialOrder) {
-      c.dataset.tpInitialOrder = String(idx);
+      c.dataset.tpInitialOrder = String(nextInitialOrder++);
     }
     const item = getCardSortableUnit(c);
     if (item) {
-      if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = String(idx);
+      if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = c.dataset.tpInitialOrder;
       if (!origPlacement.has(item) && item.parentElement) {
         // Non-DOM harnesses (unit tests) have no Comment nodes: record the
         // parent anyway; restore falls back to appendChild order.
@@ -256,23 +258,20 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
       if (!isAlreadySorted) {
         children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-        let restoredViaPlaceholder = false;
-        children.forEach(ch => {
+        const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
+        children.forEach((ch, idx) => {
           const saved = origPlacement.get(ch);
           if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {
             row.insertBefore(ch, saved.placeholder);
-            restoredViaPlaceholder = true;
+          } else {
+            const targetPos = cardIndices[idx];
+            if (targetPos !== undefined && row.children[targetPos] && row.children[targetPos] !== ch) {
+              row.insertBefore(ch, row.children[targetPos]);
+            } else {
+              row.appendChild(ch);
+            }
           }
         });
-        if (!restoredViaPlaceholder) {
-          const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
-          children.forEach((ch, idx) => {
-            const targetPos = cardIndices[idx];
-            if (row.children[targetPos] !== ch) {
-              row.insertBefore(ch, row.children[targetPos] || null);
-            }
-          });
-        }
       }
       // Unhide only script-hidden rows: other inline display:none belongs to the host.
       if (row.classList.contains('tp-empty-product-row-hidden')) {

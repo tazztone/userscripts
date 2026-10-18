@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.342
+// @version      2.18.343
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3960,7 +3960,12 @@ const SHADOW_MODAL_STYLES = `
     let text = card._tpTextLower;
     if (text === undefined) {
       const nodes = card.querySelectorAll?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
-      const joined = [...(nodes ?? [])].map(el => el.textContent).join(' ');
+      const joined = [...(nodes ?? [])].map(el => {
+        if (!el.querySelector?.('[class*="tp-"]')) return el.textContent;
+        const clone = el.cloneNode(true);
+        clone.querySelectorAll('[class*="tp-"]').forEach(n => n.remove());
+        return clone.textContent;
+      }).join(' ');
       if (joined.trim()) text = joined.toLowerCase();
       else {
         const single = card.querySelector?.('.bold, .product-name, .productDetails, .Plugin_ProductHeading');
@@ -4153,7 +4158,7 @@ const SHADOW_MODAL_STYLES = `
     if (!pid) return null;
     const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
     if (specific) return specific;
-    const fallback = getCachedPriceStats(pid);
+    const fallback = getCachedPriceStats(pid, false, null, cardBasis !== 'shipping');
     if (!fallback) return null;
     if (!fallback.unavailable) return fallback;
     return basisMatchesFor(fallback, cardBasis) ? fallback : null;
@@ -5173,6 +5178,8 @@ const SHADOW_MODAL_STYLES = `
     return card;
   }
 
+  let nextInitialOrder = 0;
+
   function applySorting(cards, pageHasOffers, cardDataList = null) {
     const list = cards || [];
 
@@ -5195,13 +5202,13 @@ const SHADOW_MODAL_STYLES = `
 
     // Record initial order on every card plus the original placement of every
     // sortable item — independent of item identity (item === card included).
-    list.forEach((c, idx) => {
+    list.forEach(c => {
       if (!c.dataset.tpInitialOrder) {
-        c.dataset.tpInitialOrder = String(idx);
+        c.dataset.tpInitialOrder = String(nextInitialOrder++);
       }
       const item = getCardSortableUnit(c);
       if (item) {
-        if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = String(idx);
+        if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = c.dataset.tpInitialOrder;
         if (!origPlacement.has(item) && item.parentElement) {
           // Non-DOM harnesses (unit tests) have no Comment nodes: record the
           // parent anyway; restore falls back to appendChild order.
@@ -5397,23 +5404,20 @@ const SHADOW_MODAL_STYLES = `
         const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
         if (!isAlreadySorted) {
           children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-          let restoredViaPlaceholder = false;
-          children.forEach(ch => {
+          const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
+          children.forEach((ch, idx) => {
             const saved = origPlacement.get(ch);
             if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {
               row.insertBefore(ch, saved.placeholder);
-              restoredViaPlaceholder = true;
+            } else {
+              const targetPos = cardIndices[idx];
+              if (targetPos !== undefined && row.children[targetPos] && row.children[targetPos] !== ch) {
+                row.insertBefore(ch, row.children[targetPos]);
+              } else {
+                row.appendChild(ch);
+              }
             }
           });
-          if (!restoredViaPlaceholder) {
-            const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
-            children.forEach((ch, idx) => {
-              const targetPos = cardIndices[idx];
-              if (row.children[targetPos] !== ch) {
-                row.insertBefore(ch, row.children[targetPos] || null);
-              }
-            });
-          }
         }
         // Unhide only script-hidden rows: other inline display:none belongs to the host.
         if (row.classList.contains('tp-empty-product-row-hidden')) {
@@ -5785,18 +5789,12 @@ const SHADOW_MODAL_STYLES = `
       if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
       const stats = parsePriceStatsFromHtml(html);
       if (stats) {
-        stats.isShippingPrice = useShipping;
+        stats.isShippingPrice = false;
         if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
-        if (useShipping) {
-          // HTML carries no basis: never substitute a product comparison
-          // into the shipping slot — slot reads unavailable/retry later.
-          setCachedPriceStats(productId, null, true, undefined, true, gen);
-          return null;
-        }
-        setCachedPriceStats(productId, stats, false, undefined, useShipping, gen);
+        setCachedPriceStats(productId, stats, false, undefined, false, gen);
         return stats;
       } else {
-        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping, gen);
+        if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, false, gen);
       }
     } catch (err) {
       // Cancelled/timeout: silent, no negative write. Genuine failures keep
@@ -6326,17 +6324,6 @@ const SHADOW_MODAL_STYLES = `
         badgeDifEl.classList.remove('tp-deal-pill');
         if (badgeDifEl.parentElement !== card) {
           card.appendChild(badgeDifEl);
-        }
-      }
-      // Fresh-injected node missed the heat pass above (it didn't exist yet):
-      // re-apply the same badge swatch so first render matches.
-      if (hasUsablePriceStats(stats) && CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
-        const badgeHeat = getBadgeHeatStyle(effectiveDiff, false, CONFIG.HEATMAP_INTENSITY);
-        if (badgeHeat) {
-          badgeDifEl.style.setProperty('background', badgeHeat.background, 'important');
-          badgeDifEl.style.setProperty('border-color', badgeHeat.border, 'important');
-          badgeDifEl.style.setProperty('color', '#ffffff', 'important');
-          badgeDifEl.style.setProperty('box-shadow', '0 2px 10px rgba(0,0,0,0.45)', 'important');
         }
       }
       // Snapshot keyed to product: a reused card node (new pid) must re-read
@@ -7258,9 +7245,9 @@ const SHADOW_MODAL_STYLES = `
     const heatInfo = getHeatInput(cardPrice, vStats, diffVal, heatMode, dealData);
     const effectiveDiff = heatInfo.value;
     const ctx = { card, pid, cardPrice, cardPriceEl, stats: vStats, diffVal, dealData, displayDelta, heatInfo, effectiveDiff };
+    renderBadgeVerdict(ctx, filters, isNeueFeed);
     renderHeat(ctx);
     renderFilterVerdict(ctx, filters, activeStores);
-    renderBadgeVerdict(ctx, filters, isNeueFeed);
     renderSparklineRow(ctx);
     applyVerifiedCue(ctx);
     renderShareButton(ctx, cd);
@@ -10349,7 +10336,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.342';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.343';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

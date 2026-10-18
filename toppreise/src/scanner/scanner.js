@@ -359,18 +359,12 @@ export async function fetchSingleProductPriceStats(productId, retries = 1, force
     if (resHtml && !resHtml.ok && (resHtml.status === 401 || resHtml.status === 403)) return null;
     const stats = parsePriceStatsFromHtml(html);
     if (stats) {
-      stats.isShippingPrice = useShipping;
+      stats.isShippingPrice = false;
       if (!stats.medianPrice && prev && !prev.unavailable && prev.medianPrice) return prev;
-      if (useShipping) {
-        // HTML carries no basis: never substitute a product comparison
-        // into the shipping slot — slot reads unavailable/retry later.
-        setCachedPriceStats(productId, null, true, undefined, true, gen);
-        return null;
-      }
-      setCachedPriceStats(productId, stats, false, undefined, useShipping, gen);
+      setCachedPriceStats(productId, stats, false, undefined, false, gen);
       return stats;
     } else {
-      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, useShipping, gen);
+      if (!prev || !prev.medianPrice) setCachedPriceStats(productId, null, true, undefined, false, gen);
     }
   } catch (err) {
     // Cancelled/timeout: silent, no negative write. Genuine failures keep
