@@ -421,6 +421,25 @@ def setup_toolbar(page, pids):
             cta.style.setProperty('transform', 'none', 'important');
             cta.style.setProperty('transition', 'none', 'important');
         }
+
+        // Showcase active badge counts across all filter states
+        const setBadge = (sel, val, show) => {
+            const el = document.querySelector(sel);
+            if (!el) return;
+            el.textContent = val;
+            el.style.display = show ? 'inline-flex' : 'none';
+        };
+        setBadge('[data-row-count="neg"]', '1', true);
+        setBadge('[data-row-count="unchecked"]', '5', true);
+        setBadge('[data-row-count="vortief"]', '81', true);
+        setBadge('#tp-filter-count', '81', true);
+        setBadge('#tp-filter-dim-count', '5', true);
+        setBadge('#tp-filter-hl-count', '1', true);
+        const filterBtn = document.getElementById('tp-bar-filter-btn');
+        if (filterBtn) {
+            filterBtn.classList.remove('tp-tool-dim');
+            filterBtn.title = 'Filter – Verbergen (81) + Gedimmt (5) + Hervorgehoben (1)';
+        }
     }""")
     page.wait_for_timeout(400)
 
@@ -770,6 +789,13 @@ SCENES = {
             "BESTPREISE_MODE_ACTIVE": True,
             "BESTPREISE_WEIGHT_RECORD": 0.50,
             "BESTPREISE_HIDE_UNCHECKED": True,
+            "HIDE_UNCHECKED_MODE": "dim",
+            "BESTPREISE_INCLUDE_VORTIEF": False,
+            "VORTIEF_MODE": "hide",
+            "FILTER_NEG_ENABLED": True,
+            "NEGATIVE_TERMS": "tele",
+            "FILTER_NEG_MODE": "highlight",
+            "MIN_DEAL_DISCOUNT": 5,
         },
         "viewport": {"width": 1440, "height": 900},
         "setup": setup_toolbar,
