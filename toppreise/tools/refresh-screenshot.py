@@ -62,13 +62,21 @@ def seed_stats(role, price):
     p = round(price, 2)
     now = FROZEN_NOW
     if role == "deep":
-        # Deep all-time record low deal (-60% weighted score, deep ruby glow)
+        # Deep all-time record low deal (-65% weighted score, deep ruby glow)
+        prev_low = round(p * 2.5, 2)
+        med_price = round(p * (10 / 3), 2)
+        high_price = round(p * 4.15, 2)
+        pts = []
+        for i in range(15):
+            pts.append([now - (30 - i) * 86400000, round(high_price - i * ((high_price - med_price) / 14), 2)])
+        for i in range(15):
+            pts.append([now - (15 - i) * 86400000, round(med_price - i * ((med_price - prev_low) / 14), 2)])
         return {
             "tiefstpreis": p,
-            "previousLow": round(p * 2.2, 2),
-            "hoechstpreis": round(p * 2.6, 2),
-            "medianPrice": round(p * 2.5, 2),
-            "timeSeries": [[now - (30 - i) * 86400000, round(p * (2.5 - i * 0.04), 2)] for i in range(30)],
+            "previousLow": prev_low,
+            "hoechstpreis": high_price,
+            "medianPrice": med_price,
+            "timeSeries": pts,
             "dataPointCount": 30,
             "isNewAllTimeLow": True,
         }
@@ -356,21 +364,43 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
 
 
 def setup_toolbar(page, pids):
-    """Shot 01a: Sticky toolbar with filter popover open, cleanly cropped without top whitespace."""
+    """Shot 01a: Sticky toolbar with filter popover open, cleanly cropped without top whitespace or cut off cards."""
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
         document.body.style.paddingLeft = '48px';
         document.getElementById('tp-bar-filter-popover')?.classList.add('tp-show');
+        // Hide breadcrumbs, header, categories list, and sidebar
+        document.querySelectorAll('.Plugin_MainTopHead, .Plugin_GeneralBreadcrumb, .breadcrumb, #breadcrumb, .Plugin_TimePeriod, .filterBoxContainer, .sidebarWrapper, .tpContentSidebar, .sidebar').forEach(el => el.style.display = 'none');
+        // Isolate top row of cards so trailing rows do not get partially cut off
+        document.querySelectorAll('.mixedBrowsingListProduct:nth-of-type(n+4), .Plugin_Product:nth-of-type(n+4)').forEach(el => el.style.display = 'none');
+        // Position floating CTA right below the first card row without full-width stretch
+        const cta = document.getElementById('tp-floating-check-cta');
+        if (cta) {
+            cta.style.bottom = 'auto';
+            cta.style.top = '440px';
+            cta.style.left = '48px';
+            cta.style.right = 'auto';
+            cta.style.width = 'max-content';
+        }
     }""")
     page.wait_for_timeout(400)
 
     tb_box = css_box(page, "#tp-suite-filter-bar")
     pop_box = css_box(page, "#tp-bar-filter-popover")
-    cta_box = try_box(page, "#tp-floating-check-cta")
-    boxes = [tb_box, pop_box]
+    cta_box = try_box(page, "#tp-floating-check-btn") or try_box(page, "#tp-floating-check-cta")
+    anchors = [f'a[href*="-p{pid}"]' for pid in pids[:3]]
+    card_boxes = [box for sel in anchors if (box := try_box(page, sel))]
+    boxes = [tb_box, pop_box, *card_boxes]
     if cta_box:
         boxes.append(cta_box)
     clip = union(boxes, pad=32)
+    clip["y"] = max(0, tb_box["y"] - 16)
+    bottom_y = max(
+        cta_box["y"] + cta_box["height"] + 24 if cta_box else 0,
+        max(b["y"] + b["height"] for b in card_boxes) + 24 if card_boxes else 0,
+        pop_box["y"] + pop_box["height"] + 24
+    )
+    clip["height"] = bottom_y - clip["y"]
 
     raw_bytes = page.screenshot(clip=clip)
     controls = [
@@ -382,7 +412,7 @@ def setup_toolbar(page, pids):
         ("[data-filter-row='deal-disc']", "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)", "outside-left"),
         ("#tp-bar-heat-btn", "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
         ("#tp-bar-bestpreise-btn", "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
-        ("#tp-floating-check-cta", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", "outside-right"),
+        ("#tp-floating-check-btn", "Tiefstpreise prüfen (1-Klick Batch-Scanner)", [-24, 0]),
     ]
     callouts = []
     for item in controls:
@@ -427,7 +457,7 @@ def setup_calc_popover(page, pids):
         ("#tp-bar-outlier-wrapper", "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)", [-38, 0]),
         ("#tp-bar-outlier-band-wrapper", "Glitch-Band (Toleranzband um den Median in ±%)", [-38, 0]),
         ("#tp-bar-outlier-hours-wrapper", "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)", [-38, 0]),
-        ("#tp-calc-preview", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", [-38, 0]),
+        ("#tp-calc-preview svg", "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)", [-38, 20]),
     ]
     callouts = []
     for item in controls:
@@ -446,10 +476,10 @@ def setup_feed_cards(page, pids):
         page.locator("#tp-bar-calc-btn").click()
         page.wait_for_selector("#tp-bar-calc-popover.tp-show", state="hidden", timeout=10000)
 
-    # Hide trailing card rows so row 1 is cleanly isolated without partial bottom cutoffs
+    # Hide time filter and trailing card rows so row 1 is cleanly isolated without partial cutoffs
     page.evaluate("""() => {
         const style = document.createElement('style');
-        style.textContent = '.mixedBrowsingListProduct:nth-of-type(n+4), .Plugin_Product:nth-of-type(n+4) { display: none !important; }';
+        style.textContent = '.Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod { display: none !important; } .mixedBrowsingListProduct:nth-of-type(n+4), .Plugin_Product:nth-of-type(n+4) { display: none !important; }';
         document.head.appendChild(style);
     }""")
 
@@ -480,10 +510,10 @@ def setup_feed_cards(page, pids):
 
     callouts = [
         (1, css_box(page, f"{deep} .badge-dif"), "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)", "outside-top"),
-        (2, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag rot hervorgehoben)", "outside-top"),
+        (2, css_box(page, f"{markup} .badge-dif"), "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)", "outside-top"),
         (3, css_box(page, f"{fallback} .badge-dif"), "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)", "outside-top"),
         (4, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-24, 16]),
-        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Preisaufschlüsselung (Live-Preis, CHF-Ersparnis und % gegenüber 1J-Median)", "outside-bottom"),
+        (5, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", "outside-bottom"),
         (6, css_box(page, f"{deep} .tp-dealer-name"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-24, 0]),
         (7, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", "outside-right"),
     ]
@@ -498,9 +528,22 @@ def setup_search_cards(page, pids):
     block = page.locator(".Plugin_ProductCollItem").first
     block.scroll_into_view_if_needed()
 
-    # Remove trailing product items to prevent clipped half-visible cards
+    # Isolate the AirPods block: remove following and preceding items, sidebar, and pagination
     page.evaluate("""() => {
-        document.querySelectorAll('.Plugin_ProductCollItem ~ .Plugin_ProductCollItem, .Plugin_ProductCollItem ~ .Plugin_Product').forEach(el => el.remove());
+        document.querySelectorAll('.Plugin_ProductCollItem ~ .Plugin_ProductCollItem, .Plugin_ProductCollItem ~ .Plugin_Product, .tpContentSidebar, .sidebarWrapper, .filterBoxContainer, .sidebar, .pagination, .Plugin_Pagination, .f_Plugin_Pagination, .Plugin_PriceSwitch').forEach(el => el.remove());
+        let prev = document.querySelector('.Plugin_ProductCollItem')?.previousElementSibling;
+        while (prev) {
+            prev.style.display = 'none';
+            prev = prev.previousElementSibling;
+        }
+        // Wrap the günstigste Variante text inside a span so its bounding box tightly fits the label (not 440px container)
+        const el = Array.from(document.querySelectorAll('.Plugin_ProductCollItem div')).find(d => d.textContent.includes('günstigste Variante') && !d.querySelector('div'));
+        if (el) {
+            const span = document.createElement('span');
+            span.id = 'tp-cheapest-variant-label';
+            while (el.firstChild) span.appendChild(el.firstChild);
+            el.appendChild(span);
+        }
     }""")
 
     block_pids = block.evaluate(r"""el => {
@@ -528,15 +571,20 @@ def setup_search_cards(page, pids):
     page.wait_for_timeout(200)
 
     b_box = block.bounding_box()
-    clip = union([b_box], pad=48)
+    clip = {
+        "x": max(0, b_box["x"] - 48),
+        "y": max(0, b_box["y"] - 32),
+        "width": b_box["width"] + 72,
+        "height": b_box["height"] + 64,
+    }
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
     callouts = [
-        (1, css_box(page, deal), "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)", "outside-top"),
-        (2, css_box(page, unchecked), "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)", "outside-top"),
+        (1, css_box(page, deal), "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)", [-20, -26]),
+        (2, css_box(page, unchecked), "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)", [-20, -26]),
     ]
-    cheapest_variant = try_box(page, ".Plugin_ProductCollItem :text('günstigste Variante')")
+    cheapest_variant = try_box(page, "#tp-cheapest-variant-label") or try_box(page, ".Plugin_ProductCollItem :text('günstigste Variante')")
     if cheapest_variant:
         callouts.append((3, cheapest_variant, "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)", "outside-bottom"))
 
@@ -657,7 +705,7 @@ SCENES = {
             "BESTPREISE_WEIGHT_RECORD": 0.50,
             "BESTPREISE_HIDE_UNCHECKED": True,
         },
-        "viewport": {"width": 1280, "height": 900},
+        "viewport": {"width": 1440, "height": 900},
         "setup": setup_toolbar,
     },
     "calc": {
@@ -668,7 +716,7 @@ SCENES = {
             "BESTPREISE_WEIGHT_RECORD": 0.50,
             "BESTPREISE_HIDE_UNCHECKED": True,
         },
-        "viewport": {"width": 1280, "height": 900},
+        "viewport": {"width": 1440, "height": 900},
         "setup": setup_calc_popover,
     },
     "feed": {
