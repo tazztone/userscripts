@@ -4,22 +4,25 @@
 
 **English Version** · **[🇩🇪 Deutsche Version](README.de.md)**
 
-An all-in-one userscript suite (`v2.18.333`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
+An all-in-one userscript suite (`v2.18.335`) for **Toppreise.ch** that verifies authentic all-time low prices (*Tiefstpreise*) against complete historical price series, exposes deceptive markups (*Aufschläge*), applies a continuous discount heatmap, provides multi-mode negative/offer/dealer filtering, and automates price alarms and Discord deal sharing. Category blocking is left to Toppreise's native server-side exclusions (`Plugin_IgnoredCategories`: per-card menu, sidebar, top bar).
 
-![Feed Cards Overview: Deal Heatmap, Markup Exposure, Fallback Low, and 1-Click Share](docs/shots/02-feed-cards.webp)
+![Feed Cards Overview: Toolbar Actions, Deal Heatmap, Markup Exposure, Fallback Low, and 1-Click Share](docs/shots/02-feed-cards.webp)
 
 | # | Signal / Feature | Description |
 |---|---|---|
-| ① | **Single-Hue Deal Heatmap** | Proportional color glow (deep ruby for all-time record lows, warm amber for strong discounts). |
-| ② | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
-| ③ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
-| ④ | **1-Click Discord Share** | Hover button to post deal details, interactive chart PNG, and merchant offer directly to your Discord webhook. |
-| ⑤ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
-| ⑥ | **Direct Merchant Jump** | Direct link to the cheapest dealer offer without intermediary tracking redirects. |
-| ⑦ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
+| ① | **Heatmap Toggle** | Switches continuous deal color wash on/off in the sticky toolbar. |
+| ② | **Best-Price Sorting** | Sorts listings in-place by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
+| ③ | **Single-Hue Deal Heatmap** | Proportional color glow (deep ruby for all-time record lows, warm amber for strong discounts). |
+| ④ | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
+| ⑤ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
+| ⑥ | **1-Click Discord Share** | Hover button to post deal details, interactive chart PNG, and merchant offer directly to your Discord webhook. |
+| ⑦ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
+| ⑧ | **Cheapest Dealer (`🏬`)** | Direct link to the cheapest merchant offer without intermediary tracking redirects. |
+| ⑨ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
+| ⑩ | **1-Click Review Search (`🌐`)** | Appears on hover next to product title; opens a Google search for tests/reviews in a new tab. |
 
 > [!NOTE]
-> **Deal score formula Card ①:** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
+> **Deal score formula Card ③:** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
 
 ---
 
@@ -50,7 +53,7 @@ Requires a userscript manager browser extension:
 | ④ | **Glitch Filter Switch** | Enables automated price-spike rejection using moving median windows. |
 | ⑤ | **Glitch Deviation Band** | Configures tolerance threshold (±1%–50%) around the median before a point is treated as an outlier. |
 | ⑥ | **Glitch Window Duration** | Sets maximum anomaly duration (24h–168h) for transient indexing glitches. |
-| ⑦ | **Live Glitch Preview Chart** | Real-time SVG visualization showing Ø-price, record floor, glitch band, and detected glitches (red ✕ markers). |
+| ⑦ | **Live Glitch Preview Chart** | Real-time SVG preview with dynamic X-axis time grid & live cutoff boundary, showing Ø-price, record floor, glitch band, and detected glitches (red ✕ markers). |
 
 * **On-Demand & Batch Verification:** Click any product's Differenz badge (`🔍`) or use the floating **Batch-Check CTA** (bottom-left) to fetch full historical price series for all visible deals meeting your discount threshold (`≥20%–60%`), with a live progress counter and cancel button.
 * **Weighted Deal Score (`⚖️`):** Verified all-time lows are scored using a customizable blend between **discount vs. rolling median (`Ø-Preis`)** and **breakthrough margin vs. the previous all-time low (`Rekord`)**. This produces a single metric that drives the badge percentage, card heat color, and feed ranking.
@@ -66,11 +69,11 @@ Requires a userscript manager browser extension:
 * **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`). Display the Vortief-Abstand instead of a blend (no `⚖️`) and can be filtered independently (Normal/Dim/Hide). Qualified deals with 0% savings display a neutral-gray 0% badge.
 * **Newly Verified Glow (*Neu*-Puls):** Freshly verified deals pulse with an emerald outline and `Neu` indicator for ≥5s until the next user interaction (click, scroll, keypress).
 * **Interactive SVG Sparklines:** Renders a compact mini price-trend chart on verified product cards. Clicking the sparkline opens a full-resolution modal chart with price and date axes.
-* **1-Click Google Review Search (`🌐`):** Appends a quick-search icon to product titles that opens a Google search for `<Product> Testbericht` (or custom keyword) in a new tab, with optional **Google AI Mode (`&udm=50`)**.
+* **1-Click Google Review Search (`🌐`):** Appends a quick-search icon on hover to product titles that opens a Google search for `<Product> Testbericht` (or custom keyword) in a new tab, with optional **Google AI Mode (`&udm=50`)**.
 
-### 🧹 Sticky Filter Bar & Grid Sorting
+### 🧹 Sticky Filter Bar
 
-![Sticky Filter Bar & In-Place Grid Sorting](docs/shots/01a-toolbar.webp)
+![Sticky Filter Bar](docs/shots/01a-toolbar.webp)
 
 | # | Control | Description |
 |---|---|---|
@@ -80,9 +83,7 @@ Requires a userscript manager browser extension:
 | ④ | **Unverified Offers (*Ungeprüfte*)** | Dim or hide deals lacking verified historical price series. |
 | ⑤ | **Fallback Lows Toggle** | Filter or dim verified offers with sparse history. |
 | ⑥ | **Minimum Discount (*Min-Rabatt*)** | Filter out deals with less than $X$% discount. |
-| ⑦ | **Heatmap Toggle** | Switches continuous deal color wash on/off. |
-| ⑧ | **Best-Price Sorting** | Sorts listings by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
-| ⑨ | **Batch Verification CTA** | One-click batch scanner to verify all visible offers meeting discount criteria. |
+| ⑦ | **Batch Verification CTA** | One-click batch scanner (`🔍 Tiefstpreise prüfen`) to verify all visible offers meeting discount criteria. |
 
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
@@ -118,7 +119,7 @@ Requires a userscript manager browser extension:
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
 | **Share Button (`📤`)** | Bottom-left of verified card | Posts the deal, ASCII sparkline, and rendered PNG chart to your Discord webhook. |
-| **Review Search (`🌐`)** | Next to product title | Opens a Google review search in a new tab with optional AI overview (`&udm=50`). |
+| **Review Search (`🌐`)** | Hover next to product title | Opens a Google review search in a new tab with optional AI overview (`&udm=50`). |
 | **Settings FAB (`⚙️`)** | Bottom-right floating button | Opens the encapsulated Shadow DOM settings modal. |
 
 ### ⌨️ Keyboard Shortcuts

@@ -1,0 +1,234 @@
+{
+  "toolbar": {
+    "name": "toolbar",
+    "file": "01a-toolbar.webp",
+    "snapshot": "feed",
+    "callouts": [
+      [
+        1,
+        null,
+        "Filter-Button (Verbergen, Dimmen oder Hervorheben je Ursache)"
+      ],
+      [
+        2,
+        null,
+        "Negativ-Filter (Ausschluss nach Stichwort mit Wortgrenzen)"
+      ],
+      [
+        3,
+        null,
+        "Min-Angebote Stepper (Marktplatz-Filter; nur auf Seiten mit Händlerzeilen aktiv)"
+      ],
+      [
+        4,
+        null,
+        "Ungeprüfte Angebote (Angebote ohne Historie verbergen/dimmen)"
+      ],
+      [
+        5,
+        null,
+        "Fallback-Tiefs ein-/ausschliessen (geringe Historie)"
+      ],
+      [
+        6,
+        null,
+        "Min-Rabatt Stepper (Angebote unter X% Rabatt filtern)"
+      ],
+      [
+        7,
+        null,
+        "Tiefstpreise prüfen (1-Klick Batch-Scanner)"
+      ]
+    ]
+  },
+  "calc": {
+    "name": "calc",
+    "file": "01b-calc-popover.webp",
+    "snapshot": "feed",
+    "callouts": [
+      [
+        1,
+        null,
+        "Gewichtung Median / Rekord (Schieberegler für Deal-Score)"
+      ],
+      [
+        2,
+        null,
+        "Ø-Zeitraum (Rolling Median von 30 bis 730 Tagen oder Lifetime)"
+      ],
+      [
+        3,
+        null,
+        "Mindestpunkte (erforderliche Datenpunkte für qualifizierten Ø-Vergleich)"
+      ],
+      [
+        4,
+        null,
+        "Ausreisser filtern (Aktiviert automatische Glitch-Erkennung)"
+      ],
+      [
+        5,
+        null,
+        "Glitch-Band (Toleranzband um den Median in ±%)"
+      ],
+      [
+        6,
+        null,
+        "Glitch-Fenster (Maximale Glitch-Dauer in Stunden)"
+      ],
+      [
+        7,
+        null,
+        "Glitch-Vorschau (Live-Chart mit Ø-Preis, Rekord, Glitch-Band & roten ✕ Glitches)"
+      ]
+    ]
+  },
+  "feed": {
+    "name": "feed",
+    "file": "02-feed-cards.webp",
+    "snapshot": "feed",
+    "callouts": [
+      [
+        1,
+        null,
+        "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)"
+      ],
+      [
+        2,
+        null,
+        "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)"
+      ],
+      [
+        3,
+        null,
+        "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)"
+      ],
+      [
+        4,
+        null,
+        "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)"
+      ],
+      [
+        5,
+        null,
+        "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)"
+      ],
+      [
+        6,
+        null,
+        "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)"
+      ],
+      [
+        7,
+        null,
+        "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)"
+      ],
+      [
+        8,
+        null,
+        "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)"
+      ],
+      [
+        9,
+        null,
+        "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)"
+      ],
+      [
+        10,
+        null,
+        "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)"
+      ]
+    ]
+  },
+  "search": {
+    "name": "search",
+    "file": "03-search-cards.webp",
+    "snapshot": "search",
+    "callouts": [
+      [
+        1,
+        null,
+        "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)"
+      ],
+      [
+        2,
+        null,
+        "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)"
+      ],
+      [
+        3,
+        null,
+        "Günstigste Variante (Native Toppreise-Kennzeichnung bleibt erhalten)"
+      ],
+      [
+        4,
+        null,
+        "Produktfamilien-Gruppierung (AirPods 5 Varianten bleiben sauber im gemeinsamen Container)"
+      ]
+    ]
+  },
+  "settings_core": {
+    "name": "settings_core",
+    "file": "04a-settings-core.webp",
+    "snapshot": "feed",
+    "callouts": [
+      [
+        1,
+        null,
+        "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)"
+      ],
+      [
+        2,
+        null,
+        "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus"
+      ],
+      [
+        3,
+        null,
+        "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz"
+      ],
+      [
+        4,
+        null,
+        "Preis-Toleranz (%): Händler-Bestpreis-Marge"
+      ],
+      [
+        5,
+        null,
+        "Preisalarm Auto-Fill: Zielpreis (%) & Dauer"
+      ]
+    ]
+  },
+  "settings_advanced": {
+    "name": "settings_advanced",
+    "file": "04b-settings-advanced.webp",
+    "snapshot": "feed",
+    "callouts": [
+      [
+        1,
+        null,
+        "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)"
+      ],
+      [
+        2,
+        null,
+        "Discord Layout-Baukasten mit variablen Tokens"
+      ],
+      [
+        3,
+        null,
+        "Live-Markdown-Vorschau der generierten Nachricht"
+      ],
+      [
+        4,
+        null,
+        "Händler automatisch im Hintergrund laden (max. 3 parallel)"
+      ],
+      [
+        5,
+        null,
+        "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export"
+      ]
+    ]
+  }
+}

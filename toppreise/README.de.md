@@ -4,22 +4,25 @@
 
 **[🇬🇧 English Version](README.md)** · **Deutsche Version**
 
-Umfassende Userscript-Suite (`v2.18.333`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
+Umfassende Userscript-Suite (`v2.18.335`) für **Toppreise.ch**: Verifiziert echte historische Tiefstpreise gegen vollständige Preisverläufe, entlarvt Schein-Rabatte (*Aufschläge*), färbt Angebote mit einer kontinuierlichen Rabatt-Heatmap, bietet 4-stufige Begriffs-, Händler- und Angebotsfilter und automatisiert Preisalarme sowie das Teilen von Deals via Discord. Kategorie-Ausschlüsse verbleiben nativ bei Toppreise (`Plugin_IgnoredCategories`: Menü pro Karte, Seitenleiste, Kopfzeile).
 
-![Deal-Karten im Überblick: Rabatt-Heatmap, Schein-Rabatt-Erkennung, Fallback-Tief und 1-Klick-Share](docs/shots/02-feed-cards.webp)
+![Deal-Karten im Überblick: Toolbar-Aktionen, Rabatt-Heatmap, Schein-Rabatt-Erkennung, Fallback-Tief und 1-Klick-Share](docs/shots/02-feed-cards.webp)
 
 | # | Signal / Funktion | Beschreibung |
 |---|---|---|
-| ① | **Single-Hue Deal-Heatmap** | Proportionales Leuchten nach Deal-Tiefe (tiefes Rubinrot bei Rekord-Tiefstpreisen, warmes Bernstein bei soliden Rabatten). |
-| ② | **Schein-Rabatt entlarvt** | Deckt Fake-Rabatte auf: Streicht die angebliche Ersparnis durch und hebt den echten Aufschlag (+XX%) über dem Tief hervor. |
-| ③ | **Fallback-Tief** | Verifizierter Tiefstpreis bei wenigen Datenpunkten (< minPoints): Zeigt den Abstand zum vorherigen Tiefstpreis. |
-| ④ | **1-Klick Discord-Share** | Erscheint bei Hover zum direkten Teilen von Deal-Details, Chart-PNG und Händlerlink via Webhook. |
-| ⑤ | **Transparente Deal-Subline** | Zeigt den Vortief-Abstand in % sowie den 1-Jahres-Ø mit prozentualem Abstand. |
-| ⑥ | **Direkter Händlerlink** | Direktsprung zum günstigsten Anbieter ohne zwischengeschaltete Tracking-Umwege. |
-| ⑦ | **Mini-Trend Sparkline** | Kompakte 30-Tage-Preiskurve; Klick öffnet den interaktiven Vollbild-Chart. |
+| ① | **Heatmap-Umschalter** | Schaltet das proportionale Farbglühen der Karten in der Sticky-Leiste ein oder aus. |
+| ② | **Tiefstpreis-Sortierung** | Sortiert Angebote im Raster nach authentischem gewichtetem Deal-Score (`💎 Tiefstpreis-Sortierung`). |
+| ③ | **Single-Hue Deal-Heatmap** | Proportionales Leuchten nach Deal-Tiefe (tiefes Rubinrot bei Rekord-Tiefstpreisen, warmes Bernstein bei soliden Rabatten). |
+| ④ | **Schein-Rabatt entlarvt** | Deckt Fake-Rabatte auf: Streicht die angebliche Ersparnis durch und hebt den echten Aufschlag (+XX%) über dem Tief hervor. |
+| ⑤ | **Fallback-Tief** | Verifizierter Tiefstpreis bei wenigen Datenpunkten (< minPoints): Zeigt den Abstand zum vorherigen Tiefstpreis. |
+| ⑥ | **1-Klick Discord-Share** | Erscheint bei Hover zum direkten Teilen von Deal-Details, Chart-PNG und Händlerlink via Webhook. |
+| ⑦ | **Transparente Deal-Subline** | Zeigt den Vortief-Abstand in % sowie den 1-Jahres-Ø mit prozentualem Abstand. |
+| ⑧ | **Günstigster Händler (`🏬`)** | Direktsprung zum günstigsten Anbieter ohne zwischengeschaltete Tracking-Umwege. |
+| ⑨ | **Mini-Trend Sparkline** | Kompakte 30-Tage-Preiskurve; Klick öffnet den interaktiven Vollbild-Chart. |
+| ⑩ | **1-Klick Review-Suche (`🌐`)** | Erscheint bei Hover am Produkttitel; öffnet eine Google-Suche nach Testberichten in neuem Tab. |
 
 > [!NOTE]
-> **Deal-Score-Berechnung Card ①:** −65% = 50/50-Mix aus −60% (vs. Vortief) und −70% (vs. 1-Jahres-Ø).
+> **Deal-Score-Berechnung Karte ③:** −65% = 50/50-Mix aus −60% (vs. Vortief) und −70% (vs. 1-Jahres-Ø).
 
 ---
 
@@ -29,7 +32,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.333)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.335)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
@@ -50,7 +53,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | ④ | **Ausreisser filtern** | Aktiviert die automatische Erkennung und Verwerfung von Preissprüngen. |
 | ⑤ | **Glitch-Band** | Einstellbares Toleranzband (±1%–50%) um den Median. |
 | ⑥ | **Glitch-Fenster** | Maximale Dauer eines Preissprungs (24h–168h), der als Glitch verworfen wird. |
-| ⑦ | **Glitch-Vorschau (Live-Chart)** | Interaktive SVG-Vorschau mit Ø-Preis, Allzeit-Rekord, Glitch-Band und erkannten Glitches (rote ✕-Marker). |
+| ⑦ | **Glitch-Vorschau (Live-Chart)** | Interaktive SVG-Vorschau mit dynamischem Zeitachsen-Raster und Stichtag, Ø-Preis, Allzeit-Rekord, Glitch-Band und erkannten Glitches (rote ✕-Marker). |
 
 * **Prüfung auf Abruf & Batch-Checker:** Klicke auf das Differenz-Badge (`🔍`) einer Karte oder nutze den schwebenden **Batch-Checker** (unten links), um alle sichtbaren Deals ab dem Schwellenwert (`≥20%–60%`) nacheinander abzufragen (mit Live-Zähler und Abbruch-Option).
 * **Gewichtete Differenz (`⚖️`):** Verifizierte Tiefstpreise werden anhand einer frei wählbaren Mischung aus **Median-Rabatt (`Ø-Preis`)** und **Rekordmarge (`Rekord`)** bewertet. Diese Kennzahl steuert Badge-Prozentwert, Heatmap-Farbe und Feed-Reihenfolge.
@@ -66,11 +69,11 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 * **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`). Zeigen den Vortief-Abstand statt des Blends (ohne `⚖️`) und lassen sich separat filtern (Normal/Dimmen/Verbergen). Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
 * **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren mindestens 5s lang mit Kontur und `Neu`-Markierung bis zur nächsten Nutzerinteraktion.
 * **Interaktive SVG-Sparklines:** Kompakte Mini-Preiskurve direkt auf geprüften Karten. Klick auf die Sparkline öffnet den grossen interaktiven Chart-Dialog mit Preis- und Monatsachsen.
-* **1-Klick Review-Suche (`🌐`):** Such-Icon am Produkttitel öffnet Google mit `<Produktname> Testbericht` (oder Wunschbegriff) in neuem Tab, optional mit **Google-KI-Modus (`&udm=50`)**.
+* **1-Klick Review-Suche (`🌐`):** Such-Icon bei Hover am Produkttitel öffnet Google mit `<Produktname> Testbericht` (oder Wunschbegriff) in neuem Tab, optional mit **Google-KI-Modus (`&udm=50`)**.
 
-### 🧹 Sticky Filterleiste & Grid-Sortierung
+### 🧹 Sticky Filterleiste
 
-![Sticky Filterleiste & Schnellfilter](docs/shots/01a-toolbar.webp)
+![Sticky Filterleiste](docs/shots/01a-toolbar.webp)
 
 | # | Steuerelement | Beschreibung |
 |---|---|---|
@@ -80,9 +83,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | ④ | **Ungeprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |
 | ⑤ | **Fallback-Tiefs** | Steuert die Sichtbarkeit von Angeboten mit geringer Datenpunktdichte. |
 | ⑥ | **Min-Rabatt** | Filtert Angebote mit weniger als $X$% Rabatt aus. |
-| ⑦ | **Heatmap-Umschalter** | Schaltet das proportionale Farbglühen der Karten ein oder aus. |
-| ⑧ | **Tiefstpreis-Sortierung** | Sortiert die Einträge im Raster nach authentischem gewichtetem Deal-Score (`💎`). |
-| ⑨ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt. |
+| ⑦ | **Batch-Scanner CTA** | 1-Klick Batch-Prüfung aller sichtbaren Angebote ab dem gewählten Rabatt (`🔍 Tiefstpreise prüfen`). |
 
 * **Kontextsensitive Leiste:** Passt sich automatisch an Deal-Feeds (`/neue-toppreise`), Suchseiten (`/produktsuche/...`) und Produktseiten an.
 * **4-stufiger Filter pro Ursache:** Jeder Filtergrund kann unabhängig geschaltet werden zwischen **Normal**, **Dimmen** (einstellbare Deckkraft), **Verbergen** und **Hervorheben** (gepunkteter Rahmen):
@@ -117,7 +118,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |
 | **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den grossen interaktiven Preishistorien-Chart. |
 | **Share-Button (`📤`)** | Unten links auf Deal-Karte | Postet Deal, Text-Übersicht und PNG-Chart an den Discord-Webhook. |
-| **Review-Suche (`🌐`)** | Hinter dem Produkttitel | Öffnet Google-Suche nach Testberichten in neuem Tab (optional mit KI-Modus `&udm=50`). |
+| **Review-Suche (`🌐`)** | Hover am Produkttitel | Öffnet Google-Suche nach Testberichten in neuem Tab (optional mit KI-Modus `&udm=50`). |
 | **Einstellungen-Button (`⚙️`)** | Schwebend unten rechts | Öffnet das gekapselte Shadow-DOM-Einstellungsmenü. |
 
 ### ⌨️ Tastatur-Shortcuts
