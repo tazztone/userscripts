@@ -495,4 +495,11 @@ export const STYLES_CHROME = `
     background: #10b981 !important;
     color: #ffffff !important;
   }
+  /* Ad & top empty space suppression */
+  html.tp-hide-ads :is(#advertising_mobile, #advertising_leaderboard, #advertising_halfpage, .adsFullsizeContainer, .advertising_leaderboard_container, .adsContainer) {
+    display: none !important;
+  }
+  html.tp-hide-ads body.adsFullsize #tpFrame {
+    min-height: 0 !important;
+  }
 `;

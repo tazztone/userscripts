@@ -101,6 +101,7 @@ export const CONFIG = {
   MIN_DEAL_DISCOUNT: sanitizeConfigValue('MIN_DEAL_DISCOUNT', _getValue('MIN_DEAL_DISCOUNT', DEFAULTS.MIN_DEAL_DISCOUNT)),
   MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
   DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
+  HIDE_ADS: sanitizeConfigValue('HIDE_ADS', _getValue('HIDE_ADS', DEFAULTS.HIDE_ADS)),
   USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
   HEATMAP_ENABLED: sanitizeConfigValue('HEATMAP_ENABLED', _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED)),
   HEATMAP_INTENSITY: sanitizeConfigValue('HEATMAP_INTENSITY', _getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
@@ -172,6 +173,7 @@ const notifyAlarmConfig = () => {
 export function updateBodyClasses() {
   if (typeof document === 'undefined' || !document.body) return;
   document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+  document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
 }
 
 export function syncUiControl(key, val, opts = {}) {
@@ -269,6 +271,11 @@ export function syncUiControl(key, val, opts = {}) {
         }
         case 'USE_SHIPPING_PRICE': {
           const toggle = shadow.getElementById('tp-shipping-toggle');
+          if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'HIDE_ADS': {
+          const toggle = shadow.getElementById('tp-hide-ads-toggle');
           if (toggle) toggle.checked = !!val;
           break;
         }
@@ -459,9 +466,8 @@ export function syncUiControl(key, val, opts = {}) {
   }
 }
 
-// Alarm-only changes repaint just the bell (via syncUiControl) — a full
-// processListings() re-render would be wasted work on every settings save.
-const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
+// Keys that update chrome/css directly and skip a full processListings() re-render.
+const FAST_SYNC_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT', 'HIDE_ADS']);
 export function updateConfig(key, val, options = {}) {
   if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
   else {
@@ -473,10 +479,10 @@ export function updateConfig(key, val, options = {}) {
   if (!options.skipUiSync) {
     syncUiControl(key, val);
   }
-  if (key === 'DIM_OPACITY') {
+  if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
     updateBodyClasses();
   }
-  if (!options.skipRender && !ALARM_ONLY_KEYS.has(key) && typeof processListings === 'function') {
+  if (!options.skipRender && !FAST_SYNC_KEYS.has(key) && typeof processListings === 'function') {
     processListings();
   }
 }
@@ -485,7 +491,7 @@ export function updateConfigs(entries, options = {}) {
   for (const [k, v] of Object.entries(entries)) {
     updateConfig(k, v, { ...options, skipRender: true });
   }
-  const needsRender = !options.skipRender && Object.keys(entries).some(k => !ALARM_ONLY_KEYS.has(k));
+  const needsRender = !options.skipRender && Object.keys(entries).some(k => !FAST_SYNC_KEYS.has(k));
   if (needsRender && typeof processListings === 'function') {
     processListings();
   }

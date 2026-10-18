@@ -186,5 +186,12 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     assert.equal(sanitizeConfigValue('MIN_DEAL_DISCOUNT', 75), 50);
     assert.equal(sanitizeConfigValue('MIN_DEAL_DISCOUNT', 'garbage'), 0);
   });
+
+  it('HIDE_ADS defaults to true and validates via schema', () => {
+    assert.equal(DEFAULTS.HIDE_ADS, true);
+    assert.equal(sanitizeConfigValue('HIDE_ADS', true), true);
+    assert.equal(sanitizeConfigValue('HIDE_ADS', false), false);
+    assert.equal(sanitizeConfigValue('HIDE_ADS', 'foo'), false);
+  });
 });
 

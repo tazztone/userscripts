@@ -29,6 +29,16 @@ export function ensureModalSection(shadow) {
             <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
           </div>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Entfernt leere Werbeflächen und Banner oben und im Layout">Werbeplätze / Banner ausblenden</label>
+            <span class="tp-switch-desc">Entfernt leeren Platz über der Kopfzeile und Werbebanner</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-hide-ads-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
 </div>
       </section>
       <section id="tp-section-review" class="tp-section-card tp-section-review">

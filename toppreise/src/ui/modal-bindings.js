@@ -19,6 +19,7 @@ export function collectModalElements(shadow) {
   const marginVal = shadow.getElementById('tp-margin-val');
   const opacityRange = shadow.getElementById('tp-opacity-range');
   const opacityVal = shadow.getElementById('tp-opacity-val');
+  const hideAdsToggle = shadow.getElementById('tp-hide-ads-toggle');
   const shippingToggle = shadow.getElementById('tp-shipping-toggle');
   const sortNone = shadow.getElementById('tp-sort-none');
   const sortDesc = shadow.getElementById('tp-sort-desc');
@@ -66,7 +67,7 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which

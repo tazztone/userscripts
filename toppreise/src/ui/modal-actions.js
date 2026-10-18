@@ -169,7 +169,15 @@ export function wireModalActions(els) {
   els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the els.shadow keydown handler — reset the preview anyway.
-  els.dialog.addEventListener('close', () => { clearWebhookEditor(); document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY); });
+  els.dialog.addEventListener('close', () => {
+    clearWebhookEditor();
+    document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+    document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
+  });
+
+  els.hideAdsToggle?.addEventListener('change', e => {
+    document.documentElement.classList.toggle('tp-hide-ads', e.target.checked);
+  });
 
   els.btnSave.addEventListener('click', () => {
     const updates = {};
@@ -214,6 +222,7 @@ export function wireModalActions(els) {
     if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
     if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
     if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
+    if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
     if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
     if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;

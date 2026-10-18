@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.339
+// @version      2.18.340
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1141,6 +1141,13 @@ const STYLES_CHROME = `
   .tp-pill.tp-pill-hl {
     background: #10b981 !important;
     color: #ffffff !important;
+  }
+  /* Ad & top empty space suppression */
+  html.tp-hide-ads :is(#advertising_mobile, #advertising_leaderboard, #advertising_halfpage, .adsFullsizeContainer, .advertising_leaderboard_container, .adsContainer) {
+    display: none !important;
+  }
+  html.tp-hide-ads body.adsFullsize #tpFrame {
+    min-height: 0 !important;
   }
 `;
 
@@ -2930,6 +2937,7 @@ const SHADOW_MODAL_STYLES = `
     MIN_DEAL_DISCOUNT: 0,
     MARGIN_PERCENT: 0.0,
     DIM_OPACITY: 0.25,
+    HIDE_ADS: true,
     USE_SHIPPING_PRICE: true,
     HEATMAP_ENABLED: true,
     HEATMAP_INTENSITY: 1.0,
@@ -3018,6 +3026,7 @@ const SHADOW_MODAL_STYLES = `
     MIN_DEAL_DISCOUNT: { type: 'int', default: 0, min: 0, max: 50 },
     MARGIN_PERCENT: { type: 'float', default: 0.0, min: 0, max: 50 },
     DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
+    HIDE_ADS: { type: 'bool', default: true },
     USE_SHIPPING_PRICE: { type: 'bool', default: true },
     HEATMAP_ENABLED: { type: 'bool', default: true },
     HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
@@ -3293,6 +3302,7 @@ const SHADOW_MODAL_STYLES = `
     MIN_DEAL_DISCOUNT: sanitizeConfigValue('MIN_DEAL_DISCOUNT', _getValue('MIN_DEAL_DISCOUNT', DEFAULTS.MIN_DEAL_DISCOUNT)),
     MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
     DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
+    HIDE_ADS: sanitizeConfigValue('HIDE_ADS', _getValue('HIDE_ADS', DEFAULTS.HIDE_ADS)),
     USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
     HEATMAP_ENABLED: sanitizeConfigValue('HEATMAP_ENABLED', _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED)),
     HEATMAP_INTENSITY: sanitizeConfigValue('HEATMAP_INTENSITY', _getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
@@ -3364,6 +3374,7 @@ const SHADOW_MODAL_STYLES = `
   function updateBodyClasses() {
     if (typeof document === 'undefined' || !document.body) return;
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+    document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
   }
 
   function syncUiControl(key, val, opts = {}) {
@@ -3461,6 +3472,11 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'USE_SHIPPING_PRICE': {
             const toggle = shadow.getElementById('tp-shipping-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'HIDE_ADS': {
+            const toggle = shadow.getElementById('tp-hide-ads-toggle');
             if (toggle) toggle.checked = !!val;
             break;
           }
@@ -3651,9 +3667,8 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  // Alarm-only changes repaint just the bell (via syncUiControl) — a full
-  // processListings() re-render would be wasted work on every settings save.
-  const ALARM_ONLY_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']);
+  // Keys that update chrome/css directly and skip a full processListings() re-render.
+  const FAST_SYNC_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT', 'HIDE_ADS']);
   function updateConfig(key, val, options = {}) {
     if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
     else {
@@ -3665,10 +3680,10 @@ const SHADOW_MODAL_STYLES = `
     if (!options.skipUiSync) {
       syncUiControl(key, val);
     }
-    if (key === 'DIM_OPACITY') {
+    if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
       updateBodyClasses();
     }
-    if (!options.skipRender && !ALARM_ONLY_KEYS.has(key) && typeof processListings === 'function') {
+    if (!options.skipRender && !FAST_SYNC_KEYS.has(key) && typeof processListings === 'function') {
       processListings();
     }
   }
@@ -3677,7 +3692,7 @@ const SHADOW_MODAL_STYLES = `
     for (const [k, v] of Object.entries(entries)) {
       updateConfig(k, v, { ...options, skipRender: true });
     }
-    const needsRender = !options.skipRender && Object.keys(entries).some(k => !ALARM_ONLY_KEYS.has(k));
+    const needsRender = !options.skipRender && Object.keys(entries).some(k => !FAST_SYNC_KEYS.has(k));
     if (needsRender && typeof processListings === 'function') {
       processListings();
     }
@@ -7330,6 +7345,16 @@ const SHADOW_MODAL_STYLES = `
               <input type="number" id="tp-heatmap-intensity-val" min="20" max="100" step="5" value="100">
             </div>
           </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Entfernt leere Werbeflächen und Banner oben und im Layout">Werbeplätze / Banner ausblenden</label>
+              <span class="tp-switch-desc">Entfernt leeren Platz über der Kopfzeile und Werbebanner</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-hide-ads-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
   </div>
         </section>
         <section id="tp-section-review" class="tp-section-card tp-section-review">
@@ -7698,6 +7723,7 @@ const SHADOW_MODAL_STYLES = `
     const marginVal = shadow.getElementById('tp-margin-val');
     const opacityRange = shadow.getElementById('tp-opacity-range');
     const opacityVal = shadow.getElementById('tp-opacity-val');
+    const hideAdsToggle = shadow.getElementById('tp-hide-ads-toggle');
     const shippingToggle = shadow.getElementById('tp-shipping-toggle');
     const sortNone = shadow.getElementById('tp-sort-none');
     const sortDesc = shadow.getElementById('tp-sort-desc');
@@ -7745,7 +7771,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -8059,7 +8085,15 @@ const SHADOW_MODAL_STYLES = `
     els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the els.shadow keydown handler — reset the preview anyway.
-    els.dialog.addEventListener('close', () => { clearWebhookEditor(); document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY); });
+    els.dialog.addEventListener('close', () => {
+      clearWebhookEditor();
+      document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
+      document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
+    });
+
+    els.hideAdsToggle?.addEventListener('change', e => {
+      document.documentElement.classList.toggle('tp-hide-ads', e.target.checked);
+    });
 
     els.btnSave.addEventListener('click', () => {
       const updates = {};
@@ -8104,6 +8138,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.cacheTtlSelect) { const rawC = parseInt(els.cacheTtlSelect.value, 10); updates.REAL_DEAL_CACHE_HOURS = isNaN(rawC) ? 48 : rawC; }
       if (els.cacheNegTtlSelect) { const rawN = parseFloat(els.cacheNegTtlSelect.value); updates.NEGATIVE_CACHE_HOURS = isNaN(rawN) ? 2 : rawN; }
       if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
+      if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
       if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
@@ -10306,7 +10341,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.339';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.340';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

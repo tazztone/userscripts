@@ -175,7 +175,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 | ④ | **Händler-Autoload** | Lädt den günstigsten Händler für Deals ab Schwelle automatisch im Hintergrund nach (max. 3 parallel). |
 | ⑤ | **Daten- & Cache-Verwaltung** | Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`), Cache-TTL und Konfigurations-Export. |
 
-1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten und Deal-Intensität / Heatmap-Stärke (20%–100%).
+1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten, Werbeplätze/Banner ausblenden (entfernt leere Werbeflächen oben und im Layout) und Deal-Intensität / Heatmap-Stärke (20%–100%).
 2. **🌐 Review-Suche:** Schalter für Google-Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (z. B. „Testbericht“) und Google-KI-Modus (`&udm=50`).
 3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.

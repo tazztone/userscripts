@@ -79,6 +79,37 @@ def test_shipping_basis_toggle_persists(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
+def test_hide_ads_toggle_persists(page: Page):
+    # Default is enabled: html has .tp-hide-ads and ad container is hidden
+    assert page.evaluate("() => document.documentElement.classList.contains('tp-hide-ads')")
+    ad_box = page.locator('#advertising_mobile')
+    expect(ad_box).to_be_hidden()
+
+    open_settings(page)
+    toggle = page.locator('#tp-root >> #tp-hide-ads-toggle')
+    assert toggle.is_checked() is True
+
+    # Turn off via slider click
+    page.click('#tp-root >> #tp-hide-ads-toggle + .tp-slider')
+    assert toggle.is_checked() is False
+    # Live preview immediately removes .tp-hide-ads
+    assert not page.evaluate("() => document.documentElement.classList.contains('tp-hide-ads')")
+
+    # Save and verify persistence
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.HIDE_ADS") is False
+
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-hide-ads-toggle').is_checked() is False
+    # Turn back on and save
+    page.click('#tp-root >> #tp-hide-ads-toggle + .tp-slider')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.HIDE_ADS") is True
+    expect(ad_box).to_be_hidden()
+
+
 def test_escape_clears_webhook_editor(page: Page):
     open_settings(page)
     page.click('#tp-root >> #tp-discord-webhook-reveal')

@@ -32,7 +32,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.339)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.340)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -176,7 +176,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically for deals meeting threshold (max. 3 parallel). |
 | ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
 
-1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards and deal intensity / heatmap strength (20%–100%).
+1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, hide ad placeholders / banners (removes top blank space and layout ad slots), and deal intensity / heatmap strength (20%–100%).
 2. **🌐 Review Search (*Review-Suche*):** Google search toggle (`🌐`) on product titles, custom search term (e.g. "Testbericht"), and Google AI mode (`&udm=50`).
 3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
