@@ -1604,6 +1604,54 @@ def test_dealer_autofetch_loads_without_click(page: Page):
     assert 'ext_de' in (name.get_attribute('href') or '')
     assert len(product_hits) == 1
 
+
+def test_dealer_autofetch_skips_mediocre_deal_and_keeps_button(page: Page):
+    """When a verified card's score is below REAL_DEAL_MIN_DISCOUNT, DEALER_AUTOFETCH
+    does not auto-request the product page, but the manual 🏬 button remains clickable."""
+    product_hits = []
+    page.on('request', lambda req: product_hits.append(req.url) if 'preisvergleich' in req.url else None)
+    page.evaluate("""() => {
+        document.querySelectorAll('.Plugin_DealerRelProdPriceInfo, .offersCount').forEach(el => el.remove());
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        const badgeP = card.querySelector('.badge-dif p');
+        if (badgeP) badgeP.textContent = '-10%';
+        window.ToppreiseSuite.clearCardCache(card);
+        window.ToppreiseSuite.updateConfig('DEALER_AUTOFETCH', true);
+        window.ToppreiseSuite.updateConfig('REAL_DEAL_MIN_DISCOUNT', 30);
+    }""")
+    mock_pricechart(page, {'797571': 1800})
+    page.route('**/preisvergleich/**', lambda route: route.fulfill(
+        status=200,
+        headers={'access-control-allow-origin': '*'},
+        content_type='text/html',
+        body='<div class="Plugin_Offer">'
+             '<div class="Plugin_ShopLogo"><img alt="Galaxus" title="Galaxus"></div>'
+             '<div class="priceContainer shippingPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
+             '<div class="priceContainer productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>'
+             '<a href="/ext_de?pid=797571&amp;did=680&amp;oid=542705207">Zum Shop</a>'
+             '</div>'
+    ))
+
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+    page.wait_for_timeout(300)
+
+    # Below threshold: autofetch skipped
+    assert len(product_hits) == 0
+    btn = page.locator('#card-cheapest .tp-dealer-btn')
+    assert btn.is_visible()
+    assert page.locator('#card-cheapest a.tp-dealer-name').count() == 0
+
+    # Manual click still triggers load
+    btn.click()
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+    assert len(product_hits) == 1
+    name = page.locator('#card-cheapest a.tp-dealer-name')
+    assert 'Galaxus' in (name.text_content() or '')
+
+
 def test_dealer_name_survives_reload_without_refetch(page: Page, userscript_content):
     """The 🏬 result persists in localStorage: after reload the dealer name
     renders immediately with the shop link — no button, no product refetch."""
