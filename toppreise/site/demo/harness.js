@@ -12,12 +12,13 @@
   const PIDS = ['944295', '909930', '887057', '887222', '886747', '887218', '886628', '907751'];
   const ROLES = ['deep', 'markup', 'fallback', 'deep', 'markup', 'deep', 'fallback', 'deep'];
 
-  const LEGEND_HTML = `
-    <div class="PriceChartLegend">
-      <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">1800.00</div></div>
-      <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">2600.00</div></div>
-    </div>
-  `;
+  // Role resolver for any pid
+  function getRoleForPid(pid) {
+    const idx = PIDS.indexOf(pid);
+    if (idx !== -1) return ROLES[idx];
+    const n = parseInt(pid, 10) || 0;
+    return (n % 3 === 0) ? 'deep' : (n % 3 === 1) ? 'markup' : 'fallback';
+  }
 
   // Parse card price from DOM (delegates to userscript parsePrice when available)
   function parseCardPrice(pid) {
@@ -37,7 +38,7 @@
   // Generate deterministic stats for each role
   function generateSeedStats(role, price) {
     const p = Math.round(price * 100) / 100;
-    const now = FROZEN_NOW;
+    const now = Date.now();
     if (role === 'deep') {
       const prev_low = Math.round(p * 2.5 * 100) / 100;
       const med_price = Math.round(p * (10 / 3) * 100) / 100;
@@ -57,24 +58,56 @@
         timeSeries: pts,
         dataPointCount: 30,
         isNewAllTimeLow: true,
+        isShippingPrice: false,
       };
     }
     if (role === 'markup') {
+      const low = Math.round(p * 0.5 * 100) / 100;
+      const high = Math.round(p * 0.6 * 100) / 100;
+      const med = Math.round(p * 0.55 * 100) / 100;
+      const pts = [];
+      for (let i = 0; i < 15; i++) {
+        pts.push([now - (15 - i) * 86400000, Math.round((low + i * ((med - low) / 14)) * 100) / 100]);
+      }
       return {
-        tiefstpreis: Math.round(p * 0.5 * 100) / 100,
-        hoechstpreis: Math.round(p * 0.6 * 100) / 100,
-        medianPrice: Math.round(p * 0.55 * 100) / 100,
+        tiefstpreis: low,
+        hoechstpreis: high,
+        medianPrice: med,
+        timeSeries: pts,
+        dataPointCount: 15,
         isNewAllTimeLow: false,
+        isShippingPrice: false,
       };
     }
     if (role === 'fallback') {
+      const pts = [
+        [now - 14 * 86400000, Math.round(p * 1.15 * 100) / 100],
+        [now - 7 * 86400000, Math.round(p * 1.10 * 100) / 100],
+        [now, p],
+      ];
       return {
         tiefstpreis: p,
         previousLow: Math.round(p * 1.15 * 100) / 100,
+        timeSeries: pts,
         dataPointCount: 3,
+        isShippingPrice: false,
       };
     }
-    return { tiefstpreis: p, medianPrice: p, dataPointCount: 10 };
+    return { tiefstpreis: p, medianPrice: p, dataPointCount: 10, isShippingPrice: false };
+  }
+
+  // Build authentic HTML legend dynamically for any pid
+  function generateLegendHtml(pid) {
+    const price = parseCardPrice(pid);
+    const role = getRoleForPid(pid);
+    const stats = generateSeedStats(role, price);
+    return `
+      <div class="PriceChartLegend">
+        <div class="col-4"><div class="title">Tiefstpreis</div><div class="Plugin_Price">${(stats.tiefstpreis || price).toFixed(2)}</div></div>
+        <div class="col-4"><div class="title">Höchstpreis</div><div class="Plugin_Price">${(stats.hoechstpreis || price * 1.5).toFixed(2)}</div></div>
+        <div class="col-4"><div class="title">aktueller Toppreis</div><div class="Plugin_Price">${price.toFixed(2)}</div></div>
+      </div>
+    `;
   }
 
   // Intercept XHR and Fetch to stub /plugins/product/pricechart
@@ -83,7 +116,35 @@
     window.fetch = async function (input, init) {
       const url = typeof input === 'string' ? input : input?.url || '';
       if (url.includes('/plugins/product/pricechart')) {
-        return new Response(LEGEND_HTML, {
+        let pid = '';
+        const bodyStr = typeof init?.body === 'string' ? init.body : '';
+        const mBody = bodyStr.match(/pcspagdpi=([^&]+)/);
+        if (mBody) pid = decodeURIComponent(mBody[1]);
+        if (!pid) {
+          const mUrl = url.match(/[?&]p_pc_pid=([^&]+)/);
+          if (mUrl) pid = decodeURIComponent(mUrl[1]);
+        }
+        if (!pid) pid = PIDS[0];
+
+        const accept = (init?.headers?.['Accept'] || init?.headers?.['accept'] || '');
+        const isJson = init?.method === 'POST' || accept.includes('json');
+
+        if (isJson) {
+          const price = parseCardPrice(pid);
+          const role = getRoleForPid(pid);
+          const stats = generateSeedStats(role, price);
+          // Return both product series (data[0]) and shipping series (data[1])
+          // so pickSeries matches whichever basis is queried (product vs shipping).
+          const prodSeries = stats.timeSeries || [];
+          const shipSeries = prodSeries.map(([t, p]) => [t, Math.round((p + 4.90) * 100) / 100]);
+          const payload = [prodSeries, shipSeries];
+          return new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          });
+        }
+
+        return new Response(generateLegendHtml(pid), {
           status: 200,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
@@ -94,14 +155,27 @@
     const origOpen = XMLHttpRequest.prototype.open;
     const origSend = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function (method, url) {
+      this._tpMethod = method;
       this._tpUrl = url;
       return origOpen.apply(this, arguments);
     };
-    XMLHttpRequest.prototype.send = function () {
+    XMLHttpRequest.prototype.send = function (body) {
       if (typeof this._tpUrl === 'string' && this._tpUrl.includes('/plugins/product/pricechart')) {
+        let pid = '';
+        const bodyStr = typeof body === 'string' ? body : '';
+        const mBody = bodyStr.match(/pcspagdpi=([^&]+)/);
+        if (mBody) pid = decodeURIComponent(mBody[1]);
+        if (!pid) {
+          const mUrl = this._tpUrl.match(/[?&]p_pc_pid=([^&]+)/);
+          if (mUrl) pid = decodeURIComponent(mUrl[1]);
+        }
+        if (!pid) pid = PIDS[0];
+
+        const html = generateLegendHtml(pid);
         Object.defineProperty(this, 'readyState', { get: () => 4 });
         Object.defineProperty(this, 'status', { get: () => 200 });
-        Object.defineProperty(this, 'responseText', { get: () => LEGEND_HTML });
+        Object.defineProperty(this, 'responseText', { get: () => html });
+        Object.defineProperty(this, 'response', { get: () => html });
         setTimeout(() => {
           if (typeof this.onload === 'function') this.onload();
           if (typeof this.onreadystatechange === 'function') this.onreadystatechange();
@@ -182,15 +256,28 @@
       }
       toRemove.forEach((k) => localStorage.removeItem(k));
       localStorage.setItem('tp_suite_v2_DEBUG', 'true');
-      for (let i = 0; i < PIDS.length; i++) {
-        const pid = PIDS[i];
-        const role = ROLES[i];
+
+      // Discover all product IDs present in the feed snapshot
+      const pidSet = new Set(PIDS);
+      document.querySelectorAll('a[href*="-p"]').forEach((a) => {
+        const m = (a.getAttribute('href') || '').match(/-p(\d+)/);
+        if (m) pidSet.add(m[1]);
+      });
+
+      const now = Date.now();
+      for (const pid of pidSet) {
+        const role = getRoleForPid(pid);
         const price = parseCardPrice(pid);
         const stats = generateSeedStats(role, price);
-        stats.time = Date.now();
-        localStorage.setItem('tp_hist_v1_' + pid, JSON.stringify(stats));
+        stats.time = now;
+
+        // Seed both product and shipping suffixes so cache lookups match
+        localStorage.setItem(`tp_hist_v1_${pid}_p`, JSON.stringify(stats));
+        localStorage.setItem(`tp_hist_v1_${pid}_s`, JSON.stringify({ ...stats, isShippingPrice: true }));
+
         if (window.ToppreiseSuite?.memoryCache) {
-          window.ToppreiseSuite.memoryCache.set(pid, stats);
+          window.ToppreiseSuite.memoryCache.set(`tp_hist_v1_${pid}_p`, stats);
+          window.ToppreiseSuite.memoryCache.set(`tp_hist_v1_${pid}_s`, { ...stats, isShippingPrice: true });
         }
       }
     } catch (e) {
