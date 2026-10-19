@@ -19,21 +19,19 @@
     </div>
   `;
 
-  // Parse card price from DOM
+  // Parse card price from DOM (delegates to userscript parsePrice when available)
   function parseCardPrice(pid) {
     const a = document.querySelector(`a[href*="-p${pid}"]`);
     if (!a) return 0;
-    const parse = (t) => {
-      const m = (t || '').match(/CHF\s*([0-9'’.,]+)/);
-      if (!m) return 0;
-      let s = m[1].replace(/['’\s]/g, '');
-      if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
-      return parseFloat(s) || 0;
-    };
-    let v = parse(a.textContent);
-    if (!v) v = parse(a.closest('.f_collection')?.textContent);
-    if (!v) v = parse(a.parentElement?.textContent);
-    return v || 100;
+    const raw = a.textContent || a.closest('.f_collection')?.textContent || a.parentElement?.textContent || '';
+    if (window.ToppreiseSuite?.parsePrice) {
+      return window.ToppreiseSuite.parsePrice(raw) || 100;
+    }
+    const m = raw.match(/CHF\s*([0-9'’.,]+)/);
+    if (!m) return 100;
+    let s = m[1].replace(/['’\s]/g, '');
+    if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+    return parseFloat(s) || 100;
   }
 
   // Generate deterministic stats for each role
@@ -114,8 +112,12 @@
     };
   }
 
-  // Toast notification inside the demo
+  // Toast notification inside the demo (delegates to userscript showToast when loaded)
   function showDemoToast(msg) {
+    if (window.ToppreiseSuite?.showToast) {
+      window.ToppreiseSuite.showToast(msg, 'info');
+      return;
+    }
     let toast = document.getElementById('tp-demo-toast');
     if (!toast) {
       toast = document.createElement('div');

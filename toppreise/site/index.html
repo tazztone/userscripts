@@ -107,7 +107,7 @@
           <span>Toppreise.ch Suite</span>
         </a>
         <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono bg-surface-container border border-outline-variant text-secondary">
-          v2.18.345 • Open Source
+          v2.18.346 • Open Source
         </span>
       </div>
 
@@ -437,7 +437,7 @@
       <div class="pt-4 flex flex-wrap items-center justify-center gap-4">
         <a class="px-8 py-4 rounded-xl bg-gradient-to-r from-primary-container to-primary text-white text-base md:text-lg font-bold shadow-[0_0_28px_rgba(255,79,114,0.55)] hover:shadow-[0_0_36px_rgba(255,79,114,0.75)] active:scale-95 transition-all inline-flex items-center gap-2" href="https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js">
           <span class="material-symbols-outlined text-[24px]">download</span>
-          <span id="btn-install-large">Install Userscript (v2.18.345)</span>
+          <span id="btn-install-large">Install Userscript (v2.18.346)</span>
         </a>
 
         <button id="btn-copy-url" class="px-5 py-4 rounded-xl bg-surface-container border border-outline hover:border-primary/50 text-on-surface text-sm font-mono font-semibold transition-all active:scale-95 inline-flex items-center gap-2" type="button">
@@ -513,12 +513,6 @@
         demoSectionTitle: "Experience Toppreise.ch with Toppreise Suite",
         demoSectionSubtitle: "Toggle the userscript on and off in this authentic simulation of Toppreise.ch. Test live deal verification, deceptive markup shields, and the calculation engine.",
         lblDemoMaster: "Userscript:",
-        lblBtnVerified: "Verified Only",
-        lblBtnHeatmap: "Heatmap: ON",
-        lblDrawerTitle: "Suite Calculation Engine & Glitch Filter",
-        lblPreset: "Real History:",
-        lblSimPrice: "Offer Price (CHF):",
-        lblSimWeight: "Weighting (Record / Ø):",
         featuresTitle: "Engineered for Smart Shoppers",
         f1Title: "Real Deal Verification",
         f1Desc: "Scans full historical price series. Uses rolling medians (30–730 days) to eliminate obsolete launch MSRP bias on aging electronics.",
@@ -540,7 +534,7 @@
         step2Desc: "Click the install button below. Confirm the installation prompt in your userscript manager.",
         step3Title: "Browse Toppreise",
         step3Desc: "Open any deal on Toppreise.ch — verified deal indicators activate automatically!",
-        btnInstallLarge: "Install Userscript (v2.18.345)",
+        btnInstallLarge: "Install Userscript (v2.18.346)",
         chapterLabel: "Chapters:",
         copyScriptBtn: "Copy Script URL",
         toastCopied: "Userscript URL copied to clipboard!"
@@ -560,12 +554,6 @@
         demoSectionTitle: "Toppreise.ch mit Toppreise Suite live erleben",
         demoSectionSubtitle: "Erlebe die echte Benutzeroberfläche von Toppreise.ch mit direkt integriertem Userscript. Schalte das Userscript ein und aus oder nutze die Suite-Toolbar live.",
         lblDemoMaster: "Userscript:",
-        lblBtnVerified: "Nur geprüfte",
-        lblBtnHeatmap: "Heatmap: AN",
-        lblDrawerTitle: "Suite Berechnungs-Engine & Glitch-Filter",
-        lblPreset: "Reale Historie:",
-        lblSimPrice: "Angebotspreis (CHF):",
-        lblSimWeight: "Gewichtung (Rekord / Ø):",
         featuresTitle: "Entwickelt für clevere Schnäppchenjäger",
         featuresSubtitle: "Nie wieder überzahlen. Verifizierte Signale, ohne Tracking-Umleitungen.",
         f1Title: "Echte Deal-Verifikation",
@@ -588,7 +576,7 @@
         step2Desc: "Auf 'Userscript installieren' klicken und im Dialog des Managers bestätigen.",
         step3Title: "Toppreise öffnen",
         step3Desc: "Beliebige Angebots- oder Kategorieseite auf Toppreise.ch öffnen – Analyse startet automatisch.",
-        btnInstallLarge: "Userscript installieren (v2.18.345)",
+        btnInstallLarge: "Userscript installieren (v2.18.346)",
         chapterLabel: "Kapitel:",
         copyScriptBtn: "Skript-URL kopieren",
         toastCopied: "Userscript-URL in die Zwischenablage kopiert!"
@@ -918,52 +906,7 @@
       }
     });
 
-    // Comparison Split Drag Logic
-    const sliderWrap = document.getElementById('compareSliderWrap');
-    const overlay = document.getElementById('compareOverlay');
-    const innerOverlay = document.getElementById('compareInnerOverlay');
-    const handle = document.getElementById('compareHandle');
-
-    function syncComparisonWidth() {
-      if (sliderWrap && innerOverlay) {
-        innerOverlay.style.width = sliderWrap.clientWidth + 'px';
-      }
-    }
-    window.addEventListener('resize', syncComparisonWidth);
-
-    function setSplit(clientX) {
-      if (!sliderWrap || !overlay || !handle) return;
-      const rect = sliderWrap.getBoundingClientRect();
-      let pos = (clientX - rect.left) / rect.width;
-      pos = Math.max(0.05, Math.min(0.95, pos));
-      const pct = (pos * 100).toFixed(2) + '%';
-      overlay.style.width = pct;
-      handle.style.left = pct;
-    }
-
-    if (sliderWrap) {
-      let isPointerDown = false;
-      sliderWrap.addEventListener('pointerdown', (e) => {
-        isPointerDown = true;
-        try { sliderWrap.setPointerCapture(e.pointerId); } catch (_) {}
-        setSplit(e.clientX);
-      });
-      sliderWrap.addEventListener('pointermove', (e) => {
-        if (!isPointerDown) return;
-        setSplit(e.clientX);
-      });
-      const endPointer = (e) => {
-        if (isPointerDown) {
-          isPointerDown = false;
-          try { sliderWrap.releasePointerCapture(e.pointerId); } catch (_) {}
-        }
-      };
-      sliderWrap.addEventListener('pointerup', endPointer);
-      sliderWrap.addEventListener('pointercancel', endPointer);
-    }
-
-    // Initial calculation, browser detection, comparison sync, and chapter track run
-    syncComparisonWidth();
+    // Initial UI update, browser detection, and chapter track run
     if (typeof updateMasterToggleUI === "function") updateMasterToggleUI(isSuiteActive);
     detectBrowser();
     renderChapters();
