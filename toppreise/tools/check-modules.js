@@ -144,7 +144,13 @@ const stripCode = code => {
 const localIn = code => {
   const names = new Set(importedIn(code));
   for (const m of code.matchAll(/(?:^|[;{}()\s])(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
-  for (const m of code.matchAll(/(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of code.matchAll(/(?:const|let|var)\s+([^;=\n]+)/g)) {
+    for (const part of m[1].split(',')) {
+      const id = part.trim().match(/^[A-Za-z_$][\w$]*/);
+      if (id) names.add(id[0]);
+    }
+  }
+  for (const m of code.matchAll(/class\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
   for (const m of code.matchAll(/catch\s*\(\s*([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
   return names;
 };

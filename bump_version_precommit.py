@@ -86,6 +86,21 @@ def process_script(script_relpath):
                 f.write(new_pkg_content)
             subprocess.run(['git', 'add', pkg_path], check=True)
 
+    # Sync site/index.html if it exists (marketing badge, install CTAs, and i18n dictionaries)
+    site_index_path = os.path.join(script_dir, 'site', 'index.html')
+    if os.path.exists(site_index_path):
+        with open(site_index_path, 'r', encoding='utf-8') as f:
+            site_content = f.read()
+        new_site_content = re.sub(
+            r'v\d+\.\d+\.\d+(\s*•\s*Open Source|\))',
+            f'v{extracted_version}\\g<1>',
+            site_content
+        )
+        if new_site_content != site_content:
+            with open(site_index_path, 'w', encoding='utf-8') as f:
+                f.write(new_site_content)
+            subprocess.run(['git', 'add', site_index_path], check=True)
+
     script_name = os.path.basename(script_relpath)
     print(f"🚀 [pre-commit] Auto-bumped {script_name} to v{extracted_version}")
 
