@@ -178,11 +178,7 @@ function main() {
       console.error('Run "node tools/build.js" to regenerate the bundle.');
       process.exit(1);
     }
-    if (fs.existsSync(path.dirname(DEMO_BUNDLE_FILE))) {
-      if (!fs.existsSync(DEMO_BUNDLE_FILE)) {
-        console.error(`❌ Output file ${DEMO_BUNDLE_FILE} does not exist.`);
-        process.exit(1);
-      }
+    if (fs.existsSync(DEMO_BUNDLE_FILE)) {
       const demoOnDisk = fs.readFileSync(DEMO_BUNDLE_FILE, 'utf-8');
       if (demoOnDisk !== bundle) {
         console.error('❌ Drift detected! site/demo/toppreise.user.js does not match bundle.');

@@ -15,8 +15,9 @@ def process_script(script_relpath):
     if not os.path.exists(script_abspath):
         return
 
-    # Skip reference or template example scripts
-    if 'references' in script_relpath.split(os.sep) or 'example' in os.path.basename(script_relpath):
+    # Skip reference, template, site demo bundles, or example scripts
+    parts = set(script_relpath.split(os.sep))
+    if {'references', 'example', 'demo', 'site'}.intersection(parts):
         return
 
     with open(script_abspath, 'r', encoding='utf-8') as f:
