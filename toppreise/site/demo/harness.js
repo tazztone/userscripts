@@ -174,7 +174,13 @@
   // Apply deterministic seeds to localStorage and memoryCache
   function seedHistories() {
     try {
-      localStorage.clear();
+      // Evict only Toppreise-scoped keys to avoid clearing unrelated storage on the same origin
+      const toRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('tp_')) toRemove.push(k);
+      }
+      toRemove.forEach((k) => localStorage.removeItem(k));
       localStorage.setItem('tp_suite_v2_DEBUG', 'true');
       for (let i = 0; i < PIDS.length; i++) {
         const pid = PIDS[i];
@@ -194,34 +200,10 @@
 
   // Activate / deactivate suite
   function setSuiteActive(active) {
-    isSuiteActive = active;
-    if (active) {
-      if (!isSuiteLoaded) {
-        loadSuiteScript();
-      } else {
-        seedHistories();
-        if (window.ToppreiseSuite?.processListings) {
-          window.ToppreiseSuite.processListings();
-        }
-        const tpRoot = document.getElementById('tp-root');
-        if (tpRoot) tpRoot.style.display = '';
-      }
-      showDemoToast('Toppreise Suite aktiviert 💎');
-    } else {
-      // Revert to pristine unmodified Toppreise HTML
-      const tpContent = document.getElementById('tpContent');
-      if (tpContent && pristineContentHtml) {
-        tpContent.innerHTML = pristineContentHtml;
-      }
-      const tpRoot = document.getElementById('tp-root');
-      if (tpRoot) tpRoot.style.display = 'none';
-      const staleBar = document.getElementById('tp-suite-filter-bar');
-      if (staleBar) staleBar.remove();
-      const staleCta = document.getElementById('tp-floating-check-cta');
-      if (staleCta) staleCta.remove();
-      showDemoToast('Standard Toppreise (Suite deaktiviert)');
-    }
-    notifyParentState();
+    if (active === isSuiteActive) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('suite', active ? '1' : '0');
+    window.location.href = url.toString();
   }
 
   // Presets
@@ -310,6 +292,7 @@
       loadSuiteScript();
     } else {
       isSuiteActive = false;
+      notifyParentState();
     }
 
     // Message bridge from outer window
