@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 const TOPPREISE_DIR = path.resolve(__dirname, '..');
 const SRC_DIR = path.join(TOPPREISE_DIR, 'src');
 const OUTPUT_FILE = path.join(TOPPREISE_DIR, 'toppreise.user.js');
+const DEMO_BUNDLE_FILE = path.join(TOPPREISE_DIR, 'site', 'demo', 'toppreise.user.js');
 
 function stripModuleSyntax(code) {
   return code
@@ -177,6 +178,18 @@ function main() {
       console.error('Run "node tools/build.js" to regenerate the bundle.');
       process.exit(1);
     }
+    if (fs.existsSync(path.dirname(DEMO_BUNDLE_FILE))) {
+      if (!fs.existsSync(DEMO_BUNDLE_FILE)) {
+        console.error(`❌ Output file ${DEMO_BUNDLE_FILE} does not exist.`);
+        process.exit(1);
+      }
+      const demoOnDisk = fs.readFileSync(DEMO_BUNDLE_FILE, 'utf-8');
+      if (demoOnDisk !== bundle) {
+        console.error('❌ Drift detected! site/demo/toppreise.user.js does not match bundle.');
+        console.error('Run "node tools/build.js" to regenerate the bundle.');
+        process.exit(1);
+      }
+    }
     console.log(`✅ Build check passed! toppreise.user.js is up-to-date (${bundleLines} lines, ${bundleSizeKb} KB).`);
     return;
   }
@@ -185,6 +198,9 @@ function main() {
   try {
     fs.writeFileSync(tmpFile, bundle, 'utf-8');
     fs.renameSync(tmpFile, OUTPUT_FILE);
+    if (fs.existsSync(path.dirname(DEMO_BUNDLE_FILE))) {
+      fs.writeFileSync(DEMO_BUNDLE_FILE, bundle, 'utf-8');
+    }
   } catch (err) {
     try { fs.unlinkSync(tmpFile); } catch {}
     throw err;
