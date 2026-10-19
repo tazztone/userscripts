@@ -9,7 +9,12 @@ This directory contains the source code, media assets, and AI design pipelines f
 ```text
 toppreise/site/
 ├── README.md               # Site architecture, deployment, and Stitch workflow (this file)
-├── index.html              # Responsive dark-theme landing page with video players & i18n
+├── index.html              # Responsive dark-theme landing page with video players, interactive browser demo, & i18n
+├── demo/                   # Authentic isolated Toppreise.ch simulation demo
+│   ├── index.html          # Sanitized real Toppreise feed snapshot (CSS, layout, typography)
+│   ├── harness.js          # Deterministic seed runner, mock XHR/fetch interceptor, link shield & bridge
+│   ├── toppreise.user.js   # Compiled userscript bundle (synchronized by tools/build.js)
+│   └── assets/             # Real vendored product thumbnails, retailer badges, fonts, and styles
 ├── poster-short.webp       # Extracted video poster frame for 9:16 mobile quick demo
 └── poster-explainer.webp   # Extracted video poster frame for 16:9 desktop walkthrough
 ```
@@ -22,17 +27,18 @@ toppreise/site/
    - **Ambient Glow Theater**: Blurred gradient backdrop canvas matching video play area.
    - **Aspect Ratio Handling**: CSS `object-fit: contain` with centered flex container ensures letterboxing without clipping across both aspect ratios.
    - **Keyboard Controls**: Press `Space` or `K` anywhere on page to toggle video playback.
-2. **Interactive Deal Calculation Simulator**:
-   - Test authentic Toppreise Deal formulas in Swiss Francs (CHF).
-   - Dynamic store switcher (Digitec, Galaxus, Brack.ch, MediaMarkt).
-   - Real-time deal weighting slider (Rekord vs. 1-Year Median savings) and dynamic badge glow (Ruby for all-time low, Amber for solid deal, Red warning for deceptive markup).
-3. **Draggable Before / After Comparison Slider**:
-   - Touch & mouse-draggable split screen comparing unverified stock Toppreise retail gaslighting with verified Toppreise Suite intelligence.
-4. **Instant Bilingual Switcher (EN / DE)**:
+2. **Authentic Interactive Toppreise.ch Browser Simulation**:
+   - Clean browser window mockup embedding `demo/index.html` inside an isolated iframe.
+   - 100% genuine Toppreise.ch DOM and styles (vendored from `tools/snapshots/feed/`).
+   - Real `toppreise.user.js` execution with deterministic price history seeds (`harness.js`).
+   - Master `[ Userscript: AKTIV / AUS ]` switch to toggle in real time between stock retailer gaslighting and verified Toppreise Suite intelligence.
+   - One-click presets for Deal-Score filtering (`Score ≥ 70`), Heatmap toggling, and instant frame reloading.
+   - Fully offline-capable and deployed directly to GitHub Pages without external image or network dependencies.
+3. **Instant Bilingual Switcher (EN / DE)**:
    - Client-side JSON dictionary switches headlines, feature cards, simulator labels, install instructions, and underlying MP4 video streams without page reloads.
-5. **1-Click Userscript Installation**:
+4. **1-Click Userscript Installation**:
    - Direct CTA links to the raw user script bundle: `https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js`.
-6. **Sister Userscripts Navigation**:
+5. **Sister Userscripts Navigation**:
    - Links to Perplexity Enhancements and Hugging Face Heart & Filter scripts in footer.
 
 ---
