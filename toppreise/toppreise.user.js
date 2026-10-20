@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.348
+// @version      2.18.349
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -7396,11 +7396,11 @@ const SHADOW_MODAL_STYLES = `
   </div>
         </section>
         <section id="tp-section-review" class="tp-section-card tp-section-review">
-  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Review-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
+  <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-review-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Review-Suche (🌐) anzeigen</label>
+              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Web-Suche (🌐) anzeigen</label>
               <span class="tp-switch-desc">Google-Suche pro Produktname in neuem Tab</span>
             </div>
             <label class="tp-switch tp-purple">
@@ -7409,7 +7409,13 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group">
-            <label title="Dieser Begriff wird an den Produktnamen angehängt.">Review-Suchbegriff</label>
+            <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
+            <div id="tp-search-keyword-chips">
+              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht">Testbericht</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Erfahrungen">Erfahrungen</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
+            </div>
             <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
             <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
           </div>
@@ -8042,6 +8048,34 @@ const SHADOW_MODAL_STYLES = `
       els.discordLayoutInput.value = els.discordLayoutInput.value.slice(0, selectionStart) + token + els.discordLayoutInput.value.slice(selectionEnd);
       els.discordLayoutInput.focus();
       scheduleLayoutPreview(els);
+    });
+    els.shadow.getElementById('tp-search-keyword-chips')?.addEventListener('mousedown', e => {
+      // Capture the caret before the chip click blurs the input; never-focused = end.
+      const btn = e.target?.closest?.('button');
+      const input = els.reviewKeywordInput;
+      if (!btn || !input) return;
+      const focused = input.getRootNode().activeElement === input;
+      btn.dataset.selStart = String(focused ? input.selectionStart ?? input.value.length : input.value.length);
+      btn.dataset.selEnd = String(focused ? input.selectionEnd ?? input.value.length : input.value.length);
+    });
+    els.shadow.getElementById('tp-search-keyword-chips')?.addEventListener('click', e => {
+      const btn = e.target?.closest?.('button');
+      if (!btn || !els.reviewKeywordInput) return;
+      const preset = btn.dataset.preset;
+      const token = btn.dataset.token;
+      if (preset !== undefined) {
+        els.reviewKeywordInput.value = preset;
+      } else if (token) {
+        const start = parseInt(btn.dataset.selStart ?? '', 10);
+        const end = parseInt(btn.dataset.selEnd ?? '', 10);
+        const atEnd = !Number.isFinite(start) || !Number.isFinite(end) || start > els.reviewKeywordInput.value.length;
+        const selStart = atEnd ? els.reviewKeywordInput.value.length : start;
+        const selEnd = atEnd ? els.reviewKeywordInput.value.length : Math.min(Math.max(end, selStart), els.reviewKeywordInput.value.length);
+        els.reviewKeywordInput.value = els.reviewKeywordInput.value.slice(0, selStart) + token + els.reviewKeywordInput.value.slice(selEnd);
+      } else {
+        return;
+      }
+      els.reviewKeywordInput.focus();
     });
     els.discordLayoutReset?.addEventListener('click', () => {
       if (!els.discordLayoutInput) return;
@@ -10416,7 +10450,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.348';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.349';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

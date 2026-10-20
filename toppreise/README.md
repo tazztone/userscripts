@@ -19,7 +19,7 @@ An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies 
 | ⑦ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
 | ⑧ | **Cheapest Dealer (`🏬`)** | Direct link to the cheapest merchant offer without intermediary tracking redirects. |
 | ⑨ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
-| ⑩ | **1-Click Review Search (`🌐`)** | Appears on hover next to product title; opens a Google search for tests/reviews in a new tab. |
+| ⑩ | **1-Click Web Search (`🌐`)** | Appears on hover next to product title; opens a Google search for `<Product> <keyword>` in a new tab (keyword configurable, `{preis}` token for current price). |
 
 > [!NOTE]
 > **Deal score formula (Card 1, Callout ③):** −65% = 50/50 blend of −60% (vs. previous low) and −70% (vs. 1-year median).
@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.348)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.349)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -85,7 +85,7 @@ Requires a userscript manager browser extension:
 * **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`). Display the Vortief-Abstand instead of a blend (no `⚖️`) and can be filtered independently (Normal/Dim/Hide). Qualified deals with 0% savings display a neutral-gray 0% badge.
 * **Newly Verified Glow (*Neu*-Puls):** Freshly verified deals pulse with an emerald outline and `Neu` indicator for ≥5s until the next user interaction (click, scroll, keypress).
 * **Interactive SVG Sparklines:** Renders a compact mini price-trend chart on verified product cards. Clicking the sparkline opens a full-resolution modal chart with price and date axes.
-* **1-Click Google Review Search (`🌐`):** Appends a quick-search icon on hover to product titles that opens a Google search for `<Product> Testbericht` (or custom keyword) in a new tab, with optional **Google AI Mode (`&udm=50`)**.
+* **1-Click Web Search (`🌐`):** Appends a quick-search icon on hover to product titles that opens a Google search for `<Product> <keyword>` in a new tab. Keyword is configurable (e.g. `Testbericht`, `Erfahrungen`) and may contain the `{preis}` token (current card price, CHF, verified history only), with optional **Google AI Mode (`&udm=50`)**.
 
 ### 🧹 Sticky Filter Bar
 
@@ -135,7 +135,7 @@ Requires a userscript manager browser extension:
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
 | **Share Button (`📤`)** | Bottom-left of verified card | Posts the deal, ASCII sparkline, and rendered PNG chart to your Discord webhook. |
-| **Review Search (`🌐`)** | Hover next to product title | Opens a Google review search in a new tab with optional AI overview (`&udm=50`). |
+| **Web Search (`🌐`)** | Hover next to product title | Opens a Google search for `<Product> <keyword>` in a new tab with optional AI overview (`&udm=50`). |
 | **Settings FAB (`⚙️`)** | Bottom-right floating button | Opens the encapsulated Shadow DOM settings modal. |
 
 ### ⌨️ Keyboard Shortcuts
@@ -168,14 +168,14 @@ The userscript dynamically tailors its UI to the current page type:
 
 Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Split into Core and Advanced views for legibility:
 
-### Core Settings (Sections 1–5: Display, Review Search, Sorting, Filtering, Price Alarm)
+### Core Settings (Sections 1–5: Display, Web Search, Sorting, Filtering, Price Alarm)
 
 ![Shadow DOM Settings Dialog: Core Controls](docs/shots/04a-settings-core.webp)
 
 | # | Setting / Action | Description |
 |---|---|---|
 | ① | **Dimmer Opacity Slider** | Adjusts background opacity of filtered and dimmed listings. |
-| ② | **Review Search (🌐)** | Configures Google Review quick search with optional AI overview mode (`&udm=50`). |
+| ② | **Web Search (🌐)** | Configures Google Web quick search (keyword presets, `{preis}` token) with optional AI overview mode (`&udm=50`). |
 | ③ | **Best-Price Sorting** | Enables ranking by weighted deal quality score (`💎 Tiefstpreis-Sortierung`). |
 | ④ | **Price Tolerance Margin (%)** | Sets allowable premium over best price when evaluating preferred merchant deals. |
 | ⑤ | **Price Alarm Auto-Fill** | Pre-fills target price percentage (5%–99%) and duration (3–24 months). |
@@ -193,7 +193,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
 
 1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, hide ad placeholders / banners (removes top blank space and layout ad slots), and deal intensity / heatmap strength (20%–100%).
-2. **🌐 Review Search (*Review-Suche*):** Google search toggle (`🌐`) on product titles, custom search term (e.g. "Testbericht"), and Google AI mode (`&udm=50`).
+2. **🌐 Web Search (*Web-Suche*):** Google search toggle (`🌐`) on product titles, custom keyword with presets and `{preis}` token (current card price, verified history only), and Google AI mode (`&udm=50`).
 3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.

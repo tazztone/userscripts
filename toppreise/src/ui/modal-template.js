@@ -42,11 +42,11 @@ export function ensureModalSection(shadow) {
 </div>
       </section>
       <section id="tp-section-review" class="tp-section-card tp-section-review">
-<button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Review-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
+<button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-review-body">
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Review-Suche (🌐) anzeigen</label>
+            <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Web-Suche (🌐) anzeigen</label>
             <span class="tp-switch-desc">Google-Suche pro Produktname in neuem Tab</span>
           </div>
           <label class="tp-switch tp-purple">
@@ -55,7 +55,13 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label title="Dieser Begriff wird an den Produktnamen angehängt.">Review-Suchbegriff</label>
+          <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
+          <div id="tp-search-keyword-chips">
+            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht">Testbericht</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Erfahrungen">Erfahrungen</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
+          </div>
           <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
           <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
         </div>

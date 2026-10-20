@@ -127,3 +127,28 @@ def test_review_price_token_dropped_when_unverified(page: Page):
     assert href == _google_url('Nvidia GeForce RTX 4090 24GB', 'Preiseinschätzung')
     assert 'CHF' not in href
     assert '%7Bpreis%7D' not in href
+
+
+def test_review_keyword_token_chip_inserts(page: Page):
+    """The {preis} chip inserts the token at the input's cursor (end)."""
+    open_settings(page)
+    page.click('#tp-root >> #tp-search-keyword-chips [data-token]')
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht{preis}'
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_review_keyword_preset_replaces_value(page: Page):
+    """Preset click replaces the keyword; save keeps href expansion working."""
+    open_settings(page)
+    page.click('#tp-root >> #tp-search-keyword-chips [data-preset="Preiseinschätzung {preis}"]')
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Preiseinschätzung {preis}'
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    href = page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href')
+    assert href == _google_url('Nvidia GeForce RTX 4090 24GB', 'Preiseinschätzung')
+
+
+def test_review_section_renamed_web_suche(page: Page):
+    open_settings(page)
+    expect(page.locator('#tp-root >> #tp-section-review .tp-section-title')).to_have_text('🌐 Web-Suche')
+    page.click('#tp-root >> #tp-btn-close')
