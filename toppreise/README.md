@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.350)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.351)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -119,7 +119,7 @@ Requires a userscript manager browser extension:
 
 ### 💬 1-Click Discord Deal Sharing (`📤`)
 
-* **One-Click Webhook Sharing:** Verified all-time low cards display a `📤` button on hover that posts the deal directly to your Discord channel or Forum thread via webhook. Shared cards retain an illuminated share icon.
+* **One-Click Webhook Sharing:** Verified all-time low cards display a `📤` button on hover (semi-transparent on touch devices) that posts the deal directly to your Discord channel or Forum thread via webhook. Shared cards retain an illuminated share icon.
 * **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels).
 * **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
 
@@ -134,8 +134,8 @@ Requires a userscript manager browser extension:
 | **Differenz Badge (`🔍` / `⚖️`)** | Top-right of product card | Click to verify or refresh a single product's price history and all-time low status. |
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
-| **Share Button (`📤`)** | Bottom-left of verified card | Posts the deal, ASCII sparkline, and rendered PNG chart to your Discord webhook. |
-| **Web Search (`🌐`)** | Hover next to product title | Opens a Google search for `<Product> <keyword>` in a new tab with optional AI overview (`&udm=50`). |
+| **Share Button (`📤`)** | Bottom-left of verified card | Posts deal, sparkline, and chart PNG to Discord webhook (hover on desktop, semi-transparent on touch). |
+| **Web Search (`🌐`)** | Next to product title | Opens Google search for product in a new tab (hover on desktop, semi-transparent on touch). |
 | **Settings FAB (`⚙️`)** | Bottom-right floating button | Opens the encapsulated Shadow DOM settings modal. |
 
 ### ⌨️ Keyboard Shortcuts

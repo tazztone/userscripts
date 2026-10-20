@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.350
+// @version      2.18.351
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -642,6 +642,42 @@ const STYLES_CARDS = `
   }
   .tp-sparkline-container {
     flex-shrink: 0 !important;
+  }
+  /* Touch visibility & hit area expansion for hover-only card actions */
+  @media (hover: none), (pointer: coarse) {
+    .tp-share-btn:not(.tp-share-done):not(:disabled),
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled) {
+      opacity: 0.45 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn {
+      position: relative !important;
+    }
+    .tp-share-btn:not(:disabled):active,
+    .tp-review-search-btn:active,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active {
+      opacity: 1 !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -7px !important;
+      bottom: -7px !important;
+      left: -7px !important;
+      right: -7px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -8px !important;
+      bottom: -8px !important;
+      left: -8px !important;
+      right: -8px !important;
+    }
   }
 `;
 
@@ -10453,7 +10489,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.350';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.351';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

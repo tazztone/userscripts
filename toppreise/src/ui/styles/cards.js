@@ -581,4 +581,40 @@ export const STYLES_CARDS = `
   .tp-sparkline-container {
     flex-shrink: 0 !important;
   }
+  /* Touch visibility & hit area expansion for hover-only card actions */
+  @media (hover: none), (pointer: coarse) {
+    .tp-share-btn:not(.tp-share-done):not(:disabled),
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled) {
+      opacity: 0.45 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn {
+      position: relative !important;
+    }
+    .tp-share-btn:not(:disabled):active,
+    .tp-review-search-btn:active,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active {
+      opacity: 1 !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -7px !important;
+      bottom: -7px !important;
+      left: -7px !important;
+      right: -7px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -8px !important;
+      bottom: -8px !important;
+      left: -8px !important;
+      right: -8px !important;
+    }
+  }
 `;

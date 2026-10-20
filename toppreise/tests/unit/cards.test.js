@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility, getCardEffectiveDiscount } from '../../src/page/cards.js';
+import { STYLES_CARDS } from '../../src/ui/styles/cards.js';
 import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
 import { withConfig } from './helpers.js';
 
@@ -650,6 +651,28 @@ describe('Min-Rabatt threshold filter core', () => {
       assert.equal(isCardFilteredOut(card, filters), true);
       // forScan bypasses isBelowMinDiscount
       assert.equal(isCardFilteredOut(card, filters, { forScan: true }), false);
+    });
+  });
+
+  describe('Touch visibility & hit targets in STYLES_CARDS', () => {
+    it('defines @media (hover: none), (pointer: coarse) rules for hover actions', () => {
+      assert.ok(STYLES_CARDS.includes('@media (hover: none), (pointer: coarse)'));
+      assert.ok(STYLES_CARDS.includes('.tp-share-btn:not(.tp-share-done):not(:disabled)'));
+      assert.ok(STYLES_CARDS.includes('.tp-review-search-btn'));
+      assert.ok(STYLES_CARDS.includes('button.tp-dealer-name.tp-dealer-btn:not(:disabled)'));
+      assert.ok(STYLES_CARDS.includes('opacity: 0.45 !important'));
+      assert.ok(STYLES_CARDS.includes('pointer-events: auto !important'));
+    });
+
+    it('defines :active state at full opacity', () => {
+      assert.ok(STYLES_CARDS.includes('.tp-share-btn:not(:disabled):active'));
+      assert.ok(STYLES_CARDS.includes('opacity: 1 !important'));
+    });
+
+    it('expands touch hit targets via pseudo-elements', () => {
+      assert.ok(STYLES_CARDS.includes('.tp-share-btn::after'));
+      assert.ok(STYLES_CARDS.includes('.tp-review-search-btn::after,'));
+      assert.ok(STYLES_CARDS.includes('button.tp-dealer-name.tp-dealer-btn::after'));
     });
   });
 });
