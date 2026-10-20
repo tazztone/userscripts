@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.347
+// @version      2.18.348
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -7183,7 +7183,13 @@ const SHADOW_MODAL_STYLES = `
     // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
     const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
-      const reviewKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+      const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+      const reviewKw = rawKw.includes('{preis}')
+        ? (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)
+            ? rawKw.replace('{preis}', `CHF ${ctx.cardPrice.toFixed(2)}`)
+            : rawKw.replace('{preis}', ''))
+          .replace(/\s+/g, ' ').trim()
+        : rawKw;
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
@@ -7405,7 +7411,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group">
             <label title="Dieser Begriff wird an den Produktnamen angehängt.">Review-Suchbegriff</label>
             <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
-            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht).</span>
+            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
@@ -10410,7 +10416,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.347';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.348';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
