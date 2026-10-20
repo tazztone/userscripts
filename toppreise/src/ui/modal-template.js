@@ -62,8 +62,8 @@ export function ensureModalSection(shadow) {
             <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
           </div>
-          <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
-          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard (Testbericht). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
+          <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht - {preis} Preiseinschätzung" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
+          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard („Testbericht - {preis} Preiseinschätzung“). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">

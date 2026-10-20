@@ -9,8 +9,8 @@ def _google_url(name, keyword):
     return 'https://www.google.com/search?q=' + quote(f'{name} {keyword}')
 
 
-def test_review_icon_per_card_default_testbericht(page: Page):
-    """Every card ends its product name with 🌐 linking to '<name> Testbericht'."""
+def test_review_icon_per_card_default(page: Page):
+    """Every card ends its product name with 🌐 linking to '<name> <default keyword>'."""
     btns = page.locator('a.tp-review-search-btn')
     assert btns.count() >= 2
 
@@ -18,7 +18,7 @@ def test_review_icon_per_card_default_testbericht(page: Page):
     assert first.count() == 1
     assert first.text_content() == '🌐'
     assert first.get_attribute('target') == '_blank'
-    assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht')
+    assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung')
 
     # Icon sits at the end of the product name, not floating on the card
     assert page.evaluate(
@@ -67,9 +67,9 @@ def test_review_empty_keyword_falls_back_to_default(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht')
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung')
     open_settings(page)
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht - {preis} Preiseinschätzung'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -81,7 +81,7 @@ def test_review_ai_mode_appends_udm50(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     first = page.locator('#card-cheapest a.tp-review-search-btn')
     assert first.get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht') + '&udm=50'
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung') + '&udm=50'
 
     # Uncheck -> suffix gone
     open_settings(page)
@@ -89,20 +89,20 @@ def test_review_ai_mode_appends_udm50(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht')
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung')
 
 
 def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
-    """Stored legacy 'KI-Modus' migrates to checkbox-on plus keyword Testbericht."""
+    """Stored legacy 'KI-Modus' migrates to checkbox-on plus new default keyword."""
     page.evaluate("localStorage.setItem('tp_suite_v2_REVIEW_SEARCH_KEYWORD', '\"KI-Modus\"')")
     page.reload()
     page.evaluate(userscript_content)
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht') + '&udm=50'
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung') + '&udm=50'
     open_settings(page)
     assert page.locator('#tp-root >> #tp-review-ai-mode-toggle').is_checked()
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht - {preis} Preiseinschätzung'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -133,7 +133,7 @@ def test_review_keyword_token_chip_inserts(page: Page):
     """The {preis} chip inserts the token at the input's cursor (end)."""
     open_settings(page)
     page.click('#tp-root >> #tp-search-keyword-chips [data-token]')
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht{preis}'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht - {preis} Preiseinschätzung{preis}'
     page.click('#tp-root >> #tp-btn-close')
 
 
