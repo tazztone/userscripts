@@ -2,7 +2,7 @@ from urllib.parse import quote
 
 from playwright.sync_api import Page, expect
 
-from conftest import open_settings
+from conftest import open_settings, seed_verified_deal
 
 
 def _google_url(name, keyword):
@@ -104,3 +104,26 @@ def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
     assert page.locator('#tp-root >> #tp-review-ai-mode-toggle').is_checked()
     assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht'
     page.click('#tp-root >> #tp-btn-close')
+
+
+def test_review_price_token_expands_when_verified(page: Page):
+    """{preis} expands to the verified card price (CHF) in the search query."""
+    seed_verified_deal(page)  # pid 797571, mock card price CHF 1800.00
+    open_settings(page)
+    page.fill('#tp-root >> #tp-review-keyword-input', 'Preiseinschätzung {preis}')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Preiseinschätzung CHF 1800.00')
+
+
+def test_review_price_token_dropped_when_unverified(page: Page):
+    """Without verified history the token is dropped — no literal, no price."""
+    open_settings(page)
+    page.fill('#tp-root >> #tp-review-keyword-input', 'Preiseinschätzung {preis}')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    href = page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href')
+    assert href == _google_url('Nvidia GeForce RTX 4090 24GB', 'Preiseinschätzung')
+    assert 'CHF' not in href
+    assert '%7Bpreis%7D' not in href

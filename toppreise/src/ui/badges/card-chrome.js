@@ -242,7 +242,13 @@ export function renderReviewButton(ctx) {
   // Titelquelle ist extractShareData (single source of truth, kein 2. Parser).
   const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
-    const reviewKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+    const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+    const reviewKw = rawKw.includes('{preis}')
+      ? (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)
+          ? rawKw.replace('{preis}', `CHF ${ctx.cardPrice.toFixed(2)}`)
+          : rawKw.replace('{preis}', ''))
+        .replace(/\s+/g, ' ').trim()
+      : rawKw;
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
