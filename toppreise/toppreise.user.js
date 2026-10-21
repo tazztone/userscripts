@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.359
+// @version      2.18.360
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -8195,6 +8195,7 @@ const SHADOW_MODAL_STYLES = `
             <div id="tp-search-keyword-chips">
               <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?">Deal-Frage mit Preis</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen">Testbericht</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
             </div>
             <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" spellcheck="false" autocomplete="off">
@@ -11106,7 +11107,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.359';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.360';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

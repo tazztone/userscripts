@@ -18,7 +18,8 @@ def test_review_icon_per_card_default(page: Page):
     assert first.count() == 1
     assert first.text_content() == '🌐'
     assert first.get_attribute('target') == '_blank'
-    assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung')
+    # Default question clause with {preis} is gracefully dropped on unverified card
+    assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen')
 
     # Icon sits at the end of the product name, not floating on the card
     assert page.evaluate(
@@ -67,9 +68,9 @@ def test_review_empty_keyword_falls_back_to_default(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung')
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen')
     open_settings(page)
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht - {preis} Preiseinschätzung'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -81,7 +82,7 @@ def test_review_ai_mode_appends_udm50(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     first = page.locator('#card-cheapest a.tp-review-search-btn')
     assert first.get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung') + '&udm=50'
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen') + '&udm=50'
 
     # Uncheck -> suffix gone
     open_settings(page)
@@ -89,7 +90,7 @@ def test_review_ai_mode_appends_udm50(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung')
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen')
 
 
 def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
@@ -99,10 +100,10 @@ def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
     page.evaluate(userscript_content)
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht - Preiseinschätzung') + '&udm=50'
+        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen') + '&udm=50'
     open_settings(page)
     assert page.locator('#tp-root >> #tp-review-ai-mode-toggle').is_checked()
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht - {preis} Preiseinschätzung'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -133,7 +134,7 @@ def test_review_keyword_token_chip_inserts(page: Page):
     """The {preis} chip inserts the token at the input's cursor (end)."""
     open_settings(page)
     page.click('#tp-root >> #tp-search-keyword-chips [data-token]')
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht - {preis} Preiseinschätzung{preis}'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?{preis}'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -206,4 +207,29 @@ def test_review_ai_popover_open_and_close(page: Page):
     page.keyboard.press('Escape')
     page.wait_for_selector('#tp-ai-popout', state='detached')
     assert page.locator('#tp-ai-popout').count() == 0
+
+
+def test_tavily_parameters_settings_lifecycle(page: Page):
+    """Tavily search depth and max results can be configured and persisted."""
+    open_settings(page)
+    depth_select = page.locator('#tp-root >> #tp-tavily-search-depth')
+    max_select = page.locator('#tp-root >> #tp-tavily-max-results')
+
+    assert depth_select.input_value() == 'basic'
+    assert max_select.input_value() == '5'
+
+    depth_select.select_option('advanced')
+    max_select.select_option('8')
+
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.TAVILY_SEARCH_DEPTH") == 'advanced'
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.TAVILY_MAX_RESULTS") == 8
+
+    # Reopen and check UI state
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-tavily-search-depth').input_value() == 'advanced'
+    assert page.locator('#tp-root >> #tp-tavily-max-results').input_value() == '8'
+    page.click('#tp-root >> #tp-btn-close')
 
