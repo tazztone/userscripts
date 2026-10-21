@@ -152,3 +152,58 @@ def test_review_section_renamed_web_suche(page: Page):
     open_settings(page)
     expect(page.locator('#tp-root >> #tp-section-review .tp-section-title')).to_have_text('🌐 Web-Suche')
     page.click('#tp-root >> #tp-btn-close')
+
+
+def test_tavily_key_settings_lifecycle(page: Page):
+    """Tavily key can be revealed, entered, saved, and displayed as configured."""
+    open_settings(page)
+    status = page.locator('#tp-root >> #tp-tavily-api-key-status')
+    assert status.text_content() == 'Kein Key hinterlegt'
+
+    reveal_btn = page.locator('#tp-root >> #tp-tavily-api-key-reveal')
+    editor = page.locator('#tp-root >> #tp-tavily-api-key-editor')
+    input_field = page.locator('#tp-root >> #tp-tavily-api-key-input')
+
+    assert reveal_btn.is_visible()
+    expect(editor).to_be_hidden()
+
+    reveal_btn.click()
+    expect(editor).to_be_visible()
+    expect(reveal_btn).to_be_hidden()
+
+    input_field.fill('tvly-testkey-123456')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    # Reopen and check status indicator (Bearer secrets stay masked in page window.ToppreiseSuite.CONFIG)
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-tavily-api-key-status').text_content() == '✅ Key hinterlegt'
+    page.click('#tp-root >> #tp-btn-close')
+
+
+def test_review_ai_popover_open_and_close(page: Page):
+    """Clicking 🌐 with configured Tavily key opens AI popover; Escape key closes it."""
+    btn = page.locator('#card-cheapest a.tp-review-search-btn')
+    assert btn.count() == 1
+
+    # Negative path: without Tavily key, clicking 🌐 emits guidance toast and does not mount popover
+    btn.dispatch_event('click')
+    assert page.locator('#tp-ai-popout').count() == 0
+    assert 'Kostenlosen Tavily-Key' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")
+
+    # Positive path: seed key into userscript internal CONFIG via updateConfig harness
+    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('TAVILY_API_KEY', 'tvly-mock-test')")
+
+    # Clicking 🌐 intercepts default navigation and opens #tp-ai-popout
+    btn.dispatch_event('click')
+    popout = page.locator('#tp-ai-popout')
+    page.wait_for_selector('#tp-ai-popout', state='visible')
+    assert popout.is_visible()
+    assert 'KI-Kurzfazit' in popout.text_content()
+    assert 'Nvidia GeForce RTX 4090 24GB' in popout.text_content()
+
+    # Escape closes popover
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-ai-popout', state='detached')
+    assert page.locator('#tp-ai-popout').count() == 0
+
