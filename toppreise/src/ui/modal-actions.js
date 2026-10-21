@@ -12,7 +12,7 @@ import { getProductCards } from '../page/cards.js';
 import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
 import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-discord.js';
-import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets } from './modal-bindings.js';
+import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview } from './modal-bindings.js';
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed } from './modal-template.js';
 
@@ -95,32 +95,11 @@ export function wireModalActions(els) {
     els.discordLayoutInput.focus();
     scheduleLayoutPreview(els);
   });
-  els.shadow.getElementById('tp-search-keyword-chips')?.addEventListener('mousedown', e => {
-    // Capture the caret before the chip click blurs the input; never-focused = end.
-    const btn = e.target?.closest?.('button');
-    const input = els.reviewKeywordInput;
-    if (!btn || !input) return;
-    const focused = input.getRootNode().activeElement === input;
-    btn.dataset.selStart = String(focused ? input.selectionStart ?? input.value.length : input.value.length);
-    btn.dataset.selEnd = String(focused ? input.selectionEnd ?? input.value.length : input.value.length);
-  });
-  els.shadow.getElementById('tp-search-keyword-chips')?.addEventListener('click', e => {
-    const btn = e.target?.closest?.('button');
-    if (!btn || !els.reviewKeywordInput) return;
-    const preset = btn.dataset.preset;
-    const token = btn.dataset.token;
-    if (preset !== undefined) {
-      els.reviewKeywordInput.value = preset;
-    } else if (token) {
-      const start = parseInt(btn.dataset.selStart ?? '', 10);
-      const end = parseInt(btn.dataset.selEnd ?? '', 10);
-      const atEnd = !Number.isFinite(start) || !Number.isFinite(end) || start > els.reviewKeywordInput.value.length;
-      const selStart = atEnd ? els.reviewKeywordInput.value.length : start;
-      const selEnd = atEnd ? els.reviewKeywordInput.value.length : Math.min(Math.max(end, selStart), els.reviewKeywordInput.value.length);
-      els.reviewKeywordInput.value = els.reviewKeywordInput.value.slice(0, selStart) + token + els.reviewKeywordInput.value.slice(selEnd);
-    } else {
-      return;
-    }
+  els.reviewKeywordInput?.addEventListener('input', () => updateKeywordPreview(els));
+  els.reviewKeywordReset?.addEventListener('click', () => {
+    if (!els.reviewKeywordInput) return;
+    els.reviewKeywordInput.value = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+    updateKeywordPreview(els);
     els.reviewKeywordInput.focus();
   });
   els.discordLayoutReset?.addEventListener('click', () => {

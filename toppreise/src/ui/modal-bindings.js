@@ -7,6 +7,7 @@ import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, hori
 import { renderLayout, validateLayoutRecipe, getLayoutRecipeNotice, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
 import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
+import { expandKeywordWithPrice } from '../features/tavily-search.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.
 export function collectModalElements(shadow) {
@@ -54,6 +55,10 @@ export function collectModalElements(shadow) {
   const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
   const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
   const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
+  const reviewKeywordReset = shadow.getElementById('tp-review-keyword-reset');
+  const reviewKeywordPreview = shadow.getElementById('tp-review-keyword-preview');
+  const reviewKeywordPreviewNoPrice = shadow.getElementById('tp-review-keyword-preview-noprice');
+  const reviewKeywordPreviewNoPriceRow = shadow.getElementById('tp-review-keyword-preview-noprice-row');
   const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
   const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
   const tavilyApiKeyReveal = shadow.getElementById('tp-tavily-api-key-reveal');
@@ -77,7 +82,7 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -162,6 +167,24 @@ export function syncFieldsFromConfig(els) {
     if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
     if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
     renderLayoutPreview(els);
+    updateKeywordPreview(els);
+}
+
+export function updateKeywordPreview(els) {
+  if (!els.reviewKeywordInput || !els.reviewKeywordPreview) return;
+  const kw = els.reviewKeywordInput.value.trim();
+  const sampleProduct = 'Sony WH-1000XM5';
+  const samplePrice = 'CHF 279.00';
+  const expandedWithPrice = expandKeywordWithPrice(kw, samplePrice);
+  const expandedNoPrice = expandKeywordWithPrice(kw, '');
+
+  els.reviewKeywordPreview.textContent = `${sampleProduct} ${expandedWithPrice}`.trim();
+  if (els.reviewKeywordPreviewNoPrice) {
+    els.reviewKeywordPreviewNoPrice.textContent = `${sampleProduct} ${expandedNoPrice}`.trim();
+  }
+  if (els.reviewKeywordPreviewNoPriceRow) {
+    els.reviewKeywordPreviewNoPriceRow.style.display = kw.includes('{preis}') ? '' : 'none';
+  }
 }
 
 export function bindDual(rangeEl, numEl, onInput = null) {

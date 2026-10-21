@@ -46,8 +46,8 @@ export function ensureModalSection(shadow) {
 <div class="tp-section-body" id="tp-section-review-body">
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
-            <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Web-Suche (🌐) anzeigen</label>
-            <span class="tp-switch-desc">Google-Suche pro Produktname in neuem Tab</span>
+            <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
+            <span class="tp-switch-desc">Zeigt auf jeder Produktkarte ein Icon für die externe Web- und KI-Suche</span>
           </div>
           <label class="tp-switch tp-purple">
             <input type="checkbox" id="tp-review-search-toggle">
@@ -56,24 +56,46 @@ export function ensureModalSection(shadow) {
         </div>
         <div class="tp-settings-group">
           <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
-          <div id="tp-search-keyword-chips">
-            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?">Deal-Frage mit Preis</button>
-            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen">Testbericht</button>
-            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
-            <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+            <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
           </div>
-          <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" spellcheck="false" autocomplete="off">
-          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten); ohne Preis wird die Preisfrage automatisch entfernt.</span>
+          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. Platzhalter <code>{preis}</code> setzt den Deal-Preis ein (ohne Preisdaten wird der Preisteil automatisch weggelassen).</span>
+          <div class="tp-search-preview-box">
+            <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
+            <div class="tp-search-preview-row">
+              <span class="tp-search-preview-badge">Mit Deal-Preis:</span>
+              <span id="tp-review-keyword-preview" class="tp-search-preview-text"></span>
+            </div>
+            <div class="tp-search-preview-row" id="tp-review-keyword-preview-noprice-row">
+              <span class="tp-search-preview-badge">Ohne Preis:</span>
+              <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
+            </div>
+          </div>
         </div>
+
+        <div class="tp-settings-subhead">Google-Suche</div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im Google KI-Modus öffnen</label>
+            <span class="tp-switch-desc">Google AI Overview Modus (&udm=50) statt klassischer Trefferliste</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-review-ai-mode-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+
+        <div class="tp-settings-subhead">Tavily KI-Suche (Direkt-Fazit & Discord)</div>
         <div class="tp-settings-group">
-          <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">🤖 Tavily KI-Suche (Direkt-Fazit & Discord)</label>
+          <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
           <div id="tp-tavily-api-key-collapsed">
             <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
             <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
           </div>
           <div id="tp-tavily-api-key-editor" style="display: none;">
             <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-            <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a>. Ermöglicht 1-Klick Kurzfazit auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt privat im Userscript.</span>
+            <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
           </div>
         </div>
         <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -93,16 +115,6 @@ export function ensureModalSection(shadow) {
               <option value="10">10 Quellen</option>
             </select>
           </div>
-        </div>
-        <div class="tp-settings-group tp-switch-container">
-          <div class="tp-switch-label">
-            <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im KI-Modus suchen</label>
-            <span class="tp-switch-desc">Google AI Mode statt klassischer Trefferliste</span>
-          </div>
-          <label class="tp-switch tp-purple">
-            <input type="checkbox" id="tp-review-ai-mode-toggle">
-            <span class="tp-slider"></span>
-          </label>
         </div>
 </div>
       </section>

@@ -130,23 +130,36 @@ def test_review_price_token_dropped_when_unverified(page: Page):
     assert '%7Bpreis%7D' not in href
 
 
-def test_review_keyword_token_chip_inserts(page: Page):
-    """The {preis} chip inserts the token at the input's cursor (end)."""
+def test_review_keyword_reset_to_default(page: Page):
+    """The ↺ Standard button resets the keyword input and preview back to default."""
     open_settings(page)
-    page.click('#tp-root >> #tp-search-keyword-chips [data-token]')
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?{preis}'
+    input_el = page.locator('#tp-root >> #tp-review-keyword-input')
+    preview_el = page.locator('#tp-root >> #tp-review-keyword-preview')
+
+    input_el.fill('Eigene Suche')
+    assert preview_el.inner_text() == 'Sony WH-1000XM5 Eigene Suche'
+
+    page.click('#tp-root >> #tp-review-keyword-reset')
+    assert input_el.input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?'
+    assert preview_el.inner_text() == 'Sony WH-1000XM5 Testbericht Erfahrungen. Ist der Preis von CHF 279.00 ein guter Deal?'
     page.click('#tp-root >> #tp-btn-close')
 
 
-def test_review_keyword_preset_replaces_value(page: Page):
-    """Preset click replaces the keyword; save keeps href expansion working."""
+def test_review_keyword_live_preview(page: Page):
+    """Live preview reacts immediately to input, showing/hiding no-price variant."""
     open_settings(page)
-    page.click('#tp-root >> #tp-search-keyword-chips [data-preset="Preiseinschätzung {preis}"]')
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Preiseinschätzung {preis}'
-    page.click('#tp-root >> #tp-btn-save')
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-    href = page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href')
-    assert href == _google_url('Nvidia GeForce RTX 4090 24GB', 'Preiseinschätzung')
+    preview_price = page.locator('#tp-root >> #tp-review-keyword-preview')
+    preview_noprice = page.locator('#tp-root >> #tp-review-keyword-preview-noprice')
+    noprice_row = page.locator('#tp-root >> #tp-review-keyword-preview-noprice-row')
+
+    assert preview_price.inner_text() == 'Sony WH-1000XM5 Testbericht Erfahrungen. Ist der Preis von CHF 279.00 ein guter Deal?'
+    assert preview_noprice.inner_text() == 'Sony WH-1000XM5 Testbericht Erfahrungen'
+    assert noprice_row.is_visible()
+
+    page.fill('#tp-root >> #tp-review-keyword-input', 'Kaufberatung')
+    assert preview_price.inner_text() == 'Sony WH-1000XM5 Kaufberatung'
+    assert not noprice_row.is_visible()
+    page.click('#tp-root >> #tp-btn-close')
 
 
 def test_review_section_renamed_web_suche(page: Page):

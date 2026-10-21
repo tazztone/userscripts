@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.361
+// @version      2.18.362
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1738,6 +1738,57 @@ const SHADOW_MODAL_STYLES = `
   #tp-discord-layout-preview .tp-md-link { font-weight: 700 !important; }
   #tp-discord-layout-preview .tp-md-url { opacity: .65 !important; font-size: 11px !important; }
   #tp-discord-layout-preview .tp-md-quote { display: block; border-left: 3px solid #5865f2 !important; padding-left: 8px !important; margin: 2px 0 !important; opacity: .9 !important; }
+  .tp-settings-subhead {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--tp-mut);
+    margin: 16px 0 10px 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--tp-line-soft);
+  }
+  .tp-search-preview-box {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px dashed var(--tp-line-soft);
+    border-radius: var(--tp-r-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tp-search-preview-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--tp-mut);
+  }
+  .tp-search-preview-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .tp-search-preview-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--tp-mut);
+  }
+  .tp-search-preview-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--tp-txt);
+    word-break: break-word;
+    line-height: 1.4;
+    background: rgba(0, 0, 0, 0.03);
+    padding: 3px 6px;
+    border-radius: 4px;
+  }
+  .tp-search-preview-text.tp-muted {
+    color: var(--tp-dim);
+    font-size: 11px;
+  }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
@@ -8182,8 +8233,8 @@ const SHADOW_MODAL_STYLES = `
   <div class="tp-section-body" id="tp-section-review-body">
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
-              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon. Klick öffnet eine Google-Suche nach dem Produkt in einem neuen Tab.">Web-Suche (🌐) anzeigen</label>
-              <span class="tp-switch-desc">Google-Suche pro Produktname in neuem Tab</span>
+              <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
+              <span class="tp-switch-desc">Zeigt auf jeder Produktkarte ein Icon für die externe Web- und KI-Suche</span>
             </div>
             <label class="tp-switch tp-purple">
               <input type="checkbox" id="tp-review-search-toggle">
@@ -8192,24 +8243,46 @@ const SHADOW_MODAL_STYLES = `
           </div>
           <div class="tp-settings-group">
             <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
-            <div id="tp-search-keyword-chips">
-              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?">Deal-Frage mit Preis</button>
-              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen">Testbericht</button>
-              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
-              <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+              <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
             </div>
-            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" spellcheck="false" autocomplete="off">
-            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten); ohne Preis wird die Preisfrage automatisch entfernt.</span>
+            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. Platzhalter <code>{preis}</code> setzt den Deal-Preis ein (ohne Preisdaten wird der Preisteil automatisch weggelassen).</span>
+            <div class="tp-search-preview-box">
+              <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
+              <div class="tp-search-preview-row">
+                <span class="tp-search-preview-badge">Mit Deal-Preis:</span>
+                <span id="tp-review-keyword-preview" class="tp-search-preview-text"></span>
+              </div>
+              <div class="tp-search-preview-row" id="tp-review-keyword-preview-noprice-row">
+                <span class="tp-search-preview-badge">Ohne Preis:</span>
+                <span id="tp-review-keyword-preview-noprice" class="tp-search-preview-text tp-muted"></span>
+              </div>
+            </div>
           </div>
+
+          <div class="tp-settings-subhead">Google-Suche</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im Google KI-Modus öffnen</label>
+              <span class="tp-switch-desc">Google AI Overview Modus (&udm=50) statt klassischer Trefferliste</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-review-ai-mode-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+
+          <div class="tp-settings-subhead">Tavily KI-Suche (Direkt-Fazit & Discord)</div>
           <div class="tp-settings-group">
-            <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">🤖 Tavily KI-Suche (Direkt-Fazit & Discord)</label>
+            <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
             <div id="tp-tavily-api-key-collapsed">
               <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
               <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
             </div>
             <div id="tp-tavily-api-key-editor" style="display: none;">
               <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a>. Ermöglicht 1-Klick Kurzfazit auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt privat im Userscript.</span>
+              <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a> (1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit per 1-Klick auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt lokal im Browser.</span>
             </div>
           </div>
           <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -8229,16 +8302,6 @@ const SHADOW_MODAL_STYLES = `
                 <option value="10">10 Quellen</option>
               </select>
             </div>
-          </div>
-          <div class="tp-settings-group tp-switch-container">
-            <div class="tp-switch-label">
-              <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im KI-Modus suchen</label>
-              <span class="tp-switch-desc">Google AI Mode statt klassischer Trefferliste</span>
-            </div>
-            <label class="tp-switch tp-purple">
-              <input type="checkbox" id="tp-review-ai-mode-toggle">
-              <span class="tp-slider"></span>
-            </label>
           </div>
   </div>
         </section>
@@ -8398,6 +8461,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Element-lookup table: one record, shared by sync/bind/actions.
   function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
@@ -8444,6 +8508,10 @@ const SHADOW_MODAL_STYLES = `
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
     const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
     const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
+    const reviewKeywordReset = shadow.getElementById('tp-review-keyword-reset');
+    const reviewKeywordPreview = shadow.getElementById('tp-review-keyword-preview');
+    const reviewKeywordPreviewNoPrice = shadow.getElementById('tp-review-keyword-preview-noprice');
+    const reviewKeywordPreviewNoPriceRow = shadow.getElementById('tp-review-keyword-preview-noprice-row');
     const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
     const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
     const tavilyApiKeyReveal = shadow.getElementById('tp-tavily-api-key-reveal');
@@ -8467,7 +8535,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -8552,6 +8620,24 @@ const SHADOW_MODAL_STYLES = `
       if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
       if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
       renderLayoutPreview(els);
+      updateKeywordPreview(els);
+  }
+
+  function updateKeywordPreview(els) {
+    if (!els.reviewKeywordInput || !els.reviewKeywordPreview) return;
+    const kw = els.reviewKeywordInput.value.trim();
+    const sampleProduct = 'Sony WH-1000XM5';
+    const samplePrice = 'CHF 279.00';
+    const expandedWithPrice = expandKeywordWithPrice(kw, samplePrice);
+    const expandedNoPrice = expandKeywordWithPrice(kw, '');
+
+    els.reviewKeywordPreview.textContent = `${sampleProduct} ${expandedWithPrice}`.trim();
+    if (els.reviewKeywordPreviewNoPrice) {
+      els.reviewKeywordPreviewNoPrice.textContent = `${sampleProduct} ${expandedNoPrice}`.trim();
+    }
+    if (els.reviewKeywordPreviewNoPriceRow) {
+      els.reviewKeywordPreviewNoPriceRow.style.display = kw.includes('{preis}') ? '' : 'none';
+    }
   }
 
   function bindDual(rangeEl, numEl, onInput = null) {
@@ -8725,32 +8811,11 @@ const SHADOW_MODAL_STYLES = `
       els.discordLayoutInput.focus();
       scheduleLayoutPreview(els);
     });
-    els.shadow.getElementById('tp-search-keyword-chips')?.addEventListener('mousedown', e => {
-      // Capture the caret before the chip click blurs the input; never-focused = end.
-      const btn = e.target?.closest?.('button');
-      const input = els.reviewKeywordInput;
-      if (!btn || !input) return;
-      const focused = input.getRootNode().activeElement === input;
-      btn.dataset.selStart = String(focused ? input.selectionStart ?? input.value.length : input.value.length);
-      btn.dataset.selEnd = String(focused ? input.selectionEnd ?? input.value.length : input.value.length);
-    });
-    els.shadow.getElementById('tp-search-keyword-chips')?.addEventListener('click', e => {
-      const btn = e.target?.closest?.('button');
-      if (!btn || !els.reviewKeywordInput) return;
-      const preset = btn.dataset.preset;
-      const token = btn.dataset.token;
-      if (preset !== undefined) {
-        els.reviewKeywordInput.value = preset;
-      } else if (token) {
-        const start = parseInt(btn.dataset.selStart ?? '', 10);
-        const end = parseInt(btn.dataset.selEnd ?? '', 10);
-        const atEnd = !Number.isFinite(start) || !Number.isFinite(end) || start > els.reviewKeywordInput.value.length;
-        const selStart = atEnd ? els.reviewKeywordInput.value.length : start;
-        const selEnd = atEnd ? els.reviewKeywordInput.value.length : Math.min(Math.max(end, selStart), els.reviewKeywordInput.value.length);
-        els.reviewKeywordInput.value = els.reviewKeywordInput.value.slice(0, selStart) + token + els.reviewKeywordInput.value.slice(selEnd);
-      } else {
-        return;
-      }
+    els.reviewKeywordInput?.addEventListener('input', () => updateKeywordPreview(els));
+    els.reviewKeywordReset?.addEventListener('click', () => {
+      if (!els.reviewKeywordInput) return;
+      els.reviewKeywordInput.value = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+      updateKeywordPreview(els);
       els.reviewKeywordInput.focus();
     });
     els.discordLayoutReset?.addEventListener('click', () => {
@@ -11159,7 +11224,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.361';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.362';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
