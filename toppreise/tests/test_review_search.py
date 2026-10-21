@@ -5,8 +5,13 @@ from playwright.sync_api import Page, expect
 from conftest import open_settings, seed_verified_deal
 
 
-def _google_url(name, keyword):
-    return 'https://www.google.com/search?q=' + quote(f'{name} {keyword}')
+def _google_url(name, keyword=None):
+    query = f'{name} {keyword}' if keyword is not None else name
+    return 'https://www.google.com/search?q=' + quote(query)
+
+
+DEFAULT_KEYWORD = 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+DEFAULT_UNVERIFIED_QUERY = 'Testberichte zu: Nvidia GeForce RTX 4090 24GB. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
 
 
 def test_review_icon_per_card_default(page: Page):
@@ -19,7 +24,7 @@ def test_review_icon_per_card_default(page: Page):
     assert first.text_content() == '🌐'
     assert first.get_attribute('target') == '_blank'
     # Default question clause with {preis} is gracefully dropped on unverified card
-    assert first.get_attribute('href') == _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen')
+    assert first.get_attribute('href') == _google_url(DEFAULT_UNVERIFIED_QUERY)
 
     # Icon sits at the end of the product name, not floating on the card
     assert page.evaluate(
@@ -68,9 +73,9 @@ def test_review_empty_keyword_falls_back_to_default(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen')
+        _google_url(DEFAULT_UNVERIFIED_QUERY)
     open_settings(page)
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == DEFAULT_KEYWORD
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -82,7 +87,7 @@ def test_review_ai_mode_appends_udm50(page: Page):
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     first = page.locator('#card-cheapest a.tp-review-search-btn')
     assert first.get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen') + '&udm=50'
+        _google_url(DEFAULT_UNVERIFIED_QUERY) + '&udm=50'
 
     # Uncheck -> suffix gone
     open_settings(page)
@@ -90,7 +95,7 @@ def test_review_ai_mode_appends_udm50(page: Page):
     page.click('#tp-root >> #tp-btn-save')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen')
+        _google_url(DEFAULT_UNVERIFIED_QUERY)
 
 
 def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
@@ -100,10 +105,10 @@ def test_review_legacy_ki_modus_migrates(page: Page, userscript_content):
     page.evaluate(userscript_content)
     page.wait_for_selector('#tp-root >> #tp-settings-fab')
     assert page.locator('#card-cheapest a.tp-review-search-btn').get_attribute('href') == \
-        _google_url('Nvidia GeForce RTX 4090 24GB', 'Testbericht Erfahrungen') + '&udm=50'
+        _google_url(DEFAULT_UNVERIFIED_QUERY) + '&udm=50'
     open_settings(page)
     assert page.locator('#tp-root >> #tp-review-ai-mode-toggle').is_checked()
-    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?'
+    assert page.locator('#tp-root >> #tp-review-keyword-input').input_value() == DEFAULT_KEYWORD
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -140,8 +145,8 @@ def test_review_keyword_reset_to_default(page: Page):
     assert preview_el.inner_text() == 'Sony WH-1000XM5 Eigene Suche'
 
     page.click('#tp-root >> #tp-review-keyword-reset')
-    assert input_el.input_value() == 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?'
-    assert preview_el.inner_text() == 'Sony WH-1000XM5 Testbericht Erfahrungen. Ist der Preis von CHF 279.00 ein guter Deal?'
+    assert input_el.input_value() == 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    assert preview_el.inner_text() == 'Testberichte zu: Sony WH-1000XM5. zum preis: CHF 279.00. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -152,8 +157,8 @@ def test_review_keyword_live_preview(page: Page):
     preview_noprice = page.locator('#tp-root >> #tp-review-keyword-preview-noprice')
     noprice_row = page.locator('#tp-root >> #tp-review-keyword-preview-noprice-row')
 
-    assert preview_price.inner_text() == 'Sony WH-1000XM5 Testbericht Erfahrungen. Ist der Preis von CHF 279.00 ein guter Deal?'
-    assert preview_noprice.inner_text() == 'Sony WH-1000XM5 Testbericht Erfahrungen'
+    assert preview_price.inner_text() == 'Testberichte zu: Sony WH-1000XM5. zum preis: CHF 279.00. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    assert preview_noprice.inner_text() == 'Testberichte zu: Sony WH-1000XM5. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
     assert noprice_row.is_visible()
 
     page.fill('#tp-root >> #tp-review-keyword-input', 'Kaufberatung')

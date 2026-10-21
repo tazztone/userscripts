@@ -7,7 +7,7 @@ import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, hori
 import { renderLayout, validateLayoutRecipe, getLayoutRecipeNotice, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
 import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
-import { expandKeywordWithPrice } from '../features/tavily-search.js';
+import { expandKeywordWithPrice, formatSearchQuery } from '../features/tavily-search.js';
 
 // Element-lookup table: one record, shared by sync/bind/actions.
 export function collectModalElements(shadow) {
@@ -175,12 +175,12 @@ export function updateKeywordPreview(els) {
   const kw = els.reviewKeywordInput.value.trim();
   const sampleProduct = 'Sony WH-1000XM5';
   const samplePrice = 'CHF 279.00';
-  const expandedWithPrice = expandKeywordWithPrice(kw, samplePrice);
-  const expandedNoPrice = expandKeywordWithPrice(kw, '');
+  const expandedWithPrice = formatSearchQuery(sampleProduct, kw, samplePrice);
+  const expandedNoPrice = formatSearchQuery(sampleProduct, kw, '');
 
-  els.reviewKeywordPreview.textContent = `${sampleProduct} ${expandedWithPrice}`.trim();
+  els.reviewKeywordPreview.textContent = expandedWithPrice;
   if (els.reviewKeywordPreviewNoPrice) {
-    els.reviewKeywordPreviewNoPrice.textContent = `${sampleProduct} ${expandedNoPrice}`.trim();
+    els.reviewKeywordPreviewNoPrice.textContent = expandedNoPrice;
   }
   if (els.reviewKeywordPreviewNoPriceRow) {
     els.reviewKeywordPreviewNoPriceRow.style.display = kw.includes('{preis}') ? '' : 'none';

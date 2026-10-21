@@ -11,6 +11,7 @@ import {
   clearTavilyCache,
   buildTavilyQuery,
   expandKeywordWithPrice,
+  formatSearchQuery,
   fetchTavilySummary
 } from '../../src/features/tavily-search.js';
 
@@ -34,13 +35,38 @@ describe('tavily-search: query & normalization', () => {
       expandKeywordWithPrice('Preiseinschätzung {preis}', ''),
       'Preiseinschätzung'
     );
+    const newTemplate = 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.';
+    assert.equal(
+      expandKeywordWithPrice(newTemplate, 'CHF 13.95'),
+      'Testberichte zu: [Produkt]. zum preis: CHF 13.95. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    );
+    assert.equal(
+      expandKeywordWithPrice(newTemplate, ''),
+      'Testberichte zu: [Produkt]. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    );
+  });
+
+  it('formats search query with product and price tokens', () => {
+    const template = 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.';
+    assert.equal(
+      formatSearchQuery('MUSE M-272 BT', template, 'CHF 13.95'),
+      'Testberichte zu: MUSE M-272 BT. zum preis: CHF 13.95. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    );
+    assert.equal(
+      formatSearchQuery('MUSE M-272 BT', template, ''),
+      'Testberichte zu: MUSE M-272 BT. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    );
+    assert.equal(
+      formatSearchQuery('MUSE M-272 BT', 'Testbericht', ''),
+      'MUSE M-272 BT Testbericht'
+    );
   });
 
   it('builds query with title, keyword and price', () => {
-    const q1 = buildTavilyQuery('Roborock S8 Pro Ultra', 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?', 'CHF 899.00');
+    const q1 = buildTavilyQuery('Roborock S8 Pro Ultra', 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.', 'CHF 899.00');
     assert.ok(q1.includes('Roborock S8 Pro Ultra'));
     assert.ok(q1.includes('CHF 899.00'));
-    assert.ok(q1.includes('Deutsch'));
+    assert.ok(q1.includes('Urteil'));
 
     const q2 = buildTavilyQuery('Apple iPad Air', 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?', '');
     assert.ok(q2.includes('Apple iPad Air'));
@@ -124,6 +150,7 @@ describe('tavily-search: fetchTavilySummary', () => {
       assert.equal(parsed.api_key, 'tvly-secret');
       assert.equal(parsed.search_depth, 'basic');
       assert.equal(parsed.include_answer, true);
+      assert.equal(parsed.language, 'de');
 
       return {
         ok: true,

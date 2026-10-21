@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.362
+// @version      2.18.363
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3052,7 +3052,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_MAX_GLITCH_HOURS: 48,
     ENABLE_SPARKLINES: true,
     REVIEW_SEARCH_ENABLED: true,
-    REVIEW_SEARCH_KEYWORD: 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?',
+    REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.',
     REVIEW_SEARCH_AI_MODE: false,
     TAVILY_API_KEY: '',
     TAVILY_SEARCH_DEPTH: 'basic',
@@ -3146,7 +3146,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
     ENABLE_SPARKLINES: { type: 'bool', default: true },
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
-    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?' },
+    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
     TAVILY_API_KEY: { type: 'string', default: '' },
     TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
@@ -3450,7 +3450,7 @@ const SHADOW_MODAL_STYLES = `
     OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
     DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
   };
-  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 100) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 150) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
   // 0% is a legitimate threshold (check everything): only non-numeric storage
   // falls back to 30 — `|| 30` would silently discard an explicit 0.
   const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
@@ -3458,9 +3458,11 @@ const SHADOW_MODAL_STYLES = `
   // NaN/unknown durations.
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
   if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
-  // Old default was plain 'Testbericht'; every settings save persisted it, so
-  // bump untouched values to the new default (KI-Modus precedent above).
-  if (CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht') CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  // Old defaults were plain 'Testbericht' or the previous deal-question prompt; bump
+  // untouched values to the new default (KI-Modus precedent above).
+  if (CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht' || CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?') {
+    CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  }
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
   if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
@@ -5195,18 +5197,27 @@ const SHADOW_MODAL_STYLES = `
 
     // Gracefully drop sentence or clause asking about {preis} when no price is available
     return kw
-      .replace(/(?:[.,;]?\s*)?(?:Ist\s+(?:der\s+)?Preis\s+von\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?/gi, '')
+      .replace(/(?:[.,;]\s+)(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?(?:\.|\?|;)(?=\s+\S)/gi, '.')
+      .replace(/(?:[.,;]?\s*)?(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?[.,;]?/gi, '')
+      .replace(/\s*\.\s*\./g, '.')
+      .replace(/^\.\s*/, '')
       .replace(/\s*-\s*$/, '')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
-  function buildTavilyQuery(title, keyword = '', priceText = '') {
-    const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
-    const kw = expandKeywordWithPrice(keyword, priceText);
+  function formatSearchQuery(productTitle, keyword, priceText = '') {
+    const cleanTitle = String(productTitle || '').replace(/\s+/g, ' ').trim();
+    let kw = expandKeywordWithPrice(keyword, priceText);
+    if (/\{produkt\}|\[produkt\]/i.test(kw)) {
+      return kw.replace(/\{produkt\}|\[produkt\]/gi, cleanTitle).replace(/\s+/g, ' ').trim();
+    }
+    return `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
+  }
 
-    let full = `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
-    if (!/deutsch|fazit/i.test(full)) {
+  function buildTavilyQuery(title, keyword = '', priceText = '') {
+    let full = formatSearchQuery(title, keyword, priceText);
+    if (!/deutsch|fazit|urteil/i.test(full)) {
       full = `${full} Kurzes Fazit auf Deutsch.`;
     }
 
@@ -5248,6 +5259,7 @@ const SHADOW_MODAL_STYLES = `
         query: normalized,
         search_depth: searchDepth,
         include_answer: true,
+        language: 'de',
         max_results: maxResults
       });
 
@@ -7797,7 +7809,7 @@ const SHADOW_MODAL_STYLES = `
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
       const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
       const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
-      const reviewKw = expandKeywordWithPrice(rawKw, priceText);
+      const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
       const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
       let reviewBtn = card.querySelector('.tp-review-search-btn');
@@ -7825,10 +7837,10 @@ const SHADOW_MODAL_STYLES = `
         });
       }
       reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
-      reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`) + (aiMode ? '&udm=50' : '');
+      reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
       const tipText = hasTavily
-        ? `KI-Fazit & Google-Suche: ${reviewName} ${reviewKw}`
-        : `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`;
+        ? `KI-Fazit & Google-Suche: ${fullQuery}`
+        : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
       setTitleIfChanged(reviewBtn, tipText);
       reviewBtn.setAttribute('aria-label', tipText);
       const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
@@ -8242,12 +8254,12 @@ const SHADOW_MODAL_STYLES = `
             </label>
           </div>
           <div class="tp-settings-group">
-            <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
+            <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
             <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
               <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
             </div>
-            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. Platzhalter <code>{preis}</code> setzt den Deal-Preis ein (ohne Preisdaten wird der Preisteil automatisch weggelassen).</span>
+            <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
             <div class="tp-search-preview-box">
               <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
               <div class="tp-search-preview-row">
@@ -8628,12 +8640,12 @@ const SHADOW_MODAL_STYLES = `
     const kw = els.reviewKeywordInput.value.trim();
     const sampleProduct = 'Sony WH-1000XM5';
     const samplePrice = 'CHF 279.00';
-    const expandedWithPrice = expandKeywordWithPrice(kw, samplePrice);
-    const expandedNoPrice = expandKeywordWithPrice(kw, '');
+    const expandedWithPrice = formatSearchQuery(sampleProduct, kw, samplePrice);
+    const expandedNoPrice = formatSearchQuery(sampleProduct, kw, '');
 
-    els.reviewKeywordPreview.textContent = `${sampleProduct} ${expandedWithPrice}`.trim();
+    els.reviewKeywordPreview.textContent = expandedWithPrice;
     if (els.reviewKeywordPreviewNoPrice) {
-      els.reviewKeywordPreviewNoPrice.textContent = `${sampleProduct} ${expandedNoPrice}`.trim();
+      els.reviewKeywordPreviewNoPrice.textContent = expandedNoPrice;
     }
     if (els.reviewKeywordPreviewNoPriceRow) {
       els.reviewKeywordPreviewNoPriceRow.style.display = kw.includes('{preis}') ? '' : 'none';
@@ -11224,7 +11236,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.362';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.363';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

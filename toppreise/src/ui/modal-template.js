@@ -55,12 +55,12 @@ export function ensureModalSection(shadow) {
           </label>
         </div>
         <div class="tp-settings-group">
-          <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
+          <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
           <div style="display:flex;gap:8px;align-items:center;">
-            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
             <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
           </div>
-          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. Platzhalter <code>{preis}</code> setzt den Deal-Preis ein (ohne Preisdaten wird der Preisteil automatisch weggelassen).</span>
+          <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
           <div class="tp-search-preview-box">
             <div class="tp-search-preview-title">Live-Vorschau (Beispiel: Sony WH-1000XM5)</div>
             <div class="tp-search-preview-row">

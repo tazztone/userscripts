@@ -21,7 +21,7 @@ import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried, renderHeat
 import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
-import { expandKeywordWithPrice } from '../../features/tavily-search.js';
+import { expandKeywordWithPrice, formatSearchQuery } from '../../features/tavily-search.js';
 
 export { renderShareButton };
 
@@ -246,7 +246,7 @@ export function renderReviewButton(ctx) {
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
     const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
     const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
-    const reviewKw = expandKeywordWithPrice(rawKw, priceText);
+    const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
     const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
     let reviewBtn = card.querySelector('.tp-review-search-btn');
@@ -274,10 +274,10 @@ export function renderReviewButton(ctx) {
       });
     }
     reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
-    reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`) + (aiMode ? '&udm=50' : '');
+    reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
     const tipText = hasTavily
-      ? `KI-Fazit & Google-Suche: ${reviewName} ${reviewKw}`
-      : `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`;
+      ? `KI-Fazit & Google-Suche: ${fullQuery}`
+      : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
     setTitleIfChanged(reviewBtn, tipText);
     reviewBtn.setAttribute('aria-label', tipText);
     const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');

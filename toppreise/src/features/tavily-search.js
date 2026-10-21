@@ -94,18 +94,27 @@ export function expandKeywordWithPrice(keyword, priceText = '') {
 
   // Gracefully drop sentence or clause asking about {preis} when no price is available
   return kw
-    .replace(/(?:[.,;]?\s*)?(?:Ist\s+(?:der\s+)?Preis\s+von\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?/gi, '')
+    .replace(/(?:[.,;]\s+)(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?(?:\.|\?|;)(?=\s+\S)/gi, '.')
+    .replace(/(?:[.,;]?\s*)?(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?[.,;]?/gi, '')
+    .replace(/\s*\.\s*\./g, '.')
+    .replace(/^\.\s*/, '')
     .replace(/\s*-\s*$/, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-export function buildTavilyQuery(title, keyword = '', priceText = '') {
-  const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
-  const kw = expandKeywordWithPrice(keyword, priceText);
+export function formatSearchQuery(productTitle, keyword, priceText = '') {
+  const cleanTitle = String(productTitle || '').replace(/\s+/g, ' ').trim();
+  let kw = expandKeywordWithPrice(keyword, priceText);
+  if (/\{produkt\}|\[produkt\]/i.test(kw)) {
+    return kw.replace(/\{produkt\}|\[produkt\]/gi, cleanTitle).replace(/\s+/g, ' ').trim();
+  }
+  return `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
+}
 
-  let full = `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
-  if (!/deutsch|fazit/i.test(full)) {
+export function buildTavilyQuery(title, keyword = '', priceText = '') {
+  let full = formatSearchQuery(title, keyword, priceText);
+  if (!/deutsch|fazit|urteil/i.test(full)) {
     full = `${full} Kurzes Fazit auf Deutsch.`;
   }
 
@@ -147,6 +156,7 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
       query: normalized,
       search_depth: searchDepth,
       include_answer: true,
+      language: 'de',
       max_results: maxResults
     });
 

@@ -144,7 +144,7 @@ export const CONFIG = {
   OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
   DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
 };
-export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 100) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 150) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
 // 0% is a legitimate threshold (check everything): only non-numeric storage
 // falls back to 30 — `|| 30` would silently discard an explicit 0.
 export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
@@ -152,9 +152,11 @@ export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_D
 // NaN/unknown durations.
 if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
 if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
-// Old default was plain 'Testbericht'; every settings save persisted it, so
-// bump untouched values to the new default (KI-Modus precedent above).
-if (CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht') CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+// Old defaults were plain 'Testbericht' or the previous deal-question prompt; bump
+// untouched values to the new default (KI-Modus precedent above).
+if (CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht' || CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?') {
+  CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
+}
 CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
 if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
