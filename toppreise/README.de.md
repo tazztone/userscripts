@@ -120,7 +120,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 * **Webhook-Integration:** Verifizierte Tiefstpreis-Karten zeigen bei Hover einen `📤`-Button, der den Deal via Webhook in Discord-Kanäle oder Foren-Threads postet. Bereits geteilte Karten bleiben markiert.
 * **High-DPI Chart & Produktbild:** Rendert den Preisverlauf mit Achsenraster als PNG und hängt ihn zusammen mit dem Produktbild an (dient in Foren-Kanälen als Thread-Vorschau).
-* **Layout-Baukasten:** Eigene Nachrichtenstruktur mit Tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{link}`), Presets (*Kompakt*, *Ausführlich*, *Minimal*), Live-Markdown-Vorschau und getrennten Embed-Schaltern.
+* **Layout-Baukasten:** Eigene Nachrichtenstruktur mit Tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), Presets (*Kompakt*, *Ausführlich*, *Minimal*), Live-Markdown-Vorschau und getrennten Embed-Schaltern.
 
 ---
 
@@ -134,7 +134,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |
 | **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den grossen interaktiven Preishistorien-Chart. |
 | **Share-Button (`📤`)** | Unten links auf Deal-Karte | Postet Deal, Text-Übersicht und PNG-Chart an den Discord-Webhook. |
-| **Review-Suche (`🌐`)** | Hover am Produkttitel | Öffnet Google-Suche nach Testberichten in neuem Tab (optional mit KI-Modus `&udm=50`). |
+| **Web-Suche & KI-Fazit (`🌐`)** | Hover am Produkttitel | Klick öffnet KI-Kurzfazit auf der Karte (mit Tavily Key) oder Google-Suche in neuem Tab. |
 | **Einstellungen-Button (`⚙️`)** | Schwebend unten rechts | Öffnet das gekapselte Shadow-DOM-Einstellungsmenü. |
 
 ### ⌨️ Tastatur-Shortcuts
@@ -192,11 +192,11 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 | ⑤ | **Daten- & Cache-Verwaltung** | Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`), Cache-TTL und Konfigurations-Export. |
 
 1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten, Werbeplätze/Banner ausblenden (entfernt leere Werbeflächen oben und im Layout) und Deal-Intensität / Heatmap-Stärke (20%–100%).
-2. **🌐 Review-Suche:** Schalter für Google-Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (z. B. „Testbericht“) und Google-KI-Modus (`&udm=50`).
+2. **🌐 Web-Suche & KI-Fazit:** Schalter für Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (inkl. `{preis}`), Google-KI-Modus (`&udm=50`) und Tavily API-Key (ermöglicht 1-Klick KI-Fazit direkt auf der Karte und `{ai}` im Discord-Share; 48h gecached).
 3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.
 5. **🔔 Preisalarm:** Zielpreis-Prozentsatz (5%–99%, Standard 60%), Laufzeit (3, 6, 12, 24 Monate) und automatisches Absenden & Schliessen.
-6. **💬 Discord Share:** Webhook-URL (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, etc.), Presets und Live-Markdown-Vorschau.
+6. **💬 Discord Share:** Webhook-URL (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, `{ai}`, etc.), Presets und Live-Markdown-Vorschau.
 7. **💾 Daten & Cache:** Händler-Autoload, Gewichtete Differenz (Sortierung + Farb-Emphase), Mindest-Datenpunkte, Median-Berechnungszeitraum, Prüf-Vorauswahl für Batch-Check, Versandkosten-Basis (`inkl. Versand`), Sparklines, Cache-TTL, Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`) und Konfigurations-Export/Import.
 
 ---
@@ -205,10 +205,10 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 * **Lokaler Cache:** Preishistorien (`tp_hist_v1_*`), Händlerdaten (`tp_dealer_v1_*`) und Deal-Marker (`tp_shared_v1_*`) liegen in `localStorage` mit einem 500-Einträge-LRU-Speicher im Arbeitsspeicher und werden per TTL bereinigt (48h für gültige Daten, 2h für nicht verfügbare Charts).
 * **2-Ebenen-Persistenz:** Einstellungen und Negativfilter nutzen ein ausfallsicheres System (`GM_setValue` / `GM_getValue` mit automatischem `localStorage`-Backup), das Skript-Neuinstallationen übersteht.
-* **Sicherheit des Discord-Webhooks:** Die Webhook-URL wird ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangt **niemals** in das seitenlesbare `localStorage` und wird bei JSON-Exporten automatisch entfernt.
+* **Sicherheit vertraulicher Keys:** Webhook-URL und Tavily API-Key werden ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangen **niemals** in das seitenlesbare `localStorage` und werden bei JSON-Exporten automatisch entfernt.
 * **Erforderliche Berechtigungen:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolierte Speicherung der Einstellungen.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`): Ausschliesslich für den Download von Produktbildern für Deal-Anhänge und das Senden an den konfigurierten Discord-Webhook.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`): Für Produktbilder, Discord-Webhooks und Tavily Web-Synthese.
 
 ---
 

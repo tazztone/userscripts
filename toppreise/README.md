@@ -121,7 +121,7 @@ Requires a userscript manager browser extension:
 
 * **One-Click Webhook Sharing:** Verified all-time low cards display a `📤` button on hover (semi-transparent on touch devices) that posts the deal directly to your Discord channel or Forum thread via webhook. Shared cards retain an illuminated share icon.
 * **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels).
-* **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
+* **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
 
 ---
 
@@ -135,7 +135,7 @@ Requires a userscript manager browser extension:
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
 | **Share Button (`📤`)** | Bottom-left of verified card | Posts deal, sparkline, and chart PNG to Discord webhook (hover on desktop, semi-transparent on touch). |
-| **Web Search (`🌐`)** | Next to product title | Opens Google search for product in a new tab (hover on desktop, semi-transparent on touch). |
+| **Web Search & AI Verdict (`🌐`)** | Next to product title | Opens AI review verdict modal (with Tavily key) or Google search in a new tab. |
 | **Settings FAB (`⚙️`)** | Bottom-right floating button | Opens the encapsulated Shadow DOM settings modal. |
 
 ### ⌨️ Keyboard Shortcuts
@@ -193,11 +193,11 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
 
 1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, hide ad placeholders / banners (removes top blank space and layout ad slots), and deal intensity / heatmap strength (20%–100%).
-2. **🌐 Web Search (*Web-Suche*):** Google search toggle (`🌐`) on product titles, custom keyword with presets and `{preis}` token (current card price, verified history only), and Google AI mode (`&udm=50`).
+2. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`) on product titles, custom keyword with presets and `{preis}` token (current card price, verified history only), Google AI mode (`&udm=50`), and Tavily API key for 1-click in-page AI test verdicts and `{ai}` Discord sharing (48h cached).
 3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
-6. **💬 Discord Share:** Confidential webhook URL (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, etc.), presets, and live Markdown preview.
+6. **💬 Discord Share:** Confidential webhook URL (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, `{ai}`, etc.), presets, and live Markdown preview.
 7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, configurable RAM & disk cache limits, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
 
 ---
@@ -206,10 +206,10 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 * **Local-First Caching:** Price series (`tp_hist_v1_*`), merchant metadata (`tp_dealer_v1_*`), and shared-deal markers (`tp_shared_v1_*`) are stored in `localStorage` backed by an in-memory LRU cache with configurable limits (default: 500 RAM / 300 disk items) and automatically pruned by TTL (48h for valid data, 2h for unavailable charts).
 * **Two-Layer Persistence:** Preferences and negative filters use a resilient 2-layer storage architecture (`GM_setValue` / `GM_getValue` with domain `localStorage` auto-healing backup) that survives userscript reinstalls.
-* **Webhook Confidentiality:** Your `DISCORD_WEBHOOK_URL` is saved exclusively in private userscript manager storage (`GM_setValue`). It is **never** mirrored to page-accessible `localStorage` and is automatically stripped from JSON configuration exports.
+* **Secrets Confidentiality:** Your `DISCORD_WEBHOOK_URL` and `TAVILY_API_KEY` are saved exclusively in private userscript manager storage (`GM_setValue`). They are **never** mirrored to page-accessible `localStorage` and are automatically stripped from JSON configuration exports.
 * **Granted Permissions:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolated persistent configuration storage.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`): Strictly used to fetch same-origin product images for Discord attachments and dispatch deal payloads to your configured Discord webhook.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, and request Tavily search summaries.
 
 ---
 

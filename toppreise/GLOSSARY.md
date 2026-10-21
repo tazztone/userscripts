@@ -8,6 +8,10 @@ Begriffe der Suite zur Verifizierung historischer Tiefstpreise auf Toppreise.ch.
 Google-Suche am Produktnamen mit frei konfigurierbarem Suchbegriff (inkl. `{preis}`-Token für den aktuellen Kartenpreis).
 _Avoid_: Review-Suche, Testbericht-Suche
 
+**KI-Kurzfazit**:
+Synthetisierte 1–3-Satz-Zusammenfassung aus Testberichten und Preiseinschätzung via Tavily AI (🌐 auf der Karte und `{ai}` im Discord-Share). 48h persistent gecached zur Schonung des monatlichen Kontingents (1'000 kostenlose Anfragen).
+_Avoid_: AI-Review, Test-Bot
+
 **Tiefstpreis**:
 Der niedrigste belegte historische Preis eines Produkts.
 _Avoid_: Real Deal, Bestpreis (als Synonym für den verifizierten Tiefstpreis)
