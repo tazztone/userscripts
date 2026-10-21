@@ -8,6 +8,20 @@ import { CONFIG } from '../../state/config.js';
 import { buildTavilyQuery, fetchTavilySummary, getCachedTavily } from '../../features/tavily-search.js';
 import { showToast } from '../toast.js';
 
+export function formatVerdictHtml(text) {
+  if (!text) return '';
+  const escaped = String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/(^|\n)[ \t]*[-*][ \t]+/g, '$1• ');
+}
+
 let activeAiPopoverCleanup = null;
 
 export function closeAiPopover() {
@@ -39,7 +53,7 @@ export function openAiPopover(options = {}) {
   backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);backdrop-filter:blur(2px);padding:16px;box-sizing:border-box;';
 
   const panel = document.createElement('div');
-  panel.style.cssText = 'background:var(--tp-bg, #1e293b);color:var(--tp-txt, #f8fafc);border:1px solid var(--tp-line-soft, #334155);border-radius:var(--tp-r-lg, 12px);padding:18px 20px;max-width:min(520px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;flex-direction:column;gap:12px;';
+  panel.style.cssText = 'background:var(--tp-bg, #1e293b);color:var(--tp-txt, #f8fafc);border:1px solid var(--tp-line-soft, #334155);border-radius:var(--tp-r-lg, 12px);padding:18px 20px;max-width:min(520px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;flex-direction:column;gap:12px;';
 
   // Header row
   const header = document.createElement('div');
@@ -81,13 +95,13 @@ export function openAiPopover(options = {}) {
 
   // Body content: loading / result / error
   const contentEl = document.createElement('div');
-  contentEl.style.cssText = 'font-size:13px;line-height:1.55;color:var(--tp-txt-mid, #cbd5e1);min-height:56px;background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;border-left:3px solid #5865f2;';
+  contentEl.style.cssText = 'font-size:13px;line-height:1.55;color:var(--tp-txt-mid, #cbd5e1);min-height:56px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;border-left:3px solid #5865f2;';
 
   let currentVerdict = '';
 
   const renderVerdict = (text) => {
     currentVerdict = text;
-    contentEl.textContent = text;
+    contentEl.innerHTML = formatVerdictHtml(text);
     copyBtn.disabled = false;
   };
 
