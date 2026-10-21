@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.360
+// @version      2.18.361
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -8646,6 +8646,33 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  function snapshotModalState(dialog) {
+    if (!dialog) return null;
+    const state = new Map();
+    const fields = dialog.querySelectorAll('input:not([type="file"]), select, textarea');
+    for (const el of fields) {
+      if (!el.id) continue;
+      if (el.type === 'checkbox' || el.type === 'radio') {
+        state.set(el.id, el.checked);
+      } else {
+        state.set(el.id, el.value);
+      }
+    }
+    return state;
+  }
+
+  function hasPendingChanges(dialog, initialSnapshot) {
+    if (!dialog || !initialSnapshot) return false;
+    const current = snapshotModalState(dialog);
+    if (!current) return false;
+    for (const [id, val] of initialSnapshot.entries()) {
+      if (current.get(id) !== val) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function wireModalActions(els) {
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -8818,15 +8845,22 @@ const SHADOW_MODAL_STYLES = `
       e.target.value = '';
     });
 
+    let initialSnapshot = null;
+
     const openModal = () => {
       syncFieldsFromConfig(els);
+      initialSnapshot = snapshotModalState(els.dialog);
       if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
       else els.dialog.setAttribute('open', '');
     };
 
     // Never leave a typed secret in the editor across sessions of the dialog.
-    const clearWebhookEditor = () => { if (els.discordWebhookInput) els.discordWebhookInput.value = ''; };
+    const clearWebhookEditor = () => {
+      if (els.discordWebhookInput) els.discordWebhookInput.value = '';
+      if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+    };
     const closeModal = () => {
+      initialSnapshot = null;
       clearWebhookEditor();
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       if (typeof els.dialog.close === 'function') els.dialog.close();
@@ -8835,10 +8869,28 @@ const SHADOW_MODAL_STYLES = `
 
     els.fabButton.addEventListener('click', openModal);
     els.btnClose.addEventListener('click', closeModal);
-    els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
+    els.dialog.addEventListener('click', e => {
+      if (e.target !== els.dialog) return;
+      const rect = els.dialog.getBoundingClientRect();
+      const isBackdrop = (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      );
+      if (!isBackdrop) return;
+
+      if (hasPendingChanges(els.dialog, initialSnapshot)) {
+        if (!window.confirm('Ungespeicherte Änderungen verwerfen?')) {
+          return;
+        }
+      }
+      closeModal();
+    });
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the els.shadow keydown handler — reset the preview anyway.
     els.dialog.addEventListener('close', () => {
+      initialSnapshot = null;
       clearWebhookEditor();
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
@@ -11107,7 +11159,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.360';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.361';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

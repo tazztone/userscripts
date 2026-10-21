@@ -16,6 +16,33 @@ import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets } from '.
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed } from './modal-template.js';
 
+export function snapshotModalState(dialog) {
+  if (!dialog) return null;
+  const state = new Map();
+  const fields = dialog.querySelectorAll('input:not([type="file"]), select, textarea');
+  for (const el of fields) {
+    if (!el.id) continue;
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      state.set(el.id, el.checked);
+    } else {
+      state.set(el.id, el.value);
+    }
+  }
+  return state;
+}
+
+export function hasPendingChanges(dialog, initialSnapshot) {
+  if (!dialog || !initialSnapshot) return false;
+  const current = snapshotModalState(dialog);
+  if (!current) return false;
+  for (const [id, val] of initialSnapshot.entries()) {
+    if (current.get(id) !== val) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
     const removed = clearPriceStatsCache();
@@ -188,15 +215,22 @@ export function wireModalActions(els) {
     e.target.value = '';
   });
 
+  let initialSnapshot = null;
+
   const openModal = () => {
     syncFieldsFromConfig(els);
+    initialSnapshot = snapshotModalState(els.dialog);
     if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
     else els.dialog.setAttribute('open', '');
   };
 
   // Never leave a typed secret in the editor across sessions of the dialog.
-  const clearWebhookEditor = () => { if (els.discordWebhookInput) els.discordWebhookInput.value = ''; };
+  const clearWebhookEditor = () => {
+    if (els.discordWebhookInput) els.discordWebhookInput.value = '';
+    if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+  };
   const closeModal = () => {
+    initialSnapshot = null;
     clearWebhookEditor();
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     if (typeof els.dialog.close === 'function') els.dialog.close();
@@ -205,10 +239,28 @@ export function wireModalActions(els) {
 
   els.fabButton.addEventListener('click', openModal);
   els.btnClose.addEventListener('click', closeModal);
-  els.dialog.addEventListener('click', e => { if (e.target === els.dialog) closeModal(); });
+  els.dialog.addEventListener('click', e => {
+    if (e.target !== els.dialog) return;
+    const rect = els.dialog.getBoundingClientRect();
+    const isBackdrop = (
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+    );
+    if (!isBackdrop) return;
+
+    if (hasPendingChanges(els.dialog, initialSnapshot)) {
+      if (!window.confirm('Ungespeicherte Änderungen verwerfen?')) {
+        return;
+      }
+    }
+    closeModal();
+  });
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the els.shadow keydown handler — reset the preview anyway.
   els.dialog.addEventListener('close', () => {
+    initialSnapshot = null;
     clearWebhookEditor();
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
