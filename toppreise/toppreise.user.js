@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.358
+// @version      2.18.359
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3001,9 +3001,11 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_MAX_GLITCH_HOURS: 48,
     ENABLE_SPARKLINES: true,
     REVIEW_SEARCH_ENABLED: true,
-    REVIEW_SEARCH_KEYWORD: 'Testbericht - {preis} Preiseinschätzung',
+    REVIEW_SEARCH_KEYWORD: 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?',
     REVIEW_SEARCH_AI_MODE: false,
     TAVILY_API_KEY: '',
+    TAVILY_SEARCH_DEPTH: 'basic',
+    TAVILY_MAX_RESULTS: 5,
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -3093,9 +3095,11 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
     ENABLE_SPARKLINES: { type: 'bool', default: true },
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
-    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht - {preis} Preiseinschätzung' },
+    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
     TAVILY_API_KEY: { type: 'string', default: '' },
+    TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
+    TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
     DEALER_AUTOFETCH: { type: 'bool', default: false },
     NEGATIVE_TERMS: { type: 'string', default: '' },
     DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
@@ -3376,6 +3380,8 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
     REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
     TAVILY_API_KEY: _getValue('TAVILY_API_KEY', DEFAULTS.TAVILY_API_KEY),
+    TAVILY_SEARCH_DEPTH: sanitizeConfigValue('TAVILY_SEARCH_DEPTH', _getValue('TAVILY_SEARCH_DEPTH', DEFAULTS.TAVILY_SEARCH_DEPTH)),
+    TAVILY_MAX_RESULTS: sanitizeConfigValue('TAVILY_MAX_RESULTS', _getValue('TAVILY_MAX_RESULTS', DEFAULTS.TAVILY_MAX_RESULTS)),
     DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
     NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -3393,7 +3399,7 @@ const SHADOW_MODAL_STYLES = `
     OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
     DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
   };
-  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+  const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 100) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
   // 0% is a legitimate threshold (check everything): only non-numeric storage
   // falls back to 30 — `|| 30` would silently discard an explicit 0.
   const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
@@ -3618,6 +3624,16 @@ const SHADOW_MODAL_STYLES = `
           case 'REVIEW_SEARCH_AI_MODE': {
             const toggle = shadow.getElementById('tp-review-ai-mode-toggle');
             if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'TAVILY_SEARCH_DEPTH': {
+            const select = shadow.getElementById('tp-tavily-search-depth');
+            if (select) select.value = val || 'basic';
+            break;
+          }
+          case 'TAVILY_MAX_RESULTS': {
+            const select = shadow.getElementById('tp-tavily-max-results');
+            if (select) select.value = String(val || 5);
             break;
           }
           case 'DISCORD_SUPPRESS_DEALER_EMBED': {
@@ -8177,13 +8193,12 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group">
             <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
             <div id="tp-search-keyword-chips">
-              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht">Testbericht</button>
-              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Erfahrungen">Erfahrungen</button>
-              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?">Deal-Frage mit Preis</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen">Testbericht</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
             </div>
-            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht - {preis} Preiseinschätzung" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
-            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard („Testbericht - {preis} Preiseinschätzung“). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
+            <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" spellcheck="false" autocomplete="off">
+            <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten); ohne Preis wird die Preisfrage automatisch entfernt.</span>
           </div>
           <div class="tp-settings-group">
             <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">🤖 Tavily KI-Suche (Direkt-Fazit & Discord)</label>
@@ -8194,6 +8209,24 @@ const SHADOW_MODAL_STYLES = `
             <div id="tp-tavily-api-key-editor" style="display: none;">
               <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
               <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a>. Ermöglicht 1-Klick Kurzfazit auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt privat im Userscript.</span>
+            </div>
+          </div>
+          <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:140px;">
+              <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
+              <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
+                <option value="basic">Basic (schnell, Standard)</option>
+                <option value="advanced">Advanced (gründlich)</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
+              <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
+                <option value="3">3 Quellen</option>
+                <option value="5" selected>5 Quellen (Standard)</option>
+                <option value="8">8 Quellen</option>
+                <option value="10">10 Quellen</option>
+              </select>
             </div>
           </div>
           <div class="tp-settings-group tp-switch-container">
@@ -8415,6 +8448,8 @@ const SHADOW_MODAL_STYLES = `
     const tavilyApiKeyReveal = shadow.getElementById('tp-tavily-api-key-reveal');
     const tavilyApiKeyEditor = shadow.getElementById('tp-tavily-api-key-editor');
     const tavilyApiKeyStatus = shadow.getElementById('tp-tavily-api-key-status');
+    const tavilySearchDepth = shadow.getElementById('tp-tavily-search-depth');
+    const tavilyMaxResults = shadow.getElementById('tp-tavily-max-results');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -8431,7 +8466,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -8504,6 +8539,8 @@ const SHADOW_MODAL_STYLES = `
       if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
       if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
       if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
+      if (els.tavilySearchDepth) els.tavilySearchDepth.value = CONFIG.TAVILY_SEARCH_DEPTH || 'basic';
+      if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(CONFIG.TAVILY_MAX_RESULTS || 5);
 
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
@@ -8863,6 +8900,11 @@ const SHADOW_MODAL_STYLES = `
       if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
       if (els.tavilyApiKeyInput && els.tavilyApiKeyEditor && els.tavilyApiKeyEditor.style.display !== 'none') {
         updates.TAVILY_API_KEY = String(els.tavilyApiKeyInput.value || '').trim();
+      }
+      if (els.tavilySearchDepth) updates.TAVILY_SEARCH_DEPTH = els.tavilySearchDepth.value === 'advanced' ? 'advanced' : 'basic';
+      if (els.tavilyMaxResults) {
+        const rawMax = parseInt(els.tavilyMaxResults.value, 10);
+        updates.TAVILY_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
       }
       if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
         const rawWebhook = String(els.discordWebhookInput.value || '').trim();
@@ -11064,7 +11106,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.358';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.359';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

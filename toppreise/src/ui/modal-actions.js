@@ -272,6 +272,11 @@ export function wireModalActions(els) {
     if (els.tavilyApiKeyInput && els.tavilyApiKeyEditor && els.tavilyApiKeyEditor.style.display !== 'none') {
       updates.TAVILY_API_KEY = String(els.tavilyApiKeyInput.value || '').trim();
     }
+    if (els.tavilySearchDepth) updates.TAVILY_SEARCH_DEPTH = els.tavilySearchDepth.value === 'advanced' ? 'advanced' : 'basic';
+    if (els.tavilyMaxResults) {
+      const rawMax = parseInt(els.tavilyMaxResults.value, 10);
+      updates.TAVILY_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
+    }
     if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
       const rawWebhook = String(els.discordWebhookInput.value || '').trim();
       if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {

@@ -57,13 +57,12 @@ export function ensureModalSection(shadow) {
         <div class="tp-settings-group">
           <label title="Dieser Begriff wird an den Produktnamen angehängt.">Suchbegriff</label>
           <div id="tp-search-keyword-chips">
-            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht">Testbericht</button>
-            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Erfahrungen">Erfahrungen</button>
-            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Preiseinschätzung {preis}">Preiseinschätzung</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?">Deal-Frage mit Preis</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-preset="Testbericht Erfahrungen">Testbericht</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{preis}">Preis {preis}</button>
           </div>
-          <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht - {preis} Preiseinschätzung" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
-          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard („Testbericht - {preis} Preiseinschätzung“). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
+          <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" maxlength="100" placeholder="Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?" spellcheck="false" autocomplete="off">
+          <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt. „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten); ohne Preis wird die Preisfrage automatisch entfernt.</span>
         </div>
         <div class="tp-settings-group">
           <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">🤖 Tavily KI-Suche (Direkt-Fazit & Discord)</label>
@@ -74,6 +73,24 @@ export function ensureModalSection(shadow) {
           <div id="tp-tavily-api-key-editor" style="display: none;">
             <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
             <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a>. Ermöglicht 1-Klick Kurzfazit auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt privat im Userscript.</span>
+          </div>
+        </div>
+        <div class="tp-settings-group" style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:140px;">
+            <label title="Suchtiefe: Basic ist schnell (~1-2s). Advanced durchsucht mehr Webquellen (~2-4s).">Tavily Suchtiefe</label>
+            <select id="tp-tavily-search-depth" class="tp-select tp-field-dark">
+              <option value="basic">Basic (schnell, Standard)</option>
+              <option value="advanced">Advanced (gründlich)</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:140px;">
+            <label title="Anzahl der Webseiten, die Tavily für die Antwort analysiert.">Max. Quellen (Ergebnisse)</label>
+            <select id="tp-tavily-max-results" class="tp-select tp-field-dark">
+              <option value="3">3 Quellen</option>
+              <option value="5" selected>5 Quellen (Standard)</option>
+              <option value="8">8 Quellen</option>
+              <option value="10">10 Quellen</option>
+            </select>
           </div>
         </div>
         <div class="tp-settings-group tp-switch-container">

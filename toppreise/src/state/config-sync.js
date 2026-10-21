@@ -150,6 +150,16 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (toggle) toggle.checked = !!val;
           break;
         }
+        case 'TAVILY_SEARCH_DEPTH': {
+          const select = shadow.getElementById('tp-tavily-search-depth');
+          if (select) select.value = val || 'basic';
+          break;
+        }
+        case 'TAVILY_MAX_RESULTS': {
+          const select = shadow.getElementById('tp-tavily-max-results');
+          if (select) select.value = String(val || 5);
+          break;
+        }
         case 'DISCORD_SUPPRESS_DEALER_EMBED': {
           const toggle = shadow.getElementById('tp-discord-dealer-embed-toggle');
           if (toggle) toggle.checked = val === false;

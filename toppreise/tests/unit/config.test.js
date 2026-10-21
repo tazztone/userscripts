@@ -240,5 +240,31 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     assert.equal(elements['tp-cache-disk-range'].value, 450);
     assert.equal(elements['tp-cache-disk-val'].value, 450);
   });
+
+  it('sanitizes TAVILY_SEARCH_DEPTH and TAVILY_MAX_RESULTS', () => {
+    assert.equal(DEFAULTS.TAVILY_SEARCH_DEPTH, 'basic');
+    assert.equal(DEFAULTS.TAVILY_MAX_RESULTS, 5);
+    assert.equal(sanitizeConfigValue('TAVILY_SEARCH_DEPTH', 'advanced'), 'advanced');
+    assert.equal(sanitizeConfigValue('TAVILY_SEARCH_DEPTH', 'invalid'), 'basic');
+    assert.equal(sanitizeConfigValue('TAVILY_MAX_RESULTS', 8), 8);
+    assert.equal(sanitizeConfigValue('TAVILY_MAX_RESULTS', 0), 1);
+    assert.equal(sanitizeConfigValue('TAVILY_MAX_RESULTS', 50), 10);
+    assert.equal(sanitizeConfigValue('TAVILY_MAX_RESULTS', 'not-a-num'), 5);
+  });
+
+  it('syncUiControl synchronizes Tavily parameters in shadow DOM', () => {
+    const elements = {};
+    const shadow = {
+      getElementById(id) {
+        if (!elements[id]) elements[id] = { value: null };
+        return elements[id];
+      }
+    };
+    syncUiControl('TAVILY_SEARCH_DEPTH', 'advanced', {}, shadow);
+    assert.equal(elements['tp-tavily-search-depth'].value, 'advanced');
+
+    syncUiControl('TAVILY_MAX_RESULTS', 8, {}, shadow);
+    assert.equal(elements['tp-tavily-max-results'].value, '8');
+  });
 });
 

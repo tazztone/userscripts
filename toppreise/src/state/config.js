@@ -125,6 +125,8 @@ export const CONFIG = {
   REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
   REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
   TAVILY_API_KEY: _getValue('TAVILY_API_KEY', DEFAULTS.TAVILY_API_KEY),
+  TAVILY_SEARCH_DEPTH: sanitizeConfigValue('TAVILY_SEARCH_DEPTH', _getValue('TAVILY_SEARCH_DEPTH', DEFAULTS.TAVILY_SEARCH_DEPTH)),
+  TAVILY_MAX_RESULTS: sanitizeConfigValue('TAVILY_MAX_RESULTS', _getValue('TAVILY_MAX_RESULTS', DEFAULTS.TAVILY_MAX_RESULTS)),
   DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
   NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -142,7 +144,7 @@ export const CONFIG = {
   OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
   DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
 };
-export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
+export const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 100) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
 // 0% is a legitimate threshold (check everything): only non-numeric storage
 // falls back to 30 — `|| 30` would silently discard an explicit 0.
 export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_DISCOUNT) ? CONFIG.REAL_DEAL_MIN_DISCOUNT : 30);
