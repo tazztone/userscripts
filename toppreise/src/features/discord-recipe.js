@@ -8,8 +8,8 @@ import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal
 
 // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
 // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
-export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}';
-export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
+export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}';
+export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'link']);
 
 export function validateLayoutRecipe(recipe) {
   const value = String(recipe ?? '');
@@ -45,6 +45,12 @@ export function renderDiscordMarkdownPreview(markdown) {
     if (prefix) {
       cls = prefix[1] === '##' ? 'tp-md-lg' : prefix[1] === '#' ? 'tp-md-md' : 'tp-md-sm';
       line = line.slice(prefix[0].length);
+    } else {
+      const quote = line.match(/^>\s?/);
+      if (quote) {
+        cls = 'tp-md-quote';
+        line = line.slice(quote[0].length);
+      }
     }
     const parts = escapePreviewHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
     let html = '';
@@ -72,6 +78,7 @@ function tokenText(name, ctx) {
     case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
     case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
     case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
+    case 'ai': return ctx.aiText ? `> 💡 ${ctx.aiText}` : '';
     case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
     default: return '';
   }
@@ -95,13 +102,14 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     prevLowPct: (fields || {}).prevLowPct || 0,
     medianText: (fields || {}).medianText || '',
     medianPct: (fields || {}).medianPct || 0,
+    aiText: (fields || {}).aiText || '',
     suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
     forceLink: (fields || {}).forceLink === true,
   };
   const out = [];
   for (const rawLine of recipe.split('\n')) {
     const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ').replace(/\s\+(?!\d)\s*$/g, '');
-    if (line.replace(/^[#\s-]+/, '').trim() === '') continue;
+    if (line.replace(/^[#> \s-]+/, '').trim() === '') continue;
     out.push(line);
   }
   return out.join('\n');

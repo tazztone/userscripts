@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.351
+// @version      2.18.353
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3001,6 +3001,7 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: true,
     REVIEW_SEARCH_KEYWORD: 'Testbericht - {preis} Preiseinschätzung',
     REVIEW_SEARCH_AI_MODE: false,
+    TAVILY_API_KEY: '',
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
@@ -3008,7 +3009,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
     DISCORD_FORUM_TITLE: false,
     // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}',
+    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}',
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -3031,8 +3032,8 @@ const SHADOW_MODAL_STYLES = `
       return fallback;
     }
   };
-  // Bearer-Secrets (Discord-Webhook) bleiben GM-privat: nie ins page-lesbare localStorage.
-  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL']);
+  // Bearer-Secrets (Discord-Webhook, Tavily-API-Key) bleiben GM-privat: nie ins page-lesbare localStorage.
+  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'TAVILY_API_KEY']);
 
   const _getValue = (k, def) => {
     try {
@@ -3092,6 +3093,7 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
     REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht - {preis} Preiseinschätzung' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+    TAVILY_API_KEY: { type: 'string', default: '' },
     DEALER_AUTOFETCH: { type: 'bool', default: false },
     NEGATIVE_TERMS: { type: 'string', default: '' },
     DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
@@ -3370,6 +3372,7 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: sanitizeConfigValue('REVIEW_SEARCH_ENABLED', _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED)),
     REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
     REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
+    TAVILY_API_KEY: _getValue('TAVILY_API_KEY', DEFAULTS.TAVILY_API_KEY),
     DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
     NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
@@ -4876,8 +4879,8 @@ const SHADOW_MODAL_STYLES = `
 
   // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
   // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
-  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}';
-  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'link']);
+  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}';
+  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'link']);
 
   function validateLayoutRecipe(recipe) {
     const value = String(recipe ?? '');
@@ -4913,6 +4916,12 @@ const SHADOW_MODAL_STYLES = `
       if (prefix) {
         cls = prefix[1] === '##' ? 'tp-md-lg' : prefix[1] === '#' ? 'tp-md-md' : 'tp-md-sm';
         line = line.slice(prefix[0].length);
+      } else {
+        const quote = line.match(/^>\s?/);
+        if (quote) {
+          cls = 'tp-md-quote';
+          line = line.slice(quote[0].length);
+        }
       }
       const parts = escapePreviewHtml(line).split(/\[([^\]]*)\]\(([^)]+)\)/g);
       let html = '';
@@ -4940,6 +4949,7 @@ const SHADOW_MODAL_STYLES = `
       case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
       case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
       case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
+      case 'ai': return ctx.aiText ? `> 💡 ${ctx.aiText}` : '';
       case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
       default: return '';
     }
@@ -4963,13 +4973,14 @@ const SHADOW_MODAL_STYLES = `
       prevLowPct: (fields || {}).prevLowPct || 0,
       medianText: (fields || {}).medianText || '',
       medianPct: (fields || {}).medianPct || 0,
+      aiText: (fields || {}).aiText || '',
       suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
       forceLink: (fields || {}).forceLink === true,
     };
     const out = [];
     for (const rawLine of recipe.split('\n')) {
       const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ').replace(/\s\+(?!\d)\s*$/g, '');
-      if (line.replace(/^[#\s-]+/, '').trim() === '') continue;
+      if (line.replace(/^[#> \s-]+/, '').trim() === '') continue;
       out.push(line);
     }
     return out.join('\n');
@@ -5004,6 +5015,236 @@ const SHADOW_MODAL_STYLES = `
       medianText: medianShown ? `Ø-Preis (${medianHorizonLabel(stats)}): CHF ${medianVal.toFixed(2)}` : '',
       medianPct: medianShown ? (getLevelPct(cardPrice, stats) || 0) : 0
     };
+  }
+
+  // ─── MODULE: src/features/tavily-search.js ──────────────────────────────────
+  /**
+   * Tavily AI Search Client & Persistent Cache
+   * Fast 1-credit basic web search with synthesized verdict (include_answer: true).
+   * 48h persistent cache to conserve the 1,000 monthly free tier credits.
+   */
+
+  const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
+  const TAVILY_CACHE_KEY_PREFIX = 'tp_suite_v2_tavily_';
+  const TAVILY_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
+
+  const memCache = new Map();
+  const inFlight = new Map();
+
+  function normalizeTavilyQuery(query) {
+    return String(query ?? '').replace(/\s+/g, ' ').trim();
+  }
+
+  function tavilyCacheKey(query) {
+    return normalizeTavilyQuery(query).toLowerCase();
+  }
+
+  function getCachedTavily(query) {
+    const key = tavilyCacheKey(query);
+    if (!key) return null;
+
+    const now = Date.now();
+    const mem = memCache.get(key);
+    if (mem && (now - mem.timestamp < TAVILY_CACHE_TTL_MS)) {
+      return mem;
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(TAVILY_CACHE_KEY_PREFIX + key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < TAVILY_CACHE_TTL_MS)) {
+            memCache.set(key, parsed);
+            return parsed;
+          }
+          localStorage.removeItem(TAVILY_CACHE_KEY_PREFIX + key);
+        }
+      } catch {
+        /* ignore storage read error */
+      }
+    }
+
+    return null;
+  }
+
+  function setCachedTavily(query, answer) {
+    const key = tavilyCacheKey(query);
+    if (!key || typeof answer !== 'string') return;
+
+    const entry = { answer: answer.trim(), timestamp: Date.now() };
+    memCache.set(key, entry);
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(TAVILY_CACHE_KEY_PREFIX + key, JSON.stringify(entry));
+      } catch {
+        /* ignore storage full or quota errors */
+      }
+    }
+  }
+
+  function clearTavilyCache() {
+    memCache.clear();
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(TAVILY_CACHE_KEY_PREFIX)) {
+            keysToRemove.push(k);
+          }
+        }
+        for (const k of keysToRemove) {
+          localStorage.removeItem(k);
+        }
+      } catch {
+        /* ignore storage access error */
+      }
+    }
+  }
+
+  function buildTavilyQuery(title, keyword = '', priceText = '') {
+    const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
+    let kw = String(keyword || '').replace(/\s+/g, ' ').trim();
+
+    if (kw.includes('{preis}')) {
+      kw = priceText ? kw.replace('{preis}', priceText) : kw.replace('{preis}', '');
+    }
+
+    let full = `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
+    if (!/deutsch|fazit|preiseinschätzung/i.test(full)) {
+      full = `${full} Testbericht Preiseinschätzung Kurzfazit Deutsch`;
+    } else if (!/deutsch/i.test(full)) {
+      full = `${full} Kurzfazit Deutsch`;
+    }
+
+    return normalizeTavilyQuery(full);
+  }
+
+  function fetchTavilySummary(apiKey, query, options = {}) {
+    const trimmedKey = String(apiKey || '').trim();
+    if (!trimmedKey) {
+      return Promise.reject(new Error('Tavily API-Key fehlt'));
+    }
+
+    const normalized = normalizeTavilyQuery(query);
+    if (!normalized) {
+      return Promise.reject(new Error('Suchanfrage ist leer'));
+    }
+
+    // 1. Check persistent/memory cache
+    const cached = getCachedTavily(normalized);
+    if (cached?.answer) {
+      return Promise.resolve(cached.answer);
+    }
+
+    // 2. In-flight request deduplication
+    const flightKey = `${trimmedKey}:${normalized}`;
+    if (inFlight.has(flightKey)) {
+      return inFlight.get(flightKey);
+    }
+
+    const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
+
+    const promise = new Promise((resolve, reject) => {
+      const payload = JSON.stringify({
+        api_key: trimmedKey,
+        query: normalized,
+        search_depth: 'basic',
+        include_answer: true,
+        max_results: 3
+      });
+
+      const handleSuccess = (rawText) => {
+        try {
+          const data = JSON.parse(rawText || '{}');
+          const answer = (data.answer || '').trim();
+          if (answer) {
+            setCachedTavily(normalized, answer);
+            resolve(answer);
+          } else if (Array.isArray(data.results) && data.results.length > 0 && data.results[0].content) {
+            const fallbackSnippet = data.results[0].content.trim();
+            setCachedTavily(normalized, fallbackSnippet);
+            resolve(fallbackSnippet);
+          } else {
+            reject(new Error('Kein Fazit erhalten'));
+          }
+        } catch (err) {
+          reject(new Error('Antwort von Tavily konnte nicht gelesen werden'));
+        }
+      };
+
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        try {
+          GM_xmlhttpRequest({
+            method: 'POST',
+            url: TAVILY_API_ENDPOINT,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            data: payload,
+            timeout: timeoutMs,
+            onload: (res) => {
+              if (res.status >= 200 && res.status < 300) {
+                handleSuccess(res.responseText);
+              } else if (res.status === 401 || res.status === 403) {
+                reject(new Error('Tavily API-Key ungültig'));
+              } else if (res.status === 429) {
+                reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
+              } else {
+                reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
+              }
+            },
+            onerror: () => reject(new Error('Netzwerkfehler bei Verbindung zu Tavily')),
+            ontimeout: () => reject(new Error('Zeitüberschreitung bei Tavily'))
+          });
+        } catch (e) {
+          reject(e);
+        }
+      } else if (typeof fetch !== 'undefined') {
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+        fetch(TAVILY_API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: payload,
+          signal: controller?.signal
+        })
+          .then(async (res) => {
+            if (timer) clearTimeout(timer);
+            if (res.ok) {
+              handleSuccess(await res.text());
+            } else if (res.status === 401 || res.status === 403) {
+              reject(new Error('Tavily API-Key ungültig'));
+            } else if (res.status === 429) {
+              reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
+            } else {
+              reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
+            }
+          })
+          .catch((err) => {
+            if (timer) clearTimeout(timer);
+            if (err?.name === 'AbortError') {
+              reject(new Error('Zeitüberschreitung bei Tavily'));
+            } else {
+              reject(new Error('Netzwerkfehler bei Verbindung zu Tavily'));
+            }
+          });
+      } else {
+        reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
+      }
+    }).finally(() => {
+      inFlight.delete(flightKey);
+    });
+
+    inFlight.set(flightKey, promise);
+    return promise;
   }
 
   // ─── MODULE: src/features/share-discord.js ──────────────────────────────────
@@ -10489,7 +10730,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.351';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.353';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

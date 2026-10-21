@@ -997,6 +997,11 @@ describe('layout recipe', () => {
   it('marker-only lines drop when the token is empty', () => {
     assert.equal(renderLayout({ ...base, priceText: '' }, '# {price}\n## {title}'), `## [HyperX Pulsefire Fuse](${PRODUCT_URL})`);
   });
+  it('{ai} token renders blockquote with bulb when present, drops line when empty', () => {
+    assert.equal(renderLayout({ ...base, aiText: 'Guter Deal mit top Preis-Leistung' }, '{ai}'), '> 💡 Guter Deal mit top Preis-Leistung');
+    assert.equal(renderLayout({ ...base, aiText: '' }, '{ai}\n# {price}'), `# 💰 CHF 31.90`);
+    assert.equal(renderLayout({ ...base, aiText: undefined }, '## {title}\n> {ai}\n# {price}'), `## [HyperX Pulsefire Fuse](${PRODUCT_URL})\n# 💰 CHF 31.90`);
+  });
   it('blank recipe falls back to the default layout', () => {
     assert.equal(renderLayout(base, '   \n  '), renderLayout(base, DEFAULT_LAYOUT));
     assert.equal(formatDealMessage(base, ''), formatDealMessage(base));
@@ -1094,6 +1099,11 @@ describe('renderDiscordMarkdownPreview', () => {
   it('renders suppression-bracket URLs once, without nesting', () => {
     const out = renderDiscordMarkdownPreview('<https://www.toppreise.ch/p>');
     assert.equal(out.match(/tp-md-url/g).length, 1);
+  });
+  it('renders blockquote lines with tp-md-quote', () => {
+    const out = renderDiscordMarkdownPreview('> 💡 Testbericht Fazit');
+    assert.ok(out.includes('tp-md-quote'));
+    assert.ok(out.includes('💡 Testbericht Fazit'));
   });
 });
 

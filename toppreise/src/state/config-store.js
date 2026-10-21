@@ -39,6 +39,7 @@ export const DEFAULTS = Object.freeze({
   REVIEW_SEARCH_ENABLED: true,
   REVIEW_SEARCH_KEYWORD: 'Testbericht - {preis} Preiseinschätzung',
   REVIEW_SEARCH_AI_MODE: false,
+  TAVILY_API_KEY: '',
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
@@ -46,7 +47,7 @@ export const DEFAULTS = Object.freeze({
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
   DISCORD_FORUM_TITLE: false,
   // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}',
+  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}',
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
@@ -69,8 +70,8 @@ const safeJsonParse = (raw, fallback) => {
     return fallback;
   }
 };
-// Bearer-Secrets (Discord-Webhook) bleiben GM-privat: nie ins page-lesbare localStorage.
-export const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL']);
+// Bearer-Secrets (Discord-Webhook, Tavily-API-Key) bleiben GM-privat: nie ins page-lesbare localStorage.
+export const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'TAVILY_API_KEY']);
 
 export const _getValue = (k, def) => {
   try {
@@ -130,6 +131,7 @@ export const SETTING_SCHEMA = {
   REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
   REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testbericht - {preis} Preiseinschätzung' },
   REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+  TAVILY_API_KEY: { type: 'string', default: '' },
   DEALER_AUTOFETCH: { type: 'bool', default: false },
   NEGATIVE_TERMS: { type: 'string', default: '' },
   DISCORD_WEBHOOK_URL: { type: 'string', default: '' },

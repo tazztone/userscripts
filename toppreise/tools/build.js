@@ -54,6 +54,7 @@ export function buildBundle() {
     'page/product-offers.js',
     'ui/sparkline.js',
     'features/discord-recipe.js',
+    'features/tavily-search.js',
     'features/share-discord.js',
     'page/sort.js',
     'scanner/scanner.js',
