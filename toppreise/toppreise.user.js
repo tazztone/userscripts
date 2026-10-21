@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.353
+// @version      2.18.354
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -13,6 +13,7 @@
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
 // @connect      discord.com
+// @connect      api.tavily.com
 // @connect      toppreise.ch
 // @noframes
 // ==/UserScript==
@@ -1736,6 +1737,7 @@ const SHADOW_MODAL_STYLES = `
   #tp-discord-layout-preview .tp-md-sm { font-size: 12px !important; font-weight: 700 !important; }
   #tp-discord-layout-preview .tp-md-link { font-weight: 700 !important; }
   #tp-discord-layout-preview .tp-md-url { opacity: .65 !important; font-size: 11px !important; }
+  #tp-discord-layout-preview .tp-md-quote { display: block; border-left: 3px solid #5865f2 !important; padding-left: 8px !important; margin: 2px 0 !important; opacity: .9 !important; }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
@@ -7699,6 +7701,17 @@ const SHADOW_MODAL_STYLES = `
             <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht - {preis} Preiseinschätzung" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
             <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard („Testbericht - {preis} Preiseinschätzung“). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
           </div>
+          <div class="tp-settings-group">
+            <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">🤖 Tavily KI-Suche (Direkt-Fazit & Discord)</label>
+            <div id="tp-tavily-api-key-collapsed">
+              <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
+              <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+            </div>
+            <div id="tp-tavily-api-key-editor" style="display: none;">
+              <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+              <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a>. Ermöglicht 1-Klick Kurzfazit auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt privat im Userscript.</span>
+            </div>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im KI-Modus suchen</label>
@@ -7851,10 +7864,11 @@ const SHADOW_MODAL_STYLES = `
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{offers}">Angebote {offers}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{ai}">KI-Fazit {ai}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
             </div>
             <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
             <pre id="tp-discord-layout-preview"></pre>
             <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -8099,6 +8113,10 @@ const SHADOW_MODAL_STYLES = `
     const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
     const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
     const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
+    const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
+    const tavilyApiKeyReveal = shadow.getElementById('tp-tavily-api-key-reveal');
+    const tavilyApiKeyEditor = shadow.getElementById('tp-tavily-api-key-editor');
+    const tavilyApiKeyStatus = shadow.getElementById('tp-tavily-api-key-status');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -8115,7 +8133,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -8183,6 +8201,11 @@ const SHADOW_MODAL_STYLES = `
         const count = countCachedPriceStats();
         els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
       }
+
+      if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+      if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
+      if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
+      if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
 
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
@@ -8297,6 +8320,16 @@ const SHADOW_MODAL_STYLES = `
       showToast(`Cache geleert (${removed} Produkte entfernt)`);
     });
 
+    els.tavilyApiKeyReveal?.addEventListener('click', e => {
+      if (e && !e.isTrusted) return;
+      if (!els.tavilyApiKeyEditor || !els.tavilyApiKeyInput) return;
+      els.tavilyApiKeyInput.value = '';
+      els.tavilyApiKeyEditor.style.display = '';
+      els.tavilyApiKeyReveal.style.display = 'none';
+      els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'true');
+      els.tavilyApiKeyInput.focus();
+    });
+
     els.discordWebhookReveal?.addEventListener('click', e => {
       // Replace, never reveal: the secret is write-only. The status line is
       // the only configured indicator — Shadow DOM is not a security boundary.
@@ -8394,7 +8427,7 @@ const SHADOW_MODAL_STYLES = `
           exported: new Date().toISOString()
         },
         // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
-        config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined },
+        config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, TAVILY_API_KEY: undefined },
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -8427,7 +8460,7 @@ const SHADOW_MODAL_STYLES = `
           const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
           let count = 0;
           for (const [key, val] of Object.entries(importConfig)) {
-            if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
+            if (!(key in DEFAULTS) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
             // Single schema: sanitize each imported key, drop unknowns/invalid.
             if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
             const clean = sanitizeConfigValue(key, val);
@@ -8530,6 +8563,9 @@ const SHADOW_MODAL_STYLES = `
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
       if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
       if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
+      if (els.tavilyApiKeyInput && els.tavilyApiKeyEditor && els.tavilyApiKeyEditor.style.display !== 'none') {
+        updates.TAVILY_API_KEY = String(els.tavilyApiKeyInput.value || '').trim();
+      }
       if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
         const rawWebhook = String(els.discordWebhookInput.value || '').trim();
         if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
@@ -10730,7 +10766,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.353';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.354';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -10751,13 +10787,13 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         parsePrice,
         isShippingPriceActive,
         // Live view on CONFIG (test harness mutates flags through it), with the
-        // webhook masked: page JS reads '' and cannot overwrite the secret.
+        // secrets masked: page JS reads '' and cannot overwrite secrets.
         CONFIG: new Proxy(CONFIG, {
-          get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
-          set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
-          getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
-          defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
-          deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
+          get: (t, k) => (SECRET_KEYS.has(k) ? '' : Reflect.get(t, k)),
+          set: (t, k, v) => (SECRET_KEYS.has(k) ? true : Reflect.set(t, k, v)),
+          getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && SECRET_KEYS.has(k)) ? { ...d, value: '' } : d; },
+          defineProperty: (t, k, desc) => (SECRET_KEYS.has(k) ? true : Reflect.defineProperty(t, k, desc)),
+          deleteProperty: (t, k) => (SECRET_KEYS.has(k) ? true : Reflect.deleteProperty(t, k)),
         }),
         memoryCache,
         statsKey,

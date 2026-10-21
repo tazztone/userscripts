@@ -38,6 +38,7 @@ import { showToast, getLastToastMessage } from './ui/toast.js';
 import { uiShadowRoot } from './ui/shell.js';
 import {
   CONFIG,
+  SECRET_KEYS,
   saveConfigKey,
   updateConfig,
   updateBodyClasses,
@@ -55,7 +56,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.353
+// @version      2.18.354
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -67,6 +68,7 @@ import { processProductDetailPage } from './features/product-detail.js';
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
 // @connect      discord.com
+// @connect      api.tavily.com
 // @connect      toppreise.ch
 // @noframes
 // ==/UserScript==
@@ -298,7 +300,7 @@ import { processProductDetailPage } from './features/product-detail.js';
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.353';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.354';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -319,13 +321,13 @@ import { processProductDetailPage } from './features/product-detail.js';
         parsePrice,
         isShippingPriceActive,
         // Live view on CONFIG (test harness mutates flags through it), with the
-        // webhook masked: page JS reads '' and cannot overwrite the secret.
+        // secrets masked: page JS reads '' and cannot overwrite secrets.
         CONFIG: new Proxy(CONFIG, {
-          get: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? '' : Reflect.get(t, k)),
-          set: (t, k, v) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.set(t, k, v)),
-          getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && k === 'DISCORD_WEBHOOK_URL') ? { ...d, value: '' } : d; },
-          defineProperty: (t, k, desc) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.defineProperty(t, k, desc)),
-          deleteProperty: (t, k) => (k === 'DISCORD_WEBHOOK_URL' ? true : Reflect.deleteProperty(t, k)),
+          get: (t, k) => (SECRET_KEYS.has(k) ? '' : Reflect.get(t, k)),
+          set: (t, k, v) => (SECRET_KEYS.has(k) ? true : Reflect.set(t, k, v)),
+          getOwnPropertyDescriptor: (t, k) => { const d = Reflect.getOwnPropertyDescriptor(t, k); return (d && SECRET_KEYS.has(k)) ? { ...d, value: '' } : d; },
+          defineProperty: (t, k, desc) => (SECRET_KEYS.has(k) ? true : Reflect.defineProperty(t, k, desc)),
+          deleteProperty: (t, k) => (SECRET_KEYS.has(k) ? true : Reflect.deleteProperty(t, k)),
         }),
         memoryCache,
         statsKey,

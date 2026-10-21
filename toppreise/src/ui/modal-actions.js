@@ -4,7 +4,7 @@
  */
 
 import { showToast } from './toast.js';
-import { CONFIG, DEFAULTS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue } from '../state/config.js';
+import { CONFIG, DEFAULTS, SECRET_KEYS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue } from '../state/config.js';
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
@@ -24,6 +24,16 @@ export function wireModalActions(els) {
     if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
     triggerProcessListings();
     showToast(`Cache geleert (${removed} Produkte entfernt)`);
+  });
+
+  els.tavilyApiKeyReveal?.addEventListener('click', e => {
+    if (e && !e.isTrusted) return;
+    if (!els.tavilyApiKeyEditor || !els.tavilyApiKeyInput) return;
+    els.tavilyApiKeyInput.value = '';
+    els.tavilyApiKeyEditor.style.display = '';
+    els.tavilyApiKeyReveal.style.display = 'none';
+    els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'true');
+    els.tavilyApiKeyInput.focus();
   });
 
   els.discordWebhookReveal?.addEventListener('click', e => {
@@ -123,7 +133,7 @@ export function wireModalActions(els) {
         exported: new Date().toISOString()
       },
       // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
-      config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined },
+      config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, TAVILY_API_KEY: undefined },
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -156,7 +166,7 @@ export function wireModalActions(els) {
         const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
         let count = 0;
         for (const [key, val] of Object.entries(importConfig)) {
-          if (!(key in DEFAULTS) || key === 'DEBUG' || key === 'DISCORD_WEBHOOK_URL') continue;
+          if (!(key in DEFAULTS) || key === 'DEBUG' || SECRET_KEYS.has(key)) continue;
           // Single schema: sanitize each imported key, drop unknowns/invalid.
           if (key === 'DISCORD_LAYOUT' && validateLayoutRecipe(String(val))) continue;
           const clean = sanitizeConfigValue(key, val);
@@ -259,6 +269,9 @@ export function wireModalActions(els) {
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
     if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
     if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
+    if (els.tavilyApiKeyInput && els.tavilyApiKeyEditor && els.tavilyApiKeyEditor.style.display !== 'none') {
+      updates.TAVILY_API_KEY = String(els.tavilyApiKeyInput.value || '').trim();
+    }
     if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
       const rawWebhook = String(els.discordWebhookInput.value || '').trim();
       if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {

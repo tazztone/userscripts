@@ -55,6 +55,10 @@ export function collectModalElements(shadow) {
   const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
   const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
   const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
+  const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
+  const tavilyApiKeyReveal = shadow.getElementById('tp-tavily-api-key-reveal');
+  const tavilyApiKeyEditor = shadow.getElementById('tp-tavily-api-key-editor');
+  const tavilyApiKeyStatus = shadow.getElementById('tp-tavily-api-key-status');
   const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
   const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
@@ -71,7 +75,7 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -139,6 +143,11 @@ export function syncFieldsFromConfig(els) {
       const count = countCachedPriceStats();
       els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
     }
+
+    if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+    if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
+    if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
+    if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
 
     if (els.discordWebhookInput) els.discordWebhookInput.value = '';
     if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';

@@ -65,6 +65,17 @@ export function ensureModalSection(shadow) {
           <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testbericht - {preis} Preiseinschätzung" maxlength="40" placeholder="Testbericht" spellcheck="false" autocomplete="off">
           <span class="tp-switch-desc tp-field-hint">Wird an den Produktnamen angehängt, z. B. „Testbericht“ oder „Erfahrungen“. Leer = Standard („Testbericht - {preis} Preiseinschätzung“). „{preis}“ fügt den aktuellen Kartenpreis ein (CHF, nur bei geprüften historischen Daten), z. B. „Preiseinschätzung {preis}“.</span>
         </div>
+        <div class="tp-settings-group">
+          <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">🤖 Tavily KI-Suche (Direkt-Fazit & Discord)</label>
+          <div id="tp-tavily-api-key-collapsed">
+            <span id="tp-tavily-api-key-status" class="tp-switch-desc"></span>
+            <button type="button" id="tp-tavily-api-key-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-tavily-api-key-editor">🔑 Key ersetzen / entfernen</button>
+          </div>
+          <div id="tp-tavily-api-key-editor" style="display: none;">
+            <input type="password" id="tp-tavily-api-key-input" class="tp-field-dark" placeholder="tvly-…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+            <span class="tp-switch-desc tp-field-hint">Kostenloser Key von <a href="https://tavily.com" target="_blank" rel="noopener">tavily.com</a>. Ermöglicht 1-Klick Kurzfazit auf der Karte und <code>{ai}</code> im Discord-Post. Bleibt privat im Userscript.</span>
+          </div>
+        </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Öffnet die Suche in Googles KI-Modus (Parameter &udm=50).">Im KI-Modus suchen</label>
@@ -217,10 +228,11 @@ export function ensureModalSection(shadow) {
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{offers}">Angebote {offers}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{ai}">KI-Fazit {ai}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
           </div>
           <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
+          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
           <pre id="tp-discord-layout-preview"></pre>
           <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
           <span id="tp-discord-layout-error" class="tp-switch-desc"></span>

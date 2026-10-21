@@ -105,6 +105,7 @@ export const SHADOW_MODAL_STYLES = `
   #tp-discord-layout-preview .tp-md-sm { font-size: 12px !important; font-weight: 700 !important; }
   #tp-discord-layout-preview .tp-md-link { font-weight: 700 !important; }
   #tp-discord-layout-preview .tp-md-url { opacity: .65 !important; font-size: 11px !important; }
+  #tp-discord-layout-preview .tp-md-quote { display: block; border-left: 3px solid #5865f2 !important; padding-left: 8px !important; margin: 2px 0 !important; opacity: .9 !important; }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
