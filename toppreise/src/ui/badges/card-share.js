@@ -33,6 +33,7 @@ import {
 } from '../../page/product-offers.js';
 import { showToast } from '../toast.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
+import { buildTavilyQuery, fetchTavilySummary, getCachedTavily } from '../../features/tavily-search.js';
 
 // Share dedupe surviving button re-renders: duplicate clicks for the same
 // pid:basis:price post once (button disabled alone is not enough).
@@ -97,6 +98,16 @@ export function renderShareButton(ctx, cd) {
             const { title, url, imageUrl } = extractShareData(card);
             const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
             const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
+            let aiPromise = null;
+            if (String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+              const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
+              const cached = getCachedTavily(query);
+              if (cached?.answer) {
+                aiPromise = Promise.resolve(cached.answer);
+              } else {
+                aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
+              }
+            }
             const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
             let dealer = extractDealer(card, useShipping);
             let dealerUrl = extractDealerUrl(card, useShipping);
@@ -124,9 +135,12 @@ export function renderShareButton(ctx, cd) {
             }
             const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
             if (!stillFresh()) { abortStale(); return; }
+            const aiText = aiPromise ? (await aiPromise) : '';
+            if (!stillFresh()) { abortStale(); return; }
             const fields = {
               title, url, priceText,
               dealer, dealerUrl, offerCount: offers,
+              aiText,
               ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
               suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
               suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false

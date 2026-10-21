@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.354
+// @version      2.18.355
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -7053,6 +7053,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Share dedupe surviving button re-renders: duplicate clicks for the same
   // pid:basis:price post once (button disabled alone is not enough).
   const shareInFlight = new Set();
@@ -7116,6 +7117,16 @@ const SHADOW_MODAL_STYLES = `
               const { title, url, imageUrl } = extractShareData(card);
               const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
               const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
+              let aiPromise = null;
+              if (String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+                const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
+                const cached = getCachedTavily(query);
+                if (cached?.answer) {
+                  aiPromise = Promise.resolve(cached.answer);
+                } else {
+                  aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
+                }
+              }
               const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
               let dealer = extractDealer(card, useShipping);
               let dealerUrl = extractDealerUrl(card, useShipping);
@@ -7143,9 +7154,12 @@ const SHADOW_MODAL_STYLES = `
               }
               const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
+              const aiText = aiPromise ? (await aiPromise) : '';
+              if (!stillFresh()) { abortStale(); return; }
               const fields = {
                 title, url, priceText,
                 dealer, dealerUrl, offerCount: offers,
+                aiText,
                 ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
                 suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
                 suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
@@ -7222,12 +7236,216 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  // ─── MODULE: src/ui/badges/card-ai-popover.js ───────────────────────────────
+  /**
+   * On-Card AI Verdict Popover Component
+   * Renders an accessible floating modal (#tp-ai-popout) displaying a synthesized
+   * Tavily test report verdict and quick-action buttons (Google, Copy, Discord).
+   */
+
+
+
+
+  let activeAiPopoverCleanup = null;
+
+  function closeAiPopover() {
+    if (typeof activeAiPopoverCleanup === 'function') {
+      const fn = activeAiPopoverCleanup;
+      activeAiPopoverCleanup = null;
+      fn();
+      return;
+    }
+    const el = typeof document !== 'undefined' ? document.getElementById('tp-ai-popout') : null;
+    el?.remove();
+  }
+
+  function openAiPopover(options = {}) {
+    if (typeof document === 'undefined') return null;
+    closeAiPopover();
+
+    const { title = '', priceText = '', googleUrl = '', card = null } = options;
+    const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
+
+    const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
+    const cached = getCachedTavily(query);
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'tp-ai-popout';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-label', 'KI-Fazit und Preiseinschätzung');
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);backdrop-filter:blur(2px);padding:16px;box-sizing:border-box;';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:var(--tp-bg, #1e293b);color:var(--tp-txt, #f8fafc);border:1px solid var(--tp-line-soft, #334155);border-radius:var(--tp-r-lg, 12px);padding:18px 20px;max-width:min(520px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;flex-direction:column;gap:12px;';
+
+    // Header row
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--tp-line-soft, #334155);padding-bottom:10px;';
+
+    const titleRow = document.createElement('div');
+    titleRow.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--tp-txt-mid, #cbd5e1);';
+    titleRow.innerHTML = '<span>🤖 KI-Kurzfazit & Preiseinschätzung</span>';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.setAttribute('aria-label', 'Schliessen');
+    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1;';
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#fff'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = 'var(--tp-mut, #94a3b8)'; });
+
+    header.appendChild(titleRow);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    // Subheader: Product title & price
+    const subheader = document.createElement('div');
+    subheader.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:10px;';
+
+    const prodName = document.createElement('div');
+    prodName.style.cssText = 'font-size:14px;font-weight:600;color:var(--tp-txt, #f8fafc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+    prodName.textContent = title;
+    prodName.title = title;
+
+    subheader.appendChild(prodName);
+    if (priceText) {
+      const priceBadge = document.createElement('span');
+      priceBadge.style.cssText = 'font-size:13px;font-weight:700;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 6px;border-radius:4px;';
+      priceBadge.textContent = priceText;
+      subheader.appendChild(priceBadge);
+    }
+    panel.appendChild(subheader);
+
+    // Body content: loading / result / error
+    const contentEl = document.createElement('div');
+    contentEl.style.cssText = 'font-size:13px;line-height:1.55;color:var(--tp-txt-mid, #cbd5e1);min-height:56px;background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;border-left:3px solid #5865f2;';
+
+    let currentVerdict = '';
+
+    const renderVerdict = (text) => {
+      currentVerdict = text;
+      contentEl.textContent = text;
+      copyBtn.disabled = false;
+    };
+
+    const renderError = (msg) => {
+      contentEl.style.borderLeftColor = '#ef4444';
+      contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
+      copyBtn.disabled = true;
+    };
+
+    if (cached?.answer) {
+      renderVerdict(cached.answer);
+    } else {
+      contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+    }
+    panel.appendChild(contentEl);
+
+    // Footer action buttons
+    const footer = document.createElement('div');
+    footer.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px;';
+
+    const googleBtn = document.createElement('a');
+    googleBtn.href = googleUrl || ('https://www.google.com/search?q=' + encodeURIComponent(query));
+    googleBtn.target = '_blank';
+    googleBtn.rel = 'noopener';
+    googleBtn.className = 'tp-btn tp-btn-secondary';
+    googleBtn.style.cssText = 'padding:6px 12px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
+    googleBtn.textContent = '↗ Google-Suche';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'tp-btn tp-btn-secondary';
+    copyBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    copyBtn.textContent = '📋 Fazit kopieren';
+    copyBtn.disabled = !cached?.answer;
+
+    copyBtn.addEventListener('click', () => {
+      if (!currentVerdict) return;
+      if (typeof navigator?.clipboard?.writeText === 'function') {
+        navigator.clipboard.writeText(currentVerdict).then(() => {
+          copyBtn.textContent = '✅ Kopiert!';
+          setTimeout(() => { copyBtn.textContent = '📋 Fazit kopieren'; }, 1800);
+        }).catch(() => {
+          showToast('Kopieren fehlgeschlagen');
+        });
+      }
+    });
+
+    const discordBtn = document.createElement('button');
+    discordBtn.type = 'button';
+    discordBtn.className = 'tp-btn tp-btn-secondary';
+    discordBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    discordBtn.textContent = '📤 In Discord teilen';
+
+    discordBtn.addEventListener('click', () => {
+      const shareBtn = card?.querySelector('.tp-share-btn');
+      if (shareBtn && typeof shareBtn.click === 'function') {
+        close();
+        shareBtn.click();
+      } else {
+        showToast('Deals können nur bei verifizierten Tiefstpreisen geteilt werden');
+      }
+    });
+
+    footer.appendChild(googleBtn);
+    footer.appendChild(copyBtn);
+    footer.appendChild(discordBtn);
+    panel.appendChild(footer);
+
+    // Close handlers
+    const onKey = e => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        close();
+      }
+    };
+
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      activeAiPopoverCleanup = null;
+      backdrop.remove();
+      try { prevFocus?.focus?.(); } catch {}
+    }
+
+    activeAiPopoverCleanup = close;
+    document.addEventListener('keydown', onKey);
+    closeBtn.addEventListener('click', close);
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) close();
+    });
+
+    backdrop.appendChild(panel);
+    document.body.appendChild(backdrop);
+    closeBtn.focus?.();
+
+    // If not cached, trigger fetch now
+    if (!cached?.answer) {
+      fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 7500 })
+        .then(answer => {
+          if (backdrop.isConnected) {
+            renderVerdict(answer);
+          }
+        })
+        .catch(err => {
+          if (backdrop.isConnected) {
+            renderError(err?.message || 'Fehler beim Laden des Fazits');
+          }
+        });
+    }
+
+    return backdrop;
+  }
+
   // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
   /**
    * Card chrome (split from ui/badges.js): sparkline row, verified cue, share
    * button, dealer name, review button, fresh glow, empty state — plus the
    * renderCardEffects orchestrator (signature frozen, app.js untouched).
    */
+
 
 
 
@@ -7473,6 +7691,8 @@ const SHADOW_MODAL_STYLES = `
           .replace(/\s+/g, ' ').trim()
         : rawKw;
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
+      const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
+      const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -7480,11 +7700,30 @@ const SHADOW_MODAL_STYLES = `
         reviewBtn.textContent = '🌐';
         reviewBtn.target = '_blank';
         reviewBtn.rel = 'noopener';
-        reviewBtn.addEventListener('click', e => e.stopPropagation());
+        reviewBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+            e.preventDefault();
+            const aiCtx = reviewBtn._tpAiCtx || {};
+            openAiPopover({
+              title: aiCtx.title || reviewName,
+              priceText: aiCtx.priceText || '',
+              googleUrl: reviewBtn.href,
+              card: aiCtx.card || card,
+              pid: aiCtx.pid || ctx.pid
+            });
+          } else {
+            showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+          }
+        });
       }
+      reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
       reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`) + (aiMode ? '&udm=50' : '');
-      setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
-      reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
+      const tipText = hasTavily
+        ? `KI-Fazit & Google-Suche: ${reviewName} ${reviewKw}`
+        : `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`;
+      setTitleIfChanged(reviewBtn, tipText);
+      reviewBtn.setAttribute('aria-label', tipText);
       const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
       if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
       else if (titleEl && titleEl.tagName === 'A') {
@@ -10766,7 +11005,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.354';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.355';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

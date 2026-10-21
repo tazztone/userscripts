@@ -63,6 +63,7 @@ export function buildBundle() {
     'ui/badges/deal-badge.js',
     'ui/badges/deal-verdict.js',
     'ui/badges/card-share.js',
+    'ui/badges/card-ai-popover.js',
     'ui/badges/card-chrome.js',
     'ui/badges.js',
     'ui/shell.js',

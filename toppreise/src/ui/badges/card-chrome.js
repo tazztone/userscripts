@@ -20,6 +20,7 @@ import { setTextIfChanged, setTitleIfChanged } from './dom-helpers.js';
 import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried, renderHeat, renderFilterVerdict } from './deal-badge.js';
 import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
+import { openAiPopover } from './card-ai-popover.js';
 
 export { renderShareButton };
 
@@ -250,6 +251,8 @@ export function renderReviewButton(ctx) {
         .replace(/\s+/g, ' ').trim()
       : rawKw;
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
+    const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
+    const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');
@@ -257,11 +260,30 @@ export function renderReviewButton(ctx) {
       reviewBtn.textContent = '🌐';
       reviewBtn.target = '_blank';
       reviewBtn.rel = 'noopener';
-      reviewBtn.addEventListener('click', e => e.stopPropagation());
+      reviewBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+          e.preventDefault();
+          const aiCtx = reviewBtn._tpAiCtx || {};
+          openAiPopover({
+            title: aiCtx.title || reviewName,
+            priceText: aiCtx.priceText || '',
+            googleUrl: reviewBtn.href,
+            card: aiCtx.card || card,
+            pid: aiCtx.pid || ctx.pid
+          });
+        } else {
+          showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+        }
+      });
     }
+    reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
     reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(`${reviewName} ${reviewKw}`) + (aiMode ? '&udm=50' : '');
-    setTitleIfChanged(reviewBtn, `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
-    reviewBtn.setAttribute('aria-label', `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`);
+    const tipText = hasTavily
+      ? `KI-Fazit & Google-Suche: ${reviewName} ${reviewKw}`
+      : `Google-Suche: ${reviewName} ${reviewKw}${aiMode ? ' (KI-Modus)' : ''}`;
+    setTitleIfChanged(reviewBtn, tipText);
+    reviewBtn.setAttribute('aria-label', tipText);
     const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
     if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
     else if (titleEl && titleEl.tagName === 'A') {
