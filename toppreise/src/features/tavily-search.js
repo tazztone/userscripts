@@ -84,19 +84,29 @@ export function clearTavilyCache() {
   }
 }
 
-export function buildTavilyQuery(title, keyword = '', priceText = '') {
-  const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
+export function expandKeywordWithPrice(keyword, priceText = '') {
   let kw = String(keyword || '').replace(/\s+/g, ' ').trim();
+  if (!kw.includes('{preis}')) return kw;
 
-  if (kw.includes('{preis}')) {
-    kw = priceText ? kw.replace('{preis}', priceText) : kw.replace('{preis}', '');
+  if (priceText) {
+    return kw.replace(/\{preis\}/g, priceText).replace(/\s+/g, ' ').trim();
   }
 
+  // Gracefully drop sentence or clause asking about {preis} when no price is available
+  return kw
+    .replace(/(?:[.,;]?\s*)?(?:Ist\s+(?:der\s+)?Preis\s+von\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?/gi, '')
+    .replace(/\s*-\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function buildTavilyQuery(title, keyword = '', priceText = '') {
+  const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
+  const kw = expandKeywordWithPrice(keyword, priceText);
+
   let full = `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
-  if (!/deutsch|fazit|preiseinschätzung/i.test(full)) {
-    full = `${full} Testbericht Preiseinschätzung Kurzfazit Deutsch`;
-  } else if (!/deutsch/i.test(full)) {
-    full = `${full} Kurzfazit Deutsch`;
+  if (!/deutsch|fazit/i.test(full)) {
+    full = `${full} Kurzes Fazit auf Deutsch.`;
   }
 
   return normalizeTavilyQuery(full);
@@ -126,14 +136,18 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
   }
 
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
+  const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
+  const maxResults = typeof options.maxResults === 'number'
+    ? options.maxResults
+    : ((typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_MAX_RESULTS : 5) || 5);
 
   const promise = new Promise((resolve, reject) => {
     const payload = JSON.stringify({
       api_key: trimmedKey,
       query: normalized,
-      search_depth: 'basic',
+      search_depth: searchDepth,
       include_answer: true,
-      max_results: 3
+      max_results: maxResults
     });
 
     const handleSuccess = (rawText) => {

@@ -21,6 +21,7 @@ import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried, renderHeat
 import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
+import { expandKeywordWithPrice } from '../../features/tavily-search.js';
 
 export { renderShareButton };
 
@@ -244,15 +245,10 @@ export function renderReviewButton(ctx) {
   const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
   if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
     const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
-    const reviewKw = rawKw.includes('{preis}')
-      ? (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)
-          ? rawKw.replace('{preis}', `CHF ${ctx.cardPrice.toFixed(2)}`)
-          : rawKw.replace('{preis}', ''))
-        .replace(/\s+/g, ' ').trim()
-      : rawKw;
+    const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
+    const reviewKw = expandKeywordWithPrice(rawKw, priceText);
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
     const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
-    const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');

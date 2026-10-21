@@ -10,6 +10,7 @@ import {
   setCachedTavily,
   clearTavilyCache,
   buildTavilyQuery,
+  expandKeywordWithPrice,
   fetchTavilySummary
 } from '../../src/features/tavily-search.js';
 
@@ -19,16 +20,34 @@ describe('tavily-search: query & normalization', () => {
     assert.equal(tavilyCacheKey('  Sony   WH-1000XM5  '), 'sony wh-1000xm5');
   });
 
+  it('expands price when present and cleans up question clause when absent', () => {
+    const template = 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?';
+    assert.equal(
+      expandKeywordWithPrice(template, 'CHF 13.95'),
+      'Testbericht Erfahrungen. Ist der Preis von CHF 13.95 ein guter Deal?'
+    );
+    assert.equal(
+      expandKeywordWithPrice(template, ''),
+      'Testbericht Erfahrungen'
+    );
+    assert.equal(
+      expandKeywordWithPrice('Preiseinschätzung {preis}', ''),
+      'Preiseinschätzung'
+    );
+  });
+
   it('builds query with title, keyword and price', () => {
-    const q1 = buildTavilyQuery('Roborock S8 Pro Ultra', 'Testbericht - {preis} Preiseinschätzung', 'CHF 899.00');
+    const q1 = buildTavilyQuery('Roborock S8 Pro Ultra', 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?', 'CHF 899.00');
     assert.ok(q1.includes('Roborock S8 Pro Ultra'));
     assert.ok(q1.includes('CHF 899.00'));
     assert.ok(q1.includes('Deutsch'));
 
-    const q2 = buildTavilyQuery('Apple iPad Air', 'Erfahrungen', '');
+    const q2 = buildTavilyQuery('Apple iPad Air', 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?', '');
     assert.ok(q2.includes('Apple iPad Air'));
-    assert.ok(q2.includes('Erfahrungen'));
-    assert.ok(q2.includes('Kurzfazit Deutsch'));
+    assert.ok(q2.includes('Testbericht Erfahrungen'));
+    assert.ok(!q2.includes('{preis}'));
+    assert.ok(!q2.includes('Ist der Preis'));
+    assert.ok(q2.includes('Deutsch'));
   });
 });
 
@@ -124,6 +143,22 @@ describe('tavily-search: fetchTavilySummary', () => {
     const res2 = await fetchTavilySummary('tvly-secret', 'Asus ROG Ally Test');
     assert.equal(res2, 'Sehr empfehlenswert für den aufgerufenen Preis.');
     assert.equal(callCount, 1);
+  });
+
+  it('passes customized searchDepth and maxResults in request payload', async () => {
+    let capturedBody = null;
+    globalThis.fetch = async (url, opts) => {
+      capturedBody = JSON.parse(opts.body);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ answer: 'Antwort' })
+      };
+    };
+
+    await fetchTavilySummary('tvly-secret', 'Custom Query', { searchDepth: 'advanced', maxResults: 8 });
+    assert.equal(capturedBody.search_depth, 'advanced');
+    assert.equal(capturedBody.max_results, 8);
   });
 
   it('falls back to results snippet when answer is missing', async () => {

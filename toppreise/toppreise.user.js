@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.357
+// @version      2.18.358
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5118,19 +5118,29 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function buildTavilyQuery(title, keyword = '', priceText = '') {
-    const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
+  function expandKeywordWithPrice(keyword, priceText = '') {
     let kw = String(keyword || '').replace(/\s+/g, ' ').trim();
+    if (!kw.includes('{preis}')) return kw;
 
-    if (kw.includes('{preis}')) {
-      kw = priceText ? kw.replace('{preis}', priceText) : kw.replace('{preis}', '');
+    if (priceText) {
+      return kw.replace(/\{preis\}/g, priceText).replace(/\s+/g, ' ').trim();
     }
 
+    // Gracefully drop sentence or clause asking about {preis} when no price is available
+    return kw
+      .replace(/(?:[.,;]?\s*)?(?:Ist\s+(?:der\s+)?Preis\s+von\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?/gi, '')
+      .replace(/\s*-\s*$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function buildTavilyQuery(title, keyword = '', priceText = '') {
+    const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim();
+    const kw = expandKeywordWithPrice(keyword, priceText);
+
     let full = `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
-    if (!/deutsch|fazit|preiseinschätzung/i.test(full)) {
-      full = `${full} Testbericht Preiseinschätzung Kurzfazit Deutsch`;
-    } else if (!/deutsch/i.test(full)) {
-      full = `${full} Kurzfazit Deutsch`;
+    if (!/deutsch|fazit/i.test(full)) {
+      full = `${full} Kurzes Fazit auf Deutsch.`;
     }
 
     return normalizeTavilyQuery(full);
@@ -5160,14 +5170,18 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
+    const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
+    const maxResults = typeof options.maxResults === 'number'
+      ? options.maxResults
+      : ((typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_MAX_RESULTS : 5) || 5);
 
     const promise = new Promise((resolve, reject) => {
       const payload = JSON.stringify({
         api_key: trimmedKey,
         query: normalized,
-        search_depth: 'basic',
+        search_depth: searchDepth,
         include_answer: true,
-        max_results: 3
+        max_results: maxResults
       });
 
       const handleSuccess = (rawText) => {
@@ -7449,7 +7463,11 @@ const SHADOW_MODAL_STYLES = `
 
     // If not cached, trigger fetch now
     if (!cached?.answer) {
-      fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 7500 })
+      fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
+        timeoutMs: 7500,
+        searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
+        maxResults: CONFIG.TAVILY_MAX_RESULTS
+      })
         .then(answer => {
           if (backdrop.isConnected) {
             renderVerdict(answer);
@@ -7471,6 +7489,7 @@ const SHADOW_MODAL_STYLES = `
    * button, dealer name, review button, fresh glow, empty state — plus the
    * renderCardEffects orchestrator (signature frozen, app.js untouched).
    */
+
 
 
 
@@ -7710,15 +7729,10 @@ const SHADOW_MODAL_STYLES = `
     const reviewName = (extractShareData(card).title || '').replace(/\s+/g, ' ').trim();
     if (CONFIG.REVIEW_SEARCH_ENABLED !== false && reviewName) {
       const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
-      const reviewKw = rawKw.includes('{preis}')
-        ? (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)
-            ? rawKw.replace('{preis}', `CHF ${ctx.cardPrice.toFixed(2)}`)
-            : rawKw.replace('{preis}', ''))
-          .replace(/\s+/g, ' ').trim()
-        : rawKw;
+      const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
+      const reviewKw = expandKeywordWithPrice(rawKw, priceText);
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
       const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
-      const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -11050,7 +11064,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.357';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.358';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

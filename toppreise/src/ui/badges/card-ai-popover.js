@@ -199,7 +199,11 @@ export function openAiPopover(options = {}) {
 
   // If not cached, trigger fetch now
   if (!cached?.answer) {
-    fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 7500 })
+    fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
+      timeoutMs: 7500,
+      searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
+      maxResults: CONFIG.TAVILY_MAX_RESULTS
+    })
       .then(answer => {
         if (backdrop.isConnected) {
           renderVerdict(answer);
