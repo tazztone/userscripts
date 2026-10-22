@@ -1,0 +1,28 @@
+/*
+ * Demo-only presentation: strip Toppreise.ch chrome, keep the "Neue Toppreise" feed.
+ * Scoped to body.tp-demo-feed-only so the vendored snapshot stays reusable.
+ * Note: #FrameContent also needs the gutter reset — hiding #tpContentSidebar alone
+ * leaves the 168px @media(min-width:1024px) margin-right gap.
+ */
+body.tp-demo-feed-only :is(
+  .header,
+  .Plugin_MainHead,
+  .Plugin_Breadcrumbs,
+  #tpContentSidebar,
+  #advertising_mobile,
+  #advertising_halfpage,
+  .adsFullsizeContainer,
+  #Plugin_ScrollFooter_223163,
+  #Plugin_MainFooter_245368
+) {
+  display: none !important;
+}
+
+body.tp-demo-feed-only #FrameContent {
+  margin-right: 0 !important;
+}
+
+/* Header/footer removal would otherwise leave the snapshot's measured min-height. */
+body.tp-demo-feed-only #tpContent {
+  min-height: 0 !important;
+}
