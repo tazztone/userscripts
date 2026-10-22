@@ -8,7 +8,6 @@ import { CONFIG } from '../state/config.js';
 import {
   basisMatchesFor,
   extractCardData,
-  extractCardDiscount,
   extractOfferCount,
   getCardEffectiveDiscount
 } from './cards.js';
@@ -104,14 +103,14 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       scored.sort((a, b) => (b.tier - a.tier) || (b.badgePct - a.badgePct) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
-      // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
+      // Verified level (vs Ø-Preis) first; fallback-tief / unverified site Differenz fallback.
       const scored = list.map(c => {
         const cd = cdFor(c);
         const level = getLevelPct(cd.cardPrice, cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats, true);
         return {
           card: c,
           item: getCardSortableUnit(c),
-          disc: level !== null ? -level : (extractCardDiscount(c) ?? -1),
+          disc: level !== null ? -level : getCardEffectiveDiscount(cd),
           initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
         };
       });

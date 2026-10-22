@@ -108,7 +108,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
   * **Ungeprüfte:** Unverifizierte Angebote im Feed ausblenden oder dimmen.
   * **Fallback-Tiefs:** Sichtbarkeit von Tiefstpreisen mit dünner Historie steuern.
   * **Händler-Bestpreis-Prüfung:** Hebt Karten mit grünem Rahmen und `Toppreis`-Badge hervor, wenn der gefilterte Shop das beste Angebot hält (innerhalb einer Toleranz von `0%–50%`).
-* **Live-Grid-Sortierung:** Sortiert Angebote direkt im Raster nach **Gewichteter Differenz (`Tiefstpreis-Sortierung`)** (geordnet nach Tiers: verifizierte Deals inkl. 0%-Deals > Fallback-Tiefs > Ungeprüfte > Aufschläge), **Rabatt (`% Rabatt ⬇`)** oder **Händleranzahl (`Meiste ⬇` / `Wenigste ⬆`)** — stellt beim Deaktivieren die exakte Ursprungsreihenfolge wieder her.
+* **Live-Grid-Sortierung:** Sortiert Angebote direkt im Raster nach **Gewichteter Differenz (`Tiefstpreis-Sortierung`)** (verifizierte Deals und Fallback-Tiefs nach Badge-% > Ungeprüfte > Aufschläge), **Rabatt (`% Rabatt ⬇`)** oder **Händleranzahl (`Meiste ⬇` / `Wenigste ⬆`)** — stellt beim Deaktivieren die exakte Ursprungsreihenfolge wieder her.
 * **Leere-Feed-Hinweis (Empty State):** Sind alle Produkte ausgeblendet, bietet ein Hinweis 1-Klick-Aktionen zur Wiederherstellung (`[ ⚡ Filter ausschalten ]`, `[ 🔍 Tiefstpreise prüfen ]` oder `[ Ungeprüfte einblenden ]`).
 
 ### 🔔 Preisalarm Auto-Filler
