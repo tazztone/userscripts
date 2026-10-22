@@ -6,7 +6,7 @@
 
 import { SELECTORS } from './selectors.js';
 import { CONFIG, clampIntensity01 } from '../state/config.js';
-import { extractCanonicalPrice, parsePrice, pctRise } from '../domain/price.js';
+import { extractCanonicalPrice, parsePrice, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, vortiefDropPct } from '../domain/deal-score.js';
 import { getCachedPriceStats, hasUsablePriceStats } from '../scanner/cache.js';
 import { isShippingPriceActive } from './adapter.js';
@@ -357,14 +357,26 @@ export function extractCardData(card) {
 }
 
 export function getCardEffectiveDiscount(cd) {
-  if (cd.dealScore) return cd.dealScore.weightedDiff;
-  const vStats = cd.verifiedStats ?? cd.stats;
+  if (!cd) return 0;
+  const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
+  const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
+  const dealData = (cd.dealScore === undefined && vStats && cd.cardPrice > 0) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
+  if (dealData) return dealData.weightedDiff;
   if (hasUsablePriceStats(vStats)) {
-    return (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')
-      ? (vortiefDropPct(cd.cardPrice, vStats) || 0)
-      : -((cd.displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0)) || 0);
+    const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cd.cardPrice, vStats) : null);
+    if (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low') {
+      const dropVsPrev = vortiefDropPct(cd.cardPrice, vStats);
+      const prevLowNow = recordRefForPrice(vStats, cd.cardPrice)?.previousLow;
+      const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cd.cardPrice);
+      if (dropVsPrev > 0 && hasPrevLowBase) return dropVsPrev;
+      const rawDisc = cd.discountVal ?? (typeof cd.diffVal === 'number' && cd.diffVal < 0 ? -cd.diffVal : 0);
+      return rawDisc > 0 ? rawDisc : 0;
+    }
+    const markup = displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0);
+    return -Math.max(0, markup || 0);
   }
-  return cd.discountVal || 0;
+  const rawDisc = cd.discountVal ?? (typeof cd.diffVal === 'number' && cd.diffVal < 0 ? -cd.diffVal : 0);
+  return rawDisc || 0;
 }
 
 export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {

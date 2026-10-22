@@ -9,10 +9,10 @@ import {
   basisMatchesFor,
   extractCardData,
   extractCardDiscount,
-  extractOfferCount
+  extractOfferCount,
+  getCardEffectiveDiscount
 } from './cards.js';
-import { computeDealScore, getDisplayDelta, getLevelPct, vortiefDropPct } from '../domain/deal-score.js';
-import { pctRise } from '../domain/price.js';
+import { getDisplayDelta, getLevelPct } from '../domain/deal-score.js';
 import { hasUsablePriceStats } from '../scanner/cache.js';
 
 // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
@@ -87,39 +87,21 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     if (CONFIG.BESTPREISE_MODE_ACTIVE) {
       const scored = list.map(c => {
         const cd = cdFor(c);
-        // Rejected (null) stays rejected: recompute only uncalculated (undefined) on a matching basis.
         const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
         const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
-        const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
         const usable = hasUsablePriceStats(vStats);
         const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cd.cardPrice, vStats) : null);
-        let tier = 1; // unchecked or unavailable
-        let weightedDiff = 0;
-        if (dealData) {
-          // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
-          // and the card burns with it, so the feed ranks by it too.
-          tier = 3;
-          weightedDiff = dealData.weightedDiff;
-        } else if (usable && (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low')) {
-          // Verified low without blend: rank by Vortief-Abstand — the same
-          // number the ribbon prints and the edge heat burns with.
-          tier = 2;
-          weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
-        } else if (usable) {
-          tier = 0; // verified above-low markup
-          const markup = displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0);
-          weightedDiff = -Math.max(0, markup || 0);
-        }
+        const isDeal = !!cd.dealScore || (usable && (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low'));
+        const tier = isDeal ? 2 : (usable ? 0 : 1);
         return {
           card: c,
           item: getCardSortableUnit(c),
           tier,
-          weightedDiff,
-          dMed: dealData ? dealData.dMedian : 0,
+          badgePct: getCardEffectiveDiscount(cd),
           initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
         };
       });
-      scored.sort((a, b) => (b.tier - a.tier) || (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+      scored.sort((a, b) => (b.tier - a.tier) || (b.badgePct - a.badgePct) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.

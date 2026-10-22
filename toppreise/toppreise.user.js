@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.363
+// @version      2.18.364
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4368,14 +4368,26 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getCardEffectiveDiscount(cd) {
-    if (cd.dealScore) return cd.dealScore.weightedDiff;
-    const vStats = cd.verifiedStats ?? cd.stats;
+    if (!cd) return 0;
+    const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
+    const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
+    const dealData = (cd.dealScore === undefined && vStats && cd.cardPrice > 0) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
+    if (dealData) return dealData.weightedDiff;
     if (hasUsablePriceStats(vStats)) {
-      return (cd.displayDelta?.kind === 'at-low' || cd.displayDelta?.kind === 'new-low')
-        ? (vortiefDropPct(cd.cardPrice, vStats) || 0)
-        : -((cd.displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0)) || 0);
+      const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cd.cardPrice, vStats) : null);
+      if (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low') {
+        const dropVsPrev = vortiefDropPct(cd.cardPrice, vStats);
+        const prevLowNow = recordRefForPrice(vStats, cd.cardPrice)?.previousLow;
+        const hasPrevLowBase = prevLowNow && priceToCents(prevLowNow) > priceToCents(cd.cardPrice);
+        if (dropVsPrev > 0 && hasPrevLowBase) return dropVsPrev;
+        const rawDisc = cd.discountVal ?? (typeof cd.diffVal === 'number' && cd.diffVal < 0 ? -cd.diffVal : 0);
+        return rawDisc > 0 ? rawDisc : 0;
+      }
+      const markup = displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0);
+      return -Math.max(0, markup || 0);
     }
-    return cd.discountVal || 0;
+    const rawDisc = cd.discountVal ?? (typeof cd.diffVal === 'number' && cd.diffVal < 0 ? -cd.diffVal : 0);
+    return rawDisc || 0;
   }
 
   function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDealFeed = true) {
@@ -5587,7 +5599,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
   // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
   // The placeholder comment marks the exact pre-sort position; restore inserts
   // before it when still connected, else appends, then re-sorts by tpInitialOrder.
@@ -5660,39 +5671,21 @@ const SHADOW_MODAL_STYLES = `
       if (CONFIG.BESTPREISE_MODE_ACTIVE) {
         const scored = list.map(c => {
           const cd = cdFor(c);
-          // Rejected (null) stays rejected: recompute only uncalculated (undefined) on a matching basis.
           const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
           const vStats = cd.verifiedStats ?? (sortBasisOk ? cd.stats : null);
-          const dealData = (cd.dealScore === undefined && vStats) ? computeDealScore(vStats, cd.cardPrice) : (cd.dealScore ?? null);
           const usable = hasUsablePriceStats(vStats);
           const displayDelta = cd.displayDelta ?? (vStats ? getDisplayDelta(cd.cardPrice, vStats) : null);
-          let tier = 1; // unchecked or unavailable
-          let weightedDiff = 0;
-          if (dealData) {
-            // Badge = heat = sort key (ADR-0005): the ribbon prints the blend
-            // and the card burns with it, so the feed ranks by it too.
-            tier = 3;
-            weightedDiff = dealData.weightedDiff;
-          } else if (usable && (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low')) {
-            // Verified low without blend: rank by Vortief-Abstand — the same
-            // number the ribbon prints and the edge heat burns with.
-            tier = 2;
-            weightedDiff = vortiefDropPct(cd.cardPrice, vStats);
-          } else if (usable) {
-            tier = 0; // verified above-low markup
-            const markup = displayDelta?.markup ?? (vStats?.tiefstpreis ? pctRise(vStats.tiefstpreis, cd.cardPrice) : 0);
-            weightedDiff = -Math.max(0, markup || 0);
-          }
+          const isDeal = !!cd.dealScore || (usable && (displayDelta?.kind === 'at-low' || displayDelta?.kind === 'new-low'));
+          const tier = isDeal ? 2 : (usable ? 0 : 1);
           return {
             card: c,
             item: getCardSortableUnit(c),
             tier,
-            weightedDiff,
-            dMed: dealData ? dealData.dMedian : 0,
+            badgePct: getCardEffectiveDiscount(cd),
             initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
           };
         });
-        scored.sort((a, b) => (b.tier - a.tier) || (b.weightedDiff - a.weightedDiff) || (b.dMed - a.dMed) || (a.initialOrder - b.initialOrder));
+        scored.sort((a, b) => (b.tier - a.tier) || (b.badgePct - a.badgePct) || (a.initialOrder - b.initialOrder));
         sortedEntries = scored;
       } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
         // Verified level (vs Ø-Preis) first; unverified site Differenz is fallback only.
@@ -11236,7 +11229,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.363';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.364';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

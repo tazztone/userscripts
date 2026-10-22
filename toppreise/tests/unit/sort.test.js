@@ -144,13 +144,13 @@ describe('applySorting fallback-tief order', () => {
     assert.deepEqual(row.children, [card6A, card6B, card11, card69]);
   });
 
-  it('strictly ranks tiers: verified deals > fallback-tiefs > unchecked/unavailable > markups', () => {
+  it('ranks cards by badge % descending preserving DOM order on tie and putting markups last', () => {
     const row = makeRow();
-    const cardDeal0 = makeCard(row, 0); // tier 3: verified 0% deal
-    const cardFallback0 = makeCard(row, 1); // tier 2: 0% fallback-tief
-    const cardUnchecked = makeCard(row, 2); // tier 1: unchecked card
-    const cardUnavailable = makeCard(row, 3); // tier 1: unavailable card
-    const cardMarkup = makeCard(row, 4); // tier 0: verified markup
+    const cardDeal0 = makeCard(row, 0); // 0% deal
+    const cardFallback0 = makeCard(row, 1); // 0% fallback-tief
+    const cardUnchecked = makeCard(row, 2); // 0% unchecked card
+    const cardUnavailable = makeCard(row, 3); // 0% unavailable card
+    const cardMarkup = makeCard(row, 4); // +50% verified markup (-50)
     const data = [
       { card: cardDeal0, cardPrice: 100, stats: { tiefstpreis: 100, medianPrice: 100, dataPointCount: 10 }, dealScore: { weightedDiff: 0, dMedian: 0, dRecord: 0 } },
       { card: cardFallback0, cardPrice: 100, stats: { tiefstpreis: 100, dataPointCount: 3 }, displayDelta: { kind: 'at-low' }, dealScore: null },
@@ -163,11 +163,34 @@ describe('applySorting fallback-tief order', () => {
     withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
       withConfig('SORT_BY_OFFERS', 'none', () =>
         applySorting([cardDeal0, cardFallback0, cardUnchecked, cardUnavailable, cardMarkup], false, data)));
-    assert.equal(row.children[0], cardDeal0, 'tier 3 verified deal must rank first');
-    assert.equal(row.children[1], cardFallback0, 'tier 2 fallback-tief must rank second');
-    assert.equal(row.children[2], cardUnchecked, 'tier 1 unchecked must rank ahead of markup');
-    assert.equal(row.children[3], cardUnavailable, 'tier 1 unavailable must rank ahead of markup');
-    assert.equal(row.children[4], cardMarkup, 'tier 0 markup must rank last');
+    assert.equal(row.children[0], cardDeal0, '0% verified deal preserves order');
+    assert.equal(row.children[1], cardFallback0, '0% fallback-tief preserves order');
+    assert.equal(row.children[2], cardUnchecked, '0% unchecked preserves order');
+    assert.equal(row.children[3], cardUnavailable, '0% unavailable preserves order');
+    assert.equal(row.children[4], cardMarkup, 'markup ranks last');
+  });
+
+  it('strictly ranks by badge % including fallback-tiefs above lower blend deals', () => {
+    const row = makeRow();
+    const cardDeal56 = makeCard(row, 0); // 56% blend deal
+    const cardDeal29 = makeCard(row, 1); // 29% blend deal
+    const cardFallback81 = makeCard(row, 2); // 81% fallback-tief
+    const cardUnchecked40 = makeCard(row, 3); // 40% unchecked card
+    const cardMarkup50 = makeCard(row, 4); // +50% markup (-50)
+    const data = [
+      { card: cardDeal56, cardPrice: 1113.35, stats: { tiefstpreis: 1113.35, medianPrice: 2671.85, dataPointCount: 10 }, dealScore: { weightedDiff: 56, dMedian: 58, dRecord: 55 } },
+      { card: cardDeal29, cardPrice: 63.19, stats: { tiefstpreis: 63.19, medianPrice: 134.80, dataPointCount: 10 }, dealScore: { weightedDiff: 29, dMedian: 53, dRecord: 19 } },
+      { card: cardFallback81, cardPrice: 37.17, stats: { tiefstpreis: 37.17, previousLow: 195.63, dataPointCount: 3 }, displayDelta: { kind: 'new-low', prevLow: 195.63, dRecord: 81 }, dealScore: null },
+      { card: cardUnchecked40, cardPrice: 60, stats: null, displayDelta: null, dealScore: null, discountVal: 40 },
+      { card: cardMarkup50, cardPrice: 150, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 50 }, dealScore: null },
+    ];
+    // Start in arbitrary order
+    row.children = [cardMarkup50, cardDeal29, cardUnchecked40, cardDeal56, cardFallback81];
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardDeal56, cardDeal29, cardFallback81, cardUnchecked40, cardMarkup50], false, data)));
+    // Expect: 81% fallback > 56% deal > 29% deal > 40% unchecked > markup
+    assert.deepEqual(row.children, [cardFallback81, cardDeal56, cardDeal29, cardUnchecked40, cardMarkup50]);
   });
 
   it('breaks offer count ties deterministically using initialOrder', () => {
