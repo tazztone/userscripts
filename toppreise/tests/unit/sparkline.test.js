@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSparkline } from '../../src/ui/sparkline.js';
+import { renderSparkline, renderDiscordChart, openSparklinePopout, closeSparklinePopout } from '../../src/ui/sparkline.js';
 
 const DAY_S = 86400; // seconds, not helpers.js DAY (ms) — do not "fix"
 
@@ -8,10 +8,40 @@ describe('Interactive SVG Sparkline Component', () => {
   beforeEach(() => {
     // Mock document.createElementNS for Node environment
     globalThis.document = {
+      body: {
+        children: [],
+        appendChild(ch) { this.children.push(ch); return ch; }
+      },
+      createElement(tag) {
+        return {
+          tagName: tag.toUpperCase(),
+          id: '',
+          style: {},
+          attributes: {},
+          children: [],
+          classList: {
+            classes: new Set(),
+            add(c) { this.classes.add(c); },
+            contains(c) { return this.classes.has(c); }
+          },
+          setAttribute(k, v) { this.attributes[k] = v; },
+          getAttribute(k) { return this.attributes[k]; },
+          appendChild(ch) { this.children.push(ch); return ch; },
+          replaceChildren(...items) { this.children = [...items]; },
+          remove() {
+            const idx = globalThis.document.body.children.indexOf(this);
+            if (idx >= 0) globalThis.document.body.children.splice(idx, 1);
+          },
+          addEventListener() {},
+          removeEventListener() {},
+          focus() {}
+        };
+      },
       createElementNS: (ns, tag) => {
         const el = {
           namespaceURI: ns,
           tagName: tag,
+          style: {},
           attributes: {},
           classList: {
             classes: new Set(),
@@ -21,11 +51,76 @@ describe('Interactive SVG Sparkline Component', () => {
           children: [],
           setAttribute(k, v) { this.attributes[k] = v; },
           getAttribute(k) { return this.attributes[k]; },
-          appendChild(ch) { this.children.push(ch); return ch; }
+          appendChild(ch) { this.children.push(ch); return ch; },
+          insertBefore(ch, ref) {
+            const idx = this.children.indexOf(ref);
+            if (idx >= 0) this.children.splice(idx, 0, ch);
+            else this.children.unshift(ch);
+            return ch;
+          },
+          querySelector(sel) {
+            if (sel === 'polyline') return this.children.find(c => c.tagName === 'polyline');
+            return null;
+          }
         };
         return el;
-      }
+      },
+      getElementById(id) {
+        if (id === 'tp-sparkline-popout') return globalThis.document.body.children.find(c => c.id === 'tp-sparkline-popout') || null;
+        return null;
+      },
+      addEventListener() {},
+      removeEventListener() {}
     };
+  });
+
+  it('renderDiscordChart embeds title text when provided', () => {
+    const timeSeries = [
+      [1700000000, 100],
+      [1700100000, 90]
+    ];
+    const svgNoTitle = renderDiscordChart(timeSeries, 560, 220);
+    assert.ok(svgNoTitle);
+    assert.ok(!svgNoTitle.children.some(c => c.tagName === 'text' && c.getAttribute('font-size') === '12'));
+
+    const svgWithTitle = renderDiscordChart(timeSeries, 560, 220, 'Thermaltake View 390');
+    assert.ok(svgWithTitle);
+    const titleText = svgWithTitle.children.find(c => c.tagName === 'text' && c.getAttribute('font-size') === '12');
+    assert.ok(titleText, 'expected title text element in SVG');
+    assert.ok(titleText.textContent.includes('Thermaltake View 390'));
+  });
+
+  it('openSparklinePopout stacks Keepa section for Amazon deals and includes copy buttons', () => {
+    const timeSeries = [
+      [1700000000, 100],
+      [1700100000, 90]
+    ];
+    const popout = openSparklinePopout(timeSeries, {
+      title: 'Thermaltake View 390',
+      pid: '12345',
+      dealer: 'Amazon.de',
+      directUrl: 'https://www.amazon.de/dp/B0FHWR36F6'
+    });
+    assert.ok(popout);
+    const panel = popout.children[0];
+    assert.ok(panel);
+    assert.ok(panel.style.cssText.includes('max-height:90vh'));
+
+    // Check header title contains product title
+    const header = panel.children[0];
+    const titleEl = header.children[0];
+    assert.ok(titleEl.textContent.includes('Thermaltake View 390'));
+
+    // Check copy button in header
+    const headerActions = header.children[1];
+    const copyBtn = headerActions.children.find(c => c.textContent.includes('Bild kopieren'));
+    assert.ok(copyBtn, 'expected Toppreise copy button');
+
+    // Check Keepa section was appended
+    const keepaSection = panel.children.find(c => c.id === 'tp-keepa-section');
+    assert.ok(keepaSection, 'expected #tp-keepa-section for Amazon deal');
+
+    closeSparklinePopout();
   });
 
   it('returns null for insufficient data points (< 2)', () => {

@@ -133,7 +133,7 @@ export function renderShareButton(ctx, cd) {
                 }
               }
             }
-            const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
+            const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice), 360, 100, title).catch(() => null);
             if (!stillFresh()) { abortStale(); return; }
             const aiText = aiPromise ? (await aiPromise) : '';
             if (!stillFresh()) { abortStale(); return; }

@@ -92,7 +92,7 @@ export function withLivePrice(timeSeries, price) {
 
 // Preischart als PNG für Discord: vorhandenes SVG gross rendern, rastern, als
 // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
-export function renderSparklinePng(timeSeries, width = 360, height = 100) {
+export function renderSparklinePng(timeSeries, width = 360, height = 100, title = '') {
   return new Promise(resolve => {
     let done = false;
     let svgUrl = null;
@@ -100,7 +100,7 @@ export function renderSparklinePng(timeSeries, width = 360, height = 100) {
     const timer = setTimeout(() => finish(null), 3000);
     try {
       if (typeof document === 'undefined') return finish(null);
-      const svg = renderDiscordChart(timeSeries, width, height);
+      const svg = renderDiscordChart(timeSeries, width, height, title);
       if (!svg) return finish(null);
       const svgText = new XMLSerializer().serializeToString(svg);
       svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.371
+// @version      2.18.372
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5560,9 +5560,13 @@ const SHADOW_MODAL_STYLES = `
    * relative to the live card price, so trend coloring would mislead.
    */
 
+
+
+
   function renderSparkline(timeSeries, width, height, opts = {}) {
     if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
     const axes = opts && opts.axes === true;
+    const topPad = (opts && typeof opts.topPad === 'number') ? opts.topPad : 0;
     const valid = timeSeries.filter(p => Array.isArray(p) && +p[1] > 0);
     if (valid.length < 2) return null;
     const prices = valid.map(p => +p[1]);
@@ -5633,7 +5637,7 @@ const SHADOW_MODAL_STYLES = `
         return `${x},${y}`;
       }).join(' ');
     } else {
-      const margin = { left: 38, right: 10, top: 6, bottom: 16 };
+      const margin = { left: 38, right: 10, top: 6 + topPad, bottom: 16 };
       const x0 = margin.left;
       const x1 = width - margin.right;
       const y0 = margin.top;
@@ -5722,8 +5726,9 @@ const SHADOW_MODAL_STYLES = `
 
   // Discord-identical chart: axes build + light card + heavier line. Single source
   // for the Discord PNG (share-discord.js) and the click-to-expand popout below.
-  function renderDiscordChart(timeSeries, width = 360, height = 100) {
-    const svg = renderSparkline(timeSeries, width, height, { axes: true });
+  function renderDiscordChart(timeSeries, width = 360, height = 100, title = '') {
+    const topPad = title ? 22 : 0;
+    const svg = renderSparkline(timeSeries, width, height, { axes: true, topPad });
     if (!svg) return null;
     const NS = 'http://www.w3.org/2000/svg';
     const bg = document.createElementNS(NS, 'rect');
@@ -5732,8 +5737,122 @@ const SHADOW_MODAL_STYLES = `
     bg.setAttribute('rx', '8');
     bg.setAttribute('fill', '#f1f5f9');
     svg.insertBefore(bg, svg.firstChild);
+    if (title) {
+      const titleEl = document.createElementNS(NS, 'text');
+      titleEl.setAttribute('x', '12');
+      titleEl.setAttribute('y', '18');
+      titleEl.setAttribute('fill', '#334155');
+      titleEl.setAttribute('font-size', '12');
+      titleEl.setAttribute('font-weight', '600');
+      titleEl.setAttribute('font-family', 'inherit');
+      const cleanTitle = String(title).replace(/\s+/g, ' ').trim();
+      const maxChars = Math.max(10, Math.floor(width / 8));
+      titleEl.textContent = cleanTitle.length > maxChars ? cleanTitle.slice(0, maxChars - 1) + '…' : cleanTitle;
+      svg.appendChild(titleEl);
+    }
     svg.querySelector('polyline')?.setAttribute('stroke-width', '2.5');
     return svg;
+  }
+
+  async function copySvgToClipboard(svgEl, width = 560, height = 220) {
+    try {
+      if (!svgEl || typeof document === 'undefined') return false;
+      const svgText = new XMLSerializer().serializeToString(svgEl);
+      const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+      const img = new Image();
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = svgUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+      ctx.drawImage(img, 0, 0, width * 2, height * 2);
+      URL.revokeObjectURL(svgUrl);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      if (blob && typeof navigator?.clipboard?.write === 'function') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showToast('📋 Diagramm in Zwischenablage kopiert');
+        return true;
+      }
+    } catch (err) {
+      console.debug('[Toppreise-Suite] SVG-Copy-Fehler', err);
+    }
+    showToast('❌ Kopieren fehlgeschlagen');
+    return false;
+  }
+
+  async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallbackUrl = '') {
+    try {
+      let sourceImg = imgEl;
+      let objectUrl = null;
+      if (typeof GM_xmlhttpRequest !== 'undefined' && fallbackUrl) {
+        try {
+          const blob = await new Promise((res, rej) => {
+            GM_xmlhttpRequest({
+              method: 'GET',
+              url: fallbackUrl,
+              responseType: 'blob',
+              onload: r => r.response ? res(r.response) : rej(new Error('no blob')),
+              onerror: rej,
+              ontimeout: rej
+            });
+          });
+          objectUrl = URL.createObjectURL(blob);
+          const tempImg = new Image();
+          await new Promise((res, rej) => {
+            tempImg.onload = res;
+            tempImg.onerror = rej;
+            tempImg.src = objectUrl;
+          });
+          sourceImg = tempImg;
+        } catch (e) {}
+      }
+
+      const w = sourceImg?.naturalWidth || 560;
+      const h = sourceImg?.naturalHeight || 220;
+      const bannerHeight = 36;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h + bannerHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, bannerHeight);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textBaseline = 'middle';
+      const displayTitle = titleText ? `Amazon.de: ${titleText} (ASIN: ${asin})` : `Amazon.de: ASIN ${asin}`;
+      ctx.fillText(displayTitle, 12, bannerHeight / 2, canvas.width - 24);
+
+      if (sourceImg) {
+        ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
+      }
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch {}
+      }
+
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      if (blob && typeof navigator?.clipboard?.write === 'function') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showToast('📋 Amazon-Diagramm in Zwischenablage kopiert');
+        return true;
+      }
+    } catch (err) {
+      console.debug('[Toppreise-Suite] Keepa-Copy-Fehler', err);
+      if (fallbackUrl && typeof navigator?.clipboard?.writeText === 'function') {
+        await navigator.clipboard.writeText(fallbackUrl);
+        showToast('📋 Bild-Link kopiert');
+        return true;
+      }
+    }
+    showToast('❌ Kopieren fehlgeschlagen');
+    return false;
   }
 
   let activePopoutCleanup = null;
@@ -5745,11 +5864,12 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // Click on a mini sparkline pops the full Discord-style chart. Backdrop/×/Esc closes.
-  function openSparklinePopout(timeSeries) {
+  function openSparklinePopout(timeSeries, chartCtx = null) {
     if (typeof document === 'undefined') return null;
     closeSparklinePopout();
     const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
-    const svg = renderDiscordChart(timeSeries, 560, 220);
+    const productTitle = chartCtx?.title || '';
+    const svg = renderDiscordChart(timeSeries, 560, 220, productTitle);
     if (!svg) return null;
     svg.style.maxWidth = '100%';
     svg.style.height = 'auto';
@@ -5761,12 +5881,24 @@ const SHADOW_MODAL_STYLES = `
     backdrop.setAttribute('aria-label', 'Preisverlauf');
     backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);padding:16px;box-sizing:border-box;';
     const panel = document.createElement('div');
-    panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
+    panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
     const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
     const title = document.createElement('div');
-    title.textContent = '📈 Preisverlauf';
-    title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;';
+    title.textContent = productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf';
+    title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;';
+    if (productTitle) title.title = productTitle;
+
+    const headerActions = document.createElement('div');
+    headerActions.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+    const copyTpBtn = document.createElement('button');
+    copyTpBtn.type = 'button';
+    copyTpBtn.textContent = '📋 Bild kopieren';
+    copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
+    copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:3px 8px;cursor:pointer;';
+    copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
+
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.textContent = '✕';
@@ -5788,10 +5920,136 @@ const SHADOW_MODAL_STYLES = `
     activePopoutCleanup = close;
     document.addEventListener('keydown', onKey);
     closeBtn.addEventListener('click', close);
+    headerActions.appendChild(copyTpBtn);
+    headerActions.appendChild(closeBtn);
     header.appendChild(title);
-    header.appendChild(closeBtn);
+    header.appendChild(headerActions);
     panel.appendChild(header);
     panel.appendChild(svg);
+
+    // Stacked Keepa section for Amazon deals
+    const isAmazon = chartCtx?.dealer && /amazon/i.test(chartCtx.dealer) && CONFIG?.KEEPA_CHART_ENABLED !== false;
+    if (isAmazon) {
+      const keepaSection = document.createElement('div');
+      keepaSection.id = 'tp-keepa-section';
+      keepaSection.style.cssText = 'margin-top:16px;padding-top:14px;border-top:1px solid var(--tp-bdr);';
+
+      const keepaHeader = document.createElement('div');
+      keepaHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
+
+      const keepaTitle = document.createElement('div');
+      keepaTitle.textContent = '🛒 Amazon.de Preisverlauf (Keepa)';
+      keepaTitle.style.cssText = 'color:var(--tp-txt-mid);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;';
+
+      const keepaToolbar = document.createElement('div');
+      keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:4px;';
+
+      const ranges = [
+        { label: '90T', days: 90 },
+        { label: '180T', days: 180 },
+        { label: '365T', days: 365, active: true },
+        { label: 'Alle', days: 0 }
+      ];
+      let currentDays = 365;
+      const rangeBtns = [];
+
+      const keepaBody = document.createElement('div');
+      keepaBody.style.cssText = 'min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--tp-bg-sub);border-radius:var(--tp-r-sm);padding:8px;box-sizing:border-box;';
+
+      const loadingIndicator = document.createElement('div');
+      loadingIndicator.textContent = '⏳ Lade Amazon.de Keepa-Verlauf...';
+      loadingIndicator.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:24px 0;';
+      keepaBody.appendChild(loadingIndicator);
+
+      const copyKeepaBtn = document.createElement('button');
+      copyKeepaBtn.type = 'button';
+      copyKeepaBtn.textContent = '📋 Bild kopieren';
+      copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:3px 8px;cursor:pointer;display:none;';
+
+      ranges.forEach(r => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = r.label;
+        const setBtnStyle = active => {
+          btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:2px 6px;cursor:pointer;`;
+        };
+        setBtnStyle(!!r.active);
+        btn.addEventListener('click', () => {
+          currentDays = r.days;
+          rangeBtns.forEach(b => b.setBtnStyle(b === btn));
+          if (keepaBody._tpUpdateRange) keepaBody._tpUpdateRange(r.days);
+        });
+        btn.setBtnStyle = setBtnStyle;
+        rangeBtns.push(btn);
+        keepaToolbar.appendChild(btn);
+      });
+      keepaToolbar.appendChild(copyKeepaBtn);
+
+      keepaHeader.appendChild(keepaTitle);
+      keepaHeader.appendChild(keepaToolbar);
+      keepaSection.appendChild(keepaHeader);
+      keepaSection.appendChild(keepaBody);
+      panel.appendChild(keepaSection);
+
+      // Resolve ASIN and display Keepa image
+      resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
+        if (!asin) {
+          keepaBody.replaceChildren();
+          const errNotice = document.createElement('div');
+          errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
+          const linkHref = chartCtx.directUrl || '#';
+          errNotice.innerHTML = `Amazon-ASIN konnte nicht ermittelt werden.<br><a href="${linkHref}" target="_blank" rel="noopener" style="color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;">Zum Amazon-Angebot ↗</a>`;
+          keepaBody.appendChild(errNotice);
+          return;
+        }
+
+        keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
+        copyKeepaBtn.style.display = 'inline-block';
+
+        const buildKeepaUrl = days => `https://graph.keepa.com/pricehistory.png?asin=${asin}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=560&height=220`;
+
+        const img = document.createElement('img');
+        img.style.cssText = 'max-width:100%;height:auto;border-radius:4px;display:block;';
+        img.alt = `Keepa Preisverlauf für ${asin}`;
+        img.src = buildKeepaUrl(currentDays);
+
+        copyKeepaBtn.onclick = () => {
+          copyKeepaChartToClipboard(img, productTitle, asin, buildKeepaUrl(currentDays));
+        };
+
+        keepaBody._tpUpdateRange = days => {
+          img.src = buildKeepaUrl(days);
+        };
+
+        const linksRow = document.createElement('div');
+        linksRow.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;width:100%;margin-top:6px;font-size:11px;';
+        const keepaLink = document.createElement('a');
+        keepaLink.href = `https://keepa.com/#!product/3-${asin}`;
+        keepaLink.target = '_blank';
+        keepaLink.rel = 'noopener';
+        keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
+        keepaLink.textContent = 'Auf Keepa ansehen ↗';
+        const amzLink = document.createElement('a');
+        amzLink.href = chartCtx.directUrl || `https://www.amazon.de/dp/${asin}`;
+        amzLink.target = '_blank';
+        amzLink.rel = 'noopener';
+        amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
+        amzLink.textContent = 'Auf Amazon.de ansehen ↗';
+        linksRow.appendChild(keepaLink);
+        linksRow.appendChild(amzLink);
+
+        keepaBody.replaceChildren();
+        keepaBody.appendChild(img);
+        keepaBody.appendChild(linksRow);
+      }).catch(() => {
+        keepaBody.replaceChildren();
+        const errNotice = document.createElement('div');
+        errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
+        errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
+        keepaBody.appendChild(errNotice);
+      });
+    }
+
     backdrop.appendChild(panel);
     backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
     document.body.appendChild(backdrop);
@@ -6247,7 +6505,7 @@ const SHADOW_MODAL_STYLES = `
 
   // Preischart als PNG für Discord: vorhandenes SVG gross rendern, rastern, als
   // Webhook-Attachment hochladen. Reine Browser-APIs — ohne DOM kein Bild (null).
-  function renderSparklinePng(timeSeries, width = 360, height = 100) {
+  function renderSparklinePng(timeSeries, width = 360, height = 100, title = '') {
     return new Promise(resolve => {
       let done = false;
       let svgUrl = null;
@@ -6255,7 +6513,7 @@ const SHADOW_MODAL_STYLES = `
       const timer = setTimeout(() => finish(null), 3000);
       try {
         if (typeof document === 'undefined') return finish(null);
-        const svg = renderDiscordChart(timeSeries, width, height);
+        const svg = renderDiscordChart(timeSeries, width, height, title);
         if (!svg) return finish(null);
         const svgText = new XMLSerializer().serializeToString(svg);
         svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
@@ -8093,7 +8351,7 @@ const SHADOW_MODAL_STYLES = `
                   }
                 }
               }
-              const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice)).catch(() => null);
+              const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice), 360, 100, title).catch(() => null);
               if (!stillFresh()) { abortStale(); return; }
               const aiText = aiPromise ? (await aiPromise) : '';
               if (!stillFresh()) { abortStale(); return; }
@@ -12216,7 +12474,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.371';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.372';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
