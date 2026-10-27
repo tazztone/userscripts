@@ -2416,6 +2416,21 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const sublist = sidebar?.querySelector('.tp-cat-sublist');
         const childCount = sublist?.querySelectorAll('.tp-cat-item').length || 0;
 
+        // Disabling category auto-collapses sublist and disables toggle
+        const firstLi = firstToggle?.closest('li');
+        const hideBtn = firstLi?.querySelector('.f_IgnoredCategories_Hide');
+        if (hideBtn) hideBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const sublistAfterHide = firstLi?.querySelector('.tp-cat-sublist');
+        const toggleDisabledAfterHide = !!firstToggle?.disabled;
+
+        // Re-enabling restores toggle interactivity
+        const showBtn = document.querySelector('.f_IgnoredCategories_Show') || firstLi?.querySelector('.f_IgnoredCategories_Show');
+        if (showBtn) showBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+        const toggleDisabledAfterShow = !!firstToggle?.disabled;
+
         return {
             enhanced: !!enhanced,
             hasSearch: !!searchInput,
@@ -2423,7 +2438,10 @@ def test_expandable_category_sidebar_interactions(page: Page):
             searchVisible,
             hitCount,
             hasSublist: !!sublist,
-            childCount
+            childCount,
+            sublistAfterHide: !!sublistAfterHide,
+            toggleDisabledAfterHide,
+            toggleDisabledAfterShow
         };
     }""")
 
@@ -2434,6 +2452,9 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['hitCount'] >= 1
     assert res['hasSublist'] is True
     assert res['childCount'] >= 1
+    assert res['sublistAfterHide'] is False
+    assert res['toggleDisabledAfterHide'] is True
+    assert res['toggleDisabledAfterShow'] is False
 
 
 
