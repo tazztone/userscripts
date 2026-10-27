@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility, getCardEffectiveDiscount } from '../../src/page/cards.js';
 import { STYLES_CARDS } from '../../src/ui/styles/cards.js';
 import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
-import { withConfig } from './helpers.js';
+import { withConfig, withConfigs } from './helpers.js';
 
 describe('Page & Card Layer - Container Defense & Heatmap', () => {
   describe('getDistinctProductIds', () => {
@@ -256,9 +256,9 @@ describe('applyCardFilters split', () => {
       withConfig('BESTPREISE_HIDE_UNCHECKED', false, () =>
         withConfig('BESTPREISE_INCLUDE_VORTIEF', true, fn))));
 
-  it('never removes verified markups and exposes the six removal causes only', () => {
+  it('never removes verified markups and exposes the eight removal causes only', () => {
     const f = quietFlags(() => applyCardFilters(base({}), [], 0, false));
-    assert.deepEqual(Object.keys(f).sort(), ['isBelowMinDiscount', 'isDealerLoser', 'isLowOffers', 'isNeg', 'isUnchecked', 'isVortiefExcluded']);
+    assert.deepEqual(Object.keys(f).sort(), ['isBelowMinDiscount', 'isBelowMinSavings', 'isDealerLoser', 'isLowOffers', 'isNeg', 'isOutOfPriceRange', 'isUnchecked', 'isVortiefExcluded']);
   });
 
   it('excludes at-low fallback instead when Fallback-Tiefs are off', () => {
@@ -651,6 +651,63 @@ describe('Min-Rabatt threshold filter core', () => {
       assert.equal(isCardFilteredOut(card, filters), true);
       // forScan bypasses isBelowMinDiscount
       assert.equal(isCardFilteredOut(card, filters, { forScan: true }), false);
+    });
+  });
+
+  it('applyCardFilters sets isOutOfPriceRange when cardPrice is outside configured bounds', () => {
+    withConfigs({ FILTER_PRICE_ENABLED: true, FILTER_PRICE_MIN: 50, FILTER_PRICE_MAX: 200 }, () => {
+      const cdLow = { cardPrice: 30, card: {} };
+      assert.equal(applyCardFilters(cdLow, [], 0, true).isOutOfPriceRange, true);
+
+      const cdIn = { cardPrice: 100, card: {} };
+      assert.equal(applyCardFilters(cdIn, [], 0, true).isOutOfPriceRange, false);
+
+      const cdHigh = { cardPrice: 250, card: {} };
+      assert.equal(applyCardFilters(cdHigh, [], 0, true).isOutOfPriceRange, true);
+    });
+
+    // When disabled or bounds are 0
+    withConfigs({ FILTER_PRICE_ENABLED: false, FILTER_PRICE_MIN: 50, FILTER_PRICE_MAX: 200 }, () => {
+      const cd = { cardPrice: 30, card: {} };
+      assert.equal(applyCardFilters(cd, [], 0, true).isOutOfPriceRange, false);
+    });
+  });
+
+  it('applyCardFilters sets isBelowMinSavings for verified deals below CHF savings threshold', () => {
+    withConfigs({ FILTER_SAVINGS_ENABLED: true, FILTER_SAVINGS_MIN: 20, FILTER_SAVINGS_MAX: 0 }, () => {
+      // 80 CHF with 10% discount: savings = 80 * (0.1/0.9) = 8.89 CHF (< 20 CHF)
+      const cdLowSavings = { cardPrice: 80, dealScore: { weightedDiff: 10 }, card: {} };
+      assert.equal(applyCardFilters(cdLowSavings, [], 0, true).isBelowMinSavings, true);
+
+      // 80 CHF with 25% discount: savings = 80 * (0.25/0.75) = 26.67 CHF (> 20 CHF)
+      const cdHighSavings = { cardPrice: 80, dealScore: { weightedDiff: 25 }, card: {} };
+      assert.equal(applyCardFilters(cdHighSavings, [], 0, true).isBelowMinSavings, false);
+
+      // Unverified card should NOT be filtered by isBelowMinSavings (governed by Ungeprüfte)
+      const cdUnverified = { cardPrice: 80, dealScore: null, stats: null, discountVal: 10, card: {} };
+      assert.equal(applyCardFilters(cdUnverified, [], 0, true).isBelowMinSavings, false);
+    });
+  });
+
+  it('isCardFilteredOut respects FILTER_PRICE_MODE and FILTER_SAVINGS_MODE', () => {
+    const card = { classList: { contains: () => false } };
+
+    const fPrice = { isOutOfPriceRange: true };
+    withConfig('FILTER_PRICE_MODE', 'dim', () => {
+      assert.equal(isCardFilteredOut(card, fPrice), false);
+    });
+    withConfig('FILTER_PRICE_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(card, fPrice), true);
+      assert.equal(isCardFilteredOut(card, fPrice, { forScan: true }), false);
+    });
+
+    const fSavings = { isBelowMinSavings: true };
+    withConfig('FILTER_SAVINGS_MODE', 'dim', () => {
+      assert.equal(isCardFilteredOut(card, fSavings), false);
+    });
+    withConfig('FILTER_SAVINGS_MODE', 'hide', () => {
+      assert.equal(isCardFilteredOut(card, fSavings), true);
+      assert.equal(isCardFilteredOut(card, fSavings, { forScan: true }), false);
     });
   });
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.366
+// @version      2.18.367
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4415,6 +4415,18 @@ const SHADOW_MODAL_STYLES = `
     // card price the badge/heat still tell the verified truth.
     const displayDelta = basisMatches ? getDisplayDelta(cardPrice, stats) : { kind: 'unknown' };
     const offerCount = extractOfferCount(card);
+    const effDiscount = getCardEffectiveDiscount({
+      basisMatches,
+      verifiedStats: basisMatches ? stats : null,
+      stats,
+      cardPriceBasis,
+      dealScore,
+      displayDelta,
+      discountVal,
+      diffVal,
+      cardPrice
+    });
+    const savingsChf = computeSavingsChf(cardPrice, effDiscount);
 
     return {
       card,
@@ -4429,7 +4441,8 @@ const SHADOW_MODAL_STYLES = `
       discountVal,
       dealScore,
       displayDelta,
-      offerCount
+      offerCount,
+      savingsChf
     };
   }
 
@@ -4466,8 +4479,20 @@ const SHADOW_MODAL_STYLES = `
      const isVerified = !!cd.dealScore || hasUsablePriceStats(stats);
      const isUnchecked = CONFIG.BESTPREISE_HIDE_UNCHECKED === true && !hasUsablePriceStats(stats);
      const isBelowMinDiscount = CONFIG.FILTER_DEAL_DISCOUNT_ENABLED && CONFIG.MIN_DEAL_DISCOUNT > 0 && isVerified && getCardEffectiveDiscount(cd) < CONFIG.MIN_DEAL_DISCOUNT;
+     const price = cd.cardPrice || 0;
+     const minP = CONFIG.FILTER_PRICE_MIN || 0;
+     const maxP = CONFIG.FILTER_PRICE_MAX || 0;
+     const isOutOfPriceRange = CONFIG.FILTER_PRICE_ENABLED && price > 0 && (
+       (minP > 0 && price < minP) || (maxP > 0 && price > maxP)
+     );
+     const minS = CONFIG.FILTER_SAVINGS_MIN || 0;
+     const maxS = CONFIG.FILTER_SAVINGS_MAX || 0;
+     const savings = cd.savingsChf ?? computeSavingsChf(cd.cardPrice, getCardEffectiveDiscount(cd));
+     const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && (
+       (minS > 0 && savings < minS) || (maxS > 0 && savings > maxS)
+     );
      const isDealerLoser = false;
-     return { isNeg, isLowOffers, isBelowMinDiscount, isVortiefExcluded, isUnchecked, isDealerLoser };
+     return { isNeg, isLowOffers, isBelowMinDiscount, isOutOfPriceRange, isBelowMinSavings, isVortiefExcluded, isUnchecked, isDealerLoser };
   }
   function dealerLoserFor(card, activeStores) {
     if (!activeStores || activeStores.length === 0) return false;
@@ -4504,6 +4529,8 @@ const SHADOW_MODAL_STYLES = `
       || (f.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
       || (f.isDealerLoser && isHide(CONFIG.DEALER_MODE))
       || (!forScan && f.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
+      || (!forScan && f.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
+      || (!forScan && f.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
       || (forScan ? false : (f.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE)))
       || (f.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE));
     const legacyChecks = () => {
@@ -4527,6 +4554,8 @@ const SHADOW_MODAL_STYLES = `
       isNeg: card.classList?.contains('tp-negative-filtered') === true,
       isLowOffers: card.classList?.contains('tp-min-offers-filtered') === true,
       isBelowMinDiscount: !!card.classList?.contains('tp-deal-disc-filtered'),
+      isOutOfPriceRange: card.classList?.contains('tp-price-filtered') === true,
+      isBelowMinSavings: card.classList?.contains('tp-savings-filtered') === true,
       isVortiefExcluded: card.classList?.contains('tp-vortief-excluded') === true,
       isUnchecked: card.classList?.contains('tp-unchecked-hidden') === true,
       isDealerLoser: card.classList?.contains('tp-not-cheapest') === true
@@ -6704,6 +6733,8 @@ const SHADOW_MODAL_STYLES = `
     card.classList.toggle('tp-negative-filtered', filters.isNeg);
     card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
     card.classList.toggle('tp-deal-disc-filtered', !!filters.isBelowMinDiscount);
+    card.classList.toggle('tp-price-filtered', !!filters.isOutOfPriceRange);
+    card.classList.toggle('tp-savings-filtered', !!filters.isBelowMinSavings);
     card.classList.toggle('tp-vortief-excluded', filters.isVortiefExcluded === true);
 
     // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
@@ -6736,18 +6767,24 @@ const SHADOW_MODAL_STYLES = `
       || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
       || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
       || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
+      || (filters.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
+      || (filters.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
       || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
       || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
     const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
       || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
+      || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'dim')
+      || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'dim')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
     const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
       || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
+      || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'highlight')
+      || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'highlight')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
     filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
@@ -11104,7 +11141,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const cardDataList = cards.map(extractCardData);
 
       // --- Filter ---
-      const counts = { neg: 0, min: 0, dealDisc: 0, uncheckedDeals: 0, unavailableDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
+      const counts = { neg: 0, min: 0, dealDisc: 0, price: 0, savings: 0, uncheckedDeals: 0, unavailableDeals: 0, bestpreiseDeals: 0, vortief: 0, uncheckedHidden: 0, dealer: 0, dealerActive: activeStores.length > 0, filteredCount: 0, dimmed: 0 };
       const pageHasOffers = cardDataList.some(cd => cd.offerCount > 0);
 
       for (const cd of cardDataList) {
@@ -11131,6 +11168,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (cd.filters.isBelowMinDiscount) counts.dealDisc++;
+        if (cd.filters.isOutOfPriceRange) counts.price++;
+        if (cd.filters.isBelowMinSavings) counts.savings++;
         if (cd.filters.isUnchecked) counts.uncheckedHidden++;
         if (cd.filters.isVortiefExcluded) counts.vortief++;
         if (cd.filters.isDealerLoser) counts.dealer++;
@@ -11295,7 +11334,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.366';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.367';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

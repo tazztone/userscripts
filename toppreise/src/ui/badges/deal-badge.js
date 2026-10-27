@@ -166,6 +166,8 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
   card.classList.toggle('tp-negative-filtered', filters.isNeg);
   card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
   card.classList.toggle('tp-deal-disc-filtered', !!filters.isBelowMinDiscount);
+  card.classList.toggle('tp-price-filtered', !!filters.isOutOfPriceRange);
+  card.classList.toggle('tp-savings-filtered', !!filters.isBelowMinSavings);
   card.classList.toggle('tp-vortief-excluded', filters.isVortiefExcluded === true);
 
   // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
@@ -198,18 +200,24 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
     || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
     || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
+    || (filters.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
+    || (filters.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
     || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
     || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
   const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
     || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
     || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
     || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
+    || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'dim')
+    || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'dim')
     || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
     || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
   const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
     || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
     || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
     || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
+    || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'highlight')
+    || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'highlight')
     || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
     || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
   filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
