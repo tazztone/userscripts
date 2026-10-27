@@ -68,6 +68,41 @@ export const STYLES_OVERLAYS = `
   .tp-filter-row .tp-bar-stepper-group {
     margin-left: auto !important;
   }
+  .tp-range-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+  .tp-range-input {
+    width: 54px !important;
+    height: 22px !important;
+    padding: 1px 5px !important;
+    font-size: var(--tp-fs-xs) !important;
+    font-weight: 500 !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    border-radius: var(--tp-r-sm) !important;
+    color: var(--tp-txt) !important;
+    text-align: right !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+  }
+  .tp-range-input:focus {
+    border-color: var(--tp-pri) !important;
+  }
+  .tp-range-input::-webkit-inner-spin-button,
+  .tp-range-input::-webkit-outer-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+  .tp-range-input {
+    -moz-appearance: textfield !important;
+  }
+  .tp-range-sep {
+    font-size: var(--tp-fs-xs) !important;
+    color: var(--tp-mut) !important;
+    user-select: none !important;
+  }
   .tp-glossary-term {
     text-decoration: underline dotted var(--tp-mut) !important;
     text-underline-offset: 3px !important;

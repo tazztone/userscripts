@@ -61,6 +61,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
   const bestpreiseDeals = counts.bestpreiseDeals || 0;
   const negHidden = counts.neg || 0;
   const minHidden = counts.min || 0;
+  const priceHidden = counts.price || 0;
+  const dealDiscHidden = counts.dealDisc || 0;
+  const savingsHidden = counts.savings || 0;
   const vortiefHidden = counts.vortief || 0;
   const uncheckedHiddenCount = counts.uncheckedHidden || 0;
   const dealerHidden = counts.dealer || 0;
@@ -105,6 +108,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <span class="tp-count-badge" data-row-count="vortief" style="display: ${vortiefHidden > 0 ? 'inline-flex' : 'none'};">${vortiefHidden > 0 ? vortiefHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="VORTIEF_MODE">Normal</button>
             </div>
+            <div class="tp-filter-row" data-filter-row="price">
+              <span class="tp-filter-label tp-glossary-term" title="Preisbereich in CHF. Angebote ausserhalb des Bereichs werden gefiltert.">Preis (CHF)</span>
+              <div class="tp-range-group" id="tp-bar-price-group">
+                <input type="number" id="tp-price-min-input" class="tp-range-input" placeholder="Min" min="0" step="any" value="${CONFIG.FILTER_PRICE_MIN > 0 ? CONFIG.FILTER_PRICE_MIN : ''}">
+                <span class="tp-range-sep">–</span>
+                <input type="number" id="tp-price-max-input" class="tp-range-input" placeholder="Max" min="0" step="any" value="${CONFIG.FILTER_PRICE_MAX > 0 ? CONFIG.FILTER_PRICE_MAX : ''}">
+              </div>
+              <span class="tp-count-badge" data-row-count="price" style="display: ${priceHidden > 0 ? 'inline-flex' : 'none'};">${priceHidden > 0 ? priceHidden : ''}</span>
+              <button class="tp-filter-mode-btn" data-mode-key="FILTER_PRICE_MODE">Normal</button>
+            </div>
             <div class="tp-filter-row" data-filter-row="deal-disc">
               <span class="tp-filter-label tp-glossary-term" title="Mindest-Rabatt in Prozent. Geprüfte Angebote mit weniger Rabatt oder Aufschlägen werden gefiltert; ungeprüfte bleiben sichtbar.">Min-Rabatt</span>
               <div class="tp-bar-stepper-group" id="tp-bar-deal-disc-group">
@@ -114,6 +127,16 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               </div>
               <span class="tp-count-badge" data-row-count="deal-disc" style="display: none;"></span>
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_DEAL_DISCOUNT_MODE">Normal</button>
+            </div>
+            <div class="tp-filter-row" data-filter-row="savings">
+              <span class="tp-filter-label tp-glossary-term" title="Mindest- und Höchst-Ersparnis in CHF. Geprüfte Angebote mit Ersparnis ausserhalb des Bereichs werden gefiltert; ungeprüfte bleiben sichtbar.">Ersparnis</span>
+              <div class="tp-range-group" id="tp-bar-savings-group">
+                <input type="number" id="tp-savings-min-input" class="tp-range-input" placeholder="Min" min="0" step="any" value="${CONFIG.FILTER_SAVINGS_MIN > 0 ? CONFIG.FILTER_SAVINGS_MIN : ''}">
+                <span class="tp-range-sep">–</span>
+                <input type="number" id="tp-savings-max-input" class="tp-range-input" placeholder="Max" min="0" step="any" value="${CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : ''}">
+              </div>
+              <span class="tp-count-badge" data-row-count="savings" style="display: ${savingsHidden > 0 ? 'inline-flex' : 'none'};">${savingsHidden > 0 ? savingsHidden : ''}</span>
+              <button class="tp-filter-mode-btn" data-mode-key="FILTER_SAVINGS_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="dealer">
               <span class="tp-filter-label" title="Karten, deren günstigstes Angebot nicht vom gewählten Händler kommt, dimmen/verbergen — nur aktiv wenn Händler gewählt">Händler</span>
