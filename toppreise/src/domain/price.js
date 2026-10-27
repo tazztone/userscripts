@@ -13,6 +13,14 @@ export const priceToCents = p => Math.round((parseFloat(p) || 0) * 100);
 export const pctDrop = (base, price) => Math.round(((base - price) / base) * 100);
 export const pctRise = (base, price) => Math.round(((price - base) / base) * 100);
 
+// Absolute CHF savings based on card price and percentage discount
+export const computeSavingsChf = (cardPrice, effectiveDiscount) => {
+  if (!cardPrice || cardPrice <= 0 || !effectiveDiscount || effectiveDiscount <= 0) return 0;
+  if (effectiveDiscount >= 100) return cardPrice;
+  const savings = cardPrice * (effectiveDiscount / (100 - effectiveDiscount));
+  return Math.round(savings * 100) / 100;
+};
+
 // True median: odd n takes the middle, even n averages the two middle
 // values (no upper-median bias from floor(n/2) indexing).
 const medianOf = sorted => {

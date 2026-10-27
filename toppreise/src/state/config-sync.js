@@ -273,6 +273,8 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           case 'FILTER_NEG_MODE':
           case 'FILTER_MIN_MODE':
           case 'FILTER_DEAL_DISCOUNT_MODE':
+          case 'FILTER_PRICE_MODE':
+          case 'FILTER_SAVINGS_MODE':
           case 'HIDE_UNCHECKED_MODE':
           case 'VORTIEF_MODE': {
             paintCycleButtons(bar, key);
@@ -298,6 +300,36 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           case 'FILTER_DEAL_DISCOUNT_ENABLED': {
             paintCycleButtons(bar, 'FILTER_DEAL_DISCOUNT_MODE');
             bar.querySelector('#tp-bar-deal-disc-group')?.classList.toggle('tp-tool-dim', !val);
+            break;
+          }
+          case 'FILTER_PRICE_ENABLED': {
+            paintCycleButtons(bar, 'FILTER_PRICE_MODE');
+            bar.querySelector('#tp-bar-price-group')?.classList.toggle('tp-tool-dim', !val);
+            break;
+          }
+          case 'FILTER_SAVINGS_ENABLED': {
+            paintCycleButtons(bar, 'FILTER_SAVINGS_MODE');
+            bar.querySelector('#tp-bar-savings-group')?.classList.toggle('tp-tool-dim', !val);
+            break;
+          }
+          case 'FILTER_PRICE_MIN': {
+            const el = bar.querySelector('#tp-price-min-input');
+            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+            break;
+          }
+          case 'FILTER_PRICE_MAX': {
+            const el = bar.querySelector('#tp-price-max-input');
+            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+            break;
+          }
+          case 'FILTER_SAVINGS_MIN': {
+            const el = bar.querySelector('#tp-savings-min-input');
+            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+            break;
+          }
+          case 'FILTER_SAVINGS_MAX': {
+            const el = bar.querySelector('#tp-savings-max-input');
+            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
             break;
           }
           case 'MIN_OFFERS': {

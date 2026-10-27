@@ -266,5 +266,26 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     syncUiControl('TAVILY_MAX_RESULTS', 8, {}, shadow);
     assert.equal(elements['tp-tavily-max-results'].value, '8');
   });
+
+  it('sanitizes FILTER_PRICE_* and FILTER_SAVINGS_* settings and registers them in FILTER_CYCLE', () => {
+    assert.equal(DEFAULTS.FILTER_PRICE_ENABLED, false);
+    assert.equal(DEFAULTS.FILTER_PRICE_MIN, 0);
+    assert.equal(DEFAULTS.FILTER_PRICE_MAX, 0);
+    assert.equal(DEFAULTS.FILTER_PRICE_MODE, 'dim');
+    assert.equal(DEFAULTS.FILTER_SAVINGS_ENABLED, false);
+    assert.equal(DEFAULTS.FILTER_SAVINGS_MIN, 0);
+    assert.equal(DEFAULTS.FILTER_SAVINGS_MAX, 0);
+    assert.equal(DEFAULTS.FILTER_SAVINGS_MODE, 'dim');
+
+    assert.equal(sanitizeConfigValue('FILTER_PRICE_MIN', 49.90), 49.90);
+    assert.equal(sanitizeConfigValue('FILTER_PRICE_MIN', -10), 0);
+    assert.equal(sanitizeConfigValue('FILTER_PRICE_MAX', '500'), 500);
+    assert.equal(sanitizeConfigValue('FILTER_SAVINGS_MIN', 20), 20);
+    assert.equal(sanitizeConfigValue('FILTER_SAVINGS_MODE', 'hide'), 'hide');
+    assert.equal(sanitizeConfigValue('FILTER_SAVINGS_MODE', 'invalid'), 'dim');
+
+    assert.ok('FILTER_PRICE_MODE' in FILTER_CYCLE);
+    assert.ok('FILTER_SAVINGS_MODE' in FILTER_CYCLE);
+  });
 });
 

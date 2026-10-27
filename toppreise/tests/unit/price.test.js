@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parsePrice,
   priceToCents,
+  computeSavingsChf,
   extractCanonicalPrice,
   parsePriceStatsFromHtml,
   sanitizeTimeSeries,
@@ -55,6 +56,33 @@ describe('Price Domain Module', () => {
       assert.equal(priceToCents('149.95'), 14995);
       assert.equal(priceToCents(0), 0);
       assert.equal(priceToCents(null), 0);
+    });
+  });
+
+  describe('computeSavingsChf', () => {
+    it('accurately computes CHF savings from card price and percentage discount', () => {
+      // 80 CHF with 20% discount: baseline is 100 CHF -> 20 CHF savings
+      assert.equal(computeSavingsChf(80, 20), 20);
+      // 500 CHF with 50% discount: baseline 1000 CHF -> 500 CHF savings
+      assert.equal(computeSavingsChf(500, 50), 500);
+      // 90 CHF with 10% discount: baseline 100 CHF -> 10 CHF savings
+      assert.equal(computeSavingsChf(90, 10), 10);
+      // 1000 CHF with 10% discount: 1000 * (0.1/0.9) = 111.11 CHF savings
+      assert.equal(computeSavingsChf(1000, 10), 111.11);
+    });
+
+    it('returns 0 for non-positive prices, markups, or invalid discounts', () => {
+      assert.equal(computeSavingsChf(0, 20), 0);
+      assert.equal(computeSavingsChf(-50, 20), 0);
+      assert.equal(computeSavingsChf(100, 0), 0);
+      assert.equal(computeSavingsChf(100, -10), 0);
+      assert.equal(computeSavingsChf(null, 20), 0);
+      assert.equal(computeSavingsChf(100, null), 0);
+    });
+
+    it('safely handles 100% or greater discount edge cases', () => {
+      assert.equal(computeSavingsChf(50, 100), 50);
+      assert.equal(computeSavingsChf(50, 120), 50);
     });
   });
 

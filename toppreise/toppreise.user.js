@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.365
+// @version      2.18.366
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1996,6 +1996,14 @@ const SHADOW_MODAL_STYLES = `
   const pctDrop = (base, price) => Math.round(((base - price) / base) * 100);
   const pctRise = (base, price) => Math.round(((price - base) / base) * 100);
 
+  // Absolute CHF savings based on card price and percentage discount
+  const computeSavingsChf = (cardPrice, effectiveDiscount) => {
+    if (!cardPrice || cardPrice <= 0 || !effectiveDiscount || effectiveDiscount <= 0) return 0;
+    if (effectiveDiscount >= 100) return cardPrice;
+    const savings = cardPrice * (effectiveDiscount / (100 - effectiveDiscount));
+    return Math.round(savings * 100) / 100;
+  };
+
   // True median: odd n takes the middle, even n averages the two middle
   // values (no upper-median bias from floor(n/2) indexing).
   const medianOf = sorted => {
@@ -3023,9 +3031,17 @@ const SHADOW_MODAL_STYLES = `
     FILTER_NEG_ENABLED: false,
     FILTER_MIN_ENABLED: false,
     FILTER_DEAL_DISCOUNT_ENABLED: false,
+    FILTER_PRICE_ENABLED: false,
+    FILTER_PRICE_MIN: 0,
+    FILTER_PRICE_MAX: 0,
+    FILTER_SAVINGS_ENABLED: false,
+    FILTER_SAVINGS_MIN: 0,
+    FILTER_SAVINGS_MAX: 0,
     FILTER_NEG_MODE: 'dim',
     FILTER_MIN_MODE: 'dim',
     FILTER_DEAL_DISCOUNT_MODE: 'dim',
+    FILTER_PRICE_MODE: 'dim',
+    FILTER_SAVINGS_MODE: 'dim',
     HIDE_UNCHECKED_MODE: 'dim',
     VORTIEF_MODE: 'dim',
     DEALER_MODE: 'dim',
@@ -3117,9 +3133,17 @@ const SHADOW_MODAL_STYLES = `
     FILTER_NEG_ENABLED: { type: 'bool', default: false },
     FILTER_MIN_ENABLED: { type: 'bool', default: false },
     FILTER_DEAL_DISCOUNT_ENABLED: { type: 'bool', default: false },
+    FILTER_PRICE_ENABLED: { type: 'bool', default: false },
+    FILTER_PRICE_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTER_PRICE_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
+    FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTER_SAVINGS_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
     FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
     FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
     FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },
+    FILTER_PRICE_MODE: { type: 'mode', default: 'dim' },
+    FILTER_SAVINGS_MODE: { type: 'mode', default: 'dim' },
     HIDE_UNCHECKED_MODE: { type: 'mode', default: 'dim' },
     VORTIEF_MODE: { type: 'mode', default: 'dim' },
     DEALER_MODE: { type: 'mode', default: 'dim' },
@@ -3369,6 +3393,8 @@ const SHADOW_MODAL_STYLES = `
     FILTER_NEG_MODE: { enable: 'FILTER_NEG_ENABLED', on: true },
     FILTER_MIN_MODE: { enable: 'FILTER_MIN_ENABLED', on: true },
     FILTER_DEAL_DISCOUNT_MODE: { enable: 'FILTER_DEAL_DISCOUNT_ENABLED', on: true },
+    FILTER_PRICE_MODE: { enable: 'FILTER_PRICE_ENABLED', on: true },
+    FILTER_SAVINGS_MODE: { enable: 'FILTER_SAVINGS_ENABLED', on: true },
     HIDE_UNCHECKED_MODE: { enable: 'BESTPREISE_HIDE_UNCHECKED', on: true },
     VORTIEF_MODE: { enable: 'BESTPREISE_INCLUDE_VORTIEF', on: false },
   });
@@ -3399,9 +3425,17 @@ const SHADOW_MODAL_STYLES = `
     FILTER_NEG_ENABLED: sanitizeConfigValue('FILTER_NEG_ENABLED', _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED))),
     FILTER_MIN_ENABLED: sanitizeConfigValue('FILTER_MIN_ENABLED', _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED))),
     FILTER_DEAL_DISCOUNT_ENABLED: sanitizeConfigValue('FILTER_DEAL_DISCOUNT_ENABLED', _getValue('FILTER_DEAL_DISCOUNT_ENABLED', DEFAULTS.FILTER_DEAL_DISCOUNT_ENABLED)),
+    FILTER_PRICE_ENABLED: sanitizeConfigValue('FILTER_PRICE_ENABLED', _getValue('FILTER_PRICE_ENABLED', DEFAULTS.FILTER_PRICE_ENABLED)),
+    FILTER_PRICE_MIN: sanitizeConfigValue('FILTER_PRICE_MIN', _getValue('FILTER_PRICE_MIN', DEFAULTS.FILTER_PRICE_MIN)),
+    FILTER_PRICE_MAX: sanitizeConfigValue('FILTER_PRICE_MAX', _getValue('FILTER_PRICE_MAX', DEFAULTS.FILTER_PRICE_MAX)),
+    FILTER_SAVINGS_ENABLED: sanitizeConfigValue('FILTER_SAVINGS_ENABLED', _getValue('FILTER_SAVINGS_ENABLED', DEFAULTS.FILTER_SAVINGS_ENABLED)),
+    FILTER_SAVINGS_MIN: sanitizeConfigValue('FILTER_SAVINGS_MIN', _getValue('FILTER_SAVINGS_MIN', DEFAULTS.FILTER_SAVINGS_MIN)),
+    FILTER_SAVINGS_MAX: sanitizeConfigValue('FILTER_SAVINGS_MAX', _getValue('FILTER_SAVINGS_MAX', DEFAULTS.FILTER_SAVINGS_MAX)),
     FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
     FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
     FILTER_DEAL_DISCOUNT_MODE: _modeValue('FILTER_DEAL_DISCOUNT_MODE'),
+    FILTER_PRICE_MODE: _modeValue('FILTER_PRICE_MODE'),
+    FILTER_SAVINGS_MODE: _modeValue('FILTER_SAVINGS_MODE'),
     HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
     VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
     DEALER_MODE: _modeValue('DEALER_MODE'),
@@ -3802,6 +3836,8 @@ const SHADOW_MODAL_STYLES = `
             case 'FILTER_NEG_MODE':
             case 'FILTER_MIN_MODE':
             case 'FILTER_DEAL_DISCOUNT_MODE':
+            case 'FILTER_PRICE_MODE':
+            case 'FILTER_SAVINGS_MODE':
             case 'HIDE_UNCHECKED_MODE':
             case 'VORTIEF_MODE': {
               paintCycleButtons(bar, key);
@@ -3827,6 +3863,36 @@ const SHADOW_MODAL_STYLES = `
             case 'FILTER_DEAL_DISCOUNT_ENABLED': {
               paintCycleButtons(bar, 'FILTER_DEAL_DISCOUNT_MODE');
               bar.querySelector('#tp-bar-deal-disc-group')?.classList.toggle('tp-tool-dim', !val);
+              break;
+            }
+            case 'FILTER_PRICE_ENABLED': {
+              paintCycleButtons(bar, 'FILTER_PRICE_MODE');
+              bar.querySelector('#tp-bar-price-group')?.classList.toggle('tp-tool-dim', !val);
+              break;
+            }
+            case 'FILTER_SAVINGS_ENABLED': {
+              paintCycleButtons(bar, 'FILTER_SAVINGS_MODE');
+              bar.querySelector('#tp-bar-savings-group')?.classList.toggle('tp-tool-dim', !val);
+              break;
+            }
+            case 'FILTER_PRICE_MIN': {
+              const el = bar.querySelector('#tp-price-min-input');
+              if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+              break;
+            }
+            case 'FILTER_PRICE_MAX': {
+              const el = bar.querySelector('#tp-price-max-input');
+              if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+              break;
+            }
+            case 'FILTER_SAVINGS_MIN': {
+              const el = bar.querySelector('#tp-savings-min-input');
+              if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+              break;
+            }
+            case 'FILTER_SAVINGS_MAX': {
+              const el = bar.querySelector('#tp-savings-max-input');
+              if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
               break;
             }
             case 'MIN_OFFERS': {
@@ -11229,7 +11295,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.365';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.366';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
