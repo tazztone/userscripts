@@ -10,8 +10,8 @@ def _google_url(name, keyword=None):
     return 'https://www.google.com/search?q=' + quote(query)
 
 
-DEFAULT_KEYWORD = 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
-DEFAULT_UNVERIFIED_QUERY = 'Testberichte zu: Nvidia GeForce RTX 4090 24GB. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+DEFAULT_KEYWORD = 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.'
+DEFAULT_UNVERIFIED_QUERY = 'Testberichte zu: Nvidia GeForce RTX 4090 24GB. Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.'
 
 
 def test_review_icon_per_card_default(page: Page):
@@ -145,8 +145,8 @@ def test_review_keyword_reset_to_default(page: Page):
     assert preview_el.inner_text() == 'Sony WH-1000XM5 Eigene Suche'
 
     page.click('#tp-root >> #tp-review-keyword-reset')
-    assert input_el.input_value() == 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
-    assert preview_el.inner_text() == 'Testberichte zu: Sony WH-1000XM5. zum preis: CHF 279.00. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    assert input_el.input_value() == 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.'
+    assert preview_el.inner_text() == 'Testberichte zu: Sony WH-1000XM5. Ist der Preis von CHF 279.00 ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.'
     page.click('#tp-root >> #tp-btn-close')
 
 
@@ -157,8 +157,8 @@ def test_review_keyword_live_preview(page: Page):
     preview_noprice = page.locator('#tp-root >> #tp-review-keyword-preview-noprice')
     noprice_row = page.locator('#tp-root >> #tp-review-keyword-preview-noprice-row')
 
-    assert preview_price.inner_text() == 'Testberichte zu: Sony WH-1000XM5. zum preis: CHF 279.00. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
-    assert preview_noprice.inner_text() == 'Testberichte zu: Sony WH-1000XM5. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+    assert preview_price.inner_text() == 'Testberichte zu: Sony WH-1000XM5. Ist der Preis von CHF 279.00 ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.'
+    assert preview_noprice.inner_text() == 'Testberichte zu: Sony WH-1000XM5. Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.'
     assert noprice_row.is_visible()
 
     page.fill('#tp-root >> #tp-review-keyword-input', 'Kaufberatung')

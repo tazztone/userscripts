@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.376
+// @version      2.18.377
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3299,7 +3299,7 @@ const SHADOW_MODAL_STYLES = `
     ENABLE_SPARKLINES: true,
     KEEPA_CHART_ENABLED: true,
     REVIEW_SEARCH_ENABLED: true,
-    REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.',
+    REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.',
     REVIEW_SEARCH_AI_MODE: false,
     TAVILY_API_KEY: '',
     TAVILY_SEARCH_DEPTH: 'basic',
@@ -3402,7 +3402,7 @@ const SHADOW_MODAL_STYLES = `
     ENABLE_SPARKLINES: { type: 'bool', default: true },
     KEEPA_CHART_ENABLED: { type: 'bool', default: true },
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
-    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.' },
+    REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
     TAVILY_API_KEY: { type: 'string', default: '' },
     TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
@@ -3725,9 +3725,13 @@ const SHADOW_MODAL_STYLES = `
   // NaN/unknown durations.
   if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
   if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
-  // Old defaults were plain 'Testbericht' or the previous deal-question prompt; bump
-  // untouched values to the new default (KI-Modus precedent above).
-  if (CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht' || CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?') {
+  // Old defaults bump to new default (KI-Modus precedent above).
+  if (
+    CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht' ||
+    CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht - {preis} Preiseinschätzung' ||
+    CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?' ||
+    CONFIG.REVIEW_SEARCH_KEYWORD === 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+  ) {
     CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
   }
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
@@ -6355,8 +6359,8 @@ const SHADOW_MODAL_STYLES = `
 
     // Gracefully drop sentence or clause asking about {preis} when no price is available
     return kw
-      .replace(/(?:[.,;]\s+)(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?(?:\.|\?|;)(?=\s+\S)/gi, '.')
-      .replace(/(?:[.,;]?\s*)?(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?[.,;]?/gi, '')
+      .replace(/(?:[.,;]\s+)(?:(?:Ist\s+(?:der\s+)?|zum\s+)?(?:Preis(?:\s*von|\s*:)?\s*)?|Ist\s+)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?(?:\.|\?|;)(?=\s+\S)/gi, '.')
+      .replace(/(?:[.,;]?\s*)?(?:(?:Ist\s+(?:der\s+)?|zum\s+)?(?:Preis(?:\s*von|\s*:)?\s*)?|Ist\s+)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?[.,;]?/gi, '')
       .replace(/\s*\.\s*\./g, '.')
       .replace(/^\.\s*/, '')
       .replace(/\s*-\s*$/, '')
@@ -6375,7 +6379,7 @@ const SHADOW_MODAL_STYLES = `
 
   function buildTavilyQuery(title, keyword = '', priceText = '') {
     let full = formatSearchQuery(title, keyword, priceText);
-    if (!/deutsch|fazit|urteil/i.test(full)) {
+    if (!/deutsch/i.test(full)) {
       full = `${full} Kurzes Fazit auf Deutsch.`;
     }
 
@@ -9468,7 +9472,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group">
             <label title="Dieser Begriff wird für die Google- und KI-Suche verwendet.">Suchbegriff / Prompt</label>
             <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
+              <input type="text" id="tp-review-keyword-input" class="tp-field-dark" value="Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch." maxlength="150" placeholder="Suchbegriff eingeben…" spellcheck="false" autocomplete="off" style="flex:1;margin-top:0;">
               <button type="button" id="tp-review-keyword-reset" class="tp-btn tp-btn-secondary" style="padding:6px 10px;font-size:var(--tp-fs-sm);height:32px;white-space:nowrap;" title="Auf Standard-Suchbegriff zurücksetzen">↺ Standard</button>
             </div>
             <span class="tp-switch-desc tp-field-hint">Wird für Web- und KI-Suche verwendet. Platzhalter: <code>[Produkt]</code> (wird sonst vorangestellt) und <code>{preis}</code> (ohne Preisdaten automatisch entfernt).</span>
@@ -12568,7 +12572,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.376';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.377';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

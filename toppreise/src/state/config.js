@@ -163,9 +163,13 @@ export const realDealMinDiscount = () => (Number.isFinite(CONFIG.REAL_DEAL_MIN_D
 // NaN/unknown durations.
 if (!['90', '180', '365', '730'].includes(CONFIG.ALARM_DURATION_DAYS)) CONFIG.ALARM_DURATION_DAYS = '730';
 if (CONFIG.REVIEW_SEARCH_KEYWORD === 'KI-Modus') { CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD; CONFIG.REVIEW_SEARCH_AI_MODE = true; }
-// Old defaults were plain 'Testbericht' or the previous deal-question prompt; bump
-// untouched values to the new default (KI-Modus precedent above).
-if (CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht' || CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?') {
+// Old defaults bump to new default (KI-Modus precedent above).
+if (
+  CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht' ||
+  CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht - {preis} Preiseinschätzung' ||
+  CONFIG.REVIEW_SEARCH_KEYWORD === 'Testbericht Erfahrungen. Ist der Preis von {preis} ein guter Deal?' ||
+  CONFIG.REVIEW_SEARCH_KEYWORD === 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.'
+) {
   CONFIG.REVIEW_SEARCH_KEYWORD = DEFAULTS.REVIEW_SEARCH_KEYWORD;
 }
 CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);

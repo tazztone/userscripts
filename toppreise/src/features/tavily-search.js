@@ -94,8 +94,8 @@ export function expandKeywordWithPrice(keyword, priceText = '') {
 
   // Gracefully drop sentence or clause asking about {preis} when no price is available
   return kw
-    .replace(/(?:[.,;]\s+)(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?(?:\.|\?|;)(?=\s+\S)/gi, '.')
-    .replace(/(?:[.,;]?\s*)?(?:(?:Ist\s+(?:der\s+)?|zum\s+)?Preis(?:\s*von|\s*:)?\s*)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?[.,;]?/gi, '')
+    .replace(/(?:[.,;]\s+)(?:(?:Ist\s+(?:der\s+)?|zum\s+)?(?:Preis(?:\s*von|\s*:)?\s*)?|Ist\s+)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?(?:\.|\?|;)(?=\s+\S)/gi, '.')
+    .replace(/(?:[.,;]?\s*)?(?:(?:Ist\s+(?:der\s+)?|zum\s+)?(?:Preis(?:\s*von|\s*:)?\s*)?|Ist\s+)?\{preis\}(?:\s*(?:ein\s+guter\s+Deal|angemessen|günstig)\??)?[.,;]?/gi, '')
     .replace(/\s*\.\s*\./g, '.')
     .replace(/^\.\s*/, '')
     .replace(/\s*-\s*$/, '')
@@ -114,7 +114,7 @@ export function formatSearchQuery(productTitle, keyword, priceText = '') {
 
 export function buildTavilyQuery(title, keyword = '', priceText = '') {
   let full = formatSearchQuery(title, keyword, priceText);
-  if (!/deutsch|fazit|urteil/i.test(full)) {
+  if (!/deutsch/i.test(full)) {
     full = `${full} Kurzes Fazit auf Deutsch.`;
   }
 
