@@ -2419,11 +2419,13 @@ def test_expandable_category_sidebar_interactions(page: Page):
         // Disabling category auto-collapses sublist and disables toggle
         const firstLi = firstToggle?.closest('li');
         const hideBtn = firstLi?.querySelector('.f_IgnoredCategories_Hide');
+        const hideColor = hideBtn ? window.getComputedStyle(hideBtn).color : null;
         if (hideBtn) hideBtn.click();
         await new Promise(r => setTimeout(r, 60));
 
         const sublistAfterHide = firstLi?.querySelector('.tp-cat-sublist');
         const toggleDisabledAfterHide = !!firstToggle?.disabled;
+        const rowBgAfterHide = firstLi?.querySelector('.tp-cat-row') ? window.getComputedStyle(firstLi.querySelector('.tp-cat-row')).backgroundColor : null;
 
         // Re-enabling restores toggle interactivity
         const showBtn = document.querySelector('.f_IgnoredCategories_Show') || firstLi?.querySelector('.f_IgnoredCategories_Show');
@@ -2439,8 +2441,10 @@ def test_expandable_category_sidebar_interactions(page: Page):
             hitCount,
             hasSublist: !!sublist,
             childCount,
+            hideColor,
             sublistAfterHide: !!sublistAfterHide,
             toggleDisabledAfterHide,
+            rowBgAfterHide,
             toggleDisabledAfterShow
         };
     }""")
@@ -2452,8 +2456,10 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['hitCount'] >= 1
     assert res['hasSublist'] is True
     assert res['childCount'] >= 1
+    assert '239, 68, 68' in (res['hideColor'] or '')
     assert res['sublistAfterHide'] is False
     assert res['toggleDisabledAfterHide'] is True
+    assert '239, 68, 68' in (res['rowBgAfterHide'] or '')
     assert res['toggleDisabledAfterShow'] is False
 
 
