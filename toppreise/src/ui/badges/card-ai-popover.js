@@ -101,14 +101,17 @@ export function openAiPopover(options = {}) {
 
   const renderVerdict = (text) => {
     currentVerdict = text;
+    contentEl.style.borderLeftColor = '#5865f2';
     contentEl.innerHTML = formatVerdictHtml(text);
     copyBtn.disabled = false;
+    retryBtn.style.display = 'none';
   };
 
   const renderError = (msg) => {
     contentEl.style.borderLeftColor = '#ef4444';
     contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
     copyBtn.disabled = true;
+    retryBtn.style.display = 'inline-flex';
   };
 
   if (cached?.answer) {
@@ -121,6 +124,35 @@ export function openAiPopover(options = {}) {
   // Footer action buttons
   const footer = document.createElement('div');
   footer.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px;';
+
+  const retryBtn = document.createElement('button');
+  retryBtn.type = 'button';
+  retryBtn.className = 'tp-btn tp-btn-secondary';
+  retryBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  retryBtn.textContent = '🔄 Erneut versuchen';
+
+  const fetchSummary = () => {
+    retryBtn.style.display = 'none';
+    contentEl.style.borderLeftColor = '#5865f2';
+    contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+    fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
+      timeoutMs: 20000,
+      searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
+      maxResults: CONFIG.TAVILY_MAX_RESULTS
+    })
+      .then(answer => {
+        if (backdrop.isConnected) {
+          renderVerdict(answer);
+        }
+      })
+      .catch(err => {
+        if (backdrop.isConnected) {
+          renderError(err?.message || 'Fehler beim Laden des Fazits');
+        }
+      });
+  };
+
+  retryBtn.addEventListener('click', fetchSummary);
 
   const googleBtn = document.createElement('a');
   googleBtn.href = googleUrl || ('https://www.google.com/search?q=' + encodeURIComponent(query));
@@ -165,6 +197,7 @@ export function openAiPopover(options = {}) {
     }
   });
 
+  footer.appendChild(retryBtn);
   footer.appendChild(googleBtn);
   footer.appendChild(copyBtn);
   footer.appendChild(discordBtn);
@@ -199,21 +232,7 @@ export function openAiPopover(options = {}) {
 
   // If not cached, trigger fetch now
   if (!cached?.answer) {
-    fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
-      timeoutMs: 7500,
-      searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
-      maxResults: CONFIG.TAVILY_MAX_RESULTS
-    })
-      .then(answer => {
-        if (backdrop.isConnected) {
-          renderVerdict(answer);
-        }
-      })
-      .catch(err => {
-        if (backdrop.isConnected) {
-          renderError(err?.message || 'Fehler beim Laden des Fazits');
-        }
-      });
+    fetchSummary();
   }
 
   return backdrop;

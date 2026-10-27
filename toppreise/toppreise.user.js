@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.374
+// @version      2.18.375
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6405,7 +6405,7 @@ const SHADOW_MODAL_STYLES = `
       return inFlight.get(flightKey);
     }
 
-    const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
+    const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 20000;
     const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
     const maxResults = typeof options.maxResults === 'number'
       ? options.maxResults
@@ -8591,14 +8591,17 @@ const SHADOW_MODAL_STYLES = `
 
     const renderVerdict = (text) => {
       currentVerdict = text;
+      contentEl.style.borderLeftColor = '#5865f2';
       contentEl.innerHTML = formatVerdictHtml(text);
       copyBtn.disabled = false;
+      retryBtn.style.display = 'none';
     };
 
     const renderError = (msg) => {
       contentEl.style.borderLeftColor = '#ef4444';
       contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
       copyBtn.disabled = true;
+      retryBtn.style.display = 'inline-flex';
     };
 
     if (cached?.answer) {
@@ -8611,6 +8614,35 @@ const SHADOW_MODAL_STYLES = `
     // Footer action buttons
     const footer = document.createElement('div');
     footer.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px;';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.className = 'tp-btn tp-btn-secondary';
+    retryBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    retryBtn.textContent = '🔄 Erneut versuchen';
+
+    const fetchSummary = () => {
+      retryBtn.style.display = 'none';
+      contentEl.style.borderLeftColor = '#5865f2';
+      contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+      fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
+        timeoutMs: 20000,
+        searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
+        maxResults: CONFIG.TAVILY_MAX_RESULTS
+      })
+        .then(answer => {
+          if (backdrop.isConnected) {
+            renderVerdict(answer);
+          }
+        })
+        .catch(err => {
+          if (backdrop.isConnected) {
+            renderError(err?.message || 'Fehler beim Laden des Fazits');
+          }
+        });
+    };
+
+    retryBtn.addEventListener('click', fetchSummary);
 
     const googleBtn = document.createElement('a');
     googleBtn.href = googleUrl || ('https://www.google.com/search?q=' + encodeURIComponent(query));
@@ -8655,6 +8687,7 @@ const SHADOW_MODAL_STYLES = `
       }
     });
 
+    footer.appendChild(retryBtn);
     footer.appendChild(googleBtn);
     footer.appendChild(copyBtn);
     footer.appendChild(discordBtn);
@@ -8689,21 +8722,7 @@ const SHADOW_MODAL_STYLES = `
 
     // If not cached, trigger fetch now
     if (!cached?.answer) {
-      fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
-        timeoutMs: 7500,
-        searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
-        maxResults: CONFIG.TAVILY_MAX_RESULTS
-      })
-        .then(answer => {
-          if (backdrop.isConnected) {
-            renderVerdict(answer);
-          }
-        })
-        .catch(err => {
-          if (backdrop.isConnected) {
-            renderError(err?.message || 'Fehler beim Laden des Fazits');
-          }
-        });
+      fetchSummary();
     }
 
     return backdrop;
@@ -12527,7 +12546,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.374';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.375';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

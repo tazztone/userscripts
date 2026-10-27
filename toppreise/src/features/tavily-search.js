@@ -144,7 +144,7 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
     return inFlight.get(flightKey);
   }
 
-  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
+  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 20000;
   const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
   const maxResults = typeof options.maxResults === 'number'
     ? options.maxResults
