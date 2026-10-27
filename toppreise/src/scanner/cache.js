@@ -15,10 +15,11 @@ export const statsKey = (productId, useShippingOverride) => {
 };
 export const DEALER_CACHE_PREFIX = 'tp_dealer_v1_';
 export const SHARED_CACHE_PREFIX = 'tp_shared_v1_';
-// Janitor-Funktionen (prune/count/clear) betreuen alle Prefixe: Händlerdaten
-// und Geteilt-Markierungen sind abgeleitete Produktdaten mit derselben TTL
-// wie die Preishistorie.
-const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX, SHARED_CACHE_PREFIX];
+export const ASIN_CACHE_PREFIX = 'tp_asin_v1_';
+// Janitor-Funktionen (prune/count/clear) betreuen alle Prefixe: Händlerdaten,
+// ASIN-Zuordnungen und Geteilt-Markierungen sind abgeleitete Produktdaten mit
+// derselben TTL wie die Preishistorie.
+const CACHE_PREFIXES = [STATS_CACHE_PREFIX, DEALER_CACHE_PREFIX, SHARED_CACHE_PREFIX, ASIN_CACHE_PREFIX];
 export const MAX_MEMORY_CACHE_ITEMS = 500;
 
 export function lruSet(map, key, val, cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
@@ -357,5 +358,27 @@ export function setSharedDeal(productId, priceCents, storage = null) {
   storage = resolveStorage(storage);
   try {
     storage?.setItem(SHARED_CACHE_PREFIX + productId, JSON.stringify({ priceCents, time: Date.now() }));
+  } catch (e) {}
+}
+
+export function getCachedAsin(productId, storage = null) {
+  if (!productId) return null;
+  storage = resolveStorage(storage);
+  try {
+    const raw = storage?.getItem(ASIN_CACHE_PREFIX + productId);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (!entry?.asin) return null;
+    if (!isCacheEntryFresh({ time: entry.time ?? 0 })) return null;
+    return entry.asin;
+  } catch (e) {}
+  return null;
+}
+
+export function setCachedAsin(productId, asin, storage = null) {
+  if (!productId || !asin) return;
+  storage = resolveStorage(storage);
+  try {
+    storage?.setItem(ASIN_CACHE_PREFIX + productId, JSON.stringify({ asin: String(asin).toUpperCase(), time: Date.now() }));
   } catch (e) {}
 }

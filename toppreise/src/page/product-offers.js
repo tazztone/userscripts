@@ -5,6 +5,7 @@
 
 import { SELECTORS } from './selectors.js';
 import { parsePrice } from '../domain/price.js';
+import { getCachedAsin, setCachedAsin } from '../scanner/cache.js';
 
 const isToppreiseProductUrl = u => {
   try {
@@ -226,4 +227,101 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
     console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: offers.length, jsonLdBlocks: scripts.length });
   } catch { /* Händler unbekannt: Zeile entfällt */ }
   return out;
+}
+
+// Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.
+export function parseAmazonAsin(url) {
+  if (!url || typeof url !== 'string') return null;
+  const dpMatch = url.match(/(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})(?:[/?#]|$)/i);
+  if (dpMatch) return dpMatch[1].toUpperCase();
+  const qMatch = url.match(/[?&](?:creativeASIN|asin)=([A-Z0-9]{10})(?:[&/?#]|$)/i);
+  if (qMatch) return qMatch[1].toUpperCase();
+  return null;
+}
+
+// In-memory ASIN cache for active session
+const memoryAsinCache = new Map();
+
+export function clearMemoryAsinCache() {
+  memoryAsinCache.clear();
+}
+
+// Resolves the Amazon ASIN from a direct dealer link or /ext_de redirect URL.
+// Caches persistently per productId in localStorage and memory.
+export async function resolveAmazonAsin(directUrl, productId = null, storage = null, fetchFn = null) {
+  if (productId) {
+    if (memoryAsinCache.has(productId)) return memoryAsinCache.get(productId);
+    const cached = getCachedAsin(productId, storage);
+    if (cached) {
+      memoryAsinCache.set(productId, cached);
+      return cached;
+    }
+  }
+
+  const inlineAsin = parseAmazonAsin(directUrl);
+  if (inlineAsin) {
+    if (productId) {
+      memoryAsinCache.set(productId, inlineAsin);
+      setCachedAsin(productId, inlineAsin, storage);
+    }
+    return inlineAsin;
+  }
+
+  if (!directUrl || typeof directUrl !== 'string') return null;
+  const target = directUrl.startsWith('http')
+    ? directUrl
+    : `${(typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch'}${directUrl}`;
+
+  if (fetchFn) {
+    try {
+      const res = await fetchFn(target);
+      const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
+      if (asin && productId) {
+        memoryAsinCache.set(productId, asin);
+        setCachedAsin(productId, asin, storage);
+      }
+      return asin || null;
+    } catch {
+      return null;
+    }
+  }
+
+  return new Promise(resolve => {
+    try {
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        GM_xmlhttpRequest({
+          method: 'HEAD',
+          url: target,
+          headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
+          timeout: 6000,
+          onload: res => {
+            const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
+            const asin = parseAmazonAsin(loc);
+            if (asin && productId) {
+              memoryAsinCache.set(productId, asin);
+              setCachedAsin(productId, asin, storage);
+            }
+            resolve(asin || null);
+          },
+          onerror: () => resolve(null),
+          ontimeout: () => resolve(null)
+        });
+      } else if (typeof fetch !== 'undefined') {
+        fetch(target, { method: 'HEAD', redirect: 'follow' })
+          .then(res => {
+            const asin = parseAmazonAsin(res.url);
+            if (asin && productId) {
+              memoryAsinCache.set(productId, asin);
+              setCachedAsin(productId, asin, storage);
+            }
+            resolve(asin || null);
+          })
+          .catch(() => resolve(null));
+      } else {
+        resolve(null);
+      }
+    } catch {
+      resolve(null);
+    }
+  });
 }
