@@ -10,6 +10,13 @@
 > **Update (2026-10-04):** median honesty (true even-n median, `medianFallback`
 > + honest horizon labels, raw 2%/5% thresholds), toolbar weight slider
 > replaces the preset popover, legacy `FILTER_BESTPREIS_ENABLED` removed.
+>
+> **Update (2026-10-27):** Verified live category routing & card metadata contracts:
+> Toppreise supports hierarchical server-filtered feeds via `/neue-toppreise/<path>-c<id>`
+> (1-to-1 parity with catalog hierarchy, 50–300 cards/branch). Card `href` embeds
+> immediate subcategory slug `/preisvergleich/<CategorySlug>/<Title>-p<PID>` with
+> zero-network overhead. Native category management remains strictly subtractive
+> (`Plugin_IgnoredCategories` blacklist) with no native multi-branch whitelist.
 
 ## 1. Live DOM reference
 
@@ -27,13 +34,24 @@
           <div id="Plugin_TimePeriod_*">…radio.f_timePeriod…</div>
           <div id="Plugin_TopPriceReductionProductListFull_*"><div class="standardList"><div class="row">
             <a class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3"
-               data-entity-id="PID" href="/preisvergleich/…-pPID">…card…</a>
+               data-entity-id="PID" href="/preisvergleich/<CategorySlug>/<Title>-p<PID>">…card…</a>
 ```
 
 - `isNeueToppreisePage()` checks `data-current_url` **and** `data-current-url`,
   plus `location.href` (`neue-toppreise|new-best-prices|nouveaux-meilleurs-prix`)
   and `body.Page_ListTopPriceReductionProducts`. Excludes `Page_Browsing` /
   `Page_ProductSearch` and `produktsuche|katalog|search|suche` URLs.
+- **Hierarchical subcategory feeds:** Any category path supports the feed route
+  `/neue-toppreise/<Category-Path>-c<CatID>` (e.g. `/neue-toppreise/Computer-Zubehoer-c200`,
+  `/neue-toppreise/Computer-Zubehoer/PC-Komponenten-c9`,
+  `/neue-toppreise/Computer-Zubehoer/Komplettsysteme/Komplettsysteme-c2847`).
+  Body class remains `Page_ListTopPriceReductionProducts`, `data-current_url` reflects
+  the subcategory path. Server delivers only deals inside that category branch
+  (~50–300 cards). Suite bar anchors and executes identically on all levels.
+- **Card category slug extraction:** Feed cards lack offer counts or category tags in
+  inner text, but every card `href` exposes the immediate subcategory slug:
+  `/preisvergleich/<CategorySlug>/<Title>-p<PID>`. Can be read synchronously via
+  `card.getAttribute('href')` with zero network overhead for fast client-side filtering.
 - Cards are direct `<a>` anchors with grid classes on the anchor itself; on some
   catalog views the card sits inside a wrapper `div.col-*` instead — see §4
   (`getCardSortableUnit`). `card.closest('a[href]')` + tagName check required;
@@ -326,6 +344,12 @@ was client-side DOM hiding. Native breadcrumb segments each carry their own
 `data-vcat-id` (per-level granularity) — the old "suite is more granular"
 claim was wrong. No native-chip adapter: `👁️ N` counts suite filters only,
 native bar shows its own count.
+
+> **Exclusion vs. Routing Note (2026-10-27):** While native exclusion
+> (`Plugin_IgnoredCategories`) operates as a subtractive blacklist (whack-a-mole
+> exclusion on `/neue-toppreise`), native Toppreise supports positive category
+> routing via dedicated feed URLs (`/neue-toppreise/<path>-c<id>`). Native navigation
+> lacks multi-branch whitelisting (combining unrelated categories into one feed).
 
 > **Removal (2026-09-30, kept verbatim):** Deleted the suite's client-side
 > category engine (`src/domain/category.js`: `ROOT_SLUG_MAP`, `GROUP_EMOJIS`,
