@@ -8,6 +8,7 @@ import {
   saveStoredIdents,
   getExpandedBranches,
   saveExpandedBranches,
+  isCategoryIgnored,
   enhanceCategorySidebar
 } from '../../src/features/category-tree.js';
 
@@ -82,6 +83,54 @@ test('indexCategoryData maps hierarchy, numeric IDs and breadcrumbs', () => {
   const childrenOfRoot = indexed.childrenOf.get('c200');
   assert.equal(childrenOfRoot.length, 1);
   assert.equal(childrenOfRoot[0].id, 'c8');
+});
+
+test('indexCategoryData deduplicates nodes present in both flat root and parent children', () => {
+  const sample = [
+    {
+      id: 'c200',
+      title: 'Computer & Zubehör',
+      url: '/produktsuche/Computer-Zubehoer-c200',
+      parentID: '',
+      hasChildren: true,
+      children: [
+        {
+          id: 'c8',
+          title: 'Komplettsysteme',
+          url: '/produktsuche/Computer-Zubehoer/Komplettsysteme-c8',
+          parentID: 'c200',
+          hasChildren: false
+        }
+      ]
+    },
+    {
+      id: 'c8',
+      title: 'Komplettsysteme',
+      url: '/produktsuche/Computer-Zubehoer/Komplettsysteme-c8',
+      parentID: 'c200',
+      hasChildren: false
+    }
+  ];
+
+  const indexed = indexCategoryData(sample);
+  assert.equal(indexed.byId.size, 2);
+  assert.equal(indexed.allNodes.length, 2);
+  const childrenOfRoot = indexed.childrenOf.get('c200');
+  assert.equal(childrenOfRoot.length, 1);
+  assert.equal(childrenOfRoot[0].id, 'c8');
+});
+
+test('isCategoryIgnored detects ignored classes and show triggers', () => {
+  const activeLi = createMockElement('li');
+  assert.equal(isCategoryIgnored(activeLi), false);
+
+  const ignoredLi = createMockElement('li', { className: 'ignoredCategoryEntry' });
+  assert.equal(isCategoryIgnored(ignoredLi), true);
+
+  const showLi = createMockElement('li');
+  const showSpan = createMockElement('span', { className: 'f_IgnoredCategories_Show' });
+  showLi.appendChild(showSpan);
+  assert.equal(isCategoryIgnored(showLi), true);
 });
 
 test('searchCategoryTree matches title and URL keywords', () => {

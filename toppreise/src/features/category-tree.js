@@ -60,6 +60,8 @@ export function indexCategoryData(categories) {
   const visit = (node, parentId = '') => {
     if (!node || !node.id) return;
     const cleanId = String(node.id).trim();
+    if (byId.has(cleanId)) return;
+
     const pid = parentId || String(node.parentID || '').trim() || 'root';
     const entry = {
       id: cleanId,
@@ -69,10 +71,8 @@ export function indexCategoryData(categories) {
       url: node.url || '',
       hasChildren: !!node.hasChildren || (Array.isArray(node.children) && node.children.length > 0)
     };
-    if (!byId.has(cleanId)) {
-      byId.set(cleanId, entry);
-      allNodes.push(entry);
-    }
+    byId.set(cleanId, entry);
+    allNodes.push(entry);
     if (!childrenOf.has(pid)) childrenOf.set(pid, []);
     childrenOf.get(pid).push(entry);
 
@@ -217,6 +217,13 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
       });
     }
   } catch {}
+}
+
+export function isCategoryIgnored(li) {
+  if (!li) return false;
+  return li.classList?.contains?.('ignoredCategoryEntry') ||
+         !!li.querySelector?.('.f_IgnoredCategories_Show') ||
+         !!li.querySelector?.('.ignoreCategory i.TPIcons-plus');
 }
 
 export function renderChildList(children, parentEl, currentPath, expandedBranches) {
@@ -439,10 +446,15 @@ export function enhanceCategorySidebar() {
       }
     };
 
+    if (isCategoryIgnored(li)) {
+      toggle.disabled = true;
+      toggle.setAttribute('aria-disabled', 'true');
+    }
+
     row.prepend(toggle);
 
-    // Auto-expand if active in session
-    if (expandedBranches.has(catId)) {
+    // Auto-expand if active in session (and not ignored)
+    if (expandedBranches.has(catId) && !isCategoryIgnored(li)) {
       setTimeout(async () => {
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();
@@ -453,4 +465,52 @@ export function enhanceCategorySidebar() {
       }, 0);
     }
   });
+
+  // 3. Listen for category hide/show to collapse/re-enable tree branches
+  if (typeof document !== 'undefined' && document.body?.addEventListener) {
+    document.body.addEventListener('click', e => {
+      const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
+      if (hideBtn) {
+        const targetLi = hideBtn.closest('li');
+        if (targetLi) {
+          const catId = targetLi.dataset?.catId;
+          if (catId) {
+            expandedBranches.delete(catId);
+            saveExpandedBranches(expandedBranches);
+          }
+          targetLi.querySelector(':scope > .tp-cat-sublist')?.remove();
+          const toggle = targetLi.querySelector('.tp-cat-toggle');
+          if (toggle) {
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.textContent = '▸';
+            toggle.disabled = true;
+            toggle.setAttribute('aria-disabled', 'true');
+          }
+        }
+        return;
+      }
+
+      const showBtn = e.target?.closest?.('.f_IgnoredCategories_Show');
+      if (showBtn) {
+        const vcatId = showBtn.getAttribute?.('data-vcat-id');
+        const targetLi = showBtn.closest('li') || (vcatId ? sidebar.querySelector(`[data-vcat-id="${vcatId}"]`)?.closest('li') : null);
+        if (targetLi) {
+          const toggle = targetLi.querySelector('.tp-cat-toggle');
+          if (toggle) {
+            toggle.disabled = false;
+            toggle.removeAttribute('aria-disabled');
+          }
+        }
+        return;
+      }
+
+      const resetBtn = e.target?.closest?.('.f_IgnoredCategories_Reset');
+      if (resetBtn) {
+        sidebar.querySelectorAll('.tp-cat-toggle').forEach(t => {
+          t.disabled = false;
+          t.removeAttribute('aria-disabled');
+        });
+      }
+    });
+  }
 }

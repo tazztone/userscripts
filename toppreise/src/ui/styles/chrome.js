@@ -592,6 +592,15 @@ export const STYLES_CHROME = `
     margin: 0 !important;
     box-sizing: border-box !important;
   }
+  /* Suppress sublists and disable accordion toggles for ignored categories */
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-sublist {
+    display: none !important;
+  }
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle {
+    opacity: 0.25 !important;
+    pointer-events: none !important;
+    cursor: default !important;
+  }
   .tp-cat-row {
     display: flex !important;
     flex-direction: row !important;
