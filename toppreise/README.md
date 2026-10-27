@@ -105,7 +105,9 @@ Requires a userscript manager browser extension:
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
   * **Negative Keywords:** Exclude unwanted terms (comma/semicolon/newline lists; long terms `>3` chars match as substrings, short terms `≤3` chars enforce word boundaries).
   * **Minimum Offer Count:** Filter out marketplace listings with fewer than **N** merchants (shows inactive notice on pages without offer counts).
+  * **Price Range (*Preis CHF*):** Filter out listings outside your budget using Min and Max price bounds (applies universally to all offers).
   * **Minimum Discount (*Min-Rabatt*):** Filter out verified offers below a minimum deal discount percentage (stepped 0%–50% in 5% increments; unverified offers remain visible).
+  * **Absolute Savings (*Ersparnis CHF*):** Filter out verified offers saving less than Min CHF or outside bounds (unverified offers remain visible).
   * **Unverified (*Ungeprüfte*):** Dim or hide unverified offers across all pages.
   * **Fallback Lows (*Fallback-Tiefs*):** Control visibility of low-history verified offers across all pages.
   * **Selected Dealer Best-Price Check:** Highlights cards with an emerald border and `Toppreis` badge when your active dealer filter holds the cheapest offer (within a configurable `0%–50%` price tolerance margin).

@@ -51,11 +51,17 @@ Entfernen von Karten aus der Liste (`display:none`), Abblenden (`tp-dimmed`) ode
 _Avoid_: Dimmen (als Filter), Anzeige (für Entfernen)
 
 **Filtergrund**:
-Eine einzelne Ursache (Negativ, Min-Angebote, Min-Rabatt, Händler, Ungeprüfte, Fallback-Tief) — je mit Normal/Dimmen/Verbergen/Hervorheben je Ursache.
+Eine einzelne Ursache (Negativ, Min-Angebote, Preis, Min-Rabatt, Ersparnis, Händler, Ungeprüfte, Fallback-Tief) — je mit Normal/Dimmen/Verbergen/Hervorheben je Ursache.
 _Avoid_: Ursache (in UI-Texten)
+
+**Preis (CHF)**:
+Preisbereich in Schweizer Franken (Min- und Max-Grenze). Angebote mit einem Preis unterhalb des Minimums oder oberhalb des Maximums greifen als Filtergrund; gilt universell für alle Angebote.
 
 **Min-Rabatt**:
 Mindest-Rabatt in Prozent (0–50 % in 5-%-Schritten). Geprüfte Karten mit weniger Rabatt (oder verifizierte Aufschläge) greifen als Filtergrund; ungeprüfte Karten bleiben vom Min-Rabatt unberührt.
+
+**Ersparnis**:
+Absolute Ersparnis in Schweizer Franken (Min- und Max-Grenze), berechnet aus dem effektiven Rabatt und Angebotspreis. Geprüfte Karten mit Ersparnis ausserhalb der Grenzen greifen als Filtergrund; ungeprüfte Karten bleiben unberührt.
 
 **Gefilterte**:
 Durch einen Filtergrund verborgene Karten (`tp-filtered`). Gedimmte (`tp-dimmed`) und hervorgehobene (`tp-highlighted`) Karten bleiben sichtbar.
