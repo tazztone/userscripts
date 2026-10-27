@@ -27,7 +27,8 @@ export { renderShareButton };
 
 // Mini price-trend sparkline + history strip (step 5).
 export function renderSparklineRow(ctx) {
-  const { card, cardPrice, cardPriceEl, stats } = ctx;
+  const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
+  const pid = rawPid || card?.dataset?.tpProductId || null;
   // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
   // pill spans from the share-button zone to the card's right edge, using
   // full card width instead of the narrow price-info column).
@@ -44,22 +45,35 @@ export function renderSparklineRow(ctx) {
     // fetch, recomputed median) must rebuild instead of showing stale art.
     const lastTs = stats.timeSeries.length ? +stats.timeSeries[stats.timeSeries.length - 1][0] || 0 : 0;
     const sig = [stats.timeSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
+    const useShipping = isShippingPriceActive(card);
+    const cachedDealer = getCachedDealer(pid, useShipping);
+    const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
+    const isAmazon = /amazon/i.test(dealerName) && CONFIG.KEEPA_CHART_ENABLED !== false;
+    sparkContainer.classList.toggle('tp-sparkline-amazon', isAmazon);
     sparkContainer.style.cursor = 'pointer';
     sparkContainer.setAttribute('role', 'button');
     sparkContainer.setAttribute('tabindex', '0');
-    sparkContainer.setAttribute('title', 'Preisverlauf vergrössern');
+    sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
     if (!sparkContainer.dataset.tpPopoutBound) {
       sparkContainer.dataset.tpPopoutBound = 'true';
+      const openPopout = () => {
+        const shareData = extractShareData(card);
+        const title = shareData?.title || '';
+        const currentCached = getCachedDealer(pid, useShipping);
+        const currentDealer = currentCached?.dealer || extractDealer(card, useShipping) || '';
+        const directUrl = currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
+        openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+      };
       sparkContainer.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        openSparklinePopout(sparkContainer._tpSeries);
+        openPopout();
       });
       sparkContainer.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           e.stopPropagation();
-          openSparklinePopout(sparkContainer._tpSeries);
+          openPopout();
         }
       });
     }

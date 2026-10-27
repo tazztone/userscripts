@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.370
+// @version      2.18.371
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -15,6 +15,7 @@
 // @connect      discord.com
 // @connect      api.tavily.com
 // @connect      toppreise.ch
+// @connect      amazon.de
 // @noframes
 // ==/UserScript==
 
@@ -553,6 +554,11 @@ const STYLES_CARDS = `
     margin: 0 !important;
     line-height: 1 !important;
     overflow: hidden !important;
+  }
+  .tp-sparkline-container.tp-sparkline-amazon {
+    box-shadow: 0 0 6px rgba(255, 153, 0, 0.45) !important;
+    border-radius: 4px !important;
+    border: 1px solid rgba(255, 153, 0, 0.5) !important;
   }
   .tp-sparkline {
     opacity: 0.85;
@@ -3257,6 +3263,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_DEVIATION_BAND: 0.50,
     OUTLIER_MAX_GLITCH_HOURS: 48,
     ENABLE_SPARKLINES: true,
+    KEEPA_CHART_ENABLED: true,
     REVIEW_SEARCH_ENABLED: true,
     REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.',
     REVIEW_SEARCH_AI_MODE: false,
@@ -3359,6 +3366,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_DEVIATION_BAND: { type: 'float', default: 0.50, min: 0.01, max: 0.50 },
     OUTLIER_MAX_GLITCH_HOURS: { type: 'int', default: 48, min: 24, max: 168 },
     ENABLE_SPARKLINES: { type: 'bool', default: true },
+    KEEPA_CHART_ENABLED: { type: 'bool', default: true },
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
     REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. zum preis: {preis}. Antworte kurz mit Stärken, Schwächen und Deal-Urteil.' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
@@ -3651,6 +3659,7 @@ const SHADOW_MODAL_STYLES = `
     OUTLIER_DEVIATION_BAND: sanitizeConfigValue('OUTLIER_DEVIATION_BAND', _getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
     OUTLIER_MAX_GLITCH_HOURS: sanitizeConfigValue('OUTLIER_MAX_GLITCH_HOURS', _getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
     ENABLE_SPARKLINES: sanitizeConfigValue('ENABLE_SPARKLINES', _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES)),
+    KEEPA_CHART_ENABLED: sanitizeConfigValue('KEEPA_CHART_ENABLED', _getValue('KEEPA_CHART_ENABLED', DEFAULTS.KEEPA_CHART_ENABLED)),
     REVIEW_SEARCH_ENABLED: sanitizeConfigValue('REVIEW_SEARCH_ENABLED', _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED)),
     REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
     REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
@@ -3880,6 +3889,11 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'ENABLE_SPARKLINES': {
             const toggle = shadow.getElementById('tp-sparklines-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'KEEPA_CHART_ENABLED': {
+            const toggle = shadow.getElementById('tp-keepa-chart-toggle');
             if (toggle) toggle.checked = !!val;
             break;
           }
@@ -8412,7 +8426,8 @@ const SHADOW_MODAL_STYLES = `
 
   // Mini price-trend sparkline + history strip (step 5).
   function renderSparklineRow(ctx) {
-    const { card, cardPrice, cardPriceEl, stats } = ctx;
+    const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
+    const pid = rawPid || card?.dataset?.tpProductId || null;
     // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
     // pill spans from the share-button zone to the card's right edge, using
     // full card width instead of the narrow price-info column).
@@ -8429,22 +8444,35 @@ const SHADOW_MODAL_STYLES = `
       // fetch, recomputed median) must rebuild instead of showing stale art.
       const lastTs = stats.timeSeries.length ? +stats.timeSeries[stats.timeSeries.length - 1][0] || 0 : 0;
       const sig = [stats.timeSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
+      const useShipping = isShippingPriceActive(card);
+      const cachedDealer = getCachedDealer(pid, useShipping);
+      const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
+      const isAmazon = /amazon/i.test(dealerName) && CONFIG.KEEPA_CHART_ENABLED !== false;
+      sparkContainer.classList.toggle('tp-sparkline-amazon', isAmazon);
       sparkContainer.style.cursor = 'pointer';
       sparkContainer.setAttribute('role', 'button');
       sparkContainer.setAttribute('tabindex', '0');
-      sparkContainer.setAttribute('title', 'Preisverlauf vergrössern');
+      sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
       if (!sparkContainer.dataset.tpPopoutBound) {
         sparkContainer.dataset.tpPopoutBound = 'true';
+        const openPopout = () => {
+          const shareData = extractShareData(card);
+          const title = shareData?.title || '';
+          const currentCached = getCachedDealer(pid, useShipping);
+          const currentDealer = currentCached?.dealer || extractDealer(card, useShipping) || '';
+          const directUrl = currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
+          openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+        };
         sparkContainer.addEventListener('click', e => {
           e.preventDefault();
           e.stopPropagation();
-          openSparklinePopout(sparkContainer._tpSeries);
+          openPopout();
         });
         sparkContainer.addEventListener('keydown', e => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             e.stopPropagation();
-            openSparklinePopout(sparkContainer._tpSeries);
+            openPopout();
           }
         });
       }
@@ -8963,6 +8991,16 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label>Amazon Keepa-Verlauf im Preisverlauf</label>
+              <span class="tp-switch-desc">Zeigt bei Amazon.de-Deals den detaillierten Keepa-Verlauf (Buy Box, Amazon, Neu) im Preisverlauf-Diagramm an</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-keepa-chart-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
             <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>
@@ -9340,6 +9378,7 @@ const SHADOW_MODAL_STYLES = `
     const realDealMinRange = shadow.getElementById('tp-real-deal-min-range');
     const realDealMinVal = shadow.getElementById('tp-real-deal-min-val');
     const sparklinesToggle = shadow.getElementById('tp-sparklines-toggle');
+    const keepaChartToggle = shadow.getElementById('tp-keepa-chart-toggle');
     const reviewSearchToggle = shadow.getElementById('tp-review-search-toggle');
     const reviewKeywordInput = shadow.getElementById('tp-review-keyword-input');
     const reviewKeywordReset = shadow.getElementById('tp-review-keyword-reset');
@@ -9369,7 +9408,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -9846,6 +9885,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
       if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
       if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
+      if (els.keepaChartToggle) updates.KEEPA_CHART_ENABLED = els.keepaChartToggle.checked;
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
       if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
@@ -12176,7 +12216,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.370';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.371';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

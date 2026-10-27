@@ -491,6 +491,11 @@ export const STYLES_CARDS = `
     line-height: 1 !important;
     overflow: hidden !important;
   }
+  .tp-sparkline-container.tp-sparkline-amazon {
+    box-shadow: 0 0 6px rgba(255, 153, 0, 0.45) !important;
+    border-radius: 4px !important;
+    border: 1px solid rgba(255, 153, 0, 0.5) !important;
+  }
   .tp-sparkline {
     opacity: 0.85;
     transition: opacity 0.2s ease;

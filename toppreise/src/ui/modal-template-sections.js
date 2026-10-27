@@ -147,6 +147,16 @@ export function renderDataSection() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label>Amazon Keepa-Verlauf im Preisverlauf</label>
+            <span class="tp-switch-desc">Zeigt bei Amazon.de-Deals den detaillierten Keepa-Verlauf (Buy Box, Amazon, Neu) im Preisverlauf-Diagramm an</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-keepa-chart-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
         <div class="tp-settings-group tp-cache-row">
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
           <button type="button" id="tp-cache-clear-btn" class="tp-btn tp-btn-secondary">🗑️ Cache leeren</button>

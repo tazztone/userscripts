@@ -130,6 +130,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (toggle) toggle.checked = !!val;
           break;
         }
+        case 'KEEPA_CHART_ENABLED': {
+          const toggle = shadow.getElementById('tp-keepa-chart-toggle');
+          if (toggle) toggle.checked = !!val;
+          break;
+        }
         case 'DEALER_AUTOFETCH': {
           const toggle = shadow.getElementById('tp-dealer-autofetch-toggle');
           if (toggle) toggle.checked = !!val;
