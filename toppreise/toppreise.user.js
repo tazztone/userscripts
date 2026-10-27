@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.378
+// @version      2.18.379
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1291,6 +1291,17 @@ const STYLES_CHROME = `
     pointer-events: none !important;
     cursor: default !important;
   }
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row {
+    background: rgba(239, 68, 68, 0.08) !important;
+    border-radius: var(--tp-r-sm, 4px) !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row > a {
+    color: #f87171 !important;
+    text-decoration: line-through !important;
+    opacity: 0.8 !important;
+  }
   .tp-cat-row {
     display: flex !important;
     flex-direction: row !important;
@@ -1344,12 +1355,28 @@ const STYLES_CHROME = `
     margin-left: 4px !important;
     flex: 0 0 auto !important;
     cursor: pointer !important;
-    opacity: 0.65 !important;
     font-size: 11px !important;
-    padding: 1px 3px !important;
+    padding: 1px 4px !important;
     line-height: 1 !important;
+    border-radius: 3px !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
   }
-  .tp-cat-row .ignoreCategory:hover {
+  .Plugin_CategoryMainSelectionLeft .ignoreCategory.f_IgnoredCategories_Hide {
+    color: #ef4444 !important;
+    opacity: 0.85 !important;
+  }
+  .Plugin_CategoryMainSelectionLeft .ignoreCategory.f_IgnoredCategories_Hide:hover {
+    color: #dc2626 !important;
+    background: rgba(239, 68, 68, 0.16) !important;
+    opacity: 1 !important;
+  }
+  .Plugin_CategoryMainSelectionLeft .ignoreCategory.f_IgnoredCategories_Show {
+    color: #10b981 !important;
+    opacity: 0.85 !important;
+  }
+  .Plugin_CategoryMainSelectionLeft .ignoreCategory.f_IgnoredCategories_Show:hover {
+    color: #059669 !important;
+    background: rgba(16, 185, 129, 0.16) !important;
     opacity: 1 !important;
   }
   .tp-cat-sublist {
@@ -12641,7 +12668,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.378';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.379';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
