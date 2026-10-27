@@ -160,8 +160,31 @@ function createMockElement(tag, attrs = {}) {
     getAttribute: a => el.attributes[a] ?? null,
     setAttribute: (a, v) => { el.attributes[a] = String(v); },
     addEventListener: () => {},
-    appendChild: child => { children.push(child); child.parentElement = el; return child; },
-    prepend: child => { children.unshift(child); child.parentElement = el; return child; },
+    get firstChild() { return children[0] || null; },
+    appendChild: child => {
+      if (child.parentElement?.removeChild) child.parentElement.removeChild(child);
+      children.push(child);
+      child.parentElement = el;
+      return child;
+    },
+    prepend: child => {
+      if (child.parentElement?.removeChild) child.parentElement.removeChild(child);
+      children.unshift(child);
+      child.parentElement = el;
+      return child;
+    },
+    removeChild: child => {
+      const idx = children.indexOf(child);
+      if (idx !== -1) {
+        children.splice(idx, 1);
+        child.parentElement = null;
+        return child;
+      }
+      return null;
+    },
+    remove: () => {
+      if (el.parentElement?.removeChild) el.parentElement.removeChild(el);
+    },
     after: next => {
       if (el.parentElement) el.parentElement.appendChild(next);
     },
@@ -187,6 +210,9 @@ function createMockElement(tag, attrs = {}) {
       if (part.startsWith('a')) return el.tagName === 'A';
       if (part.startsWith('li')) return el.tagName === 'LI';
       if (part.startsWith('ul')) return el.tagName === 'UL';
+      if (part.startsWith('div')) return el.tagName === 'DIV';
+      if (part.startsWith('span')) return el.tagName === 'SPAN';
+      if (part.startsWith('button')) return el.tagName === 'BUTTON';
       return false;
     }
   };

@@ -547,6 +547,11 @@ export const STYLES_CHROME = `
     border-radius: var(--tp-r-sm) !important;
     margin-top: 4px !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 100 !important;
   }
   .tp-cat-result-item {
     display: flex !important;
@@ -574,19 +579,56 @@ export const STYLES_CHROME = `
     color: var(--tp-txt-dim) !important;
     text-align: center !important;
   }
+
+  /* Node and row hierarchy: vertical stacking prevents horizontal sublist blowout */
+  .Plugin_CategoryMainSelectionLeft li.tp-cat-node,
+  .tp-cat-sublist li.tp-cat-node {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .tp-cat-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    min-height: 22px !important;
+    padding: 2px 0 !important;
+    box-sizing: border-box !important;
+  }
+  .tp-cat-row > a {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-decoration: none !important;
+    color: var(--tp-txt) !important;
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+  .tp-cat-row > a:hover {
+    color: var(--tp-blue-soft) !important;
+  }
   .tp-cat-toggle {
     background: transparent !important;
     border: none !important;
     cursor: pointer !important;
     padding: 0 !important;
-    margin-right: 4px !important;
-    font-size: 10px !important;
+    margin: 0 3px 0 0 !important;
+    font-size: 9px !important;
     color: var(--tp-txt-dim) !important;
     width: 14px !important;
     height: 14px !important;
     line-height: 14px !important;
     text-align: center !important;
-    flex-shrink: 0 !important;
+    flex: 0 0 14px !important;
     transition: transform 0.15s ease !important;
   }
   .tp-cat-toggle:hover {
@@ -596,42 +638,34 @@ export const STYLES_CHROME = `
     display: inline-block !important;
     width: 14px !important;
     height: 14px !important;
-    margin-right: 4px !important;
-    flex-shrink: 0 !important;
+    margin: 0 3px 0 0 !important;
+    flex: 0 0 14px !important;
+  }
+  .tp-cat-row .ignoreCategory {
+    margin-left: 4px !important;
+    flex: 0 0 auto !important;
+    cursor: pointer !important;
+    opacity: 0.65 !important;
+    font-size: 11px !important;
+    padding: 1px 3px !important;
+    line-height: 1 !important;
+  }
+  .tp-cat-row .ignoreCategory:hover {
+    opacity: 1 !important;
   }
   .tp-cat-sublist {
     list-style: none !important;
-    margin: 2px 0 4px 10px !important;
-    padding: 0 0 0 6px !important;
-    border-left: 1px dashed rgba(15, 23, 42, 0.2) !important;
+    margin: 1px 0 2px 6px !important;
+    padding: 0 0 0 5px !important;
+    border-left: 1px solid rgba(148, 163, 184, 0.3) !important;
+    width: calc(100% - 6px) !important;
+    box-sizing: border-box !important;
   }
-  .tp-cat-item {
-    display: flex !important;
-    align-items: center !important;
-    font-size: 12px !important;
-    margin: 2px 0 !important;
-    min-height: 20px !important;
+  .tp-cat-sublist .tp-cat-row > a {
+    font-size: 11.5px !important;
+    color: #64748b !important;
   }
-  .tp-cat-item > a {
-    flex: 1 1 auto !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    text-decoration: none !important;
-    color: var(--tp-txt) !important;
-  }
-  .tp-cat-item > a:hover {
+  .tp-cat-sublist .tp-cat-row > a:hover {
     color: var(--tp-blue-soft) !important;
-  }
-  .tp-cat-item .ignoreCategory {
-    margin-left: auto !important;
-    flex-shrink: 0 !important;
-    cursor: pointer !important;
-    opacity: 0.7 !important;
-    font-size: 11px !important;
-    padding: 2px 4px !important;
-  }
-  .tp-cat-item .ignoreCategory:hover {
-    opacity: 1 !important;
   }
 `;

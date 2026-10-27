@@ -232,8 +232,11 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
 
   for (const child of children) {
     const li = document.createElement('li');
-    li.className = 'category_level_sub tp-cat-item';
+    li.className = 'category_level_sub tp-cat-item tp-cat-node';
     li.dataset.catId = child.id;
+
+    const row = document.createElement('div');
+    row.className = 'tp-cat-row';
 
     const feedUrl = toFeedUrl(child.url, currentPath);
 
@@ -264,19 +267,20 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
           hydrateBranchIdents(feedUrl, li);
         }
       };
-      li.appendChild(toggle);
+      row.appendChild(toggle);
     } else {
       const spacer = document.createElement('span');
       spacer.className = 'tp-cat-spacer';
-      li.appendChild(spacer);
+      row.appendChild(spacer);
     }
 
     const a = document.createElement('a');
     a.href = feedUrl;
     a.textContent = child.title;
-    li.appendChild(a);
+    a.title = child.title;
+    row.appendChild(a);
 
-    // Native mute/unmute button
+    // Native mute/unmute button (empty <i> so icon font renders single cross)
     if (child.numericId) {
       const span = document.createElement('span');
       span.className = 'ignoreCategory f_IgnoredCategories_Hide';
@@ -284,10 +288,13 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
       const ident = storedIdents[child.numericId];
       if (ident) span.setAttribute('data-ident', ident);
       span.setAttribute('title', 'Kategorie ausblenden');
-      span.innerHTML = '<i class="TPIcons-cross">✕</i>';
-      li.appendChild(span);
+      const icon = document.createElement('i');
+      icon.className = 'TPIcons-cross';
+      span.appendChild(icon);
+      row.appendChild(span);
     }
 
+    li.appendChild(row);
     sublist.appendChild(li);
 
     // Reopen if previously expanded in session
@@ -296,7 +303,7 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();
         const subChildren = tree.childrenOf.get(child.id) || [];
-        const toggle = li.querySelector(':scope > .tp-cat-toggle');
+        const toggle = row.querySelector('.tp-cat-toggle');
         if (toggle) {
           toggle.setAttribute('aria-expanded', 'true');
           toggle.textContent = '▾';
@@ -392,6 +399,18 @@ export function enhanceCategorySidebar() {
 
     if (!catId) return;
     li.dataset.catId = catId;
+    li.classList.add('tp-cat-node');
+
+    // Wrap existing content in .tp-cat-row so nested .tp-cat-sublist renders below it
+    let row = li.querySelector(':scope > .tp-cat-row') || li.querySelector('.tp-cat-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'tp-cat-row';
+      while (li.firstChild) {
+        row.appendChild(li.firstChild);
+      }
+      li.appendChild(row);
+    }
 
     const toggle = document.createElement('button');
     toggle.className = 'tp-cat-toggle';
@@ -420,7 +439,7 @@ export function enhanceCategorySidebar() {
       }
     };
 
-    li.prepend(toggle);
+    row.prepend(toggle);
 
     // Auto-expand if active in session
     if (expandedBranches.has(catId)) {
