@@ -394,7 +394,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       { label: '90T', days: 90 },
       { label: '180T', days: 180 },
       { label: '365T', days: 365, active: true },
-      { label: 'Alle', days: 0 }
+      { label: 'Alle', days: 'all' }
     ];
     let currentDays = 365;
     const rangeBtns = [];
