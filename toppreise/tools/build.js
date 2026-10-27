@@ -53,6 +53,7 @@ export function buildBundle() {
     'page/adapter.js',
     'page/cards.js',
     'page/product-offers.js',
+    'features/category-tree.js',
     'ui/sparkline.js',
     'features/discord-recipe.js',
     'features/tavily-search.js',

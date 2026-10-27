@@ -502,4 +502,136 @@ export const STYLES_CHROME = `
   html.tp-hide-ads body.adsFullsize #tpFrame {
     min-height: 0 !important;
   }
+
+  /* Expandable Sidebar Category Tree */
+  .tp-cat-search-box {
+    position: relative !important;
+    margin: 6px 0 10px 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .tp-cat-search-input {
+    width: 100% !important;
+    height: 28px !important;
+    padding: 3px 22px 3px 8px !important;
+    font: 500 12px var(--tp-font) !important;
+    border-radius: var(--tp-r-sm) !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    color: var(--tp-txt) !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+  }
+  .tp-cat-search-input:focus {
+    border-color: var(--tp-blue-soft) !important;
+    background: #ffffff !important;
+  }
+  .tp-cat-search-clear {
+    position: absolute !important;
+    right: 6px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    color: var(--tp-txt-dim) !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+  .tp-cat-search-results {
+    max-height: 260px !important;
+    overflow-y: auto !important;
+    background: #ffffff !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    border-radius: var(--tp-r-sm) !important;
+    margin-top: 4px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  }
+  .tp-cat-result-item {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 6px 8px !important;
+    text-decoration: none !important;
+    border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+  }
+  .tp-cat-result-item:hover {
+    background: rgba(59, 130, 246, 0.08) !important;
+  }
+  .tp-cat-res-title {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-cat-res-path {
+    font-size: 10.5px !important;
+    color: var(--tp-txt-dim) !important;
+    margin-top: 1px !important;
+  }
+  .tp-cat-no-results {
+    padding: 8px !important;
+    font-size: 11.5px !important;
+    color: var(--tp-txt-dim) !important;
+    text-align: center !important;
+  }
+  .tp-cat-toggle {
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin-right: 4px !important;
+    font-size: 10px !important;
+    color: var(--tp-txt-dim) !important;
+    width: 14px !important;
+    height: 14px !important;
+    line-height: 14px !important;
+    text-align: center !important;
+    flex-shrink: 0 !important;
+    transition: transform 0.15s ease !important;
+  }
+  .tp-cat-toggle:hover {
+    color: var(--tp-blue-soft) !important;
+  }
+  .tp-cat-spacer {
+    display: inline-block !important;
+    width: 14px !important;
+    height: 14px !important;
+    margin-right: 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-cat-sublist {
+    list-style: none !important;
+    margin: 2px 0 4px 10px !important;
+    padding: 0 0 0 6px !important;
+    border-left: 1px dashed rgba(15, 23, 42, 0.2) !important;
+  }
+  .tp-cat-item {
+    display: flex !important;
+    align-items: center !important;
+    font-size: 12px !important;
+    margin: 2px 0 !important;
+    min-height: 20px !important;
+  }
+  .tp-cat-item > a {
+    flex: 1 1 auto !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-decoration: none !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-cat-item > a:hover {
+    color: var(--tp-blue-soft) !important;
+  }
+  .tp-cat-item .ignoreCategory {
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    opacity: 0.7 !important;
+    font-size: 11px !important;
+    padding: 2px 4px !important;
+  }
+  .tp-cat-item .ignoreCategory:hover {
+    opacity: 1 !important;
+  }
 `;

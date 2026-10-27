@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.368
+// @version      2.18.369
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1185,6 +1185,138 @@ const STYLES_CHROME = `
   }
   html.tp-hide-ads body.adsFullsize #tpFrame {
     min-height: 0 !important;
+  }
+
+  /* Expandable Sidebar Category Tree */
+  .tp-cat-search-box {
+    position: relative !important;
+    margin: 6px 0 10px 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .tp-cat-search-input {
+    width: 100% !important;
+    height: 28px !important;
+    padding: 3px 22px 3px 8px !important;
+    font: 500 12px var(--tp-font) !important;
+    border-radius: var(--tp-r-sm) !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    color: var(--tp-txt) !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+  }
+  .tp-cat-search-input:focus {
+    border-color: var(--tp-blue-soft) !important;
+    background: #ffffff !important;
+  }
+  .tp-cat-search-clear {
+    position: absolute !important;
+    right: 6px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    color: var(--tp-txt-dim) !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+  .tp-cat-search-results {
+    max-height: 260px !important;
+    overflow-y: auto !important;
+    background: #ffffff !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    border-radius: var(--tp-r-sm) !important;
+    margin-top: 4px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  }
+  .tp-cat-result-item {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 6px 8px !important;
+    text-decoration: none !important;
+    border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+  }
+  .tp-cat-result-item:hover {
+    background: rgba(59, 130, 246, 0.08) !important;
+  }
+  .tp-cat-res-title {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-cat-res-path {
+    font-size: 10.5px !important;
+    color: var(--tp-txt-dim) !important;
+    margin-top: 1px !important;
+  }
+  .tp-cat-no-results {
+    padding: 8px !important;
+    font-size: 11.5px !important;
+    color: var(--tp-txt-dim) !important;
+    text-align: center !important;
+  }
+  .tp-cat-toggle {
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin-right: 4px !important;
+    font-size: 10px !important;
+    color: var(--tp-txt-dim) !important;
+    width: 14px !important;
+    height: 14px !important;
+    line-height: 14px !important;
+    text-align: center !important;
+    flex-shrink: 0 !important;
+    transition: transform 0.15s ease !important;
+  }
+  .tp-cat-toggle:hover {
+    color: var(--tp-blue-soft) !important;
+  }
+  .tp-cat-spacer {
+    display: inline-block !important;
+    width: 14px !important;
+    height: 14px !important;
+    margin-right: 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-cat-sublist {
+    list-style: none !important;
+    margin: 2px 0 4px 10px !important;
+    padding: 0 0 0 6px !important;
+    border-left: 1px dashed rgba(15, 23, 42, 0.2) !important;
+  }
+  .tp-cat-item {
+    display: flex !important;
+    align-items: center !important;
+    font-size: 12px !important;
+    margin: 2px 0 !important;
+    min-height: 20px !important;
+  }
+  .tp-cat-item > a {
+    flex: 1 1 auto !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-decoration: none !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-cat-item > a:hover {
+    color: var(--tp-blue-soft) !important;
+  }
+  .tp-cat-item .ignoreCategory {
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    opacity: 0.7 !important;
+    font-size: 11px !important;
+    padding: 2px 4px !important;
+  }
+  .tp-cat-item .ignoreCategory:hover {
+    opacity: 1 !important;
   }
 `;
 
@@ -4845,6 +4977,444 @@ const SHADOW_MODAL_STYLES = `
       console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: offers.length, jsonLdBlocks: scripts.length });
     } catch { /* Händler unbekannt: Zeile entfällt */ }
     return out;
+  }
+
+  // ─── MODULE: src/features/category-tree.js ──────────────────────────────────
+  /**
+   * Category Tree & Sidebar Expansion Feature
+   * Loads native category hierarchy (c_cm_data_de / /plugins/category/categorymenu),
+   * provides in-sidebar fan-out (▸/▾) for #Plugin_CategoryMainSelectionLeft,
+   * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
+   */
+
+
+  const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
+  const EXPANDED_STORAGE_KEY = 'tp_cat_expanded_branches';
+
+  // Memory cache for the indexed category tree
+  let treeIndex = null;
+  let treeLoadingPromise = null;
+
+  function getStoredIdents() {
+    try {
+      const raw = localStorage.getItem(IDENT_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveStoredIdents(map) {
+    try {
+      localStorage.setItem(IDENT_STORAGE_KEY, JSON.stringify(map));
+    } catch {}
+  }
+
+  function getExpandedBranches() {
+    try {
+      const raw = sessionStorage.getItem(EXPANDED_STORAGE_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveExpandedBranches(set) {
+    try {
+      sessionStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(Array.from(set)));
+    } catch {}
+  }
+
+  function toFeedUrl(catalogUrl, currentFeedPath = '') {
+    if (!catalogUrl) return '/neue-toppreise';
+    const prefix = currentFeedPath && /(?:new-best-prices|nouveaux-meilleurs-prix)/i.test(currentFeedPath)
+      ? currentFeedPath.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i)[0]
+      : '/neue-toppreise';
+    return catalogUrl.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+  }
+
+  function indexCategoryData(categories) {
+    const byId = new Map();
+    const childrenOf = new Map(); // parentID -> array of nodes
+    const allNodes = [];
+
+    const visit = (node, parentId = '') => {
+      if (!node || !node.id) return;
+      const cleanId = String(node.id).trim();
+      const pid = parentId || String(node.parentID || '').trim() || 'root';
+      const entry = {
+        id: cleanId,
+        numericId: cleanId.replace(/^c/i, ''),
+        parentID: pid,
+        title: (node.title || '').replace(/&amp;/g, '&').replace(/&ouml;/g, 'ö').replace(/&auml;/g, 'ä').replace(/&uuml;/g, 'ü'),
+        url: node.url || '',
+        hasChildren: !!node.hasChildren || (Array.isArray(node.children) && node.children.length > 0)
+      };
+      if (!byId.has(cleanId)) {
+        byId.set(cleanId, entry);
+        allNodes.push(entry);
+      }
+      if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+      childrenOf.get(pid).push(entry);
+
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) {
+          visit(child, cleanId);
+        }
+      }
+    };
+
+    if (Array.isArray(categories)) {
+      for (const item of categories) visit(item, String(item.parentID || '').trim());
+    }
+
+    // Build breadcrumbs for search
+    for (const node of allNodes) {
+      const parts = [node.title];
+      let curr = node;
+      while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start') {
+        const p = byId.get(curr.parentID);
+        if (p && p.title) {
+          parts.unshift(p.title);
+          curr = p;
+        } else {
+          break;
+        }
+      }
+      node.breadcrumb = parts.join(' › ');
+    }
+
+    return { byId, childrenOf, allNodes };
+  }
+
+  async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
+    if (treeIndex) return treeIndex;
+    if (treeLoadingPromise) return treeLoadingPromise;
+
+    treeLoadingPromise = (async () => {
+      try {
+        const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
+        const lang = menuEl?.getAttribute('data-lang') || 'de';
+        const hash = menuEl?.getAttribute('data-hash') || '';
+
+        // Check native Toppreise localStorage cache
+        const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
+        const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
+        if (cachedDataRaw && (!hash || cachedHash === hash)) {
+          try {
+            const parsed = JSON.parse(cachedDataRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              treeIndex = indexCategoryData(parsed);
+              return treeIndex;
+            }
+          } catch {}
+        }
+
+        // Fetch from native endpoint if element exists
+        if (menuEl && typeof fetch === 'function') {
+          const ajaxUrl = menuEl.getAttribute('data-ajax-url') || '/plugins/category/categorymenu';
+          const contextHash = menuEl.getAttribute('data-context-hash') || '';
+          const body = new URLSearchParams({
+            c_cm_ch: contextHash,
+            c_cm_la: lang,
+            lang
+          });
+          const resp = await fetch(ajaxUrl, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: body.toString()
+          });
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json?.categories) {
+              try {
+                localStorage.setItem(`c_cm_data_${lang}`, JSON.stringify(json.categories));
+                if (json.hash) localStorage.setItem(`c_cm_hash_${lang}`, json.hash);
+              } catch {}
+              treeIndex = indexCategoryData(json.categories);
+              return treeIndex;
+            }
+          }
+        }
+      } catch (err) {
+        // Graceful fallback: return empty index
+      }
+      treeIndex = indexCategoryData([]);
+      return treeIndex;
+    })();
+
+    return treeLoadingPromise;
+  }
+
+  function searchCategoryTree(tree, query, maxResults = 12) {
+    if (!tree || !query || !query.trim()) return [];
+    const q = query.trim().toLowerCase();
+    const results = [];
+    for (const node of tree.allNodes) {
+      if (!node.title || node.id === 'start' || node.id === 'root') continue;
+      const titleLower = node.title.toLowerCase();
+      const urlLower = node.url.toLowerCase();
+      if (titleLower.includes(q) || urlLower.includes(q)) {
+        results.push(node);
+        if (results.length >= maxResults) break;
+      }
+    }
+    return results;
+  }
+
+  async function hydrateBranchIdents(feedUrl, branchEl) {
+    if (!feedUrl || typeof fetch !== 'function') return;
+    try {
+      const resp = await fetch(feedUrl, { credentials: 'same-origin' });
+      if (!resp.ok) return;
+      const html = await resp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const triggers = doc.querySelectorAll('.Plugin_CategoryMainSelectionLeft .ignoreCategory[data-vcat-id][data-ident]');
+      if (triggers.length === 0) return;
+
+      const stored = getStoredIdents();
+      let changed = false;
+      triggers.forEach(tr => {
+        const vcatId = tr.getAttribute('data-vcat-id');
+        const ident = tr.getAttribute('data-ident');
+        if (vcatId && ident && stored[vcatId] !== ident) {
+          stored[vcatId] = ident;
+          changed = true;
+        }
+      });
+      if (changed) saveStoredIdents(stored);
+
+      // Update rendered spans in this branch if present
+      if (branchEl) {
+        branchEl.querySelectorAll?.('.ignoreCategory[data-vcat-id]').forEach(span => {
+          const vcatId = span.getAttribute('data-vcat-id');
+          if (vcatId && stored[vcatId] && !span.getAttribute('data-ident')) {
+            span.setAttribute('data-ident', stored[vcatId]);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  function renderChildList(children, parentEl, currentPath, expandedBranches) {
+    let sublist = parentEl.querySelector(':scope > .tp-cat-sublist');
+    if (sublist) {
+      sublist.remove();
+      return;
+    }
+
+    sublist = document.createElement('ul');
+    sublist.className = 'tp-cat-sublist';
+    const storedIdents = getStoredIdents();
+
+    for (const child of children) {
+      const li = document.createElement('li');
+      li.className = 'category_level_sub tp-cat-item';
+      li.dataset.catId = child.id;
+
+      const feedUrl = toFeedUrl(child.url, currentPath);
+
+      // Expand toggle if child has subchildren
+      if (child.hasChildren) {
+        const toggle = document.createElement('button');
+        toggle.className = 'tp-cat-toggle';
+        toggle.type = 'button';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = '▸';
+        toggle.title = 'Unterkategorien anzeigen';
+        toggle.onclick = async e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const tree = await loadNativeCategoryTree();
+          const subChildren = tree.childrenOf.get(child.id) || [];
+          const isExp = toggle.getAttribute('aria-expanded') === 'true';
+          toggle.setAttribute('aria-expanded', String(!isExp));
+          toggle.textContent = isExp ? '▸' : '▾';
+          if (isExp) {
+            expandedBranches.delete(child.id);
+            saveExpandedBranches(expandedBranches);
+            li.querySelector(':scope > .tp-cat-sublist')?.remove();
+          } else {
+            expandedBranches.add(child.id);
+            saveExpandedBranches(expandedBranches);
+            renderChildList(subChildren, li, currentPath, expandedBranches);
+            hydrateBranchIdents(feedUrl, li);
+          }
+        };
+        li.appendChild(toggle);
+      } else {
+        const spacer = document.createElement('span');
+        spacer.className = 'tp-cat-spacer';
+        li.appendChild(spacer);
+      }
+
+      const a = document.createElement('a');
+      a.href = feedUrl;
+      a.textContent = child.title;
+      li.appendChild(a);
+
+      // Native mute/unmute button
+      if (child.numericId) {
+        const span = document.createElement('span');
+        span.className = 'ignoreCategory f_IgnoredCategories_Hide';
+        span.setAttribute('data-vcat-id', child.numericId);
+        const ident = storedIdents[child.numericId];
+        if (ident) span.setAttribute('data-ident', ident);
+        span.setAttribute('title', 'Kategorie ausblenden');
+        span.innerHTML = '<i class="TPIcons-cross">✕</i>';
+        li.appendChild(span);
+      }
+
+      sublist.appendChild(li);
+
+      // Reopen if previously expanded in session
+      if (child.hasChildren && expandedBranches.has(child.id)) {
+        setTimeout(async () => {
+          if (typeof document === 'undefined') return;
+          const tree = await loadNativeCategoryTree();
+          const subChildren = tree.childrenOf.get(child.id) || [];
+          const toggle = li.querySelector(':scope > .tp-cat-toggle');
+          if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.textContent = '▾';
+            renderChildList(subChildren, li, currentPath, expandedBranches);
+          }
+        }, 0);
+      }
+    }
+
+    parentEl.appendChild(sublist);
+  }
+
+  function enhanceCategorySidebar() {
+    if (!isNeueToppreisePage()) return;
+    const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
+    if (!sidebar || sidebar.classList.contains('tp-tree-enhanced')) return;
+    sidebar.classList.add('tp-tree-enhanced');
+
+    const currentPath = typeof location !== 'undefined' ? location.pathname : '';
+    const expandedBranches = getExpandedBranches();
+
+    // 1. Search Box
+    const labelDiv = sidebar.querySelector('.label.bold');
+    if (labelDiv) {
+      const searchBox = document.createElement('div');
+      searchBox.className = 'tp-cat-search-box';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'tp-cat-search-input';
+      input.placeholder = '🔍 Kategorie suchen...';
+      input.setAttribute('aria-label', 'Kategorie filtern');
+      searchBox.appendChild(input);
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'tp-cat-search-clear';
+      clearBtn.style.display = 'none';
+      clearBtn.title = 'Suche leeren';
+      clearBtn.textContent = '✕';
+      searchBox.appendChild(clearBtn);
+
+      const resultsBox = document.createElement('div');
+      resultsBox.className = 'tp-cat-search-results';
+      resultsBox.style.display = 'none';
+      searchBox.appendChild(resultsBox);
+
+      const ulList = sidebar.querySelector('ul');
+
+      input.addEventListener('input', async () => {
+        const val = input.value.trim();
+        clearBtn.style.display = val ? 'block' : 'none';
+        if (!val) {
+          resultsBox.style.display = 'none';
+          if (ulList) ulList.style.display = '';
+          return;
+        }
+        const tree = await loadNativeCategoryTree();
+        const hits = searchCategoryTree(tree, val, 15);
+        if (hits.length === 0) {
+          resultsBox.innerHTML = '<div class="tp-cat-no-results">Keine Kategorie gefunden</div>';
+        } else {
+          resultsBox.innerHTML = hits.map(hit => `
+            <a class="tp-cat-result-item" href="${toFeedUrl(hit.url, currentPath)}">
+              <span class="tp-cat-res-title">${hit.title}</span>
+              <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
+            </a>
+          `).join('');
+        }
+        resultsBox.style.display = 'block';
+        if (ulList) ulList.style.display = 'none';
+      });
+
+      clearBtn.addEventListener('click', () => {
+        input.value = '';
+        clearBtn.style.display = 'none';
+        resultsBox.style.display = 'none';
+        if (ulList) ulList.style.display = '';
+        input.focus();
+      });
+
+      labelDiv.after(searchBox);
+    }
+
+    // 2. Attach toggles to existing root li elements
+    const rootLis = sidebar.querySelectorAll('ul > li');
+    rootLis.forEach(li => {
+      const link = li.querySelector('a[href]');
+      if (!link) return;
+      const href = link.getAttribute('href') || '';
+      const match = href.match(/-c(\d+)/i);
+      const catId = match ? `c${match[1]}` : '';
+
+      if (!catId) return;
+      li.dataset.catId = catId;
+
+      const toggle = document.createElement('button');
+      toggle.className = 'tp-cat-toggle';
+      toggle.type = 'button';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = '▸';
+      toggle.title = 'Unterkategorien anzeigen';
+
+      toggle.onclick = async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const tree = await loadNativeCategoryTree();
+        const children = tree.childrenOf.get(catId) || [];
+        const isExp = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!isExp));
+        toggle.textContent = isExp ? '▸' : '▾';
+        if (isExp) {
+          expandedBranches.delete(catId);
+          saveExpandedBranches(expandedBranches);
+          li.querySelector(':scope > .tp-cat-sublist')?.remove();
+        } else {
+          expandedBranches.add(catId);
+          saveExpandedBranches(expandedBranches);
+          renderChildList(children, li, currentPath, expandedBranches);
+          hydrateBranchIdents(link.href || href, li);
+        }
+      };
+
+      li.prepend(toggle);
+
+      // Auto-expand if active in session
+      if (expandedBranches.has(catId)) {
+        setTimeout(async () => {
+          if (typeof document === 'undefined') return;
+          const tree = await loadNativeCategoryTree();
+          const children = tree.childrenOf.get(catId) || [];
+          toggle.setAttribute('aria-expanded', 'true');
+          toggle.textContent = '▾';
+          renderChildList(children, li, currentPath, expandedBranches);
+        }, 0);
+      }
+    });
   }
 
   // ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────
@@ -11332,6 +11902,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       renderEmptyState(cards, counts);
       renderSuiteFilterBar(counts, pageHasOffers, isNeueFeed, isSortPage);
       renderFloatingCTA(counts, isNeueFeed);
+      if (isNeueFeed) enhanceCategorySidebar();
       const mig = migrateFilterSplit();
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');
     } finally {
@@ -11484,7 +12055,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.368';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.369';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
