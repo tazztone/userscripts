@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.375
+// @version      2.18.376
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6405,7 +6405,7 @@ const SHADOW_MODAL_STYLES = `
       return inFlight.get(flightKey);
     }
 
-    const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 20000;
+    const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
     const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
     const maxResults = typeof options.maxResults === 'number'
       ? options.maxResults
@@ -8588,8 +8588,14 @@ const SHADOW_MODAL_STYLES = `
     contentEl.style.cssText = 'font-size:13px;line-height:1.55;color:var(--tp-txt-mid, #cbd5e1);min-height:56px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;border-left:3px solid #5865f2;';
 
     let currentVerdict = '';
+    let statusTimers = [];
+    const clearTimers = () => {
+      statusTimers.forEach(t => clearTimeout(t));
+      statusTimers = [];
+    };
 
     const renderVerdict = (text) => {
+      clearTimers();
       currentVerdict = text;
       contentEl.style.borderLeftColor = '#5865f2';
       contentEl.innerHTML = formatVerdictHtml(text);
@@ -8598,6 +8604,7 @@ const SHADOW_MODAL_STYLES = `
     };
 
     const renderError = (msg) => {
+      clearTimers();
       contentEl.style.borderLeftColor = '#ef4444';
       contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
       copyBtn.disabled = true;
@@ -8622,11 +8629,25 @@ const SHADOW_MODAL_STYLES = `
     retryBtn.textContent = '🔄 Erneut versuchen';
 
     const fetchSummary = () => {
+      clearTimers();
       retryBtn.style.display = 'none';
       contentEl.style.borderLeftColor = '#5865f2';
       contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+
+      statusTimers.push(setTimeout(() => {
+        if (backdrop.isConnected && !currentVerdict) {
+          contentEl.innerHTML = '<span style="opacity:0.85;">🤖 Websuche läuft noch (Testberichte werden analysiert)...</span>';
+        }
+      }, 5000));
+
+      statusTimers.push(setTimeout(() => {
+        if (backdrop.isConnected && !currentVerdict) {
+          contentEl.innerHTML = '<span style="opacity:0.85;">⏳ Synthese dauert etwas länger, läuft im Hintergrund weiter...<br><span style="font-size:12px;opacity:0.75;margin-top:4px;display:inline-block;">Antwort erscheint hier automatisch sobald fertig.</span></span>';
+        }
+      }, 12000));
+
       fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, {
-        timeoutMs: 20000,
+        timeoutMs: 60000,
         searchDepth: CONFIG.TAVILY_SEARCH_DEPTH,
         maxResults: CONFIG.TAVILY_MAX_RESULTS
       })
@@ -8703,6 +8724,7 @@ const SHADOW_MODAL_STYLES = `
     };
 
     function close() {
+      clearTimers();
       document.removeEventListener('keydown', onKey);
       activeAiPopoverCleanup = null;
       backdrop.remove();
@@ -12546,7 +12568,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.375';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.376';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
