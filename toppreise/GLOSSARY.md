@@ -87,4 +87,12 @@ Verifizierter Tiefstpreis mit qualifizierter Historie, dessen aktueller Preis ge
 
 **Ungeprüfte**:
 Filtergrund: verbirgt, dimmt oder hebt ungeprüfte Karten hervor wenn aktiv (je Modus) — deterministisch, unabhängig vom Scan-Stand (kein Sonderverhalten auf checklosen Seiten); Ansicht streift sie sonst nur.
- _Avoid_: Nur geprüfte (als Filterlabel), separater Modus, Sonderverhalten
+_Avoid_: Nur geprüfte (als Filterlabel), separater Modus, Sonderverhalten
+
+**Kategorie-Baum**:
+Aufklappbare Hierarchie der 2'593 Toppreise-Kategorien direkt in der linken Seitenleiste (`#Plugin_CategoryMainSelectionLeft`) auf Feed-Seiten (`▸`/`▾`). Erlaubt direktes Ansteuern tiefer Subkategorie-Feeds und gezieltes Ausblenden (`✕`) einzelner Unterkategorien ohne mehrfache Seitenwechsel.
+_Avoid_: Feed-Presets, Multi-Feed
+
+**Kategorie-Suche**:
+Echtzeit-Filtereingabe oberhalb des Kategorie-Baums zur sofortigen Schnellsuche über alle 2'593 Kategorienamen und Pfade.
+

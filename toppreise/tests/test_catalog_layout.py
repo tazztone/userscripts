@@ -2352,6 +2352,91 @@ def test_native_category_management_interactions(page: Page):
 
 
 
+def test_expandable_category_sidebar_interactions(page: Page):
+    """
+    Verifies the in-sidebar expandable category tree on feed pages:
+    1. #Plugin_CategoryMainSelectionLeft gains .tp-tree-enhanced
+    2. .tp-cat-search-box is mounted with .tp-cat-search-input
+    3. Root category LI elements gain .tp-cat-toggle (▸)
+    4. Typing into search input filters the tree and shows matching results
+    5. Clicking toggle fans out child sublist
+    """
+    res = page.evaluate("""async () => {
+        // Seed category menu cache in page test context
+        localStorage.setItem('c_cm_hash_de', 'a60134');
+        localStorage.setItem('c_cm_data_de', JSON.stringify([
+            {
+                id: 'c200',
+                title: 'Computer &amp; Zubehör',
+                url: '/produktsuche/Computer-Zubehoer-c200',
+                parentID: '',
+                hasChildren: true,
+                children: [
+                    {
+                        id: 'c8',
+                        title: 'Komplettsysteme',
+                        url: '/produktsuche/Computer-Zubehoer/Komplettsysteme-c8',
+                        parentID: 'c200',
+                        hasChildren: false
+                    }
+                ]
+            },
+            {
+                id: 'c900',
+                title: 'Videogames',
+                url: '/produktsuche/Videogames-c900',
+                parentID: '',
+                hasChildren: false
+            }
+        ]));
+
+        const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
+        const enhanced = sidebar?.classList.contains('tp-tree-enhanced');
+        const searchInput = sidebar?.querySelector('.tp-cat-search-input');
+        const toggles = sidebar?.querySelectorAll('.tp-cat-toggle');
+
+        // Search interaction
+        searchInput.value = 'videogames';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 60));
+
+        const resultsBox = sidebar?.querySelector('.tp-cat-search-results');
+        const searchVisible = resultsBox && window.getComputedStyle(resultsBox).display !== 'none';
+        const hitCount = resultsBox?.querySelectorAll('.tp-cat-result-item').length || 0;
+
+        // Clear search
+        const clearBtn = sidebar?.querySelector('.tp-cat-search-clear');
+        clearBtn?.click();
+
+        // Expand first category (Computer & Zubehör, c200)
+        const firstToggle = toggles && toggles.length > 0 ? toggles[0] : null;
+        if (firstToggle) firstToggle.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const sublist = sidebar?.querySelector('.tp-cat-sublist');
+        const childCount = sublist?.querySelectorAll('.tp-cat-item').length || 0;
+
+        return {
+            enhanced: !!enhanced,
+            hasSearch: !!searchInput,
+            togglesCount: toggles?.length || 0,
+            searchVisible,
+            hitCount,
+            hasSublist: !!sublist,
+            childCount
+        };
+    }""")
+
+    assert res['enhanced'] is True
+    assert res['hasSearch'] is True
+    assert res['togglesCount'] > 0
+    assert res['searchVisible'] is True
+    assert res['hitCount'] >= 1
+    assert res['hasSublist'] is True
+    assert res['childCount'] >= 1
+
+
+
 def test_showproductprice_vs_showshippingprice_consistency(browser, userscript_content):
     """
     Validates that when Toppreise is in 'showproductprice' mode (Produktpreis exkl. Versand):
@@ -2771,10 +2856,10 @@ def test_toolbar_stacks_below_site_dropdown(page: Page):
 
 def test_filter_modes_default_to_dim_on_fresh_install(page: Page):
     # Fresh-install state comes from the page fixture (cleared storage + bundle).
-    modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
-    assert modes == ['dim'] * 6
+    modes = page.evaluate("() => ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'FILTER_PRICE_MODE', 'FILTER_SAVINGS_MODE', 'DEALER_MODE'].map(k => window.ToppreiseSuite.CONFIG[k])")
+    assert modes == ['dim'] * 8
     _open_filter_popover(page)
-    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Normal'] * 5 + ['Dimmen']
+    assert [b.inner_text() for b in page.locator('.tp-filter-mode-btn').all()] == ['Normal'] * 7 + ['Dimmen']
 
 
 def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):

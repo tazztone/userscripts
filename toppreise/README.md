@@ -114,6 +114,14 @@ Requires a userscript manager browser extension:
 * **Live Grid Sorting:** Sort listings in-place by **Weighted Deal Score (`Tiefstpreis-Sortierung`)** (verified deals and fallback lows by badge % > unverified/unavailable > markups), **% Discount (`% Rabatt ⬇`)**, or **Offer Count (`Meiste ⬇` / `Wenigste ⬆`)**, with clean restoration to natural DOM order when disabled.
 * **Empty State Recovery:** If all products are hidden by active filters, an interactive prompt provides instant one-click recovery buttons (`[ ⚡ Filter ausschalten ]`, `[ 🔍 Tiefstpreise prüfen ]`, or `[ Ungeprüfte einblenden ]`).
 
+### 🌳 Expandable Category Sidebar & Instant Search
+
+* **In-Sidebar Navigation:** Expands the native left deal sidebar with accordion toggles (`▸` / `▾`) across all 4 category levels using Toppreise's native category cache (`c_cm_data_de`).
+* **Direct Feed Links:** Clicking any subcategory navigates to its dedicated deal feed URL (`/neue-toppreise/...`).
+* **Instant Category Search:** Real-time search box above the sidebar filters across all 2,500+ categories with parent path breadcrumbs and direct link navigation.
+* **Native Category Blacklisting (`✕` / `+`):** Preserves and hydrates Toppreise's native server-side category exclusion icons on hover/render for all branch levels.
+* **Persistent State:** Expanded sidebar branches are saved in `localStorage` across page reloads.
+
 ### 🔔 Price Alarm Auto-Filler
 
 * **Instant Prefill:** Clicking Toppreise's price alarm bell automatically populates target price (`5%–99%`, default `60%`) and duration (`3`, `6`, `12`, or `24` months), with full support for Swiss currency formats (`CHF 1'299.–`).
@@ -132,6 +140,7 @@ Requires a userscript manager browser extension:
 | Control / Icon | Location | Action |
 | --- | --- | --- |
 | **Sticky Filter Bar** | Top of product listings | Filter by negative keywords, minimum offers, and per-cause modes; toggle Heatmap and Tiefstpreis-Sortierung; open the `⚖️` calculation popover. |
+| **Category Sidebar (`▸`/`▾`)** | Left sidebar on deal feeds | Expand/collapse subcategories, search across 2,500+ categories, or navigate to sub-feeds. |
 | **Floating Check CTA** | Bottom-left floating pill | One-click batch verification of all visible deals meeting the discount threshold (`≥X%`), with an inline `🏬` dealer auto-fetch toggle. |
 | **Differenz Badge (`🔍` / `⚖️`)** | Top-right of product card | Click to verify or refresh a single product's price history and all-time low status. |
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |

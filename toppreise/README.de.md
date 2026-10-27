@@ -114,6 +114,14 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 * **Live-Grid-Sortierung:** Sortiert Angebote direkt im Raster nach **Gewichteter Differenz (`Tiefstpreis-Sortierung`)** (verifizierte Deals und Fallback-Tiefs nach Badge-% > Ungeprüfte > Aufschläge), **Rabatt (`% Rabatt ⬇`)** oder **Händleranzahl (`Meiste ⬇` / `Wenigste ⬆`)** — stellt beim Deaktivieren die exakte Ursprungsreihenfolge wieder her.
 * **Leere-Feed-Hinweis (Empty State):** Sind alle Produkte ausgeblendet, bietet ein Hinweis 1-Klick-Aktionen zur Wiederherstellung (`[ ⚡ Filter ausschalten ]`, `[ 🔍 Tiefstpreise prüfen ]` oder `[ Ungeprüfte einblenden ]`).
 
+### 🌳 Aufklappbarer Kategorie-Baum & Sofortsuche
+
+* **Sidebar-Erweiterung:** Erweitert die native linke Deal-Sidebar mit Aufklapp-Pfeilen (`▸` / `▾`) über alle 4 Kategorie-Ebenen aus dem nativen Toppreise-Kategoriecache (`c_cm_data_de`).
+* **Direkte Feed-Verlinkung:** Klick auf eine Unterkategorie führt direkt zu deren gefiltertem Deal-Feed (`/neue-toppreise/...`).
+* **Kategorie-Sofortsuche:** Suchfeld oberhalb der Sidebar durchsucht alle 2'500+ Kategorien in Echtzeit inklusive Pfad-Breadcrumbs und Direktlinks.
+* **Native Kategorie-Ausschlüsse (`✕` / `+`):** Behält Toppreises native serverseitige Ausschluss-Buttons bei und hydriert sie dynamisch für alle Unterebenen.
+* **Persistenter Zustand:** Aufgeklappte Kategorien werden im `localStorage` gespeichert und bleiben beim Neuladen erhalten.
+
 ### 🔔 Preisalarm Auto-Filler
 
 * **Sofortiges Ausfüllen:** Klick auf Toppreises Alarm-Glocke setzt Zielpreis (`5%–99%`, Standard `60%`) und Laufzeit (`3`, `6`, `12` oder `24` Monate), passend zum Schweizer Währungsformat (`CHF 1'299.–`).
@@ -132,6 +140,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | Element / Icon | Ort | Aktion |
 | --- | --- | --- |
 | **Sticky Filterleiste** | Oberhalb der Produktliste | Negativ-Begriffe, Mindestangebote und Filtergründe einstellen; Heatmap und Tiefstpreis-Sortierung umschalten; `⚖️`-Berechnungspopover öffnen. |
+| **Kategorie-Baum (`▸`/`▾`)** | Linke Sidebar im Deal-Feed | Unterkategorien aufklappen, Kategorien durchsuchen oder zu Unter-Feeds springen. |
 | **Batch-Checker-CTA** | Schwebend unten links | Alle sichtbaren Deals ab Mindestdifferenz (`≥X%`) mit einem Klick prüfen; Schalter für automatisches Händlerladen (`🏬`). |
 | **Differenz-Badge (`🔍` / `⚖️`)** | Oben rechts auf Karte | Einzelprodukt prüfen oder Historie aktualisieren. |
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |

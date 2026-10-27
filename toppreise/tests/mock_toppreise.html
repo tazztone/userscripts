@@ -179,6 +179,7 @@
   </style>
 </head>
 <body class="color_bg Page_ListTopPriceReductionProducts showFrameRightBox showshippingprice de" data-lng="de" data-current_url="/neue-toppreise">
+  <div id="Plugin_CategoryMenu_mock" data-context-hash="849247345" data-lang="de" data-hash="a60134" data-ajax-url="/plugins/category/categorymenu" class="Plugin_CategoryMenu" style="display:none;"></div>
   <div id="advertising_mobile"><div id="adnz_rectangle_1"></div></div>
   <div id="mock-site-dropdown" aria-hidden="true">Site-Navigation</div>
   <div class="breadcrumb" style="margin-bottom: 12px; font-size: 13px; color: #64748b;">
@@ -513,6 +514,54 @@
           setTimeout(() => { submitBtn.remove(); if (window.__tpMockAlarmSuccess !== false) document.querySelector('#mock-alarm-dialog .Plugin_NewInfoMailForm')?.insertAdjacentHTML('beforeend', '<div class="success">Preisalarm gespeichert</div>'); }, 200);
         });
       }
+
+      // Seed category menu cache in mock fixture
+      try {
+        if (!localStorage.getItem('c_cm_data_de')) {
+          localStorage.setItem('c_cm_hash_de', 'a60134');
+          localStorage.setItem('c_cm_data_de', JSON.stringify([
+            {
+              id: 'c200',
+              title: 'Computer &amp; Zubehör',
+              url: '/produktsuche/Computer-Zubehoer-c200',
+              parentID: '',
+              hasChildren: true,
+              children: [
+                {
+                  id: 'c8',
+                  title: 'Komplettsysteme',
+                  url: '/produktsuche/Computer-Zubehoer/Komplettsysteme-c8',
+                  parentID: 'c200',
+                  hasChildren: true,
+                  children: [
+                    {
+                      id: 'c2847',
+                      title: 'Komplettsysteme',
+                      url: '/produktsuche/Computer-Zubehoer/Komplettsysteme/Komplettsysteme-c2847',
+                      parentID: 'c8',
+                      hasChildren: false
+                    }
+                  ]
+                },
+                {
+                  id: 'c9',
+                  title: 'PC-Komponenten',
+                  url: '/produktsuche/Computer-Zubehoer/PC-Komponenten-c9',
+                  parentID: 'c200',
+                  hasChildren: false
+                }
+              ]
+            },
+            {
+              id: 'c900',
+              title: 'Videogames',
+              url: '/produktsuche/Videogames-c900',
+              parentID: '',
+              hasChildren: false
+            }
+          ]));
+        }
+      } catch (e) {}
 
       // Native category sidebar show more / less
       const showMoreBtn = document.querySelector('.f_showMoreCatDetails');
