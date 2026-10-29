@@ -140,27 +140,43 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
       try {
         const h = new URL(imageUrl.trim()).hostname.toLowerCase();
         const own = (typeof location !== 'undefined' && location.hostname ? location.hostname : 'www.toppreise.ch').toLowerCase();
-        if (h !== own && h !== 'toppreise.ch' && !h.endsWith('.toppreise.ch')) return reject(new Error('Ungültige Bild-URL'));
+        const isAllowedHost = h === own || h === 'toppreise.ch' || h.endsWith('.toppreise.ch') || h === 'graph.keepa.com' || h.endsWith('.keepa.com');
+        if (!isAllowedHost) return reject(new Error('Ungültige Bild-URL'));
       } catch { return reject(new Error('Ungültige Bild-URL')); }
-      if (typeof GM_xmlhttpRequest === 'undefined') return reject(new Error('Kein HTTP-Transport verfügbar'));
-      GM_xmlhttpRequest({
-        method: 'GET',
-        url: imageUrl.trim(),
-        responseType: 'blob',
-        timeout: timeoutMs,
-        onload: res => {
-          const data = res?.response;
-          if (res.status >= 200 && res.status < 300 && data) {
-            const blob = data instanceof Blob ? data : new Blob([data]);
-            if (!blob.size) return reject(new Error('Leeres Bild'));
-            if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
-            if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
-            resolve(blob);
-          } else reject(new Error(`Bild-Download ${res.status}`));
-        },
-        onerror: () => reject(new Error('Netzwerkfehler')),
-        ontimeout: () => reject(new Error('Timeout'))
-      });
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: imageUrl.trim(),
+          responseType: 'blob',
+          timeout: timeoutMs,
+          onload: res => {
+            const data = res?.response;
+            if (res.status >= 200 && res.status < 300 && data) {
+              const blob = data instanceof Blob ? data : new Blob([data]);
+              if (!blob.size) return reject(new Error('Leeres Bild'));
+              if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
+              if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
+              resolve(blob);
+            } else reject(new Error(`Bild-Download ${res.status}`));
+          },
+          onerror: () => reject(new Error('Netzwerkfehler')),
+          ontimeout: () => reject(new Error('Timeout'))
+        });
+      } else if (typeof fetch !== 'undefined') {
+        fetch(imageUrl.trim())
+          .then(async res => {
+            if (res.status >= 200 && res.status < 300) {
+              const blob = await res.blob();
+              if (!blob.size) return reject(new Error('Leeres Bild'));
+              if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
+              if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
+              resolve(blob);
+            } else reject(new Error(`Bild-Download ${res.status}`));
+          })
+          .catch(() => reject(new Error('Netzwerkfehler')));
+      } else {
+        reject(new Error('Kein HTTP-Transport verfügbar'));
+      }
     } catch (err) { reject(err); }
   });
 }
@@ -215,16 +231,24 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
       const form = new FormData();
       const body = { content, allowed_mentions: { parse: [] } };
       const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
-      if (productBlob) {
-        body.embeds = [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }];
+      const keepaBlob = options.keepaImageBlob instanceof Blob ? options.keepaImageBlob : null;
+
+      const files = [];
+      if (productBlob) files.push({ name: 'produkt.png', blob: productBlob });
+      files.push({ name: 'preisverlauf.png', blob: pngBlob });
+      if (keepaBlob) files.push({ name: 'keepa.png', blob: keepaBlob });
+
+      if (files.length > 1) {
+        body.embeds = files.map(f => ({ image: { url: `attachment://${f.name}` } }));
       } else if (typeof options.productImageUrl === 'string' && options.productImageUrl) {
         body.embeds = [{ image: { url: options.productImageUrl } }];
       }
       if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
       form.append('payload_json', JSON.stringify(body));
-      if (productBlob) {
-        form.append('files[0]', productBlob, 'produkt.png');
-        form.append('files[1]', pngBlob, 'preisverlauf.png');
+      if (files.length > 1) {
+        files.forEach((f, idx) => {
+          form.append(`files[${idx}]`, f.blob, f.name);
+        });
       } else {
         form.append('file', pngBlob, 'preisverlauf.png');
       }

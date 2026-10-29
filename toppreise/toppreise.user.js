@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.411
+// @version      2.18.412
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -17,6 +17,8 @@
 // @connect      toppreise.ch
 // @connect      amazon.de
 // @connect      graph.keepa.com
+// @connect      graph2.keepa.com
+// @connect      keepa.com
 // @noframes
 // ==/UserScript==
 
@@ -6952,6 +6954,11 @@ const SHADOW_MODAL_STYLES = `
     return svg;
   }
 
+  function buildKeepaUrl(asin, days = 365, width = 560, height = 220) {
+    if (!asin || typeof asin !== 'string') return '';
+    return `https://graph.keepa.com/pricehistory.png?asin=${encodeURIComponent(asin.trim())}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=${width}&height=${height}`;
+  }
+
   async function copySvgToClipboard(svgEl, width = 560, height = 220) {
     try {
       if (!svgEl || typeof document === 'undefined') return false;
@@ -7218,19 +7225,19 @@ const SHADOW_MODAL_STYLES = `
         keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
         copyKeepaBtn.style.display = 'inline-block';
 
-        const buildKeepaUrl = days => `https://graph.keepa.com/pricehistory.png?asin=${asin}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=560&height=220`;
+        const keepaUrlFor = days => buildKeepaUrl(asin, days);
 
         const img = document.createElement('img');
         img.style.cssText = 'max-width:100%;height:auto;border-radius:4px;display:block;';
         img.alt = `Keepa Preisverlauf für ${asin}`;
-        img.src = buildKeepaUrl(currentDays);
+        img.src = keepaUrlFor(currentDays);
 
         copyKeepaBtn.onclick = () => {
-          copyKeepaChartToClipboard(img, productTitle, asin, buildKeepaUrl(currentDays));
+          copyKeepaChartToClipboard(img, productTitle, asin, keepaUrlFor(currentDays));
         };
 
         keepaBody._tpUpdateRange = days => {
-          img.src = buildKeepaUrl(days);
+          img.src = keepaUrlFor(days);
         };
 
         const linksRow = document.createElement('div');
@@ -7766,27 +7773,43 @@ const SHADOW_MODAL_STYLES = `
         try {
           const h = new URL(imageUrl.trim()).hostname.toLowerCase();
           const own = (typeof location !== 'undefined' && location.hostname ? location.hostname : 'www.toppreise.ch').toLowerCase();
-          if (h !== own && h !== 'toppreise.ch' && !h.endsWith('.toppreise.ch')) return reject(new Error('Ungültige Bild-URL'));
+          const isAllowedHost = h === own || h === 'toppreise.ch' || h.endsWith('.toppreise.ch') || h === 'graph.keepa.com' || h.endsWith('.keepa.com');
+          if (!isAllowedHost) return reject(new Error('Ungültige Bild-URL'));
         } catch { return reject(new Error('Ungültige Bild-URL')); }
-        if (typeof GM_xmlhttpRequest === 'undefined') return reject(new Error('Kein HTTP-Transport verfügbar'));
-        GM_xmlhttpRequest({
-          method: 'GET',
-          url: imageUrl.trim(),
-          responseType: 'blob',
-          timeout: timeoutMs,
-          onload: res => {
-            const data = res?.response;
-            if (res.status >= 200 && res.status < 300 && data) {
-              const blob = data instanceof Blob ? data : new Blob([data]);
-              if (!blob.size) return reject(new Error('Leeres Bild'));
-              if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
-              if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
-              resolve(blob);
-            } else reject(new Error(`Bild-Download ${res.status}`));
-          },
-          onerror: () => reject(new Error('Netzwerkfehler')),
-          ontimeout: () => reject(new Error('Timeout'))
-        });
+        if (typeof GM_xmlhttpRequest !== 'undefined') {
+          GM_xmlhttpRequest({
+            method: 'GET',
+            url: imageUrl.trim(),
+            responseType: 'blob',
+            timeout: timeoutMs,
+            onload: res => {
+              const data = res?.response;
+              if (res.status >= 200 && res.status < 300 && data) {
+                const blob = data instanceof Blob ? data : new Blob([data]);
+                if (!blob.size) return reject(new Error('Leeres Bild'));
+                if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
+                if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
+                resolve(blob);
+              } else reject(new Error(`Bild-Download ${res.status}`));
+            },
+            onerror: () => reject(new Error('Netzwerkfehler')),
+            ontimeout: () => reject(new Error('Timeout'))
+          });
+        } else if (typeof fetch !== 'undefined') {
+          fetch(imageUrl.trim())
+            .then(async res => {
+              if (res.status >= 200 && res.status < 300) {
+                const blob = await res.blob();
+                if (!blob.size) return reject(new Error('Leeres Bild'));
+                if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
+                if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
+                resolve(blob);
+              } else reject(new Error(`Bild-Download ${res.status}`));
+            })
+            .catch(() => reject(new Error('Netzwerkfehler')));
+        } else {
+          reject(new Error('Kein HTTP-Transport verfügbar'));
+        }
       } catch (err) { reject(err); }
     });
   }
@@ -7841,16 +7864,24 @@ const SHADOW_MODAL_STYLES = `
         const form = new FormData();
         const body = { content, allowed_mentions: { parse: [] } };
         const productBlob = options.productImageBlob instanceof Blob ? options.productImageBlob : null;
-        if (productBlob) {
-          body.embeds = [{ image: { url: 'attachment://produkt.png' } }, { image: { url: 'attachment://preisverlauf.png' } }];
+        const keepaBlob = options.keepaImageBlob instanceof Blob ? options.keepaImageBlob : null;
+
+        const files = [];
+        if (productBlob) files.push({ name: 'produkt.png', blob: productBlob });
+        files.push({ name: 'preisverlauf.png', blob: pngBlob });
+        if (keepaBlob) files.push({ name: 'keepa.png', blob: keepaBlob });
+
+        if (files.length > 1) {
+          body.embeds = files.map(f => ({ image: { url: `attachment://${f.name}` } }));
         } else if (typeof options.productImageUrl === 'string' && options.productImageUrl) {
           body.embeds = [{ image: { url: options.productImageUrl } }];
         }
         if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
         form.append('payload_json', JSON.stringify(body));
-        if (productBlob) {
-          form.append('files[0]', productBlob, 'produkt.png');
-          form.append('files[1]', pngBlob, 'preisverlauf.png');
+        if (files.length > 1) {
+          files.forEach((f, idx) => {
+            form.append(`files[${idx}]`, f.blob, f.name);
+          });
         } else {
           form.append('file', pngBlob, 'preisverlauf.png');
         }
@@ -9480,6 +9511,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   async function sendDealToChannel(channel, payload, stillFresh) {
     const hook = channel.url.trim();
     const flagKey = discordForumFlagKey(hook);
@@ -9658,7 +9690,19 @@ const SHADOW_MODAL_STYLES = `
                   }
                 }
               }
+              const isAmazon = ((dealer && /amazon/i.test(dealer)) || (dealerUrl && /amazon\./i.test(dealerUrl))) && CONFIG.KEEPA_CHART_ENABLED !== false;
+              let keepaDl = null;
+              if (isAmazon) {
+                keepaDl = (async () => {
+                  const asin = await resolveAmazonAsin(dealerUrl, snap.pid).catch(() => null);
+                  if (!asin) return null;
+                  const keepaUrl = buildKeepaUrl(asin);
+                  return keepaUrl ? fetchImageBlob(keepaUrl).catch(() => null) : null;
+                })();
+              }
               const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice), 360, 100, title).catch(() => null);
+              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+              const keepaBlob = keepaDl ? await keepaDl : null;
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
               const aiText = aiPromise ? (await aiPromise) : '';
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
@@ -9677,7 +9721,8 @@ const SHADOW_MODAL_STYLES = `
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
               const productOpt = {
                 ...(productBlob ? { productImageBlob: productBlob } : null),
-                ...(imageUrl ? { productImageUrl: imageUrl } : null)
+                ...(imageUrl ? { productImageUrl: imageUrl } : null),
+                ...(keepaBlob ? { keepaImageBlob: keepaBlob } : null)
               };
               readyPayload = {
                 content,
@@ -9685,12 +9730,14 @@ const SHADOW_MODAL_STYLES = `
                 threadName,
                 png,
                 productBlob,
+                keepaBlob,
                 productOpt
               };
               preview?.updateContent({
                 formattedContent: content,
                 chartBlob: png,
-                productBlob
+                productBlob,
+                keepaBlob
               });
             } catch (err) {
               preview?.setError('Vorbereitung fehlgeschlagen');
@@ -11802,7 +11849,7 @@ const SHADOW_MODAL_STYLES = `
 
     const controller = {
       dialog,
-      updateContent({ formattedContent, chartBlob, productBlob }) {
+      updateContent({ formattedContent, chartBlob, productBlob, keepaBlob }) {
         if (loadingEl) loadingEl.style.display = 'none';
         if (errorEl) errorEl.style.display = 'none';
 
@@ -11834,6 +11881,18 @@ const SHADOW_MODAL_STYLES = `
               chartImg.alt = 'Preisverlauf';
               chartImg.title = 'Preisverlauf (wird als Bildanhang gesendet)';
               imagesEl.appendChild(chartImg);
+            } catch {}
+          }
+          if (keepaBlob instanceof Blob) {
+            try {
+              const keepaUrl = URL.createObjectURL(keepaBlob);
+              createdUrls.push(keepaUrl);
+              const keepaImg = document.createElement('img');
+              keepaImg.className = 'tp-share-preview-img tp-share-preview-keepa-img';
+              keepaImg.src = keepaUrl;
+              keepaImg.alt = 'Amazon Keepa-Preisverlauf';
+              keepaImg.title = 'Amazon Keepa-Preisverlauf (wird als Bildanhang gesendet)';
+              imagesEl.appendChild(keepaImg);
             } catch {}
           }
         }
@@ -14138,7 +14197,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.411';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.412';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

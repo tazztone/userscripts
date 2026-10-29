@@ -9,6 +9,7 @@ import { getDisplayDelta } from '../../domain/deal-score.js';
 import { basisMatchesFor, extractCardData } from '../../page/cards.js';
 import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../../scanner/cache.js';
 import { dealerCache } from './deal-badge.js';
+import { buildKeepaUrl } from '../sparkline.js';
 import { priceToCents } from '../../domain/price.js';
 import { openSharePreviewModal } from '../modal-share-preview.js';
 import {
@@ -30,7 +31,8 @@ import {
   extractShareData,
   extractDealer,
   extractDealerUrl,
-  fetchProductInfo
+  fetchProductInfo,
+  resolveAmazonAsin
 } from '../../page/product-offers.js';
 import { showToast } from '../toast.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
@@ -214,7 +216,19 @@ export function renderShareButton(ctx, cd) {
                 }
               }
             }
+            const isAmazon = ((dealer && /amazon/i.test(dealer)) || (dealerUrl && /amazon\./i.test(dealerUrl))) && CONFIG.KEEPA_CHART_ENABLED !== false;
+            let keepaDl = null;
+            if (isAmazon) {
+              keepaDl = (async () => {
+                const asin = await resolveAmazonAsin(dealerUrl, snap.pid).catch(() => null);
+                if (!asin) return null;
+                const keepaUrl = buildKeepaUrl(asin);
+                return keepaUrl ? fetchImageBlob(keepaUrl).catch(() => null) : null;
+              })();
+            }
             const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice), 360, 100, title).catch(() => null);
+            if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+            const keepaBlob = keepaDl ? await keepaDl : null;
             if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
             const aiText = aiPromise ? (await aiPromise) : '';
             if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
@@ -233,7 +247,8 @@ export function renderShareButton(ctx, cd) {
             if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
             const productOpt = {
               ...(productBlob ? { productImageBlob: productBlob } : null),
-              ...(imageUrl ? { productImageUrl: imageUrl } : null)
+              ...(imageUrl ? { productImageUrl: imageUrl } : null),
+              ...(keepaBlob ? { keepaImageBlob: keepaBlob } : null)
             };
             readyPayload = {
               content,
@@ -241,12 +256,14 @@ export function renderShareButton(ctx, cd) {
               threadName,
               png,
               productBlob,
+              keepaBlob,
               productOpt
             };
             preview?.updateContent({
               formattedContent: content,
               chartBlob: png,
-              productBlob
+              productBlob,
+              keepaBlob
             });
           } catch (err) {
             preview?.setError('Vorbereitung fehlgeschlagen');

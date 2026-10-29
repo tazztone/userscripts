@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.411)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.412)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -131,7 +131,7 @@ Requires a userscript manager browser extension:
 
 * **Interactive Preview & Multi-Channel Support:** Verified all-time low cards display a `📤` button on hover. Clicking opens a real-time preview modal with rendered Markdown and chart/product images, featuring individual action buttons for each configured channel (e.g., `#deals`, `#gaming`).
 * **Multiple Webhook Channels:** Configure and name multiple Discord webhooks in settings (confidential, stored locally in `GM_setValue`, never committed or exported).
-* **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels).
+* **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels), automatically appending the Amazon Keepa history chart for Amazon deals.
 * **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
 
 ---
@@ -221,7 +221,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 * **Secrets Confidentiality:** Your `DISCORD_WEBHOOK_URL` and `TAVILY_API_KEY` are saved exclusively in private userscript manager storage (`GM_setValue`). They are **never** mirrored to page-accessible `localStorage` and are automatically stripped from JSON configuration exports.
 * **Granted Permissions:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolated persistent configuration storage.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, and request Tavily search summaries.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect graph.keepa.com`, `@connect keepa.com`): Used to fetch product images for Discord attachments, dispatch deal payloads to Discord webhooks, retrieve Amazon Keepa price history charts, and request Tavily search summaries.
 
 ---
 

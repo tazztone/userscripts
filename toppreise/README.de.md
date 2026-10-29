@@ -131,7 +131,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 * **Interaktive Vorschau & Multi-Channel:** Verifizierte Tiefstpreis-Karten zeigen bei Hover einen `📤`-Button. Ein Klick öffnet ein Vorschau-Modal mit formatiertem Markdown und Bildvorschau sowie Aktions-Buttons für jeden konfigurierten Kanal (z.B. `#deals`, `#gaming`).
 * **Mehrere Webhook-Kanäle:** Beliebig viele benannte Discord-Webhooks in den Einstellungen verwalten (vertraulich in `GM_setValue`, nie exportiert oder committet).
-* **High-DPI Chart & Produktbild:** Rendert den Preisverlauf mit Achsenraster als PNG und hängt ihn zusammen mit dem Produktbild an (dient in Foren-Kanälen als Thread-Vorschau).
+* **High-DPI Chart & Produktbild:** Rendert den Preisverlauf mit Achsenraster als PNG und hängt ihn zusammen mit dem Produktbild an (dient in Foren-Kanälen als Thread-Vorschau), inklusive automatischem Amazon-Keepa-Verlauf bei Amazon-Deals.
 * **Layout-Baukasten:** Eigene Nachrichtenstruktur mit Tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), Presets (*Kompakt*, *Ausführlich*, *Minimal*), Live-Markdown-Vorschau und getrennten Embed-Schaltern.
 
 ---
@@ -221,7 +221,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 * **Sicherheit vertraulicher Keys:** Webhook-URL und Tavily API-Key werden ausschliesslich im privaten Userscript-Manager-Speicher (`GM_setValue`) gehalten. Sie gelangen **niemals** in das seitenlesbare `localStorage` und werden bei JSON-Exporten automatisch entfernt.
 * **Erforderliche Berechtigungen:**
   * `GM_getValue` / `GM_setValue` / `GM_deleteValue`: Isolierte Speicherung der Einstellungen.
-  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`): Für Produktbilder, Discord-Webhooks und Tavily Web-Synthese.
+  * `GM_xmlhttpRequest` (`@connect toppreise.ch`, `@connect discord.com`, `@connect api.tavily.com`, `@connect graph.keepa.com`, `@connect keepa.com`): Für Produktbilder, Discord-Webhooks, Amazon-Keepa-Preisverläufe und Tavily Web-Synthese.
 
 ---
 

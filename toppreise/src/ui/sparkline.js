@@ -200,6 +200,11 @@ export function renderDiscordChart(timeSeries, width = 360, height = 100, title 
   return svg;
 }
 
+export function buildKeepaUrl(asin, days = 365, width = 560, height = 220) {
+  if (!asin || typeof asin !== 'string') return '';
+  return `https://graph.keepa.com/pricehistory.png?asin=${encodeURIComponent(asin.trim())}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=${width}&height=${height}`;
+}
+
 export async function copySvgToClipboard(svgEl, width = 560, height = 220) {
   try {
     if (!svgEl || typeof document === 'undefined') return false;
@@ -466,19 +471,19 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
       copyKeepaBtn.style.display = 'inline-block';
 
-      const buildKeepaUrl = days => `https://graph.keepa.com/pricehistory.png?asin=${asin}&domain=de&amazon=1&new=1&bb=1&range=${days}&width=560&height=220`;
+      const keepaUrlFor = days => buildKeepaUrl(asin, days);
 
       const img = document.createElement('img');
       img.style.cssText = 'max-width:100%;height:auto;border-radius:4px;display:block;';
       img.alt = `Keepa Preisverlauf für ${asin}`;
-      img.src = buildKeepaUrl(currentDays);
+      img.src = keepaUrlFor(currentDays);
 
       copyKeepaBtn.onclick = () => {
-        copyKeepaChartToClipboard(img, productTitle, asin, buildKeepaUrl(currentDays));
+        copyKeepaChartToClipboard(img, productTitle, asin, keepaUrlFor(currentDays));
       };
 
       keepaBody._tpUpdateRange = days => {
-        img.src = buildKeepaUrl(days);
+        img.src = keepaUrlFor(days);
       };
 
       const linksRow = document.createElement('div');

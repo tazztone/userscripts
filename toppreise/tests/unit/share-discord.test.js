@@ -30,6 +30,7 @@ import {
   fetchImageBlob,
   escapeDiscordMarkdown,
 } from '../../src/features/share-discord.js';
+import { buildKeepaUrl } from '../../src/ui/sparkline.js';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';
 const PRODUCT_URL = 'https://www.toppreise.ch/preisvergleich/Maeuse/x-p830749';
@@ -826,6 +827,51 @@ describe('postDealImageToDiscord', () => {
     assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: 'hi', allowed_mentions: { parse: [] } });
     assert.ok(seen.data.get('file') instanceof Blob);
   });
+
+  it('sends keepa bytes with inline embeds when passed without product blob', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['chart']), { keepaImageBlob: new Blob(['keepa']) });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), {
+      content: 'hi',
+      allowed_mentions: { parse: [] },
+      embeds: [
+        { image: { url: 'attachment://preisverlauf.png' } },
+        { image: { url: 'attachment://keepa.png' } }
+      ]
+    });
+    assert.ok(seen.data.get('files[0]') instanceof Blob);
+    assert.ok(seen.data.get('files[1]') instanceof Blob);
+    assert.equal(seen.data.get('file'), null);
+  });
+
+  it('sends product, chart, and keepa bytes in order when all passed', async () => {
+    let seen = null;
+    globalThis.GM_xmlhttpRequest = opts => {
+      seen = opts;
+      opts.onload({ status: 200 });
+    };
+    await postDealImageToDiscord(HOOK, 'hi', new Blob(['chart']), {
+      productImageBlob: new Blob(['product']),
+      keepaImageBlob: new Blob(['keepa'])
+    });
+    assert.deepEqual(JSON.parse(seen.data.get('payload_json')), {
+      content: 'hi',
+      allowed_mentions: { parse: [] },
+      embeds: [
+        { image: { url: 'attachment://produkt.png' } },
+        { image: { url: 'attachment://preisverlauf.png' } },
+        { image: { url: 'attachment://keepa.png' } }
+      ]
+    });
+    assert.ok(seen.data.get('files[0]') instanceof Blob);
+    assert.ok(seen.data.get('files[1]') instanceof Blob);
+    assert.ok(seen.data.get('files[2]') instanceof Blob);
+    assert.equal(seen.data.get('file'), null);
+  });
 });
 
 describe('fetchImageBlob', () => {
@@ -847,9 +893,27 @@ describe('fetchImageBlob', () => {
     await assert.rejects(fetchImageBlob('data:image/gif;base64,x'), /Ungültige Bild-URL/);
     await assert.rejects(fetchImageBlob('https://evil.example/u.jpg'), /Ungültige Bild-URL/);
     delete globalThis.GM_xmlhttpRequest;
-    await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Kein HTTP-Transport/);
+    const realFetch = globalThis.fetch;
+    delete globalThis.fetch;
+    try {
+      await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Kein HTTP-Transport/);
+    } finally {
+      if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch;
+    }
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 404, response: null });
     await assert.rejects(fetchImageBlob('https://www.toppreise.ch/u.jpg'), /Bild-Download 404/);
+  });
+
+  it('falls back to fetch when GM is unavailable', async () => {
+    delete globalThis.GM_xmlhttpRequest;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(new Blob(['img'], { type: 'image/png' }), { status: 200 });
+    try {
+      const blob = await fetchImageBlob('https://www.toppreise.ch/u.jpg');
+      assert.ok(blob instanceof Blob);
+    } finally {
+      if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch;
+    }
   });
 
   it('rejects empty blobs', async () => {
@@ -867,6 +931,37 @@ describe('fetchImageBlob', () => {
     globalThis.GM_xmlhttpRequest = opts => opts.onload({ status: 200, response: new Blob(['x'], { type: 'image/jpeg' }) });
     const blob = await fetchImageBlob('https://www.toppreise.ch/u.jpg');
     assert.ok(blob instanceof Blob);
+  });
+
+  it('allows graph.keepa.com and keepa.com URLs', async () => {
+    globalThis.GM_xmlhttpRequest = opts => {
+      assert.equal(opts.method, 'GET');
+      assert.equal(opts.url, 'https://graph.keepa.com/pricehistory.png?asin=B0TEST123&domain=de');
+      opts.onload({ status: 200, response: new Blob(['keepa-png'], { type: 'image/png' }) });
+    };
+    const blob = await fetchImageBlob('https://graph.keepa.com/pricehistory.png?asin=B0TEST123&domain=de');
+    assert.ok(blob instanceof Blob);
+  });
+});
+
+describe('buildKeepaUrl', () => {
+  it('constructs standard Keepa chart URL with default params', () => {
+    assert.equal(
+      buildKeepaUrl('B0TEST123'),
+      'https://graph.keepa.com/pricehistory.png?asin=B0TEST123&domain=de&amazon=1&new=1&bb=1&range=365&width=560&height=220'
+    );
+  });
+
+  it('respects custom days and dimensions', () => {
+    assert.equal(
+      buildKeepaUrl('B0TEST123', 90, 400, 150),
+      'https://graph.keepa.com/pricehistory.png?asin=B0TEST123&domain=de&amazon=1&new=1&bb=1&range=90&width=400&height=150'
+    );
+  });
+
+  it('returns empty string for missing or non-string ASIN', () => {
+    assert.equal(buildKeepaUrl(''), '');
+    assert.equal(buildKeepaUrl(null), '');
   });
 });
 

@@ -118,7 +118,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
 
   const controller = {
     dialog,
-    updateContent({ formattedContent, chartBlob, productBlob }) {
+    updateContent({ formattedContent, chartBlob, productBlob, keepaBlob }) {
       if (loadingEl) loadingEl.style.display = 'none';
       if (errorEl) errorEl.style.display = 'none';
 
@@ -150,6 +150,18 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
             chartImg.alt = 'Preisverlauf';
             chartImg.title = 'Preisverlauf (wird als Bildanhang gesendet)';
             imagesEl.appendChild(chartImg);
+          } catch {}
+        }
+        if (keepaBlob instanceof Blob) {
+          try {
+            const keepaUrl = URL.createObjectURL(keepaBlob);
+            createdUrls.push(keepaUrl);
+            const keepaImg = document.createElement('img');
+            keepaImg.className = 'tp-share-preview-img tp-share-preview-keepa-img';
+            keepaImg.src = keepaUrl;
+            keepaImg.alt = 'Amazon Keepa-Preisverlauf';
+            keepaImg.title = 'Amazon Keepa-Preisverlauf (wird als Bildanhang gesendet)';
+            imagesEl.appendChild(keepaImg);
           } catch {}
         }
       }

@@ -2019,3 +2019,61 @@ def test_discord_share_preview_cancel_on_escape(page: Page):
     assert posts == []
 
 
+def test_discord_share_preview_modal_amazon_keepa(page: Page):
+    """Amazon deals resolve ASIN and load Keepa chart in share preview modal."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    # Configure dealer as Amazon.de with direct ASIN link
+    page.evaluate("""() => {
+        const card = document.getElementById('card-cheapest');
+        const info = card.querySelector('.Plugin_DealerRelProdPriceInfo');
+        if (info) {
+            info.innerHTML = '<a href="https://www.amazon.de/dp/B08N5WRWNW" class="title">Amazon.de</a><div class="productPrice"><div class="Plugin_Price">CHF 1800.00</div></div>';
+        }
+    }""")
+
+    # Configure webhook in settings
+    open_settings(page)
+    page.fill('#tp-root >> #tp-discord-primary-name', 'Deals')
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/999/amazon-deal')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    keepa_requested = []
+    page.route(re.compile(r'keepa\.com'), lambda route: (keepa_requested.append(route.request.url),
+                                                         route.fulfill(status=200, headers={'access-control-allow-origin': '*'},
+                                                                       content_type='image/png', body=b'dummy-keepa-image')))
+    page.route('**/discord.com/**', lambda route: route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, body='{}'))
+
+    page.click('#card-cheapest > .tp-share-btn', force=True)
+
+    modal = page.locator('#tp-root >> #tp-modal-share-preview')
+    expect(modal).to_be_visible()
+
+    # Wait for background preparation to finish (channels enabled)
+    page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
+
+    assert len(keepa_requested) >= 1
+    # Verify Keepa preview image is present
+    expect(page.locator('#tp-root >> .tp-share-preview-keepa-img')).to_be_visible()
+    assert 'B08N5WRWNW' in keepa_requested[0]
+
+    discord_posts = []
+    page.route('**/discord.com/**', lambda route: (discord_posts.append(route.request.post_data_buffer),
+                                                   route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, body='{}')))
+
+    # Click Deals channel button to send
+    page.locator('#tp-root >> .tp-share-channel-btn').click()
+    expect(modal).to_be_hidden()
+    assert len(discord_posts) >= 1
+    assert b'keepa.png' in discord_posts[0]
+
+
+
