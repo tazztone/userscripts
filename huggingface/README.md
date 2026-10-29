@@ -19,14 +19,16 @@ Requires Violentmonkey (or a compatible userscript manager):
 1. **💚 Unliked Model Highlighter**: Adds a distinct emerald green border (`#10b981`) with soft glow around unliked models in search and listing cards.
 2. **❤️ Inline Model Liking**: Click or keyboard-activate the heart/count area on a model card to like or unlike it without opening the model page. The native Hugging Face heart appearance is preserved and failed requests roll back immediately with non-blocking toast alerts.
 3. **🔎 Dynamic Liked State Detection**: Detects native outline and filled heart states and updates the green card border as cards load or change.
-4. **🚫 Negative Text / Keyword Filter**: Hide unwanted models by typing keywords or regex patterns (e.g. `gguf, fp8, /test.*/i`). Includes live 120ms debounced filtering, a quick clear (`✕`) button, and an independent toggle switch.
-5. **📅 Date Range Slider Filter**: Restrict models by update age using interactive sliders, numeric min/max day inputs, and quick presets (`24h`, `3d`, `7d`, `14d`, `30d`, `60d`, `90d`, `180d`, `1y`, `All`).
-6. **🛡️ Encapsulated Shadow DOM Sidebar Widget & Collapsible Bar**:
-   - **Collapsible / Compact Design**: Click the header or press `Alt+F` to collapse into a slim 34px bar showing active filter pills (`🚫 qwen3.`, `📅 ≤180d`, `Showing 13/30`).
+4. **✨ Only Unliked Filter**: Hide already-liked models to concentrate exclusively on new releases. When liking an unliked model with this filter active, the card remains visible with filled heart until the next filter change or refresh, avoiding sudden layout shifts.
+5. **⚡ Multi-Page "Scan Next Unliked" Collector**: One-click background scanner that fetches subsequent pages (`?p=N+1`) in the background until 10 unliked models are found (or max 5 pages). Appends cards directly into the active grid, respects Hugging Face's 100 req / 5 min rate limits with a 250ms throttle, syncs browser history URL, and provides a direct scan button in empty-state notices.
+6. **🚫 Negative Text / Keyword Filter**: Hide unwanted models by typing keywords or regex patterns (e.g. `gguf, fp8, /test.*/i`). Includes live 120ms debounced filtering, a quick clear (`✕`) button, and an independent toggle switch.
+7. **📅 Date Range Slider Filter**: Restrict models by update age using interactive sliders, numeric min/max day inputs, and quick presets (`24h`, `3d`, `7d`, `14d`, `30d`, `60d`, `90d`, `180d`, `1y`, `All`).
+8. **🛡️ Encapsulated Shadow DOM Sidebar Widget & Collapsible Bar**:
+   - **Collapsible / Compact Design**: Click the header or press `Alt+F` to collapse into a slim 34px bar showing active filter pills (`💚 Unliked`, `🚫 qwen3.`, `📅 ≤180d`, `Showing 13/30`).
    - **Ultra-Condensed Layout**: >60% vertical height reduction when expanded.
    - **One-Click Reset (`↺`)**: Instantly resets all filters back to default.
    - **Smart Sidebar Docking**: Docks into Hugging Face's left sidebar on `/models` and functions everywhere with full settings access.
-7. **⚡ INP & Yield Protection**: Asynchronous chunked DOM processing with `requestAnimationFrame`, `scheduler.yield()`, date caching via `dataset`, and Run-ID cancellation guards for zero UI jank during infinite scrolling.
+9. **⚡ INP & Yield Protection**: Asynchronous chunked DOM processing with `requestAnimationFrame`, `scheduler.yield()`, date caching via `dataset`, and Run-ID cancellation guards for zero UI jank during infinite scrolling.
 
 ---
 
@@ -46,6 +48,7 @@ You can customize negative keywords, date filtering, and highlighter options dir
 
 | Key | Default Value | Description |
 | :--- | :--- | :--- |
+| `FILTER_UNLIKED_ONLY` | `false` | Enable unliked-only filter (hides already-liked models). |
 | `FILTER_EXCLUDE_ENABLED` | `true` | Enable negative text/keyword filtering. |
 | `FILTER_EXCLUDE_TERMS` | `''` | Comma-separated keywords or `/regex/` patterns to exclude. |
 | `BORDER_UNLIKED_ENABLED` | `true` | Enable green border highlighting around unliked models. |

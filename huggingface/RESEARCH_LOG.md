@@ -42,3 +42,18 @@ Hugging Face model cards render as `<article class="overview-card-wrapper">`:
 - A one-click `Reset` button (`↺`) resets all filters to default.
 - Hotkey `Alt+F` toggles collapse/expand and automatically focuses the keyword input.
 
+## 7. Only-Unliked Model Filtering & Optimistic Retention
+
+- When `FILTER_UNLIKED_ONLY` is enabled, models where `isModelLiked()` returns true receive `.hf-liked-filtered-out` (`display: none !important`).
+- To prevent layout jumping when a user clicks the heart icon on an unliked card, `toggleInlineLike()` marks the card with `dataset.hfJustLiked = 'true'`, keeping it visible with filled heart and normal borders until the next page scan or filter toggle.
+
+## 8. Multi-Page Scanner Engine & Rate-Limit Protection
+
+- Hugging Face enforces a client rate limit of 100 HTML requests per 300 seconds (`ratelimit: "pages";r=99;t=178`).
+- `scanNextUnlikedPages()` fetches subsequent pages sequentially in the background using `fetch(pageUrl, { credentials: 'same-origin', signal })` with a 250ms throttle delay between pages.
+- SSR HTML cards are parsed via `DOMParser()` and adopted directly into the native `.grid` container, deduplicating cards by model ID.
+- Newly appended cards are immediately processed through `processModelCards()`, inheriting inline liking, date filters, keyword filters, and unliked highlights.
+- The scanner updates browser history via `window.history.replaceState` to reflect the latest scanned page (`?p=X`) and rewrites native bottom pagination links.
+- Scanning can be triggered via the widget's `Scan Next Unliked` button or directly via the `⚡ Scan Next Pages for Unliked` button within the empty-state notice when all current models are filtered out.
+
+
