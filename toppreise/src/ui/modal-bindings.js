@@ -68,6 +68,10 @@ export function collectModalElements(shadow) {
   const tavilySearchDepth = shadow.getElementById('tp-tavily-search-depth');
   const tavilyMaxResults = shadow.getElementById('tp-tavily-max-results');
   const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
+  const discordPrimaryName = shadow.getElementById('tp-discord-primary-name');
+  const discordChannelsList = shadow.getElementById('tp-discord-channels-list');
+  const discordExtraChannels = shadow.getElementById('tp-discord-extra-channels');
+  const discordAddChannelBtn = shadow.getElementById('tp-discord-add-channel-btn');
   const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
   const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
   const discordWebhookEditor = shadow.getElementById('tp-discord-webhook-editor');
@@ -83,7 +87,7 @@ export function collectModalElements(shadow) {
   const exportBtn = shadow.getElementById('tp-export-config-btn');
   const importBtn = shadow.getElementById('tp-import-config-btn');
   const importFile = shadow.getElementById('tp-import-config-file');
-  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+  return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
 }
 
 // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -114,6 +118,54 @@ function renderLayoutPreview(els) {
     if (els.discordLayoutCount) els.discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${layoutOverLimitSuffix(rendered.length, recipe)}`;
 }
 export function scheduleLayoutPreview(els) { clearTimeout(els.layoutTimer); els.layoutTimer = setTimeout(() => renderLayoutPreview(els), 150); }
+
+const escapeHtmlAttr = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+export function renderExtraChannelsList(container, extras) {
+  if (!container) return;
+  container.innerHTML = '';
+  for (const ch of extras) {
+    const card = document.createElement('div');
+    card.className = 'tp-discord-channel-card tp-discord-extra-card';
+    card.dataset.channelId = ch.id;
+    card.innerHTML = `
+      <div class="tp-discord-channel-header">
+        <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtmlAttr(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
+        <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+      </div>
+      <div class="tp-discord-extra-collapsed">
+        <span class="tp-switch-desc tp-discord-extra-status">${isDiscordWebhookUrl(ch.url) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt'}</span>
+        <button type="button" class="tp-btn tp-btn-secondary tp-discord-extra-reveal" aria-expanded="false">🔑 Webhook ersetzen</button>
+      </div>
+      <div class="tp-discord-extra-editor" style="display: none;">
+        <input type="password" class="tp-field-dark tp-discord-extra-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password">
+        <span class="tp-switch-desc tp-field-hint">Leer = bisherigen Webhook behalten.</span>
+      </div>
+    `;
+    container.appendChild(card);
+  }
+}
+
+export function addExtraChannelRow(container) {
+  if (!container) return null;
+  const card = document.createElement('div');
+  const id = `ch_${Date.now()}`;
+  card.className = 'tp-discord-channel-card tp-discord-extra-card';
+  card.dataset.channelId = id;
+  card.innerHTML = `
+    <div class="tp-discord-channel-header">
+      <input type="text" class="tp-field-dark tp-discord-channel-name" value="" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
+      <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+    </div>
+    <div class="tp-discord-extra-editor">
+      <input type="password" class="tp-field-dark tp-discord-extra-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password">
+    </div>
+  `;
+  container.appendChild(card);
+  const nameInput = card.querySelector('.tp-discord-channel-name');
+  nameInput?.focus();
+  return card;
+}
 
 export function syncFieldsFromConfig(els) {
     // Every key syncUiControl covers (radios, toggles, weight, min-points,
@@ -159,10 +211,20 @@ export function syncFieldsFromConfig(els) {
     if (els.tavilySearchDepth) els.tavilySearchDepth.value = CONFIG.TAVILY_SEARCH_DEPTH || 'basic';
     if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(CONFIG.TAVILY_MAX_RESULTS || 5);
 
+    const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
+      ? CONFIG.DISCORD_CHANNELS
+      : (CONFIG.DISCORD_WEBHOOK_URL ? [{ id: 'default', name: 'Standard', url: CONFIG.DISCORD_WEBHOOK_URL }] : []);
+    const primary = channels[0] || { id: 'default', name: 'Standard', url: CONFIG.DISCORD_WEBHOOK_URL || '' };
+    if (els.discordPrimaryName) els.discordPrimaryName.value = primary.name || 'Standard';
     if (els.discordWebhookInput) els.discordWebhookInput.value = '';
     if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
     if (els.discordWebhookReveal) { els.discordWebhookReveal.style.display = ''; els.discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
-    if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = isDiscordWebhookUrl(CONFIG.DISCORD_WEBHOOK_URL) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+    if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = isDiscordWebhookUrl(primary.url) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+
+    if (els.discordExtraChannels) {
+      renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
+    }
+
     if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
     if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
     if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;

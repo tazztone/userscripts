@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.380
+// @version      2.18.381
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1974,6 +1974,12 @@ const SHADOW_MODAL_STYLES = `
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
   .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
   .tp-btn-row .tp-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .tp-discord-channels-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .tp-discord-channel-card { background: rgba(0, 0, 0, 0.03); border: 1px solid var(--tp-line-soft); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .tp-discord-channel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tp-discord-channel-name { font-weight: 600; font-size: 13px; }
+  .tp-discord-extra-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #tp-discord-extra-channels { display: flex; flex-direction: column; gap: 8px; }
   #tp-discord-layout-preview { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
   #tp-discord-layout-preview .tp-md-lg { font-size: 16px !important; font-weight: 800 !important; }
   #tp-discord-layout-preview .tp-md-md { font-size: 14px !important; font-weight: 800 !important; }
@@ -9346,15 +9352,24 @@ const SHADOW_MODAL_STYLES = `
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-discord-body">
           <div class="tp-settings-group">
-            <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-            <div id="tp-discord-webhook-collapsed">
-              <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
-              <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook ersetzen / entfernen</button>
+            <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle & Webhooks (Deals-Share)</label>
+            <div id="tp-discord-channels-list" class="tp-discord-channels-list">
+              <div class="tp-discord-channel-card" data-channel-id="default">
+                <div class="tp-discord-channel-header">
+                  <input type="text" id="tp-discord-primary-name" class="tp-field-dark tp-discord-channel-name" value="Standard" placeholder="Kanalname (z.B. Standard)" title="Name des Discord-Kanals">
+                </div>
+                <div id="tp-discord-webhook-collapsed">
+                  <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
+                  <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook ersetzen / entfernen</button>
+                </div>
+                <div id="tp-discord-webhook-editor" style="display: none;">
+                  <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+                  <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Webhook entfernen.</span>
+                </div>
+              </div>
+              <div id="tp-discord-extra-channels"></div>
             </div>
-            <div id="tp-discord-webhook-editor" style="display: none;">
-              <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-              <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
-            </div>
+            <button type="button" id="tp-discord-add-channel-btn" class="tp-btn tp-btn-secondary" style="margin-top: 6px;">➕ Weiteren Kanal hinzufügen</button>
           </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
@@ -9884,6 +9899,10 @@ const SHADOW_MODAL_STYLES = `
     const tavilySearchDepth = shadow.getElementById('tp-tavily-search-depth');
     const tavilyMaxResults = shadow.getElementById('tp-tavily-max-results');
     const dealerAutofetchToggle = shadow.getElementById('tp-dealer-autofetch-toggle');
+    const discordPrimaryName = shadow.getElementById('tp-discord-primary-name');
+    const discordChannelsList = shadow.getElementById('tp-discord-channels-list');
+    const discordExtraChannels = shadow.getElementById('tp-discord-extra-channels');
+    const discordAddChannelBtn = shadow.getElementById('tp-discord-add-channel-btn');
     const discordWebhookInput = shadow.getElementById('tp-discord-webhook-input');
     const discordWebhookReveal = shadow.getElementById('tp-discord-webhook-reveal');
     const discordWebhookEditor = shadow.getElementById('tp-discord-webhook-editor');
@@ -9899,7 +9918,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -9930,6 +9949,54 @@ const SHADOW_MODAL_STYLES = `
       if (els.discordLayoutCount) els.discordLayoutCount.textContent = `Rezept ${recipe.length} Zeichen · Nachricht ${rendered.length}/2000${layoutOverLimitSuffix(rendered.length, recipe)}`;
   }
   function scheduleLayoutPreview(els) { clearTimeout(els.layoutTimer); els.layoutTimer = setTimeout(() => renderLayoutPreview(els), 150); }
+
+  const escapeHtmlAttr = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function renderExtraChannelsList(container, extras) {
+    if (!container) return;
+    container.innerHTML = '';
+    for (const ch of extras) {
+      const card = document.createElement('div');
+      card.className = 'tp-discord-channel-card tp-discord-extra-card';
+      card.dataset.channelId = ch.id;
+      card.innerHTML = `
+        <div class="tp-discord-channel-header">
+          <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtmlAttr(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
+          <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+        </div>
+        <div class="tp-discord-extra-collapsed">
+          <span class="tp-switch-desc tp-discord-extra-status">${isDiscordWebhookUrl(ch.url) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt'}</span>
+          <button type="button" class="tp-btn tp-btn-secondary tp-discord-extra-reveal" aria-expanded="false">🔑 Webhook ersetzen</button>
+        </div>
+        <div class="tp-discord-extra-editor" style="display: none;">
+          <input type="password" class="tp-field-dark tp-discord-extra-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password">
+          <span class="tp-switch-desc tp-field-hint">Leer = bisherigen Webhook behalten.</span>
+        </div>
+      `;
+      container.appendChild(card);
+    }
+  }
+
+  function addExtraChannelRow(container) {
+    if (!container) return null;
+    const card = document.createElement('div');
+    const id = `ch_${Date.now()}`;
+    card.className = 'tp-discord-channel-card tp-discord-extra-card';
+    card.dataset.channelId = id;
+    card.innerHTML = `
+      <div class="tp-discord-channel-header">
+        <input type="text" class="tp-field-dark tp-discord-channel-name" value="" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
+        <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+      </div>
+      <div class="tp-discord-extra-editor">
+        <input type="password" class="tp-field-dark tp-discord-extra-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password">
+      </div>
+    `;
+    container.appendChild(card);
+    const nameInput = card.querySelector('.tp-discord-channel-name');
+    nameInput?.focus();
+    return card;
+  }
 
   function syncFieldsFromConfig(els) {
       // Every key syncUiControl covers (radios, toggles, weight, min-points,
@@ -9975,10 +10042,20 @@ const SHADOW_MODAL_STYLES = `
       if (els.tavilySearchDepth) els.tavilySearchDepth.value = CONFIG.TAVILY_SEARCH_DEPTH || 'basic';
       if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(CONFIG.TAVILY_MAX_RESULTS || 5);
 
+      const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
+        ? CONFIG.DISCORD_CHANNELS
+        : (CONFIG.DISCORD_WEBHOOK_URL ? [{ id: 'default', name: 'Standard', url: CONFIG.DISCORD_WEBHOOK_URL }] : []);
+      const primary = channels[0] || { id: 'default', name: 'Standard', url: CONFIG.DISCORD_WEBHOOK_URL || '' };
+      if (els.discordPrimaryName) els.discordPrimaryName.value = primary.name || 'Standard';
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       if (els.discordWebhookEditor) els.discordWebhookEditor.style.display = 'none';
       if (els.discordWebhookReveal) { els.discordWebhookReveal.style.display = ''; els.discordWebhookReveal.setAttribute('aria-expanded', 'false'); }
-      if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = isDiscordWebhookUrl(CONFIG.DISCORD_WEBHOOK_URL) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+      if (els.discordWebhookStatus) els.discordWebhookStatus.textContent = isDiscordWebhookUrl(primary.url) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt';
+
+      if (els.discordExtraChannels) {
+        renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
+      }
+
       if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
       if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
       if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
@@ -10155,6 +10232,34 @@ const SHADOW_MODAL_STYLES = `
       els.discordWebhookInput.focus();
     });
 
+    els.discordAddChannelBtn?.addEventListener('click', () => {
+      if (els.discordExtraChannels) {
+        addExtraChannelRow(els.discordExtraChannels);
+      }
+    });
+
+    els.discordExtraChannels?.addEventListener('click', e => {
+      const removeBtn = e.target.closest('.tp-discord-remove-channel-btn');
+      if (removeBtn) {
+        const card = removeBtn.closest('.tp-discord-extra-card');
+        card?.remove();
+        return;
+      }
+      const revealBtn = e.target.closest('.tp-discord-extra-reveal');
+      if (revealBtn) {
+        const card = revealBtn.closest('.tp-discord-extra-card');
+        const editor = card?.querySelector('.tp-discord-extra-editor');
+        const input = card?.querySelector('.tp-discord-extra-url');
+        if (editor && input) {
+          input.value = '';
+          editor.style.display = '';
+          revealBtn.style.display = 'none';
+          revealBtn.setAttribute('aria-expanded', 'true');
+          input.focus();
+        }
+      }
+    });
+
     els.discordLayoutInput?.addEventListener('input', () => scheduleLayoutPreview(els));
     els.discordDealerEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
     els.discordProductEmbedToggle?.addEventListener('change', () => scheduleLayoutPreview(els));
@@ -10287,6 +10392,7 @@ const SHADOW_MODAL_STYLES = `
     const clearWebhookEditor = () => {
       if (els.discordWebhookInput) els.discordWebhookInput.value = '';
       if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+      els.shadow?.querySelectorAll('.tp-discord-extra-url')?.forEach(input => { input.value = ''; });
     };
     const closeModal = () => {
       initialSnapshot = null;
@@ -10389,6 +10495,7 @@ const SHADOW_MODAL_STYLES = `
         const rawMax = parseInt(els.tavilyMaxResults.value, 10);
         updates.TAVILY_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
       }
+      let primaryUrl = CONFIG.DISCORD_CHANNELS?.[0]?.url || CONFIG.DISCORD_WEBHOOK_URL || '';
       if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
         const rawWebhook = String(els.discordWebhookInput.value || '').trim();
         if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
@@ -10398,8 +10505,44 @@ const SHADOW_MODAL_STYLES = `
           showToast('Ungültige Discord-Webhook-URL');
           return;
         }
-        updates.DISCORD_WEBHOOK_URL = rawWebhook;
+        primaryUrl = rawWebhook;
       }
+      const primaryName = els.discordPrimaryName ? String(els.discordPrimaryName.value || '').trim() || 'Standard' : 'Standard';
+
+      const channels = [];
+      if (primaryUrl) {
+        channels.push({ id: 'default', name: primaryName, url: primaryUrl });
+      }
+
+      if (els.discordExtraChannels) {
+        const extraCards = els.discordExtraChannels.querySelectorAll('.tp-discord-extra-card');
+        for (const card of extraCards) {
+          const cId = card.dataset.channelId || `ch_${Date.now()}`;
+          const cName = String(card.querySelector('.tp-discord-channel-name')?.value || '').trim() || 'Kanal';
+          const existing = (CONFIG.DISCORD_CHANNELS || []).find(c => c.id === cId);
+          const urlInput = card.querySelector('.tp-discord-extra-url');
+          const editor = card.querySelector('.tp-discord-extra-editor');
+          let cUrl = existing?.url || '';
+          if (editor && editor.style.display !== 'none') {
+            const typed = String(urlInput?.value || '').trim();
+            if (typed) {
+              if (!isDiscordWebhookUrl(typed)) {
+                els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
+                els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+                urlInput?.focus();
+                showToast('Ungültige Discord-Webhook-URL');
+                return;
+              }
+              cUrl = typed;
+            }
+          }
+          if (cUrl) {
+            channels.push({ id: cId, name: cName, url: cUrl });
+          }
+        }
+      }
+      updates.DISCORD_CHANNELS = channels;
+      updates.DISCORD_WEBHOOK_URL = channels[0]?.url || '';
       if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
       if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
       if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
@@ -12707,7 +12850,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.380';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.381';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

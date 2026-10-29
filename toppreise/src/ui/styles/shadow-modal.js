@@ -99,6 +99,12 @@ export const SHADOW_MODAL_STYLES = `
   .tp-field-hint { display: block; margin-top: 4px; font-size: var(--tp-fs-sm); opacity: 0.85; }
   .tp-btn-row { display: flex; flex-direction: row; gap: 8px; }
   .tp-btn-row .tp-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .tp-discord-channels-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .tp-discord-channel-card { background: rgba(0, 0, 0, 0.03); border: 1px solid var(--tp-line-soft); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .tp-discord-channel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tp-discord-channel-name { font-weight: 600; font-size: 13px; }
+  .tp-discord-extra-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #tp-discord-extra-channels { display: flex; flex-direction: column; gap: 8px; }
   #tp-discord-layout-preview { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
   #tp-discord-layout-preview .tp-md-lg { font-size: 16px !important; font-weight: 800 !important; }
   #tp-discord-layout-preview .tp-md-md { font-size: 14px !important; font-weight: 800 !important; }

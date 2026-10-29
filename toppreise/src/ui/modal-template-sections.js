@@ -11,15 +11,24 @@ export function renderDiscordSection() {
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-discord-body">
         <div class="tp-settings-group">
-          <label title="Webhook-URL deines Discord-Channels (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie committet.">📤 Discord Webhook (1-Klick Deals-Share)</label>
-          <div id="tp-discord-webhook-collapsed">
-            <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
-            <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook ersetzen / entfernen</button>
+          <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle & Webhooks (Deals-Share)</label>
+          <div id="tp-discord-channels-list" class="tp-discord-channels-list">
+            <div class="tp-discord-channel-card" data-channel-id="default">
+              <div class="tp-discord-channel-header">
+                <input type="text" id="tp-discord-primary-name" class="tp-field-dark tp-discord-channel-name" value="Standard" placeholder="Kanalname (z.B. Standard)" title="Name des Discord-Kanals">
+              </div>
+              <div id="tp-discord-webhook-collapsed">
+                <span id="tp-discord-webhook-status" class="tp-switch-desc"></span>
+                <button type="button" id="tp-discord-webhook-reveal" class="tp-btn tp-btn-secondary" aria-expanded="false" aria-controls="tp-discord-webhook-editor">🔑 Webhook ersetzen / entfernen</button>
+              </div>
+              <div id="tp-discord-webhook-editor" style="display: none;">
+                <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
+                <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Webhook entfernen.</span>
+              </div>
+            </div>
+            <div id="tp-discord-extra-channels"></div>
           </div>
-          <div id="tp-discord-webhook-editor" style="display: none;">
-            <input type="password" id="tp-discord-webhook-input" class="tp-field-dark" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-            <span class="tp-switch-desc tp-field-hint">Ermöglicht den 📤-Button auf verifizierten Tiefstpreis-Karten. Leer = Button meldet fehlende URL.</span>
-          </div>
+          <button type="button" id="tp-discord-add-channel-btn" class="tp-btn tp-btn-secondary" style="margin-top: 6px;">➕ Weiteren Kanal hinzufügen</button>
         </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">

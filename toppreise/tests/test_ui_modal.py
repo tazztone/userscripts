@@ -702,3 +702,45 @@ def test_segmented_radios_keyboard_focusable(page: Page):
     first.press('ArrowRight')
     assert radios.nth(1).is_checked()
     page.click('#tp-root >> #tp-btn-close')
+
+
+def test_multi_channel_settings(page: Page):
+    open_settings(page)
+
+    # Primary channel
+    primary_name = page.locator('#tp-root >> #tp-discord-primary-name')
+    assert primary_name.is_visible()
+    page.fill('#tp-root >> #tp-discord-primary-name', 'Allgemein')
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/111/allgemein')
+
+    # Add extra channel
+    page.click('#tp-root >> #tp-discord-add-channel-btn')
+    extra_card = page.locator('#tp-root >> .tp-discord-extra-card')
+    assert extra_card.count() == 1
+    page.fill('#tp-root >> .tp-discord-extra-card .tp-discord-channel-name', 'Gaming Deals')
+    page.fill('#tp-root >> .tp-discord-extra-card .tp-discord-extra-url', 'https://discord.com/api/webhooks/222/gaming')
+
+    # Save
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    # Reopen and check persistence
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-discord-primary-name').input_value() == 'Allgemein'
+    assert page.locator('#tp-root >> #tp-discord-webhook-status').inner_text() == '✅ Webhook hinterlegt'
+    assert page.locator('#tp-root >> .tp-discord-extra-card .tp-discord-channel-name').input_value() == 'Gaming Deals'
+    assert page.locator('#tp-root >> .tp-discord-extra-card .tp-discord-extra-status').inner_text() == '✅ Webhook hinterlegt'
+
+    # Remove extra channel
+    page.click('#tp-root >> .tp-discord-extra-card .tp-discord-remove-channel-btn')
+    assert page.locator('#tp-root >> .tp-discord-extra-card').count() == 0
+
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-discord-primary-name').input_value() == 'Allgemein'
+    assert page.locator('#tp-root >> .tp-discord-extra-card').count() == 0
+    page.click('#tp-root >> #tp-btn-close')
+

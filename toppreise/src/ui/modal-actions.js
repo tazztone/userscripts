@@ -12,7 +12,7 @@ import { getProductCards } from '../page/cards.js';
 import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
 import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-discord.js';
-import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview } from './modal-bindings.js';
+import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview, addExtraChannelRow } from './modal-bindings.js';
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed } from './modal-template.js';
 
@@ -73,6 +73,34 @@ export function wireModalActions(els) {
     els.discordWebhookReveal.style.display = 'none';
     els.discordWebhookReveal.setAttribute('aria-expanded', 'true');
     els.discordWebhookInput.focus();
+  });
+
+  els.discordAddChannelBtn?.addEventListener('click', () => {
+    if (els.discordExtraChannels) {
+      addExtraChannelRow(els.discordExtraChannels);
+    }
+  });
+
+  els.discordExtraChannels?.addEventListener('click', e => {
+    const removeBtn = e.target.closest('.tp-discord-remove-channel-btn');
+    if (removeBtn) {
+      const card = removeBtn.closest('.tp-discord-extra-card');
+      card?.remove();
+      return;
+    }
+    const revealBtn = e.target.closest('.tp-discord-extra-reveal');
+    if (revealBtn) {
+      const card = revealBtn.closest('.tp-discord-extra-card');
+      const editor = card?.querySelector('.tp-discord-extra-editor');
+      const input = card?.querySelector('.tp-discord-extra-url');
+      if (editor && input) {
+        input.value = '';
+        editor.style.display = '';
+        revealBtn.style.display = 'none';
+        revealBtn.setAttribute('aria-expanded', 'true');
+        input.focus();
+      }
+    }
   });
 
   els.discordLayoutInput?.addEventListener('input', () => scheduleLayoutPreview(els));
@@ -207,6 +235,7 @@ export function wireModalActions(els) {
   const clearWebhookEditor = () => {
     if (els.discordWebhookInput) els.discordWebhookInput.value = '';
     if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
+    els.shadow?.querySelectorAll('.tp-discord-extra-url')?.forEach(input => { input.value = ''; });
   };
   const closeModal = () => {
     initialSnapshot = null;
@@ -309,6 +338,7 @@ export function wireModalActions(els) {
       const rawMax = parseInt(els.tavilyMaxResults.value, 10);
       updates.TAVILY_MAX_RESULTS = Number.isFinite(rawMax) ? Math.max(1, Math.min(10, rawMax)) : 5;
     }
+    let primaryUrl = CONFIG.DISCORD_CHANNELS?.[0]?.url || CONFIG.DISCORD_WEBHOOK_URL || '';
     if (els.discordWebhookInput && els.discordWebhookEditor && els.discordWebhookEditor.style.display !== 'none') {
       const rawWebhook = String(els.discordWebhookInput.value || '').trim();
       if (rawWebhook && !isDiscordWebhookUrl(rawWebhook)) {
@@ -318,8 +348,44 @@ export function wireModalActions(els) {
         showToast('Ungültige Discord-Webhook-URL');
         return;
       }
-      updates.DISCORD_WEBHOOK_URL = rawWebhook;
+      primaryUrl = rawWebhook;
     }
+    const primaryName = els.discordPrimaryName ? String(els.discordPrimaryName.value || '').trim() || 'Standard' : 'Standard';
+
+    const channels = [];
+    if (primaryUrl) {
+      channels.push({ id: 'default', name: primaryName, url: primaryUrl });
+    }
+
+    if (els.discordExtraChannels) {
+      const extraCards = els.discordExtraChannels.querySelectorAll('.tp-discord-extra-card');
+      for (const card of extraCards) {
+        const cId = card.dataset.channelId || `ch_${Date.now()}`;
+        const cName = String(card.querySelector('.tp-discord-channel-name')?.value || '').trim() || 'Kanal';
+        const existing = (CONFIG.DISCORD_CHANNELS || []).find(c => c.id === cId);
+        const urlInput = card.querySelector('.tp-discord-extra-url');
+        const editor = card.querySelector('.tp-discord-extra-editor');
+        let cUrl = existing?.url || '';
+        if (editor && editor.style.display !== 'none') {
+          const typed = String(urlInput?.value || '').trim();
+          if (typed) {
+            if (!isDiscordWebhookUrl(typed)) {
+              els.shadow.getElementById('tp-section-discord')?.classList.remove('tp-collapsed');
+              els.shadow.querySelector('#tp-section-discord [data-collapse]')?.setAttribute('aria-expanded', 'true');
+              urlInput?.focus();
+              showToast('Ungültige Discord-Webhook-URL');
+              return;
+            }
+            cUrl = typed;
+          }
+        }
+        if (cUrl) {
+          channels.push({ id: cId, name: cName, url: cUrl });
+        }
+      }
+    }
+    updates.DISCORD_CHANNELS = channels;
+    updates.DISCORD_WEBHOOK_URL = channels[0]?.url || '';
     if (els.discordDealerEmbedToggle) updates.DISCORD_SUPPRESS_DEALER_EMBED = !els.discordDealerEmbedToggle.checked;
     if (els.discordProductEmbedToggle) updates.DISCORD_SUPPRESS_PRODUCT_EMBED = !els.discordProductEmbedToggle.checked;
     if (els.discordForumTitleToggle) updates.DISCORD_FORUM_TITLE = els.discordForumTitleToggle.checked;
