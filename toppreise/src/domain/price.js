@@ -173,12 +173,19 @@ export function parsePriceStatsFromHtml(html) {
 }
 
 export function rollingMedians(points) {
-  const n = (points || []).length;
-  return (points || []).map((_, m) => {
-    const win = [];
-    for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(points[w][1]);
-    return medianOf(win.sort((a, b) => a - b));
-  });
+  if (!points || !points.length) return [];
+  const n = points.length;
+  const result = new Array(n);
+  const win = [];
+  for (let m = 0; m < n; m++) {
+    win.length = 0;
+    const start = Math.max(0, m - 15);
+    const end = Math.min(n - 1, m + 15);
+    for (let w = start; w <= end; w++) win.push(points[w][1]);
+    win.sort((a, b) => a - b);
+    result[m] = medianOf(win);
+  }
+  return result;
 }
 
 export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
@@ -189,7 +196,19 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
   };
   if (!(band > 0 && band < 1)) band = 0.50;
   if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
-  const sorted0 = Array.isArray(points) ? [...points].sort((a, b) => a[0] - b[0]) : [];
+  let sorted0;
+  if (Array.isArray(points)) {
+    let isMonotonic = true;
+    for (let i = 1; i < points.length; i++) {
+      if (points[i][0] < points[i - 1][0]) {
+        isMonotonic = false;
+        break;
+      }
+    }
+    sorted0 = isMonotonic ? points : [...points].sort((a, b) => a[0] - b[0]);
+  } else {
+    sorted0 = [];
+  }
   const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
   if (!points || points.length < 3) {
     return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0, rawMin };

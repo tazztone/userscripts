@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.408
+// @version      2.18.409
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2605,12 +2605,19 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function rollingMedians(points) {
-    const n = (points || []).length;
-    return (points || []).map((_, m) => {
-      const win = [];
-      for (let w = Math.max(0, m - 15); w <= Math.min(n - 1, m + 15); w++) win.push(points[w][1]);
-      return medianOf(win.sort((a, b) => a - b));
-    });
+    if (!points || !points.length) return [];
+    const n = points.length;
+    const result = new Array(n);
+    const win = [];
+    for (let m = 0; m < n; m++) {
+      win.length = 0;
+      const start = Math.max(0, m - 15);
+      const end = Math.min(n - 1, m + 15);
+      for (let w = start; w <= end; w++) win.push(points[w][1]);
+      win.sort((a, b) => a - b);
+      result[m] = medianOf(win);
+    }
+    return result;
   }
 
   function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND, maxGlitchHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS, currentPrice = null) {
@@ -2621,7 +2628,19 @@ const SHADOW_MODAL_STYLES = `
     };
     if (!(band > 0 && band < 1)) band = 0.50;
     if (!Number.isFinite(maxGlitchHours) || maxGlitchHours <= 0) maxGlitchHours = 48;
-    const sorted0 = Array.isArray(points) ? [...points].sort((a, b) => a[0] - b[0]) : [];
+    let sorted0;
+    if (Array.isArray(points)) {
+      let isMonotonic = true;
+      for (let i = 1; i < points.length; i++) {
+        if (points[i][0] < points[i - 1][0]) {
+          isMonotonic = false;
+          break;
+        }
+      }
+      sorted0 = isMonotonic ? points : [...points].sort((a, b) => a[0] - b[0]);
+    } else {
+      sorted0 = [];
+    }
     const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
     if (!points || points.length < 3) {
       return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0, rawMin };
@@ -3302,7 +3321,7 @@ const SHADOW_MODAL_STYLES = `
       : payload;
     try {
       statsWriteCount++;
-      if (statsWriteCount % 25 === 1) prunePriceStatsCache(storage);
+      if (statsWriteCount === 1 || statsWriteCount % 100 === 0) prunePriceStatsCache(storage);
       storage?.setItem(key, JSON.stringify(persistPayload));
     } catch (e) {
       if (e?.name === 'QuotaExceededError' || e?.code === 22) {
@@ -5109,7 +5128,20 @@ const SHADOW_MODAL_STYLES = `
     // no offer counts, so assuming true wrongly filters the whole feed).
     const termsList = parseNegativeTerms();
     const offerCount = extractOfferCount(card);
-    const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+    let pageHasOffers = typeof opts?.pageHasOffers === 'boolean' ? opts.pageHasOffers : (offerCount > 0);
+    if (!pageHasOffers) {
+      const doc = card?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      if (doc?.querySelector) {
+        const now = Date.now();
+        if (doc._tpOffersMemoTime && (now - doc._tpOffersMemoTime) < 500) {
+          pageHasOffers = doc._tpHasOffersMemo;
+        } else {
+          pageHasOffers = doc.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+          doc._tpOffersMemoTime = now;
+          doc._tpHasOffersMemo = pageHasOffers;
+        }
+      }
+    }
     const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
     f.isNeg = f.isNeg || recomp.isNeg;
     f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
@@ -14294,7 +14326,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.408';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.409';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

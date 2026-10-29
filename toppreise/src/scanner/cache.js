@@ -224,7 +224,7 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
     : payload;
   try {
     statsWriteCount++;
-    if (statsWriteCount % 25 === 1) prunePriceStatsCache(storage);
+    if (statsWriteCount === 1 || statsWriteCount % 100 === 0) prunePriceStatsCache(storage);
     storage?.setItem(key, JSON.stringify(persistPayload));
   } catch (e) {
     if (e?.name === 'QuotaExceededError' || e?.code === 22) {

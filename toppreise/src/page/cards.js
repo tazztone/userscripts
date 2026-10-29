@@ -490,7 +490,20 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   // no offer counts, so assuming true wrongly filters the whole feed).
   const termsList = parseNegativeTerms();
   const offerCount = extractOfferCount(card);
-  const pageHasOffers = offerCount > 0 || document.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+  let pageHasOffers = typeof opts?.pageHasOffers === 'boolean' ? opts.pageHasOffers : (offerCount > 0);
+  if (!pageHasOffers) {
+    const doc = card?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (doc?.querySelector) {
+      const now = Date.now();
+      if (doc._tpOffersMemoTime && (now - doc._tpOffersMemoTime) < 500) {
+        pageHasOffers = doc._tpHasOffersMemo;
+      } else {
+        pageHasOffers = doc.querySelector('.Plugin_DealerRelProdPriceInfo') !== null;
+        doc._tpOffersMemoTime = now;
+        doc._tpHasOffersMemo = pageHasOffers;
+      }
+    }
+  }
   const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
   f.isNeg = f.isNeg || recomp.isNeg;
   f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
