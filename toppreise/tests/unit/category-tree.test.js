@@ -13,8 +13,6 @@ import {
   getIgnoredVcatIds,
   syncCategoryTreeIgnoredState,
   syncSearchResultsIgnoredState,
-  commitStagedExclusions,
-  ensureCategoryIdent,
   harvestExistingIdents,
   renderChildList,
   enhanceCategorySidebar
@@ -593,34 +591,6 @@ test('harvestExistingIdents extracts and caches tokens from sidebar elements', (
   assert.equal(idents['900'], 'ident900');
 });
 
-test('commitStagedExclusions adds chips and updates data-ignored-count in mock DOM', async () => {
-  const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
-  const barContainer = createMockElement('div', { className: 'ignoredCategoriesBar' });
-  const hint = createMockElement('span', { className: 'ignoreCategoryHint' });
-  barContainer.appendChild(hint);
-  bar.appendChild(barContainer);
-
-  const doc = {
-    querySelector: sel => {
-      if (sel.includes('Plugin_IgnoredCategories')) return bar;
-      return null;
-    },
-    createElement: tag => createMockElement(tag)
-  };
-
-  const items = [
-    { vcatId: '200', numericId: '200', title: 'Computer & Zubehör' },
-    { vcatId: '900', numericId: '900', title: 'Videogames' }
-  ];
-
-  await commitStagedExclusions(items, doc);
-
-  const chips = barContainer.querySelectorAll('.ignoredCategory');
-  assert.equal(chips.length, 2);
-  assert.equal(bar.getAttribute('data-ignored-count'), '2');
-  assert.equal(hint.parentElement, null); // removed
-});
-
 test('syncSearchResultsIgnoredState synchronizes hit items with active ignored chips', () => {
   const prevDoc = globalThis.document;
   try {
@@ -666,110 +636,12 @@ test('syncSearchResultsIgnoredState synchronizes hit items with active ignored c
     chip.remove();
     syncSearchResultsIgnoredState(resultsBox);
 
-    const stageBtn = item.querySelector('.tp-cat-stage-btn');
+    const hideSpan = item.querySelector('.ignoreCategory.f_IgnoredCategories_Hide');
     assert.ok(!item.classList.contains('ignoredCategoryEntry'));
-    assert.ok(stageBtn);
-    assert.equal(stageBtn.getAttribute('title'), 'Kategorie zum Ausblenden vormerken');
+    assert.ok(hideSpan);
+    assert.equal(hideSpan.getAttribute('title'), 'Kategorie ausblenden');
+    assert.ok(hideSpan.querySelector('i')?.classList?.contains('TPIcons-cross'));
   } finally {
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
-  }
-});
-
-test('ensureCategoryIdent returns existing ident or fetches parent feed page', async () => {
-  const prevFetch = globalThis.fetch;
-  try {
-    saveStoredIdents({ '200': 'token_200' });
-    const item1 = { vcatId: '200', numericId: '200' };
-    const res1 = await ensureCategoryIdent(item1);
-    assert.equal(res1, 'token_200');
-    assert.equal(item1.ident, 'token_200');
-
-    // Simulate child whose parent feed page must be fetched
-    const tree = {
-      byId: new Map([
-        ['c2847', { id: 'c2847', numericId: '2847', parentID: 'c8' }],
-        ['c8', { id: 'c8', numericId: '8', url: '/produktsuche/Computer-Zubehoer/Komplettsysteme-c8' }]
-      ])
-    };
-
-    let fetchedUrl = '';
-    globalThis.fetch = async (url) => {
-      fetchedUrl = url;
-      return {
-        ok: true,
-        text: async () => `
-          <div class="Plugin_CategoryMainSelectionLeft">
-            <span class="ignoreCategory" data-vcat-id="2847" data-ident="token_2847"></span>
-          </div>
-        `
-      };
-    };
-
-    const item2 = { id: 'c2847', numericId: '2847', vcatId: '2847' };
-    const res2 = await ensureCategoryIdent(item2, tree, '/neue-toppreise');
-    assert.equal(res2, 'token_2847');
-    assert.equal(item2.ident, 'token_2847');
-    assert.equal(fetchedUrl, '/neue-toppreise/Computer-Zubehoer/Komplettsysteme-c8');
-
-    const updatedStored = getStoredIdents();
-    assert.equal(updatedStored['2847'], 'token_2847');
-  } finally {
-    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
-  }
-});
-
-test('commitStagedExclusions chains context hash and executes sequentially in live environment', async () => {
-  const prevFetch = globalThis.fetch;
-  const prevLocation = globalThis.location;
-  try {
-    let reloadCalled = false;
-    globalThis.location = {
-      hostname: 'www.toppreise.ch',
-      pathname: '/neue-toppreise',
-      reload: () => { reloadCalled = true; }
-    };
-
-    const callLog = [];
-    globalThis.fetch = async (url, opts) => {
-      const params = new URLSearchParams(opts.body);
-      const hash = params.get('fp_ic_ch');
-      const vcat = params.get('aicatvc');
-      const ident = params.get('aicat');
-      callLog.push({ url, hash, vcat, ident });
-
-      // Return next hash in simulated HTML
-      return {
-        ok: true,
-        text: async () => `<div id="Plugin_IgnoredCategories" data-context-hash="hash_after_${vcat}"></div>`
-      };
-    };
-
-    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
-    bar.setAttribute('data-context-hash', 'initial_hash_123');
-    bar.setAttribute('data-ajax-url', '/plugins/filter/IgnoredCategories');
-
-    const doc = {
-      querySelector: sel => sel.includes('Plugin_IgnoredCategories') ? bar : null,
-      createElement: tag => createMockElement(tag)
-    };
-
-    const items = [
-      { vcatId: '200', numericId: '200', ident: 'token_200' },
-      { vcatId: '900', numericId: '900', ident: 'token_900' }
-    ];
-
-    await commitStagedExclusions(items, doc);
-
-    assert.equal(callLog.length, 2);
-    // First call uses initial context hash
-    assert.equal(callLog[0].hash, 'initial_hash_123');
-    assert.equal(callLog[0].vcat, '200');
-    // Second call receives chained hash from first response
-    assert.equal(callLog[1].hash, 'hash_after_200');
-    assert.equal(callLog[1].vcat, '900');
-    assert.equal(reloadCalled, true);
-  } finally {
-    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
-    if (prevLocation === undefined) delete globalThis.location; else globalThis.location = prevLocation;
   }
 });

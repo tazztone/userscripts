@@ -246,68 +246,6 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
   } catch {}
 }
 
-export async function ensureCategoryIdent(item, tree = null, currentPath = '') {
-  if (!item) return '';
-  const vcatId = String(item.numericId || item.vcatId || '').trim();
-  if (!vcatId) return '';
-  if (item.ident) return item.ident;
-
-  const stored = getStoredIdents();
-  if (stored[vcatId]) {
-    item.ident = stored[vcatId];
-    return item.ident;
-  }
-
-  if (!tree) {
-    tree = await loadNativeCategoryTree();
-  }
-  if (!tree?.byId) return '';
-
-  const catId = item.id || `c${vcatId}`;
-  const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
-  if (!node) return '';
-
-  // Determine parent page URL
-  let parentUrl = '';
-  if (!node.parentID || node.parentID === 'root' || node.parentID === 'start') {
-    parentUrl = currentPath || '/neue-toppreise';
-  } else {
-    const parentNode = tree.byId.get(node.parentID);
-    if (parentNode?.url) {
-      parentUrl = toFeedUrl(parentNode.url, currentPath);
-    }
-  }
-
-  if (parentUrl && typeof fetch === 'function') {
-    try {
-      const resp = await fetch(parentUrl, { credentials: 'same-origin' });
-      if (resp.ok) {
-        const text = await resp.text();
-        const updatedStored = getStoredIdents();
-        let changed = false;
-        const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          const vid = match[1] || match[4];
-          const idn = match[2] || match[3];
-          if (vid && idn && updatedStored[vid] !== idn) {
-            updatedStored[vid] = idn;
-            changed = true;
-          }
-        }
-        if (changed) {
-          saveStoredIdents(updatedStored);
-        }
-        if (updatedStored[vcatId]) {
-          item.ident = updatedStored[vcatId];
-          return item.ident;
-        }
-      }
-    } catch {}
-  }
-  return item.ident || '';
-}
-
 export function harvestExistingIdents(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
   if (!sidebar?.querySelectorAll) return;
   const triggers = sidebar.querySelectorAll('.ignoreCategory[data-vcat-id][data-ident]');
@@ -356,156 +294,31 @@ export function syncSearchResultsIgnoredState(resultsBox, doc = null) {
   if (!resultsBox?.querySelectorAll) return;
   const activeDoc = getDoc(doc || resultsBox?.ownerDocument);
   const ignoredIds = getIgnoredVcatIds(activeDoc);
-  const createElem = tag => (activeDoc && typeof activeDoc.createElement === 'function')
-    ? activeDoc.createElement(tag)
-    : null;
 
   resultsBox.querySelectorAll('.tp-cat-result-item[data-vcat-id]').forEach(item => {
     const vcatId = item.getAttribute('data-vcat-id');
     if (!vcatId) return;
 
     const isIgnored = ignoredIds.has(String(vcatId).trim());
+    const span = item.querySelector('.ignoreCategory[data-vcat-id]');
+    if (!span) return;
+
     if (isIgnored) {
       item.classList.add('ignoredCategoryEntry');
-      item.classList.remove('tp-cat-staged');
-      item.querySelector('.tp-cat-staged-badge')?.remove();
-
-      let span = item.querySelector('.ignoreCategory.f_IgnoredCategories_Show');
-      if (!span) {
-        span = createElem('span');
-        if (span) {
-          span.className = 'ignoreCategory f_IgnoredCategories_Show';
-          span.setAttribute('data-vcat-id', vcatId);
-          span.setAttribute('title', 'Kategorie einblenden');
-          const icon = createElem('i');
-          if (icon) {
-            icon.className = 'TPIcons-plus';
-            span.appendChild(icon);
-          }
-          const oldBtn = item.querySelector('.tp-cat-stage-btn, .ignoreCategory');
-          if (oldBtn?.replaceWith) oldBtn.replaceWith(span);
-          else if (oldBtn?.parentElement) oldBtn.parentElement.appendChild(span), oldBtn.remove?.();
-          else item.appendChild(span);
-        }
-      }
+      span.classList.remove('f_IgnoredCategories_Hide');
+      span.classList.add('f_IgnoredCategories_Show');
+      span.setAttribute('title', 'Kategorie einblenden');
+      const icon = span.querySelector('i');
+      if (icon) icon.className = 'TPIcons-plus';
     } else {
       item.classList.remove('ignoredCategoryEntry');
-      const showBtn = item.querySelector('.ignoreCategory.f_IgnoredCategories_Show');
-      if (showBtn) {
-        const btn = createElem('button');
-        if (btn) {
-          btn.type = 'button';
-          btn.className = 'tp-cat-stage-btn';
-          btn.setAttribute('data-vcat-id', vcatId);
-          btn.setAttribute('title', 'Kategorie zum Ausblenden vormerken');
-          btn.textContent = '✕';
-          if (showBtn?.replaceWith) showBtn.replaceWith(btn);
-          else if (showBtn?.parentElement) showBtn.parentElement.appendChild(btn), showBtn.remove?.();
-          else item.appendChild(btn);
-        }
-      }
+      span.classList.remove('f_IgnoredCategories_Show');
+      span.classList.add('f_IgnoredCategories_Hide');
+      span.setAttribute('title', 'Kategorie ausblenden');
+      const icon = span.querySelector('i');
+      if (icon) icon.className = 'TPIcons-cross';
     }
   });
-}
-
-export async function commitStagedExclusions(items, doc = (typeof document !== 'undefined' ? document : null)) {
-  if (!items || items.length === 0) return;
-  const bar = doc?.querySelector?.('.Plugin_IgnoredCategories');
-  let currentHash = bar?.getAttribute?.('data-context-hash') || '';
-  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-  const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
-  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-
-  const isLive = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
-
-  if (isLive && typeof fetch === 'function' && ajaxUrl) {
-    const tree = await loadNativeCategoryTree(doc);
-    const currentPath = typeof location !== 'undefined' ? location.pathname : '';
-
-    // 1. Resolve missing ident tokens before executing exclusions
-    for (const item of items) {
-      await ensureCategoryIdent(item, tree, currentPath);
-    }
-
-    // 2. Commit each item sequentially, chaining the context hash from the server response
-    for (const item of items) {
-      const vcatId = item.numericId || item.vcatId;
-      const body = new URLSearchParams({
-        aicat: item.ident || '',
-        aicatvc: vcatId,
-        fp_ic_ch: currentHash,
-        lang
-      });
-      try {
-        const resp = await fetch(ajaxUrl, {
-          method: 'POST',
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-          },
-          credentials: 'same-origin',
-          body: body.toString()
-        });
-        if (resp.ok) {
-          const html = await resp.text();
-          const match = html.match(/data-context-hash="([^"]+)"/);
-          if (match && match[1]) {
-            currentHash = match[1];
-          }
-        }
-      } catch (err) {
-        console.error('[Toppreise-Suite] Category exclusion error:', err);
-      }
-    }
-
-    if (typeof location !== 'undefined' && typeof location.reload === 'function') {
-      location.reload();
-      return;
-    }
-  }
-
-  // Fallback or Test / Mock environment: update DOM chips
-  if (bar) {
-    let barContainer = bar.querySelector('.ignoredCategoriesBar');
-    if (barContainer) {
-      const hint = barContainer.querySelector('.ignoreCategoryHint');
-      if (hint) hint.remove();
-      let label = barContainer.querySelector('.label');
-      if (!label) {
-        label = doc?.createElement?.('span') || document.createElement('span');
-        label.className = 'label';
-        label.textContent = 'Ausgeblendet:';
-        barContainer.prepend(label);
-      }
-      for (const item of items) {
-        const vcatId = String(item.numericId || item.vcatId || '').trim();
-        const exists = barContainer.querySelector(`.ignoredCategory[data-vcat-id="${vcatId}"]`);
-        if (!exists) {
-          const chip = doc?.createElement?.('span') || document.createElement('span');
-          chip.className = 'ignoredCategory f_IgnoredCategories_Show';
-          chip.setAttribute('data-vcat-id', vcatId);
-          if (item.ident) chip.setAttribute('data-ident', item.ident);
-          chip.setAttribute('title', 'Wieder einblenden');
-          chip.innerHTML = `${item.title || 'Kategorie'} <span class="removeFilter"><i class="TPIcons-cross">✕</i></span>`;
-          barContainer.appendChild(chip);
-        }
-      }
-      let resetBtn = barContainer.querySelector('.resetAll');
-      if (!resetBtn) {
-        resetBtn = doc?.createElement?.('a') || document.createElement('a');
-        resetBtn.className = 'resetAll f_IgnoredCategories_Reset';
-        resetBtn.textContent = 'Alle einblenden';
-        barContainer.appendChild(resetBtn);
-      }
-      const count = barContainer.querySelectorAll('.ignoredCategory').length;
-      bar.setAttribute('data-ignored-count', String(count));
-    }
-  }
-
-  const sidebar = doc?.querySelector?.('.Plugin_CategoryMainSelectionLeft');
-  if (sidebar) {
-    syncCategoryTreeIgnoredState(sidebar);
-  }
 }
 
 export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
@@ -706,31 +519,23 @@ export function enhanceCategorySidebar() {
     searchBox.appendChild(resultsBox);
 
     const ulList = sidebar.querySelector('ul');
-    const stagedPool = new Map(); // vcatId -> { vcatId, numericId, id, title, ident, url }
 
     const renderSearchResults = async () => {
       const val = input.value.trim();
-      clearBtn.style.display = (val || stagedPool.size > 0) ? 'block' : 'none';
+      clearBtn.style.display = val ? 'block' : 'none';
 
-      const storedIdents = getStoredIdents();
-      const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
-      const ignoredIds = getIgnoredVcatIds(doc);
-      const effectiveIgnored = new Set(ignoredIds);
-      for (const stagedKey of stagedPool.keys()) {
-        effectiveIgnored.add(String(stagedKey).trim());
-      }
-
-      let hits = [];
-      if (val) {
-        const tree = await loadNativeCategoryTree();
-        hits = searchCategoryTree(tree, val, 15, effectiveIgnored);
-      } else if (stagedPool.size > 0) {
-        hits = Array.from(stagedPool.values());
-      } else {
+      if (!val) {
         resultsBox.style.display = 'none';
         if (ulList) ulList.style.display = '';
         return;
       }
+
+      const storedIdents = getStoredIdents();
+      const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      const ignoredIds = getIgnoredVcatIds(doc);
+
+      const tree = await loadNativeCategoryTree();
+      const hits = searchCategoryTree(tree, val, 15, ignoredIds);
 
       if (ulList) ulList.style.display = 'none';
       resultsBox.style.display = 'block';
@@ -740,53 +545,27 @@ export function enhanceCategorySidebar() {
         return;
       }
 
-      const headerHtml = (!val && stagedPool.size > 0)
-        ? `<div class="tp-cat-staged-header">Vorgemerkte Kategorien (${stagedPool.size}):</div>`
-        : '';
-
-      const itemsHtml = hits.map(hit => {
+      resultsBox.innerHTML = hits.map(hit => {
         const vcatId = String(hit.numericId || '').trim();
         const isIgnored = !!(vcatId && ignoredIds.has(vcatId));
-        const isStaged = !!(vcatId && stagedPool.has(vcatId));
         const ident = vcatId ? (storedIdents[vcatId] || '') : '';
 
-        let actionBtn = '';
-        if (isIgnored) {
-          actionBtn = `
-            <span class="ignoreCategory f_IgnoredCategories_Show" data-vcat-id="${vcatId}" ${ident ? `data-ident="${ident}"` : ''} title="Kategorie einblenden">
-              <i class="TPIcons-plus"></i>
-            </span>
-          `;
-        } else if (vcatId) {
-          actionBtn = `
-            <button type="button" class="tp-cat-stage-btn${isStaged ? ' is-staged' : ''}" data-vcat-id="${vcatId}" title="${isStaged ? 'Vormerkung aufheben' : 'Kategorie zum Ausblenden vormerken'}">
-              ${isStaged ? '✓' : '✕'}
-            </button>
-          `;
-        }
+        const actionBtn = vcatId ? `
+          <span class="ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}" data-vcat-id="${vcatId}" ${ident ? `data-ident="${ident}"` : ''} title="${isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden'}">
+            <i class="${isIgnored ? 'TPIcons-plus' : 'TPIcons-cross'}"></i>
+          </span>
+        ` : '';
 
         return `
-          <div class="tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}${isStaged ? ' tp-cat-staged' : ''}" data-cat-id="${hit.id}" data-vcat-id="${vcatId}">
+          <div class="tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}" data-cat-id="${hit.id}" data-vcat-id="${vcatId}">
             <a class="tp-cat-result-link" href="${toFeedUrl(hit.url, currentPath)}" title="${hit.title}">
-              <span class="tp-cat-res-title">${hit.title}${isStaged ? ' <span class="tp-cat-staged-badge">Vorgemerkt</span>' : ''}</span>
+              <span class="tp-cat-res-title">${hit.title}</span>
               <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
             </a>
             ${actionBtn}
           </div>
         `;
       }).join('');
-
-      const applyBarHtml = stagedPool.size > 0 ? `
-        <div class="tp-cat-apply-bar">
-          <span class="tp-cat-apply-text"><strong>${stagedPool.size}</strong> vorgemerkt</span>
-          <div class="tp-cat-apply-btns">
-            <button type="button" class="tp-cat-btn-clear" title="Auswahl aufheben">Leeren</button>
-            <button type="button" class="tp-cat-btn-apply" title="Ausgewählte Kategorien ausblenden">✕ Ausblenden (${stagedPool.size})</button>
-          </div>
-        </div>
-      ` : '';
-
-      resultsBox.innerHTML = headerHtml + itemsHtml + applyBarHtml;
     };
 
     input.addEventListener('input', () => {
@@ -794,93 +573,17 @@ export function enhanceCategorySidebar() {
     });
 
     input.addEventListener('focus', () => {
-      if (input.value.trim() || stagedPool.size > 0) {
+      if (input.value.trim()) {
         renderSearchResults();
       }
     });
 
     clearBtn.addEventListener('click', () => {
       input.value = '';
-      if (stagedPool.size > 0) {
-        renderSearchResults();
-      } else {
-        clearBtn.style.display = 'none';
-        resultsBox.style.display = 'none';
-        if (ulList) ulList.style.display = '';
-      }
+      clearBtn.style.display = 'none';
+      resultsBox.style.display = 'none';
+      if (ulList) ulList.style.display = '';
       input.focus();
-    });
-
-    resultsBox.addEventListener('click', async e => {
-      const stageBtn = e.target.closest('.tp-cat-stage-btn');
-      if (stageBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        const vcatId = stageBtn.getAttribute('data-vcat-id');
-        if (!vcatId) return;
-
-        if (stagedPool.has(vcatId)) {
-          stagedPool.delete(vcatId);
-        } else {
-          const itemEl = stageBtn.closest('.tp-cat-result-item');
-          const title = itemEl?.querySelector('.tp-cat-res-title')?.textContent?.replace(/Vorgemerkt.*$/, '')?.trim() || '';
-          const catId = itemEl?.dataset?.catId || `c${vcatId}`;
-          const storedIdents = getStoredIdents();
-          const ident = storedIdents[vcatId] || '';
-          const link = itemEl?.querySelector('.tp-cat-result-link')?.getAttribute('href') || '';
-          const stagedItem = {
-            vcatId,
-            numericId: vcatId,
-            id: catId,
-            title,
-            ident,
-            url: link
-          };
-          stagedPool.set(vcatId, stagedItem);
-
-          const tree = await loadNativeCategoryTree();
-          if (!ident) {
-            ensureCategoryIdent(stagedItem, tree, currentPath).catch(() => {});
-          }
-
-          // Prune any staged child nodes if their parent was just staged
-          if (tree) {
-            for (const [stagedKey] of stagedPool.entries()) {
-              if (stagedKey !== vcatId) {
-                const childNode = tree.byId.get(stagedKey) || tree.byId.get(`c${stagedKey}`);
-                if (childNode && hasIgnoredAncestor(childNode, tree, new Set([vcatId]))) {
-                  stagedPool.delete(stagedKey);
-                }
-              }
-            }
-          }
-        }
-        renderSearchResults();
-        return;
-      }
-
-      const clearPoolBtn = e.target.closest('.tp-cat-btn-clear');
-      if (clearPoolBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        stagedPool.clear();
-        renderSearchResults();
-        return;
-      }
-
-      const applyBtn = e.target.closest('.tp-cat-btn-apply');
-      if (applyBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (stagedPool.size === 0) return;
-        applyBtn.disabled = true;
-        applyBtn.textContent = 'Wird ausgeblendet...';
-        const stagedList = Array.from(stagedPool.values());
-        stagedPool.clear();
-        await commitStagedExclusions(stagedList, sidebar.ownerDocument || document);
-        renderSearchResults();
-        return;
-      }
     });
 
     labelDiv.after(searchBox);
