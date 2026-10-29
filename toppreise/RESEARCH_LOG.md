@@ -449,25 +449,31 @@ deliberately not pursued — nothing needs it.)
 
 ## 24. Category Exclusion & Subcategory Tree Integration (2026-10-29)
 
-- **Pure Server-Side Authority:** Category exclusion state is strictly authoritative on the server
-  via `POST /plugins/filter/IgnoredCategories`. Legacy client-side persistence
-  (`localStorage['tp_cat_ignored_subcategories']`) has been retired and is purged on load to prevent
-  state desynchronization against server PHP session state.
-- **Symmetric Exclusion & Restore Payloads:** Live probe verification of `standard.js`
-  (`IgnoredCategories_toggle`) confirmed that both category exclusion (`✕`) and category restoration (`+`)
-  send the identical symmetric payload:
-  `{ lang, aicat: ident, aicatvc: vcatId, fp_ic_ch: contextHash }`.
-  Sending `{ aicatvc, aicatrs: '1' }` without `aicat` failed on the server.
-- **Dynamic Reset Token:** `IgnoredCategories_resetAll` extracts dynamic token `data-ident` from
-  `.f_IgnoredCategories_ResetConfirm` or `.f_IgnoredCategories_Reset` and posts `{ aicatrs: token }`.
-  Hardcoded values like `all` are not valid HMAC tokens.
+- **Pure Server-Side Authority:**
+  - Category exclusion state is strictly authoritative on the server via `POST /plugins/filter/IgnoredCategories`.
+  - Legacy client-side persistence (`localStorage['tp_cat_ignored_subcategories']`) has been retired and is purged on load to eliminate state desynchronization against PHP session state.
+  - Active exclusion chips are queried directly from `.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id]`.
+- **Symmetric Exclusion & Restore Payloads:**
+  - Live probe of `standard.js` (`IgnoredCategories_toggle`) confirmed that both category exclusion (`✕`) and category restoration (`+`) send the identical symmetric payload:
+    `POST /plugins/filter/IgnoredCategories` with `{ lang, aicat: ident, aicatvc: vcatId, fp_ic_ch: contextHash }`.
+  - Request headers for the POST endpoint must include:
+    `Content-Type: application/x-www-form-urlencoded; charset=UTF-8` and `X-Requested-With: XMLHttpRequest`.
+  - Earlier attempts sending `{ aicatvc, aicatrs: '1' }` without `aicat` failed because the server rejected the unauthenticated restore payload.
+- **Dynamic Reset Token:**
+  - `IgnoredCategories_resetAll` extracts the dynamic token `data-ident` from `.f_IgnoredCategories_ResetConfirm` or `.f_IgnoredCategories_Reset` and posts `{ aicatrs: token, fp_ic_ch: contextHash, lang }`.
+  - Hardcoded strings like `'all'` fail HMAC validation on the backend.
+- **Context Hash Lifecycle (`fp_ic_ch`):**
+  - The server HTML response contains `data-context-hash="<hash>"`.
+  - The userscript updates its in-memory/DOM hash reference on every exclusion, restore, or reset response to keep subsequent requests valid.
 - **Deep Leaf Token Resolution & HTTP 403 Avoidance:**
-  1. Full page GET requests (both `/produktsuche/...` and `/neue-toppreise/...`) return `403 Forbidden`
-     when sent with header `X-Requested-With: XMLHttpRequest`. Dropping that header returns `200 OK`.
-  2. For deep leaf categories without active deals in the current feed, tokens are resolved via:
-     - In-page tokens (`.Plugin_IgnoredCategories`, sidebar DOM, cached session tokens).
-     - Sibling feed pages (`/neue-toppreise/.../<sibling>-c<id>`), which contain pre-baked tokens for all siblings.
-     - Product PID discovery (`.Plugin_Product[data-entity-id]` or `href="*-p<PID>"`), followed by
-       `POST /plugins/filter/IgnoredCategories` with `aicatpr: <PID>` which returns authentic `data-ident`
-       tokens for the entire breadcrumb hierarchy.
+  1. *WAF GET Restriction:* Full page HTML GET requests (`/produktsuche/...` and `/neue-toppreise/...`) return `403 Forbidden` if sent with header `X-Requested-With: XMLHttpRequest`. Stripping that header on GET fetches returns `200 OK`.
+  2. *Token Discovery Pipeline:* For deep leaves without listed deals on the current feed (e.g. `Controller-c2278` under `Computer & Zubehör > Server & Workstations > Zubehör...`):
+     - Check local cache (`tp_cat_stored_idents`) and in-page DOM triggers.
+     - Inspect sibling feed pages (`/neue-toppreise/.../<sibling>-c<id>`), which contain pre-baked tokens for all siblings in the sidebar HTML.
+     - Extract a product PID from the catalog page (`.Plugin_Product[data-entity-id]` or `href="*-p<PID>"`).
+     - Query `POST /plugins/filter/IgnoredCategories` with body `aicatpr=<PID>`, which triggers server generation and returns authentic `data-ident` tokens for all breadcrumb categories in that product's path.
+- **Subcategory Isolation / Solo Constraints:**
+  - Toppreise filter architecture is strictly negative/additive (exclude category X). It has no whitelist or "include only" server endpoint.
+  - Server-side isolation of a single subcategory under a parent branch requires N individual POST exclusion calls (one per sibling), which risks rate-limiting (HTTP 429) and session thrashing.
+  - Native 0-overhead isolation is achieved via direct category navigation (`/neue-toppreise/.../<subcat>-c<id>`).
 
