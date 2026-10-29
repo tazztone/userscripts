@@ -98,11 +98,13 @@
   `.f_showMoreCatDetails.showClosedOnly` / `.f_hideMoreCatDetails.showExpandedOnly`.
   Suite injects client-side accordion tree `.tp-cat-sublist` and instant search `.tp-cat-search-box`;
   subcategories and search results sync with `#Plugin_IgnoredCategories` chips to display red strikethrough
-  and direct 1-click `✕` exclusion / `+` restore (`f_IgnoredCategories_Show`/`Hide`). Injected elements
-  dynamically update the chip bar with instant optimistic UI feedback while resolving `aicat` ident tokens
-  via multi-tier lookup (cached storage -> in-page card PID -> catalog product PID via `POST aicatpr`)
-  and dispatching server exclusions/restores in the background, updating `#Plugin_IgnoredCategories`
-  with authentic server HTML, hiding excluded cards immediately, and refreshing the product feed.
+  and direct 1-click `✕` exclusion / `+` restore (`f_IgnoredCategories_Show`/`Hide`). Clicks are intercepted
+  in capture phase (`{ capture: true }`) to preempt native jQuery bubbling collisions.
+  Subcategory exclusion applies an inline pending state (`.tp-cat-loading`) while resolving `aicat` ident tokens
+  via multi-tier lookup (cached storage -> in-page card PID -> catalog product PID via `POST aicatpr` supporting JSON/HTML),
+  submits server exclusions (`aicat` + `aicatvc` + `fp_ic_ch`), updates `#Plugin_IgnoredCategories` strictly from
+  authentic server HTML, collapses excluded branches, hides matching cards, and refreshes the feed with `cache: 'no-cache'`.
+  On failure or missing token, the pending state clears and an error toast is surfaced without leaving ghost chips.
 - Per-card trigger `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger`
   at `top: 0; right: 0; z-index: 3` (card gets `.hasHideTrigger`); hover loads
   `.IgnoredCategoriesMenu .entry.f_IgnoredCategories_MenuEntry[data-vcat-id]`

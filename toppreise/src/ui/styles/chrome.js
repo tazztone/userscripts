@@ -751,4 +751,10 @@ export const STYLES_CHROME = `
   .tp-cat-sublist .tp-cat-row > a:hover {
     color: var(--tp-blue-soft) !important;
   }
+  .tp-cat-row.tp-cat-loading,
+  .tp-cat-result-item.tp-cat-loading {
+    opacity: 0.55 !important;
+    pointer-events: none !important;
+    transition: opacity 0.2s ease !important;
+  }
 `;

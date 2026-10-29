@@ -21,8 +21,14 @@ import {
   resetAllIgnoredCategoryChips,
   ensureCategoryIdent,
   hideMatchingCategoryCards,
-  updateIgnoredCategoriesBarWithServerHtml
+  updateIgnoredCategoriesBarWithServerHtml,
+  parseCategoryIdentsFromText,
+  executeServerCategoryExclusion,
+  executeServerCategoryRestore,
+  executeServerCategoryReset,
+  refreshProductFeed
 } from '../../src/features/category-tree.js';
+import { getLastToastMessage } from '../../src/ui/toast.js';
 
 test('toFeedUrl transforms catalog URLs to feed URLs', () => {
   assert.equal(
@@ -841,6 +847,60 @@ test('ensureCategoryIdent resolves token via product PID discovery when direct t
     assert.equal(getStoredIdents()['1551'], 'tok1551');
     assert.equal(getStoredIdents()['1550'], 'tok1550');
   } finally {
+    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+  }
+});
+
+test('parseCategoryIdentsFromText extracts tokens across HTML, JSON and quote styles', () => {
+  const map = {};
+
+  // Standard HTML
+  parseCategoryIdentsFromText('<span data-vcat-id="101" data-ident="ident101"></span>', map);
+  assert.equal(map['101'], 'ident101');
+
+  // Reversed attribute order and single quotes
+  parseCategoryIdentsFromText("<div data-ident='ident202' data-vcat-id='202'></div>", map);
+  assert.equal(map['202'], 'ident202');
+
+  // JSON string with escaped quotes
+  const jsonResp = JSON.stringify({
+    html: '<a class=\\"entry\\" data-vcat-id=\\"303\\" data-ident=\\"ident303\\">Link</a>'
+  });
+  parseCategoryIdentsFromText(jsonResp, map);
+  assert.equal(map['303'], 'ident303');
+});
+
+test('executeServerCategoryExclusion handles missing token with error toast', async () => {
+  const prevLoc = globalThis.location;
+  try {
+    globalThis.location = { hostname: 'www.toppreise.ch', pathname: '/neue-toppreise', href: 'https://www.toppreise.ch/neue-toppreise' };
+    const success = await executeServerCategoryExclusion('nonexistent_cat_99999');
+    assert.equal(success, false);
+    assert.match(getLastToastMessage(), /Token fehlt/i);
+  } finally {
+    if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+  }
+});
+
+test('refreshProductFeed passes cache: no-cache to fetch', async () => {
+  const prevLoc = globalThis.location;
+  const prevFetch = globalThis.fetch;
+  try {
+    globalThis.location = { hostname: 'www.toppreise.ch', pathname: '/neue-toppreise', href: 'https://www.toppreise.ch/neue-toppreise' };
+    let capturedOpts = null;
+    globalThis.fetch = async (url, opts) => {
+      capturedOpts = opts;
+      return { ok: false };
+    };
+
+    const mockDoc = {
+      querySelector: () => ({ innerHTML: '' })
+    };
+    await refreshProductFeed(mockDoc);
+    assert.ok(capturedOpts);
+    assert.equal(capturedOpts.cache, 'no-cache');
+  } finally {
+    if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
     if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
   }
 });

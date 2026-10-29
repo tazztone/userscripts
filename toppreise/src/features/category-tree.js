@@ -6,6 +6,7 @@
  */
 
 import { isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
+import { showToast } from '../ui/toast.js';
 
 const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
 const EXPANDED_STORAGE_KEY = 'tp_cat_expanded_branches';
@@ -214,25 +215,41 @@ export function searchCategoryTree(tree, query, maxResults = 12, ignoredIds = nu
   return results;
 }
 
+export function parseCategoryIdentsFromText(text, targetMap = null) {
+  const map = targetMap || getStoredIdents();
+  if (!text) return map;
+
+  let content = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === 'string') content = parsed;
+    else if (parsed && typeof parsed === 'object') {
+      content = parsed.html || parsed.content || parsed.menu || text;
+    }
+  } catch {}
+
+  const regex = /(?:data-vcat-id=\\?["'\\]*(\d+)\\?["'\\]*[^>]*?data-ident=\\?["'\\]*([^"'\\\s>]+)\\?["'\\]*|data-ident=\\?["'\\]*([^"'\\\s>]+)\\?["'\\]*[^>]*?data-vcat-id=\\?["'\\]*(\d+)\\?["'\\]*)/gi;
+  let match;
+  let changed = false;
+  while ((match = regex.exec(content)) !== null) {
+    const vid = match[1] || match[4];
+    const idn = match[2] || match[3];
+    if (vid && idn && map[vid] !== idn) {
+      map[vid] = idn;
+      changed = true;
+    }
+  }
+  if (changed) saveStoredIdents(map);
+  return map;
+}
+
 export async function hydrateBranchIdents(feedUrl, branchEl) {
   if (!feedUrl || typeof fetch !== 'function') return;
   try {
     const resp = await fetch(feedUrl, { credentials: 'same-origin' });
     if (!resp.ok) return;
     const html = await resp.text();
-    const stored = getStoredIdents();
-    let changed = false;
-    const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
-    let match;
-    while ((match = regex.exec(html)) !== null) {
-      const vid = match[1] || match[4];
-      const idn = match[2] || match[3];
-      if (vid && idn && stored[vid] !== idn) {
-        stored[vid] = idn;
-        changed = true;
-      }
-    }
-    if (changed) saveStoredIdents(stored);
+    const stored = parseCategoryIdentsFromText(html);
 
     // Update rendered spans in this branch if present
     if (branchEl) {
@@ -450,7 +467,7 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
   if (!container || typeof fetch !== 'function') return;
 
   try {
-    const resp = await fetch(location.href, { credentials: 'same-origin' });
+    const resp = await fetch(location.href, { credentials: 'same-origin', cache: 'no-cache' });
     if (!resp.ok) return;
     const html = await resp.text();
     if (typeof DOMParser !== 'undefined') {
@@ -497,7 +514,8 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
     const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
     const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
     const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-    const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+    const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                        activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
 
     const body = new URLSearchParams({
       aicatpr: pid,
@@ -517,19 +535,7 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
       });
       if (resp.ok) {
         const text = await resp.text();
-        const updatedStored = getStoredIdents();
-        let changed = false;
-        const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          const vid = match[1] || match[4];
-          const idn = match[2] || match[3];
-          if (vid && idn && updatedStored[vid] !== idn) {
-            updatedStored[vid] = idn;
-            changed = true;
-          }
-        }
-        if (changed) saveStoredIdents(updatedStored);
+        const updatedStored = parseCategoryIdentsFromText(text);
         return !!updatedStored[vcatId];
       }
     } catch {}
@@ -577,21 +583,7 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
       const resp = await fetch(targetUrl, { credentials: 'same-origin' });
       if (resp.ok) {
         const text = await resp.text();
-        const updatedStored = getStoredIdents();
-        let changed = false;
-        const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          const vid = match[1] || match[4];
-          const idn = match[2] || match[3];
-          if (vid && idn && updatedStored[vid] !== idn) {
-            updatedStored[vid] = idn;
-            changed = true;
-          }
-        }
-        if (changed) {
-          saveStoredIdents(updatedStored);
-        }
+        const updatedStored = parseCategoryIdentsFromText(text);
         if (updatedStored[vcatId]) {
           item.ident = updatedStored[vcatId];
           return item.ident;
@@ -616,16 +608,17 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
 }
 
 export async function executeServerCategoryExclusion(vcatId, initialIdent = '', doc = (typeof document !== 'undefined' ? document : null)) {
-  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
   const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
   const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
   const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
   const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-  const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+  const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                      activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
 
-  if (typeof fetch !== 'function' || !ajaxUrl) return;
+  if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
   const currentPath = typeof location !== 'undefined' ? location.pathname : '';
   let ident = initialIdent || getStoredIdents()[vcatId] || '';
@@ -636,7 +629,8 @@ export async function executeServerCategoryExclusion(vcatId, initialIdent = '', 
 
   if (!ident) {
     console.warn('[Toppreise-Suite] Could not resolve aicat token for category', vcatId);
-    return;
+    showToast('Kategorie konnte nicht ausgeblendet werden (Token fehlt)');
+    return false;
   }
 
   const body = new URLSearchParams({
@@ -666,23 +660,30 @@ export async function executeServerCategoryExclusion(vcatId, initialIdent = '', 
         updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
       }
       await refreshProductFeed(activeDoc);
+      return true;
+    } else {
+      showToast('Kategorie konnte nicht ausgeblendet werden (Serverfehler)');
+      return false;
     }
   } catch (err) {
     console.error('[Toppreise-Suite] Category exclusion error:', err);
+    showToast('Kategorie konnte nicht ausgeblendet werden (Netzwerkfehler)');
+    return false;
   }
 }
 
 export async function executeServerCategoryRestore(vcatId, doc = (typeof document !== 'undefined' ? document : null)) {
-  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
   const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
   const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
   const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
   const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-  const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+  const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                      activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
 
-  if (typeof fetch !== 'function' || !ajaxUrl) return;
+  if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
   const body = new URLSearchParams({
     aicatvc: vcatId,
@@ -711,23 +712,27 @@ export async function executeServerCategoryRestore(vcatId, doc = (typeof documen
         updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
       }
       await refreshProductFeed(activeDoc);
+      return true;
     }
+    return false;
   } catch (err) {
     console.error('[Toppreise-Suite] Category restore error:', err);
+    return false;
   }
 }
 
 export async function executeServerCategoryReset(doc = (typeof document !== 'undefined' ? document : null)) {
-  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
   const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
   const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
   const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
   const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-  const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+  const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                      activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
 
-  if (typeof fetch !== 'function' || !ajaxUrl) return;
+  if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
   const body = new URLSearchParams({
     aicatrs: 'all',
@@ -755,9 +760,12 @@ export async function executeServerCategoryReset(doc = (typeof document !== 'und
         updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
       }
       await refreshProductFeed(activeDoc);
+      return true;
     }
+    return false;
   } catch (err) {
     console.error('[Toppreise-Suite] Category reset error:', err);
+    return false;
   }
 }
 
@@ -1147,7 +1155,9 @@ export function enhanceCategorySidebar() {
 
   // 4. Listen for category hide/show/reset to collapse/restore tree branches and sync chips
   if (typeof document !== 'undefined' && document.body?.addEventListener) {
-    document.body.addEventListener('click', e => {
+    const isLiveSite = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
+
+    document.body.addEventListener('click', async e => {
       const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
       if (hideBtn) {
         const vcatId = hideBtn.getAttribute?.('data-vcat-id');
@@ -1163,9 +1173,21 @@ export function enhanceCategorySidebar() {
         const li = hideBtn.closest?.('li') || hideBtn.closest?.('.tp-cat-result-item');
         const catName = (li?.querySelector?.('.tp-cat-res-title') || li?.querySelector?.('a'))?.textContent?.trim() || 'Kategorie';
         const ident = hideBtn.getAttribute?.('data-ident') || getStoredIdents()[vcatId] || '';
+        const rowEl = hideBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || hideBtn;
 
-        // Add chip to Plugin_IgnoredCategories bar if not already present
-        addIgnoredCategoryChip(vcatId, catName, ident, document);
+        if (isLiveSite && isSubOrSearch) {
+          // On live site: display pending indicator, resolve authentic token and persist on server
+          rowEl.classList?.add?.('tp-cat-loading');
+          const success = await executeServerCategoryExclusion(vcatId, ident, document);
+          rowEl.classList?.remove?.('tp-cat-loading');
+
+          if (!success) {
+            return;
+          }
+        } else {
+          // In mock/test environments or root categories: instant client DOM simulation
+          addIgnoredCategoryChip(vcatId, catName, ident, document);
+        }
 
         const targetLi = hideBtn.closest?.('li') || sidebar.querySelector(`li[data-cat-id="c${vcatId}"]`);
         if (targetLi) {
@@ -1189,11 +1211,6 @@ export function enhanceCategorySidebar() {
 
         // Defer mutating button class so event loop finishes without triggering opposite Show listeners
         setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
-
-        // On live site: execute background server exclusion for injected non-root elements
-        if (isSubOrSearch) {
-          executeServerCategoryExclusion(vcatId, ident, document);
-        }
         return;
       }
 
@@ -1239,6 +1256,6 @@ export function enhanceCategorySidebar() {
         setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
         executeServerCategoryReset(document);
       }
-    });
+    }, { capture: true });
   }
 }
