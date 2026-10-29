@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.397
+// @version      2.18.399
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5774,21 +5774,18 @@ const SHADOW_MODAL_STYLES = `
       const resp = await fetch(feedUrl, { credentials: 'same-origin' });
       if (!resp.ok) return;
       const html = await resp.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const triggers = doc.querySelectorAll('.Plugin_CategoryMainSelectionLeft .ignoreCategory[data-vcat-id][data-ident]');
-      if (triggers.length === 0) return;
-
       const stored = getStoredIdents();
       let changed = false;
-      triggers.forEach(tr => {
-        const vcatId = tr.getAttribute('data-vcat-id');
-        const ident = tr.getAttribute('data-ident');
-        if (vcatId && ident && stored[vcatId] !== ident) {
-          stored[vcatId] = ident;
+      const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
+      let match;
+      while ((match = regex.exec(html)) !== null) {
+        const vid = match[1] || match[4];
+        const idn = match[2] || match[3];
+        if (vid && idn && stored[vid] !== idn) {
+          stored[vid] = idn;
           changed = true;
         }
-      });
+      }
       if (changed) saveStoredIdents(stored);
 
       // Update rendered spans in this branch if present
@@ -5801,6 +5798,68 @@ const SHADOW_MODAL_STYLES = `
         });
       }
     } catch {}
+  }
+
+  async function ensureCategoryIdent(item, tree = null, currentPath = '') {
+    if (!item) return '';
+    const vcatId = String(item.numericId || item.vcatId || '').trim();
+    if (!vcatId) return '';
+    if (item.ident) return item.ident;
+
+    const stored = getStoredIdents();
+    if (stored[vcatId]) {
+      item.ident = stored[vcatId];
+      return item.ident;
+    }
+
+    if (!tree) {
+      tree = await loadNativeCategoryTree();
+    }
+    if (!tree?.byId) return '';
+
+    const catId = item.id || `c${vcatId}`;
+    const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
+    if (!node) return '';
+
+    // Determine parent page URL
+    let parentUrl = '';
+    if (!node.parentID || node.parentID === 'root' || node.parentID === 'start') {
+      parentUrl = currentPath || '/neue-toppreise';
+    } else {
+      const parentNode = tree.byId.get(node.parentID);
+      if (parentNode?.url) {
+        parentUrl = toFeedUrl(parentNode.url, currentPath);
+      }
+    }
+
+    if (parentUrl && typeof fetch === 'function') {
+      try {
+        const resp = await fetch(parentUrl, { credentials: 'same-origin' });
+        if (resp.ok) {
+          const text = await resp.text();
+          const updatedStored = getStoredIdents();
+          let changed = false;
+          const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
+          let match;
+          while ((match = regex.exec(text)) !== null) {
+            const vid = match[1] || match[4];
+            const idn = match[2] || match[3];
+            if (vid && idn && updatedStored[vid] !== idn) {
+              updatedStored[vid] = idn;
+              changed = true;
+            }
+          }
+          if (changed) {
+            saveStoredIdents(updatedStored);
+          }
+          if (updatedStored[vcatId]) {
+            item.ident = updatedStored[vcatId];
+            return item.ident;
+          }
+        }
+      } catch {}
+    }
+    return item.ident || '';
   }
 
   function harvestExistingIdents(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
@@ -5906,32 +5965,33 @@ const SHADOW_MODAL_STYLES = `
   async function commitStagedExclusions(items, doc = (typeof document !== 'undefined' ? document : null)) {
     if (!items || items.length === 0) return;
     const bar = doc?.querySelector?.('.Plugin_IgnoredCategories');
-    const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+    let currentHash = bar?.getAttribute?.('data-context-hash') || '';
     const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
     const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
     const lang = menuEl?.getAttribute?.('data-lang') || 'de';
 
-    const stored = getStoredIdents();
-    for (const item of items) {
-      const vcatId = String(item.numericId || item.vcatId || '').trim();
-      if (!item.ident && stored[vcatId]) {
-        item.ident = stored[vcatId];
-      }
-    }
-
     const isLive = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
 
     if (isLive && typeof fetch === 'function' && ajaxUrl) {
-      try {
-        await Promise.all(items.map(item => {
-          const vcatId = item.numericId || item.vcatId;
-          const body = new URLSearchParams({
-            aicat: item.ident || '',
-            aicatvc: vcatId,
-            fp_ic_ch: contextHash,
-            lang
-          });
-          return fetch(ajaxUrl, {
+      const tree = await loadNativeCategoryTree(doc);
+      const currentPath = typeof location !== 'undefined' ? location.pathname : '';
+
+      // 1. Resolve missing ident tokens before executing exclusions
+      for (const item of items) {
+        await ensureCategoryIdent(item, tree, currentPath);
+      }
+
+      // 2. Commit each item sequentially, chaining the context hash from the server response
+      for (const item of items) {
+        const vcatId = item.numericId || item.vcatId;
+        const body = new URLSearchParams({
+          aicat: item.ident || '',
+          aicatvc: vcatId,
+          fp_ic_ch: currentHash,
+          lang
+        });
+        try {
+          const resp = await fetch(ajaxUrl, {
             method: 'POST',
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
@@ -5940,8 +6000,18 @@ const SHADOW_MODAL_STYLES = `
             credentials: 'same-origin',
             body: body.toString()
           });
-        }));
-      } catch {}
+          if (resp.ok) {
+            const html = await resp.text();
+            const match = html.match(/data-context-hash="([^"]+)"/);
+            if (match && match[1]) {
+              currentHash = match[1];
+            }
+          }
+        } catch (err) {
+          console.error('[Toppreise-Suite] Category exclusion error:', err);
+        }
+      }
+
       if (typeof location !== 'undefined' && typeof location.reload === 'function') {
         location.reload();
         return;
@@ -6312,17 +6382,22 @@ const SHADOW_MODAL_STYLES = `
             const storedIdents = getStoredIdents();
             const ident = storedIdents[vcatId] || '';
             const link = itemEl?.querySelector('.tp-cat-result-link')?.getAttribute('href') || '';
-            stagedPool.set(vcatId, {
+            const stagedItem = {
               vcatId,
               numericId: vcatId,
               id: catId,
               title,
               ident,
               url: link
-            });
+            };
+            stagedPool.set(vcatId, stagedItem);
+
+            const tree = await loadNativeCategoryTree();
+            if (!ident) {
+              ensureCategoryIdent(stagedItem, tree, currentPath).catch(() => {});
+            }
 
             // Prune any staged child nodes if their parent was just staged
-            const tree = await loadNativeCategoryTree();
             if (tree) {
               for (const [stagedKey] of stagedPool.entries()) {
                 if (stagedKey !== vcatId) {
@@ -13899,7 +13974,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.397';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.399';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

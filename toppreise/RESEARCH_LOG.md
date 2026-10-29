@@ -99,6 +99,8 @@
   Suite injects client-side accordion tree `.tp-cat-sublist` and instant search `.tp-cat-search-box`;
   subcategories and search results sync with `#Plugin_IgnoredCategories` chips to display red strikethrough
   and 1-click `✕` exclusion / `+` restore (`f_IgnoredCategories_Show`/`Hide`), proxying unhide clicks back to native chips.
+  Pooled category exclusions (`commitStagedExclusions`) resolve parent branch tokens (`aicat`) and chain
+  `fp_ic_ch` context hashes sequentially to avoid PHP session lock races and stale token rejections.
 - Per-card trigger `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger`
   at `top: 0; right: 0; z-index: 3` (card gets `.hasHideTrigger`); hover loads
   `.IgnoredCategoriesMenu .entry.f_IgnoredCategories_MenuEntry[data-vcat-id]`
