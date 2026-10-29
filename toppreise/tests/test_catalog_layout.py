@@ -2428,10 +2428,37 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const rowBgAfterHide = firstLi?.querySelector('.tp-cat-row') ? window.getComputedStyle(firstLi.querySelector('.tp-cat-row')).backgroundColor : null;
 
         // Re-enabling restores toggle interactivity
-        const showBtn = document.querySelector('.f_IgnoredCategories_Show') || firstLi?.querySelector('.f_IgnoredCategories_Show');
+        const showBtn = document.querySelector('.Plugin_IgnoredCategories .f_IgnoredCategories_Show') || document.querySelector('.f_IgnoredCategories_Show');
+        const showBtnHtml = showBtn ? showBtn.outerHTML : 'none';
         if (showBtn) showBtn.click();
         await new Promise(r => setTimeout(r, 60));
         const toggleDisabledAfterShow = !!firstToggle?.disabled;
+
+        // Expand again and test subcategory exclusion sync
+        if (firstToggle) firstToggle.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const sublistReopened = firstLi?.querySelector('.tp-cat-sublist');
+        const childLi = sublistReopened?.querySelector('.tp-cat-item');
+        const childHideBtn = childLi?.querySelector('.f_IgnoredCategories_Hide');
+        const childIgnoredBefore = childLi?.classList.contains('ignoredCategoryEntry');
+
+        // Click hide on child category
+        if (childHideBtn) childHideBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const childIgnoredAfter = childLi?.classList.contains('ignoredCategoryEntry');
+        const childBtnClassAfter = childLi?.querySelector('.ignoreCategory')?.className || '';
+        const childIconClassAfter = childLi?.querySelector('.ignoreCategory i')?.className || '';
+
+        // Click unhide on child category via its '+' button
+        const childShowBtn = childLi?.querySelector('.f_IgnoredCategories_Show');
+        if (childShowBtn) childShowBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const childIgnoredRestored = childLi?.classList.contains('ignoredCategoryEntry');
+        const childBtnClassRestored = childLi?.querySelector('.ignoreCategory')?.className || '';
+        const childIconClassRestored = childLi?.querySelector('.ignoreCategory i')?.className || '';
 
         return {
             enhanced: !!enhanced,
@@ -2445,7 +2472,14 @@ def test_expandable_category_sidebar_interactions(page: Page):
             sublistAfterHide: !!sublistAfterHide,
             toggleDisabledAfterHide,
             rowBgAfterHide,
-            toggleDisabledAfterShow
+            toggleDisabledAfterShow,
+            childIgnoredBefore: !!childIgnoredBefore,
+            childIgnoredAfter: !!childIgnoredAfter,
+            childBtnClassAfter,
+            childIconClassAfter,
+            childIgnoredRestored: !!childIgnoredRestored,
+            childBtnClassRestored,
+            childIconClassRestored
         };
     }""")
 
@@ -2461,6 +2495,15 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['toggleDisabledAfterHide'] is True
     assert '239, 68, 68' in (res['rowBgAfterHide'] or '')
     assert res['toggleDisabledAfterShow'] is False
+    assert res['childIgnoredBefore'] is False
+    assert res['childIgnoredAfter'] is True
+    assert 'f_IgnoredCategories_Show' in res['childBtnClassAfter']
+    assert 'TPIcons-plus' in res['childIconClassAfter']
+    assert res['childIgnoredRestored'] is False
+    assert 'f_IgnoredCategories_Hide' in res['childBtnClassRestored']
+    assert 'TPIcons-cross' in res['childIconClassRestored']
+    assert 'f_IgnoredCategories_Hide' in res['childBtnClassRestored']
+    assert 'TPIcons-cross' in res['childIconClassRestored']
 
 
 

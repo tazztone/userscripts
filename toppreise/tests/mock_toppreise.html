@@ -624,12 +624,15 @@
           }
         }
 
-        const showChip = e.target.closest('.f_IgnoredCategories_Show');
-        if (showChip) {
+        const showTrigger = e.target.closest('.f_IgnoredCategories_Show');
+        if (showTrigger) {
           e.preventDefault();
           e.stopPropagation();
-          const vcatId = showChip.getAttribute('data-vcat-id');
-          showChip.remove();
+          const vcatId = showTrigger.getAttribute('data-vcat-id');
+          const chip = showTrigger.closest('.Plugin_IgnoredCategories')
+            ? showTrigger
+            : document.querySelector(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`);
+          if (chip) chip.remove();
           const bar = document.querySelector('.Plugin_IgnoredCategories');
           if (bar) {
             const barContainer = bar.querySelector('.ignoredCategoriesBar');

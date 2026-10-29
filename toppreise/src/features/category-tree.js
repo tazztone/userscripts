@@ -578,8 +578,8 @@ export function enhanceCategorySidebar() {
       if (showBtn) {
         const vcatId = showBtn.getAttribute?.('data-vcat-id');
 
-        // If clicked on a subcategory restore button, proxy click to the native chip if available
-        if (showBtn.closest('.tp-cat-sublist') && vcatId) {
+        // If clicked on a sidebar restore button, proxy click to the native chip if available
+        if (showBtn.closest('.Plugin_CategoryMainSelectionLeft') && vcatId) {
           const matchingChip = document.querySelector(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`);
           if (matchingChip) {
             e.preventDefault();
