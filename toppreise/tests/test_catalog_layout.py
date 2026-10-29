@@ -2450,6 +2450,8 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const childIgnoredAfter = childLi?.classList.contains('ignoredCategoryEntry');
         const childBtnClassAfter = childLi?.querySelector('.ignoreCategory')?.className || '';
         const childIconClassAfter = childLi?.querySelector('.ignoreCategory i')?.className || '';
+        const parentIgnoredWhenChildIgnored = firstLi?.classList.contains('ignoredCategoryEntry');
+        const parentLinkLineWhenChildIgnored = window.getComputedStyle(firstLi.querySelector('.tp-cat-row > a')).textDecorationLine;
 
         // Click unhide on child category via its '+' button
         const childShowBtn = childLi?.querySelector('.f_IgnoredCategories_Show');
@@ -2477,6 +2479,8 @@ def test_expandable_category_sidebar_interactions(page: Page):
             childIgnoredAfter: !!childIgnoredAfter,
             childBtnClassAfter,
             childIconClassAfter,
+            parentIgnoredWhenChildIgnored: !!parentIgnoredWhenChildIgnored,
+            parentLinkLineWhenChildIgnored,
             childIgnoredRestored: !!childIgnoredRestored,
             childBtnClassRestored,
             childIconClassRestored
@@ -2499,6 +2503,8 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['childIgnoredAfter'] is True
     assert 'f_IgnoredCategories_Show' in res['childBtnClassAfter']
     assert 'TPIcons-plus' in res['childIconClassAfter']
+    assert res['parentIgnoredWhenChildIgnored'] is False
+    assert 'line-through' not in res['parentLinkLineWhenChildIgnored']
     assert res['childIgnoredRestored'] is False
     assert 'f_IgnoredCategories_Hide' in res['childBtnClassRestored']
     assert 'TPIcons-cross' in res['childIconClassRestored']

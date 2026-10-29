@@ -221,9 +221,11 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
 
 export function isCategoryIgnored(li) {
   if (!li) return false;
-  return li.classList?.contains?.('ignoredCategoryEntry') ||
-         !!li.querySelector?.('.f_IgnoredCategories_Show') ||
-         !!li.querySelector?.('.ignoreCategory i.TPIcons-plus');
+  if (li.classList?.contains?.('ignoredCategoryEntry')) return true;
+  const row = li.querySelector?.(':scope > .tp-cat-row') || li.firstElementChild || li;
+  const showBtn = row?.querySelector?.('.f_IgnoredCategories_Show') ||
+                  row?.querySelector?.('.ignoreCategory i.TPIcons-plus');
+  return !!(showBtn && (!showBtn.closest || showBtn.closest('li') === li));
 }
 
 export function getIgnoredVcatIds(doc = (typeof document !== 'undefined' ? document : null)) {
@@ -243,13 +245,14 @@ export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'und
   const ignoredIds = getIgnoredVcatIds(doc);
 
   sidebar.querySelectorAll('li.tp-cat-node').forEach(li => {
-    const span = li.querySelector('.ignoreCategory[data-vcat-id]');
-    if (!span) return;
+    const row = li.querySelector?.(':scope > .tp-cat-row') || li.firstElementChild || li;
+    const span = row?.querySelector?.('.ignoreCategory[data-vcat-id]');
+    if (!span || (span.closest && span.closest('li') !== li)) return;
     const vcatId = span.getAttribute('data-vcat-id');
     if (!vcatId) return;
 
     const isIgnored = ignoredIds.has(String(vcatId).trim());
-    const toggle = li.querySelector(':scope > .tp-cat-row > .tp-cat-toggle') || li.querySelector('.tp-cat-toggle');
+    const toggle = row.querySelector?.('.tp-cat-toggle');
 
     if (isIgnored) {
       li.classList.add('ignoredCategoryEntry');

@@ -131,9 +131,30 @@ test('isCategoryIgnored detects ignored classes and show triggers', () => {
   assert.equal(isCategoryIgnored(ignoredLi), true);
 
   const showLi = createMockElement('li');
+  const showRow = createMockElement('div', { className: 'tp-cat-row' });
   const showSpan = createMockElement('span', { className: 'f_IgnoredCategories_Show' });
-  showLi.appendChild(showSpan);
+  showRow.appendChild(showSpan);
+  showLi.appendChild(showRow);
   assert.equal(isCategoryIgnored(showLi), true);
+
+  // Parent LI should NOT be considered ignored when only its child LI is ignored
+  const parentLi = createMockElement('li');
+  const parentRow = createMockElement('div', { className: 'tp-cat-row' });
+  const parentHideSpan = createMockElement('span', { className: 'f_IgnoredCategories_Hide' });
+  parentRow.appendChild(parentHideSpan);
+  parentLi.appendChild(parentRow);
+
+  const sublist = createMockElement('ul', { className: 'tp-cat-sublist' });
+  const childLi = createMockElement('li', { className: 'ignoredCategoryEntry' });
+  const childRow = createMockElement('div', { className: 'tp-cat-row' });
+  const childShowSpan = createMockElement('span', { className: 'f_IgnoredCategories_Show' });
+  childRow.appendChild(childShowSpan);
+  childLi.appendChild(childRow);
+  sublist.appendChild(childLi);
+  parentLi.appendChild(sublist);
+
+  assert.equal(isCategoryIgnored(parentLi), false);
+  assert.equal(isCategoryIgnored(childLi), true);
 });
 
 test('searchCategoryTree matches title and URL keywords', () => {
@@ -220,6 +241,7 @@ function createMockElement(tag, attrs = {}) {
     removeAttribute: a => { delete el.attributes[a]; },
     addEventListener: () => {},
     get firstChild() { return children[0] || null; },
+    get firstElementChild() { return children[0] || null; },
     appendChild: child => {
       if (child.parentElement?.removeChild) child.parentElement.removeChild(child);
       children.push(child);
@@ -238,6 +260,14 @@ function createMockElement(tag, attrs = {}) {
         children.splice(idx, 1);
         child.parentElement = null;
         return child;
+      }
+      return null;
+    },
+    closest: sel => {
+      let cur = el;
+      while (cur) {
+        if (cur.matches?.(sel)) return cur;
+        cur = cur.parentElement;
       }
       return null;
     },

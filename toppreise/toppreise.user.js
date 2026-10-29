@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.390
+// @version      2.18.391
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1283,21 +1283,21 @@ const STYLES_CHROME = `
     box-sizing: border-box !important;
   }
   /* Suppress sublists and disable accordion toggles for ignored categories */
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-sublist {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-sublist {
     display: none !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle {
     opacity: 0.25 !important;
     pointer-events: none !important;
     cursor: default !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row {
     background: rgba(239, 68, 68, 0.08) !important;
     border-radius: var(--tp-r-sm, 4px) !important;
     padding-left: 2px !important;
     padding-right: 2px !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row > a {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row > a {
     color: #f87171 !important;
     text-decoration: line-through !important;
     opacity: 0.8 !important;
@@ -5622,9 +5622,11 @@ const SHADOW_MODAL_STYLES = `
 
   function isCategoryIgnored(li) {
     if (!li) return false;
-    return li.classList?.contains?.('ignoredCategoryEntry') ||
-           !!li.querySelector?.('.f_IgnoredCategories_Show') ||
-           !!li.querySelector?.('.ignoreCategory i.TPIcons-plus');
+    if (li.classList?.contains?.('ignoredCategoryEntry')) return true;
+    const row = li.querySelector?.(':scope > .tp-cat-row') || li.firstElementChild || li;
+    const showBtn = row?.querySelector?.('.f_IgnoredCategories_Show') ||
+                    row?.querySelector?.('.ignoreCategory i.TPIcons-plus');
+    return !!(showBtn && (!showBtn.closest || showBtn.closest('li') === li));
   }
 
   function getIgnoredVcatIds(doc = (typeof document !== 'undefined' ? document : null)) {
@@ -5644,13 +5646,14 @@ const SHADOW_MODAL_STYLES = `
     const ignoredIds = getIgnoredVcatIds(doc);
 
     sidebar.querySelectorAll('li.tp-cat-node').forEach(li => {
-      const span = li.querySelector('.ignoreCategory[data-vcat-id]');
-      if (!span) return;
+      const row = li.querySelector?.(':scope > .tp-cat-row') || li.firstElementChild || li;
+      const span = row?.querySelector?.('.ignoreCategory[data-vcat-id]');
+      if (!span || (span.closest && span.closest('li') !== li)) return;
       const vcatId = span.getAttribute('data-vcat-id');
       if (!vcatId) return;
 
       const isIgnored = ignoredIds.has(String(vcatId).trim());
-      const toggle = li.querySelector(':scope > .tp-cat-row > .tp-cat-toggle') || li.querySelector('.tp-cat-toggle');
+      const toggle = row.querySelector?.('.tp-cat-toggle');
 
       if (isIgnored) {
         li.classList.add('ignoredCategoryEntry');
@@ -13398,7 +13401,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.390';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.391';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

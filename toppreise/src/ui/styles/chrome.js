@@ -593,21 +593,21 @@ export const STYLES_CHROME = `
     box-sizing: border-box !important;
   }
   /* Suppress sublists and disable accordion toggles for ignored categories */
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-sublist {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-sublist {
     display: none !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle {
     opacity: 0.25 !important;
     pointer-events: none !important;
     cursor: default !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row {
     background: rgba(239, 68, 68, 0.08) !important;
     border-radius: var(--tp-r-sm, 4px) !important;
     padding-left: 2px !important;
     padding-right: 2px !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(.f_IgnoredCategories_Show)) > .tp-cat-row > a {
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row > a {
     color: #f87171 !important;
     text-decoration: line-through !important;
     opacity: 0.8 !important;
