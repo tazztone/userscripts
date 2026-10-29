@@ -554,20 +554,25 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
     }
   }
 
-  // 2. Fetch category page or parent URL
-  let targetUrl = node.url ? toFeedUrl(node.url, currentPath) : '';
-  if (!targetUrl) {
-    if (!node.parentID || node.parentID === 'root' || node.parentID === 'start') {
-      targetUrl = currentPath || '/neue-toppreise';
-    } else {
-      const parentNode = tree.byId.get(node.parentID);
-      if (parentNode?.url) {
-        targetUrl = toFeedUrl(parentNode.url, currentPath);
-      }
+  // 2. Fetch category catalog page or parent URL
+  const candidateUrls = [];
+  if (node.url) {
+    candidateUrls.push(node.url);
+    candidateUrls.push(toFeedUrl(node.url, currentPath));
+  }
+  if (node.parentID && node.parentID !== 'root' && node.parentID !== 'start') {
+    const parentNode = tree.byId.get(node.parentID);
+    if (parentNode?.url) {
+      candidateUrls.push(parentNode.url);
+      candidateUrls.push(toFeedUrl(parentNode.url, currentPath));
     }
   }
+  if (candidateUrls.length === 0) {
+    candidateUrls.push(currentPath || '/neue-toppreise');
+  }
 
-  if (targetUrl && typeof fetch === 'function') {
+  for (const targetUrl of candidateUrls) {
+    if (!targetUrl || typeof fetch !== 'function') continue;
     try {
       const resp = await fetch(targetUrl, { credentials: 'same-origin' });
       if (resp.ok) {
@@ -627,6 +632,11 @@ export async function executeServerCategoryExclusion(vcatId, initialIdent = '', 
   if (!ident) {
     const tree = await loadNativeCategoryTree(activeDoc);
     ident = await ensureCategoryIdent({ numericId: vcatId, vcatId, ident }, tree, currentPath, activeDoc);
+  }
+
+  if (!ident) {
+    console.warn('[Toppreise-Suite] Could not resolve aicat token for category', vcatId);
+    return;
   }
 
   const body = new URLSearchParams({
@@ -1144,6 +1154,12 @@ export function enhanceCategorySidebar() {
         if (!vcatId) return;
 
         const isSubOrSearch = !!hideBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
+        if (isSubOrSearch) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
+        }
+
         const li = hideBtn.closest?.('li') || hideBtn.closest?.('.tp-cat-result-item');
         const catName = (li?.querySelector?.('.tp-cat-res-title') || li?.querySelector?.('a'))?.textContent?.trim() || 'Kategorie';
         const ident = hideBtn.getAttribute?.('data-ident') || getStoredIdents()[vcatId] || '';
@@ -1168,11 +1184,11 @@ export function enhanceCategorySidebar() {
           }
         }
 
-        // Sync visual states immediately (updates row class, toggles, search results, and ✕ -> ＋)
-        syncCategoryTreeIgnoredState(sidebar);
-
         // Hide any matching cards currently in the feed immediately
         hideMatchingCategoryCards(vcatId, document);
+
+        // Defer mutating button class so event loop finishes without triggering opposite Show listeners
+        setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
 
         // On live site: execute background server exclusion for injected non-root elements
         if (isSubOrSearch) {
@@ -1187,6 +1203,11 @@ export function enhanceCategorySidebar() {
         if (!vcatId) return;
 
         const isSubOrSearch = !!showBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
+        if (isSubOrSearch) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
+        }
 
         // If clicked on a chip in Plugin_IgnoredCategories or a sidebar restore button
         removeIgnoredCategoryChip(vcatId, document);
@@ -1200,7 +1221,7 @@ export function enhanceCategorySidebar() {
           }
         }
 
-        syncCategoryTreeIgnoredState(sidebar);
+        setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
 
         if (isSubOrSearch) {
           executeServerCategoryRestore(vcatId, document);
@@ -1215,7 +1236,7 @@ export function enhanceCategorySidebar() {
           t.disabled = false;
           t.removeAttribute('aria-disabled');
         });
-        syncCategoryTreeIgnoredState(sidebar);
+        setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
         executeServerCategoryReset(document);
       }
     });
