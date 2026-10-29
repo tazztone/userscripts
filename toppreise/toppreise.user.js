@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.383
+// @version      2.18.384
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -10603,24 +10603,6 @@ const SHADOW_MODAL_STYLES = `
 
     els.fabButton.addEventListener('click', openModal);
     els.btnClose.addEventListener('click', closeModal);
-    els.dialog.addEventListener('click', e => {
-      if (e.target !== els.dialog) return;
-      const rect = els.dialog.getBoundingClientRect();
-      const isBackdrop = (
-        e.clientX < rect.left ||
-        e.clientX > rect.right ||
-        e.clientY < rect.top ||
-        e.clientY > rect.bottom
-      );
-      if (!isBackdrop) return;
-
-      if (hasPendingChanges(els.dialog, initialSnapshot)) {
-        if (!window.confirm('Ungespeicherte Änderungen verwerfen?')) {
-          return;
-        }
-      }
-      closeModal();
-    });
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the els.shadow keydown handler — reset the preview anyway.
     els.dialog.addEventListener('close', () => {
@@ -13260,7 +13242,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.383';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.384';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

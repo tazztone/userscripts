@@ -247,24 +247,6 @@ export function wireModalActions(els) {
 
   els.fabButton.addEventListener('click', openModal);
   els.btnClose.addEventListener('click', closeModal);
-  els.dialog.addEventListener('click', e => {
-    if (e.target !== els.dialog) return;
-    const rect = els.dialog.getBoundingClientRect();
-    const isBackdrop = (
-      e.clientX < rect.left ||
-      e.clientX > rect.right ||
-      e.clientY < rect.top ||
-      e.clientY > rect.bottom
-    );
-    if (!isBackdrop) return;
-
-    if (hasPendingChanges(els.dialog, initialSnapshot)) {
-      if (!window.confirm('Ungespeicherte Änderungen verwerfen?')) {
-        return;
-      }
-    }
-    closeModal();
-  });
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the els.shadow keydown handler — reset the preview anyway.
   els.dialog.addEventListener('close', () => {

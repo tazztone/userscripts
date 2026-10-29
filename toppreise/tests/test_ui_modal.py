@@ -20,69 +20,20 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
     assert not dialog.is_visible()
 
 
-def test_settings_dialog_closes_on_backdrop_click(page: Page):
+def test_settings_dialog_does_not_close_on_backdrop_click(page: Page):
     dialog = page.locator('#tp-root >> #tp-settings-dialog')
     page.click('#tp-root >> #tp-settings-fab')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     assert dialog.bounding_box()  # viewport corner sits outside the dialog box
-    page.mouse.click(5, 5)  # native backdrop: e.target === dialog
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
 
-
-def test_settings_dialog_backdrop_confirms_when_dirty_and_dismissed(page: Page):
-    dialog = page.locator('#tp-root >> #tp-settings-dialog')
-    open_settings(page)
-
-    # Make a pending change
-    page.fill('#tp-root >> #tp-real-deal-min-val', '45')
-
-    # Clicking outside triggers window.confirm; dismissing it keeps modal open
-    dialog_prompted = False
-    def on_dialog(d):
-        nonlocal dialog_prompted
-        dialog_prompted = True
-        assert 'Ungespeicherte Änderungen verwerfen?' in d.message
-        d.dismiss()
-
-    page.on('dialog', on_dialog)
+    # Clicking outside should NOT dismiss settings modal
     page.mouse.click(5, 5)
     page.wait_for_timeout(200)
-
-    assert dialog_prompted
     assert dialog.is_visible()
-    page.remove_listener('dialog', on_dialog)
 
-    # Cancel via explicit close button closes without confirm prompt
+    # Abbrechen closes the modal
     page.click('#tp-root >> #tp-btn-close')
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-
-
-def test_settings_dialog_backdrop_confirms_when_dirty_and_accepted(page: Page):
-    dialog = page.locator('#tp-root >> #tp-settings-dialog')
-    open_settings(page)
-
-    # Record initial value and make pending change
-    initial_val = page.locator('#tp-root >> #tp-real-deal-min-val').input_value()
-    page.fill('#tp-root >> #tp-real-deal-min-val', '45')
-
-    # Accepting confirm discards changes and closes modal
-    dialog_prompted = False
-    def on_dialog(d):
-        nonlocal dialog_prompted
-        dialog_prompted = True
-        assert 'Ungespeicherte Änderungen verwerfen?' in d.message
-        d.accept()
-
-    page.on('dialog', on_dialog)
-    page.mouse.click(5, 5)
-    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
-    assert dialog_prompted
-    page.remove_listener('dialog', on_dialog)
-
-    # Reopening reflects previous saved value, discarding dirty edit
-    open_settings(page)
-    assert page.locator('#tp-root >> #tp-real-deal-min-val').input_value() == initial_val
-    page.click('#tp-root >> #tp-btn-close')
 
 
 
