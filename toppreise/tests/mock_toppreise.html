@@ -596,6 +596,7 @@
           if (bar) {
             let barContainer = bar.querySelector('.ignoredCategoriesBar');
             if (barContainer) {
+              if (vcatId && barContainer.querySelector(`.ignoredCategory[data-vcat-id="${vcatId}"]`)) return;
               const hint = barContainer.querySelector('.ignoreCategoryHint');
               if (hint) hint.remove();
               let label = barContainer.querySelector('.label');

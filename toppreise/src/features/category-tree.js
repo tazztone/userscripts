@@ -290,6 +290,299 @@ export function getDoc(doc = null) {
   return null;
 }
 
+export function addIgnoredCategoryChip(vcatId, catName = 'Kategorie', ident = '', doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!vcatId) return;
+  const activeDoc = getDoc(doc);
+  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+  if (!bar) return;
+  const barContainer = bar.querySelector?.('.ignoredCategoriesBar') || bar;
+  if (!barContainer) return;
+
+  const cleanVcatId = String(vcatId).trim();
+  const existingChip = barContainer.querySelector?.(`.ignoredCategory[data-vcat-id="${cleanVcatId}"]`);
+  if (existingChip) return;
+
+  const hint = barContainer.querySelector?.('.ignoreCategoryHint');
+  if (hint?.remove) hint.remove();
+
+  let label = barContainer.querySelector?.('.label');
+  if (!label && activeDoc.createElement) {
+    label = activeDoc.createElement('span');
+    label.className = 'label';
+    label.textContent = 'Ausgeblendet:';
+    if (barContainer.prepend) barContainer.prepend(label);
+    else barContainer.appendChild(label);
+  }
+
+  if (activeDoc.createElement) {
+    const chip = activeDoc.createElement('span');
+    chip.className = 'ignoredCategory f_IgnoredCategories_Show';
+    chip.setAttribute('data-vcat-id', cleanVcatId);
+    if (ident) chip.setAttribute('data-ident', ident);
+    chip.setAttribute('title', 'Wieder einblenden');
+    chip.textContent = `${catName} `;
+
+    const removeSpan = activeDoc.createElement('span');
+    removeSpan.className = 'removeFilter';
+    const icon = activeDoc.createElement('i');
+    icon.className = 'TPIcons-cross';
+    icon.textContent = '✕';
+    removeSpan.appendChild(icon);
+    chip.appendChild(removeSpan);
+
+    barContainer.appendChild(chip);
+
+    let resetBtn = barContainer.querySelector?.('.resetAll');
+    if (!resetBtn) {
+      resetBtn = activeDoc.createElement('a');
+      resetBtn.className = 'resetAll f_IgnoredCategories_Reset';
+      resetBtn.textContent = 'Alle einblenden';
+      barContainer.appendChild(resetBtn);
+    }
+  }
+
+  const chips = barContainer.querySelectorAll?.('.ignoredCategory') || [];
+  bar.setAttribute('data-ignored-count', String(chips.length));
+}
+
+export function removeIgnoredCategoryChip(vcatId, doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!vcatId) return;
+  const activeDoc = getDoc(doc);
+  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+  if (!bar) return;
+  const barContainer = bar.querySelector?.('.ignoredCategoriesBar') || bar;
+  if (!barContainer) return;
+
+  const cleanVcatId = String(vcatId).trim();
+  const chip = barContainer.querySelector?.(`.ignoredCategory[data-vcat-id="${cleanVcatId}"]`);
+  if (chip?.remove) chip.remove();
+
+  const chips = barContainer.querySelectorAll?.('.ignoredCategory') || [];
+  bar.setAttribute('data-ignored-count', String(chips.length));
+  if (chips.length === 0) {
+    const label = barContainer.querySelector?.('.label');
+    if (label?.remove) label.remove();
+    const resetBtn = barContainer.querySelector?.('.resetAll');
+    if (resetBtn?.remove) resetBtn.remove();
+    if (activeDoc.createElement) {
+      const hint = activeDoc.createElement('span');
+      hint.className = 'ignoreCategoryHint';
+      hint.textContent = 'Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.';
+      barContainer.appendChild(hint);
+    }
+  }
+}
+
+export function resetAllIgnoredCategoryChips(doc = (typeof document !== 'undefined' ? document : null)) {
+  const activeDoc = getDoc(doc);
+  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+  if (!bar) return;
+  bar.setAttribute('data-ignored-count', '0');
+  const barContainer = bar.querySelector?.('.ignoredCategoriesBar') || bar;
+  if (!barContainer) return;
+
+  barContainer.querySelectorAll?.('.ignoredCategory')?.forEach(c => c.remove?.());
+  barContainer.querySelector?.('.label')?.remove?.();
+  barContainer.querySelector?.('.resetAll')?.remove?.();
+
+  if (activeDoc.createElement && !barContainer.querySelector?.('.ignoreCategoryHint')) {
+    const hint = activeDoc.createElement('span');
+    hint.className = 'ignoreCategoryHint';
+    hint.textContent = 'Kategorien, die Sie nicht interessieren, können Sie über das × aus diesen Listen ausblenden.';
+    barContainer.appendChild(hint);
+  }
+}
+
+export async function ensureCategoryIdent(item, tree = null, currentPath = '') {
+  if (!item) return '';
+  const vcatId = String(item.numericId || item.vcatId || '').trim();
+  if (!vcatId) return '';
+  if (item.ident) return item.ident;
+
+  const stored = getStoredIdents();
+  if (stored[vcatId]) {
+    item.ident = stored[vcatId];
+    return item.ident;
+  }
+
+  if (!tree) {
+    tree = await loadNativeCategoryTree();
+  }
+  if (!tree?.byId) return '';
+
+  const catId = item.id || `c${vcatId}`;
+  const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
+  if (!node) return '';
+
+  let parentUrl = '';
+  if (!node.parentID || node.parentID === 'root' || node.parentID === 'start') {
+    parentUrl = currentPath || '/neue-toppreise';
+  } else {
+    const parentNode = tree.byId.get(node.parentID);
+    if (parentNode?.url) {
+      parentUrl = toFeedUrl(parentNode.url, currentPath);
+    }
+  }
+
+  if (parentUrl && typeof fetch === 'function') {
+    try {
+      const resp = await fetch(parentUrl, { credentials: 'same-origin' });
+      if (resp.ok) {
+        const text = await resp.text();
+        const updatedStored = getStoredIdents();
+        let changed = false;
+        const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          const vid = match[1] || match[4];
+          const idn = match[2] || match[3];
+          if (vid && idn && updatedStored[vid] !== idn) {
+            updatedStored[vid] = idn;
+            changed = true;
+          }
+        }
+        if (changed) {
+          saveStoredIdents(updatedStored);
+        }
+        if (updatedStored[vcatId]) {
+          item.ident = updatedStored[vcatId];
+          return item.ident;
+        }
+      }
+    } catch {}
+  }
+  return item.ident || '';
+}
+
+export async function executeServerCategoryExclusion(vcatId, initialIdent = '', doc = (typeof document !== 'undefined' ? document : null)) {
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+
+  const activeDoc = getDoc(doc);
+  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+  const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
+  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+  const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+
+  if (typeof fetch !== 'function' || !ajaxUrl) return;
+
+  const currentPath = typeof location !== 'undefined' ? location.pathname : '';
+  let ident = initialIdent || getStoredIdents()[vcatId] || '';
+  if (!ident) {
+    const tree = await loadNativeCategoryTree(activeDoc);
+    ident = await ensureCategoryIdent({ numericId: vcatId, vcatId, ident }, tree, currentPath);
+  }
+
+  const body = new URLSearchParams({
+    aicat: ident || '',
+    aicatvc: vcatId,
+    fp_ic_ch: contextHash,
+    lang
+  });
+
+  try {
+    const resp = await fetch(ajaxUrl, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    });
+    if (resp.ok) {
+      const html = await resp.text();
+      const match = html.match(/data-context-hash="([^"]+)"/);
+      if (match && match[1] && bar) {
+        bar.setAttribute('data-context-hash', match[1]);
+      }
+    }
+  } catch (err) {
+    console.error('[Toppreise-Suite] Category exclusion error:', err);
+  }
+}
+
+export async function executeServerCategoryRestore(vcatId, doc = (typeof document !== 'undefined' ? document : null)) {
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+
+  const activeDoc = getDoc(doc);
+  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+  const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
+  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+  const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+
+  if (typeof fetch !== 'function' || !ajaxUrl) return;
+
+  const body = new URLSearchParams({
+    aicatvc: vcatId,
+    aicatrs: '1',
+    fp_ic_ch: contextHash,
+    lang
+  });
+
+  try {
+    const resp = await fetch(ajaxUrl, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    });
+    if (resp.ok) {
+      const html = await resp.text();
+      const match = html.match(/data-context-hash="([^"]+)"/);
+      if (match && match[1] && bar) {
+        bar.setAttribute('data-context-hash', match[1]);
+      }
+    }
+  } catch (err) {
+    console.error('[Toppreise-Suite] Category restore error:', err);
+  }
+}
+
+export async function executeServerCategoryReset(doc = (typeof document !== 'undefined' ? document : null)) {
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+
+  const activeDoc = getDoc(doc);
+  const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+  const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+  const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
+  const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+  const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+
+  if (typeof fetch !== 'function' || !ajaxUrl) return;
+
+  const body = new URLSearchParams({
+    aicatrs: 'all',
+    fp_ic_ch: contextHash,
+    lang
+  });
+
+  try {
+    const resp = await fetch(ajaxUrl, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
+      credentials: 'same-origin',
+      body: body.toString()
+    });
+    if (resp.ok) {
+      const html = await resp.text();
+      const match = html.match(/data-context-hash="([^"]+)"/);
+      if (match && match[1] && bar) {
+        bar.setAttribute('data-context-hash', match[1]);
+      }
+    }
+  } catch (err) {
+    console.error('[Toppreise-Suite] Category reset error:', err);
+  }
+}
+
 export function syncSearchResultsIgnoredState(resultsBox, doc = null) {
   if (!resultsBox?.querySelectorAll) return;
   const activeDoc = getDoc(doc || resultsBox?.ownerDocument);
@@ -674,13 +967,23 @@ export function enhanceCategorySidebar() {
     }
   }
 
-  // 4. Listen for category hide/show/reset to collapse/restore tree branches
+  // 4. Listen for category hide/show/reset to collapse/restore tree branches and sync chips
   if (typeof document !== 'undefined' && document.body?.addEventListener) {
     document.body.addEventListener('click', e => {
       const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
       if (hideBtn) {
         const vcatId = hideBtn.getAttribute?.('data-vcat-id');
-        const targetLi = hideBtn.closest('li') || (vcatId ? sidebar.querySelector(`li[data-cat-id="c${vcatId}"]`) : null);
+        if (!vcatId) return;
+
+        const isSubOrSearch = !!hideBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
+        const li = hideBtn.closest?.('li') || hideBtn.closest?.('.tp-cat-result-item');
+        const catName = (li?.querySelector?.('.tp-cat-res-title') || li?.querySelector?.('a'))?.textContent?.trim() || 'Kategorie';
+        const ident = hideBtn.getAttribute?.('data-ident') || getStoredIdents()[vcatId] || '';
+
+        // Add chip to Plugin_IgnoredCategories bar if not already present
+        addIgnoredCategoryChip(vcatId, catName, ident, document);
+
+        const targetLi = hideBtn.closest?.('li') || sidebar.querySelector(`li[data-cat-id="c${vcatId}"]`);
         if (targetLi) {
           const catId = targetLi.dataset?.catId;
           if (catId) {
@@ -696,27 +999,28 @@ export function enhanceCategorySidebar() {
             toggle.setAttribute('aria-disabled', 'true');
           }
         }
-        setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
+
+        // Sync visual states immediately (updates row class, toggles, search results, and ✕ -> ＋)
+        syncCategoryTreeIgnoredState(sidebar);
+
+        // On live site: execute background server exclusion for injected non-root elements
+        if (isSubOrSearch) {
+          executeServerCategoryExclusion(vcatId, ident, document);
+        }
         return;
       }
 
       const showBtn = e.target?.closest?.('.f_IgnoredCategories_Show');
       if (showBtn) {
         const vcatId = showBtn.getAttribute?.('data-vcat-id');
+        if (!vcatId) return;
 
-        // If clicked on a sidebar restore button, proxy click to the native chip if available
-        if (showBtn.closest('.Plugin_CategoryMainSelectionLeft') && vcatId) {
-          const matchingChip = document.querySelector(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`);
-          if (matchingChip) {
-            e.preventDefault();
-            e.stopPropagation();
-            matchingChip.click();
-            setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
-            return;
-          }
-        }
+        const isSubOrSearch = !!showBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
 
-        const targetLi = showBtn.closest('li') || (vcatId ? sidebar.querySelector(`[data-vcat-id="${vcatId}"]`)?.closest('li') : null);
+        // If clicked on a chip in Plugin_IgnoredCategories or a sidebar restore button
+        removeIgnoredCategoryChip(vcatId, document);
+
+        const targetLi = showBtn.closest?.('li') || sidebar.querySelector(`[data-vcat-id="${vcatId}"]`)?.closest('li');
         if (targetLi) {
           const toggle = targetLi.querySelector('.tp-cat-toggle');
           if (toggle) {
@@ -724,17 +1028,24 @@ export function enhanceCategorySidebar() {
             toggle.removeAttribute('aria-disabled');
           }
         }
-        setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
+
+        syncCategoryTreeIgnoredState(sidebar);
+
+        if (isSubOrSearch) {
+          executeServerCategoryRestore(vcatId, document);
+        }
         return;
       }
 
       const resetBtn = e.target?.closest?.('.f_IgnoredCategories_Reset');
       if (resetBtn) {
+        resetAllIgnoredCategoryChips(document);
         sidebar.querySelectorAll('.tp-cat-toggle').forEach(t => {
           t.disabled = false;
           t.removeAttribute('aria-disabled');
         });
-        setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
+        syncCategoryTreeIgnoredState(sidebar);
+        executeServerCategoryReset(document);
       }
     });
   }

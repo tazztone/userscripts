@@ -15,7 +15,11 @@ import {
   syncSearchResultsIgnoredState,
   harvestExistingIdents,
   renderChildList,
-  enhanceCategorySidebar
+  enhanceCategorySidebar,
+  addIgnoredCategoryChip,
+  removeIgnoredCategoryChip,
+  resetAllIgnoredCategoryChips,
+  ensureCategoryIdent
 } from '../../src/features/category-tree.js';
 
 test('toFeedUrl transforms catalog URLs to feed URLs', () => {
@@ -643,5 +647,103 @@ test('syncSearchResultsIgnoredState synchronizes hit items with active ignored c
     assert.ok(hideSpan.querySelector('i')?.classList?.contains('TPIcons-cross'));
   } finally {
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});
+
+test('addIgnoredCategoryChip, removeIgnoredCategoryChip, and resetAllIgnoredCategoryChips manage chip lifecycle', () => {
+  const prevDoc = globalThis.document;
+  try {
+    const root = createMockElement('div');
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const barContainer = createMockElement('div', { className: 'ignoredCategoriesBar' });
+    const hint = createMockElement('span', { className: 'ignoreCategoryHint' });
+    hint.textContent = 'Hint';
+    barContainer.appendChild(hint);
+    bar.appendChild(barContainer);
+    root.appendChild(bar);
+
+    globalThis.document = {
+      createElement: tag => createMockElement(tag),
+      querySelector: sel => root.querySelector(sel),
+      querySelectorAll: sel => root.querySelectorAll(sel)
+    };
+
+    // 1. Add first chip
+    addIgnoredCategoryChip('200', 'Computer & Zubehör', 'ident200', globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '1');
+    assert.equal(barContainer.querySelector('.ignoreCategoryHint'), null);
+    assert.ok(barContainer.querySelector('.label'));
+    assert.ok(barContainer.querySelector('.resetAll'));
+    const chip200 = barContainer.querySelector('.ignoredCategory[data-vcat-id="200"]');
+    assert.ok(chip200);
+    assert.equal(chip200.getAttribute('data-ident'), 'ident200');
+
+    // 2. Add duplicate chip (should be no-op)
+    addIgnoredCategoryChip('200', 'Computer & Zubehör', 'ident200', globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '1');
+
+    // 3. Add second chip
+    addIgnoredCategoryChip('900', 'Videogames', 'ident900', globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '2');
+    const chip900 = barContainer.querySelector('.ignoredCategory[data-vcat-id="900"]');
+    assert.ok(chip900);
+
+    // 4. Remove one chip
+    removeIgnoredCategoryChip('200', globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '1');
+    assert.equal(barContainer.querySelector('.ignoredCategory[data-vcat-id="200"]'), null);
+    assert.ok(barContainer.querySelector('.ignoredCategory[data-vcat-id="900"]'));
+
+    // 5. Remove remaining chip -> restores hint
+    removeIgnoredCategoryChip('900', globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '0');
+    assert.ok(barContainer.querySelector('.ignoreCategoryHint'));
+    assert.equal(barContainer.querySelector('.label'), null);
+    assert.equal(barContainer.querySelector('.resetAll'), null);
+
+    // 6. Reset all clears chips and restores hint
+    addIgnoredCategoryChip('200', 'Computer & Zubehör', 'ident200', globalThis.document);
+    addIgnoredCategoryChip('900', 'Videogames', 'ident900', globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '2');
+    resetAllIgnoredCategoryChips(globalThis.document);
+    assert.equal(bar.getAttribute('data-ignored-count'), '0');
+    assert.ok(barContainer.querySelector('.ignoreCategoryHint'));
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});
+
+test('ensureCategoryIdent returns cached token or resolves from parent page', async () => {
+  saveStoredIdents({ '500': 'token500' });
+
+  // 1. Existing stored token
+  const resCached = await ensureCategoryIdent({ vcatId: '500' });
+  assert.equal(resCached, 'token500');
+
+  // 2. Fetch from parent page
+  const prevFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url) => {
+      assert.ok(url.includes('Computer-Zubehoer-c200'));
+      return {
+        ok: true,
+        text: async () => `
+          <span class="ignoreCategory f_IgnoredCategories_Hide" data-vcat-id="600" data-ident="token600">✕</span>
+        `
+      };
+    };
+
+    const tree = {
+      byId: new Map([
+        ['c600', { id: 'c600', numericId: '600', parentID: 'c200' }],
+        ['c200', { id: 'c200', numericId: '200', url: '/produktsuche/Computer-Zubehoer-c200' }]
+      ])
+    };
+
+    const resFetched = await ensureCategoryIdent({ vcatId: '600' }, tree);
+    assert.equal(resFetched, 'token600');
+    assert.equal(getStoredIdents()['600'], 'token600');
+  } finally {
+    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
   }
 });
