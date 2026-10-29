@@ -289,3 +289,42 @@ def test_widget_on_zero_model_cards_page(browser, userscript_content):
     assert page.locator('#hf-df-empty-notice').count() == 0
     page.close()
 
+
+def test_unliked_only_filter_hides_liked_models(page: Page):
+    # In mock, card-liked is liked, card-unliked, card-gguf, card-fp8 are unliked
+    assert 'hf-is-liked' in (page.locator('#card-liked').get_attribute('class') or '')
+    assert 'hf-is-unliked' in (page.locator('#card-unliked').get_attribute('class') or '')
+
+    # Toggle "Only Unliked"
+    page.click('#hf-date-filter-root >> #hf-unliked-toggle + .hf-slider')
+    page.wait_for_function("document.querySelector('#card-liked').classList.contains('hf-liked-filtered-out')")
+
+    # Liked card is hidden, unliked cards remain visible
+    assert 'hf-filtered-out' in (page.locator('#card-liked').get_attribute('class') or '')
+    assert 'hf-liked-filtered-out' in (page.locator('#card-liked').get_attribute('class') or '')
+    assert 'hf-filtered-out' not in (page.locator('#card-unliked').get_attribute('class') or '')
+    assert 'hf-filtered-out' not in (page.locator('#card-gguf').get_attribute('class') or '')
+
+    # Summary chip is rendered
+    chips_text = page.locator('#hf-date-filter-root >> #hf-df-summary-chips').inner_text()
+    assert 'Unliked' in chips_text
+
+
+def test_liking_unliked_card_when_unliked_only_active_retains_card(page: Page):
+    # Toggle "Only Unliked"
+    page.click('#hf-date-filter-root >> #hf-unliked-toggle + .hf-slider')
+    page.wait_for_function("document.querySelector('#card-liked').classList.contains('hf-liked-filtered-out')")
+
+    # Click heart on unliked card
+    page.click('#unliked-like')
+    page.wait_for_function("window.likeRequests.length === 1")
+
+    # Card becomes liked, green border clears, but card is NOT filtered out because of hfJustLiked
+    classes = page.locator('#card-unliked').get_attribute('class') or ''
+    assert 'hf-is-liked' in classes
+    assert 'hf-is-unliked' not in classes
+    assert 'hf-liked-filtered-out' not in classes
+    assert 'hf-filtered-out' not in classes
+    assert page.locator('#card-unliked').get_attribute('data-hf-just-liked') == 'true'
+
+

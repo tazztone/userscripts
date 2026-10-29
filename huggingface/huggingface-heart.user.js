@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.4
+// @version      2.0.5
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -24,6 +24,7 @@ const DEFAULTS = {
   DATE_PRESET: 'all',
   FILTER_EXCLUDE_ENABLED: true,
   FILTER_EXCLUDE_TERMS: '',
+  FILTER_UNLIKED_ONLY: false,
   WIDGET_COLLAPSED: false
 };
 
@@ -65,8 +66,13 @@ const CARD_STYLES = `
   }
   article.overview-card-wrapper.hf-filtered-out,
   article.overview-card-wrapper.hf-date-filtered-out,
-  article.overview-card-wrapper.hf-text-filtered-out {
+  article.overview-card-wrapper.hf-text-filtered-out,
+  article.overview-card-wrapper.hf-liked-filtered-out {
     display: none !important;
+  }
+  article.overview-card-wrapper[data-hf-just-liked="true"] {
+    opacity: 0.9;
+    border: 1px solid rgba(239, 68, 68, 0.45) !important;
   }
   .hf-inline-like-btn {
     cursor: pointer !important;
@@ -962,6 +968,11 @@ const SHADOW_WIDGET_STYLES = `
 
     inlineLikePending.add(container);
     inlineLikeStates.set(stateKey, nextLiked);
+    if (nextLiked) {
+      card.dataset.hfJustLiked = 'true';
+    } else {
+      delete card.dataset.hfJustLiked;
+    }
     updateCardVisual(card, modelId);
     updateLikeCountText(container, nextLiked);
 
@@ -990,6 +1001,9 @@ const SHADOW_WIDGET_STYLES = `
           inlineLikeStates.set(stateKey, previousOverride);
         } else {
           inlineLikeStates.delete(stateKey);
+        }
+        if (nextLiked) {
+          delete card.dataset.hfJustLiked;
         }
         restoreInlineVisual(container, heartSvg, snapshot);
         updateCardVisual(card, modelId);
@@ -1042,6 +1056,7 @@ const SHADOW_WIDGET_STYLES = `
     let visibleCards = 0;
     let hiddenByDate = 0;
     let hiddenByText = 0;
+    let hiddenByLiked = 0;
 
     const isDateFilterActive = Boolean(CONFIG.DATE_FILTER_ENABLED);
     const minDays = CONFIG.DATE_MIN_DAYS;
@@ -1049,6 +1064,8 @@ const SHADOW_WIDGET_STYLES = `
 
     const isTextFilterActive = Boolean(CONFIG.FILTER_EXCLUDE_ENABLED && (CONFIG.FILTER_EXCLUDE_TERMS || '').trim());
     const matchers = isTextFilterActive ? parseNegativeFilter(CONFIG.FILTER_EXCLUDE_TERMS) : [];
+
+    const isLikedOnlyActive = Boolean(CONFIG.FILTER_UNLIKED_ONLY);
 
     const batchSize = 20;
     for (let i = 0; i < cards.length; i += batchSize) {
@@ -1059,6 +1076,7 @@ const SHADOW_WIDGET_STYLES = `
         const modelId = getModelIdFromCard(card);
         let dateExcluded = false;
         let textExcluded = false;
+        let likedExcluded = false;
 
         if (isDateFilterActive) {
           const timestamp = getModelDate(card);
@@ -1076,6 +1094,12 @@ const SHADOW_WIDGET_STYLES = `
           }
         }
 
+        updateCardVisual(card, modelId);
+        const isLiked = isModelLiked(card, modelId);
+        if (isLikedOnlyActive && isLiked && card.dataset.hfJustLiked !== 'true') {
+          likedExcluded = true;
+        }
+
         if (dateExcluded) {
           card.classList.add('hf-date-filtered-out');
           hiddenByDate++;
@@ -1090,7 +1114,14 @@ const SHADOW_WIDGET_STYLES = `
           card.classList.remove('hf-text-filtered-out');
         }
 
-        const shouldHide = dateExcluded || textExcluded;
+        if (likedExcluded) {
+          card.classList.add('hf-liked-filtered-out');
+          hiddenByLiked++;
+        } else {
+          card.classList.remove('hf-liked-filtered-out');
+        }
+
+        const shouldHide = dateExcluded || textExcluded || likedExcluded;
         if (shouldHide) {
           card.classList.add('hf-filtered-out');
         } else {
@@ -1098,7 +1129,6 @@ const SHADOW_WIDGET_STYLES = `
           visibleCards++;
         }
 
-        updateCardVisual(card, modelId);
         if (modelId) setupHeartButton(card, modelId);
       }
 
@@ -1109,13 +1139,13 @@ const SHADOW_WIDGET_STYLES = `
     }
 
     if (runId !== processRunId) return;
-    updateWidgetStats(visibleCards, totalCards, hiddenByDate, hiddenByText, isDateFilterActive, isTextFilterActive);
-    updateEmptyNotice(visibleCards, totalCards, isDateFilterActive, isTextFilterActive, hiddenByDate, hiddenByText);
+    updateWidgetStats(visibleCards, totalCards, hiddenByDate, hiddenByText, hiddenByLiked, isDateFilterActive, isTextFilterActive, isLikedOnlyActive);
+    updateEmptyNotice(visibleCards, totalCards, isDateFilterActive, isTextFilterActive, isLikedOnlyActive, hiddenByDate, hiddenByText, hiddenByLiked);
   }
 
-  function updateEmptyNotice(visibleCount, totalCount, isDateActive, isTextActive, hiddenByDate, hiddenByText) {
+  function updateEmptyNotice(visibleCount, totalCount, isDateActive, isTextActive, isLikedOnlyActive, hiddenByDate, hiddenByText, hiddenByLiked) {
     let noticeEl = document.getElementById('hf-df-empty-notice');
-    const isAnyActive = isDateActive || isTextActive;
+    const isAnyActive = isDateActive || isTextActive || isLikedOnlyActive;
 
     if (totalCount > 0 && visibleCount === 0 && isAnyActive) {
       if (!noticeEl) {
@@ -1128,6 +1158,7 @@ const SHADOW_WIDGET_STYLES = `
       if (noticeEl) {
         noticeEl.style.display = 'block';
         const reasons = [];
+        if (isLikedOnlyActive && hiddenByLiked > 0) reasons.push(`${hiddenByLiked} liked models hidden`);
         if (isTextActive && hiddenByText > 0) reasons.push(`${hiddenByText} by keyword filter`);
         if (isDateActive && hiddenByDate > 0) reasons.push(`${hiddenByDate} by date filter`);
         noticeEl.textContent = `No models match current filters (${reasons.join(', ')}). Adjust sidebar filter settings to see results.`;
@@ -1269,6 +1300,22 @@ const SHADOW_WIDGET_STYLES = `
 
         <!-- EXPANDED BODY -->
         <div class="hf-widget-body" id="hf-widget-body">
+          <!-- SECTION 0: Only Unliked Models -->
+          <div class="hf-filter-section" id="hf-unliked-section">
+            <div class="hf-filter-section-header">
+              <div class="hf-filter-section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 24 24" style="color: #10b981;">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+                Only Unliked Models
+              </div>
+              <label class="hf-switch" title="Toggle unliked models only filter">
+                <input id="hf-unliked-toggle" type="checkbox">
+                <span class="hf-slider"></span>
+              </label>
+            </div>
+          </div>
+
           <!-- SECTION 1: Exclude Text Filter -->
           <div class="hf-filter-section" id="hf-exclude-section">
             <div class="hf-filter-section-header">
@@ -1381,6 +1428,7 @@ const SHADOW_WIDGET_STYLES = `
   }
 
   function resetAllFilters() {
+    saveConfig('FILTER_UNLIKED_ONLY', false);
     saveConfig('FILTER_EXCLUDE_TERMS', '');
     saveConfig('FILTER_EXCLUDE_ENABLED', true);
     saveConfig('DATE_FILTER_ENABLED', false);
@@ -1400,6 +1448,7 @@ const SHADOW_WIDGET_STYLES = `
     const collapseBtn = shadow.getElementById('hf-df-collapse-btn');
     const resetBtn = shadow.getElementById('hf-df-reset-btn');
 
+    const unlikedToggle = shadow.getElementById('hf-unliked-toggle');
     const excludeToggle = shadow.getElementById('hf-exclude-toggle');
     const excludeInput = shadow.getElementById('hf-exclude-input');
     const clearBtn = shadow.getElementById('hf-exclude-clear-btn');
@@ -1434,6 +1483,12 @@ const SHADOW_WIDGET_STYLES = `
 
     settingsToggleBtn?.addEventListener('click', () => {
       settingsPanel?.classList.toggle('open');
+    });
+
+    unlikedToggle?.addEventListener('change', (e) => {
+      saveConfig('FILTER_UNLIKED_ONLY', e.target.checked);
+      syncWidgetUI();
+      processModelCards();
     });
 
     excludeToggle?.addEventListener('change', (e) => {
@@ -1567,6 +1622,7 @@ const SHADOW_WIDGET_STYLES = `
     const widget = shadow.getElementById('hf-date-filter-widget');
     const summaryChips = shadow.getElementById('hf-df-summary-chips');
 
+    const unlikedToggle = shadow.getElementById('hf-unliked-toggle');
     const excludeToggle = shadow.getElementById('hf-exclude-toggle');
     const excludeInput = shadow.getElementById('hf-exclude-input');
     const clearBtn = shadow.getElementById('hf-exclude-clear-btn');
@@ -1584,9 +1640,10 @@ const SHADOW_WIDGET_STYLES = `
     const glowToggle = shadow.getElementById('hf-border-unliked-glow');
     const colorInput = shadow.getElementById('hf-border-unliked-color');
 
+    const isLikedOnlyActive = Boolean(CONFIG.FILTER_UNLIKED_ONLY);
     const isTextActive = Boolean(CONFIG.FILTER_EXCLUDE_ENABLED && (CONFIG.FILTER_EXCLUDE_TERMS || '').trim());
     const isDateActive = Boolean(CONFIG.DATE_FILTER_ENABLED);
-    const hasActiveFilters = isTextActive || isDateActive;
+    const hasActiveFilters = isLikedOnlyActive || isTextActive || isDateActive;
 
     if (widget) {
       widget.classList.toggle('collapsed', Boolean(CONFIG.WIDGET_COLLAPSED));
@@ -1596,6 +1653,9 @@ const SHADOW_WIDGET_STYLES = `
     // Update summary chips
     if (summaryChips) {
       const chips = [];
+      if (isLikedOnlyActive) {
+        chips.push(`<span class="hf-df-chip" title="Filter: Unliked models only">💚 Unliked</span>`);
+      }
       if (isTextActive) {
         const raw = CONFIG.FILTER_EXCLUDE_TERMS.trim();
         const display = raw.length > 14 ? raw.slice(0, 12) + '…' : raw;
@@ -1608,6 +1668,7 @@ const SHADOW_WIDGET_STYLES = `
       summaryChips.innerHTML = chips.join('');
     }
 
+    if (unlikedToggle) unlikedToggle.checked = isLikedOnlyActive;
     if (excludeToggle) excludeToggle.checked = Boolean(CONFIG.FILTER_EXCLUDE_ENABLED);
     if (excludeInput) {
       if (excludeInput.value !== (CONFIG.FILTER_EXCLUDE_TERMS || '')) {
@@ -1652,7 +1713,7 @@ const SHADOW_WIDGET_STYLES = `
     }
   }
 
-  function updateWidgetStats(visibleCount, totalCount, hiddenByDate, hiddenByText, isDateActive, isTextActive) {
+  function updateWidgetStats(visibleCount, totalCount, hiddenByDate, hiddenByText, hiddenByLiked, isDateActive, isTextActive, isLikedOnlyActive) {
     if (!widgetShadowRoot) return;
     const shadow = widgetShadowRoot;
 
@@ -1660,7 +1721,7 @@ const SHADOW_WIDGET_STYLES = `
     const substatus = shadow.getElementById('hf-df-substatus');
     if (!badge) return;
 
-    const isAnyActive = isDateActive || isTextActive;
+    const isAnyActive = isDateActive || isTextActive || isLikedOnlyActive;
 
     if (totalCount === 0) {
       badge.textContent = isAnyActive ? 'Active' : 'Ready';
@@ -1687,6 +1748,7 @@ const SHADOW_WIDGET_STYLES = `
 
       if (substatus) {
         const details = [];
+        if (isLikedOnlyActive && hiddenByLiked > 0) details.push(`${hiddenByLiked} liked hidden`);
         if (isTextActive && hiddenByText > 0) details.push(`${hiddenByText} hidden by text`);
         if (isDateActive && hiddenByDate > 0) details.push(`${hiddenByDate} hidden by date`);
         substatus.textContent = details.length > 0 ? details.join(' • ') : '';

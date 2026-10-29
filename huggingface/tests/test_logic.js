@@ -9,6 +9,8 @@ const scriptSource = fs.readFileSync(scriptPath, 'utf8');
 // Basic syntax check
 assert(scriptSource.includes('FILTER_EXCLUDE_ENABLED'), 'Missing FILTER_EXCLUDE_ENABLED');
 assert(scriptSource.includes('FILTER_EXCLUDE_TERMS'), 'Missing FILTER_EXCLUDE_TERMS');
+assert(scriptSource.includes('FILTER_UNLIKED_ONLY'), 'Missing FILTER_UNLIKED_ONLY');
+assert(scriptSource.includes('hf-liked-filtered-out'), 'Missing hf-liked-filtered-out CSS/class');
 assert(scriptSource.includes('parseNegativeFilter'), 'Missing parseNegativeFilter');
 assert(scriptSource.includes('isCardExcludedByText'), 'Missing isCardExcludedByText');
 
