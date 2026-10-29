@@ -50,6 +50,8 @@ test('toFeedUrl transforms catalog URLs to feed URLs', () => {
     '/nouveaux-meilleurs-prix/TV-c654'
   );
   assert.equal(toFeedUrl(''), '/neue-toppreise');
+  assert.equal(toFeedUrl('javascript:alert(1)'), '/neue-toppreise');
+  assert.equal(toFeedUrl('data:text/html,evil'), '/neue-toppreise');
 });
 
 test('indexCategoryData maps hierarchy, numeric IDs and breadcrumbs', () => {

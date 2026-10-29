@@ -62,11 +62,15 @@ export function saveExpandedBranches(set) {
 }
 
 export function toFeedUrl(catalogUrl, currentFeedPath = '') {
-  if (!catalogUrl) return '/neue-toppreise';
+  if (!catalogUrl || typeof catalogUrl !== 'string') return '/neue-toppreise';
+  const trimmed = catalogUrl.trim();
+  if (!/^\/(?!\/)/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
+    return '/neue-toppreise';
+  }
   const prefix = currentFeedPath && /(?:new-best-prices|nouveaux-meilleurs-prix)/i.test(currentFeedPath)
     ? currentFeedPath.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i)[0]
     : '/neue-toppreise';
-  return catalogUrl.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+  return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
 }
 
 export function indexCategoryData(categories) {
@@ -1100,32 +1104,64 @@ export function enhanceCategorySidebar() {
       if (ulList) ulList.style.display = 'none';
       resultsBox.style.display = 'block';
 
+      if (resultsBox.replaceChildren) {
+        resultsBox.replaceChildren();
+      } else {
+        while (resultsBox.firstChild) resultsBox.removeChild(resultsBox.firstChild);
+      }
+
       if (hits.length === 0) {
-        resultsBox.innerHTML = '<div class="tp-cat-no-results">Keine Kategorie gefunden</div>';
+        const noRes = document.createElement('div');
+        noRes.className = 'tp-cat-no-results';
+        noRes.textContent = 'Keine Kategorie gefunden';
+        resultsBox.appendChild(noRes);
         return;
       }
 
-      resultsBox.innerHTML = hits.map(hit => {
+      const frag = document.createDocumentFragment ? document.createDocumentFragment() : document.createElement('div');
+      for (const hit of hits) {
         const vcatId = String(hit.numericId || '').trim();
         const isIgnored = !!(vcatId && ignoredIds.has(vcatId));
         const ident = vcatId ? (storedIdents[vcatId] || '') : '';
 
-        const actionBtn = vcatId ? `
-          <span class="ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}" data-vcat-id="${vcatId}" ${ident ? `data-ident="${ident}"` : ''} title="${isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden'}">
-            <i class="${isIgnored ? 'TPIcons-plus' : 'TPIcons-cross'}"></i>
-          </span>
-        ` : '';
+        const item = document.createElement('div');
+        item.className = `tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}`;
+        if (hit.id) item.setAttribute('data-cat-id', hit.id);
+        if (vcatId) item.setAttribute('data-vcat-id', vcatId);
 
-        return `
-          <div class="tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}" data-cat-id="${hit.id}" data-vcat-id="${vcatId}">
-            <a class="tp-cat-result-link" href="${toFeedUrl(hit.url, currentPath)}" title="${hit.title}">
-              <span class="tp-cat-res-title">${hit.title}</span>
-              <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
-            </a>
-            ${actionBtn}
-          </div>
-        `;
-      }).join('');
+        const link = document.createElement('a');
+        link.className = 'tp-cat-result-link';
+        link.href = toFeedUrl(hit.url, currentPath);
+        if (hit.title) link.title = hit.title;
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'tp-cat-res-title';
+        titleSpan.textContent = hit.title || '';
+
+        const pathSpan = document.createElement('span');
+        pathSpan.className = 'tp-cat-res-path';
+        pathSpan.textContent = hit.breadcrumb || '';
+
+        link.appendChild(titleSpan);
+        link.appendChild(pathSpan);
+        item.appendChild(link);
+
+        if (vcatId) {
+          const actionBtn = document.createElement('span');
+          actionBtn.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
+          actionBtn.setAttribute('data-vcat-id', vcatId);
+          if (ident) actionBtn.setAttribute('data-ident', ident);
+          actionBtn.title = isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden';
+
+          const icon = document.createElement('i');
+          icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
+          actionBtn.appendChild(icon);
+          item.appendChild(actionBtn);
+        }
+
+        frag.appendChild(item);
+      }
+      resultsBox.appendChild(frag);
     };
 
     input.addEventListener('input', () => {

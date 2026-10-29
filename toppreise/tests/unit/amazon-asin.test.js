@@ -101,5 +101,14 @@ describe('Amazon ASIN resolution and caching', () => {
       const asin = await resolveAmazonAsin('/ext_de?pid=400', 'p400', s, fakeFetch);
       assert.equal(asin, null);
     });
+
+    it('rejects targets on arbitrary external domains without fetching', async () => {
+      const s = memStorage();
+      let fetchCalled = false;
+      const fakeFetch = () => { fetchCalled = true; return { url: 'https://evil.com/fake' }; };
+      const asin = await resolveAmazonAsin('https://evil.com/ext_de?pid=500', 'p500', s, fakeFetch);
+      assert.equal(asin, null);
+      assert.equal(fetchCalled, false);
+    });
   });
 });

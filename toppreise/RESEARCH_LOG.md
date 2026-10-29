@@ -105,6 +105,7 @@
   submits server exclusions (`aicat` + `aicatvc` + `fp_ic_ch`), updates `#Plugin_IgnoredCategories` strictly from
   authentic server HTML, collapses excluded branches, hides matching cards, and refreshes the feed with `cache: 'no-cache'`.
   On failure or missing token, the pending state clears and an error toast is surfaced without leaving ghost chips.
+  Category search and breadcrumb rendering construct nodes via DOM APIs with strict URL scheme validation (`https?:` / `/`), eliminating DOM XSS.
 - Per-card trigger `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger`
   at `top: 0; right: 0; z-index: 3` (card gets `.hasHideTrigger`); hover loads
   `.IgnoredCategoriesMenu .entry.f_IgnoredCategories_MenuEntry[data-vcat-id]`

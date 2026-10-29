@@ -272,6 +272,16 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
     ? directUrl
     : `${(typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch'}${directUrl}`;
 
+  try {
+    const urlObj = new URL(target);
+    const host = urlObj.hostname.toLowerCase();
+    const isToppreise = host === 'toppreise.ch' || host.endsWith('.toppreise.ch');
+    const isAmazon = host === 'amazon.de' || host.endsWith('.amazon.de') || host === 'amazon.com' || host.endsWith('.amazon.com');
+    if (!isToppreise && !isAmazon) return null;
+  } catch {
+    return null;
+  }
+
   if (fetchFn) {
     try {
       const res = await fetchFn(target);

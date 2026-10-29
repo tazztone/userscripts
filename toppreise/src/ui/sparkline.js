@@ -440,11 +440,25 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
     // Resolve ASIN and display Keepa image
     resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
       if (!asin) {
-        keepaBody.replaceChildren();
+        if (keepaBody.replaceChildren) {
+          keepaBody.replaceChildren();
+        } else {
+          while (keepaBody.firstChild) keepaBody.removeChild(keepaBody.firstChild);
+        }
         const errNotice = document.createElement('div');
         errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
-        const linkHref = chartCtx.directUrl || '#';
-        errNotice.innerHTML = `Amazon-ASIN konnte nicht ermittelt werden.<br><a href="${linkHref}" target="_blank" rel="noopener" style="color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;">Zum Amazon-Angebot ↗</a>`;
+        const msgSpan = document.createElement('span');
+        msgSpan.textContent = 'Amazon-ASIN konnte nicht ermittelt werden.';
+        errNotice.appendChild(msgSpan);
+        errNotice.appendChild(document.createElement('br'));
+        const safeUrl = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : '#';
+        const a = document.createElement('a');
+        a.href = safeUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;';
+        a.textContent = 'Zum Amazon-Angebot ↗';
+        errNotice.appendChild(a);
         keepaBody.appendChild(errNotice);
         return;
       }
@@ -476,7 +490,8 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
       keepaLink.textContent = 'Auf Keepa ansehen ↗';
       const amzLink = document.createElement('a');
-      amzLink.href = chartCtx.directUrl || `https://www.amazon.de/dp/${asin}`;
+      const safeDirect = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : null;
+      amzLink.href = safeDirect || `https://www.amazon.de/dp/${asin}`;
       amzLink.target = '_blank';
       amzLink.rel = 'noopener';
       amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';

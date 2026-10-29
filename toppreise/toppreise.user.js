@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.406
+// @version      2.18.407
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -16,6 +16,7 @@
 // @connect      api.tavily.com
 // @connect      toppreise.ch
 // @connect      amazon.de
+// @connect      graph.keepa.com
 // @noframes
 // ==/UserScript==
 
@@ -5398,6 +5399,16 @@ const SHADOW_MODAL_STYLES = `
       ? directUrl
       : `${(typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch'}${directUrl}`;
 
+    try {
+      const urlObj = new URL(target);
+      const host = urlObj.hostname.toLowerCase();
+      const isToppreise = host === 'toppreise.ch' || host.endsWith('.toppreise.ch');
+      const isAmazon = host === 'amazon.de' || host.endsWith('.amazon.de') || host === 'amazon.com' || host.endsWith('.amazon.com');
+      if (!isToppreise && !isAmazon) return null;
+    } catch {
+      return null;
+    }
+
     if (fetchFn) {
       try {
         const res = await fetchFn(target);
@@ -5516,11 +5527,15 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function toFeedUrl(catalogUrl, currentFeedPath = '') {
-    if (!catalogUrl) return '/neue-toppreise';
+    if (!catalogUrl || typeof catalogUrl !== 'string') return '/neue-toppreise';
+    const trimmed = catalogUrl.trim();
+    if (!/^\/(?!\/)/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
+      return '/neue-toppreise';
+    }
     const prefix = currentFeedPath && /(?:new-best-prices|nouveaux-meilleurs-prix)/i.test(currentFeedPath)
       ? currentFeedPath.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i)[0]
       : '/neue-toppreise';
-    return catalogUrl.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
+    return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
   }
 
   function indexCategoryData(categories) {
@@ -6554,32 +6569,64 @@ const SHADOW_MODAL_STYLES = `
         if (ulList) ulList.style.display = 'none';
         resultsBox.style.display = 'block';
 
+        if (resultsBox.replaceChildren) {
+          resultsBox.replaceChildren();
+        } else {
+          while (resultsBox.firstChild) resultsBox.removeChild(resultsBox.firstChild);
+        }
+
         if (hits.length === 0) {
-          resultsBox.innerHTML = '<div class="tp-cat-no-results">Keine Kategorie gefunden</div>';
+          const noRes = document.createElement('div');
+          noRes.className = 'tp-cat-no-results';
+          noRes.textContent = 'Keine Kategorie gefunden';
+          resultsBox.appendChild(noRes);
           return;
         }
 
-        resultsBox.innerHTML = hits.map(hit => {
+        const frag = document.createDocumentFragment ? document.createDocumentFragment() : document.createElement('div');
+        for (const hit of hits) {
           const vcatId = String(hit.numericId || '').trim();
           const isIgnored = !!(vcatId && ignoredIds.has(vcatId));
           const ident = vcatId ? (storedIdents[vcatId] || '') : '';
 
-          const actionBtn = vcatId ? `
-            <span class="ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}" data-vcat-id="${vcatId}" ${ident ? `data-ident="${ident}"` : ''} title="${isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden'}">
-              <i class="${isIgnored ? 'TPIcons-plus' : 'TPIcons-cross'}"></i>
-            </span>
-          ` : '';
+          const item = document.createElement('div');
+          item.className = `tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}`;
+          if (hit.id) item.setAttribute('data-cat-id', hit.id);
+          if (vcatId) item.setAttribute('data-vcat-id', vcatId);
 
-          return `
-            <div class="tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}" data-cat-id="${hit.id}" data-vcat-id="${vcatId}">
-              <a class="tp-cat-result-link" href="${toFeedUrl(hit.url, currentPath)}" title="${hit.title}">
-                <span class="tp-cat-res-title">${hit.title}</span>
-                <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
-              </a>
-              ${actionBtn}
-            </div>
-          `;
-        }).join('');
+          const link = document.createElement('a');
+          link.className = 'tp-cat-result-link';
+          link.href = toFeedUrl(hit.url, currentPath);
+          if (hit.title) link.title = hit.title;
+
+          const titleSpan = document.createElement('span');
+          titleSpan.className = 'tp-cat-res-title';
+          titleSpan.textContent = hit.title || '';
+
+          const pathSpan = document.createElement('span');
+          pathSpan.className = 'tp-cat-res-path';
+          pathSpan.textContent = hit.breadcrumb || '';
+
+          link.appendChild(titleSpan);
+          link.appendChild(pathSpan);
+          item.appendChild(link);
+
+          if (vcatId) {
+            const actionBtn = document.createElement('span');
+            actionBtn.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
+            actionBtn.setAttribute('data-vcat-id', vcatId);
+            if (ident) actionBtn.setAttribute('data-ident', ident);
+            actionBtn.title = isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden';
+
+            const icon = document.createElement('i');
+            icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
+            actionBtn.appendChild(icon);
+            item.appendChild(actionBtn);
+          }
+
+          frag.appendChild(item);
+        }
+        resultsBox.appendChild(frag);
       };
 
       input.addEventListener('input', () => {
@@ -7262,11 +7309,25 @@ const SHADOW_MODAL_STYLES = `
       // Resolve ASIN and display Keepa image
       resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
         if (!asin) {
-          keepaBody.replaceChildren();
+          if (keepaBody.replaceChildren) {
+            keepaBody.replaceChildren();
+          } else {
+            while (keepaBody.firstChild) keepaBody.removeChild(keepaBody.firstChild);
+          }
           const errNotice = document.createElement('div');
           errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
-          const linkHref = chartCtx.directUrl || '#';
-          errNotice.innerHTML = `Amazon-ASIN konnte nicht ermittelt werden.<br><a href="${linkHref}" target="_blank" rel="noopener" style="color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;">Zum Amazon-Angebot ↗</a>`;
+          const msgSpan = document.createElement('span');
+          msgSpan.textContent = 'Amazon-ASIN konnte nicht ermittelt werden.';
+          errNotice.appendChild(msgSpan);
+          errNotice.appendChild(document.createElement('br'));
+          const safeUrl = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : '#';
+          const a = document.createElement('a');
+          a.href = safeUrl;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;';
+          a.textContent = 'Zum Amazon-Angebot ↗';
+          errNotice.appendChild(a);
           keepaBody.appendChild(errNotice);
           return;
         }
@@ -7298,7 +7359,8 @@ const SHADOW_MODAL_STYLES = `
         keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
         keepaLink.textContent = 'Auf Keepa ansehen ↗';
         const amzLink = document.createElement('a');
-        amzLink.href = chartCtx.directUrl || `https://www.amazon.de/dp/${asin}`;
+        const safeDirect = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : null;
+        amzLink.href = safeDirect || `https://www.amazon.de/dp/${asin}`;
         amzLink.target = '_blank';
         amzLink.rel = 'noopener';
         amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
@@ -14203,7 +14265,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.406';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.407';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
