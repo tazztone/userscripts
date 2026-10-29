@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.388
+// @version      2.18.389
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3446,6 +3446,7 @@ const SHADOW_MODAL_STYLES = `
     FILTER_SAVINGS_ENABLED: false,
     FILTER_SAVINGS_MIN: 0,
     FILTER_SAVINGS_MAX: 0,
+    FILTERS_ENABLED: true,
     FILTER_NEG_MODE: 'dim',
     FILTER_MIN_MODE: 'dim',
     FILTER_DEAL_DISCOUNT_MODE: 'dim',
@@ -3551,6 +3552,7 @@ const SHADOW_MODAL_STYLES = `
     FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
     FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
     FILTER_SAVINGS_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
+    FILTERS_ENABLED: { type: 'bool', default: true },
     FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
     FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
     FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },
@@ -3871,6 +3873,7 @@ const SHADOW_MODAL_STYLES = `
     FILTER_SAVINGS_ENABLED: sanitizeConfigValue('FILTER_SAVINGS_ENABLED', _getValue('FILTER_SAVINGS_ENABLED', DEFAULTS.FILTER_SAVINGS_ENABLED)),
     FILTER_SAVINGS_MIN: sanitizeConfigValue('FILTER_SAVINGS_MIN', _getValue('FILTER_SAVINGS_MIN', DEFAULTS.FILTER_SAVINGS_MIN)),
     FILTER_SAVINGS_MAX: sanitizeConfigValue('FILTER_SAVINGS_MAX', _getValue('FILTER_SAVINGS_MAX', DEFAULTS.FILTER_SAVINGS_MAX)),
+    FILTERS_ENABLED: sanitizeConfigValue('FILTERS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTERS_ENABLED)),
     FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
     FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
     FILTER_DEAL_DISCOUNT_MODE: _modeValue('FILTER_DEAL_DISCOUNT_MODE'),
@@ -5014,6 +5017,7 @@ const SHADOW_MODAL_STYLES = `
       }
       return false;
     };
+    if (CONFIG.FILTERS_ENABLED === false) return legacyChecks();
     if (filters) {
       if (!causeHit(filters)) return legacyChecks();
       return true;
@@ -8169,13 +8173,14 @@ const SHADOW_MODAL_STYLES = `
   // (isFiltered/isDimmed/isDealerLoser) for the scan counters downstream.
   function renderFilterVerdict(ctx, filters, activeStores) {
     const { card, stats, cardPrice } = ctx;
+    const filtersActive = CONFIG.FILTERS_ENABLED !== false;
     // 2. Filters
-    card.classList.toggle('tp-negative-filtered', filters.isNeg);
-    card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
-    card.classList.toggle('tp-deal-disc-filtered', !!filters.isBelowMinDiscount);
-    card.classList.toggle('tp-price-filtered', !!filters.isOutOfPriceRange);
-    card.classList.toggle('tp-savings-filtered', !!filters.isBelowMinSavings);
-    card.classList.toggle('tp-vortief-excluded', filters.isVortiefExcluded === true);
+    card.classList.toggle('tp-negative-filtered', filtersActive && filters.isNeg);
+    card.classList.toggle('tp-min-offers-filtered', filtersActive && filters.isLowOffers);
+    card.classList.toggle('tp-deal-disc-filtered', filtersActive && !!filters.isBelowMinDiscount);
+    card.classList.toggle('tp-price-filtered', filtersActive && !!filters.isOutOfPriceRange);
+    card.classList.toggle('tp-savings-filtered', filtersActive && !!filters.isBelowMinSavings);
+    card.classList.toggle('tp-vortief-excluded', filtersActive && filters.isVortiefExcluded === true);
 
     // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
     // Dealer verdict is single-sourced from dealerLoserFor (cards.js) — no
@@ -8187,7 +8192,7 @@ const SHADOW_MODAL_STYLES = `
       card.querySelector('.tp-best-price-badge')?.remove();
       filters.isDealerLoser = false;
     } else if (dealerLoserFor(card, activeStores)) {
-      card.classList.add('tp-not-cheapest');
+      card.classList.toggle('tp-not-cheapest', filtersActive);
       card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
       card.querySelector('.tp-best-price-badge')?.remove();
       filters.isDealerLoser = true;
@@ -8203,7 +8208,7 @@ const SHADOW_MODAL_STYLES = `
       filters.isDealerLoser = false;
     }
     const isHide = m => m !== 'dim' && m !== 'highlight';
-    const hide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
+    const wouldHide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
       || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
       || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
       || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
@@ -8211,7 +8216,7 @@ const SHADOW_MODAL_STYLES = `
       || (filters.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
       || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
       || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
-    const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
+    const wouldDim = !wouldHide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
       || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
@@ -8219,7 +8224,7 @@ const SHADOW_MODAL_STYLES = `
       || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'dim')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
-    const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
+    const wouldHighlight = !wouldHide && !wouldDim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
       || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
       || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
       || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
@@ -8227,6 +8232,15 @@ const SHADOW_MODAL_STYLES = `
       || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'highlight')
       || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
       || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
+
+    filters.wouldHide = wouldHide;
+    filters.wouldDim = wouldDim;
+    filters.wouldHighlight = wouldHighlight;
+
+    const hide = filtersActive && wouldHide;
+    const dim = filtersActive && wouldDim;
+    const highlight = filtersActive && wouldHighlight;
+
     filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
     filters.isDimmed = dim;
     filters.isHighlighted = highlight;
@@ -11976,7 +11990,8 @@ const SHADOW_MODAL_STYLES = `
             FILTER_PRICE_MAX: 0,
             FILTER_SAVINGS_MIN: 0,
             FILTER_SAVINGS_MAX: 0,
-            NEGATIVE_TERMS: ''
+            NEGATIVE_TERMS: '',
+            FILTERS_ENABLED: true
           });
           const pMin = bar.querySelector('#tp-price-min-input');
           if (pMin) pMin.value = '';
@@ -13175,6 +13190,9 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         if (cd.filters.isDimmed) counts.dimmed++;
         if (cd.filters.isHighlighted) counts.highlighted = (counts.highlighted || 0) + 1;
         if (cd.filters.isFiltered) counts.filteredCount++;
+        if (cd.filters.wouldHide) counts.potentialFiltered = (counts.potentialFiltered || 0) + 1;
+        if (cd.filters.wouldDim) counts.potentialDimmed = (counts.potentialDimmed || 0) + 1;
+        if (cd.filters.wouldHighlight) counts.potentialHighlighted = (counts.potentialHighlighted || 0) + 1;
         if (cd.filters.isNeg) counts.neg++;
         if (cd.filters.isLowOffers) counts.min++;
         if (cd.filters.isBelowMinDiscount) counts.dealDisc++;
@@ -13345,7 +13363,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.388';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.389';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

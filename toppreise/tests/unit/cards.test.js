@@ -360,6 +360,14 @@ describe('isCardFilteredOut forScan', () => {
       assert.equal(isCardFilteredOut(fakeCard(), fDealer, { forScan: true }), false);
     });
   });
+
+  it('bypasses all filter causes when FILTERS_ENABLED is false', () => {
+    const fAll = { isNeg: true, isLowOffers: true, isDealerLoser: true, isBelowMinDiscount: true, isOutOfPriceRange: true, isBelowMinSavings: true, isUnchecked: true, isVortiefExcluded: true };
+    withConfig('FILTERS_ENABLED', false, () => {
+      assert.equal(isCardFilteredOut(fakeCard(), fAll), false);
+      assert.equal(isCardFilteredOut(fakeCard(), fAll, { forScan: true }), false);
+    });
+  });
 });
 
 describe('extractOfferCount languages', () => {

@@ -469,6 +469,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
     }
     return false;
   };
+  if (CONFIG.FILTERS_ENABLED === false) return legacyChecks();
   if (filters) {
     if (!causeHit(filters)) return legacyChecks();
     return true;

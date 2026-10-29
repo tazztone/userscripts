@@ -121,7 +121,8 @@ export function wireFilterPopover(bar) {
           FILTER_PRICE_MAX: 0,
           FILTER_SAVINGS_MIN: 0,
           FILTER_SAVINGS_MAX: 0,
-          NEGATIVE_TERMS: ''
+          NEGATIVE_TERMS: '',
+          FILTERS_ENABLED: true
         });
         const pMin = bar.querySelector('#tp-price-min-input');
         if (pMin) pMin.value = '';

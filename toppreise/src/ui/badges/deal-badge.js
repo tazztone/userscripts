@@ -162,13 +162,14 @@ export function renderHeat(ctx) {
 // (isFiltered/isDimmed/isDealerLoser) for the scan counters downstream.
 export function renderFilterVerdict(ctx, filters, activeStores) {
   const { card, stats, cardPrice } = ctx;
+  const filtersActive = CONFIG.FILTERS_ENABLED !== false;
   // 2. Filters
-  card.classList.toggle('tp-negative-filtered', filters.isNeg);
-  card.classList.toggle('tp-min-offers-filtered', filters.isLowOffers);
-  card.classList.toggle('tp-deal-disc-filtered', !!filters.isBelowMinDiscount);
-  card.classList.toggle('tp-price-filtered', !!filters.isOutOfPriceRange);
-  card.classList.toggle('tp-savings-filtered', !!filters.isBelowMinSavings);
-  card.classList.toggle('tp-vortief-excluded', filters.isVortiefExcluded === true);
+  card.classList.toggle('tp-negative-filtered', filtersActive && filters.isNeg);
+  card.classList.toggle('tp-min-offers-filtered', filtersActive && filters.isLowOffers);
+  card.classList.toggle('tp-deal-disc-filtered', filtersActive && !!filters.isBelowMinDiscount);
+  card.classList.toggle('tp-price-filtered', filtersActive && !!filters.isOutOfPriceRange);
+  card.classList.toggle('tp-savings-filtered', filtersActive && !!filters.isBelowMinSavings);
+  card.classList.toggle('tp-vortief-excluded', filtersActive && filters.isVortiefExcluded === true);
 
   // 3. Toppreis Highlighting (filtered store holds the cheapest offer).
   // Dealer verdict is single-sourced from dealerLoserFor (cards.js) — no
@@ -180,7 +181,7 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     card.querySelector('.tp-best-price-badge')?.remove();
     filters.isDealerLoser = false;
   } else if (dealerLoserFor(card, activeStores)) {
-    card.classList.add('tp-not-cheapest');
+    card.classList.toggle('tp-not-cheapest', filtersActive);
     card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
     card.querySelector('.tp-best-price-badge')?.remove();
     filters.isDealerLoser = true;
@@ -196,7 +197,7 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     filters.isDealerLoser = false;
   }
   const isHide = m => m !== 'dim' && m !== 'highlight';
-  const hide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
+  const wouldHide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
     || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
     || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
     || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
@@ -204,7 +205,7 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     || (filters.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
     || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
     || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
-  const dim = !hide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
+  const wouldDim = !wouldHide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
     || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
     || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
     || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
@@ -212,7 +213,7 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'dim')
     || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
     || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
-  const highlight = !hide && !dim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
+  const wouldHighlight = !wouldHide && !wouldDim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
     || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
     || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
     || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
@@ -220,6 +221,15 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'highlight')
     || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
     || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
+
+  filters.wouldHide = wouldHide;
+  filters.wouldDim = wouldDim;
+  filters.wouldHighlight = wouldHighlight;
+
+  const hide = filtersActive && wouldHide;
+  const dim = filtersActive && wouldDim;
+  const highlight = filtersActive && wouldHighlight;
+
   filters.isFiltered = hide;   // narrowed: hidden-only (name kept, all consumers want hidden)
   filters.isDimmed = dim;
   filters.isHighlighted = highlight;
