@@ -297,6 +297,156 @@ export const SHADOW_MODAL_STYLES = `
     transition: opacity 0.3s ease, transform 0.3s ease;
   }
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
+
+  /* Discord Share Preview Dialog */
+  dialog#tp-modal-share-preview {
+    box-sizing: border-box;
+    width: 92%;
+    max-width: 520px;
+    max-height: 85vh;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--tp-line-soft);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border-radius: 16px;
+    color: var(--tp-txt);
+    padding: 20px;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  dialog#tp-modal-share-preview::backdrop {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .tp-share-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .tp-share-preview-title-wrap { display: flex; flex-direction: column; gap: 2px; }
+  .tp-share-preview-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #5865f2;
+  }
+  .tp-share-preview-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--tp-txt);
+  }
+  .tp-share-preview-price {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--tp-acc-txt);
+  }
+  .tp-share-preview-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--tp-mut);
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .tp-share-preview-close:hover { color: var(--tp-txt); }
+  .tp-share-preview-body {
+    max-height: 52vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tp-share-preview-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--tp-mut);
+    font-size: 13px;
+  }
+  .tp-share-preview-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #dc2626;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .tp-share-preview-label { font-size: 12px; font-weight: 600; color: var(--tp-mut); margin-bottom: 4px; }
+  .tp-share-preview-message {
+    background: #2b2d31;
+    color: #dbdee1;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .tp-share-preview-message .tp-md-lg { font-size: 16px; font-weight: 800; }
+  .tp-share-preview-message .tp-md-md { font-size: 14px; font-weight: 800; }
+  .tp-share-preview-message .tp-md-sm { font-size: 12px; font-weight: 700; }
+  .tp-share-preview-message .tp-md-link { font-weight: 700; color: #00a8fc; text-decoration: none; }
+  .tp-share-preview-message .tp-md-url { opacity: .65; font-size: 11px; }
+  .tp-share-preview-message .tp-md-quote { display: block; border-left: 3px solid #5865f2; padding-left: 8px; margin: 2px 0; opacity: .9; }
+  .tp-share-preview-images {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .tp-share-preview-img {
+    max-height: 120px;
+    max-width: 100%;
+    border-radius: 6px;
+    border: 1px solid var(--tp-line-soft);
+    object-fit: contain;
+    background: #fff;
+  }
+  .tp-share-preview-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px solid var(--tp-line-soft);
+  }
+  .tp-share-preview-channels {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tp-share-channel-btn {
+    background: #5865f2;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .tp-share-channel-btn:hover:not(:disabled) {
+    background: #4752c4;
+  }
+  .tp-share-channel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .tp-btn:focus-visible, .tp-field-dark:focus-visible,
   .tp-switch input:focus-visible + .tp-slider,
   .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }

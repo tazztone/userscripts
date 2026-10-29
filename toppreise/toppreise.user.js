@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.381
+// @version      2.18.382
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2172,6 +2172,156 @@ const SHADOW_MODAL_STYLES = `
     transition: opacity 0.3s ease, transform 0.3s ease;
   }
   .tp-toast.fade-out { opacity: 0; transform: translateY(6px); }
+
+  /* Discord Share Preview Dialog */
+  dialog#tp-modal-share-preview {
+    box-sizing: border-box;
+    width: 92%;
+    max-width: 520px;
+    max-height: 85vh;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--tp-line-soft);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border-radius: 16px;
+    color: var(--tp-txt);
+    padding: 20px;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  dialog#tp-modal-share-preview::backdrop {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .tp-share-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .tp-share-preview-title-wrap { display: flex; flex-direction: column; gap: 2px; }
+  .tp-share-preview-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #5865f2;
+  }
+  .tp-share-preview-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--tp-txt);
+  }
+  .tp-share-preview-price {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--tp-acc-txt);
+  }
+  .tp-share-preview-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--tp-mut);
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .tp-share-preview-close:hover { color: var(--tp-txt); }
+  .tp-share-preview-body {
+    max-height: 52vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tp-share-preview-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--tp-mut);
+    font-size: 13px;
+  }
+  .tp-share-preview-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #dc2626;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .tp-share-preview-label { font-size: 12px; font-weight: 600; color: var(--tp-mut); margin-bottom: 4px; }
+  .tp-share-preview-message {
+    background: #2b2d31;
+    color: #dbdee1;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .tp-share-preview-message .tp-md-lg { font-size: 16px; font-weight: 800; }
+  .tp-share-preview-message .tp-md-md { font-size: 14px; font-weight: 800; }
+  .tp-share-preview-message .tp-md-sm { font-size: 12px; font-weight: 700; }
+  .tp-share-preview-message .tp-md-link { font-weight: 700; color: #00a8fc; text-decoration: none; }
+  .tp-share-preview-message .tp-md-url { opacity: .65; font-size: 11px; }
+  .tp-share-preview-message .tp-md-quote { display: block; border-left: 3px solid #5865f2; padding-left: 8px; margin: 2px 0; opacity: .9; }
+  .tp-share-preview-images {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .tp-share-preview-img {
+    max-height: 120px;
+    max-width: 100%;
+    border-radius: 6px;
+    border: 1px solid var(--tp-line-soft);
+    object-fit: contain;
+    background: #fff;
+  }
+  .tp-share-preview-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px solid var(--tp-line-soft);
+  }
+  .tp-share-preview-channels {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tp-share-channel-btn {
+    background: #5865f2;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .tp-share-channel-btn:hover:not(:disabled) {
+    background: #4752c4;
+  }
+  .tp-share-channel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .tp-btn:focus-visible, .tp-field-dark:focus-visible,
   .tp-switch input:focus-visible + .tp-slider,
   .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
@@ -10610,6 +10760,217 @@ const SHADOW_MODAL_STYLES = `
     wireModalActions(els);
   }
 
+  // ─── MODULE: src/ui/modal-share-preview.js ──────────────────────────────────
+  /**
+   * Discord Share Preview Modal
+   * Displays deal preview (rendered markdown + chart/product images)
+   * and channel action buttons for 1-click sharing.
+   */
+
+
+
+  const escapeHtml = s => String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  function openSharePreviewModal({ title, priceText, channels = [], onSend, onCancel }) {
+    ensureSkeleton();
+    const shadow = uiShadowRoot;
+    if (!shadow) return null;
+
+    // Clean up any stale preview dialog
+    shadow.getElementById('tp-modal-share-preview')?.remove();
+
+    const dialog = document.createElement('dialog');
+    dialog.id = 'tp-modal-share-preview';
+    dialog.className = 'tp-share-preview-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-labelledby', 'tp-share-preview-title');
+
+    const channelButtonsHtml = channels.map(ch => `
+      <button type="button" class="tp-btn tp-share-channel-btn" data-channel-id="${escapeHtml(ch.id)}" disabled>
+        📤 ${escapeHtml(ch.name)}
+      </button>
+    `).join('');
+
+    dialog.innerHTML = `
+      <div class="tp-share-preview-header">
+        <div class="tp-share-preview-title-wrap">
+          <span class="tp-share-preview-badge">Discord Deal-Share</span>
+          <h3 id="tp-share-preview-title" class="tp-share-preview-title">${escapeHtml(title || 'Deal')}</h3>
+          ${priceText ? `<div class="tp-share-preview-price">${escapeHtml(priceText)}</div>` : ''}
+        </div>
+        <button type="button" class="tp-share-preview-close" aria-label="Schliessen">&times;</button>
+      </div>
+
+      <div class="tp-share-preview-body">
+        <div class="tp-share-preview-loading" id="tp-share-preview-loading">
+          <span class="tp-share-preview-spinner">⏳</span>
+          <span>Vorschau wird vorbereitet…</span>
+        </div>
+        <div class="tp-share-preview-error" id="tp-share-preview-error" style="display: none;"></div>
+
+        <div class="tp-share-preview-content-wrap" id="tp-share-preview-content-wrap" style="display: none;">
+          <div class="tp-share-preview-label">Discord-Vorschau:</div>
+          <div class="tp-share-preview-message" id="tp-share-preview-message"></div>
+          <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
+        </div>
+      </div>
+
+      <div class="tp-share-preview-footer">
+        <div class="tp-share-preview-channels" id="tp-share-preview-channels">
+          ${channelButtonsHtml}
+        </div>
+        <button type="button" class="tp-btn tp-btn-secondary tp-share-cancel-btn">Abbrechen</button>
+      </div>
+    `;
+
+    shadow.appendChild(dialog);
+
+    const loadingEl = dialog.querySelector('#tp-share-preview-loading');
+    const errorEl = dialog.querySelector('#tp-share-preview-error');
+    const contentWrap = dialog.querySelector('#tp-share-preview-content-wrap');
+    const messageEl = dialog.querySelector('#tp-share-preview-message');
+    const imagesEl = dialog.querySelector('#tp-share-preview-images');
+    const channelBtns = dialog.querySelectorAll('.tp-share-channel-btn');
+    const closeBtn = dialog.querySelector('.tp-share-preview-close');
+    const cancelBtn = dialog.querySelector('.tp-share-cancel-btn');
+
+    const createdUrls = [];
+
+    const cleanup = () => {
+      while (createdUrls.length > 0) {
+        const u = createdUrls.pop();
+        try { URL.revokeObjectURL(u); } catch {}
+      }
+    };
+
+    const close = () => {
+      cleanup();
+      if (typeof dialog.close === 'function') {
+        try { dialog.close(); } catch {}
+      }
+      dialog.remove();
+    };
+
+    const handleCancel = () => {
+      close();
+      onCancel?.();
+    };
+
+    closeBtn?.addEventListener('click', handleCancel);
+    cancelBtn?.addEventListener('click', handleCancel);
+
+    dialog.addEventListener('click', e => {
+      if (e.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      const isBackdrop = (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      );
+      if (isBackdrop) handleCancel();
+    });
+
+    dialog.addEventListener('cancel', e => {
+      e.preventDefault();
+      handleCancel();
+    });
+
+    const controller = {
+      dialog,
+      updateContent({ formattedContent, chartBlob, productBlob }) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+
+        if (messageEl) {
+          messageEl.innerHTML = renderDiscordMarkdownPreview(formattedContent || '');
+        }
+
+        if (imagesEl) {
+          imagesEl.innerHTML = '';
+          if (productBlob instanceof Blob) {
+            try {
+              const prodUrl = URL.createObjectURL(productBlob);
+              createdUrls.push(prodUrl);
+              const prodImg = document.createElement('img');
+              prodImg.className = 'tp-share-preview-img tp-share-preview-prod-img';
+              prodImg.src = prodUrl;
+              prodImg.alt = 'Produktbild';
+              prodImg.title = 'Produktbild (wird als Bildanhang gesendet)';
+              imagesEl.appendChild(prodImg);
+            } catch {}
+          }
+          if (chartBlob instanceof Blob) {
+            try {
+              const chartUrl = URL.createObjectURL(chartBlob);
+              createdUrls.push(chartUrl);
+              const chartImg = document.createElement('img');
+              chartImg.className = 'tp-share-preview-img tp-share-preview-chart-img';
+              chartImg.src = chartUrl;
+              chartImg.alt = 'Preisverlauf';
+              chartImg.title = 'Preisverlauf (wird als Bildanhang gesendet)';
+              imagesEl.appendChild(chartImg);
+            } catch {}
+          }
+        }
+
+        if (contentWrap) contentWrap.style.display = '';
+
+        channelBtns.forEach(btn => {
+          btn.disabled = false;
+        });
+      },
+
+      setError(errorMessage) {
+        if (errorEl) {
+          errorEl.textContent = errorMessage || 'Fehler beim Senden';
+          errorEl.style.display = '';
+        }
+        channelBtns.forEach(btn => {
+          btn.disabled = false;
+          const ch = channels.find(c => c.id === btn.dataset.channelId);
+          btn.textContent = `📤 ${ch?.name || 'Kanal'}`;
+        });
+      },
+
+      setSending(channelId) {
+        if (errorEl) errorEl.style.display = 'none';
+        channelBtns.forEach(btn => {
+          btn.disabled = true;
+          if (btn.dataset.channelId === channelId) {
+            btn.textContent = '⏳ Senden…';
+          }
+        });
+      },
+
+      close
+    };
+
+    channelBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const channelId = btn.dataset.channelId;
+        const targetChannel = channels.find(c => c.id === channelId);
+        if (!targetChannel) return;
+        controller.setSending(channelId);
+        onSend?.(targetChannel, controller);
+      });
+    });
+
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
+
+    return controller;
+  }
+
   // ─── MODULE: src/ui/toast.js ────────────────────────────────────────────────
   /**
    * Toast Notification Component
@@ -12850,7 +13211,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.381';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.382';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

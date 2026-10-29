@@ -74,6 +74,7 @@ export function buildBundle() {
     'ui/modal-bindings.js',
     'ui/modal-actions.js',
     'ui/modal.js',
+    'ui/modal-share-preview.js',
     'ui/toast.js',
     'ui/calc-preset-data.js',
     'ui/calc-preview.js',
