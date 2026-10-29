@@ -7,7 +7,7 @@
 import { uiShadowRoot } from '../ui/shell.js';
 import { paintCycleButton } from '../ui/mini-toggle.js';
 import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
-import { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit } from './config-migrate.js';
+import { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels } from './config-migrate.js';
 import { syncUiControl } from './config-sync.js';
 
 
@@ -141,6 +141,7 @@ export const CONFIG = {
   DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
   NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
   DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
+  DISCORD_CHANNELS: sanitizeConfigValue('DISCORD_CHANNELS', _getValue('DISCORD_CHANNELS', DEFAULTS.DISCORD_CHANNELS)),
   DISCORD_SUPPRESS_DEALER_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_DEALER_EMBED', _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED)),
   DISCORD_SUPPRESS_PRODUCT_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_PRODUCT_EMBED', _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED)),
   DISCORD_FORUM_TITLE: sanitizeConfigValue('DISCORD_FORUM_TITLE', _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE)),
@@ -206,8 +207,19 @@ export { syncUiControl };
 
 // Keys that update chrome/css directly and skip a full processListings() re-render.
 const FAST_SYNC_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT', 'HIDE_ADS']);
+export const getDiscordChannels = () => {
+  const list = Array.isArray(CONFIG.DISCORD_CHANNELS) ? CONFIG.DISCORD_CHANNELS : [];
+  if (list.length > 0) return list;
+  const legacy = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
+  if (legacy) return [{ id: 'default', name: 'Standard', url: legacy }];
+  return [];
+};
 export function updateConfig(key, val, options = {}) {
-  if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
+  if (SECRET_KEYS.has(key)) {
+    const clean = key === 'DISCORD_CHANNELS' ? (sanitizeConfigValue(key, val) ?? []) : val;
+    CONFIG[key] = clean;
+    _setValue(key, clean);
+  }
   else {
     const clean = sanitizeConfigValue(key, val);
     if (clean === undefined) return;
@@ -236,7 +248,7 @@ export function updateConfigs(entries, options = {}) {
 }
 // Re-exports: storage/schema/migrate symbols moved to siblings — every
 // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
-import { SETTING_SCHEMA } from './config-store.js';
-export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, SETTING_SCHEMA, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
-export { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit };
+import { SETTING_SCHEMA, sanitizeChannels } from './config-store.js';
+export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
+export { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels };
 

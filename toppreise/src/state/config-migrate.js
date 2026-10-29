@@ -26,8 +26,20 @@ export function migrateHideToDimDefaults() {
   _setValue('MIGRATED_DIM_DEFAULT', true);
   return true;
 }
+// One-time migration: single DISCORD_WEBHOOK_URL migrated to DISCORD_CHANNELS
+export function migrateDiscordChannels() {
+  if (_getValue('MIGRATED_DISCORD_CHANNELS', false)) return false;
+  const channels = _getValue('DISCORD_CHANNELS', null);
+  const legacyHook = (_getValue('DISCORD_WEBHOOK_URL', '') || '').trim();
+  if ((!channels || (Array.isArray(channels) && channels.length === 0)) && legacyHook) {
+    _setValue('DISCORD_CHANNELS', [{ id: 'default', name: 'Standard', url: legacyHook }]);
+  }
+  _setValue('MIGRATED_DISCORD_CHANNELS', true);
+  return true;
+}
 migrateHideToDimDefaults();
 migrateLegacyDebug();
+migrateDiscordChannels();
 // One-time migration: MODE (highlight/dim/hide) deleted — Filtern removes,
 // Ansicht paints. Clears the stale stored key once so the mode toast fires
 // exactly once per user (marker-guarded, silent afterwards). The 'MODE'

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, migrateLegacyDebug, migrateHideToDimDefaults, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl } from '../../src/state/config.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -74,6 +74,20 @@ describe('Config dual-layer storage', () => {
     gmStore['FILTER_NEG_MODE'] = 'hide';
     assert.equal(migrateHideToDimDefaults(), false);
     assert.equal(gmStore['FILTER_NEG_MODE'], 'hide');
+  });
+
+  it('migrates legacy DISCORD_WEBHOOK_URL to DISCORD_CHANNELS', () => {
+    gmStore['MIGRATED_DISCORD_CHANNELS'] = false;
+    gmStore['DISCORD_WEBHOOK_URL'] = 'https://discord.com/api/webhooks/999/xyz';
+    delete gmStore['DISCORD_CHANNELS'];
+
+    assert.equal(migrateDiscordChannels(), true);
+    assert.deepEqual(gmStore['DISCORD_CHANNELS'], [{
+      id: 'default',
+      name: 'Standard',
+      url: 'https://discord.com/api/webhooks/999/xyz'
+    }]);
+    assert.equal(gmStore['MIGRATED_DISCORD_CHANNELS'], true);
   });
 
   it('filter modes default to dim fresh', () => {
@@ -286,6 +300,27 @@ describe('FILTER_CYCLE deal discount mapping', () => {
 
     assert.ok('FILTER_PRICE_MODE' in FILTER_CYCLE);
     assert.ok('FILTER_SAVINGS_MODE' in FILTER_CYCLE);
+  });
+
+  it('keeps DISCORD_CHANNELS secret and sanitizes channel items', () => {
+    assert.ok(SECRET_KEYS.has('DISCORD_CHANNELS'));
+    assert.ok(SECRET_KEYS.has('DISCORD_WEBHOOK_URL'));
+
+    assert.deepEqual(sanitizeChannels(null), []);
+    assert.deepEqual(sanitizeChannels('not-array'), []);
+
+    const raw = [
+      { id: 'c1', name: '  Deals  ', url: 'https://discord.com/api/webhooks/1/abc  ' },
+      { id: '', name: '', url: 'https://discord.com/api/webhooks/2/def' },
+      null,
+      'invalid'
+    ];
+    const cleaned = sanitizeChannels(raw);
+    assert.equal(cleaned.length, 2);
+    assert.deepEqual(cleaned[0], { id: 'c1', name: 'Deals', url: 'https://discord.com/api/webhooks/1/abc' });
+    assert.equal(cleaned[1].name, 'Kanal 2');
+    assert.equal(cleaned[1].url, 'https://discord.com/api/webhooks/2/def');
+    assert.ok(cleaned[1].id.startsWith('ch_'));
   });
 });
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.379
+// @version      2.18.380
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3343,6 +3343,7 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: false,
     NEGATIVE_TERMS: '',
     DISCORD_WEBHOOK_URL: '',
+    DISCORD_CHANNELS: [],
     DISCORD_SUPPRESS_DEALER_EMBED: true,
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
     DISCORD_FORUM_TITLE: false,
@@ -3371,7 +3372,7 @@ const SHADOW_MODAL_STYLES = `
     }
   };
   // Bearer-Secrets (Discord-Webhook, Tavily-API-Key) bleiben GM-privat: nie ins page-lesbare localStorage.
-  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'TAVILY_API_KEY']);
+  const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'DISCORD_CHANNELS', 'TAVILY_API_KEY']);
 
   const _getValue = (k, def) => {
     try {
@@ -3446,6 +3447,7 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: { type: 'bool', default: false },
     NEGATIVE_TERMS: { type: 'string', default: '' },
     DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
+    DISCORD_CHANNELS: { type: 'channels', default: [] },
     DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
     DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
     DISCORD_FORUM_TITLE: { type: 'bool', default: false },
@@ -3466,6 +3468,18 @@ const SHADOW_MODAL_STYLES = `
     if (typeof raw === 'string' && raw.trim() !== '') return Number(raw);
     return NaN;
   };
+  const sanitizeChannels = raw => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((item, idx) => {
+        if (!item || typeof item !== 'object') return null;
+        const name = String(item.name || '').trim().slice(0, 50) || `Kanal ${idx + 1}`;
+        const url = typeof item.url === 'string' ? item.url.trim() : '';
+        const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ch_${idx + 1}`;
+        return { id, name, url };
+      })
+      .filter(Boolean);
+  };
   function sanitizeConfigValue(key, raw) {
     const rule = SETTING_SCHEMA[key];
     if (!rule) {
@@ -3475,6 +3489,7 @@ const SHADOW_MODAL_STYLES = `
     switch (rule.type) {
       case 'bool': return raw === true;
       case 'mode': return (raw === 'dim' || raw === 'highlight' || raw === 'hide') ? raw : rule.default;
+      case 'channels': return sanitizeChannels(raw);
       case 'int': {
         const n = coerceNumber(raw);
         if (!Number.isFinite(n)) return rule.default;
@@ -3565,8 +3580,20 @@ const SHADOW_MODAL_STYLES = `
     _setValue('MIGRATED_DIM_DEFAULT', true);
     return true;
   }
+  // One-time migration: single DISCORD_WEBHOOK_URL migrated to DISCORD_CHANNELS
+  function migrateDiscordChannels() {
+    if (_getValue('MIGRATED_DISCORD_CHANNELS', false)) return false;
+    const channels = _getValue('DISCORD_CHANNELS', null);
+    const legacyHook = (_getValue('DISCORD_WEBHOOK_URL', '') || '').trim();
+    if ((!channels || (Array.isArray(channels) && channels.length === 0)) && legacyHook) {
+      _setValue('DISCORD_CHANNELS', [{ id: 'default', name: 'Standard', url: legacyHook }]);
+    }
+    _setValue('MIGRATED_DISCORD_CHANNELS', true);
+    return true;
+  }
   migrateHideToDimDefaults();
   migrateLegacyDebug();
+  migrateDiscordChannels();
   // One-time migration: MODE (highlight/dim/hide) deleted — Filtern removes,
   // Ansicht paints. Clears the stale stored key once so the mode toast fires
   // exactly once per user (marker-guarded, silent afterwards). The 'MODE'
@@ -3739,6 +3766,7 @@ const SHADOW_MODAL_STYLES = `
     DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
     NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
     DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
+    DISCORD_CHANNELS: sanitizeConfigValue('DISCORD_CHANNELS', _getValue('DISCORD_CHANNELS', DEFAULTS.DISCORD_CHANNELS)),
     DISCORD_SUPPRESS_DEALER_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_DEALER_EMBED', _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED)),
     DISCORD_SUPPRESS_PRODUCT_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_PRODUCT_EMBED', _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED)),
     DISCORD_FORUM_TITLE: sanitizeConfigValue('DISCORD_FORUM_TITLE', _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE)),
@@ -3803,8 +3831,19 @@ const SHADOW_MODAL_STYLES = `
 
   // Keys that update chrome/css directly and skip a full processListings() re-render.
   const FAST_SYNC_KEYS = new Set(['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT', 'HIDE_ADS']);
+  const getDiscordChannels = () => {
+    const list = Array.isArray(CONFIG.DISCORD_CHANNELS) ? CONFIG.DISCORD_CHANNELS : [];
+    if (list.length > 0) return list;
+    const legacy = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
+    if (legacy) return [{ id: 'default', name: 'Standard', url: legacy }];
+    return [];
+  };
   function updateConfig(key, val, options = {}) {
-    if (SECRET_KEYS.has(key)) { CONFIG[key] = val; _setValue(key, val); }
+    if (SECRET_KEYS.has(key)) {
+      const clean = key === 'DISCORD_CHANNELS' ? (sanitizeConfigValue(key, val) ?? []) : val;
+      CONFIG[key] = clean;
+      _setValue(key, clean);
+    }
     else {
       const clean = sanitizeConfigValue(key, val);
       if (clean === undefined) return;
@@ -10180,7 +10219,7 @@ const SHADOW_MODAL_STYLES = `
           exported: new Date().toISOString()
         },
         // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
-        config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, TAVILY_API_KEY: undefined },
+        config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, DISCORD_CHANNELS: undefined, TAVILY_API_KEY: undefined },
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -12668,7 +12707,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.379';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.380';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

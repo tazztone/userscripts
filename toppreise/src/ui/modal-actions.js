@@ -139,7 +139,7 @@ export function wireModalActions(els) {
         exported: new Date().toISOString()
       },
       // Bearer-Secret nie exportieren (JSON.stringify droppt undefined).
-      config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, TAVILY_API_KEY: undefined },
+      config: { ...CONFIG, DISCORD_WEBHOOK_URL: undefined, DISCORD_CHANNELS: undefined, TAVILY_API_KEY: undefined },
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

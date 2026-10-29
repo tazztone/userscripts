@@ -54,6 +54,7 @@ export const DEFAULTS = Object.freeze({
   DEALER_AUTOFETCH: false,
   NEGATIVE_TERMS: '',
   DISCORD_WEBHOOK_URL: '',
+  DISCORD_CHANNELS: [],
   DISCORD_SUPPRESS_DEALER_EMBED: true,
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
   DISCORD_FORUM_TITLE: false,
@@ -82,7 +83,7 @@ const safeJsonParse = (raw, fallback) => {
   }
 };
 // Bearer-Secrets (Discord-Webhook, Tavily-API-Key) bleiben GM-privat: nie ins page-lesbare localStorage.
-export const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'TAVILY_API_KEY']);
+export const SECRET_KEYS = new Set(['DISCORD_WEBHOOK_URL', 'DISCORD_CHANNELS', 'TAVILY_API_KEY']);
 
 export const _getValue = (k, def) => {
   try {
@@ -157,6 +158,7 @@ export const SETTING_SCHEMA = {
   DEALER_AUTOFETCH: { type: 'bool', default: false },
   NEGATIVE_TERMS: { type: 'string', default: '' },
   DISCORD_WEBHOOK_URL: { type: 'string', default: '' },
+  DISCORD_CHANNELS: { type: 'channels', default: [] },
   DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
   DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
   DISCORD_FORUM_TITLE: { type: 'bool', default: false },
@@ -177,6 +179,18 @@ const coerceNumber = raw => {
   if (typeof raw === 'string' && raw.trim() !== '') return Number(raw);
   return NaN;
 };
+export const sanitizeChannels = raw => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item, idx) => {
+      if (!item || typeof item !== 'object') return null;
+      const name = String(item.name || '').trim().slice(0, 50) || `Kanal ${idx + 1}`;
+      const url = typeof item.url === 'string' ? item.url.trim() : '';
+      const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ch_${idx + 1}`;
+      return { id, name, url };
+    })
+    .filter(Boolean);
+};
 export function sanitizeConfigValue(key, raw) {
   const rule = SETTING_SCHEMA[key];
   if (!rule) {
@@ -186,6 +200,7 @@ export function sanitizeConfigValue(key, raw) {
   switch (rule.type) {
     case 'bool': return raw === true;
     case 'mode': return (raw === 'dim' || raw === 'highlight' || raw === 'hide') ? raw : rule.default;
+    case 'channels': return sanitizeChannels(raw);
     case 'int': {
       const n = coerceNumber(raw);
       if (!Number.isFinite(n)) return rule.default;
