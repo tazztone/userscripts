@@ -12,6 +12,7 @@ import {
   getIgnoredVcatIds,
   syncCategoryTreeIgnoredState,
   syncSearchResultsIgnoredState,
+  commitStagedExclusions,
   harvestExistingIdents,
   renderChildList,
   enhanceCategorySidebar
@@ -276,6 +277,13 @@ function createMockElement(tag, attrs = {}) {
     remove: () => {
       if (el.parentElement?.removeChild) el.parentElement.removeChild(el);
     },
+    replaceWith: newEl => {
+      if (el.parentElement) {
+        const p = el.parentElement;
+        el.remove();
+        p.appendChild(newEl);
+      }
+    },
     after: next => {
       if (el.parentElement) el.parentElement.appendChild(next);
     },
@@ -309,7 +317,9 @@ function createMockElement(tag, attrs = {}) {
         }
       }
       const tagOrClass = part.replace(/\[.*\]/, '');
-      if (tagOrClass.startsWith('.')) return classList.has(tagOrClass.slice(1));
+      if (tagOrClass.startsWith('.')) {
+        return tagOrClass.split('.').filter(Boolean).every(c => classList.has(c));
+      }
       if (tagOrClass.startsWith('a')) return el.tagName === 'A';
       if (tagOrClass.startsWith('li')) return el.tagName === 'LI';
       if (tagOrClass.startsWith('ul')) return el.tagName === 'UL';
@@ -421,7 +431,8 @@ test('syncCategoryTreeIgnoredState updates existing rows when ignored chips chan
 
     globalThis.document = {
       querySelectorAll: sel => root.querySelectorAll(sel),
-      querySelector: sel => root.querySelector(sel)
+      querySelector: sel => root.querySelector(sel),
+      createElement: tag => createMockElement(tag)
     };
 
     // Before: active
@@ -522,6 +533,34 @@ test('harvestExistingIdents extracts and caches tokens from sidebar elements', (
   assert.equal(idents['900'], 'ident900');
 });
 
+test('commitStagedExclusions adds chips and updates data-ignored-count in mock DOM', async () => {
+  const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+  const barContainer = createMockElement('div', { className: 'ignoredCategoriesBar' });
+  const hint = createMockElement('span', { className: 'ignoreCategoryHint' });
+  barContainer.appendChild(hint);
+  bar.appendChild(barContainer);
+
+  const doc = {
+    querySelector: sel => {
+      if (sel.includes('Plugin_IgnoredCategories')) return bar;
+      return null;
+    },
+    createElement: tag => createMockElement(tag)
+  };
+
+  const items = [
+    { vcatId: '200', numericId: '200', title: 'Computer & Zubehör' },
+    { vcatId: '900', numericId: '900', title: 'Videogames' }
+  ];
+
+  await commitStagedExclusions(items, doc);
+
+  const chips = barContainer.querySelectorAll('.ignoredCategory');
+  assert.equal(chips.length, 2);
+  assert.equal(bar.getAttribute('data-ignored-count'), '2');
+  assert.equal(hint.parentElement, null); // removed
+});
+
 test('syncSearchResultsIgnoredState synchronizes hit items with active ignored chips', () => {
   const prevDoc = globalThis.document;
   try {
@@ -542,7 +581,8 @@ test('syncSearchResultsIgnoredState synchronizes hit items with active ignored c
 
     globalThis.document = {
       querySelectorAll: sel => root.querySelectorAll(sel),
-      querySelector: sel => root.querySelector(sel)
+      querySelector: sel => root.querySelector(sel),
+      createElement: tag => createMockElement(tag)
     };
 
     // Active
@@ -556,19 +596,20 @@ test('syncSearchResultsIgnoredState synchronizes hit items with active ignored c
 
     syncSearchResultsIgnoredState(resultsBox);
 
+    const showSpan = item.querySelector('.ignoreCategory.f_IgnoredCategories_Show');
     assert.ok(item.classList.contains('ignoredCategoryEntry'));
-    assert.ok(span.classList.contains('f_IgnoredCategories_Show'));
-    assert.ok(icon.classList.contains('TPIcons-plus'));
-    assert.equal(span.getAttribute('title'), 'Kategorie einblenden');
+    assert.ok(showSpan);
+    assert.equal(showSpan.getAttribute('title'), 'Kategorie einblenden');
+    assert.ok(showSpan.querySelector('i')?.classList?.contains('TPIcons-plus'));
 
     // Chip removed
     chip.remove();
     syncSearchResultsIgnoredState(resultsBox);
 
+    const stageBtn = item.querySelector('.tp-cat-stage-btn');
     assert.ok(!item.classList.contains('ignoredCategoryEntry'));
-    assert.ok(span.classList.contains('f_IgnoredCategories_Hide'));
-    assert.ok(icon.classList.contains('TPIcons-cross'));
-    assert.equal(span.getAttribute('title'), 'Kategorie ausblenden');
+    assert.ok(stageBtn);
+    assert.equal(stageBtn.getAttribute('title'), 'Kategorie zum Ausblenden vormerken');
   } finally {
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
   }

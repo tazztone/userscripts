@@ -2405,25 +2405,39 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const hitCount = resultsBox?.querySelectorAll('.tp-cat-result-item').length || 0;
 
         const firstHit = resultsBox?.querySelector('.tp-cat-result-item');
-        const searchHideBtn = firstHit?.querySelector('.ignoreCategory.f_IgnoredCategories_Hide');
-        const searchHideBtnExists = !!searchHideBtn;
+        const stageBtn = firstHit?.querySelector('.tp-cat-stage-btn');
+        const searchStageBtnExists = !!stageBtn;
 
-        // 1-click disable in search results
-        if (searchHideBtn) searchHideBtn.click();
+        // Stage 1st item
+        if (stageBtn) stageBtn.click();
         await new Promise(r => setTimeout(r, 60));
 
-        const searchHitIgnoredAfterHide = firstHit?.classList.contains('ignoredCategoryEntry');
-        const searchBtnClassAfterHide = firstHit?.querySelector('.ignoreCategory')?.className || '';
-        const searchIconClassAfterHide = firstHit?.querySelector('.ignoreCategory i')?.className || '';
+        const hitAfterStage = resultsBox?.querySelector('.tp-cat-result-item');
+        const isStagedAfterClick = hitAfterStage?.classList.contains('tp-cat-staged');
+        const applyBar = resultsBox?.querySelector('.tp-cat-apply-bar');
+        const applyBarVisible = !!applyBar;
+        const applyBtn = applyBar?.querySelector('.tp-cat-btn-apply');
+        const applyBtnText = applyBtn?.textContent || '';
+
+        // Click apply
+        if (applyBtn) applyBtn.click();
+        await new Promise(r => setTimeout(r, 100));
+
+        const hitAfterApply = resultsBox?.querySelector('.tp-cat-result-item');
+        const searchHitIgnoredAfterHide = hitAfterApply?.classList.contains('ignoredCategoryEntry');
+        const searchShowBtn = hitAfterApply?.querySelector('.ignoreCategory.f_IgnoredCategories_Show');
+        const searchBtnClassAfterHide = searchShowBtn?.className || '';
+        const searchIconClassAfterHide = searchShowBtn?.querySelector('i')?.className || '';
 
         // 1-click restore in search results
-        const searchShowBtn = firstHit?.querySelector('.ignoreCategory.f_IgnoredCategories_Show');
         if (searchShowBtn) searchShowBtn.click();
-        await new Promise(r => setTimeout(r, 60));
+        await new Promise(r => setTimeout(r, 100));
 
-        const searchHitIgnoredAfterRestore = firstHit?.classList.contains('ignoredCategoryEntry');
-        const searchBtnClassAfterRestore = firstHit?.querySelector('.ignoreCategory')?.className || '';
-        const searchIconClassAfterRestore = firstHit?.querySelector('.ignoreCategory i')?.className || '';
+        const hitAfterRestore = resultsBox?.querySelector('.tp-cat-result-item');
+        const searchHitIgnoredAfterRestore = hitAfterRestore?.classList.contains('ignoredCategoryEntry');
+        const stageBtnAfterRestore = hitAfterRestore?.querySelector('.tp-cat-stage-btn');
+        const searchBtnClassAfterRestore = stageBtnAfterRestore?.className || '';
+        const searchBtnTextAfterRestore = stageBtnAfterRestore?.textContent?.trim() || '';
 
         // Clear search
         const clearBtn = sidebar?.querySelector('.tp-cat-search-clear');
@@ -2489,13 +2503,16 @@ def test_expandable_category_sidebar_interactions(page: Page):
             togglesCount: toggles?.length || 0,
             searchVisible,
             hitCount,
-            searchHideBtnExists,
+            searchStageBtnExists,
+            isStagedAfterClick: !!isStagedAfterClick,
+            applyBarVisible,
+            applyBtnText,
             searchHitIgnoredAfterHide: !!searchHitIgnoredAfterHide,
             searchBtnClassAfterHide,
             searchIconClassAfterHide,
             searchHitIgnoredAfterRestore: !!searchHitIgnoredAfterRestore,
             searchBtnClassAfterRestore,
-            searchIconClassAfterRestore,
+            searchBtnTextAfterRestore,
             hasSublist: !!sublist,
             childCount,
             hideColor,
@@ -2520,13 +2537,16 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['togglesCount'] > 0
     assert res['searchVisible'] is True
     assert res['hitCount'] >= 1
-    assert res['searchHideBtnExists'] is True
+    assert res['searchStageBtnExists'] is True
+    assert res['isStagedAfterClick'] is True
+    assert res['applyBarVisible'] is True
+    assert 'Ausblenden' in res['applyBtnText']
     assert res['searchHitIgnoredAfterHide'] is True
     assert 'f_IgnoredCategories_Show' in res['searchBtnClassAfterHide']
     assert 'TPIcons-plus' in res['searchIconClassAfterHide']
     assert res['searchHitIgnoredAfterRestore'] is False
-    assert 'f_IgnoredCategories_Hide' in res['searchBtnClassAfterRestore']
-    assert 'TPIcons-cross' in res['searchIconClassAfterRestore']
+    assert 'tp-cat-stage-btn' in res['searchBtnClassAfterRestore']
+    assert res['searchBtnTextAfterRestore'] == '✕'
     assert res['hasSublist'] is True
     assert res['childCount'] >= 1
     assert '239, 68, 68' in (res['hideColor'] or '')
