@@ -107,7 +107,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
   * **Mindest-Angebote:** Marktplatz-Einträge mit weniger als **N** Händlern filtern.
   * **Preisbereich (*Preis CHF*):** Budget-Filter mit Min- und Max-Grenze (gilt universell für alle Angebote).
   * **Mindest-Rabatt (*Min-Rabatt*):** Filtert geprüfte Angebote mit weniger als **X%** Rabatt aus (ungeprüfte Angebote bleiben unberührt).
-  * **Absolute Ersparnis (*Ersparnis CHF*):** Filtert geprüfte Angebote mit weniger als **X CHF** Ersparnis aus (ungeprüfte Angebote bleiben unberührt).
+  * **Mindest-Ersparnis (*Min-Ersparnis*):** Filtert geprüfte Angebote mit weniger als **X CHF** Ersparnis aus (ungeprüfte Angebote bleiben unberührt).
   * **Ungeprüfte:** Unverifizierte Angebote im Feed ausblenden oder dimmen.
   * **Fallback-Tiefs:** Sichtbarkeit von Tiefstpreisen mit dünner Historie steuern.
   * **Händler-Bestpreis-Prüfung:** Hebt Karten mit grünem Rahmen und `Toppreis`-Badge hervor, wenn der gefilterte Shop das beste Angebot hält (innerhalb einer Toleranz von `0%–50%`).

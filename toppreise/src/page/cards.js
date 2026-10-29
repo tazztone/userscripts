@@ -409,11 +409,8 @@ export function applyCardFilters(cd, termsList, minOffers, pageHasOffers, isDeal
      (minP > 0 && price < minP) || (maxP > 0 && price > maxP)
    );
    const minS = CONFIG.FILTER_SAVINGS_MIN || 0;
-   const maxS = CONFIG.FILTER_SAVINGS_MAX || 0;
    const savings = cd.savingsChf ?? computeSavingsChf(cd.cardPrice, getCardEffectiveDiscount(cd));
-   const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && (
-     (minS > 0 && savings < minS) || (maxS > 0 && savings > maxS)
-   );
+   const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && minS > 0 && savings < minS;
    const isDealerLoser = false;
    return { isNeg, isLowOffers, isBelowMinDiscount, isOutOfPriceRange, isBelowMinSavings, isVortiefExcluded, isUnchecked, isDealerLoser };
 }

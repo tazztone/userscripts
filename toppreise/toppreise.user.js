@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.410
+// @version      2.18.411
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3527,7 +3527,6 @@ const SHADOW_MODAL_STYLES = `
     FILTER_PRICE_MAX: 0,
     FILTER_SAVINGS_ENABLED: false,
     FILTER_SAVINGS_MIN: 0,
-    FILTER_SAVINGS_MAX: 0,
     FILTERS_ENABLED: true,
     FILTER_NEG_MODE: 'dim',
     FILTER_MIN_MODE: 'dim',
@@ -3633,7 +3632,6 @@ const SHADOW_MODAL_STYLES = `
     FILTER_PRICE_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
     FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
     FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
-    FILTER_SAVINGS_MAX: { type: 'float', default: 0, min: 0, max: 1000000 },
     FILTERS_ENABLED: { type: 'bool', default: true },
     FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
     FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
@@ -3954,7 +3952,6 @@ const SHADOW_MODAL_STYLES = `
     FILTER_PRICE_MAX: sanitizeConfigValue('FILTER_PRICE_MAX', _getValue('FILTER_PRICE_MAX', DEFAULTS.FILTER_PRICE_MAX)),
     FILTER_SAVINGS_ENABLED: sanitizeConfigValue('FILTER_SAVINGS_ENABLED', _getValue('FILTER_SAVINGS_ENABLED', DEFAULTS.FILTER_SAVINGS_ENABLED)),
     FILTER_SAVINGS_MIN: sanitizeConfigValue('FILTER_SAVINGS_MIN', _getValue('FILTER_SAVINGS_MIN', DEFAULTS.FILTER_SAVINGS_MIN)),
-    FILTER_SAVINGS_MAX: sanitizeConfigValue('FILTER_SAVINGS_MAX', _getValue('FILTER_SAVINGS_MAX', DEFAULTS.FILTER_SAVINGS_MAX)),
     FILTERS_ENABLED: sanitizeConfigValue('FILTERS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTERS_ENABLED)),
     FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
     FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
@@ -4448,11 +4445,6 @@ const SHADOW_MODAL_STYLES = `
             }
             case 'FILTER_SAVINGS_MIN': {
               const el = bar.querySelector('#tp-savings-min-input');
-              if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
-              break;
-            }
-            case 'FILTER_SAVINGS_MAX': {
-              const el = bar.querySelector('#tp-savings-max-input');
               if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
               break;
             }
@@ -5047,11 +5039,8 @@ const SHADOW_MODAL_STYLES = `
        (minP > 0 && price < minP) || (maxP > 0 && price > maxP)
      );
      const minS = CONFIG.FILTER_SAVINGS_MIN || 0;
-     const maxS = CONFIG.FILTER_SAVINGS_MAX || 0;
      const savings = cd.savingsChf ?? computeSavingsChf(cd.cardPrice, getCardEffectiveDiscount(cd));
-     const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && (
-       (minS > 0 && savings < minS) || (maxS > 0 && savings > maxS)
-     );
+     const isBelowMinSavings = CONFIG.FILTER_SAVINGS_ENABLED && isVerified && minS > 0 && savings < minS;
      const isDealerLoser = false;
      return { isNeg, isLowOffers, isBelowMinDiscount, isOutOfPriceRange, isBelowMinSavings, isVortiefExcluded, isUnchecked, isDealerLoser };
   }
@@ -12669,7 +12658,7 @@ const SHADOW_MODAL_STYLES = `
     FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
     FILTER_PRICE_MODE: { dim: '💵 Preis: Dimmen', hide: '💵 Preis: Verbergen', highlight: '💵 Preis: Hervorheben', off: '💵 Preis: Normal' },
     FILTER_DEAL_DISCOUNT_MODE: { dim: '📉 Min-Rabatt: Dimmen', hide: '📉 Min-Rabatt: Verbergen', highlight: '📉 Min-Rabatt: Hervorheben', off: '📉 Min-Rabatt: Normal' },
-    FILTER_SAVINGS_MODE: { dim: '💰 Ersparnis: Dimmen', hide: '💰 Ersparnis: Verbergen', highlight: '💰 Ersparnis: Hervorheben', off: '💰 Ersparnis: Normal' },
+    FILTER_SAVINGS_MODE: { dim: '💰 Min-Ersparnis: Dimmen', hide: '💰 Min-Ersparnis: Verbergen', highlight: '💰 Min-Ersparnis: Hervorheben', off: '💰 Min-Ersparnis: Normal' },
     HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
     VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
   };
@@ -12776,7 +12765,6 @@ const SHADOW_MODAL_STYLES = `
             FILTER_PRICE_MIN: 0,
             FILTER_PRICE_MAX: 0,
             FILTER_SAVINGS_MIN: 0,
-            FILTER_SAVINGS_MAX: 0,
             NEGATIVE_TERMS: '',
             FILTERS_ENABLED: true
           });
@@ -12786,8 +12774,6 @@ const SHADOW_MODAL_STYLES = `
           if (pMax) pMax.value = '';
           const sMin = bar.querySelector('#tp-savings-min-input');
           if (sMin) sMin.value = '';
-          const sMax = bar.querySelector('#tp-savings-max-input');
-          if (sMax) sMax.value = '';
           showToast('Filter zurückgesetzt');
         };
       }
@@ -12813,21 +12799,17 @@ const SHADOW_MODAL_STYLES = `
 
     let savingsDeb;
     const savingsMinInput = bar.querySelector('#tp-savings-min-input');
-    const savingsMaxInput = bar.querySelector('#tp-savings-max-input');
     const onSavingsChange = () => {
       clearTimeout(savingsDeb);
       savingsDeb = setTimeout(() => {
         const min = Math.max(0, parseFloat(savingsMinInput?.value) || 0);
-        const max = Math.max(0, parseFloat(savingsMaxInput?.value) || 0);
         updateConfigs({
           FILTER_SAVINGS_MIN: min,
-          FILTER_SAVINGS_MAX: max,
-          FILTER_SAVINGS_ENABLED: (min > 0 || max > 0)
+          FILTER_SAVINGS_ENABLED: min > 0
         });
       }, 150);
     };
     savingsMinInput?.addEventListener('input', onSavingsChange);
-    savingsMaxInput?.addEventListener('input', onSavingsChange);
 
     const updateMinOffers = delta => {
       const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
@@ -12879,10 +12861,6 @@ const SHADOW_MODAL_STYLES = `
     const sMin = bar.querySelector('#tp-savings-min-input');
     if (sMin && document.activeElement !== sMin) {
       sMin.value = CONFIG.FILTER_SAVINGS_MIN > 0 ? CONFIG.FILTER_SAVINGS_MIN : '';
-    }
-    const sMax = bar.querySelector('#tp-savings-max-input');
-    if (sMax && document.activeElement !== sMax) {
-      sMax.value = CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : '';
     }
 
     const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
@@ -13110,11 +13088,9 @@ const SHADOW_MODAL_STYLES = `
                 <button class="tp-filter-mode-btn" data-mode-key="FILTER_DEAL_DISCOUNT_MODE">Normal</button>
               </div>
               <div class="tp-filter-row" data-filter-row="savings">
-                <span class="tp-filter-label tp-glossary-term" title="Mindest- und Höchst-Ersparnis in CHF. Geprüfte Angebote mit Ersparnis ausserhalb des Bereichs werden gefiltert; ungeprüfte bleiben sichtbar.">Ersparnis</span>
+                <span class="tp-filter-label tp-glossary-term" title="Mindest-Ersparnis in CHF. Geprüfte Angebote mit weniger Ersparnis werden gefiltert; ungeprüfte bleiben sichtbar.">Min-Ersparnis</span>
                 <div class="tp-range-group" id="tp-bar-savings-group">
                   <input type="number" id="tp-savings-min-input" class="tp-range-input" placeholder="Min" min="0" step="any" value="${CONFIG.FILTER_SAVINGS_MIN > 0 ? CONFIG.FILTER_SAVINGS_MIN : ''}">
-                  <span class="tp-range-sep">–</span>
-                  <input type="number" id="tp-savings-max-input" class="tp-range-input" placeholder="Max" min="0" step="any" value="${CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : ''}">
                 </div>
                 <span class="tp-count-badge" data-row-count="savings" style="display: ${savingsHidden > 0 ? 'inline-flex' : 'none'};">${savingsHidden > 0 ? savingsHidden : ''}</span>
                 <button class="tp-filter-mode-btn" data-mode-key="FILTER_SAVINGS_MODE">Normal</button>
@@ -14162,7 +14138,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.410';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.411';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

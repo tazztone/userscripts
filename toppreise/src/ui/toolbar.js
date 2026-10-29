@@ -129,11 +129,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_DEAL_DISCOUNT_MODE">Normal</button>
             </div>
             <div class="tp-filter-row" data-filter-row="savings">
-              <span class="tp-filter-label tp-glossary-term" title="Mindest- und Höchst-Ersparnis in CHF. Geprüfte Angebote mit Ersparnis ausserhalb des Bereichs werden gefiltert; ungeprüfte bleiben sichtbar.">Ersparnis</span>
+              <span class="tp-filter-label tp-glossary-term" title="Mindest-Ersparnis in CHF. Geprüfte Angebote mit weniger Ersparnis werden gefiltert; ungeprüfte bleiben sichtbar.">Min-Ersparnis</span>
               <div class="tp-range-group" id="tp-bar-savings-group">
                 <input type="number" id="tp-savings-min-input" class="tp-range-input" placeholder="Min" min="0" step="any" value="${CONFIG.FILTER_SAVINGS_MIN > 0 ? CONFIG.FILTER_SAVINGS_MIN : ''}">
-                <span class="tp-range-sep">–</span>
-                <input type="number" id="tp-savings-max-input" class="tp-range-input" placeholder="Max" min="0" step="any" value="${CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : ''}">
               </div>
               <span class="tp-count-badge" data-row-count="savings" style="display: ${savingsHidden > 0 ? 'inline-flex' : 'none'};">${savingsHidden > 0 ? savingsHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_SAVINGS_MODE">Normal</button>

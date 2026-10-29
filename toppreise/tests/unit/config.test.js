@@ -299,7 +299,6 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     assert.equal(DEFAULTS.FILTER_PRICE_MODE, 'dim');
     assert.equal(DEFAULTS.FILTER_SAVINGS_ENABLED, false);
     assert.equal(DEFAULTS.FILTER_SAVINGS_MIN, 0);
-    assert.equal(DEFAULTS.FILTER_SAVINGS_MAX, 0);
     assert.equal(DEFAULTS.FILTER_SAVINGS_MODE, 'dim');
 
     assert.equal(sanitizeConfigValue('FILTER_PRICE_MIN', 49.90), 49.90);

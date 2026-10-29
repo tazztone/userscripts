@@ -19,7 +19,7 @@ const CYCLE_TOASTS = {
   FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
   FILTER_PRICE_MODE: { dim: '💵 Preis: Dimmen', hide: '💵 Preis: Verbergen', highlight: '💵 Preis: Hervorheben', off: '💵 Preis: Normal' },
   FILTER_DEAL_DISCOUNT_MODE: { dim: '📉 Min-Rabatt: Dimmen', hide: '📉 Min-Rabatt: Verbergen', highlight: '📉 Min-Rabatt: Hervorheben', off: '📉 Min-Rabatt: Normal' },
-  FILTER_SAVINGS_MODE: { dim: '💰 Ersparnis: Dimmen', hide: '💰 Ersparnis: Verbergen', highlight: '💰 Ersparnis: Hervorheben', off: '💰 Ersparnis: Normal' },
+  FILTER_SAVINGS_MODE: { dim: '💰 Min-Ersparnis: Dimmen', hide: '💰 Min-Ersparnis: Verbergen', highlight: '💰 Min-Ersparnis: Hervorheben', off: '💰 Min-Ersparnis: Normal' },
   HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
   VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
 };
@@ -126,7 +126,6 @@ export function wireFilterPopover(bar) {
           FILTER_PRICE_MIN: 0,
           FILTER_PRICE_MAX: 0,
           FILTER_SAVINGS_MIN: 0,
-          FILTER_SAVINGS_MAX: 0,
           NEGATIVE_TERMS: '',
           FILTERS_ENABLED: true
         });
@@ -136,8 +135,6 @@ export function wireFilterPopover(bar) {
         if (pMax) pMax.value = '';
         const sMin = bar.querySelector('#tp-savings-min-input');
         if (sMin) sMin.value = '';
-        const sMax = bar.querySelector('#tp-savings-max-input');
-        if (sMax) sMax.value = '';
         showToast('Filter zurückgesetzt');
       };
     }
@@ -163,21 +160,17 @@ export function wireFilterPopover(bar) {
 
   let savingsDeb;
   const savingsMinInput = bar.querySelector('#tp-savings-min-input');
-  const savingsMaxInput = bar.querySelector('#tp-savings-max-input');
   const onSavingsChange = () => {
     clearTimeout(savingsDeb);
     savingsDeb = setTimeout(() => {
       const min = Math.max(0, parseFloat(savingsMinInput?.value) || 0);
-      const max = Math.max(0, parseFloat(savingsMaxInput?.value) || 0);
       updateConfigs({
         FILTER_SAVINGS_MIN: min,
-        FILTER_SAVINGS_MAX: max,
-        FILTER_SAVINGS_ENABLED: (min > 0 || max > 0)
+        FILTER_SAVINGS_ENABLED: min > 0
       });
     }, 150);
   };
   savingsMinInput?.addEventListener('input', onSavingsChange);
-  savingsMaxInput?.addEventListener('input', onSavingsChange);
 
   const updateMinOffers = delta => {
     const next = Math.max(0, CONFIG.MIN_OFFERS + delta);
@@ -229,10 +222,6 @@ export function syncFilterRow(bar, counts, flags) {
   const sMin = bar.querySelector('#tp-savings-min-input');
   if (sMin && document.activeElement !== sMin) {
     sMin.value = CONFIG.FILTER_SAVINGS_MIN > 0 ? CONFIG.FILTER_SAVINGS_MIN : '';
-  }
-  const sMax = bar.querySelector('#tp-savings-max-input');
-  if (sMax && document.activeElement !== sMax) {
-    sMax.value = CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : '';
   }
 
   const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');

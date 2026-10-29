@@ -345,11 +345,6 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
             if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
             break;
           }
-          case 'FILTER_SAVINGS_MAX': {
-            const el = bar.querySelector('#tp-savings-max-input');
-            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
-            break;
-          }
           case 'MIN_OFFERS': {
             const minVal = bar.querySelector('#tp-bar-min-val');
             if (minVal) minVal.textContent = val;

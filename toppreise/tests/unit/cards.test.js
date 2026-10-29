@@ -682,7 +682,7 @@ describe('Min-Rabatt threshold filter core', () => {
   });
 
   it('applyCardFilters sets isBelowMinSavings for verified deals below CHF savings threshold', () => {
-    withConfigs({ FILTER_SAVINGS_ENABLED: true, FILTER_SAVINGS_MIN: 20, FILTER_SAVINGS_MAX: 0 }, () => {
+    withConfigs({ FILTER_SAVINGS_ENABLED: true, FILTER_SAVINGS_MIN: 20 }, () => {
       // 80 CHF with 10% discount: savings = 80 * (0.1/0.9) = 8.89 CHF (< 20 CHF)
       const cdLowSavings = { cardPrice: 80, dealScore: { weightedDiff: 10 }, card: {} };
       assert.equal(applyCardFilters(cdLowSavings, [], 0, true).isBelowMinSavings, true);
