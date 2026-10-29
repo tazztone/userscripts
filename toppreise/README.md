@@ -93,7 +93,7 @@ Requires a userscript manager browser extension:
 
 | # | Control | Description |
 |---|---|---|
-| ① | **Filter Button** | Opens multi-mode filter controls; button displays color-coded state pills (amber for hidden, yellow for dimmed, green for highlighted). |
+| ① | **Filter Button & Global Toggle** | Opens multi-mode filter controls; button displays color-coded state pills (amber for hidden, yellow for dimmed, green for highlighted). Directly beside it, a compact mini-switch temporarily bypasses all active card filters without clearing configured thresholds. |
 | ② | **Negative Keywords (*Begriffe*)** | Instant exclusion by keywords with live word-boundary matching. |
 | ③ | **Minimum Offers** | Filters out marketplace offers with fewer than **N** merchants (active only on pages with dealer rows). |
 | ④ | **Unverified Offers (*Ungeprüfte*)** | Dim or hide deals lacking verified historical price series. |

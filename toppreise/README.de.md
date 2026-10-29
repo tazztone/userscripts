@@ -93,7 +93,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 | # | Steuerelement | Beschreibung |
 |---|---|---|
-| ① | **Filter-Button** | Öffnet die 4-stufigen Filterregler; der Button zeigt farbige Zähler-Pills (Bernstein für verbergen, Gelb für dimmen, Grün für hervorheben). |
+| ① | **Filter-Button & Hauptschalter** | Öffnet die 4-stufigen Filterregler; der Button zeigt farbige Zähler-Pills (Bernstein für verbergen, Gelb für dimmen, Grün für hervorheben). Direkt daneben schaltet ein kompakter Schiebeschalter alle aktiven Filter temporär aus, ohne die konfigurierten Werte zu löschen. |
 | ② | **Begriffe (Negativ-Filter)** | Sofortiger Ausschluss unerwünschter Begriffe mit wortgenauer Erkennung. |
 | ③ | **Min-Angebote** | Filtert Angebote mit weniger als **N** Händlern aus (nur auf Seiten mit Händlerzeilen aktiv). |
 | ④ | **Ungeprüfte Angebote** | Blendet Angebote ohne verifizierte Preishistorie aus oder dimmt sie. |

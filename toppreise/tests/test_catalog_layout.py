@@ -3020,3 +3020,61 @@ def test_universal_filter_rows_and_min_discount_filter(page: Page):
     assert mode_btn.inner_text() == 'Normal'
 
 
+def test_global_filter_toggle_temporarily_disables_all_filters(page: Page):
+    # Global toggle starts ON
+    toggle = page.locator('#tp-bar-filters-toggle')
+    assert toggle.is_checked()
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.FILTERS_ENABLED") is True
+
+    # 1. Apply a negative filter in hide mode
+    _open_filter_popover(page)
+    neg_input = page.locator('#tp-inline-negative-input')
+    neg_input.fill('schwarz')
+    neg_mode_btn = page.locator('[data-mode-key="FILTER_NEG_MODE"]')
+    # Click to switch from Normal -> Dimmen -> Verbergen
+    neg_mode_btn.click()
+    neg_mode_btn.click()
+    assert neg_mode_btn.inner_text() == 'Verbergen'
+    page.wait_for_selector('#card-negative.tp-filtered', state='attached')
+    assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") == 'none'
+
+    # Filter count pill is visible on the filter button
+    filter_count = page.locator('#tp-filter-count')
+    assert filter_count.is_visible()
+    assert filter_count.inner_text() == '1'
+    filter_btn = page.locator('#tp-bar-filter-btn')
+    assert 'tp-filters-paused' not in (filter_btn.get_attribute('class') or '')
+
+    # 2. Toggle global filter switch OFF
+    page.click('#tp-bar-filters-toggle-label')
+    page.wait_for_function("() => !window.ToppreiseSuite.CONFIG.FILTERS_ENABLED")
+    assert not toggle.is_checked()
+
+    # Card becomes visible and tp-filtered class is removed
+    page.wait_for_function("() => window.getComputedStyle(document.querySelector('#card-negative')).display !== 'none'")
+    assert 'tp-filtered' not in (page.locator('#card-negative').get_attribute('class') or '')
+
+    # Filter button is marked paused, but count pill stays visible showing what would be filtered
+    assert 'tp-filters-paused' in (filter_btn.get_attribute('class') or '')
+    assert filter_count.is_visible()
+    assert filter_count.inner_text() == '1'
+
+    # 3. Toggle global filter switch back ON
+    page.click('#tp-bar-filters-toggle-label')
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.FILTERS_ENABLED")
+    assert toggle.is_checked()
+    page.wait_for_selector('#card-negative.tp-filtered', state='attached')
+    assert page.evaluate("() => window.getComputedStyle(document.querySelector('#card-negative')).display") == 'none'
+    assert 'tp-filters-paused' not in (filter_btn.get_attribute('class') or '')
+
+    # 4. Turn OFF again, then click Reset in popover -> resets FILTERS_ENABLED to True
+    page.click('#tp-bar-filters-toggle-label')
+    page.wait_for_function("() => !window.ToppreiseSuite.CONFIG.FILTERS_ENABLED")
+    _open_filter_popover(page)
+    page.click('#tp-filter-reset')
+    page.wait_for_function("() => window.ToppreiseSuite.CONFIG.FILTERS_ENABLED === true")
+    assert toggle.is_checked()
+    assert 'tp-filters-paused' not in (filter_btn.get_attribute('class') or '')
+
+
+
