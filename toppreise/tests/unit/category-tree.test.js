@@ -9,6 +9,8 @@ import {
   saveStoredIdents,
   getExpandedBranches,
   saveExpandedBranches,
+  getPersistedIgnoredVcatIds,
+  savePersistedIgnoredVcatIds,
   isCategoryIgnored,
   getIgnoredVcatIds,
   syncCategoryTreeIgnoredState,
@@ -287,6 +289,11 @@ test('stored idents and expanded branches storage wrappers', () => {
 
   saveExpandedBranches(new Set(['c200', 'c8']));
   assert.deepEqual(Array.from(getExpandedBranches()), ['c200', 'c8']);
+
+  savePersistedIgnoredVcatIds(new Set(['123', '456']));
+  assert.deepEqual(Array.from(getPersistedIgnoredVcatIds()).sort(), ['123', '456']);
+  savePersistedIgnoredVcatIds(new Set());
+  assert.equal(getPersistedIgnoredVcatIds().size, 0);
 });
 
 function createMockElement(tag, attrs = {}) {
@@ -870,14 +877,75 @@ test('parseCategoryIdentsFromText extracts tokens across HTML, JSON and quote st
   assert.equal(map['303'], 'ident303');
 });
 
-test('executeServerCategoryExclusion handles missing token with error toast', async () => {
+test('executeServerCategoryExclusion returns false gracefully when token missing', async () => {
   const prevLoc = globalThis.location;
   try {
     globalThis.location = { hostname: 'www.toppreise.ch', pathname: '/neue-toppreise', href: 'https://www.toppreise.ch/neue-toppreise' };
     const success = await executeServerCategoryExclusion('nonexistent_cat_99999');
     assert.equal(success, false);
-    assert.match(getLastToastMessage(), /Token fehlt/i);
   } finally {
+    if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+  }
+});
+
+test('getIgnoredVcatIds includes both in-page chips and persisted IDs', () => {
+  savePersistedIgnoredVcatIds(new Set(['555']));
+  const doc = createMockElement('div');
+  const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+  const chip = createMockElement('span', { className: 'ignoredCategory' });
+  chip.setAttribute('data-vcat-id', '35');
+  bar.appendChild(chip);
+  doc.appendChild(bar);
+
+  const ignored = getIgnoredVcatIds(doc);
+  assert.ok(ignored.has('35'));
+  assert.ok(ignored.has('555'));
+  savePersistedIgnoredVcatIds(new Set());
+});
+
+test('enhanceCategorySidebar hydrates persisted exclusions on load', () => {
+  const prevDoc = globalThis.document;
+  const prevLoc = globalThis.location;
+  savePersistedIgnoredVcatIds(new Set(['200']));
+
+  try {
+    const sidebar = createMockElement('div', { className: 'Plugin_CategoryMainSelectionLeft' });
+    const ul = createMockElement('ul');
+    const li = createMockElement('li');
+    const a = createMockElement('a', { href: '/neue-toppreise/Computer-Zubehoer-c200' });
+    a.textContent = 'Computer & Zubehör';
+    li.appendChild(a);
+    ul.appendChild(li);
+    sidebar.appendChild(ul);
+
+    const ignoredBar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+
+    globalThis.document = {
+      body: {
+        classList: { contains: c => c === 'Page_ListTopPriceReductionProducts' },
+        getAttribute: a => (a === 'data-current_url' ? '/neue-toppreise' : null)
+      },
+      querySelector: sel => {
+        if (sel.includes('Plugin_CategoryMainSelectionLeft')) return sidebar;
+        if (sel.includes('Plugin_IgnoredCategories')) return ignoredBar;
+        return null;
+      },
+      querySelectorAll: sel => {
+        if (sel.includes('.ignoredCategory')) return ignoredBar.querySelectorAll(sel);
+        return [];
+      },
+      createElement: tag => createMockElement(tag)
+    };
+    globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise', pathname: '/neue-toppreise' };
+
+    enhanceCategorySidebar();
+
+    const chips = ignoredBar.querySelectorAll('.ignoredCategory');
+    assert.equal(chips.length, 1);
+    assert.equal(chips[0].getAttribute('data-vcat-id'), '200');
+  } finally {
+    savePersistedIgnoredVcatIds(new Set());
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
   }
 });

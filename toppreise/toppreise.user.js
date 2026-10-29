@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.405
+// @version      2.18.406
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5464,6 +5464,22 @@ const SHADOW_MODAL_STYLES = `
 
   const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
   const EXPANDED_STORAGE_KEY = 'tp_cat_expanded_branches';
+  const PERSISTED_IGNORED_VCATS_KEY = 'tp_cat_ignored_subcategories';
+
+  function getPersistedIgnoredVcatIds() {
+    try {
+      const raw = localStorage.getItem(PERSISTED_IGNORED_VCATS_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  function savePersistedIgnoredVcatIds(set) {
+    try {
+      localStorage.setItem(PERSISTED_IGNORED_VCATS_KEY, JSON.stringify(Array.from(set)));
+    } catch {}
+  }
 
   // Memory cache for the indexed category tree
   let treeIndex = null;
@@ -5745,6 +5761,9 @@ const SHADOW_MODAL_STYLES = `
 
   function getIgnoredVcatIds(doc = (typeof document !== 'undefined' ? document : null)) {
     const set = new Set();
+    const persisted = getPersistedIgnoredVcatIds();
+    persisted.forEach(id => set.add(id));
+
     if (!doc?.querySelectorAll) return set;
     const chips = doc.querySelectorAll('.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id]');
     chips.forEach(chip => {
@@ -5974,6 +5993,9 @@ const SHADOW_MODAL_STYLES = `
       const body = new URLSearchParams({
         aicatpr: pid,
         fp_ic_ch: contextHash,
+        f_ic_ch: contextHash,
+        p_ic_ch: contextHash,
+        ic_ch: contextHash,
         lang
       });
 
@@ -5982,7 +6004,8 @@ const SHADOW_MODAL_STYLES = `
           method: 'POST',
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Accept': '*/*'
           },
           credentials: 'same-origin',
           body: body.toString()
@@ -6014,27 +6037,47 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
-    // 2. Fetch category catalog page or parent URL
+    // 2. Fetch category catalog page or parent URLs (walking all ancestors up to root)
     const candidateUrls = [];
     if (node.url) {
-      candidateUrls.push(node.url);
       candidateUrls.push(toFeedUrl(node.url, currentPath));
+      candidateUrls.push(node.url);
     }
-    if (node.parentID && node.parentID !== 'root' && node.parentID !== 'start') {
-      const parentNode = tree.byId.get(node.parentID);
+
+    let curr = node;
+    let depth = 0;
+    while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 10) {
+      depth++;
+      const pid = String(curr.parentID).trim();
+      const parentNode = tree.byId.get(pid) ||
+                         tree.byId.get(`c${pid}`) ||
+                         tree.byId.get(pid.replace(/^c/i, ''));
       if (parentNode?.url) {
-        candidateUrls.push(parentNode.url);
         candidateUrls.push(toFeedUrl(parentNode.url, currentPath));
+        candidateUrls.push(parentNode.url);
       }
+      curr = parentNode;
     }
+
     if (candidateUrls.length === 0) {
       candidateUrls.push(currentPath || '/neue-toppreise');
     }
 
+    const origin = (typeof location !== 'undefined' && location.origin && /^https?:/.test(location.origin))
+      ? location.origin
+      : 'https://www.toppreise.ch';
+
     for (const targetUrl of candidateUrls) {
       if (!targetUrl || typeof fetch !== 'function') continue;
       try {
-        const resp = await fetch(targetUrl, { credentials: 'same-origin' });
+        const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+        const resp = await fetch(fullUrl, {
+          credentials: 'same-origin',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'text/html, */*'
+          }
+        });
         if (resp.ok) {
           const text = await resp.text();
           const updatedStored = parseCategoryIdentsFromText(text);
@@ -6082,8 +6125,7 @@ const SHADOW_MODAL_STYLES = `
     }
 
     if (!ident) {
-      console.warn('[Toppreise-Suite] Could not resolve aicat token for category', vcatId);
-      showToast('Kategorie konnte nicht ausgeblendet werden (Token fehlt)');
+      console.info('[Toppreise-Suite] aicat token unavailable on server for category', vcatId, '- client persistence active');
       return false;
     }
 
@@ -6091,6 +6133,9 @@ const SHADOW_MODAL_STYLES = `
       aicat: ident || '',
       aicatvc: vcatId,
       fp_ic_ch: contextHash,
+      f_ic_ch: contextHash,
+      p_ic_ch: contextHash,
+      ic_ch: contextHash,
       lang
     });
 
@@ -6116,12 +6161,10 @@ const SHADOW_MODAL_STYLES = `
         await refreshProductFeed(activeDoc);
         return true;
       } else {
-        showToast('Kategorie konnte nicht ausgeblendet werden (Serverfehler)');
         return false;
       }
     } catch (err) {
       console.error('[Toppreise-Suite] Category exclusion error:', err);
-      showToast('Kategorie konnte nicht ausgeblendet werden (Netzwerkfehler)');
       return false;
     }
   }
@@ -6143,6 +6186,9 @@ const SHADOW_MODAL_STYLES = `
       aicatvc: vcatId,
       aicatrs: '1',
       fp_ic_ch: contextHash,
+      f_ic_ch: contextHash,
+      p_ic_ch: contextHash,
+      ic_ch: contextHash,
       lang
     });
 
@@ -6191,6 +6237,9 @@ const SHADOW_MODAL_STYLES = `
     const body = new URLSearchParams({
       aicatrs: 'all',
       fp_ic_ch: contextHash,
+      f_ic_ch: contextHash,
+      p_ic_ch: contextHash,
+      ic_ch: contextHash,
       lang
     });
 
@@ -6422,6 +6471,38 @@ const SHADOW_MODAL_STYLES = `
     sidebar.classList.add('tp-tree-enhanced');
     harvestExistingIdents(sidebar);
 
+    // Hydrate client-persisted subcategory exclusions across F5 reloads
+    const persistedVcats = getPersistedIgnoredVcatIds();
+    if (persistedVcats.size > 0 && typeof document !== 'undefined') {
+      const storedIdents = getStoredIdents();
+      persistedVcats.forEach(vcatId => {
+        const catId = `c${vcatId}`;
+        const node = treeIndex?.byId?.get(catId) || treeIndex?.byId?.get(vcatId);
+        const catName = node?.title || 'Kategorie';
+        const ident = storedIdents[vcatId] || '';
+        addIgnoredCategoryChip(vcatId, catName, ident, document);
+        hideMatchingCategoryCards(vcatId, document);
+      });
+      syncCategoryTreeIgnoredState(sidebar);
+
+      if (!treeIndex) {
+        loadNativeCategoryTree(document).then(tree => {
+          if (typeof document === 'undefined') return;
+          persistedVcats.forEach(vcatId => {
+            const catId = `c${vcatId}`;
+            const node = tree?.byId?.get(catId) || tree?.byId?.get(vcatId);
+            if (node?.title) {
+              const bar = document.querySelector?.('.Plugin_IgnoredCategories');
+              const chip = bar?.querySelector?.(`.ignoredCategory[data-vcat-id="${vcatId}"]`);
+              if (chip && chip.firstChild && chip.firstChild.nodeType === 3) {
+                chip.firstChild.nodeValue = `${node.title} `;
+              }
+            }
+          });
+        }).catch(() => {});
+      }
+    }
+
     const currentPath = typeof location !== 'undefined' ? location.pathname : '';
     const expandedBranches = getExpandedBranches();
 
@@ -6624,26 +6705,21 @@ const SHADOW_MODAL_STYLES = `
             e.stopImmediatePropagation?.();
           }
 
+          const cleanVcatId = String(vcatId).trim();
+          const persisted = getPersistedIgnoredVcatIds();
+          persisted.add(cleanVcatId);
+          savePersistedIgnoredVcatIds(persisted);
+
           const li = hideBtn.closest?.('li') || hideBtn.closest?.('.tp-cat-result-item');
           const catName = (li?.querySelector?.('.tp-cat-res-title') || li?.querySelector?.('a'))?.textContent?.trim() || 'Kategorie';
-          const ident = hideBtn.getAttribute?.('data-ident') || getStoredIdents()[vcatId] || '';
+          const ident = hideBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
           const rowEl = hideBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || hideBtn;
 
-          if (isLiveSite && isSubOrSearch) {
-            // On live site: display pending indicator, resolve authentic token and persist on server
-            rowEl.classList?.add?.('tp-cat-loading');
-            const success = await executeServerCategoryExclusion(vcatId, ident, document);
-            rowEl.classList?.remove?.('tp-cat-loading');
+          // Instant responsive feedback: add chip and hide cards client-side
+          addIgnoredCategoryChip(cleanVcatId, catName, ident, document);
+          hideMatchingCategoryCards(cleanVcatId, document);
 
-            if (!success) {
-              return;
-            }
-          } else {
-            // In mock/test environments or root categories: instant client DOM simulation
-            addIgnoredCategoryChip(vcatId, catName, ident, document);
-          }
-
-          const targetLi = hideBtn.closest?.('li') || sidebar.querySelector(`li[data-cat-id="c${vcatId}"]`);
+          const targetLi = hideBtn.closest?.('li') || sidebar.querySelector(`li[data-cat-id="c${cleanVcatId}"]`);
           if (targetLi) {
             const catId = targetLi.dataset?.catId;
             if (catId) {
@@ -6660,11 +6736,16 @@ const SHADOW_MODAL_STYLES = `
             }
           }
 
-          // Hide any matching cards currently in the feed immediately
-          hideMatchingCategoryCards(vcatId, document);
-
           // Defer mutating button class so event loop finishes without triggering opposite Show listeners
           setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
+
+          // In background: attempt genuine server exclusion to sync PHP session across devices/sessions
+          if (isSubOrSearch) {
+            rowEl.classList?.add?.('tp-cat-loading');
+            executeServerCategoryExclusion(cleanVcatId, ident, document).finally(() => {
+              rowEl.classList?.remove?.('tp-cat-loading');
+            });
+          }
           return;
         }
 
@@ -6680,10 +6761,15 @@ const SHADOW_MODAL_STYLES = `
             e.stopImmediatePropagation?.();
           }
 
-          // If clicked on a chip in Plugin_IgnoredCategories or a sidebar restore button
-          removeIgnoredCategoryChip(vcatId, document);
+          const cleanVcatId = String(vcatId).trim();
+          const persisted = getPersistedIgnoredVcatIds();
+          persisted.delete(cleanVcatId);
+          savePersistedIgnoredVcatIds(persisted);
 
-          const targetLi = showBtn.closest?.('li') || sidebar.querySelector(`[data-vcat-id="${vcatId}"]`)?.closest('li');
+          // If clicked on a chip in Plugin_IgnoredCategories or a sidebar restore button
+          removeIgnoredCategoryChip(cleanVcatId, document);
+
+          const targetLi = showBtn.closest?.('li') || sidebar.querySelector(`[data-vcat-id="${cleanVcatId}"]`)?.closest('li');
           if (targetLi) {
             const toggle = targetLi.querySelector('.tp-cat-toggle');
             if (toggle) {
@@ -6695,13 +6781,14 @@ const SHADOW_MODAL_STYLES = `
           setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 0);
 
           if (isSubOrSearch) {
-            executeServerCategoryRestore(vcatId, document);
+            executeServerCategoryRestore(cleanVcatId, document);
           }
           return;
         }
 
         const resetBtn = e.target?.closest?.('.f_IgnoredCategories_Reset');
         if (resetBtn) {
+          savePersistedIgnoredVcatIds(new Set());
           resetAllIgnoredCategoryChips(document);
           sidebar.querySelectorAll('.tp-cat-toggle').forEach(t => {
             t.disabled = false;
@@ -6711,6 +6798,25 @@ const SHADOW_MODAL_STYLES = `
           executeServerCategoryReset(document);
         }
       }, { capture: true });
+    }
+
+    // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
+    if (typeof document !== 'undefined' && typeof MutationObserver === 'function') {
+      const flyoutObserver = new MutationObserver(mutations => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1) {
+              const menu = node.classList?.contains('IgnoredCategoriesMenu')
+                ? node
+                : node.querySelector?.('.IgnoredCategoriesMenu');
+              if (menu) {
+                parseCategoryIdentsFromText(menu.outerHTML);
+              }
+            }
+          }
+        }
+      });
+      flyoutObserver.observe(document.body, { childList: true, subtree: true });
     }
   }
 
@@ -14097,7 +14203,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.405';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.406';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
