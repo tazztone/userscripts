@@ -168,12 +168,42 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
   return treeLoadingPromise;
 }
 
-export function searchCategoryTree(tree, query, maxResults = 12) {
+export function hasIgnoredAncestor(node, tree, ignoredIds) {
+  if (!node || !tree?.byId || !ignoredIds) return false;
+  const ignoredSet = (ignoredIds instanceof Set) ? ignoredIds : new Set(ignoredIds);
+  if (ignoredSet.size === 0) return false;
+
+  let curr = node;
+  let depth = 0;
+  while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 20) {
+    depth++;
+    const pid = String(curr.parentID).trim();
+    const parentNode = tree.byId.get(pid) ||
+                       tree.byId.get(`c${pid}`) ||
+                       tree.byId.get(pid.replace(/^c/i, ''));
+    if (!parentNode) break;
+
+    const parentNumeric = String(parentNode.numericId || parentNode.id.replace(/^c/i, '')).trim();
+    const parentId = String(parentNode.id).trim();
+
+    if (ignoredSet.has(parentNumeric) || ignoredSet.has(parentId) || ignoredSet.has(`c${parentNumeric}`)) {
+      return true;
+    }
+    curr = parentNode;
+  }
+  return false;
+}
+
+export function searchCategoryTree(tree, query, maxResults = 12, ignoredIds = null) {
   if (!tree || !query || !query.trim()) return [];
   const q = query.trim().toLowerCase();
   const results = [];
+  const hasIgnoredFilter = ignoredIds && ((ignoredIds instanceof Set && ignoredIds.size > 0) || (Array.isArray(ignoredIds) && ignoredIds.length > 0));
+
   for (const node of tree.allNodes) {
     if (!node.title || node.id === 'start' || node.id === 'root') continue;
+    if (hasIgnoredFilter && hasIgnoredAncestor(node, tree, ignoredIds)) continue;
+
     const titleLower = node.title.toLowerCase();
     const urlLower = node.url.toLowerCase();
     if (titleLower.includes(q) || urlLower.includes(q)) {
@@ -612,10 +642,18 @@ export function enhanceCategorySidebar() {
       const val = input.value.trim();
       clearBtn.style.display = (val || stagedPool.size > 0) ? 'block' : 'none';
 
+      const storedIdents = getStoredIdents();
+      const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      const ignoredIds = getIgnoredVcatIds(doc);
+      const effectiveIgnored = new Set(ignoredIds);
+      for (const stagedKey of stagedPool.keys()) {
+        effectiveIgnored.add(String(stagedKey).trim());
+      }
+
       let hits = [];
       if (val) {
         const tree = await loadNativeCategoryTree();
-        hits = searchCategoryTree(tree, val, 15);
+        hits = searchCategoryTree(tree, val, 15, effectiveIgnored);
       } else if (stagedPool.size > 0) {
         hits = Array.from(stagedPool.values());
       } else {
@@ -626,10 +664,6 @@ export function enhanceCategorySidebar() {
 
       if (ulList) ulList.style.display = 'none';
       resultsBox.style.display = 'block';
-
-      const storedIdents = getStoredIdents();
-      const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
-      const ignoredIds = getIgnoredVcatIds(doc);
 
       if (hits.length === 0) {
         resultsBox.innerHTML = '<div class="tp-cat-no-results">Keine Kategorie gefunden</div>';
@@ -732,6 +766,19 @@ export function enhanceCategorySidebar() {
             ident,
             url: link
           });
+
+          // Prune any staged child nodes if their parent was just staged
+          const tree = await loadNativeCategoryTree();
+          if (tree) {
+            for (const [stagedKey] of stagedPool.entries()) {
+              if (stagedKey !== vcatId) {
+                const childNode = tree.byId.get(stagedKey) || tree.byId.get(`c${stagedKey}`);
+                if (childNode && hasIgnoredAncestor(childNode, tree, new Set([vcatId]))) {
+                  stagedPool.delete(stagedKey);
+                }
+              }
+            }
+          }
         }
         renderSearchResults();
         return;

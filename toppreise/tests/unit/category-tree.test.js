@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   toFeedUrl,
   indexCategoryData,
+  hasIgnoredAncestor,
   searchCategoryTree,
   getStoredIdents,
   saveStoredIdents,
@@ -198,6 +199,64 @@ test('searchCategoryTree matches title and URL keywords', () => {
 
   const resBlank = searchCategoryTree(indexed, '   ');
   assert.equal(resBlank.length, 0);
+
+  // When parent 'c200' is ignored, child 'c8' must be omitted from search results
+  const resWithIgnoredParent = searchCategoryTree(indexed, 'komplett', 12, new Set(['200']));
+  assert.equal(resWithIgnoredParent.length, 0);
+
+  // But the ignored parent itself should still be matchable (so it can be re-enabled)
+  const resParentMatch = searchCategoryTree(indexed, 'computer', 12, new Set(['200']));
+  assert.equal(resParentMatch.length, 1);
+  assert.equal(resParentMatch[0].id, 'c200');
+});
+
+test('hasIgnoredAncestor checks parent and grandparent hierarchy against ignored sets', () => {
+  const sample = [
+    {
+      id: 'c200',
+      title: 'Computer & Zubehör',
+      url: '/c200',
+      parentID: '',
+      children: [
+        {
+          id: 'c8',
+          title: 'Komplettsysteme',
+          url: '/c8',
+          parentID: 'c200',
+          children: [
+            {
+              id: 'c100',
+              title: 'Gaming PCs',
+              url: '/c100',
+              parentID: 'c8'
+            }
+          ]
+        }
+      ]
+    }
+  ];
+  const tree = indexCategoryData(sample);
+  const rootNode = tree.byId.get('c200');
+  const childNode = tree.byId.get('c8');
+  const grandchildNode = tree.byId.get('c100');
+
+  // Empty or unrelated ignored sets
+  assert.equal(hasIgnoredAncestor(rootNode, tree, new Set()), false);
+  assert.equal(hasIgnoredAncestor(childNode, tree, new Set(['999'])), false);
+
+  // Root node itself has no ancestor
+  assert.equal(hasIgnoredAncestor(rootNode, tree, new Set(['200'])), false);
+
+  // Child node has ignored parent (numeric or 'c' prefixed)
+  assert.equal(hasIgnoredAncestor(childNode, tree, new Set(['200'])), true);
+  assert.equal(hasIgnoredAncestor(childNode, tree, new Set(['c200'])), true);
+
+  // Grandchild has ignored grandparent
+  assert.equal(hasIgnoredAncestor(grandchildNode, tree, new Set(['200'])), true);
+  // Grandchild has ignored immediate parent
+  assert.equal(hasIgnoredAncestor(grandchildNode, tree, new Set(['8'])), true);
+  // When grandchild itself is in ignored set, hasIgnoredAncestor is false (it is not its own ancestor)
+  assert.equal(hasIgnoredAncestor(grandchildNode, tree, new Set(['100'])), false);
 });
 
 test('stored idents and expanded branches storage wrappers', () => {

@@ -2462,6 +2462,13 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const toggleDisabledAfterHide = !!firstToggle?.disabled;
         const rowBgAfterHide = firstLi?.querySelector('.tp-cat-row') ? window.getComputedStyle(firstLi.querySelector('.tp-cat-row')).backgroundColor : null;
 
+        // Searching for child category when parent is disabled returns 0 results
+        searchInput.value = 'komplett';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 60));
+        const childHitsWhenParentIgnored = resultsBox?.querySelectorAll('.tp-cat-result-item').length || 0;
+        clearBtn?.click();
+
         // Re-enabling restores toggle interactivity
         const showBtn = document.querySelector('.Plugin_IgnoredCategories .f_IgnoredCategories_Show') || document.querySelector('.f_IgnoredCategories_Show');
         const showBtnHtml = showBtn ? showBtn.outerHTML : 'none';
@@ -2519,6 +2526,7 @@ def test_expandable_category_sidebar_interactions(page: Page):
             sublistAfterHide: !!sublistAfterHide,
             toggleDisabledAfterHide,
             rowBgAfterHide,
+            childHitsWhenParentIgnored,
             toggleDisabledAfterShow,
             childIgnoredBefore: !!childIgnoredBefore,
             childIgnoredAfter: !!childIgnoredAfter,
@@ -2553,6 +2561,7 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['sublistAfterHide'] is False
     assert res['toggleDisabledAfterHide'] is True
     assert '239, 68, 68' in (res['rowBgAfterHide'] or '')
+    assert res['childHitsWhenParentIgnored'] == 0
     assert res['toggleDisabledAfterShow'] is False
     assert res['childIgnoredBefore'] is False
     assert res['childIgnoredAfter'] is True
