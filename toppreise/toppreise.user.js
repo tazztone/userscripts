@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.389
+// @version      2.18.390
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1404,6 +1404,15 @@ const STYLES_OVERLAYS = `
     opacity: 0.45 !important;
     filter: saturate(0.4) !important;
     transition: opacity 0.2s ease !important;
+  }
+  .tp-bar-btn.tp-filters-paused {
+    opacity: 0.55 !important;
+    filter: saturate(0.5) !important;
+    transition: opacity 0.2s ease !important;
+  }
+  .tp-bar-btn.tp-filters-paused .tp-count-badge {
+    opacity: 0.75 !important;
+    filter: grayscale(40%) !important;
   }
   .tp-calc-wrap {
     position: relative !important;
@@ -4255,6 +4264,14 @@ const SHADOW_MODAL_STYLES = `
                 input.value = val || '';
               }
               if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+              break;
+            }
+            case 'FILTERS_ENABLED': {
+              syncMiniToggle(bar.querySelector('#tp-bar-filters-toggle'), val !== false, 'Filter');
+              const filterBtn = bar.querySelector('#tp-bar-filter-btn');
+              if (filterBtn) {
+                filterBtn.classList.toggle('tp-filters-paused', val === false);
+              }
               break;
             }
             case 'HEATMAP_ENABLED': {
@@ -11943,6 +11960,12 @@ const SHADOW_MODAL_STYLES = `
 
     const filterBtn = bar.querySelector('#tp-bar-filter-btn');
     const filterPopover = bar.querySelector('#tp-bar-filter-popover');
+    const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
+    if (filtersToggle) {
+      filtersToggle.onchange = e => {
+        updateConfig('FILTERS_ENABLED', e.target.checked);
+      };
+    }
     if (filterBtn && filterPopover) {
       filterBtn.onclick = e => {
         e.stopPropagation();
@@ -12098,9 +12121,15 @@ const SHADOW_MODAL_STYLES = `
       sMax.value = CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : '';
     }
 
-    const hiddenTotal = counts.filteredCount || 0;
-    const dimmedTotal = counts.dimmed || 0;
-    const highlightedTotal = counts.highlighted || 0;
+    const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
+    if (filtersToggle) {
+      syncMiniToggle(filtersToggle, CONFIG.FILTERS_ENABLED !== false, 'Filter');
+    }
+
+    const isPaused = CONFIG.FILTERS_ENABLED === false;
+    const hiddenTotal = isPaused ? (counts.potentialFiltered || 0) : (counts.filteredCount || 0);
+    const dimmedTotal = isPaused ? (counts.potentialDimmed || 0) : (counts.dimmed || 0);
+    const highlightedTotal = isPaused ? (counts.potentialHighlighted || 0) : (counts.highlighted || 0);
     const filterBtn = bar.querySelector('#tp-bar-filter-btn');
     if (filterBtn) {
       const filterCount = bar.querySelector('#tp-filter-count');
@@ -12118,9 +12147,11 @@ const SHADOW_MODAL_STYLES = `
         setTextIfChanged(hlCount, highlightedTotal > 0 ? String(highlightedTotal) : '');
         hlCount.style.display = highlightedTotal > 0 ? 'inline-flex' : 'none';
       }
-      filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
+      filterBtn.classList.toggle('tp-filters-paused', isPaused);
+      filterBtn.classList.toggle('tp-tool-dim', !isPaused && hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
       const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
-      filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Preis:${priceHidden} Rabatt:${dealDiscHidden} Ersparnis:${savingsHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
+      const prefix = isPaused ? 'Filter (pausiert)' : 'Filter';
+      filterBtn.title = `${prefix} – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Preis:${priceHidden} Rabatt:${dealDiscHidden} Ersparnis:${savingsHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
     }
     const setRowCount = (name, n, show) => {
       const badge = bar.querySelector(`[data-row-count="${name}"]`);
@@ -12333,6 +12364,10 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset" title="Filter zurücksetzen">Zurücksetzen</button>
             </div>
           </div>
+          <label class="tp-mini-switch" id="tp-bar-filters-toggle-label" title="Filter ${CONFIG.FILTERS_ENABLED !== false ? 'AN' : 'AUS'}">
+            <input type="checkbox" id="tp-bar-filters-toggle" ${CONFIG.FILTERS_ENABLED !== false ? 'checked' : ''}>
+            <span class="tp-mini-slider"></span>
+          </label>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
@@ -13363,7 +13398,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.389';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.390';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

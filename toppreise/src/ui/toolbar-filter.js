@@ -6,7 +6,7 @@
 import { CONFIG, updateConfig, updateConfigs, FILTER_CYCLE, cycleStateOf } from '../state/config.js';
 import { showToast } from './toast.js';
 import { setTextIfChanged } from './badges.js';
-import { paintCycleButton } from './mini-toggle.js';
+import { paintCycleButton, syncMiniToggle } from './mini-toggle.js';
 
 const CYCLE_TITLE = {
   off: 'Filter: Normal — klicken für Dimmen',
@@ -74,6 +74,12 @@ export function wireFilterPopover(bar) {
 
   const filterBtn = bar.querySelector('#tp-bar-filter-btn');
   const filterPopover = bar.querySelector('#tp-bar-filter-popover');
+  const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
+  if (filtersToggle) {
+    filtersToggle.onchange = e => {
+      updateConfig('FILTERS_ENABLED', e.target.checked);
+    };
+  }
   if (filterBtn && filterPopover) {
     filterBtn.onclick = e => {
       e.stopPropagation();
@@ -229,9 +235,15 @@ export function syncFilterRow(bar, counts, flags) {
     sMax.value = CONFIG.FILTER_SAVINGS_MAX > 0 ? CONFIG.FILTER_SAVINGS_MAX : '';
   }
 
-  const hiddenTotal = counts.filteredCount || 0;
-  const dimmedTotal = counts.dimmed || 0;
-  const highlightedTotal = counts.highlighted || 0;
+  const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
+  if (filtersToggle) {
+    syncMiniToggle(filtersToggle, CONFIG.FILTERS_ENABLED !== false, 'Filter');
+  }
+
+  const isPaused = CONFIG.FILTERS_ENABLED === false;
+  const hiddenTotal = isPaused ? (counts.potentialFiltered || 0) : (counts.filteredCount || 0);
+  const dimmedTotal = isPaused ? (counts.potentialDimmed || 0) : (counts.dimmed || 0);
+  const highlightedTotal = isPaused ? (counts.potentialHighlighted || 0) : (counts.highlighted || 0);
   const filterBtn = bar.querySelector('#tp-bar-filter-btn');
   if (filterBtn) {
     const filterCount = bar.querySelector('#tp-filter-count');
@@ -249,9 +261,11 @@ export function syncFilterRow(bar, counts, flags) {
       setTextIfChanged(hlCount, highlightedTotal > 0 ? String(highlightedTotal) : '');
       hlCount.style.display = highlightedTotal > 0 ? 'inline-flex' : 'none';
     }
-    filterBtn.classList.toggle('tp-tool-dim', hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
+    filterBtn.classList.toggle('tp-filters-paused', isPaused);
+    filterBtn.classList.toggle('tp-tool-dim', !isPaused && hiddenTotal === 0 && dimmedTotal === 0 && highlightedTotal === 0);
     const hlText = highlightedTotal > 0 ? ` + Hervorgehoben (${highlightedTotal})` : '';
-    filterBtn.title = `Filter – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Preis:${priceHidden} Rabatt:${dealDiscHidden} Ersparnis:${savingsHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
+    const prefix = isPaused ? 'Filter (pausiert)' : 'Filter';
+    filterBtn.title = `${prefix} – Verbergen (${hiddenTotal}) + Gedimmt (${dimmedTotal})${hlText} — Neg:${negHidden} Min:${minHidden} Preis:${priceHidden} Rabatt:${dealDiscHidden} Ersparnis:${savingsHidden} Händler:${dealerHidden} Fallback:${vortiefHidden} Ungeprüft:${uncheckedHiddenCount}`;
   }
   const setRowCount = (name, n, show) => {
     const badge = bar.querySelector(`[data-row-count="${name}"]`);

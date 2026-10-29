@@ -147,6 +147,10 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset" title="Filter zurücksetzen">Zurücksetzen</button>
           </div>
         </div>
+        <label class="tp-mini-switch" id="tp-bar-filters-toggle-label" title="Filter ${CONFIG.FILTERS_ENABLED !== false ? 'AN' : 'AUS'}">
+          <input type="checkbox" id="tp-bar-filters-toggle" ${CONFIG.FILTERS_ENABLED !== false ? 'checked' : ''}>
+          <span class="tp-mini-slider"></span>
+        </label>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">

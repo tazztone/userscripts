@@ -7,6 +7,15 @@ export const STYLES_OVERLAYS = `
     filter: saturate(0.4) !important;
     transition: opacity 0.2s ease !important;
   }
+  .tp-bar-btn.tp-filters-paused {
+    opacity: 0.55 !important;
+    filter: saturate(0.5) !important;
+    transition: opacity 0.2s ease !important;
+  }
+  .tp-bar-btn.tp-filters-paused .tp-count-badge {
+    opacity: 0.75 !important;
+    filter: grayscale(40%) !important;
+  }
   .tp-calc-wrap {
     position: relative !important;
     display: inline-flex !important;

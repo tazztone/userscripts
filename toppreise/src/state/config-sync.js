@@ -233,6 +233,14 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
             if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
             break;
           }
+          case 'FILTERS_ENABLED': {
+            syncMiniToggle(bar.querySelector('#tp-bar-filters-toggle'), val !== false, 'Filter');
+            const filterBtn = bar.querySelector('#tp-bar-filter-btn');
+            if (filterBtn) {
+              filterBtn.classList.toggle('tp-filters-paused', val === false);
+            }
+            break;
+          }
           case 'HEATMAP_ENABLED': {
             const heatBtn = bar.querySelector('#tp-bar-heat-btn');
             if (heatBtn) {
