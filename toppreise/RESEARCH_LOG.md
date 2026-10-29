@@ -100,7 +100,9 @@
   subcategories and search results sync with `#Plugin_IgnoredCategories` chips to display red strikethrough
   and direct 1-click `✕` exclusion / `+` restore (`f_IgnoredCategories_Show`/`Hide`). Injected elements
   dynamically update the chip bar with instant optimistic UI feedback while resolving `aicat` ident tokens
-  and dispatching server exclusions/restores in the background without disruptive page reloads.
+  via multi-tier lookup (cached storage -> in-page card PID -> catalog product PID via `POST aicatpr`)
+  and dispatching server exclusions/restores in the background, updating `#Plugin_IgnoredCategories`
+  with authentic server HTML, hiding excluded cards immediately, and refreshing the product feed.
 - Per-card trigger `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger`
   at `top: 0; right: 0; z-index: 3` (card gets `.hasHideTrigger`); hover loads
   `.IgnoredCategoriesMenu .entry.f_IgnoredCategories_MenuEntry[data-vcat-id]`

@@ -5,7 +5,7 @@
  * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
  */
 
-import { isNeueToppreisePage } from '../page/adapter.js';
+import { isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 
 const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
 const EXPANDED_STORAGE_KEY = 'tp_cat_expanded_branches';
@@ -326,18 +326,20 @@ export function addIgnoredCategoryChip(vcatId, catName = 'Kategorie', ident = ''
     removeSpan.className = 'removeFilter';
     const icon = activeDoc.createElement('i');
     icon.className = 'TPIcons-cross';
-    icon.textContent = '✕';
     removeSpan.appendChild(icon);
     chip.appendChild(removeSpan);
 
-    barContainer.appendChild(chip);
-
-    let resetBtn = barContainer.querySelector?.('.resetAll');
-    if (!resetBtn) {
-      resetBtn = activeDoc.createElement('a');
-      resetBtn.className = 'resetAll f_IgnoredCategories_Reset';
-      resetBtn.textContent = 'Alle einblenden';
-      barContainer.appendChild(resetBtn);
+    const resetBtn = barContainer.querySelector?.('.resetAll');
+    if (resetBtn && typeof barContainer.insertBefore === 'function') {
+      barContainer.insertBefore(chip, resetBtn);
+    } else {
+      barContainer.appendChild(chip);
+      if (activeDoc.createElement) {
+        const newReset = activeDoc.createElement('a');
+        newReset.className = 'resetAll f_IgnoredCategories_Reset';
+        newReset.textContent = 'Alle einblenden';
+        barContainer.appendChild(newReset);
+      }
     }
   }
 
@@ -393,7 +395,80 @@ export function resetAllIgnoredCategoryChips(doc = (typeof document !== 'undefin
   }
 }
 
-export async function ensureCategoryIdent(item, tree = null, currentPath = '') {
+export function hideMatchingCategoryCards(vcatId, doc = null) {
+  if (!vcatId) return;
+  const activeDoc = getDoc(doc);
+  if (!activeDoc?.querySelectorAll) return;
+  const cleanVcatId = String(vcatId).trim();
+  const tree = treeIndex;
+  const catId = `c${cleanVcatId}`;
+  const node = tree?.byId?.get(catId) || tree?.byId?.get(cleanVcatId);
+  const slug = node?.url ? (node.url.split('/').pop()?.replace(/-c\d+$/, '') || '') : '';
+
+  const cards = activeDoc.querySelectorAll('.Plugin_Product[href*="/preisvergleich/"]');
+  cards.forEach(card => {
+    const href = card.getAttribute('href') || '';
+    if (slug && href.includes(`/${slug}/`)) {
+      card.style.display = 'none';
+      card.classList.add('tp-card-excluded-category');
+    }
+  });
+}
+
+export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) {
+  if (!html || !bar) return;
+  const activeDoc = getDoc(doc || bar.ownerDocument);
+  try {
+    if (typeof DOMParser !== 'undefined') {
+      const parser = new DOMParser();
+      const parsed = parser.parseFromString(html, 'text/html');
+      const newBar = parsed.querySelector('.Plugin_IgnoredCategories');
+      const newContainer = parsed.querySelector('.ignoredCategoriesBar');
+      if (newBar) {
+        bar.replaceWith(newBar);
+        syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+      } else if (newContainer) {
+        const curContainer = bar.querySelector('.ignoredCategoriesBar');
+        if (curContainer) {
+          curContainer.replaceWith(newContainer);
+        } else {
+          bar.appendChild(newContainer);
+        }
+        const chipCount = bar.querySelectorAll('.ignoredCategory').length;
+        bar.setAttribute('data-ignored-count', String(chipCount));
+        syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+      }
+    }
+  } catch {}
+}
+
+export async function refreshProductFeed(doc = (typeof document !== 'undefined' ? document : null)) {
+  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+  const activeDoc = getDoc(doc);
+  const container = activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') ||
+                    activeDoc?.querySelector?.('.standardList');
+  if (!container || typeof fetch !== 'function') return;
+
+  try {
+    const resp = await fetch(location.href, { credentials: 'same-origin' });
+    if (!resp.ok) return;
+    const html = await resp.text();
+    if (typeof DOMParser !== 'undefined') {
+      const parser = new DOMParser();
+      const parsedDoc = parser.parseFromString(html, 'text/html');
+      const newContainer = parsedDoc.querySelector('.Plugin_TopPriceReductionProductListFull') ||
+                           parsedDoc.querySelector('.standardList');
+      if (newContainer && container) {
+        container.innerHTML = newContainer.innerHTML;
+        triggerProcessListings();
+      }
+    }
+  } catch (err) {
+    console.error('[Toppreise-Suite] Feed refresh error:', err);
+  }
+}
+
+export async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null) {
   if (!item) return '';
   const vcatId = String(item.numericId || item.vcatId || '').trim();
   if (!vcatId) return '';
@@ -405,8 +480,9 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '') {
     return item.ident;
   }
 
+  const activeDoc = getDoc(doc);
   if (!tree) {
-    tree = await loadNativeCategoryTree();
+    tree = await loadNativeCategoryTree(activeDoc);
   }
   if (!tree?.byId) return '';
 
@@ -414,19 +490,86 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '') {
   const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
   if (!node) return '';
 
-  let parentUrl = '';
-  if (!node.parentID || node.parentID === 'root' || node.parentID === 'start') {
-    parentUrl = currentPath || '/neue-toppreise';
-  } else {
-    const parentNode = tree.byId.get(node.parentID);
-    if (parentNode?.url) {
-      parentUrl = toFeedUrl(parentNode.url, currentPath);
+  // Helper to query /plugins/filter/IgnoredCategories with product ID (aicatpr)
+  const fetchMenuIdents = async (pid) => {
+    if (!pid || typeof fetch !== 'function') return false;
+    const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+    const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+    const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
+    const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+    const contextHash = bar?.getAttribute?.('data-context-hash') || '';
+
+    const body = new URLSearchParams({
+      aicatpr: pid,
+      fp_ic_ch: contextHash,
+      lang
+    });
+
+    try {
+      const resp = await fetch(ajaxUrl, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        credentials: 'same-origin',
+        body: body.toString()
+      });
+      if (resp.ok) {
+        const text = await resp.text();
+        const updatedStored = getStoredIdents();
+        let changed = false;
+        const regex = /<[^>]+(?:data-vcat-id="([^"]+)"[^>]+data-ident="([^"]+)"|data-ident="([^"]+)"[^>]+data-vcat-id="([^"]+)")/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          const vid = match[1] || match[4];
+          const idn = match[2] || match[3];
+          if (vid && idn && updatedStored[vid] !== idn) {
+            updatedStored[vid] = idn;
+            changed = true;
+          }
+        }
+        if (changed) saveStoredIdents(updatedStored);
+        return !!updatedStored[vcatId];
+      }
+    } catch {}
+    return false;
+  };
+
+  // 1. Check in-page cards for matching category slug
+  const slug = node.url ? (node.url.split('/').pop()?.replace(/-c\d+$/, '') || '') : '';
+  if (slug && activeDoc?.querySelectorAll) {
+    const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${slug}/"]`);
+    if (matchingCard) {
+      const pid = matchingCard.getAttribute('data-entity-id') ||
+                  (matchingCard.getAttribute('href') || '').match(/-p(\d+)/)?.[1] || '';
+      if (pid) {
+        await fetchMenuIdents(pid);
+        const updatedStored = getStoredIdents();
+        if (updatedStored[vcatId]) {
+          item.ident = updatedStored[vcatId];
+          return item.ident;
+        }
+      }
     }
   }
 
-  if (parentUrl && typeof fetch === 'function') {
+  // 2. Fetch category page or parent URL
+  let targetUrl = node.url ? toFeedUrl(node.url, currentPath) : '';
+  if (!targetUrl) {
+    if (!node.parentID || node.parentID === 'root' || node.parentID === 'start') {
+      targetUrl = currentPath || '/neue-toppreise';
+    } else {
+      const parentNode = tree.byId.get(node.parentID);
+      if (parentNode?.url) {
+        targetUrl = toFeedUrl(parentNode.url, currentPath);
+      }
+    }
+  }
+
+  if (targetUrl && typeof fetch === 'function') {
     try {
-      const resp = await fetch(parentUrl, { credentials: 'same-origin' });
+      const resp = await fetch(targetUrl, { credentials: 'same-origin' });
       if (resp.ok) {
         const text = await resp.text();
         const updatedStored = getStoredIdents();
@@ -448,9 +591,22 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '') {
           item.ident = updatedStored[vcatId];
           return item.ident;
         }
+
+        // Extract a product PID from the page
+        const pidMatch = text.match(/(?:data-entity-id="(\d+)"|href="[^"]*?-p(\d+)")/);
+        const discoveredPid = pidMatch ? (pidMatch[1] || pidMatch[2]) : '';
+        if (discoveredPid) {
+          await fetchMenuIdents(discoveredPid);
+          const finalStored = getStoredIdents();
+          if (finalStored[vcatId]) {
+            item.ident = finalStored[vcatId];
+            return item.ident;
+          }
+        }
       }
     } catch {}
   }
+
   return item.ident || '';
 }
 
@@ -470,7 +626,7 @@ export async function executeServerCategoryExclusion(vcatId, initialIdent = '', 
   let ident = initialIdent || getStoredIdents()[vcatId] || '';
   if (!ident) {
     const tree = await loadNativeCategoryTree(activeDoc);
-    ident = await ensureCategoryIdent({ numericId: vcatId, vcatId, ident }, tree, currentPath);
+    ident = await ensureCategoryIdent({ numericId: vcatId, vcatId, ident }, tree, currentPath, activeDoc);
   }
 
   const body = new URLSearchParams({
@@ -496,6 +652,10 @@ export async function executeServerCategoryExclusion(vcatId, initialIdent = '', 
       if (match && match[1] && bar) {
         bar.setAttribute('data-context-hash', match[1]);
       }
+      if (html.includes('ignoredCategoriesBar') || html.includes('ignoredCategory')) {
+        updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
+      }
+      await refreshProductFeed(activeDoc);
     }
   } catch (err) {
     console.error('[Toppreise-Suite] Category exclusion error:', err);
@@ -537,6 +697,10 @@ export async function executeServerCategoryRestore(vcatId, doc = (typeof documen
       if (match && match[1] && bar) {
         bar.setAttribute('data-context-hash', match[1]);
       }
+      if (html.includes('ignoredCategoriesBar') || html.includes('ignoredCategory') || html.includes('ignoreCategoryHint')) {
+        updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
+      }
+      await refreshProductFeed(activeDoc);
     }
   } catch (err) {
     console.error('[Toppreise-Suite] Category restore error:', err);
@@ -577,6 +741,10 @@ export async function executeServerCategoryReset(doc = (typeof document !== 'und
       if (match && match[1] && bar) {
         bar.setAttribute('data-context-hash', match[1]);
       }
+      if (html.includes('ignoredCategoriesBar') || html.includes('ignoreCategoryHint')) {
+        updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
+      }
+      await refreshProductFeed(activeDoc);
     }
   } catch (err) {
     console.error('[Toppreise-Suite] Category reset error:', err);
@@ -1002,6 +1170,9 @@ export function enhanceCategorySidebar() {
 
         // Sync visual states immediately (updates row class, toggles, search results, and ✕ -> ＋)
         syncCategoryTreeIgnoredState(sidebar);
+
+        // Hide any matching cards currently in the feed immediately
+        hideMatchingCategoryCards(vcatId, document);
 
         // On live site: execute background server exclusion for injected non-root elements
         if (isSubOrSearch) {

@@ -19,7 +19,9 @@ import {
   addIgnoredCategoryChip,
   removeIgnoredCategoryChip,
   resetAllIgnoredCategoryChips,
-  ensureCategoryIdent
+  ensureCategoryIdent,
+  hideMatchingCategoryCards,
+  updateIgnoredCategoriesBarWithServerHtml
 } from '../../src/features/category-tree.js';
 
 test('toFeedUrl transforms catalog URLs to feed URLs', () => {
@@ -305,6 +307,7 @@ function createMockElement(tag, attrs = {}) {
     setAttribute: (a, v) => { el.attributes[a] = String(v); },
     removeAttribute: a => { delete el.attributes[a]; },
     addEventListener: () => {},
+    get children() { return children; },
     get firstChild() { return children[0] || null; },
     get firstElementChild() { return children[0] || null; },
     appendChild: child => {
@@ -312,6 +315,17 @@ function createMockElement(tag, attrs = {}) {
       children.push(child);
       child.parentElement = el;
       return child;
+    },
+    insertBefore: (newChild, refChild) => {
+      if (newChild.parentElement?.removeChild) newChild.parentElement.removeChild(newChild);
+      const idx = children.indexOf(refChild);
+      if (idx !== -1) {
+        children.splice(idx, 0, newChild);
+      } else {
+        children.push(newChild);
+      }
+      newChild.parentElement = el;
+      return newChild;
     },
     prepend: child => {
       if (child.parentElement?.removeChild) child.parentElement.removeChild(child);
@@ -743,6 +757,89 @@ test('ensureCategoryIdent returns cached token or resolves from parent page', as
     const resFetched = await ensureCategoryIdent({ vcatId: '600' }, tree);
     assert.equal(resFetched, 'token600');
     assert.equal(getStoredIdents()['600'], 'token600');
+  } finally {
+    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+  }
+});
+
+test('addIgnoredCategoryChip inserts chip before resetAll button and leaves icon empty', () => {
+  const prevDoc = globalThis.document;
+  try {
+    const root = createMockElement('div');
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const barContainer = createMockElement('div', { className: 'ignoredCategoriesBar' });
+    const resetBtn = createMockElement('a', { className: 'resetAll f_IgnoredCategories_Reset' });
+    resetBtn.textContent = 'Alle einblenden';
+    barContainer.appendChild(resetBtn);
+    bar.appendChild(barContainer);
+    root.appendChild(bar);
+
+    globalThis.document = {
+      createElement: tag => createMockElement(tag),
+      querySelector: sel => root.querySelector(sel),
+      querySelectorAll: sel => root.querySelectorAll(sel)
+    };
+
+    addIgnoredCategoryChip('1551', 'Zubehör für NAS-Systeme', 'token1551', globalThis.document);
+
+    // Chip should be inserted before resetBtn in children list
+    const children = barContainer.children;
+    const chipIdx = children.findIndex(c => c.classList.contains('ignoredCategory'));
+    const resetIdx = children.findIndex(c => c.classList.contains('resetAll'));
+    assert.ok(chipIdx >= 0);
+    assert.ok(resetIdx >= 0);
+    assert.ok(chipIdx < resetIdx, 'Chip must precede resetAll');
+
+    // Icon should NOT contain hardcoded text '✕'
+    const chip = children[chipIdx];
+    const icon = chip.querySelector('i');
+    assert.ok(icon);
+    assert.ok(!icon.textContent, 'Icon should be empty for font-icon :before glyph');
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});
+
+test('ensureCategoryIdent resolves token via product PID discovery when direct tokens absent', async () => {
+  const prevFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url, opts = {}) => {
+      // 1. First fetch: Category page with product PID
+      if (url.includes('Zubehoer-fuer-NAS-Systeme-c1551')) {
+        return {
+          ok: true,
+          text: async () => `
+            <div class="Plugin_Product" data-entity-id="98765" href="/preisvergleich/Zubehoer-fuer-NAS-Systeme/Rackmount-p98765"></div>
+          `
+        };
+      }
+      // 2. Second fetch: /plugins/filter/IgnoredCategories with aicatpr: 98765
+      if (url.includes('/plugins/filter/IgnoredCategories')) {
+        assert.ok(opts.body && opts.body.includes('aicatpr=98765'));
+        return {
+          ok: true,
+          text: async () => `
+            <div class="IgnoredCategoriesMenu">
+              <a class="entry f_IgnoredCategories_MenuEntry" data-vcat-id="200" data-ident="tok200">Computer</a>
+              <a class="entry f_IgnoredCategories_MenuEntry" data-vcat-id="1550" data-ident="tok1550">NAS-Systeme</a>
+              <a class="entry f_IgnoredCategories_MenuEntry" data-vcat-id="1551" data-ident="tok1551">Zubehör für NAS-Systeme</a>
+            </div>
+          `
+        };
+      }
+      return { ok: false };
+    };
+
+    const tree = {
+      byId: new Map([
+        ['c1551', { id: 'c1551', numericId: '1551', url: '/katalog/Zubehoer-fuer-NAS-Systeme-c1551', parentID: 'c1550' }]
+      ])
+    };
+
+    const token = await ensureCategoryIdent({ numericId: '1551', vcatId: '1551' }, tree);
+    assert.equal(token, 'tok1551');
+    assert.equal(getStoredIdents()['1551'], 'tok1551');
+    assert.equal(getStoredIdents()['1550'], 'tok1550');
   } finally {
     if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
   }
