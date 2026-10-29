@@ -9,8 +9,6 @@ import {
   saveStoredIdents,
   getExpandedBranches,
   saveExpandedBranches,
-  getPersistedIgnoredVcatIds,
-  savePersistedIgnoredVcatIds,
   isCategoryIgnored,
   getIgnoredVcatIds,
   syncCategoryTreeIgnoredState,
@@ -18,11 +16,7 @@ import {
   harvestExistingIdents,
   renderChildList,
   enhanceCategorySidebar,
-  addIgnoredCategoryChip,
-  removeIgnoredCategoryChip,
-  resetAllIgnoredCategoryChips,
   ensureCategoryIdent,
-  hideMatchingCategoryCards,
   updateIgnoredCategoriesBarWithServerHtml,
   parseCategoryIdentsFromText,
   executeServerCategoryExclusion,
@@ -299,11 +293,6 @@ test('stored idents and expanded branches storage wrappers', () => {
 
   saveExpandedBranches(new Set(['c200', 'c8']));
   assert.deepEqual(Array.from(getExpandedBranches()), ['c200', 'c8']);
-
-  savePersistedIgnoredVcatIds(new Set(['123', '456']));
-  assert.deepEqual(Array.from(getPersistedIgnoredVcatIds()).sort(), ['123', '456']);
-  savePersistedIgnoredVcatIds(new Set());
-  assert.equal(getPersistedIgnoredVcatIds().size, 0);
 });
 
 function createMockElement(tag, attrs = {}) {
@@ -403,6 +392,9 @@ function createMockElement(tag, attrs = {}) {
       return res;
     },
     matches: sel => {
+      if (sel.includes(',')) {
+        return sel.split(',').some(sub => el.matches(sub.trim()));
+      }
       const part = sel.replace(/:scope/g, '').split(/[\s>]+/).pop().trim();
       if (!part) return true;
       if (part.includes('[') && part.includes(']')) {
@@ -687,70 +679,81 @@ test('syncSearchResultsIgnoredState synchronizes hit items with active ignored c
   }
 });
 
-test('addIgnoredCategoryChip, removeIgnoredCategoryChip, and resetAllIgnoredCategoryChips manage chip lifecycle', () => {
-  const prevDoc = globalThis.document;
+test('updateIgnoredCategoriesBarWithServerHtml updates DOM and parses idents', () => {
+  const prevParser = globalThis.DOMParser;
   try {
     const root = createMockElement('div');
     const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
     const barContainer = createMockElement('div', { className: 'ignoredCategoriesBar' });
-    const hint = createMockElement('span', { className: 'ignoreCategoryHint' });
-    hint.textContent = 'Hint';
-    barContainer.appendChild(hint);
     bar.appendChild(barContainer);
     root.appendChild(bar);
 
-    globalThis.document = {
-      createElement: tag => createMockElement(tag),
+    const mockDoc = {
       querySelector: sel => root.querySelector(sel),
-      querySelectorAll: sel => root.querySelectorAll(sel)
+      querySelectorAll: sel => root.querySelectorAll(sel),
+      createElement: tag => createMockElement(tag)
     };
 
-    // 1. Add first chip
-    addIgnoredCategoryChip('200', 'Computer & Zubehör', 'ident200', globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '1');
-    assert.equal(barContainer.querySelector('.ignoreCategoryHint'), null);
-    assert.ok(barContainer.querySelector('.label'));
-    assert.ok(barContainer.querySelector('.resetAll'));
-    const chip200 = barContainer.querySelector('.ignoredCategory[data-vcat-id="200"]');
-    assert.ok(chip200);
-    assert.equal(chip200.getAttribute('data-ident'), 'ident200');
+    globalThis.DOMParser = class {
+      parseFromString(str) {
+        const doc = createMockElement('div');
+        const b = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+        const c = createMockElement('div', { className: 'ignoredCategoriesBar' });
+        b.appendChild(c);
+        doc.appendChild(b);
 
-    // 2. Add duplicate chip (should be no-op)
-    addIgnoredCategoryChip('200', 'Computer & Zubehör', 'ident200', globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '1');
+        if (str.includes('data-context-hash="hash123"')) {
+          b.setAttribute('data-context-hash', 'hash123');
+        }
+        if (str.includes('ignoredCategory')) {
+          const chip = createMockElement('span', { className: 'ignoredCategory f_IgnoredCategories_Show' });
+          chip.setAttribute('data-vcat-id', '200');
+          chip.setAttribute('data-ident', 'tok200');
+          c.appendChild(chip);
+        }
+        return doc;
+      }
+    };
 
-    // 3. Add second chip
-    addIgnoredCategoryChip('900', 'Videogames', 'ident900', globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '2');
-    const chip900 = barContainer.querySelector('.ignoredCategory[data-vcat-id="900"]');
-    assert.ok(chip900);
+    const serverHtmlWithChips = `
+      <div class="Plugin_IgnoredCategories" data-context-hash="hash123">
+        <div class="ignoredCategoriesBar">
+          <span class="label">Ausgeblendete Kategorien:</span>
+          <span class="ignoredCategory f_IgnoredCategories_Show" data-vcat-id="200" data-ident="tok200">
+            <span class="name">Computer & Zubehör</span>
+            <i class="TPIcons-cross"></i>
+          </span>
+          <a class="resetAll f_IgnoredCategories_ResetConfirm" data-ident="resetTok">Alle einblenden</a>
+        </div>
+      </div>
+    `;
 
-    // 4. Remove one chip
-    removeIgnoredCategoryChip('200', globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '1');
-    assert.equal(barContainer.querySelector('.ignoredCategory[data-vcat-id="200"]'), null);
-    assert.ok(barContainer.querySelector('.ignoredCategory[data-vcat-id="900"]'));
+    updateIgnoredCategoriesBarWithServerHtml(serverHtmlWithChips, bar, mockDoc);
+    const updatedBar = mockDoc.querySelector('.Plugin_IgnoredCategories');
+    assert.ok(updatedBar);
+    assert.equal(updatedBar.getAttribute('data-ignored-count'), '1');
+    assert.equal(getStoredIdents()['200'], 'tok200');
 
-    // 5. Remove remaining chip -> restores hint
-    removeIgnoredCategoryChip('900', globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '0');
-    assert.ok(barContainer.querySelector('.ignoreCategoryHint'));
-    assert.equal(barContainer.querySelector('.label'), null);
-    assert.equal(barContainer.querySelector('.resetAll'), null);
+    // Test updating with empty / reset HTML
+    const serverHtmlEmpty = `
+      <div class="Plugin_IgnoredCategories" data-context-hash="hash456">
+        <div class="ignoredCategoriesBar">
+          <span class="ignoreCategoryHint">Kategorien können ausgeblendet werden</span>
+        </div>
+      </div>
+    `;
 
-    // 6. Reset all clears chips and restores hint
-    addIgnoredCategoryChip('200', 'Computer & Zubehör', 'ident200', globalThis.document);
-    addIgnoredCategoryChip('900', 'Videogames', 'ident900', globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '2');
-    resetAllIgnoredCategoryChips(globalThis.document);
-    assert.equal(bar.getAttribute('data-ignored-count'), '0');
-    assert.ok(barContainer.querySelector('.ignoreCategoryHint'));
+    updateIgnoredCategoriesBarWithServerHtml(serverHtmlEmpty, updatedBar, mockDoc);
+    const clearedBar = mockDoc.querySelector('.Plugin_IgnoredCategories');
+    assert.ok(clearedBar);
+    assert.equal(clearedBar.getAttribute('data-ignored-count'), '0');
+    assert.equal(clearedBar.querySelectorAll('.ignoredCategory').length, 0);
   } finally {
-    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    if (prevParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevParser;
   }
 });
 
-test('ensureCategoryIdent returns cached token or resolves from parent page', async () => {
+test('ensureCategoryIdent returns cached token or resolves from parent page without X-Requested-With', async () => {
   saveStoredIdents({ '500': 'token500' });
 
   // 1. Existing stored token
@@ -760,8 +763,9 @@ test('ensureCategoryIdent returns cached token or resolves from parent page', as
   // 2. Fetch from parent page
   const prevFetch = globalThis.fetch;
   try {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = async (url, opts = {}) => {
       assert.ok(url.includes('Computer-Zubehoer-c200'));
+      assert.ok(!opts?.headers?.['X-Requested-With'], 'Must not send X-Requested-With on full page GET to avoid 403');
       return {
         ok: true,
         text: async () => `
@@ -785,41 +789,96 @@ test('ensureCategoryIdent returns cached token or resolves from parent page', as
   }
 });
 
-test('addIgnoredCategoryChip inserts chip before resetAll button and leaves icon empty', () => {
-  const prevDoc = globalThis.document;
+test('executeServerCategoryExclusion and executeServerCategoryRestore send symmetric POST payloads', async () => {
+  const prevLoc = globalThis.location;
+  const prevFetch = globalThis.fetch;
   try {
-    const root = createMockElement('div');
-    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
-    const barContainer = createMockElement('div', { className: 'ignoredCategoriesBar' });
-    const resetBtn = createMockElement('a', { className: 'resetAll f_IgnoredCategories_Reset' });
-    resetBtn.textContent = 'Alle einblenden';
-    barContainer.appendChild(resetBtn);
-    bar.appendChild(barContainer);
-    root.appendChild(bar);
-
-    globalThis.document = {
-      createElement: tag => createMockElement(tag),
-      querySelector: sel => root.querySelector(sel),
-      querySelectorAll: sel => root.querySelectorAll(sel)
+    globalThis.location = { hostname: 'www.toppreise.ch', pathname: '/neue-toppreise', href: 'https://www.toppreise.ch/neue-toppreise' };
+    const requests = [];
+    globalThis.fetch = async (url, opts) => {
+      requests.push({ url, opts });
+      return {
+        ok: true,
+        text: async () => '<div class="Plugin_IgnoredCategories" data-context-hash="newhash"></div>'
+      };
     };
 
-    addIgnoredCategoryChip('1551', 'Zubehör für NAS-Systeme', 'token1551', globalThis.document);
+    const root = createMockElement('div');
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    bar.setAttribute('data-context-hash', 'curhash');
+    const feedContainer = createMockElement('div', { className: 'Plugin_TopPriceReductionProductListFull' });
+    root.appendChild(bar);
+    root.appendChild(feedContainer);
 
-    // Chip should be inserted before resetBtn in children list
-    const children = barContainer.children;
-    const chipIdx = children.findIndex(c => c.classList.contains('ignoredCategory'));
-    const resetIdx = children.findIndex(c => c.classList.contains('resetAll'));
-    assert.ok(chipIdx >= 0);
-    assert.ok(resetIdx >= 0);
-    assert.ok(chipIdx < resetIdx, 'Chip must precede resetAll');
+    const mockDoc = {
+      querySelector: sel => root.querySelector(sel),
+      querySelectorAll: sel => root.querySelectorAll(sel),
+      createElement: tag => createMockElement(tag)
+    };
 
-    // Icon should NOT contain hardcoded text '✕'
-    const chip = children[chipIdx];
-    const icon = chip.querySelector('i');
-    assert.ok(icon);
-    assert.ok(!icon.textContent, 'Icon should be empty for font-icon :before glyph');
+    // Exclusion
+    const exclSuccess = await executeServerCategoryExclusion('200', 'token200', mockDoc);
+    assert.ok(exclSuccess);
+    assert.equal(requests.length, 2); // 1 post + 1 feed refresh
+    const exclReq = requests[0];
+    assert.equal(exclReq.opts.method, 'POST');
+    assert.ok(exclReq.opts.body.includes('aicat=token200'));
+    assert.ok(exclReq.opts.body.includes('aicatvc=200'));
+    assert.ok(exclReq.opts.body.includes('fp_ic_ch=curhash'));
+    assert.ok(!exclReq.opts.body.includes('aicatrs='));
+
+    // Restore
+    requests.length = 0;
+    const restSuccess = await executeServerCategoryRestore('200', 'token200', mockDoc);
+    assert.ok(restSuccess);
+    assert.equal(requests.length, 2);
+    const restReq = requests[0];
+    assert.equal(restReq.opts.method, 'POST');
+    assert.ok(restReq.opts.body.includes('aicat=token200'));
+    assert.ok(restReq.opts.body.includes('aicatvc=200'));
+    assert.ok(!restReq.opts.body.includes('aicatrs='));
   } finally {
-    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+  }
+});
+
+test('executeServerCategoryReset sends dynamic token from reset button', async () => {
+  const prevLoc = globalThis.location;
+  const prevFetch = globalThis.fetch;
+  try {
+    globalThis.location = { hostname: 'www.toppreise.ch', pathname: '/neue-toppreise', href: 'https://www.toppreise.ch/neue-toppreise' };
+    let capturedBody = null;
+    globalThis.fetch = async (url, opts) => {
+      if (opts?.method === 'POST') {
+        capturedBody = opts.body;
+      }
+      return {
+        ok: true,
+        text: async () => '<div class="Plugin_IgnoredCategories"></div>'
+      };
+    };
+
+    const root = createMockElement('div');
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const resetBtn = createMockElement('a', { className: 'resetAll f_IgnoredCategories_ResetConfirm' });
+    resetBtn.setAttribute('data-ident', 'resetSecretToken456');
+    bar.appendChild(resetBtn);
+    root.appendChild(bar);
+
+    const mockDoc = {
+      querySelector: sel => root.querySelector(sel),
+      querySelectorAll: sel => root.querySelectorAll(sel),
+      createElement: tag => createMockElement(tag)
+    };
+
+    const resetSuccess = await executeServerCategoryReset(mockDoc);
+    assert.ok(resetSuccess);
+    assert.ok(capturedBody.includes('aicatrs=resetSecretToken456'));
+    assert.ok(!capturedBody.includes('aicatrs=all'));
+  } finally {
+    if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
   }
 });
 
@@ -898,8 +957,15 @@ test('executeServerCategoryExclusion returns false gracefully when token missing
   }
 });
 
-test('getIgnoredVcatIds includes both in-page chips and persisted IDs', () => {
-  savePersistedIgnoredVcatIds(new Set(['555']));
+test('getIgnoredVcatIds reads strictly from server DOM without localStorage dependency', () => {
+  const storage = {};
+  globalThis.localStorage = {
+    getItem: k => storage[k] || null,
+    setItem: (k, v) => { storage[k] = String(v); },
+    removeItem: k => { delete storage[k]; }
+  };
+  globalThis.localStorage.setItem('tp_cat_ignored_subcategories', JSON.stringify(['555', '999']));
+
   const doc = createMockElement('div');
   const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
   const chip = createMockElement('span', { className: 'ignoredCategory' });
@@ -909,14 +975,19 @@ test('getIgnoredVcatIds includes both in-page chips and persisted IDs', () => {
 
   const ignored = getIgnoredVcatIds(doc);
   assert.ok(ignored.has('35'));
-  assert.ok(ignored.has('555'));
-  savePersistedIgnoredVcatIds(new Set());
+  assert.ok(!ignored.has('555'), 'Must not read from client localStorage');
+  assert.ok(!ignored.has('999'), 'Must not read from client localStorage');
 });
 
-test('enhanceCategorySidebar hydrates persisted exclusions on load', () => {
+test('enhanceCategorySidebar cleans up legacy tp_cat_ignored_subcategories key on load', () => {
   const prevDoc = globalThis.document;
   const prevLoc = globalThis.location;
-  savePersistedIgnoredVcatIds(new Set(['200']));
+  const storage = { tp_cat_ignored_subcategories: JSON.stringify(['200']) };
+  globalThis.localStorage = {
+    getItem: k => storage[k] || null,
+    setItem: (k, v) => { storage[k] = String(v); },
+    removeItem: k => { delete storage[k]; }
+  };
 
   try {
     const sidebar = createMockElement('div', { className: 'Plugin_CategoryMainSelectionLeft' });
@@ -950,11 +1021,8 @@ test('enhanceCategorySidebar hydrates persisted exclusions on load', () => {
 
     enhanceCategorySidebar();
 
-    const chips = ignoredBar.querySelectorAll('.ignoredCategory');
-    assert.equal(chips.length, 1);
-    assert.equal(chips[0].getAttribute('data-vcat-id'), '200');
+    assert.equal(globalThis.localStorage.getItem('tp_cat_ignored_subcategories'), null, 'Legacy key should be removed');
   } finally {
-    savePersistedIgnoredVcatIds(new Set());
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
   }
