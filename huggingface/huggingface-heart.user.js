@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.5
+// @version      2.0.6
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -87,6 +87,24 @@ const CARD_STYLES = `
     font-size: 12px;
     text-align: center;
     line-height: 1.4;
+  }
+  .hf-empty-scan-btn {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .hf-empty-scan-btn:hover {
+    background: rgba(16, 185, 129, 0.35);
+    border-color: rgba(16, 185, 129, 0.6);
+    color: #a7f3d0;
   }
 `;
 
@@ -243,6 +261,51 @@ const SHADOW_WIDGET_STYLES = `
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+  .hf-scan-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 5px;
+  }
+  .hf-scan-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #34d399;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .hf-scan-btn:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.55);
+    color: #6ee7b7;
+  }
+  .hf-scan-btn.scanning {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.45);
+    color: #f87171;
+  }
+  .hf-scan-btn.scanning:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.6);
+    color: #fca5a5;
+  }
+  .hf-scan-status {
+    font-size: 10px;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .hf-section-body {
     transition: opacity 0.2s ease;
@@ -1161,10 +1224,199 @@ const SHADOW_WIDGET_STYLES = `
         if (isLikedOnlyActive && hiddenByLiked > 0) reasons.push(`${hiddenByLiked} liked models hidden`);
         if (isTextActive && hiddenByText > 0) reasons.push(`${hiddenByText} by keyword filter`);
         if (isDateActive && hiddenByDate > 0) reasons.push(`${hiddenByDate} by date filter`);
-        noticeEl.textContent = `No models match current filters (${reasons.join(', ')}). Adjust sidebar filter settings to see results.`;
+        noticeEl.innerHTML = `
+          <div>No models match current filters (${reasons.join(', ')}). Adjust sidebar filter settings to see results.</div>
+          <button type="button" id="hf-empty-scan-btn" class="hf-empty-scan-btn">
+            ${isScanning ? '⏹ Stop Scanning' : '⚡ Scan Next Pages for Unliked'}
+          </button>
+        `;
+        const emptyBtn = noticeEl.querySelector('#hf-empty-scan-btn');
+        emptyBtn?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          scanNextUnlikedPages({ targetUnliked: 10, maxPages: 5 });
+        });
       }
     } else if (noticeEl) {
       noticeEl.style.display = 'none';
+    }
+  }
+
+  // ─── MULTI-PAGE SCANNER ENGINE ───────────────────────────────────────────────
+  let scanAbortController = null;
+  let isScanning = false;
+
+  function getCurrentPageIndex() {
+    try {
+      const url = new URL(window.location.href);
+      const p = url.searchParams.get('p');
+      if (p !== null) {
+        const parsed = parseInt(p, 10);
+        if (!isNaN(parsed) && parsed >= 0) return parsed;
+      }
+    } catch (e) {}
+
+    const activePageLink = document.querySelector('a[href*="p="][class*="ring"], a[href*="p="][class*="font-semibold"], a[href*="p="][aria-current="page"]');
+    if (activePageLink) {
+      try {
+        const u = new URL(activePageLink.href, window.location.origin);
+        const p = u.searchParams.get('p');
+        if (p !== null) return parseInt(p, 10);
+      } catch (e) {}
+    }
+
+    return 0;
+  }
+
+  function getPageUrlForIndex(index) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('p', index.toString());
+    return url.toString();
+  }
+
+  function updatePaginationLinks(currentPageIndex) {
+    const nextLinks = Array.from(document.querySelectorAll('a[href*="p="]')).filter(a => a.textContent.includes('Next'));
+    for (const link of nextLinks) {
+      try {
+        const u = new URL(link.href, window.location.origin);
+        u.searchParams.set('p', (currentPageIndex + 1).toString());
+        link.href = u.search ? u.search : u.pathname + u.search;
+      } catch (e) {}
+    }
+  }
+
+  function updateScanUI(scanning, statusText) {
+    if (widgetShadowRoot) {
+      const scanBtn = widgetShadowRoot.getElementById('hf-scan-btn');
+      const scanText = widgetShadowRoot.getElementById('hf-scan-btn-text');
+      const statusEl = widgetShadowRoot.getElementById('hf-scan-status');
+
+      if (scanBtn) {
+        scanBtn.classList.toggle('scanning', scanning);
+        if (scanText) {
+          scanText.textContent = scanning ? 'Stop Scan' : 'Scan Next Unliked';
+        }
+      }
+      if (statusEl) {
+        statusEl.textContent = statusText || '';
+      }
+    }
+
+    const emptyNoticeBtn = document.getElementById('hf-empty-scan-btn');
+    if (emptyNoticeBtn) {
+      emptyNoticeBtn.textContent = scanning ? '⏹ Stop Scanning' : '⚡ Scan Next Pages for Unliked';
+    }
+  }
+
+  async function scanNextUnlikedPages({ targetUnliked = 10, maxPages = 5 } = {}) {
+    if (isScanning) {
+      if (scanAbortController) {
+        scanAbortController.abort();
+        scanAbortController = null;
+      }
+      isScanning = false;
+      updateScanUI(false, 'Scan stopped');
+      return;
+    }
+
+    const startPage = getCurrentPageIndex();
+    let foundUnlikedTotal = 0;
+    let pagesScanned = 0;
+
+    scanAbortController = new AbortController();
+    isScanning = true;
+    updateScanUI(true, 'Starting scan...');
+
+    const existingCardIds = new Set(
+      Array.from(document.querySelectorAll('article.overview-card-wrapper'))
+        .map(c => getModelIdFromCard(c))
+        .filter(Boolean)
+    );
+
+    const firstCard = document.querySelector('article.overview-card-wrapper');
+    const gridContainer = firstCard ? (firstCard.closest('.grid, [class*="grid"]') || firstCard.parentElement) : document.querySelector('.grid, main');
+
+    if (!gridContainer) {
+      showToast('Model grid container not found on this page');
+      isScanning = false;
+      scanAbortController = null;
+      updateScanUI(false);
+      return;
+    }
+
+    try {
+      for (let offset = 1; offset <= maxPages; offset++) {
+        if (scanAbortController.signal.aborted) break;
+
+        const nextPageIndex = startPage + offset;
+        const pageUrl = getPageUrlForIndex(nextPageIndex);
+        updateScanUI(true, `P.${nextPageIndex + 1} (${foundUnlikedTotal}/${targetUnliked} unliked)`);
+
+        let htmlText = '';
+        try {
+          const resp = await fetch(pageUrl, {
+            credentials: 'same-origin',
+            signal: scanAbortController.signal
+          });
+          if (!resp.ok) {
+            console.warn(`[HF Scan] Page ${nextPageIndex + 1} HTTP ${resp.status}`);
+            break;
+          }
+          htmlText = await resp.text();
+        } catch (fetchErr) {
+          if (scanAbortController?.signal?.aborted) break;
+          console.error('[HF Scan] Fetch error:', fetchErr);
+          break;
+        }
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        const fetchedCards = Array.from(doc.querySelectorAll('article.overview-card-wrapper'));
+
+        if (fetchedCards.length === 0) {
+          break;
+        }
+
+        for (const card of fetchedCards) {
+          const mid = getModelIdFromCard(card);
+          if (mid && existingCardIds.has(mid)) continue;
+          if (mid) existingCardIds.add(mid);
+
+          const adopted = document.adoptNode(card);
+          gridContainer.appendChild(adopted);
+
+          const liked = isModelLiked(adopted, mid);
+          if (!liked) {
+            foundUnlikedTotal++;
+          }
+        }
+
+        pagesScanned++;
+
+        // Process newly appended cards through filter & inline-like pipeline
+        await processModelCards();
+
+        try {
+          window.history.replaceState(null, '', pageUrl);
+          updatePaginationLinks(nextPageIndex);
+        } catch (e) {}
+
+        if (foundUnlikedTotal >= targetUnliked) {
+          break;
+        }
+
+        // 250ms throttle delay to respect rate limit
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+    } finally {
+      isScanning = false;
+      scanAbortController = null;
+      updateScanUI(false, foundUnlikedTotal > 0 ? `+${foundUnlikedTotal} unliked (${pagesScanned}p)` : '');
+      if (foundUnlikedTotal > 0) {
+        showToast(`Scan complete: found ${foundUnlikedTotal} unliked model${foundUnlikedTotal === 1 ? '' : 's'} across ${pagesScanned} page${pagesScanned === 1 ? '' : 's'}.`);
+      } else if (pagesScanned > 0) {
+        showToast(`Scanned ${pagesScanned} page${pagesScanned === 1 ? '' : 's'}, no new unliked models.`);
+      }
     }
   }
 
@@ -1314,6 +1566,15 @@ const SHADOW_WIDGET_STYLES = `
                 <span class="hf-slider"></span>
               </label>
             </div>
+            <div class="hf-scan-row">
+              <button type="button" class="hf-scan-btn" id="hf-scan-btn" title="Scan next pages until 10 unliked models found">
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span id="hf-scan-btn-text">Scan Next Unliked</span>
+              </button>
+              <span class="hf-scan-status" id="hf-scan-status"></span>
+            </div>
           </div>
 
           <!-- SECTION 1: Exclude Text Filter -->
@@ -1449,6 +1710,7 @@ const SHADOW_WIDGET_STYLES = `
     const resetBtn = shadow.getElementById('hf-df-reset-btn');
 
     const unlikedToggle = shadow.getElementById('hf-unliked-toggle');
+    const scanBtn = shadow.getElementById('hf-scan-btn');
     const excludeToggle = shadow.getElementById('hf-exclude-toggle');
     const excludeInput = shadow.getElementById('hf-exclude-input');
     const clearBtn = shadow.getElementById('hf-exclude-clear-btn');
@@ -1489,6 +1751,12 @@ const SHADOW_WIDGET_STYLES = `
       saveConfig('FILTER_UNLIKED_ONLY', e.target.checked);
       syncWidgetUI();
       processModelCards();
+    });
+
+    scanBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      scanNextUnlikedPages({ targetUnliked: 10, maxPages: 5 });
     });
 
     excludeToggle?.addEventListener('change', (e) => {
@@ -1623,6 +1891,7 @@ const SHADOW_WIDGET_STYLES = `
     const summaryChips = shadow.getElementById('hf-df-summary-chips');
 
     const unlikedToggle = shadow.getElementById('hf-unliked-toggle');
+    const scanBtn = shadow.getElementById('hf-scan-btn');
     const excludeToggle = shadow.getElementById('hf-exclude-toggle');
     const excludeInput = shadow.getElementById('hf-exclude-input');
     const clearBtn = shadow.getElementById('hf-exclude-clear-btn');

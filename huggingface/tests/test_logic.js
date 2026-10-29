@@ -11,6 +11,12 @@ assert(scriptSource.includes('FILTER_EXCLUDE_ENABLED'), 'Missing FILTER_EXCLUDE_
 assert(scriptSource.includes('FILTER_EXCLUDE_TERMS'), 'Missing FILTER_EXCLUDE_TERMS');
 assert(scriptSource.includes('FILTER_UNLIKED_ONLY'), 'Missing FILTER_UNLIKED_ONLY');
 assert(scriptSource.includes('hf-liked-filtered-out'), 'Missing hf-liked-filtered-out CSS/class');
+assert(scriptSource.includes('scanNextUnlikedPages'), 'Missing scanNextUnlikedPages');
+assert(scriptSource.includes('getCurrentPageIndex'), 'Missing getCurrentPageIndex');
+assert(scriptSource.includes('getPageUrlForIndex'), 'Missing getPageUrlForIndex');
+assert(scriptSource.includes('updatePaginationLinks'), 'Missing updatePaginationLinks');
+assert(scriptSource.includes('hf-scan-btn'), 'Missing hf-scan-btn');
+assert(scriptSource.includes('hf-empty-scan-btn'), 'Missing hf-empty-scan-btn');
 assert(scriptSource.includes('parseNegativeFilter'), 'Missing parseNegativeFilter');
 assert(scriptSource.includes('isCardExcludedByText'), 'Missing isCardExcludedByText');
 

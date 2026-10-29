@@ -85,6 +85,10 @@
         </a>
       </article>
     </div>
+    <div id="pagination" class="flex gap-2 mt-4">
+      <a href="?p=0">1</a>
+      <a href="?p=1">Next</a>
+    </div>
   </main>
 
   <script>
@@ -92,6 +96,7 @@
     window.likeRequests = [];
     window.fetchMode = 'ok';
     window.alertMessages = [];
+    window.nextPageHtml = '';
     window.alert = message => window.alertMessages.push(message);
 
     document.querySelectorAll('article > a').forEach(anchor => {
@@ -104,8 +109,12 @@
     window.fetch = async (url, options = {}) => {
       window.likeRequests.push({ url, method: options.method || 'GET' });
       if (window.fetchMode === 'reject') throw new Error('network failure');
-      if (window.fetchMode === 'unauthorized') return { status: 401, ok: false };
-      return { status: 200, ok: true };
+      if (window.fetchMode === 'unauthorized') return { status: 401, ok: false, text: async () => '' };
+      return {
+        status: 200,
+        ok: true,
+        text: async () => window.nextPageHtml || ''
+      };
     };
   </script>
 </body>

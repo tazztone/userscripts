@@ -328,3 +328,46 @@ def test_liking_unliked_card_when_unliked_only_active_retains_card(page: Page):
     assert page.locator('#card-unliked').get_attribute('data-hf-just-liked') == 'true'
 
 
+def test_scan_next_unliked_fetches_and_appends_cards(page: Page):
+    # Set mock next page HTML containing a new unliked model card
+    page.evaluate("""() => {
+      window.nextPageHtml = `
+        <article id="card-scanned" class="overview-card-wrapper">
+          <a class="model-link" href="/scanned-owner/scanned-model">
+            <div class="title">scanned-owner/scanned-model</div>
+            <div class="metadata">
+              <time datetime="2026-08-11T09:00:00Z">just now</time>
+              <div id="scanned-like" class="mr-1 flex items-center">
+                <svg viewBox="0 0 30 30" fill="currentColor"><path d="M22.45,6a5.47,5.47,0,0,1,3.91,1.64m0-2"></path></svg>
+                <span>10</span>
+              </div>
+            </div>
+          </a>
+        </article>
+      `;
+    }""")
+
+    initial_count = page.locator('article.overview-card-wrapper').count()
+    assert initial_count == 4
+
+    # Click scan button
+    page.click('#hf-date-filter-root >> #hf-scan-btn')
+    page.wait_for_selector('#card-scanned')
+
+    # Card was appended into DOM and processed
+    assert page.locator('article.overview-card-wrapper').count() == 5
+    assert 'hf-is-unliked' in (page.locator('#card-scanned').get_attribute('class') or '')
+    assert page.locator('#scanned-like[data-hf-inline-bound]').count() == 1
+
+
+def test_empty_notice_scan_button(page: Page):
+    # Filter everything out by an unmatched keyword
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', 'owner')
+    page.wait_for_selector('#hf-df-empty-notice')
+
+    # Empty notice should display scan button
+    assert page.locator('#hf-empty-scan-btn').count() == 1
+    assert 'Scan Next Pages' in page.locator('#hf-empty-scan-btn').inner_text()
+
+
+
