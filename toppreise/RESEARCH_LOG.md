@@ -96,6 +96,9 @@
   `li.category_level_0` + `span.ignoreCategory.f_IgnoredCategories_Hide[data-vcat-id]`
   (excluded → `li.ignoredCategoryEntry`); toggles
   `.f_showMoreCatDetails.showClosedOnly` / `.f_hideMoreCatDetails.showExpandedOnly`.
+  Suite injects client-side accordion tree `.tp-cat-sublist`; subcategory items
+  sync with `#Plugin_IgnoredCategories` chips to display red strikethrough and
+  `f_IgnoredCategories_Show` (`TPIcons-plus`), proxying unhide clicks back to native chips.
 - Per-card trigger `.hideCategoryTrigger.f_IgnoredCategories_MenuTrigger`
   at `top: 0; right: 0; z-index: 3` (card gets `.hasHideTrigger`); hover loads
   `.IgnoredCategoriesMenu .entry.f_IgnoredCategories_MenuEntry[data-vcat-id]`

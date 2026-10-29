@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.386
+// @version      2.18.387
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5606,6 +5606,64 @@ const SHADOW_MODAL_STYLES = `
            !!li.querySelector?.('.ignoreCategory i.TPIcons-plus');
   }
 
+  function getIgnoredVcatIds(doc = (typeof document !== 'undefined' ? document : null)) {
+    const set = new Set();
+    if (!doc?.querySelectorAll) return set;
+    const chips = doc.querySelectorAll('.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id]');
+    chips.forEach(chip => {
+      const vcatId = chip.getAttribute('data-vcat-id');
+      if (vcatId) set.add(String(vcatId).trim());
+    });
+    return set;
+  }
+
+  function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
+    if (!sidebar?.querySelectorAll) return;
+    const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    const ignoredIds = getIgnoredVcatIds(doc);
+
+    sidebar.querySelectorAll('li.tp-cat-node').forEach(li => {
+      const span = li.querySelector('.ignoreCategory[data-vcat-id]');
+      if (!span) return;
+      const vcatId = span.getAttribute('data-vcat-id');
+      if (!vcatId) return;
+
+      const isIgnored = ignoredIds.has(String(vcatId).trim());
+      const toggle = li.querySelector(':scope > .tp-cat-row > .tp-cat-toggle') || li.querySelector('.tp-cat-toggle');
+
+      if (isIgnored) {
+        li.classList.add('ignoredCategoryEntry');
+        span.classList.remove('f_IgnoredCategories_Hide');
+        span.classList.add('f_IgnoredCategories_Show');
+        span.setAttribute('title', 'Kategorie einblenden');
+        const icon = span.querySelector('i');
+        if (icon) {
+          icon.className = 'TPIcons-plus';
+        }
+        if (toggle) {
+          toggle.disabled = true;
+          toggle.setAttribute('aria-disabled', 'true');
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.textContent = '▸';
+          li.querySelector(':scope > .tp-cat-sublist')?.remove();
+        }
+      } else {
+        li.classList.remove('ignoredCategoryEntry');
+        span.classList.remove('f_IgnoredCategories_Show');
+        span.classList.add('f_IgnoredCategories_Hide');
+        span.setAttribute('title', 'Kategorie ausblenden');
+        const icon = span.querySelector('i');
+        if (icon) {
+          icon.className = 'TPIcons-cross';
+        }
+        if (toggle) {
+          toggle.disabled = false;
+          toggle.removeAttribute?.('aria-disabled');
+        }
+      }
+    });
+  }
+
   function renderChildList(children, parentEl, currentPath, expandedBranches) {
     let sublist = parentEl.querySelector(':scope > .tp-cat-sublist');
     if (sublist) {
@@ -5616,11 +5674,18 @@ const SHADOW_MODAL_STYLES = `
     sublist = document.createElement('ul');
     sublist.className = 'tp-cat-sublist';
     const storedIdents = getStoredIdents();
+    const doc = parentEl?.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    const ignoredIds = getIgnoredVcatIds(doc);
 
     for (const child of children) {
       const li = document.createElement('li');
       li.className = 'category_level_sub tp-cat-item tp-cat-node';
       li.dataset.catId = child.id;
+
+      const isIgnored = !!(child.numericId && ignoredIds.has(String(child.numericId).trim()));
+      if (isIgnored) {
+        li.classList.add('ignoredCategoryEntry');
+      }
 
       const row = document.createElement('div');
       row.className = 'tp-cat-row';
@@ -5635,6 +5700,10 @@ const SHADOW_MODAL_STYLES = `
         toggle.setAttribute('aria-expanded', 'false');
         toggle.textContent = '▸';
         toggle.title = 'Unterkategorien anzeigen';
+        if (isIgnored) {
+          toggle.disabled = true;
+          toggle.setAttribute('aria-disabled', 'true');
+        }
         toggle.onclick = async e => {
           e.preventDefault();
           e.stopPropagation();
@@ -5667,16 +5736,16 @@ const SHADOW_MODAL_STYLES = `
       a.title = child.title;
       row.appendChild(a);
 
-      // Native mute/unmute button (empty <i> so icon font renders single cross)
+      // Native mute/unmute button (empty <i> so icon font renders single cross or plus)
       if (child.numericId) {
         const span = document.createElement('span');
-        span.className = 'ignoreCategory f_IgnoredCategories_Hide';
+        span.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
         span.setAttribute('data-vcat-id', child.numericId);
         const ident = storedIdents[child.numericId];
         if (ident) span.setAttribute('data-ident', ident);
-        span.setAttribute('title', 'Kategorie ausblenden');
+        span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
         const icon = document.createElement('i');
-        icon.className = 'TPIcons-cross';
+        icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
         span.appendChild(icon);
         row.appendChild(span);
       }
@@ -5684,8 +5753,8 @@ const SHADOW_MODAL_STYLES = `
       li.appendChild(row);
       sublist.appendChild(li);
 
-      // Reopen if previously expanded in session
-      if (child.hasChildren && expandedBranches.has(child.id)) {
+      // Reopen if previously expanded in session (and not ignored)
+      if (child.hasChildren && expandedBranches.has(child.id) && !isIgnored) {
         setTimeout(async () => {
           if (typeof document === 'undefined') return;
           const tree = await loadNativeCategoryTree();
@@ -5846,7 +5915,21 @@ const SHADOW_MODAL_STYLES = `
       }
     });
 
-    // 3. Listen for category hide/show to collapse/re-enable tree branches
+    // Align any pre-rendered ignored states in sidebar with active chips
+    syncCategoryTreeIgnoredState(sidebar);
+
+    // 3. MutationObserver on .Plugin_IgnoredCategories for dynamic sync
+    if (typeof document !== 'undefined' && typeof MutationObserver === 'function') {
+      const ignoredBar = document.querySelector('.Plugin_IgnoredCategories');
+      if (ignoredBar) {
+        const observer = new MutationObserver(() => {
+          syncCategoryTreeIgnoredState(sidebar);
+        });
+        observer.observe(ignoredBar, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-ignored-count'] });
+      }
+    }
+
+    // 4. Listen for category hide/show/reset to collapse/restore tree branches
     if (typeof document !== 'undefined' && document.body?.addEventListener) {
       document.body.addEventListener('click', e => {
         const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
@@ -5867,12 +5950,26 @@ const SHADOW_MODAL_STYLES = `
               toggle.setAttribute('aria-disabled', 'true');
             }
           }
+          setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
           return;
         }
 
         const showBtn = e.target?.closest?.('.f_IgnoredCategories_Show');
         if (showBtn) {
           const vcatId = showBtn.getAttribute?.('data-vcat-id');
+
+          // If clicked on a subcategory restore button, proxy click to the native chip if available
+          if (showBtn.closest('.tp-cat-sublist') && vcatId) {
+            const matchingChip = document.querySelector(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`);
+            if (matchingChip) {
+              e.preventDefault();
+              e.stopPropagation();
+              matchingChip.click();
+              setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
+              return;
+            }
+          }
+
           const targetLi = showBtn.closest('li') || (vcatId ? sidebar.querySelector(`[data-vcat-id="${vcatId}"]`)?.closest('li') : null);
           if (targetLi) {
             const toggle = targetLi.querySelector('.tp-cat-toggle');
@@ -5881,6 +5978,7 @@ const SHADOW_MODAL_STYLES = `
               toggle.removeAttribute('aria-disabled');
             }
           }
+          setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
           return;
         }
 
@@ -5890,6 +5988,7 @@ const SHADOW_MODAL_STYLES = `
             t.disabled = false;
             t.removeAttribute('aria-disabled');
           });
+          setTimeout(() => syncCategoryTreeIgnoredState(sidebar), 50);
         }
       });
     }
@@ -13246,7 +13345,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.386';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.387';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

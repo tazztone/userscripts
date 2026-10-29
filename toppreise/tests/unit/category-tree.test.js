@@ -9,6 +9,9 @@ import {
   getExpandedBranches,
   saveExpandedBranches,
   isCategoryIgnored,
+  getIgnoredVcatIds,
+  syncCategoryTreeIgnoredState,
+  renderChildList,
   enhanceCategorySidebar
 } from '../../src/features/category-tree.js';
 
@@ -195,19 +198,26 @@ test('stored idents and expanded branches storage wrappers', () => {
 function createMockElement(tag, attrs = {}) {
   const children = [];
   const classList = new Set((attrs.className || '').split(/\s+/).filter(Boolean));
+  let classNameVal = attrs.className || '';
   const el = {
     tagName: tag.toUpperCase(),
     dataset: {},
     style: {},
-    className: attrs.className || '',
+    get className() { return classNameVal; },
+    set className(val) {
+      classNameVal = val || '';
+      classList.clear();
+      (val || '').split(/\s+/).filter(Boolean).forEach(c => classList.add(c));
+    },
     classList: {
-      add: c => { classList.add(c); el.className = Array.from(classList).join(' '); },
-      remove: c => { classList.delete(c); el.className = Array.from(classList).join(' '); },
+      add: c => { classList.add(c); classNameVal = Array.from(classList).join(' '); },
+      remove: c => { classList.delete(c); classNameVal = Array.from(classList).join(' '); },
       contains: c => classList.has(c)
     },
     attributes: { ...attrs },
     getAttribute: a => el.attributes[a] ?? null,
     setAttribute: (a, v) => { el.attributes[a] = String(v); },
+    removeAttribute: a => { delete el.attributes[a]; },
     addEventListener: () => {},
     get firstChild() { return children[0] || null; },
     appendChild: child => {
@@ -254,19 +264,164 @@ function createMockElement(tag, attrs = {}) {
       return res;
     },
     matches: sel => {
-      const part = sel.split(/[\s>]+/).pop().trim();
-      if (part.startsWith('.')) return classList.has(part.slice(1));
-      if (part.startsWith('a')) return el.tagName === 'A';
-      if (part.startsWith('li')) return el.tagName === 'LI';
-      if (part.startsWith('ul')) return el.tagName === 'UL';
-      if (part.startsWith('div')) return el.tagName === 'DIV';
-      if (part.startsWith('span')) return el.tagName === 'SPAN';
-      if (part.startsWith('button')) return el.tagName === 'BUTTON';
-      return false;
+      const part = sel.replace(/:scope/g, '').split(/[\s>]+/).pop().trim();
+      if (!part) return true;
+      if (part.includes('[') && part.includes(']')) {
+        const attrMatch = part.match(/\[([^=\]]+)(?:="?([^"\]]*)"?)?\]/);
+        if (attrMatch) {
+          const attr = attrMatch[1];
+          const val = attrMatch[2];
+          const actualVal = el.getAttribute ? el.getAttribute(attr) : el.attributes?.[attr];
+          if (actualVal === null || actualVal === undefined) return false;
+          if (val !== undefined && String(actualVal) !== String(val)) return false;
+        }
+      }
+      const tagOrClass = part.replace(/\[.*\]/, '');
+      if (tagOrClass.startsWith('.')) return classList.has(tagOrClass.slice(1));
+      if (tagOrClass.startsWith('a')) return el.tagName === 'A';
+      if (tagOrClass.startsWith('li')) return el.tagName === 'LI';
+      if (tagOrClass.startsWith('ul')) return el.tagName === 'UL';
+      if (tagOrClass.startsWith('div')) return el.tagName === 'DIV';
+      if (tagOrClass.startsWith('span')) return el.tagName === 'SPAN';
+      if (tagOrClass.startsWith('button')) return el.tagName === 'BUTTON';
+      if (tagOrClass.startsWith('i')) return el.tagName === 'I';
+      return part.includes('[') && part.includes(']');
     }
   };
   return el;
 }
+
+test('getIgnoredVcatIds extracts active chips from .Plugin_IgnoredCategories', () => {
+  const doc = createMockElement('div');
+  const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+  const chip1 = createMockElement('span', { className: 'ignoredCategory' });
+  chip1.setAttribute('data-vcat-id', '200');
+  const chip2 = createMockElement('span', { className: 'ignoredCategory' });
+  chip2.setAttribute('data-vcat-id', '35');
+  bar.appendChild(chip1);
+  bar.appendChild(chip2);
+  doc.appendChild(bar);
+
+  const ignored = getIgnoredVcatIds(doc);
+  assert.equal(ignored.size, 2);
+  assert.ok(ignored.has('200'));
+  assert.ok(ignored.has('35'));
+  assert.ok(!ignored.has('999'));
+});
+
+test('renderChildList marks ignored categories with ignoredCategoryEntry and plus icon', () => {
+  const prevDoc = globalThis.document;
+  try {
+    const parentLi = createMockElement('li');
+    const docRoot = createMockElement('div');
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const chip = createMockElement('span', { className: 'ignoredCategory' });
+    chip.setAttribute('data-vcat-id', '35');
+    bar.appendChild(chip);
+    docRoot.appendChild(bar);
+    docRoot.appendChild(parentLi);
+
+    globalThis.document = {
+      createElement: tag => createMockElement(tag),
+      querySelectorAll: sel => docRoot.querySelectorAll(sel),
+      querySelector: sel => docRoot.querySelector(sel)
+    };
+
+    const children = [
+      { id: 'c35', numericId: '35', title: 'Software', url: '/produktsuche/Software-c35', hasChildren: true },
+      { id: 'c40', numericId: '40', title: 'Hardware', url: '/produktsuche/Hardware-c40', hasChildren: false }
+    ];
+
+    renderChildList(children, parentLi, '/neue-toppreise', new Set());
+
+    const sublist = parentLi.querySelector('.tp-cat-sublist');
+    assert.ok(sublist);
+
+    const items = sublist.querySelectorAll('li');
+    assert.equal(items.length, 2);
+
+    // c35 (Software) is ignored
+    const softwareLi = items[0];
+    assert.ok(softwareLi.classList.contains('ignoredCategoryEntry'));
+    const swSpan = softwareLi.querySelector('.ignoreCategory');
+    assert.ok(swSpan.classList.contains('f_IgnoredCategories_Show'));
+    assert.equal(swSpan.getAttribute('title'), 'Kategorie einblenden');
+    const swIcon = swSpan.querySelector('i');
+    assert.ok(swIcon.classList.contains('TPIcons-plus'));
+    const swToggle = softwareLi.querySelector('.tp-cat-toggle');
+    assert.equal(swToggle.disabled, true);
+
+    // c40 (Hardware) is active
+    const hardwareLi = items[1];
+    assert.ok(!hardwareLi.classList.contains('ignoredCategoryEntry'));
+    const hwSpan = hardwareLi.querySelector('.ignoreCategory');
+    assert.ok(hwSpan.classList.contains('f_IgnoredCategories_Hide'));
+    assert.equal(hwSpan.getAttribute('title'), 'Kategorie ausblenden');
+    const hwIcon = hwSpan.querySelector('i');
+    assert.ok(hwIcon.classList.contains('TPIcons-cross'));
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});
+
+test('syncCategoryTreeIgnoredState updates existing rows when ignored chips change', () => {
+  const prevDoc = globalThis.document;
+  try {
+    const sidebar = createMockElement('div', { className: 'Plugin_CategoryMainSelectionLeft' });
+    const ul = createMockElement('ul');
+    const li = createMockElement('li', { className: 'tp-cat-node' });
+    const row = createMockElement('div', { className: 'tp-cat-row' });
+    const toggle = createMockElement('button', { className: 'tp-cat-toggle' });
+    const span = createMockElement('span', { className: 'ignoreCategory f_IgnoredCategories_Hide' });
+    span.setAttribute('data-vcat-id', '35');
+    const icon = createMockElement('i', { className: 'TPIcons-cross' });
+    span.appendChild(icon);
+    row.appendChild(toggle);
+    row.appendChild(span);
+    li.appendChild(row);
+    ul.appendChild(li);
+    sidebar.appendChild(ul);
+
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const root = createMockElement('div');
+    root.appendChild(sidebar);
+    root.appendChild(bar);
+
+    globalThis.document = {
+      querySelectorAll: sel => root.querySelectorAll(sel),
+      querySelector: sel => root.querySelector(sel)
+    };
+
+    // Before: active
+    assert.ok(!li.classList.contains('ignoredCategoryEntry'));
+    assert.ok(span.classList.contains('f_IgnoredCategories_Hide'));
+
+    // Add chip for 35 and sync
+    const chip = createMockElement('span', { className: 'ignoredCategory' });
+    chip.setAttribute('data-vcat-id', '35');
+    bar.appendChild(chip);
+
+    syncCategoryTreeIgnoredState(sidebar);
+
+    // After: ignored
+    assert.ok(li.classList.contains('ignoredCategoryEntry'));
+    assert.ok(span.classList.contains('f_IgnoredCategories_Show'));
+    assert.ok(icon.classList.contains('TPIcons-plus'));
+    assert.equal(toggle.disabled, true);
+
+    // Remove chip and sync
+    chip.remove();
+    syncCategoryTreeIgnoredState(sidebar);
+
+    // Restored: active
+    assert.ok(!li.classList.contains('ignoredCategoryEntry'));
+    assert.ok(span.classList.contains('f_IgnoredCategories_Hide'));
+    assert.ok(icon.classList.contains('TPIcons-cross'));
+    assert.equal(toggle.disabled, false);
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});
 
 test('enhanceCategorySidebar injects search box and chevrons on feed sidebar', () => {
   const prevDoc = globalThis.document;
