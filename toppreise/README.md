@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.382)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.383)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -129,7 +129,8 @@ Requires a userscript manager browser extension:
 
 ### 💬 1-Click Discord Deal Sharing (`📤`)
 
-* **One-Click Webhook Sharing:** Verified all-time low cards display a `📤` button on hover (semi-transparent on touch devices) that posts the deal directly to your Discord channel or Forum thread via webhook. Shared cards retain an illuminated share icon.
+* **Interactive Preview & Multi-Channel Support:** Verified all-time low cards display a `📤` button on hover. Clicking opens a real-time preview modal with rendered Markdown and chart/product images, featuring individual action buttons for each configured channel (e.g., `#deals`, `#gaming`).
+* **Multiple Webhook Channels:** Configure and name multiple Discord webhooks in settings (confidential, stored locally in `GM_setValue`, never committed or exported).
 * **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels).
 * **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
 
@@ -145,7 +146,7 @@ Requires a userscript manager browser extension:
 | **Differenz Badge (`🔍` / `⚖️`)** | Top-right of product card | Click to verify or refresh a single product's price history and all-time low status. |
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
-| **Share Button (`📤`)** | Bottom-left of verified card | Posts deal, sparkline, and chart PNG to Discord webhook (hover on desktop, semi-transparent on touch). |
+| **Share Button (`📤`)** | Bottom-left of verified card | Opens preview modal with message and chart PNG, posting to your chosen Discord channel webhook. |
 | **Web Search & AI Verdict (`🌐`)** | Next to product title | Opens AI review verdict modal (with Tavily key) or Google search in a new tab. |
 | **Settings FAB (`⚙️`)** | Bottom-right floating button | Opens the encapsulated Shadow DOM settings modal. |
 
@@ -197,7 +198,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 | # | Setting / Action | Description |
 |---|---|---|
-| ① | **Discord Webhook Integration** | Configures confidential webhook URL for one-click deal sharing (never committed). |
+| ① | **Discord Channels & Webhooks** | Configures confidential webhook URLs for multiple named Discord channels (never committed or exported). |
 | ② | **Discord Layout Chips** | Variable token builder (`{title}`, `{price}`, `{dealer}`, `{prevlow}`, `{median}`, `{link}`). |
 | ③ | **Live Markdown Preview** | Instant preview of the rendered Discord embed and message structure. |
 | ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically for deals meeting threshold (max. 3 parallel). |
@@ -208,7 +209,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
-6. **💬 Discord Share:** Confidential webhook URL (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, `{ai}`, etc.), presets, and live Markdown preview.
+6. **💬 Discord Share:** Confidential webhook channels (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, `{ai}`, etc.), presets, and live Markdown preview.
 7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, configurable RAM & disk cache limits, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
 
 ---

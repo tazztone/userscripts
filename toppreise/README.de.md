@@ -129,7 +129,8 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 ### 💬 1-Klick Discord Deal-Sharing (`📤`)
 
-* **Webhook-Integration:** Verifizierte Tiefstpreis-Karten zeigen bei Hover einen `📤`-Button, der den Deal via Webhook in Discord-Kanäle oder Foren-Threads postet. Bereits geteilte Karten bleiben markiert.
+* **Interaktive Vorschau & Multi-Channel:** Verifizierte Tiefstpreis-Karten zeigen bei Hover einen `📤`-Button. Ein Klick öffnet ein Vorschau-Modal mit formatiertem Markdown und Bildvorschau sowie Aktions-Buttons für jeden konfigurierten Kanal (z.B. `#deals`, `#gaming`).
+* **Mehrere Webhook-Kanäle:** Beliebig viele benannte Discord-Webhooks in den Einstellungen verwalten (vertraulich in `GM_setValue`, nie exportiert oder committet).
 * **High-DPI Chart & Produktbild:** Rendert den Preisverlauf mit Achsenraster als PNG und hängt ihn zusammen mit dem Produktbild an (dient in Foren-Kanälen als Thread-Vorschau).
 * **Layout-Baukasten:** Eigene Nachrichtenstruktur mit Tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), Presets (*Kompakt*, *Ausführlich*, *Minimal*), Live-Markdown-Vorschau und getrennten Embed-Schaltern.
 
@@ -145,7 +146,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | **Differenz-Badge (`🔍` / `⚖️`)** | Oben rechts auf Karte | Einzelprodukt prüfen oder Historie aktualisieren. |
 | **Günstigster Händler (`🏬`)** | Neben Preis auf Karte | Direktlink zum Händlershop im neuen Tab; bei Hover Händler im Feed nachladen. |
 | **Mini-Sparkline** | Unten auf geprüfter Karte | Klick öffnet den grossen interaktiven Preishistorien-Chart. |
-| **Share-Button (`📤`)** | Unten links auf Deal-Karte | Postet Deal, Text-Übersicht und PNG-Chart an den Discord-Webhook. |
+| **Share-Button (`📤`)** | Unten links auf Deal-Karte | Öffnet Vorschau-Modal mit Text & PNG-Chart und teilt per Klick in den gewählten Discord-Kanal. |
 | **Web-Suche & KI-Fazit (`🌐`)** | Hover am Produkttitel | Klick öffnet KI-Kurzfazit auf der Karte (mit Tavily Key) oder Google-Suche in neuem Tab. |
 | **Einstellungen-Button (`⚙️`)** | Schwebend unten rechts | Öffnet das gekapselte Shadow-DOM-Einstellungsmenü. |
 
@@ -197,7 +198,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 | # | Einstellung / Bereich | Beschreibung |
 |---|---|---|
-| ① | **Discord Webhook** | Vertrauliche Webhook-URL für das 1-Klick Teilen verifizierter Deals. |
+| ① | **Discord Kanäle & Webhooks** | Vertrauliche Webhook-URLs für mehrere Discord-Kanäle (nie exportiert oder committet). |
 | ② | **Layout-Baukasten** | Frei anpassbare Bausteine mit variablen Tokens (`{title}`, `{price}`, `{dealer}`, etc.). |
 | ③ | **Live-Markdown-Vorschau** | Sofortige Vorschau der generierten Discord-Nachricht. |
 | ④ | **Händler-Autoload** | Lädt den günstigsten Händler für Deals ab Schwelle automatisch im Hintergrund nach (max. 3 parallel). |
@@ -208,7 +209,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.
 5. **🔔 Preisalarm:** Zielpreis-Prozentsatz (5%–99%, Standard 60%), Laufzeit (3, 6, 12, 24 Monate) und automatisches Absenden & Schliessen.
-6. **💬 Discord Share:** Webhook-URL (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, `{ai}`, etc.), Presets und Live-Markdown-Vorschau.
+6. **💬 Discord Share:** Vertrauliche Webhook-Kanäle (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, `{ai}`, etc.), Presets und Live-Markdown-Vorschau.
 7. **💾 Daten & Cache:** Händler-Autoload, Gewichtete Differenz (Sortierung + Farb-Emphase), Mindest-Datenpunkte, Median-Berechnungszeitraum, Prüf-Vorauswahl für Batch-Check, Versandkosten-Basis (`inkl. Versand`), Sparklines, Cache-TTL, Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`) und Konfigurations-Export/Import.
 
 ---

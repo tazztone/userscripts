@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.382
+// @version      2.18.383
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -8601,6 +8601,45 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+  async function sendDealToChannel(channel, payload, stillFresh) {
+    const hook = channel.url.trim();
+    const flagKey = discordForumFlagKey(hook);
+    const forum = _getValue(flagKey, false) === true;
+    const { content, forumContent, threadName, png, productOpt } = payload;
+
+    const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+    const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
+
+    const tryRound = async withThread => {
+      if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
+      if (png) {
+        try {
+          await postImage(withThread);
+          return;
+        } catch (imgErr) {
+          if (isForumThreadError(imgErr)) {
+            if (!withThread) throw imgErr;
+          } else if (!isAttachmentRejection(imgErr)) {
+            throw imgErr;
+          }
+        }
+      }
+      if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
+      await postText(withThread);
+    };
+
+    for (const withThread of (forum ? [true, false] : [false, true])) {
+      try {
+        await tryRound(withThread);
+        if (withThread !== forum) _setValue(flagKey, withThread);
+        break;
+      } catch (err) {
+        if (!isForumThreadError(err) || withThread) throw err;
+      }
+    }
+  }
+
   // Share dedupe surviving button re-renders: duplicate clicks for the same
   // pid:basis:price post once (button disabled alone is not enough).
   const shareInFlight = new Set();
@@ -8625,8 +8664,8 @@ const SHADOW_MODAL_STYLES = `
         shareBtn.addEventListener('click', async e => {
           e.preventDefault();
           e.stopPropagation();
-          const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
-          if (!isDiscordWebhookUrl(hook)) {
+          const channels = getDiscordChannels().filter(c => isDiscordWebhookUrl(c.url));
+          if (channels.length === 0) {
             showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
             return;
           }
@@ -8659,11 +8698,57 @@ const SHADOW_MODAL_STYLES = `
           if (shareInFlight.has(shareKey)) { showToast('Teilen läuft bereits'); return; }
           shareInFlight.add(shareKey);
           shareBtn.disabled = true;
-          try {
+
+          let preview = null;
+          let readyPayload = null;
+
+          const onCancel = () => {
+            shareInFlight.delete(shareKey);
+            shareBtn.disabled = false;
+          };
+
+          const onSend = async (targetChannel, controller) => {
+            if (!readyPayload) return;
             try {
-              const { title, url, imageUrl } = extractShareData(card);
+              await sendDealToChannel(targetChannel, readyPayload, stillFresh);
+              controller.close();
+              shareInFlight.delete(shareKey);
+              shareBtn.disabled = false;
+              if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
+              showToast(`📤 Deal in #${targetChannel.name} geteilt`);
+              if (stillFresh()) shareBtn.classList.add('tp-share-done');
+              else { showToast('📤 Deal geteilt – Karte hat sich danach geändert'); scheduleProcessListings(); }
+            } catch (err) {
+              if (err?.stale) {
+                controller.close();
+                shareInFlight.delete(shareKey);
+                shareBtn.disabled = false;
+                abortStale();
+              } else if (err?.status === 429) {
+                controller.setError('⏳ Discord-Limit – später erneut versuchen');
+              } else if (!err?.status) {
+                controller.setError('⚠️ Übermittlung nicht bestätigt — bitte Verbindung prüfen');
+              } else {
+                controller.setError(err?.message ? `Fehler: ${err.message}` : 'Teilen fehlgeschlagen');
+              }
+            }
+          };
+
+          const { title, url, imageUrl } = extractShareData(card);
+          const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
+
+          preview = openSharePreviewModal({
+            title,
+            priceText,
+            channels,
+            onSend,
+            onCancel
+          });
+
+          // Background asset preparation runs in parallel with preview display
+          (async () => {
+            try {
               const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
-              const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
               let aiPromise = null;
               if (String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
                 const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
@@ -8677,15 +8762,13 @@ const SHADOW_MODAL_STYLES = `
               const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
               let dealer = extractDealer(card, useShipping);
               let dealerUrl = extractDealerUrl(card, useShipping);
-              // Geladen (page-1) vs. total (JSON-LD-Aggregat): Anzeige/Share
-              // nutzen das Total, fällts zurück auf die geladene Anzahl.
               const cachedDealer = getCachedDealer(snap.pid, useShipping);
               let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
               let totalOffers = cachedDealer?.totalOffers || 0;
               let offers = totalOffers || loadedOffers;
               if ((!dealer || !dealerUrl || !offers) && url) {
                 const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
-                if (!stillFresh()) { abortStale(); return; }
+                if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
                 if (info) {
                   dealer = dealer || info.dealer;
                   dealerUrl = dealerUrl || info.dealerUrl;
@@ -8700,9 +8783,9 @@ const SHADOW_MODAL_STYLES = `
                 }
               }
               const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice), 360, 100, title).catch(() => null);
-              if (!stillFresh()) { abortStale(); return; }
+              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
               const aiText = aiPromise ? (await aiPromise) : '';
-              if (!stillFresh()) { abortStale(); return; }
+              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
               const fields = {
                 title, url, priceText,
                 dealer, dealerUrl, offerCount: offers,
@@ -8714,63 +8797,29 @@ const SHADOW_MODAL_STYLES = `
               const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
               const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
               const threadName = buildThreadName(title);
-              const flagKey = discordForumFlagKey(hook);
-              const forum = _getValue(flagKey, false) === true;
-              // Produkt-Bytes laufen parallel zu Händlerfetch + Chart-Render (oben
-              // gestartet): gelingt der Download nicht, bleibt das URL-Embed als Fallback.
               const productBlob = (png && productDl) ? await productDl : null;
-              if (!stillFresh()) { abortStale(); return; }
+              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
               const productOpt = {
                 ...(productBlob ? { productImageBlob: productBlob } : null),
                 ...(imageUrl ? { productImageUrl: imageUrl } : null)
               };
-              const postText = withThread => postDealToDiscord(hook, withThread ? forumContent : content, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-              const postImage = withThread => postDealImageToDiscord(hook, withThread ? forumContent : content, png, { ...(withThread ? { threadName } : null), ...(productOpt || {}) });
-              const tryRound = async withThread => {
-                // Never post for a changed card: the snapshot price/dealer
-                // would no longer match what the user clicked.
-                if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
-                if (png) {
-                  try { await postImage(withThread); return; }
-                  catch (imgErr) {
-                    if (isForumThreadError(imgErr)) {
-                      if (!withThread) throw imgErr; // plain image hit forum: skip plain text, outer handler goes threaded
-                      /* threaded image rejected: fall through to threaded text */
-                    } else if (!isAttachmentRejection(imgErr)) {
-                      throw imgErr; // ambiguous (429/timeout/network): never auto-post text — could duplicate
-                    }
-                    /* definite attachment rejection: fall through to text, same round */
-                  }
-                }
-                if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
-                await postText(withThread);
+              readyPayload = {
+                content,
+                forumContent,
+                threadName,
+                png,
+                productBlob,
+                productOpt
               };
-              for (const withThread of (forum ? [true, false] : [false, true])) {
-                try {
-                  await tryRound(withThread);
-                  if (withThread !== forum) _setValue(flagKey, withThread);
-                  break;
-                } catch (err) {
-                  if (!isForumThreadError(err) || withThread) throw err;
-                  // plain round hit forum → loop continues threaded
-                }
-              }
-              // Delivery happened: record the snapshot and toast success even
-              // if the card changed mid-post — only the green paint is gated.
-              if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
-              showToast('📤 Deal in Discord geteilt');
-              if (stillFresh()) shareBtn.classList.add('tp-share-done');
-              else { showToast('📤 Deal geteilt – Karte hat sich danach geändert'); scheduleProcessListings(); }
+              preview?.updateContent({
+                formattedContent: content,
+                chartBlob: png,
+                productBlob
+              });
             } catch (err) {
-              if (err?.stale) { abortStale(); }
-              else if (err?.status === 429) showToast('⏳ Discord-Limit – später erneut versuchen');
-              else if (!err?.status) showToast('⚠️ Übermittlung nicht bestätigt — bitte prüfen');
-              else showToast('📤 Teilen fehlgeschlagen');
+              preview?.setError('Vorbereitung fehlgeschlagen');
             }
-          } finally {
-            shareInFlight.delete(shareKey);
-            shareBtn.disabled = false;
-          }
+          })();
         });
         // Eigener Positioning-Kontext: Host-CSS garantiert kein relative (ausser .tp-is-cheapest).
         if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
@@ -13211,7 +13260,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.382';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.383';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

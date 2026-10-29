@@ -1,4 +1,5 @@
-from playwright.sync_api import Page
+import re
+from playwright.sync_api import Page, expect
 
 from conftest import seed_verified_deal, mock_pricechart, drop_store_filter, open_filter_popover, open_settings
 
@@ -1930,3 +1931,90 @@ def test_reset_during_pending_fetch_keeps_cache_empty(page: Page):
     page.wait_for_function("() => document.querySelector('#card-negative .badge-dif:not(.tp-deal-loading)') !== null")
     assert page.evaluate("() => window.ToppreiseSuite.memoryCache.size") == 0
     assert page.evaluate("() => Object.keys(localStorage).filter(k => k.startsWith('tp_hist_v1_')).length") == 0
+
+
+def test_discord_share_preview_modal_multi_channel(page: Page):
+    """Share preview modal opens on 📤 click, previews markdown, and sends to selected channel."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    # Configure 2 channels in settings: Standard and Gaming
+    open_settings(page)
+    page.fill('#tp-root >> #tp-discord-primary-name', 'Standard')
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/111/standard')
+    page.click('#tp-root >> #tp-discord-add-channel-btn')
+    page.fill('#tp-root >> .tp-discord-extra-card .tp-discord-channel-name', 'Gaming')
+    page.fill('#tp-root >> .tp-discord-extra-card .tp-discord-extra-url', 'https://discord.com/api/webhooks/222/gaming')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    posts = []
+    page.route('**/discord.com/**', lambda route: (posts.append(route.request.url),
+                                                   route.fulfill(status=200, body='{}')))
+
+    # Click 📤 share button on card
+    page.click('#card-cheapest > .tp-share-btn', force=True)
+
+    # Preview modal opens
+    modal = page.locator('#tp-root >> #tp-modal-share-preview')
+    expect(modal).to_be_visible()
+    expect(page.locator('#tp-root >> #tp-share-preview-title')).to_contain_text('Nvidia GeForce RTX 4090')
+
+    # Both channel buttons exist
+    channel_btns = page.locator('#tp-root >> .tp-share-channel-btn')
+    expect(channel_btns).to_have_count(2)
+    expect(channel_btns.nth(0)).to_contain_text('Standard')
+    expect(channel_btns.nth(1)).to_contain_text('Gaming')
+
+    # Wait for background rendering to finish and buttons to become enabled
+    page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
+    expect(page.locator('#tp-root >> #tp-share-preview-content-wrap')).to_be_visible()
+
+    # Click Gaming channel button
+    channel_btns.nth(1).click()
+
+    # Modal closes after send
+    expect(modal).to_be_hidden()
+    expect(page.locator('#card-cheapest > .tp-share-btn')).to_have_class(re.compile(r'tp-share-done'))
+
+    # Verify posted to Gaming webhook
+    assert len(posts) >= 1
+    assert any('222/gaming' in url for url in posts)
+
+
+def test_discord_share_preview_cancel_on_escape(page: Page):
+    """Pressing Escape inside share preview modal closes modal without posting."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    open_settings(page)
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/111/test')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    posts = []
+    page.route('**/discord.com/**', lambda route: (posts.append(route.request.url),
+                                                   route.fulfill(status=200, body='{}')))
+
+    page.click('#card-cheapest > .tp-share-btn', force=True)
+    modal = page.locator('#tp-root >> #tp-modal-share-preview')
+    expect(modal).to_be_visible()
+
+    # Cancel via Escape
+    page.keyboard.press('Escape')
+    expect(modal).to_be_hidden()
+    assert posts == []
+
+
