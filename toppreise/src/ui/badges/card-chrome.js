@@ -262,7 +262,7 @@ export function renderReviewButton(ctx) {
     const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
     const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
     const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-    const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
+    const hasTavily = !!(CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
     let reviewBtn = card.querySelector('.tp-review-search-btn');
     if (!reviewBtn) {
       reviewBtn = document.createElement('a');
@@ -272,18 +272,20 @@ export function renderReviewButton(ctx) {
       reviewBtn.rel = 'noopener';
       reviewBtn.addEventListener('click', e => {
         e.stopPropagation();
-        if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-          e.preventDefault();
-          const aiCtx = reviewBtn._tpAiCtx || {};
-          openAiPopover({
-            title: aiCtx.title || reviewName,
-            priceText: aiCtx.priceText || '',
-            googleUrl: reviewBtn.href,
-            card: aiCtx.card || card,
-            pid: aiCtx.pid || ctx.pid
-          });
-        } else {
-          showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+        if (CONFIG.TAVILY_ENABLED) {
+          if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+            e.preventDefault();
+            const aiCtx = reviewBtn._tpAiCtx || {};
+            openAiPopover({
+              title: aiCtx.title || reviewName,
+              priceText: aiCtx.priceText || '',
+              googleUrl: reviewBtn.href,
+              card: aiCtx.card || card,
+              pid: aiCtx.pid || ctx.pid
+            });
+          } else {
+            showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+          }
         }
       });
     }

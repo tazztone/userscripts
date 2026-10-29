@@ -87,6 +87,16 @@ export function ensureModalSection(shadow) {
         </div>
 
         <div class="tp-settings-subhead">Tavily KI-Suche (Direkt-Fazit & Discord)</div>
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
+            <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-tavily-enabled-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
         <div class="tp-settings-group">
           <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
           <div id="tp-tavily-api-key-collapsed">

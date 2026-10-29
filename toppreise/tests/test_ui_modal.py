@@ -695,3 +695,34 @@ def test_multi_channel_settings(page: Page):
     assert page.locator('#tp-root >> .tp-discord-extra-card').count() == 0
     page.click('#tp-root >> #tp-btn-close')
 
+
+def test_tavily_enabled_toggle_persists(page: Page):
+    open_settings(page)
+    toggle = page.locator('#tp-root >> #tp-tavily-enabled-toggle')
+    # Default is false
+    assert toggle.is_checked() is False
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.TAVILY_ENABLED") is False
+
+    # Turn on via slider click
+    page.click('#tp-root >> #tp-tavily-enabled-toggle + .tp-slider')
+    assert toggle.is_checked() is True
+
+    # Save and verify persistence
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.TAVILY_ENABLED") is True
+
+    # Reopen and check UI state
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-tavily-enabled-toggle').is_checked() is True
+
+    # Turn back off and save
+    page.click('#tp-root >> #tp-tavily-enabled-toggle + .tp-slider')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite?.CONFIG?.TAVILY_ENABLED") is False
+    open_settings(page)
+    assert page.locator('#tp-root >> #tp-tavily-enabled-toggle').is_checked() is False
+    page.click('#tp-root >> #tp-btn-close')
+
+

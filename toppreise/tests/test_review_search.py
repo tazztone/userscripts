@@ -205,7 +205,13 @@ def test_review_ai_popover_open_and_close(page: Page):
     btn = page.locator('#card-cheapest a.tp-review-search-btn')
     assert btn.count() == 1
 
-    # Negative path: without Tavily key, clicking 🌐 emits guidance toast and does not mount popover
+    # Default: Tavily disabled, clicking 🌐 does not toast
+    btn.dispatch_event('click')
+    assert page.locator('#tp-ai-popout').count() == 0
+    assert page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''") == ''
+
+    # Enabled but without Tavily key: clicking 🌐 emits guidance toast and does not mount popover
+    page.evaluate("() => window.ToppreiseSuite?.updateConfig?.('TAVILY_ENABLED', true)")
     btn.dispatch_event('click')
     assert page.locator('#tp-ai-popout').count() == 0
     assert 'Kostenlosen Tavily-Key' in page.evaluate("() => window.ToppreiseSuite?.lastToast?.() || ''")

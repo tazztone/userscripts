@@ -312,6 +312,7 @@ export function wireModalActions(els) {
     if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
     if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
     if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
+    if (els.tavilyEnabledToggle) updates.TAVILY_ENABLED = els.tavilyEnabledToggle.checked;
     if (els.tavilyApiKeyInput && els.tavilyApiKeyEditor && els.tavilyApiKeyEditor.style.display !== 'none') {
       updates.TAVILY_API_KEY = String(els.tavilyApiKeyInput.value || '').trim();
     }

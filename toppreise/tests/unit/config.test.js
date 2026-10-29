@@ -50,6 +50,13 @@ describe('Config dual-layer storage', () => {
     assert.equal(_getValue('BESTPREISE_HIDE_UNCHECKED', false), true);
   });
 
+  it('tavily-enabled defaults to false and round-trips through both layers', () => {
+    assert.equal(DEFAULTS.TAVILY_ENABLED, false);
+    assert.equal(_getValue('TAVILY_ENABLED', DEFAULTS.TAVILY_ENABLED), false);
+    _setValue('TAVILY_ENABLED', true);
+    assert.equal(_getValue('TAVILY_ENABLED', false), true);
+  });
+
   it('has no display-mode key (filter-split removed MODE)', () => {
     assert.ok(!('MODE' in DEFAULTS));
     assert.ok(!('MODE' in CONFIG));
@@ -102,6 +109,9 @@ describe('Config dual-layer storage', () => {
     assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'dim'), 'dim');
     assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'hide'), 'hide');
     assert.equal(sanitizeConfigValue('VORTIEF_MODE', 'invalid'), 'dim');
+    assert.equal(sanitizeConfigValue('TAVILY_ENABLED', true), true);
+    assert.equal(sanitizeConfigValue('TAVILY_ENABLED', false), false);
+    assert.equal(sanitizeConfigValue('TAVILY_ENABLED', 'invalid'), false);
   });
 
 });

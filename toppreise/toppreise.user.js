@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.384
+// @version      2.18.385
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3493,6 +3493,7 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: true,
     REVIEW_SEARCH_KEYWORD: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.',
     REVIEW_SEARCH_AI_MODE: false,
+    TAVILY_ENABLED: false,
     TAVILY_API_KEY: '',
     TAVILY_SEARCH_DEPTH: 'basic',
     TAVILY_MAX_RESULTS: 5,
@@ -3597,6 +3598,7 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: { type: 'bool', default: true },
     REVIEW_SEARCH_KEYWORD: { type: 'string', default: 'Testberichte zu: [Produkt]. Ist der Preis von {preis} ein guter Deal? Bewerte Preis-Leistung, Stärken und Schwächen kurz auf Deutsch.' },
     REVIEW_SEARCH_AI_MODE: { type: 'bool', default: false },
+    TAVILY_ENABLED: { type: 'bool', default: false },
     TAVILY_API_KEY: { type: 'string', default: '' },
     TAVILY_SEARCH_DEPTH: { type: 'enum', default: 'basic', allowed: ['basic', 'advanced'] },
     TAVILY_MAX_RESULTS: { type: 'int', default: 5, min: 1, max: 10 },
@@ -3916,6 +3918,7 @@ const SHADOW_MODAL_STYLES = `
     REVIEW_SEARCH_ENABLED: sanitizeConfigValue('REVIEW_SEARCH_ENABLED', _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED)),
     REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
     REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
+    TAVILY_ENABLED: sanitizeConfigValue('TAVILY_ENABLED', _getValue('TAVILY_ENABLED', DEFAULTS.TAVILY_ENABLED)),
     TAVILY_API_KEY: _getValue('TAVILY_API_KEY', DEFAULTS.TAVILY_API_KEY),
     TAVILY_SEARCH_DEPTH: sanitizeConfigValue('TAVILY_SEARCH_DEPTH', _getValue('TAVILY_SEARCH_DEPTH', DEFAULTS.TAVILY_SEARCH_DEPTH)),
     TAVILY_MAX_RESULTS: sanitizeConfigValue('TAVILY_MAX_RESULTS', _getValue('TAVILY_MAX_RESULTS', DEFAULTS.TAVILY_MAX_RESULTS)),
@@ -4183,6 +4186,11 @@ const SHADOW_MODAL_STYLES = `
           }
           case 'REVIEW_SEARCH_AI_MODE': {
             const toggle = shadow.getElementById('tp-review-ai-mode-toggle');
+            if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'TAVILY_ENABLED': {
+            const toggle = shadow.getElementById('tp-tavily-enabled-toggle');
             if (toggle) toggle.checked = !!val;
             break;
           }
@@ -8750,7 +8758,7 @@ const SHADOW_MODAL_STYLES = `
             try {
               const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
               let aiPromise = null;
-              if (String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+              if (CONFIG.TAVILY_ENABLED && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
                 const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
                 const cached = getCachedTavily(query);
                 if (cached?.answer) {
@@ -9357,7 +9365,7 @@ const SHADOW_MODAL_STYLES = `
       const priceText = (ctx.cardPrice > 0 && hasUsablePriceStats(ctx.stats)) ? `CHF ${ctx.cardPrice.toFixed(2)}` : '';
       const fullQuery = formatSearchQuery(reviewName, rawKw, priceText);
       const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
-      const hasTavily = !!(CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
+      const hasTavily = !!(CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
       let reviewBtn = card.querySelector('.tp-review-search-btn');
       if (!reviewBtn) {
         reviewBtn = document.createElement('a');
@@ -9367,18 +9375,20 @@ const SHADOW_MODAL_STYLES = `
         reviewBtn.rel = 'noopener';
         reviewBtn.addEventListener('click', e => {
           e.stopPropagation();
-          if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-            e.preventDefault();
-            const aiCtx = reviewBtn._tpAiCtx || {};
-            openAiPopover({
-              title: aiCtx.title || reviewName,
-              priceText: aiCtx.priceText || '',
-              googleUrl: reviewBtn.href,
-              card: aiCtx.card || card,
-              pid: aiCtx.pid || ctx.pid
-            });
-          } else {
-            showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+          if (CONFIG.TAVILY_ENABLED) {
+            if (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+              e.preventDefault();
+              const aiCtx = reviewBtn._tpAiCtx || {};
+              openAiPopover({
+                title: aiCtx.title || reviewName,
+                priceText: aiCtx.priceText || '',
+                googleUrl: reviewBtn.href,
+                card: aiCtx.card || card,
+                pid: aiCtx.pid || ctx.pid
+              });
+            } else {
+              showToast('💡 Tipp: Kostenlosen Tavily-Key in den Einstellungen (⚙️) hinterlegen für Direkt-Fazit auf der Karte');
+            }
           }
         });
       }
@@ -9851,6 +9861,16 @@ const SHADOW_MODAL_STYLES = `
           </div>
 
           <div class="tp-settings-subhead">Tavily KI-Suche (Direkt-Fazit & Discord)</div>
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Aktiviert Tavily KI-Zusammenfassungen für Direkt-Fazit auf der Karte und {ai} in Discord.">Tavily KI-Suche aktivieren</label>
+              <span class="tp-switch-desc">AUS = 🌐 öffnet Websuche direkt, kein KI-Fazit auf Karte & in Discord</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-tavily-enabled-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
           <div class="tp-settings-group">
             <label title="Kostenloser Tavily API Key (tavily.com, 1'000 Anfragen/Monat). Ermöglicht KI-Kurzfazit direkt auf der Karte (🌐) und im Discord-Share ({ai}).">API-Schlüssel</label>
             <div id="tp-tavily-api-key-collapsed">
@@ -10091,6 +10111,7 @@ const SHADOW_MODAL_STYLES = `
     const reviewKeywordPreviewNoPrice = shadow.getElementById('tp-review-keyword-preview-noprice');
     const reviewKeywordPreviewNoPriceRow = shadow.getElementById('tp-review-keyword-preview-noprice-row');
     const reviewAiModeToggle = shadow.getElementById('tp-review-ai-mode-toggle');
+    const tavilyEnabledToggle = shadow.getElementById('tp-tavily-enabled-toggle');
     const tavilyApiKeyInput = shadow.getElementById('tp-tavily-api-key-input');
     const tavilyApiKeyReveal = shadow.getElementById('tp-tavily-api-key-reveal');
     const tavilyApiKeyEditor = shadow.getElementById('tp-tavily-api-key-editor');
@@ -10117,7 +10138,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -10234,6 +10255,7 @@ const SHADOW_MODAL_STYLES = `
         els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
       }
 
+      if (els.tavilyEnabledToggle) els.tavilyEnabledToggle.checked = !!CONFIG.TAVILY_ENABLED;
       if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
       if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
       if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
@@ -10668,6 +10690,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.reviewSearchToggle) updates.REVIEW_SEARCH_ENABLED = els.reviewSearchToggle.checked;
       if (els.reviewKeywordInput) updates.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(els.reviewKeywordInput.value);
       if (els.reviewAiModeToggle) updates.REVIEW_SEARCH_AI_MODE = els.reviewAiModeToggle.checked;
+      if (els.tavilyEnabledToggle) updates.TAVILY_ENABLED = els.tavilyEnabledToggle.checked;
       if (els.tavilyApiKeyInput && els.tavilyApiKeyEditor && els.tavilyApiKeyEditor.style.display !== 'none') {
         updates.TAVILY_API_KEY = String(els.tavilyApiKeyInput.value || '').trim();
       }
@@ -13242,7 +13265,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.384';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.385';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

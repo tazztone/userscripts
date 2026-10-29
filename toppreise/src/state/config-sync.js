@@ -155,6 +155,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (toggle) toggle.checked = !!val;
           break;
         }
+        case 'TAVILY_ENABLED': {
+          const toggle = shadow.getElementById('tp-tavily-enabled-toggle');
+          if (toggle) toggle.checked = !!val;
+          break;
+        }
         case 'TAVILY_SEARCH_DEPTH': {
           const select = shadow.getElementById('tp-tavily-search-depth');
           if (select) select.value = val || 'basic';

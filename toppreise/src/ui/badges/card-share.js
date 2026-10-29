@@ -184,7 +184,7 @@ export function renderShareButton(ctx, cd) {
           try {
             const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
             let aiPromise = null;
-            if (String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+            if (CONFIG.TAVILY_ENABLED && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
               const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
               const cached = getCachedTavily(query);
               if (cached?.answer) {
