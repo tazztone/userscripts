@@ -219,6 +219,23 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
   } catch {}
 }
 
+export function harvestExistingIdents(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
+  if (!sidebar?.querySelectorAll) return;
+  const triggers = sidebar.querySelectorAll('.ignoreCategory[data-vcat-id][data-ident]');
+  if (triggers.length === 0) return;
+  const stored = getStoredIdents();
+  let changed = false;
+  triggers.forEach(tr => {
+    const vcatId = tr.getAttribute('data-vcat-id');
+    const ident = tr.getAttribute('data-ident');
+    if (vcatId && ident && stored[vcatId] !== ident) {
+      stored[vcatId] = ident;
+      changed = true;
+    }
+  });
+  if (changed) saveStoredIdents(stored);
+}
+
 export function isCategoryIgnored(li) {
   if (!li) return false;
   if (li.classList?.contains?.('ignoredCategoryEntry')) return true;
@@ -237,6 +254,36 @@ export function getIgnoredVcatIds(doc = (typeof document !== 'undefined' ? docum
     if (vcatId) set.add(String(vcatId).trim());
   });
   return set;
+}
+
+export function syncSearchResultsIgnoredState(resultsBox, doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!resultsBox?.querySelectorAll) return;
+  const ignoredIds = getIgnoredVcatIds(doc);
+
+  resultsBox.querySelectorAll('.tp-cat-result-item[data-vcat-id]').forEach(item => {
+    const vcatId = item.getAttribute('data-vcat-id');
+    if (!vcatId) return;
+
+    const isIgnored = ignoredIds.has(String(vcatId).trim());
+    const span = item.querySelector('.ignoreCategory[data-vcat-id]');
+    if (!span) return;
+
+    if (isIgnored) {
+      item.classList.add('ignoredCategoryEntry');
+      span.classList.remove('f_IgnoredCategories_Hide');
+      span.classList.add('f_IgnoredCategories_Show');
+      span.setAttribute('title', 'Kategorie einblenden');
+      const icon = span.querySelector('i');
+      if (icon) icon.className = 'TPIcons-plus';
+    } else {
+      item.classList.remove('ignoredCategoryEntry');
+      span.classList.remove('f_IgnoredCategories_Show');
+      span.classList.add('f_IgnoredCategories_Hide');
+      span.setAttribute('title', 'Kategorie ausblenden');
+      const icon = span.querySelector('i');
+      if (icon) icon.className = 'TPIcons-cross';
+    }
+  });
 }
 
 export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
@@ -285,6 +332,11 @@ export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'und
       }
     }
   });
+
+  const resultsBox = sidebar.querySelector('.tp-cat-search-results');
+  if (resultsBox) {
+    syncSearchResultsIgnoredState(resultsBox, doc);
+  }
 }
 
 export function renderChildList(children, parentEl, currentPath, expandedBranches) {
@@ -400,6 +452,7 @@ export function enhanceCategorySidebar() {
   const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
   if (!sidebar || sidebar.classList.contains('tp-tree-enhanced')) return;
   sidebar.classList.add('tp-tree-enhanced');
+  harvestExistingIdents(sidebar);
 
   const currentPath = typeof location !== 'undefined' ? location.pathname : '';
   const expandedBranches = getExpandedBranches();
@@ -445,12 +498,29 @@ export function enhanceCategorySidebar() {
       if (hits.length === 0) {
         resultsBox.innerHTML = '<div class="tp-cat-no-results">Keine Kategorie gefunden</div>';
       } else {
-        resultsBox.innerHTML = hits.map(hit => `
-          <a class="tp-cat-result-item" href="${toFeedUrl(hit.url, currentPath)}">
-            <span class="tp-cat-res-title">${hit.title}</span>
-            <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
-          </a>
-        `).join('');
+        const storedIdents = getStoredIdents();
+        const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
+        const ignoredIds = getIgnoredVcatIds(doc);
+
+        resultsBox.innerHTML = hits.map(hit => {
+          const isIgnored = !!(hit.numericId && ignoredIds.has(String(hit.numericId).trim()));
+          const ident = hit.numericId ? (storedIdents[hit.numericId] || '') : '';
+          const actionBtn = hit.numericId ? `
+            <span class="ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}" data-vcat-id="${hit.numericId}" ${ident ? `data-ident="${ident}"` : ''} title="${isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden'}">
+              <i class="${isIgnored ? 'TPIcons-plus' : 'TPIcons-cross'}"></i>
+            </span>
+          ` : '';
+
+          return `
+            <div class="tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}" data-cat-id="${hit.id}" data-vcat-id="${hit.numericId || ''}">
+              <a class="tp-cat-result-link" href="${toFeedUrl(hit.url, currentPath)}" title="${hit.title}">
+                <span class="tp-cat-res-title">${hit.title}</span>
+                <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
+              </a>
+              ${actionBtn}
+            </div>
+          `;
+        }).join('');
       }
       resultsBox.style.display = 'block';
       if (ulList) ulList.style.display = 'none';
@@ -557,7 +627,8 @@ export function enhanceCategorySidebar() {
     document.body.addEventListener('click', e => {
       const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
       if (hideBtn) {
-        const targetLi = hideBtn.closest('li');
+        const vcatId = hideBtn.getAttribute?.('data-vcat-id');
+        const targetLi = hideBtn.closest('li') || (vcatId ? sidebar.querySelector(`li[data-cat-id="c${vcatId}"]`) : null);
         if (targetLi) {
           const catId = targetLi.dataset?.catId;
           if (catId) {

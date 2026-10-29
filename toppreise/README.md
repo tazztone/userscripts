@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.391)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.393)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -118,8 +118,8 @@ Requires a userscript manager browser extension:
 
 * **In-Sidebar Navigation:** Expands the native left deal sidebar with accordion toggles (`▸` / `▾`) across all 4 category levels using Toppreise's native category cache (`c_cm_data_de`).
 * **Direct Feed Links:** Clicking any subcategory navigates to its dedicated deal feed URL (`/neue-toppreise/...`).
-* **Instant Category Search:** Real-time search box above the sidebar filters across all 2,500+ categories with parent path breadcrumbs and direct link navigation.
-* **Native Category Blacklisting (`✕` / `+`):** Preserves and hydrates Toppreise's native server-side category exclusion icons on hover/render for all branch levels.
+* **Instant Category Search:** Real-time search box above the sidebar filters across all 2,500+ categories with parent path breadcrumbs, direct feed links, and 1-click `✕` exclusion / `+` restore buttons.
+* **Native Category Blacklisting (`✕` / `+`):** Preserves and hydrates Toppreise's native server-side category exclusion icons on hover/render across both sidebar branches and search dropdown results.
 * **Persistent State:** Expanded sidebar branches are saved in `localStorage` across page reloads.
 
 ### 🔔 Price Alarm Auto-Filler

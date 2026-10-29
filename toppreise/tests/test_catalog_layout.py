@@ -2404,6 +2404,27 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const searchVisible = resultsBox && window.getComputedStyle(resultsBox).display !== 'none';
         const hitCount = resultsBox?.querySelectorAll('.tp-cat-result-item').length || 0;
 
+        const firstHit = resultsBox?.querySelector('.tp-cat-result-item');
+        const searchHideBtn = firstHit?.querySelector('.ignoreCategory.f_IgnoredCategories_Hide');
+        const searchHideBtnExists = !!searchHideBtn;
+
+        // 1-click disable in search results
+        if (searchHideBtn) searchHideBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const searchHitIgnoredAfterHide = firstHit?.classList.contains('ignoredCategoryEntry');
+        const searchBtnClassAfterHide = firstHit?.querySelector('.ignoreCategory')?.className || '';
+        const searchIconClassAfterHide = firstHit?.querySelector('.ignoreCategory i')?.className || '';
+
+        // 1-click restore in search results
+        const searchShowBtn = firstHit?.querySelector('.ignoreCategory.f_IgnoredCategories_Show');
+        if (searchShowBtn) searchShowBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+
+        const searchHitIgnoredAfterRestore = firstHit?.classList.contains('ignoredCategoryEntry');
+        const searchBtnClassAfterRestore = firstHit?.querySelector('.ignoreCategory')?.className || '';
+        const searchIconClassAfterRestore = firstHit?.querySelector('.ignoreCategory i')?.className || '';
+
         // Clear search
         const clearBtn = sidebar?.querySelector('.tp-cat-search-clear');
         clearBtn?.click();
@@ -2468,6 +2489,13 @@ def test_expandable_category_sidebar_interactions(page: Page):
             togglesCount: toggles?.length || 0,
             searchVisible,
             hitCount,
+            searchHideBtnExists,
+            searchHitIgnoredAfterHide: !!searchHitIgnoredAfterHide,
+            searchBtnClassAfterHide,
+            searchIconClassAfterHide,
+            searchHitIgnoredAfterRestore: !!searchHitIgnoredAfterRestore,
+            searchBtnClassAfterRestore,
+            searchIconClassAfterRestore,
             hasSublist: !!sublist,
             childCount,
             hideColor,
@@ -2492,6 +2520,13 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['togglesCount'] > 0
     assert res['searchVisible'] is True
     assert res['hitCount'] >= 1
+    assert res['searchHideBtnExists'] is True
+    assert res['searchHitIgnoredAfterHide'] is True
+    assert 'f_IgnoredCategories_Show' in res['searchBtnClassAfterHide']
+    assert 'TPIcons-plus' in res['searchIconClassAfterHide']
+    assert res['searchHitIgnoredAfterRestore'] is False
+    assert 'f_IgnoredCategories_Hide' in res['searchBtnClassAfterRestore']
+    assert 'TPIcons-cross' in res['searchIconClassAfterRestore']
     assert res['hasSublist'] is True
     assert res['childCount'] >= 1
     assert '239, 68, 68' in (res['hideColor'] or '')

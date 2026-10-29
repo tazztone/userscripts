@@ -72,6 +72,8 @@
     .Plugin_CategoryMainSelectionLeft .ignoreCategory:hover { color: #f43f5e; background: rgba(244,63,94,0.1); }
     .Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry > a { opacity: 0.45; text-decoration: line-through; }
     .Plugin_CategoryMainSelectionLeft li.ignoredCategoryEntry .ignoreCategory { opacity: 0.45; }
+    .TPIcons-cross:empty::before { content: "✕"; }
+    .TPIcons-plus:empty::before { content: "+"; }
     .Plugin_CategoryMainSelectionLeft .f_showMoreCatDetails,
     .Plugin_CategoryMainSelectionLeft .f_hideMoreCatDetails { display: block; font-size: 12px; color: #38bdf8; cursor: pointer; text-decoration: none; margin-top: 6px; }
 
@@ -588,8 +590,8 @@
           e.preventDefault();
           e.stopPropagation();
           const vcatId = hideTrigger.getAttribute('data-vcat-id');
-          const li = hideTrigger.closest('li');
-          const catName = li ? li.querySelector('a')?.textContent?.trim() : 'Kategorie';
+          const li = hideTrigger.closest('li') || hideTrigger.closest('.tp-cat-result-item');
+          const catName = li ? (li.querySelector('.tp-cat-res-title') || li.querySelector('a'))?.textContent?.trim() : 'Kategorie';
           const bar = document.querySelector('.Plugin_IgnoredCategories');
           if (bar) {
             let barContainer = bar.querySelector('.ignoredCategoriesBar');

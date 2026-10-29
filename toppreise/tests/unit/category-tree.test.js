@@ -11,6 +11,8 @@ import {
   isCategoryIgnored,
   getIgnoredVcatIds,
   syncCategoryTreeIgnoredState,
+  syncSearchResultsIgnoredState,
+  harvestExistingIdents,
   renderChildList,
   enhanceCategorySidebar
 } from '../../src/features/category-tree.js';
@@ -497,5 +499,77 @@ test('enhanceCategorySidebar injects search box and chevrons on feed sidebar', (
   } finally {
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+  }
+});
+
+test('harvestExistingIdents extracts and caches tokens from sidebar elements', () => {
+  saveStoredIdents({});
+  const sidebar = createMockElement('div', { className: 'Plugin_CategoryMainSelectionLeft' });
+  const span1 = createMockElement('span', { className: 'ignoreCategory' });
+  span1.setAttribute('data-vcat-id', '200');
+  span1.setAttribute('data-ident', 'ident200');
+  sidebar.appendChild(span1);
+
+  const span2 = createMockElement('span', { className: 'ignoreCategory' });
+  span2.setAttribute('data-vcat-id', '900');
+  span2.setAttribute('data-ident', 'ident900');
+  sidebar.appendChild(span2);
+
+  harvestExistingIdents(sidebar);
+
+  const idents = getStoredIdents();
+  assert.equal(idents['200'], 'ident200');
+  assert.equal(idents['900'], 'ident900');
+});
+
+test('syncSearchResultsIgnoredState synchronizes hit items with active ignored chips', () => {
+  const prevDoc = globalThis.document;
+  try {
+    const resultsBox = createMockElement('div', { className: 'tp-cat-search-results' });
+    const item = createMockElement('div', { className: 'tp-cat-result-item' });
+    item.setAttribute('data-vcat-id', '200');
+    const span = createMockElement('span', { className: 'ignoreCategory f_IgnoredCategories_Hide' });
+    span.setAttribute('data-vcat-id', '200');
+    const icon = createMockElement('i', { className: 'TPIcons-cross' });
+    span.appendChild(icon);
+    item.appendChild(span);
+    resultsBox.appendChild(item);
+
+    const bar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const root = createMockElement('div');
+    root.appendChild(resultsBox);
+    root.appendChild(bar);
+
+    globalThis.document = {
+      querySelectorAll: sel => root.querySelectorAll(sel),
+      querySelector: sel => root.querySelector(sel)
+    };
+
+    // Active
+    assert.ok(!item.classList.contains('ignoredCategoryEntry'));
+    assert.ok(span.classList.contains('f_IgnoredCategories_Hide'));
+
+    // Chip added
+    const chip = createMockElement('span', { className: 'ignoredCategory' });
+    chip.setAttribute('data-vcat-id', '200');
+    bar.appendChild(chip);
+
+    syncSearchResultsIgnoredState(resultsBox);
+
+    assert.ok(item.classList.contains('ignoredCategoryEntry'));
+    assert.ok(span.classList.contains('f_IgnoredCategories_Show'));
+    assert.ok(icon.classList.contains('TPIcons-plus'));
+    assert.equal(span.getAttribute('title'), 'Kategorie einblenden');
+
+    // Chip removed
+    chip.remove();
+    syncSearchResultsIgnoredState(resultsBox);
+
+    assert.ok(!item.classList.contains('ignoredCategoryEntry'));
+    assert.ok(span.classList.contains('f_IgnoredCategories_Hide'));
+    assert.ok(icon.classList.contains('TPIcons-cross'));
+    assert.equal(span.getAttribute('title'), 'Kategorie ausblenden');
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
   }
 });

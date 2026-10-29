@@ -555,23 +555,70 @@ export const STYLES_CHROME = `
   }
   .tp-cat-result-item {
     display: flex !important;
-    flex-direction: column !important;
-    padding: 6px 8px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 3px 6px 3px 8px !important;
     text-decoration: none !important;
     border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+    transition: background 0.15s ease !important;
   }
   .tp-cat-result-item:hover {
     background: rgba(59, 130, 246, 0.08) !important;
+  }
+  .tp-cat-result-link {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding: 3px 0 !important;
+    text-decoration: none !important;
   }
   .tp-cat-res-title {
     font-size: 12px !important;
     font-weight: 600 !important;
     color: var(--tp-txt) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
   .tp-cat-res-path {
     font-size: 10.5px !important;
     color: var(--tp-txt-dim) !important;
     margin-top: 1px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .tp-cat-result-item .ignoreCategory {
+    margin-left: 8px !important;
+    flex: 0 0 auto !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    padding: 2px 6px !important;
+    line-height: 1 !important;
+    border-radius: 3px !important;
+    border: 1px solid transparent !important;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+  }
+  .tp-cat-result-item .ignoreCategory.f_IgnoredCategories_Hide:hover {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
+  .tp-cat-result-item .ignoreCategory.f_IgnoredCategories_Show:hover {
+    border-color: rgba(16, 185, 129, 0.3) !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry {
+    background: rgba(239, 68, 68, 0.08) !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry .tp-cat-res-title {
+    color: #f87171 !important;
+    text-decoration: line-through !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry .tp-cat-res-path {
+    color: #fca5a5 !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry .tp-cat-result-link {
+    opacity: 0.8 !important;
   }
   .tp-cat-no-results {
     padding: 8px !important;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.391
+// @version      2.18.393
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1245,23 +1245,70 @@ const STYLES_CHROME = `
   }
   .tp-cat-result-item {
     display: flex !important;
-    flex-direction: column !important;
-    padding: 6px 8px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 3px 6px 3px 8px !important;
     text-decoration: none !important;
     border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+    transition: background 0.15s ease !important;
   }
   .tp-cat-result-item:hover {
     background: rgba(59, 130, 246, 0.08) !important;
+  }
+  .tp-cat-result-link {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding: 3px 0 !important;
+    text-decoration: none !important;
   }
   .tp-cat-res-title {
     font-size: 12px !important;
     font-weight: 600 !important;
     color: var(--tp-txt) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
   .tp-cat-res-path {
     font-size: 10.5px !important;
     color: var(--tp-txt-dim) !important;
     margin-top: 1px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .tp-cat-result-item .ignoreCategory {
+    margin-left: 8px !important;
+    flex: 0 0 auto !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    padding: 2px 6px !important;
+    line-height: 1 !important;
+    border-radius: 3px !important;
+    border: 1px solid transparent !important;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+  }
+  .tp-cat-result-item .ignoreCategory.f_IgnoredCategories_Hide:hover {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
+  .tp-cat-result-item .ignoreCategory.f_IgnoredCategories_Show:hover {
+    border-color: rgba(16, 185, 129, 0.3) !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry {
+    background: rgba(239, 68, 68, 0.08) !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry .tp-cat-res-title {
+    color: #f87171 !important;
+    text-decoration: line-through !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry .tp-cat-res-path {
+    color: #fca5a5 !important;
+  }
+  .tp-cat-result-item.ignoredCategoryEntry .tp-cat-result-link {
+    opacity: 0.8 !important;
   }
   .tp-cat-no-results {
     padding: 8px !important;
@@ -5620,6 +5667,23 @@ const SHADOW_MODAL_STYLES = `
     } catch {}
   }
 
+  function harvestExistingIdents(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
+    if (!sidebar?.querySelectorAll) return;
+    const triggers = sidebar.querySelectorAll('.ignoreCategory[data-vcat-id][data-ident]');
+    if (triggers.length === 0) return;
+    const stored = getStoredIdents();
+    let changed = false;
+    triggers.forEach(tr => {
+      const vcatId = tr.getAttribute('data-vcat-id');
+      const ident = tr.getAttribute('data-ident');
+      if (vcatId && ident && stored[vcatId] !== ident) {
+        stored[vcatId] = ident;
+        changed = true;
+      }
+    });
+    if (changed) saveStoredIdents(stored);
+  }
+
   function isCategoryIgnored(li) {
     if (!li) return false;
     if (li.classList?.contains?.('ignoredCategoryEntry')) return true;
@@ -5638,6 +5702,36 @@ const SHADOW_MODAL_STYLES = `
       if (vcatId) set.add(String(vcatId).trim());
     });
     return set;
+  }
+
+  function syncSearchResultsIgnoredState(resultsBox, doc = (typeof document !== 'undefined' ? document : null)) {
+    if (!resultsBox?.querySelectorAll) return;
+    const ignoredIds = getIgnoredVcatIds(doc);
+
+    resultsBox.querySelectorAll('.tp-cat-result-item[data-vcat-id]').forEach(item => {
+      const vcatId = item.getAttribute('data-vcat-id');
+      if (!vcatId) return;
+
+      const isIgnored = ignoredIds.has(String(vcatId).trim());
+      const span = item.querySelector('.ignoreCategory[data-vcat-id]');
+      if (!span) return;
+
+      if (isIgnored) {
+        item.classList.add('ignoredCategoryEntry');
+        span.classList.remove('f_IgnoredCategories_Hide');
+        span.classList.add('f_IgnoredCategories_Show');
+        span.setAttribute('title', 'Kategorie einblenden');
+        const icon = span.querySelector('i');
+        if (icon) icon.className = 'TPIcons-plus';
+      } else {
+        item.classList.remove('ignoredCategoryEntry');
+        span.classList.remove('f_IgnoredCategories_Show');
+        span.classList.add('f_IgnoredCategories_Hide');
+        span.setAttribute('title', 'Kategorie ausblenden');
+        const icon = span.querySelector('i');
+        if (icon) icon.className = 'TPIcons-cross';
+      }
+    });
   }
 
   function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
@@ -5686,6 +5780,11 @@ const SHADOW_MODAL_STYLES = `
         }
       }
     });
+
+    const resultsBox = sidebar.querySelector('.tp-cat-search-results');
+    if (resultsBox) {
+      syncSearchResultsIgnoredState(resultsBox, doc);
+    }
   }
 
   function renderChildList(children, parentEl, currentPath, expandedBranches) {
@@ -5801,6 +5900,7 @@ const SHADOW_MODAL_STYLES = `
     const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
     if (!sidebar || sidebar.classList.contains('tp-tree-enhanced')) return;
     sidebar.classList.add('tp-tree-enhanced');
+    harvestExistingIdents(sidebar);
 
     const currentPath = typeof location !== 'undefined' ? location.pathname : '';
     const expandedBranches = getExpandedBranches();
@@ -5846,12 +5946,29 @@ const SHADOW_MODAL_STYLES = `
         if (hits.length === 0) {
           resultsBox.innerHTML = '<div class="tp-cat-no-results">Keine Kategorie gefunden</div>';
         } else {
-          resultsBox.innerHTML = hits.map(hit => `
-            <a class="tp-cat-result-item" href="${toFeedUrl(hit.url, currentPath)}">
-              <span class="tp-cat-res-title">${hit.title}</span>
-              <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
-            </a>
-          `).join('');
+          const storedIdents = getStoredIdents();
+          const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
+          const ignoredIds = getIgnoredVcatIds(doc);
+
+          resultsBox.innerHTML = hits.map(hit => {
+            const isIgnored = !!(hit.numericId && ignoredIds.has(String(hit.numericId).trim()));
+            const ident = hit.numericId ? (storedIdents[hit.numericId] || '') : '';
+            const actionBtn = hit.numericId ? `
+              <span class="ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}" data-vcat-id="${hit.numericId}" ${ident ? `data-ident="${ident}"` : ''} title="${isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden'}">
+                <i class="${isIgnored ? 'TPIcons-plus' : 'TPIcons-cross'}"></i>
+              </span>
+            ` : '';
+
+            return `
+              <div class="tp-cat-result-item${isIgnored ? ' ignoredCategoryEntry' : ''}" data-cat-id="${hit.id}" data-vcat-id="${hit.numericId || ''}">
+                <a class="tp-cat-result-link" href="${toFeedUrl(hit.url, currentPath)}" title="${hit.title}">
+                  <span class="tp-cat-res-title">${hit.title}</span>
+                  <span class="tp-cat-res-path">${hit.breadcrumb || ''}</span>
+                </a>
+                ${actionBtn}
+              </div>
+            `;
+          }).join('');
         }
         resultsBox.style.display = 'block';
         if (ulList) ulList.style.display = 'none';
@@ -5958,7 +6075,8 @@ const SHADOW_MODAL_STYLES = `
       document.body.addEventListener('click', e => {
         const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
         if (hideBtn) {
-          const targetLi = hideBtn.closest('li');
+          const vcatId = hideBtn.getAttribute?.('data-vcat-id');
+          const targetLi = hideBtn.closest('li') || (vcatId ? sidebar.querySelector(`li[data-cat-id="c${vcatId}"]`) : null);
           if (targetLi) {
             const catId = targetLi.dataset?.catId;
             if (catId) {
@@ -13401,7 +13519,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.391';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.393';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
