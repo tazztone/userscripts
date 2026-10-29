@@ -213,7 +213,10 @@ function raceSharedRaw(promise, signal, shouldCancelFn) {
   if (!signal && !shouldCancelFn) return promise;
   return new Promise((resolve, reject) => {
     let done = false;
-    const cleanup = () => { signal?.removeEventListener('abort', onAbort); clearInterval(timer); };
+    const cleanup = () => {
+      signal?.removeEventListener('abort', onAbort);
+      if (timer) clearInterval(timer);
+    };
     const cancel = () => {
       if (done) return;
       done = true;
@@ -223,9 +226,9 @@ function raceSharedRaw(promise, signal, shouldCancelFn) {
       reject(e);
     };
     const onAbort = () => cancel();
-    // ponytail: polled predicate; the shared transport cannot wire N caller
-    // predicates into one abort without one caller killing its siblings.
-    const timer = shouldCancelFn ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
+    // Event-driven abort via AbortSignal; fallback to polled timer only
+    // when legacy shouldCancelFn was supplied without an AbortSignal.
+    const timer = (!signal && shouldCancelFn) ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
     signal?.addEventListener('abort', onAbort, { once: true });
     promise.then(
       v => { if (!done) { done = true; cleanup(); resolve(v); } },

@@ -144,7 +144,7 @@ export function parsePriceStatsFromHtml(html) {
       }
     }
     const escapedTitle = titleText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const reg = new RegExp(`${escapedTitle}[\\s\\S]{1,400}?class="[^"]*Plugin_Price[^"]*"[^>]*>\\s*(?:[A-Za-z]+\\s*)?([\\d.,'\\s]+)`, 'i');
+    const reg = new RegExp(`${escapedTitle}[\\s\\S]{1,400}?class="[^"]*Plugin_Price[^"]*"[^>]*>\\s*(?:[A-Za-z]+\\s*)?(\\d[\\d.,'’]*(?:\\s*[.–\\-])?)(?=[<"'\\s]|$)`, 'i');
     const match = html.match(reg);
     if (match && match[1]) {
       const val = parsePrice(match[1]);

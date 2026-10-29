@@ -73,6 +73,32 @@ export function toFeedUrl(catalogUrl, currentFeedPath = '') {
   return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
 }
 
+const ENTITY_MAP = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  ouml: 'ö', Ouml: 'Ö', auml: 'ä', Auml: 'Ä', uuml: 'ü', Uuml: 'Ü',
+  eacute: 'é', Eacute: 'É', egrave: 'è', Egrave: 'È', ecirc: 'ê', Ecirc: 'Ê',
+  agrave: 'à', Agrave: 'À', acirc: 'â', Acirc: 'Â', ccedil: 'ç', Ccedil: 'Ç',
+  icirc: 'î', Icirc: 'Î', iuml: 'ï', Iuml: 'Ï',
+  ocirc: 'ô', Ocirc: 'Ô',
+  ucirc: 'û', Ucirc: 'Û', ugrave: 'ù', Ugrave: 'Ù',
+  szlig: 'ß', deg: '°', euro: '€', copy: '©', reg: '®'
+};
+
+export function decodeHtmlEntities(str) {
+  if (!str || typeof str !== 'string' || !str.includes('&')) return str || '';
+  return str.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
+    if (entity.startsWith('#x') || entity.startsWith('#X')) {
+      const code = parseInt(entity.slice(2), 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    if (entity.startsWith('#')) {
+      const code = parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    return ENTITY_MAP[entity] ?? match;
+  });
+}
+
 export function indexCategoryData(categories) {
   const byId = new Map();
   const childrenOf = new Map(); // parentID -> array of nodes
@@ -88,7 +114,7 @@ export function indexCategoryData(categories) {
       id: cleanId,
       numericId: cleanId.replace(/^c/i, ''),
       parentID: pid,
-      title: (node.title || '').replace(/&amp;/g, '&').replace(/&ouml;/g, 'ö').replace(/&auml;/g, 'ä').replace(/&uuml;/g, 'ü'),
+      title: decodeHtmlEntities(node.title || ''),
       url: node.url || '',
       hasChildren: !!node.hasChildren || (Array.isArray(node.children) && node.children.length > 0)
     };

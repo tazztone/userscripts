@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl } from '../../src/state/config.js';
+import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
   let realGMGet, realGMSet, realLS;
@@ -331,6 +332,14 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     assert.equal(cleaned[1].name, 'Kanal 2');
     assert.equal(cleaned[1].url, 'https://discord.com/api/webhooks/2/def');
     assert.ok(cleaned[1].id.startsWith('ch_'));
+  });
+
+  it('aligns SETTING_SCHEMA defaults with DEFAULTS for all schema keys', () => {
+    for (const [key, schema] of Object.entries(SETTING_SCHEMA)) {
+      if (schema && 'default' in schema && key in DEFAULTS) {
+        assert.deepEqual(schema.default, DEFAULTS[key], `mismatched default for ${key}`);
+      }
+    }
   });
 });
 

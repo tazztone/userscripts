@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.407
+// @version      2.18.408
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2576,7 +2576,7 @@ const SHADOW_MODAL_STYLES = `
         }
       }
       const escapedTitle = titleText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const reg = new RegExp(`${escapedTitle}[\\s\\S]{1,400}?class="[^"]*Plugin_Price[^"]*"[^>]*>\\s*(?:[A-Za-z]+\\s*)?([\\d.,'\\s]+)`, 'i');
+      const reg = new RegExp(`${escapedTitle}[\\s\\S]{1,400}?class="[^"]*Plugin_Price[^"]*"[^>]*>\\s*(?:[A-Za-z]+\\s*)?(\\d[\\d.,'’]*(?:\\s*[.–\\-])?)(?=[<"'\\s]|$)`, 'i');
       const match = html.match(reg);
       if (match && match[1]) {
         const val = parsePrice(match[1]);
@@ -3661,7 +3661,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
     DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
     DISCORD_FORUM_TITLE: { type: 'bool', default: false },
-    DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}' },
+    DISCORD_LAYOUT: { type: 'string', default: DEFAULTS.DISCORD_LAYOUT },
     MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
     SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
     ALARM_ENABLED: { type: 'bool', default: true },
@@ -5538,6 +5538,32 @@ const SHADOW_MODAL_STYLES = `
     return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
   }
 
+  const ENTITY_MAP = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+    ouml: 'ö', Ouml: 'Ö', auml: 'ä', Auml: 'Ä', uuml: 'ü', Uuml: 'Ü',
+    eacute: 'é', Eacute: 'É', egrave: 'è', Egrave: 'È', ecirc: 'ê', Ecirc: 'Ê',
+    agrave: 'à', Agrave: 'À', acirc: 'â', Acirc: 'Â', ccedil: 'ç', Ccedil: 'Ç',
+    icirc: 'î', Icirc: 'Î', iuml: 'ï', Iuml: 'Ï',
+    ocirc: 'ô', Ocirc: 'Ô',
+    ucirc: 'û', Ucirc: 'Û', ugrave: 'ù', Ugrave: 'Ù',
+    szlig: 'ß', deg: '°', euro: '€', copy: '©', reg: '®'
+  };
+
+  function decodeHtmlEntities(str) {
+    if (!str || typeof str !== 'string' || !str.includes('&')) return str || '';
+    return str.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
+      if (entity.startsWith('#x') || entity.startsWith('#X')) {
+        const code = parseInt(entity.slice(2), 16);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+      }
+      if (entity.startsWith('#')) {
+        const code = parseInt(entity.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+      }
+      return ENTITY_MAP[entity] ?? match;
+    });
+  }
+
   function indexCategoryData(categories) {
     const byId = new Map();
     const childrenOf = new Map(); // parentID -> array of nodes
@@ -5553,7 +5579,7 @@ const SHADOW_MODAL_STYLES = `
         id: cleanId,
         numericId: cleanId.replace(/^c/i, ''),
         parentID: pid,
-        title: (node.title || '').replace(/&amp;/g, '&').replace(/&ouml;/g, 'ö').replace(/&auml;/g, 'ä').replace(/&uuml;/g, 'ü'),
+        title: decodeHtmlEntities(node.title || ''),
         url: node.url || '',
         hasChildren: !!node.hasChildren || (Array.isArray(node.children) && node.children.length > 0)
       };
@@ -8486,7 +8512,10 @@ const SHADOW_MODAL_STYLES = `
     if (!signal && !shouldCancelFn) return promise;
     return new Promise((resolve, reject) => {
       let done = false;
-      const cleanup = () => { signal?.removeEventListener('abort', onAbort); clearInterval(timer); };
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+        if (timer) clearInterval(timer);
+      };
       const cancel = () => {
         if (done) return;
         done = true;
@@ -8496,9 +8525,9 @@ const SHADOW_MODAL_STYLES = `
         reject(e);
       };
       const onAbort = () => cancel();
-      // ponytail: polled predicate; the shared transport cannot wire N caller
-      // predicates into one abort without one caller killing its siblings.
-      const timer = shouldCancelFn ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
+      // Event-driven abort via AbortSignal; fallback to polled timer only
+      // when legacy shouldCancelFn was supplied without an AbortSignal.
+      const timer = (!signal && shouldCancelFn) ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
       signal?.addEventListener('abort', onAbort, { once: true });
       promise.then(
         v => { if (!done) { done = true; cleanup(); resolve(v); } },
@@ -14265,7 +14294,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.407';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.408';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

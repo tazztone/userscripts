@@ -692,6 +692,19 @@ describe('Price Domain Module', () => {
       assert.equal(stats.hoechstpreis, 199.00);
       assert.equal(stats.aktuellerToppreis, 149.00);
     });
+
+    it('extracts prices with Swiss dash notation and handles trailing newline safely', () => {
+      const mockHtml = `
+        <div class="title">Tiefstpreis</div>
+        <div><span class="Plugin_Price">CHF 1'249.– \n</span></div>
+        <div class="title">Höchstpreis</div>
+        <div><span class="Plugin_Price">1499.00</span></div>
+      `;
+      const stats = parsePriceStatsFromHtml(mockHtml);
+      assert.ok(stats);
+      assert.equal(stats.tiefstpreis, 1249.00);
+      assert.equal(stats.hoechstpreis, 1499.00);
+    });
   });
 
   describe('extractCanonicalPrice', () => {

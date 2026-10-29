@@ -166,7 +166,7 @@ export const SETTING_SCHEMA = {
   DISCORD_SUPPRESS_DEALER_EMBED: { type: 'bool', default: true },
   DISCORD_SUPPRESS_PRODUCT_EMBED: { type: 'bool', default: true },
   DISCORD_FORUM_TITLE: { type: 'bool', default: false },
-  DISCORD_LAYOUT: { type: 'string', default: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{link}' },
+  DISCORD_LAYOUT: { type: 'string', default: DEFAULTS.DISCORD_LAYOUT },
   MIN_OFFERS: { type: 'int', default: 0, min: 0, max: 99 },
   SORT_BY_OFFERS: { type: 'enum', default: 'none', allowed: ['none', 'desc', 'asc', 'discount-desc'] },
   ALARM_ENABLED: { type: 'bool', default: true },

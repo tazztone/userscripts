@@ -92,6 +92,14 @@ test('indexCategoryData maps hierarchy, numeric IDs and breadcrumbs', () => {
   assert.equal(root.title, 'Computer & Zubehör');
   assert.equal(root.breadcrumb, 'Computer & Zubehör');
 
+  const frenchSample = [
+    { id: 'c300', title: 'T&eacute;l&eacute;phonie &amp; &quot;Smartphones&#39;', url: '/c300' },
+    { id: 'c301', title: 'Caf&egrave; &agrave; la fran&#x00E7;aise', url: '/c301' }
+  ];
+  const frenchIndexed = indexCategoryData(frenchSample);
+  assert.equal(frenchIndexed.byId.get('c300').title, 'Téléphonie & "Smartphones\'');
+  assert.equal(frenchIndexed.byId.get('c301').title, 'Cafè à la française');
+
   const l1 = indexed.byId.get('c8');
   assert.equal(l1.numericId, '8');
   assert.equal(l1.parentID, 'c200');
