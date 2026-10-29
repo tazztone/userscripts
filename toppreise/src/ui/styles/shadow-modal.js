@@ -325,28 +325,15 @@ export const SHADOW_MODAL_STYLES = `
   .tp-share-preview-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
-  }
-  .tp-share-preview-title-wrap { display: flex; flex-direction: column; gap: 2px; }
-  .tp-share-preview-badge {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #5865f2;
   }
   .tp-share-preview-title {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1.3;
     color: var(--tp-txt);
-  }
-  .tp-share-preview-price {
-    font-size: 14px;
-    font-weight: 800;
-    color: var(--tp-acc-txt);
   }
   .tp-share-preview-close {
     background: none;

@@ -172,8 +172,6 @@ export function renderShareButton(ctx, cd) {
         const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
 
         preview = openSharePreviewModal({
-          title,
-          priceText,
           channels,
           onSend,
           onCancel

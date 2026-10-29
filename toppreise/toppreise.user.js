@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.385
+// @version      2.18.386
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2200,28 +2200,15 @@ const SHADOW_MODAL_STYLES = `
   .tp-share-preview-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
-  }
-  .tp-share-preview-title-wrap { display: flex; flex-direction: column; gap: 2px; }
-  .tp-share-preview-badge {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #5865f2;
   }
   .tp-share-preview-title {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1.3;
     color: var(--tp-txt);
-  }
-  .tp-share-preview-price {
-    font-size: 14px;
-    font-weight: 800;
-    color: var(--tp-acc-txt);
   }
   .tp-share-preview-close {
     background: none;
@@ -8746,8 +8733,6 @@ const SHADOW_MODAL_STYLES = `
           const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
 
           preview = openSharePreviewModal({
-            title,
-            priceText,
             channels,
             onSend,
             onCancel
@@ -10830,7 +10815,7 @@ const SHADOW_MODAL_STYLES = `
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  function openSharePreviewModal({ title, priceText, channels = [], onSend, onCancel }) {
+  function openSharePreviewModal({ channels = [], onSend, onCancel }) {
     ensureSkeleton();
     const shadow = uiShadowRoot;
     if (!shadow) return null;
@@ -10853,11 +10838,7 @@ const SHADOW_MODAL_STYLES = `
 
     dialog.innerHTML = `
       <div class="tp-share-preview-header">
-        <div class="tp-share-preview-title-wrap">
-          <span class="tp-share-preview-badge">Discord Deal-Share</span>
-          <h3 id="tp-share-preview-title" class="tp-share-preview-title">${escapeHtml(title || 'Deal')}</h3>
-          ${priceText ? `<div class="tp-share-preview-price">${escapeHtml(priceText)}</div>` : ''}
-        </div>
+        <h3 id="tp-share-preview-title" class="tp-share-preview-title">Discord Deal-Share</h3>
         <button type="button" class="tp-share-preview-close" aria-label="Schliessen">&times;</button>
       </div>
 
@@ -13265,7 +13246,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.385';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.386';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

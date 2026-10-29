@@ -14,7 +14,7 @@ const escapeHtml = s => String(s ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
-export function openSharePreviewModal({ title, priceText, channels = [], onSend, onCancel }) {
+export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
   ensureSkeleton();
   const shadow = uiShadowRoot;
   if (!shadow) return null;
@@ -37,11 +37,7 @@ export function openSharePreviewModal({ title, priceText, channels = [], onSend,
 
   dialog.innerHTML = `
     <div class="tp-share-preview-header">
-      <div class="tp-share-preview-title-wrap">
-        <span class="tp-share-preview-badge">Discord Deal-Share</span>
-        <h3 id="tp-share-preview-title" class="tp-share-preview-title">${escapeHtml(title || 'Deal')}</h3>
-        ${priceText ? `<div class="tp-share-preview-price">${escapeHtml(priceText)}</div>` : ''}
-      </div>
+      <h3 id="tp-share-preview-title" class="tp-share-preview-title">Discord Deal-Share</h3>
       <button type="button" class="tp-share-preview-close" aria-label="Schliessen">&times;</button>
     </div>
 

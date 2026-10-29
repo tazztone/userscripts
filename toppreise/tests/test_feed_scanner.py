@@ -1964,7 +1964,7 @@ def test_discord_share_preview_modal_multi_channel(page: Page):
     # Preview modal opens
     modal = page.locator('#tp-root >> #tp-modal-share-preview')
     expect(modal).to_be_visible()
-    expect(page.locator('#tp-root >> #tp-share-preview-title')).to_contain_text('Nvidia GeForce RTX 4090')
+    expect(page.locator('#tp-root >> #tp-share-preview-title')).to_contain_text('Discord Deal-Share')
 
     # Both channel buttons exist
     channel_btns = page.locator('#tp-root >> .tp-share-channel-btn')
@@ -1975,6 +1975,7 @@ def test_discord_share_preview_modal_multi_channel(page: Page):
     # Wait for background rendering to finish and buttons to become enabled
     page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
     expect(page.locator('#tp-root >> #tp-share-preview-content-wrap')).to_be_visible()
+    expect(page.locator('#tp-root >> #tp-share-preview-message')).to_contain_text('Nvidia GeForce RTX 4090')
 
     # Click Gaming channel button
     channel_btns.nth(1).click()
