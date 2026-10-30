@@ -60,7 +60,7 @@ export function extractCanonicalPrice(card) {
 
   if (card._tpPriceInfo) {
     const els = Object.values(card._tpPriceInfo);
-    if (els.some(el => el && card.contains?.(el) === false)) delete card._tpPriceInfo;
+    if (els.some(el => el && typeof el === 'object' && el.nodeType && card.contains?.(el) === false)) delete card._tpPriceInfo;
   }
   if (!card._tpPriceInfo) {
      const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
@@ -114,7 +114,7 @@ export function parsePriceStatsFromHtml(html) {
   const hasDOMParser = typeof DOMParser !== 'undefined';
   const doc = hasDOMParser ? new DOMParser().parseFromString(html, 'text/html') : null;
 
-  const titleEls = doc ? [...doc.querySelectorAll('.title,.col-12.title'), ...[...doc.querySelectorAll('div')].filter(el => el.children.length === 0)] : [];
+  const titleEls = doc ? doc.querySelectorAll('.title, .col-12.title, [class*="title"], .chartProductPriceTitle') : [];
   const titleByText = new Map();
   for (const el of titleEls) {
     const key = el.textContent.trim().toLowerCase();

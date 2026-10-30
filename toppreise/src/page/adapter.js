@@ -12,6 +12,7 @@ export function clearCardCache(card) {
   delete card._tpDealerRows;
   delete card._tpTextLower;
   delete card._tpPriceInfo;
+  delete card._tpUseShipping;
   if (card.dataset) {
     delete card.dataset.tpOfferCount;
     delete card.dataset.tpDiff;
@@ -23,7 +24,13 @@ export function clearCardCache(card) {
 
 export function isShippingPriceActive(card = null) {
   if (!CONFIG.USE_SHIPPING_PRICE) return false;
+  if (typeof document !== 'undefined' && document.body?.classList?.contains('showproductprice')) {
+    return false;
+  }
   if (card) {
+    if (typeof card._tpUseShipping === 'boolean') {
+      return card._tpUseShipping;
+    }
     const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
     const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
     if (shp && prd) {
@@ -31,19 +38,29 @@ export function isShippingPriceActive(card = null) {
       const prdContainer = prd.closest ? prd.closest('.productPrice') : null;
       if (shpContainer) {
         if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
-        if (shpContainer.style?.display === 'none') return false;
+        if (shpContainer.style?.display === 'none' || shpContainer.classList?.contains('d-none')) {
+          card._tpUseShipping = false;
+          return false;
+        }
         if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
           try {
-            if (window.getComputedStyle(shpContainer).display === 'none') return false;
+            if (window.getComputedStyle(shpContainer).display === 'none') {
+              card._tpUseShipping = false;
+              return false;
+            }
           } catch { /* ignore */ }
         }
-        if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) return false;
+        if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) {
+          card._tpUseShipping = false;
+          return false;
+        }
       }
     }
+    card._tpUseShipping = true;
+    return true;
   }
-  if (typeof document !== 'undefined' && document.body) {
-    if (document.body.classList.contains('showproductprice')) return false;
-    if (document.body.classList.contains('showshippingprice')) return true;
+  if (typeof document !== 'undefined' && document.body?.classList?.contains('showshippingprice')) {
+    return true;
   }
   return true;
 }

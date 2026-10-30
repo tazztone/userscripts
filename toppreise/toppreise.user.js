@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.426
+// @version      2.18.427
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2583,7 +2583,7 @@ const SHADOW_MODAL_STYLES = `
 
     if (card._tpPriceInfo) {
       const els = Object.values(card._tpPriceInfo);
-      if (els.some(el => el && card.contains?.(el) === false)) delete card._tpPriceInfo;
+      if (els.some(el => el && typeof el === 'object' && el.nodeType && card.contains?.(el) === false)) delete card._tpPriceInfo;
     }
     if (!card._tpPriceInfo) {
        const mainPriceInfo = card.querySelector?.('.Plugin_PriceInformation, .price_information_product') || null;
@@ -2637,7 +2637,7 @@ const SHADOW_MODAL_STYLES = `
     const hasDOMParser = typeof DOMParser !== 'undefined';
     const doc = hasDOMParser ? new DOMParser().parseFromString(html, 'text/html') : null;
 
-    const titleEls = doc ? [...doc.querySelectorAll('.title,.col-12.title'), ...[...doc.querySelectorAll('div')].filter(el => el.children.length === 0)] : [];
+    const titleEls = doc ? doc.querySelectorAll('.title, .col-12.title, [class*="title"], .chartProductPriceTitle') : [];
     const titleByText = new Map();
     for (const el of titleEls) {
       const key = el.textContent.trim().toLowerCase();
@@ -4580,6 +4580,7 @@ const SHADOW_MODAL_STYLES = `
     delete card._tpDealerRows;
     delete card._tpTextLower;
     delete card._tpPriceInfo;
+    delete card._tpUseShipping;
     if (card.dataset) {
       delete card.dataset.tpOfferCount;
       delete card.dataset.tpDiff;
@@ -4591,7 +4592,13 @@ const SHADOW_MODAL_STYLES = `
 
   function isShippingPriceActive(card = null) {
     if (!CONFIG.USE_SHIPPING_PRICE) return false;
+    if (typeof document !== 'undefined' && document.body?.classList?.contains('showproductprice')) {
+      return false;
+    }
     if (card) {
+      if (typeof card._tpUseShipping === 'boolean') {
+        return card._tpUseShipping;
+      }
       const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
       const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
       if (shp && prd) {
@@ -4599,19 +4606,29 @@ const SHADOW_MODAL_STYLES = `
         const prdContainer = prd.closest ? prd.closest('.productPrice') : null;
         if (shpContainer) {
           if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
-          if (shpContainer.style?.display === 'none') return false;
+          if (shpContainer.style?.display === 'none' || shpContainer.classList?.contains('d-none')) {
+            card._tpUseShipping = false;
+            return false;
+          }
           if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
             try {
-              if (window.getComputedStyle(shpContainer).display === 'none') return false;
+              if (window.getComputedStyle(shpContainer).display === 'none') {
+                card._tpUseShipping = false;
+                return false;
+              }
             } catch { /* ignore */ }
           }
-          if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) return false;
+          if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) {
+            card._tpUseShipping = false;
+            return false;
+          }
         }
       }
+      card._tpUseShipping = true;
+      return true;
     }
-    if (typeof document !== 'undefined' && document.body) {
-      if (document.body.classList.contains('showproductprice')) return false;
-      if (document.body.classList.contains('showshippingprice')) return true;
+    if (typeof document !== 'undefined' && document.body?.classList?.contains('showshippingprice')) {
+      return true;
     }
     return true;
   }
@@ -14051,7 +14068,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.426';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.427';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
