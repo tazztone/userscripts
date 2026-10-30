@@ -4,6 +4,8 @@
  * 48h persistent cache to conserve the 1,000 monthly free tier credits.
  */
 
+import { lruSet } from '../scanner/cache.js';
+
 export const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
 export const TAVILY_CACHE_KEY_PREFIX = 'tp_suite_v2_tavily_';
 export const TAVILY_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
@@ -35,7 +37,7 @@ export function getCachedTavily(query) {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < TAVILY_CACHE_TTL_MS)) {
-          memCache.set(key, parsed);
+          lruSet(memCache, key, parsed, 200);
           return parsed;
         }
         localStorage.removeItem(TAVILY_CACHE_KEY_PREFIX + key);
@@ -53,7 +55,7 @@ export function setCachedTavily(query, answer) {
   if (!key || typeof answer !== 'string') return;
 
   const entry = { answer: answer.trim(), timestamp: Date.now() };
-  memCache.set(key, entry);
+  lruSet(memCache, key, entry, 200);
 
   if (typeof localStorage !== 'undefined') {
     try {

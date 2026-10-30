@@ -5,7 +5,7 @@
 
 import { SELECTORS } from './selectors.js';
 import { parsePrice } from '../domain/price.js';
-import { getCachedAsin, setCachedAsin } from '../scanner/cache.js';
+import { getCachedAsin, setCachedAsin, lruSet } from '../scanner/cache.js';
 
 const isToppreiseProductUrl = u => {
   try {
@@ -253,7 +253,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
     if (memoryAsinCache.has(productId)) return memoryAsinCache.get(productId);
     const cached = getCachedAsin(productId, storage);
     if (cached) {
-      memoryAsinCache.set(productId, cached);
+      lruSet(memoryAsinCache, productId, cached, 500);
       return cached;
     }
   }
@@ -261,7 +261,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
   const inlineAsin = parseAmazonAsin(directUrl);
   if (inlineAsin) {
     if (productId) {
-      memoryAsinCache.set(productId, inlineAsin);
+      lruSet(memoryAsinCache, productId, inlineAsin, 500);
       setCachedAsin(productId, inlineAsin, storage);
     }
     return inlineAsin;
@@ -287,7 +287,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
       const res = await fetchFn(target);
       const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
       if (asin && productId) {
-        memoryAsinCache.set(productId, asin);
+        lruSet(memoryAsinCache, productId, asin, 500);
         setCachedAsin(productId, asin, storage);
       }
       return asin || null;
@@ -308,7 +308,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
             const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
             const asin = parseAmazonAsin(loc);
             if (asin && productId) {
-              memoryAsinCache.set(productId, asin);
+              lruSet(memoryAsinCache, productId, asin, 500);
               setCachedAsin(productId, asin, storage);
             }
             resolve(asin || null);
@@ -321,7 +321,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
           .then(res => {
             const asin = parseAmazonAsin(res.url);
             if (asin && productId) {
-              memoryAsinCache.set(productId, asin);
+              lruSet(memoryAsinCache, productId, asin, 500);
               setCachedAsin(productId, asin, storage);
             }
             resolve(asin || null);

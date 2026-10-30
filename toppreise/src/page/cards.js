@@ -8,7 +8,7 @@ import { SELECTORS } from './selectors.js';
 import { CONFIG, clampIntensity01 } from '../state/config.js';
 import { extractCanonicalPrice, parsePrice, pctRise, priceToCents, recordRefForPrice, computeSavingsChf } from '../domain/price.js';
 import { computeDealScore, getDisplayDelta, vortiefDropPct } from '../domain/deal-score.js';
-import { getCachedPriceStats, hasUsablePriceStats } from '../scanner/cache.js';
+import { getCachedPriceStats, hasUsablePriceStats, lruSet } from '../scanner/cache.js';
 import { isShippingPriceActive } from './adapter.js';
 
 const normalizeName = name => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
@@ -130,7 +130,7 @@ export function matchesNegativeTerms(card, termsList) {
       let shortRe = _negReCache.get(term);
       if (!shortRe) {
         shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
-        _negReCache.set(term, shortRe);
+        lruSet(_negReCache, term, shortRe, 100);
       }
       return shortRe.test(text);
     }

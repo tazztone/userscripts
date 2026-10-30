@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.427
+// @version      2.18.428
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4848,7 +4848,7 @@ const SHADOW_MODAL_STYLES = `
         let shortRe = _negReCache.get(term);
         if (!shortRe) {
           shortRe = new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
-          _negReCache.set(term, shortRe);
+          lruSet(_negReCache, term, shortRe, 100);
         }
         return shortRe.test(text);
       }
@@ -5493,7 +5493,7 @@ const SHADOW_MODAL_STYLES = `
       if (memoryAsinCache.has(productId)) return memoryAsinCache.get(productId);
       const cached = getCachedAsin(productId, storage);
       if (cached) {
-        memoryAsinCache.set(productId, cached);
+        lruSet(memoryAsinCache, productId, cached, 500);
         return cached;
       }
     }
@@ -5501,7 +5501,7 @@ const SHADOW_MODAL_STYLES = `
     const inlineAsin = parseAmazonAsin(directUrl);
     if (inlineAsin) {
       if (productId) {
-        memoryAsinCache.set(productId, inlineAsin);
+        lruSet(memoryAsinCache, productId, inlineAsin, 500);
         setCachedAsin(productId, inlineAsin, storage);
       }
       return inlineAsin;
@@ -5527,7 +5527,7 @@ const SHADOW_MODAL_STYLES = `
         const res = await fetchFn(target);
         const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
         if (asin && productId) {
-          memoryAsinCache.set(productId, asin);
+          lruSet(memoryAsinCache, productId, asin, 500);
           setCachedAsin(productId, asin, storage);
         }
         return asin || null;
@@ -5548,7 +5548,7 @@ const SHADOW_MODAL_STYLES = `
               const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
               const asin = parseAmazonAsin(loc);
               if (asin && productId) {
-                memoryAsinCache.set(productId, asin);
+                lruSet(memoryAsinCache, productId, asin, 500);
                 setCachedAsin(productId, asin, storage);
               }
               resolve(asin || null);
@@ -5561,7 +5561,7 @@ const SHADOW_MODAL_STYLES = `
             .then(res => {
               const asin = parseAmazonAsin(res.url);
               if (asin && productId) {
-                memoryAsinCache.set(productId, asin);
+                lruSet(memoryAsinCache, productId, asin, 500);
                 setCachedAsin(productId, asin, storage);
               }
               resolve(asin || null);
@@ -7405,6 +7405,7 @@ const SHADOW_MODAL_STYLES = `
    * 48h persistent cache to conserve the 1,000 monthly free tier credits.
    */
 
+
   const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
   const TAVILY_CACHE_KEY_PREFIX = 'tp_suite_v2_tavily_';
   const TAVILY_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
@@ -7436,7 +7437,7 @@ const SHADOW_MODAL_STYLES = `
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed.answer === 'string' && (now - (parsed.timestamp || 0) < TAVILY_CACHE_TTL_MS)) {
-            memCache.set(key, parsed);
+            lruSet(memCache, key, parsed, 200);
             return parsed;
           }
           localStorage.removeItem(TAVILY_CACHE_KEY_PREFIX + key);
@@ -7454,7 +7455,7 @@ const SHADOW_MODAL_STYLES = `
     if (!key || typeof answer !== 'string') return;
 
     const entry = { answer: answer.trim(), timestamp: Date.now() };
-    memCache.set(key, entry);
+    lruSet(memCache, key, entry, 200);
 
     if (typeof localStorage !== 'undefined') {
       try {
@@ -14068,7 +14069,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.427';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.428';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
