@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.425
+// @version      2.18.426
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4250,6 +4250,16 @@ const SHADOW_MODAL_STYLES = `
             if (valEl) valEl.value = val;
             break;
           }
+          case 'REAL_DEAL_CACHE_HOURS': {
+            const select = shadow.getElementById('tp-cache-ttl-select');
+            if (select) select.value = String(val || 48);
+            break;
+          }
+          case 'NEGATIVE_CACHE_HOURS': {
+            const select = shadow.getElementById('tp-cache-neg-ttl-select');
+            if (select) select.value = String(val || 2);
+            break;
+          }
           case 'CACHE_MEMORY_LIMIT': {
             const range = shadow.getElementById('tp-cache-memory-range');
             const valEl = shadow.getElementById('tp-cache-memory-val');
@@ -4309,6 +4319,11 @@ const SHADOW_MODAL_STYLES = `
             if (toggle) toggle.checked = !!val;
             break;
           }
+          case 'TAVILY_API_KEY': {
+            const status = shadow.getElementById('tp-tavily-api-key-status');
+            if (status) status.textContent = (val && String(val).trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
+            break;
+          }
           case 'TAVILY_SEARCH_DEPTH': {
             const select = shadow.getElementById('tp-tavily-search-depth');
             if (select) select.value = val || 'basic';
@@ -4332,6 +4347,11 @@ const SHADOW_MODAL_STYLES = `
           case 'DISCORD_FORUM_TITLE': {
             const toggle = shadow.getElementById('tp-discord-forum-title-toggle');
             if (toggle) toggle.checked = val === true;
+            break;
+          }
+          case 'DISCORD_LAYOUT': {
+            const input = shadow.getElementById('tp-discord-layout-input');
+            if (input) input.value = val;
             break;
           }
           case 'ALARM_ENABLED': {
@@ -10960,13 +10980,10 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function syncFieldsFromConfig(els) {
-      // Every key syncUiControl covers (radios, toggles, weight, min-points,
-      // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm, etc.) syncs
-      // through it — toolbar mirrors included. Only modal-only controls below.
+      // Declaratively sync every config key to its UI control (radios, toggles,
+      // sliders, selects, layout preview, alarm, and status labels).
       for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k], { silent: true });
 
-      if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
-      if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
       if (els.cacheStatsLabel) {
         const count = countCachedPriceStats();
         els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
@@ -10975,7 +10992,6 @@ const SHADOW_MODAL_STYLES = `
       if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
       if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
       if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
-      if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
 
       const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
         ? CONFIG.DISCORD_CHANNELS
@@ -10991,7 +11007,6 @@ const SHADOW_MODAL_STYLES = `
         renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
       }
 
-      if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
       renderLayoutPreview(els);
       updateKeywordPreview(els);
   }
@@ -14036,7 +14051,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.425';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.426';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

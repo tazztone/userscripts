@@ -101,6 +101,16 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (valEl) valEl.value = val;
           break;
         }
+        case 'REAL_DEAL_CACHE_HOURS': {
+          const select = shadow.getElementById('tp-cache-ttl-select');
+          if (select) select.value = String(val || 48);
+          break;
+        }
+        case 'NEGATIVE_CACHE_HOURS': {
+          const select = shadow.getElementById('tp-cache-neg-ttl-select');
+          if (select) select.value = String(val || 2);
+          break;
+        }
         case 'CACHE_MEMORY_LIMIT': {
           const range = shadow.getElementById('tp-cache-memory-range');
           const valEl = shadow.getElementById('tp-cache-memory-val');
@@ -160,6 +170,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (toggle) toggle.checked = !!val;
           break;
         }
+        case 'TAVILY_API_KEY': {
+          const status = shadow.getElementById('tp-tavily-api-key-status');
+          if (status) status.textContent = (val && String(val).trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
+          break;
+        }
         case 'TAVILY_SEARCH_DEPTH': {
           const select = shadow.getElementById('tp-tavily-search-depth');
           if (select) select.value = val || 'basic';
@@ -183,6 +198,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         case 'DISCORD_FORUM_TITLE': {
           const toggle = shadow.getElementById('tp-discord-forum-title-toggle');
           if (toggle) toggle.checked = val === true;
+          break;
+        }
+        case 'DISCORD_LAYOUT': {
+          const input = shadow.getElementById('tp-discord-layout-input');
+          if (input) input.value = val;
           break;
         }
         case 'ALARM_ENABLED': {

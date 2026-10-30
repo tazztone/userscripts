@@ -169,13 +169,10 @@ export function addExtraChannelRow(container) {
 }
 
 export function syncFieldsFromConfig(els) {
-    // Every key syncUiControl covers (radios, toggles, weight, min-points,
-    // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm, etc.) syncs
-    // through it — toolbar mirrors included. Only modal-only controls below.
+    // Declaratively sync every config key to its UI control (radios, toggles,
+    // sliders, selects, layout preview, alarm, and status labels).
     for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k], { silent: true });
 
-    if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
-    if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
     if (els.cacheStatsLabel) {
       const count = countCachedPriceStats();
       els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
@@ -184,7 +181,6 @@ export function syncFieldsFromConfig(els) {
     if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
     if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
     if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
-    if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
 
     const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
       ? CONFIG.DISCORD_CHANNELS
@@ -200,7 +196,6 @@ export function syncFieldsFromConfig(els) {
       renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
     }
 
-    if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
     renderLayoutPreview(els);
     updateKeywordPreview(els);
 }
