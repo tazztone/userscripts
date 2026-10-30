@@ -367,6 +367,21 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
   const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
   if (!node) return '';
 
+  const timeoutSignal = (ms = 4000) => {
+    try {
+      if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+        return AbortSignal.timeout(ms);
+      }
+    } catch {}
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), ms);
+      return controller.signal;
+    } catch {
+      return undefined;
+    }
+  };
+
   const fetchMenuIdents = async (pid) => {
     if (!pid || typeof fetch !== 'function') return false;
     const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -394,7 +409,8 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
           'Accept': '*/*'
         },
         credentials: 'same-origin',
-        body: body.toString()
+        body: body.toString(),
+        signal: timeoutSignal(4000)
       });
       if (resp.ok) {
         const text = await resp.text();
@@ -469,7 +485,8 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
     ? location.origin
     : 'https://www.toppreise.ch';
 
-  for (const targetUrl of candidateUrls) {
+  const uniqueCandidateUrls = [...new Set(candidateUrls.filter(Boolean))].slice(0, 3);
+  for (const targetUrl of uniqueCandidateUrls) {
     if (!targetUrl || typeof fetch !== 'function') continue;
     try {
       const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
@@ -477,7 +494,8 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
         credentials: 'same-origin',
         headers: {
           'Accept': 'text/html, */*'
-        }
+        },
+        signal: timeoutSignal(4000)
       });
       if (resp.ok) {
         const text = await resp.text();

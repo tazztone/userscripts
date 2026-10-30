@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.428
+// @version      2.18.429
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5945,6 +5945,21 @@ const SHADOW_MODAL_STYLES = `
     const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
     if (!node) return '';
 
+    const timeoutSignal = (ms = 4000) => {
+      try {
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+          return AbortSignal.timeout(ms);
+        }
+      } catch {}
+      try {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), ms);
+        return controller.signal;
+      } catch {
+        return undefined;
+      }
+    };
+
     const fetchMenuIdents = async (pid) => {
       if (!pid || typeof fetch !== 'function') return false;
       const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -5972,7 +5987,8 @@ const SHADOW_MODAL_STYLES = `
             'Accept': '*/*'
           },
           credentials: 'same-origin',
-          body: body.toString()
+          body: body.toString(),
+          signal: timeoutSignal(4000)
         });
         if (resp.ok) {
           const text = await resp.text();
@@ -6047,7 +6063,8 @@ const SHADOW_MODAL_STYLES = `
       ? location.origin
       : 'https://www.toppreise.ch';
 
-    for (const targetUrl of candidateUrls) {
+    const uniqueCandidateUrls = [...new Set(candidateUrls.filter(Boolean))].slice(0, 3);
+    for (const targetUrl of uniqueCandidateUrls) {
       if (!targetUrl || typeof fetch !== 'function') continue;
       try {
         const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
@@ -6055,7 +6072,8 @@ const SHADOW_MODAL_STYLES = `
           credentials: 'same-origin',
           headers: {
             'Accept': 'text/html, */*'
-          }
+          },
+          signal: timeoutSignal(4000)
         });
         if (resp.ok) {
           const text = await resp.text();
@@ -14069,7 +14087,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.428';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.429';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
