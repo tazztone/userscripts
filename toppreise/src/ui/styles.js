@@ -5,9 +5,11 @@
 
 import { TP_TOKEN_VARS } from './styles/tokens.js';
 import { STYLES_CARDS } from './styles/cards.js';
+import { STYLES_BADGES } from './styles/badges.js';
 import { STYLES_CHROME } from './styles/chrome.js';
+import { STYLES_CATEGORY_TREE } from './styles/category-tree.js';
 import { STYLES_OVERLAYS } from './styles/overlays.js';
 import { SHADOW_MODAL_STYLES } from './styles/shadow-modal.js';
 
-export const STYLES = STYLES_CARDS + STYLES_CHROME + STYLES_OVERLAYS;
+export const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS;
 export { TP_TOKEN_VARS, SHADOW_MODAL_STYLES };

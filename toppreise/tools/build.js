@@ -42,7 +42,16 @@ export { stripModuleSyntax };
 export function buildBundle() {
   // Styles assemble from parts in order (barrel composes STYLES at runtime;
   // its import/export lines strip out, leaving `const STYLES = …`).
-  const STYLE_PARTS = ['ui/styles/tokens.js', 'ui/styles/cards.js', 'ui/styles/chrome.js', 'ui/styles/overlays.js', 'ui/styles.js', 'ui/styles/shadow-modal.js'];
+  const STYLE_PARTS = [
+    'ui/styles/tokens.js',
+    'ui/styles/cards.js',
+    'ui/styles/badges.js',
+    'ui/styles/chrome.js',
+    'ui/styles/category-tree.js',
+    'ui/styles/overlays.js',
+    'ui/styles.js',
+    'ui/styles/shadow-modal.js'
+  ];
   const stylesCode = STYLE_PARTS.map(rel => stripModuleSyntax(fs.readFileSync(path.join(SRC_DIR, rel), 'utf-8'))).join('\n\n');
   // Relpaths in load-bearing bundle order.
   const MODULES = [

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.424
+// @version      2.18.425
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -156,6 +156,138 @@ const STYLES_CARDS = `
     outline: 2px dotted var(--tp-acc, #10b981) !important;
     outline-offset: -4px !important;
   }
+  /* Harmonize product card column contents on feed pages without distorting category browsing or subcards */
+  #product-list .Plugin_Product.medium-box,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box {
+    padding: 10px 12px !important;
+  }
+  #product-list .Plugin_Product > .row.h-100,
+  #product-list .Plugin_Product > .row,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row.h-100,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row {
+    flex-wrap: nowrap !important;
+  }
+  #product-list .Plugin_Product .col-auto,
+  #product-list .Plugin_Product .product-image,
+  #product-list .Plugin_Product .image_container,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col-auto,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-image,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .image_container {
+    flex-shrink: 0 !important;
+  }
+  #product-list .Plugin_Product.medium-box .image_container img,
+  #product-list .Plugin_Product.medium-box .productImage img,
+  #product-list .Plugin_Product.medium-box .product-image img,
+  #product-list .Plugin_Product.medium-box img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .image_container img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .productImage img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .product-image img,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box img {
+    max-height: 75px !important;
+    max-width: 75px !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+  #product-list .Plugin_Product > .row > .col,
+  #product-list .Plugin_Product > .row.h-100 > .col,
+  #product-list .Plugin_Product .col.d-flex.flex-column,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row > .col,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row.h-100 > .col,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col.d-flex.flex-column {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+  #product-list .Plugin_Product .col > .row,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col > .row {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-between !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  #product-list .Plugin_Product .col > .row > [class*="col-"],
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col > .row > [class*="col-"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  #product-list .Plugin_Product .product-name,
+  #product-list .Plugin_Product .productDetails,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-name,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .productDetails {
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+  }
+  #product-list .Plugin_Product .Plugin_PriceInformation,
+  #product-list .Plugin_Product .price_information_product,
+  #product-list .Plugin_Product .product-price,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .Plugin_PriceInformation,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .price_information_product,
+  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-price {
+    margin-top: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .tp-sparkline-container {
+    flex-shrink: 0 !important;
+  }
+  /* Touch visibility & hit area expansion for hover-only card actions */
+  @media (hover: none), (pointer: coarse) {
+    .tp-share-btn:not(.tp-share-done):not(:disabled),
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled),
+    button.tp-card-alarm-btn:not(:disabled) {
+      opacity: 0.45 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
+    .tp-review-search-btn,
+    button.tp-dealer-name.tp-dealer-btn {
+      position: relative !important;
+    }
+    button.tp-card-alarm-btn {
+      min-width: 26px !important;
+      min-height: 22px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .tp-share-btn:not(:disabled):active,
+    .tp-review-search-btn:active,
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
+    button.tp-card-alarm-btn:not(:disabled):active {
+      opacity: 1 !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -7px !important;
+      bottom: -7px !important;
+      left: -7px !important;
+      right: -7px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -8px !important;
+      bottom: -8px !important;
+      left: -8px !important;
+      right: -8px !important;
+    }
+  }
+`;
+
+/** Badges part (split from ui/styles/cards.js): deal badge/pill, loupe, historical price, dealer, alarm. */
+
+const STYLES_BADGES = `
   /* ─── REAL DEAL & ALLZEIT-TIEFSTPREIS STYLES ─── */
   /* ─── NATIVE DIFFERENZ BADGE REAL DEAL INTEGRATION ─── */
   .badge.badge-dif.tp-injected-badge,
@@ -671,133 +803,6 @@ const STYLES_CARDS = `
   .tp-sparkline:hover {
     opacity: 1 !important;
   }
-  /* Harmonize product card column contents on feed pages without distorting category browsing or subcards */
-  #product-list .Plugin_Product.medium-box,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box {
-    padding: 10px 12px !important;
-  }
-  #product-list .Plugin_Product > .row.h-100,
-  #product-list .Plugin_Product > .row,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row.h-100,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row {
-    flex-wrap: nowrap !important;
-  }
-  #product-list .Plugin_Product .col-auto,
-  #product-list .Plugin_Product .product-image,
-  #product-list .Plugin_Product .image_container,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col-auto,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-image,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .image_container {
-    flex-shrink: 0 !important;
-  }
-  #product-list .Plugin_Product.medium-box .image_container img,
-  #product-list .Plugin_Product.medium-box .productImage img,
-  #product-list .Plugin_Product.medium-box .product-image img,
-  #product-list .Plugin_Product.medium-box img,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .image_container img,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .productImage img,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box .product-image img,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box img {
-    max-height: 75px !important;
-    max-width: 75px !important;
-    width: auto !important;
-    height: auto !important;
-    object-fit: contain !important;
-  }
-  #product-list .Plugin_Product > .row > .col,
-  #product-list .Plugin_Product > .row.h-100 > .col,
-  #product-list .Plugin_Product .col.d-flex.flex-column,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row > .col,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product > .row.h-100 > .col,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col.d-flex.flex-column {
-    min-width: 0 !important;
-    flex: 1 1 auto !important;
-  }
-  #product-list .Plugin_Product .col > .row,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col > .row {
-    display: flex !important;
-    flex-direction: column !important;
-    flex-wrap: nowrap !important;
-    justify-content: space-between !important;
-    min-width: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  #product-list .Plugin_Product .col > .row > [class*="col-"],
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .col > .row > [class*="col-"] {
-    max-width: 100% !important;
-    width: 100% !important;
-    flex: 0 0 auto !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
-  #product-list .Plugin_Product .product-name,
-  #product-list .Plugin_Product .productDetails,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-name,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .productDetails {
-    overflow-wrap: break-word !important;
-    word-break: break-word !important;
-  }
-  #product-list .Plugin_Product .Plugin_PriceInformation,
-  #product-list .Plugin_Product .price_information_product,
-  #product-list .Plugin_Product .product-price,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .Plugin_PriceInformation,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .price_information_product,
-  .Plugin_TopPriceReductionProductListFull .Plugin_Product .product-price {
-    margin-top: auto !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
-  .tp-sparkline-container {
-    flex-shrink: 0 !important;
-  }
-  /* Touch visibility & hit area expansion for hover-only card actions */
-  @media (hover: none), (pointer: coarse) {
-    .tp-share-btn:not(.tp-share-done):not(:disabled),
-    .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn:not(:disabled),
-    button.tp-card-alarm-btn:not(:disabled) {
-      opacity: 0.45 !important;
-      pointer-events: auto !important;
-      touch-action: manipulation !important;
-    }
-    .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn {
-      position: relative !important;
-    }
-    button.tp-card-alarm-btn {
-      min-width: 26px !important;
-      min-height: 22px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-    }
-    .tp-share-btn:not(:disabled):active,
-    .tp-review-search-btn:active,
-    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
-    button.tp-card-alarm-btn:not(:disabled):active {
-      opacity: 1 !important;
-    }
-    .tp-share-btn::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -7px !important;
-      bottom: -7px !important;
-      left: -7px !important;
-      right: -7px !important;
-    }
-    .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after {
-      content: "" !important;
-      position: absolute !important;
-      top: -8px !important;
-      bottom: -8px !important;
-      left: -8px !important;
-      right: -8px !important;
-    }
-  }
 `;
 
 /** Chrome part (split from ui/styles.js): bestpreise controls, empty state, detail badge, filter bar. */
@@ -1273,6 +1278,11 @@ const STYLES_CHROME = `
     min-height: 0 !important;
   }
 
+`;
+
+/** Category tree sidebar styles (split from ui/styles/chrome.js). */
+
+const STYLES_CATEGORY_TREE = `
   /* Expandable Sidebar Category Tree */
   .tp-cat-search-box {
     position: relative !important;
@@ -2014,7 +2024,9 @@ const STYLES_OVERLAYS = `
 
 
 
-const STYLES = STYLES_CARDS + STYLES_CHROME + STYLES_OVERLAYS;
+
+
+const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS;
 
 /** Shadow-modal part (split from ui/styles.js): isolated Shadow DOM dialog styles. */
 
@@ -14024,7 +14036,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.424';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.425';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
