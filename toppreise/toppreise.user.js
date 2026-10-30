@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.423
+// @version      2.18.424
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -539,30 +539,56 @@ const STYLES_CARDS = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> .tp-card-alarm-btn) {
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> :is(.tp-card-alarm-group, .tp-card-alarm-btn)) {
     position: relative !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > button.tp-card-alarm-btn {
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
     right: 0 !important;
     bottom: 100% !important;
     margin-bottom: 2px !important;
     z-index: 4 !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingListProduct) > button.tp-card-alarm-btn {
+  :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
     right: 10px !important;
     bottom: 46px !important;
     z-index: 4 !important;
   }
+  .tp-card-alarm-group {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+  }
+  .tp-card-alarm-group * {
+    pointer-events: none !important;
+  }
+  .tp-card-alarm-group button.tp-alarm-cog {
+    margin-left: 0 !important;
+    padding: 0 2px !important;
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    opacity: 0.75 !important;
+    transition: opacity 0.1s ease !important;
+  }
+  .tp-card-alarm-group button.tp-alarm-cog:hover {
+    opacity: 1 !important;
+  }
   button.tp-card-alarm-btn {
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 2px 4px !important;
+    padding: 1px 3px !important;
     opacity: 0 !important;
     pointer-events: none !important;
-    font-size: 13px !important;
+    font-size: 16px !important;
     line-height: 1 !important;
     vertical-align: baseline !important;
     transition: opacity 0.15s ease !important;
@@ -579,12 +605,19 @@ const STYLES_CARDS = `
     line-height: 1 !important;
     pointer-events: none !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-card-alarm-btn,
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) :is(.tp-card-alarm-group, button.tp-card-alarm-btn),
+  .tp-card-alarm-group:hover,
+  .tp-card-alarm-group:focus-within,
   button.tp-card-alarm-btn:hover,
   button.tp-card-alarm-btn:focus-visible {
-    opacity: 0.75 !important;
+    opacity: 0.85 !important;
     pointer-events: auto !important;
   }
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) .tp-card-alarm-group *,
+  .tp-card-alarm-group:is(:hover, :focus-within) * {
+    pointer-events: auto !important;
+  }
+  .tp-card-alarm-group:hover,
   button.tp-card-alarm-btn:hover {
     opacity: 1 !important;
   }
@@ -10069,17 +10102,18 @@ const SHADOW_MODAL_STYLES = `
   // Preisalarm bell trigger next to price (step 10).
   function renderAlarmBell(ctx) {
     const { card, pid, cardPriceEl } = ctx;
-    if (!pid) {
-      card.querySelector('.tp-card-alarm-btn')?.remove();
-      return;
-    }
-    // If card already has native bell (e.g. catalog cards), don't inject a second bell
-    if (card.querySelector('.Plugin_NewInfoMailButton')) {
+    if (!pid || card.querySelector('.Plugin_NewInfoMailButton')) {
+      card.querySelector('.tp-card-alarm-group')?.remove();
       card.querySelector('.tp-card-alarm-btn')?.remove();
       return;
     }
     let bell = card.querySelector('.tp-card-alarm-btn');
     if (!bell) {
+      let group = card.querySelector('.tp-card-alarm-group');
+      if (!group) {
+        group = document.createElement('div');
+        group.className = 'tp-card-alarm-group';
+      }
       bell = document.createElement('button');
       bell.type = 'button';
       bell.className = 'tp-card-alarm-btn';
@@ -10090,13 +10124,14 @@ const SHADOW_MODAL_STYLES = `
         e.stopPropagation();
         openPriceAlarmForProduct(pid, card);
       });
+      group.appendChild(bell);
       const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
       if (priceInfo) {
-        priceInfo.appendChild(bell);
+        priceInfo.appendChild(group);
       } else {
         const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
-        if (anchor !== card) anchor.appendChild(bell);
-        else card.appendChild(bell);
+        if (anchor !== card) anchor.appendChild(group);
+        else card.appendChild(group);
       }
     }
     refreshAlarmBellDecor();
@@ -13379,7 +13414,7 @@ const SHADOW_MODAL_STYLES = `
             ? `Preisalarm: trägt Ziel ${pct}% / ${durLabel} ein — klicken zum Prüfen`
             : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
         if (bell.title !== nextTitle) bell.title = nextTitle;
-        if (!bell.classList.contains('tp-card-alarm-btn')) ensureAlarmCog(bell);
+        ensureAlarmCog(bell);
       }
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] bell decor error', err);
@@ -13858,7 +13893,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -13989,7 +14024,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.423';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.424';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

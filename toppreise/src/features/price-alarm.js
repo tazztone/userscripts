@@ -121,7 +121,7 @@ export function refreshAlarmBellDecor() {
           ? `Preisalarm: trägt Ziel ${pct}% / ${durLabel} ein — klicken zum Prüfen`
           : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
       if (bell.title !== nextTitle) bell.title = nextTitle;
-      if (!bell.classList.contains('tp-card-alarm-btn')) ensureAlarmCog(bell);
+      ensureAlarmCog(bell);
     }
   } catch (err) {
     if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] bell decor error', err);

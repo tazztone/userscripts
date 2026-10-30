@@ -472,30 +472,56 @@ export const STYLES_CARDS = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> .tp-card-alarm-btn) {
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> :is(.tp-card-alarm-group, .tp-card-alarm-btn)) {
     position: relative !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > button.tp-card-alarm-btn {
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
     right: 0 !important;
     bottom: 100% !important;
     margin-bottom: 2px !important;
     z-index: 4 !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingListProduct) > button.tp-card-alarm-btn {
+  :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
     right: 10px !important;
     bottom: 46px !important;
     z-index: 4 !important;
   }
+  .tp-card-alarm-group {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.15s ease !important;
+  }
+  .tp-card-alarm-group * {
+    pointer-events: none !important;
+  }
+  .tp-card-alarm-group button.tp-alarm-cog {
+    margin-left: 0 !important;
+    padding: 0 2px !important;
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    opacity: 0.75 !important;
+    transition: opacity 0.1s ease !important;
+  }
+  .tp-card-alarm-group button.tp-alarm-cog:hover {
+    opacity: 1 !important;
+  }
   button.tp-card-alarm-btn {
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 2px 4px !important;
+    padding: 1px 3px !important;
     opacity: 0 !important;
     pointer-events: none !important;
-    font-size: 13px !important;
+    font-size: 16px !important;
     line-height: 1 !important;
     vertical-align: baseline !important;
     transition: opacity 0.15s ease !important;
@@ -512,12 +538,19 @@ export const STYLES_CARDS = `
     line-height: 1 !important;
     pointer-events: none !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-card-alarm-btn,
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) :is(.tp-card-alarm-group, button.tp-card-alarm-btn),
+  .tp-card-alarm-group:hover,
+  .tp-card-alarm-group:focus-within,
   button.tp-card-alarm-btn:hover,
   button.tp-card-alarm-btn:focus-visible {
-    opacity: 0.75 !important;
+    opacity: 0.85 !important;
     pointer-events: auto !important;
   }
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) .tp-card-alarm-group *,
+  .tp-card-alarm-group:is(:hover, :focus-within) * {
+    pointer-events: auto !important;
+  }
+  .tp-card-alarm-group:hover,
   button.tp-card-alarm-btn:hover {
     opacity: 1 !important;
   }

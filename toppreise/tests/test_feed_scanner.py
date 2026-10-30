@@ -120,7 +120,7 @@ def test_alarm_bell_three_states_and_cog(page: Page):
         assert bells.nth(i).get_attribute('data-tp-alarm-state') == 'fill'
     assert 'tp-alarm-fill' in (bell.get_attribute('class') or '')
     assert '60%' in (bell.get_attribute('title') or '')
-    cogs = page.locator('.tp-alarm-cog')
+    cogs = page.locator('.Plugin_NewInfoMailButton .tp-alarm-cog')
     assert cogs.count() == 2
 
     # Cog opens settings scrolled to the Preisalarm section
@@ -157,7 +157,7 @@ def test_alarm_bell_ajax_injected(page: Page):
     bells = page.locator('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog')
     assert bells.count() == 3
     assert bells.nth(2).get_attribute('data-tp-alarm-state') == 'auto'
-    assert page.locator('.tp-alarm-cog').count() == 3
+    assert page.locator('.Plugin_NewInfoMailButton .tp-alarm-cog').count() == 3
 
 def test_alarm_cog_stays_single_when_site_inserts_nodes(page: Page):
     # Site re-render wedging a node between bell and cog (plus a stray
@@ -192,6 +192,11 @@ def test_card_alarm_bell_rendering_and_interaction(page: Page):
         return { bellBottom: bell.getBoundingClientRect().bottom, priceTop: price.getBoundingClientRect().top };
     }""")
     assert pos['bellBottom'] <= pos['priceTop'] + 2
+
+    # Card bell group includes settings cog next to the bell
+    cog_btn = page.locator('#card-cheapest .tp-card-alarm-group .tp-alarm-cog')
+    assert cog_btn.count() == 1
+    assert '⚙' in cog_btn.inner_text()
 
     # Clicking it triggers openPriceAlarmForProduct and opens the dialog
     card_btn.click()

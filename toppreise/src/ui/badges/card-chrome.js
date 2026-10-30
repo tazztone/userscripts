@@ -332,17 +332,18 @@ export function renderReviewButton(ctx) {
 // Preisalarm bell trigger next to price (step 10).
 export function renderAlarmBell(ctx) {
   const { card, pid, cardPriceEl } = ctx;
-  if (!pid) {
-    card.querySelector('.tp-card-alarm-btn')?.remove();
-    return;
-  }
-  // If card already has native bell (e.g. catalog cards), don't inject a second bell
-  if (card.querySelector('.Plugin_NewInfoMailButton')) {
+  if (!pid || card.querySelector('.Plugin_NewInfoMailButton')) {
+    card.querySelector('.tp-card-alarm-group')?.remove();
     card.querySelector('.tp-card-alarm-btn')?.remove();
     return;
   }
   let bell = card.querySelector('.tp-card-alarm-btn');
   if (!bell) {
+    let group = card.querySelector('.tp-card-alarm-group');
+    if (!group) {
+      group = document.createElement('div');
+      group.className = 'tp-card-alarm-group';
+    }
     bell = document.createElement('button');
     bell.type = 'button';
     bell.className = 'tp-card-alarm-btn';
@@ -353,13 +354,14 @@ export function renderAlarmBell(ctx) {
       e.stopPropagation();
       openPriceAlarmForProduct(pid, card);
     });
+    group.appendChild(bell);
     const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
     if (priceInfo) {
-      priceInfo.appendChild(bell);
+      priceInfo.appendChild(group);
     } else {
       const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
-      if (anchor !== card) anchor.appendChild(bell);
-      else card.appendChild(bell);
+      if (anchor !== card) anchor.appendChild(group);
+      else card.appendChild(group);
     }
   }
   refreshAlarmBellDecor();
