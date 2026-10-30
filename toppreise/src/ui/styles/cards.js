@@ -459,6 +459,33 @@ export const STYLES_CARDS = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
+  button.tp-card-alarm-btn {
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 3px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    flex: 0 0 auto !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    vertical-align: baseline !important;
+    transition: opacity 0.15s ease !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingListProduct):is(:hover, :focus-within) button.tp-card-alarm-btn,
+  button.tp-card-alarm-btn:hover,
+  button.tp-card-alarm-btn:focus-visible {
+    opacity: 0.75 !important;
+    pointer-events: auto !important;
+  }
+  button.tp-card-alarm-btn:hover {
+    opacity: 1 !important;
+  }
+  button.tp-card-alarm-btn:disabled {
+    cursor: wait !important;
+    opacity: 0.4 !important;
+    pointer-events: auto !important;
+  }
   .tp-card-subline-row {
     position: absolute !important;
     bottom: 4px !important;
@@ -590,18 +617,21 @@ export const STYLES_CARDS = `
   @media (hover: none), (pointer: coarse) {
     .tp-share-btn:not(.tp-share-done):not(:disabled),
     .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn:not(:disabled) {
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled),
+    button.tp-card-alarm-btn:not(:disabled) {
       opacity: 0.45 !important;
       pointer-events: auto !important;
       touch-action: manipulation !important;
     }
     .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn {
+    button.tp-dealer-name.tp-dealer-btn,
+    button.tp-card-alarm-btn {
       position: relative !important;
     }
     .tp-share-btn:not(:disabled):active,
     .tp-review-search-btn:active,
-    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active {
+    button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
+    button.tp-card-alarm-btn:not(:disabled):active {
       opacity: 1 !important;
     }
     .tp-share-btn::after {
@@ -613,7 +643,8 @@ export const STYLES_CARDS = `
       right: -7px !important;
     }
     .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after {
+    button.tp-dealer-name.tp-dealer-btn::after,
+    button.tp-card-alarm-btn::after {
       content: "" !important;
       position: absolute !important;
       top: -8px !important;

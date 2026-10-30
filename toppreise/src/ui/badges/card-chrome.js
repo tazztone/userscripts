@@ -22,6 +22,7 @@ import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
 import { expandKeywordWithPrice, formatSearchQuery } from '../../features/tavily-search.js';
+import { openPriceAlarmForProduct, refreshAlarmBellDecor } from '../../features/price-alarm.js';
 
 export { renderShareButton };
 
@@ -311,6 +312,41 @@ export function renderReviewButton(ctx) {
   }
 }
 
+// Preisalarm bell trigger next to price (step 10).
+export function renderAlarmBell(ctx) {
+  const { card, pid, cardPriceEl } = ctx;
+  if (!pid) {
+    card.querySelector('.tp-card-alarm-btn')?.remove();
+    return;
+  }
+  // If card already has native bell (e.g. catalog cards), don't inject a second bell
+  if (card.querySelector('.Plugin_NewInfoMailButton')) {
+    card.querySelector('.tp-card-alarm-btn')?.remove();
+    return;
+  }
+  let bell = card.querySelector('.tp-card-alarm-btn');
+  if (!bell) {
+    bell = document.createElement('button');
+    bell.type = 'button';
+    bell.className = 'tp-card-alarm-btn';
+    bell.textContent = '🔔';
+    bell.setAttribute('aria-label', 'Preisalarm');
+    bell.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openPriceAlarmForProduct(pid, card);
+    });
+    const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
+      card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+    if (anchor !== card) {
+      anchor.appendChild(bell);
+    } else {
+      card.appendChild(bell);
+    }
+  }
+  refreshAlarmBellDecor();
+}
+
 // Fresh-deal glow for newly verified good deals.
 export function applyFreshGlow(ctx) {
   const { card, pid, stats } = ctx;
@@ -391,6 +427,7 @@ export function renderCardEffects(cd, filters, isNeueFeed, activeStores) {
   applyVerifiedCue(ctx);
   renderShareButton(ctx, cd);
   renderDealerName(ctx, filters);
+  renderAlarmBell(ctx);
   renderReviewButton(ctx);
   applyFreshGlow(ctx);
 }
