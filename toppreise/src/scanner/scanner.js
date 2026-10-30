@@ -472,7 +472,8 @@ export async function runProductScanner(options = {}) {
       // Progressive paint per card: renders newly verified deals and ensures
       // failed/null card fetches immediately restore non-loading badge state.
       triggerProcessListings();
-      await interruptibleSleep(250, shouldCancelFn, signal);
+      const paceMs = (typeof document !== 'undefined' && document.visibilityState === 'hidden') ? 500 : 250;
+      await interruptibleSleep(paceMs, shouldCancelFn, signal);
     }
   }
 
