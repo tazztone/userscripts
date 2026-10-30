@@ -6,7 +6,7 @@
 
 import { CONFIG, updateConfig, updateConfigs, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
 import { getDisplayDelta, getHeatInput, computeDealScore } from '../../domain/deal-score.js';
-import { basisMatchesFor } from '../../page/cards.js';
+import { basisMatchesFor, FILTER_CAUSE_DEFS } from '../../page/cards.js';
 import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen } from '../../scanner/cache.js';
 import { priceToCents } from '../../domain/price.js';
 import { withLivePrice } from '../../features/share-discord.js';
@@ -416,7 +416,12 @@ export function renderEmptyState(cards, counts) {
     });
 
     emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-      updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, FILTER_DEAL_DISCOUNT_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
+      const updates = {};
+      for (const def of FILTER_CAUSE_DEFS) {
+        if (def.enableKey) updates[def.enableKey] = def.resetVal ?? false;
+        if (def.resetMode) updates[def.modeKey] = def.resetMode;
+      }
+      updateConfigs(updates);
       showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
     });
   } else if (emptyNotice) {

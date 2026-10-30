@@ -7,7 +7,7 @@
  */
 
 import { CONFIG } from '../../state/config.js';
-import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDiscount, getCardProductId, dealerLoserFor, getCardStats } from '../../page/cards.js';
+import { getBadgeHeatStyle, getInsetHeatStyle, getCardDealerRows, extractCardDiscount, getCardProductId, dealerLoserFor, getCardStats, FILTER_CAUSE_DEFS } from '../../page/cards.js';
 import { getCardSortableUnit } from '../../page/sort.js';
 import { extractCanonicalPrice, parsePrice, priceToCents } from '../../domain/price.js';
 import { fetchSingleProductPriceStats } from '../../scanner/scanner.js';
@@ -197,30 +197,10 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
     filters.isDealerLoser = false;
   }
   const isHide = m => m !== 'dim' && m !== 'highlight';
-  const wouldHide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
-    || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
-    || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
-    || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
-    || (filters.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
-    || (filters.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
-    || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
-    || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
-  const wouldDim = !wouldHide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
-    || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
-    || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
-    || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
-    || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'dim')
-    || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'dim')
-    || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
-    || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
-  const wouldHighlight = !wouldHide && !wouldDim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
-    || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
-    || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
-    || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
-    || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'highlight')
-    || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'highlight')
-    || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
-    || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
+  const hasHit = pred => FILTER_CAUSE_DEFS.some(d => filters[d.flag] && pred(CONFIG[d.modeKey]));
+  const wouldHide = hasHit(isHide);
+  const wouldDim = !wouldHide && hasHit(m => m === 'dim');
+  const wouldHighlight = !wouldHide && !wouldDim && hasHit(m => m === 'highlight');
 
   filters.wouldHide = wouldHide;
   filters.wouldDim = wouldDim;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.417
+// @version      2.18.418
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5122,18 +5122,22 @@ const SHADOW_MODAL_STYLES = `
     return true;
   }
 
+  const FILTER_CAUSE_DEFS = [
+    { flag: 'isNeg', modeKey: 'FILTER_NEG_MODE', enableKey: 'FILTER_NEG_ENABLED', scanExempt: false },
+    { flag: 'isLowOffers', modeKey: 'FILTER_MIN_MODE', enableKey: 'FILTER_MIN_ENABLED', scanExempt: false },
+    { flag: 'isDealerLoser', modeKey: 'DEALER_MODE', enableKey: null, scanExempt: false, resetMode: 'dim' },
+    { flag: 'isBelowMinDiscount', modeKey: 'FILTER_DEAL_DISCOUNT_MODE', enableKey: 'FILTER_DEAL_DISCOUNT_ENABLED', scanExempt: true },
+    { flag: 'isOutOfPriceRange', modeKey: 'FILTER_PRICE_MODE', enableKey: 'FILTER_PRICE_ENABLED', scanExempt: true },
+    { flag: 'isBelowMinSavings', modeKey: 'FILTER_SAVINGS_MODE', enableKey: 'FILTER_SAVINGS_ENABLED', scanExempt: true },
+    { flag: 'isUnchecked', modeKey: 'HIDE_UNCHECKED_MODE', enableKey: 'BESTPREISE_HIDE_UNCHECKED', scanExempt: true },
+    { flag: 'isVortiefExcluded', modeKey: 'VORTIEF_MODE', enableKey: 'BESTPREISE_INCLUDE_VORTIEF', scanExempt: false, resetVal: true },
+  ];
+
   function isCardFilteredOut(card, filters = null, opts = null) {
     if (!card) return true;
     const forScan = opts?.forScan === true;
     const isHide = m => m !== 'dim' && m !== 'highlight';
-    const causeHit = f => (f.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
-      || (f.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
-      || (f.isDealerLoser && isHide(CONFIG.DEALER_MODE))
-      || (!forScan && f.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
-      || (!forScan && f.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
-      || (!forScan && f.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
-      || (forScan ? false : (f.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE)))
-      || (f.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE));
+    const causeHit = f => FILTER_CAUSE_DEFS.some(def => (!forScan || !def.scanExempt) && f[def.flag] && isHide(CONFIG[def.modeKey]));
     const legacyChecks = () => {
       const tab = card.closest?.('.f_tab');
       if (tab && !tab.classList.contains('selected')) return true;
@@ -9058,30 +9062,10 @@ const SHADOW_MODAL_STYLES = `
       filters.isDealerLoser = false;
     }
     const isHide = m => m !== 'dim' && m !== 'highlight';
-    const wouldHide = (filters.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
-      || (filters.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
-      || (filters.isDealerLoser && isHide(CONFIG.DEALER_MODE))
-      || (filters.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
-      || (filters.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
-      || (filters.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
-      || (filters.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE))
-      || (filters.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE));
-    const wouldDim = !wouldHide && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'dim')
-      || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'dim')
-      || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'dim')
-      || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'dim')
-      || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'dim')
-      || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'dim')
-      || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'dim')
-      || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'dim'));
-    const wouldHighlight = !wouldHide && !wouldDim && ((filters.isNeg && CONFIG.FILTER_NEG_MODE === 'highlight')
-      || (filters.isLowOffers && CONFIG.FILTER_MIN_MODE === 'highlight')
-      || (filters.isDealerLoser && CONFIG.DEALER_MODE === 'highlight')
-      || (filters.isBelowMinDiscount && CONFIG.FILTER_DEAL_DISCOUNT_MODE === 'highlight')
-      || (filters.isOutOfPriceRange && CONFIG.FILTER_PRICE_MODE === 'highlight')
-      || (filters.isBelowMinSavings && CONFIG.FILTER_SAVINGS_MODE === 'highlight')
-      || (filters.isVortiefExcluded && CONFIG.VORTIEF_MODE === 'highlight')
-      || (filters.isUnchecked && CONFIG.HIDE_UNCHECKED_MODE === 'highlight'));
+    const hasHit = pred => FILTER_CAUSE_DEFS.some(d => filters[d.flag] && pred(CONFIG[d.modeKey]));
+    const wouldHide = hasHit(isHide);
+    const wouldDim = !wouldHide && hasHit(m => m === 'dim');
+    const wouldHighlight = !wouldHide && !wouldDim && hasHit(m => m === 'highlight');
 
     filters.wouldHide = wouldHide;
     filters.wouldDim = wouldDim;
@@ -10483,7 +10467,12 @@ const SHADOW_MODAL_STYLES = `
       });
 
       emptyNotice.querySelector('#tp-empty-toggle-filters-btn')?.addEventListener('click', () => {
-        updateConfigs({ FILTER_NEG_ENABLED: false, FILTER_MIN_ENABLED: false, FILTER_DEAL_DISCOUNT_ENABLED: false, BESTPREISE_HIDE_UNCHECKED: false, BESTPREISE_INCLUDE_VORTIEF: true, DEALER_MODE: 'dim' });
+        const updates = {};
+        for (const def of FILTER_CAUSE_DEFS) {
+          if (def.enableKey) updates[def.enableKey] = def.resetVal ?? false;
+          if (def.resetMode) updates[def.modeKey] = def.resetMode;
+        }
+        updateConfigs(updates);
         showToast('⏸️ Alle Filter pausiert (alle Angebote sichtbar)');
       });
     } else if (emptyNotice) {
@@ -14402,7 +14391,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.417';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.418';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

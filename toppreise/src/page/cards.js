@@ -441,18 +441,22 @@ export function dealerLoserFor(card, activeStores) {
   return true;
 }
 
+export const FILTER_CAUSE_DEFS = [
+  { flag: 'isNeg', modeKey: 'FILTER_NEG_MODE', enableKey: 'FILTER_NEG_ENABLED', scanExempt: false },
+  { flag: 'isLowOffers', modeKey: 'FILTER_MIN_MODE', enableKey: 'FILTER_MIN_ENABLED', scanExempt: false },
+  { flag: 'isDealerLoser', modeKey: 'DEALER_MODE', enableKey: null, scanExempt: false, resetMode: 'dim' },
+  { flag: 'isBelowMinDiscount', modeKey: 'FILTER_DEAL_DISCOUNT_MODE', enableKey: 'FILTER_DEAL_DISCOUNT_ENABLED', scanExempt: true },
+  { flag: 'isOutOfPriceRange', modeKey: 'FILTER_PRICE_MODE', enableKey: 'FILTER_PRICE_ENABLED', scanExempt: true },
+  { flag: 'isBelowMinSavings', modeKey: 'FILTER_SAVINGS_MODE', enableKey: 'FILTER_SAVINGS_ENABLED', scanExempt: true },
+  { flag: 'isUnchecked', modeKey: 'HIDE_UNCHECKED_MODE', enableKey: 'BESTPREISE_HIDE_UNCHECKED', scanExempt: true },
+  { flag: 'isVortiefExcluded', modeKey: 'VORTIEF_MODE', enableKey: 'BESTPREISE_INCLUDE_VORTIEF', scanExempt: false, resetVal: true },
+];
+
 export function isCardFilteredOut(card, filters = null, opts = null) {
   if (!card) return true;
   const forScan = opts?.forScan === true;
   const isHide = m => m !== 'dim' && m !== 'highlight';
-  const causeHit = f => (f.isNeg && isHide(CONFIG.FILTER_NEG_MODE))
-    || (f.isLowOffers && isHide(CONFIG.FILTER_MIN_MODE))
-    || (f.isDealerLoser && isHide(CONFIG.DEALER_MODE))
-    || (!forScan && f.isBelowMinDiscount && isHide(CONFIG.FILTER_DEAL_DISCOUNT_MODE))
-    || (!forScan && f.isOutOfPriceRange && isHide(CONFIG.FILTER_PRICE_MODE))
-    || (!forScan && f.isBelowMinSavings && isHide(CONFIG.FILTER_SAVINGS_MODE))
-    || (forScan ? false : (f.isUnchecked && isHide(CONFIG.HIDE_UNCHECKED_MODE)))
-    || (f.isVortiefExcluded && isHide(CONFIG.VORTIEF_MODE));
+  const causeHit = f => FILTER_CAUSE_DEFS.some(def => (!forScan || !def.scanExempt) && f[def.flag] && isHide(CONFIG[def.modeKey]));
   const legacyChecks = () => {
     const tab = card.closest?.('.f_tab');
     if (tab && !tab.classList.contains('selected')) return true;

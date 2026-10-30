@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility, getCardEffectiveDiscount } from '../../src/page/cards.js';
+import { getDistinctProductIds, extractCardDiff, extractCardDiscount, getInsetHeatStyle, getBadgeHeatStyle, applyCardFilters, isCardFilteredOut, parseNegativeTerms, matchesNegativeTerms, extractOfferCount, extractCardData, dealerLoserFor, scanEligibility, getCardEffectiveDiscount, FILTER_CAUSE_DEFS } from '../../src/page/cards.js';
 import { STYLES_CARDS } from '../../src/ui/styles/cards.js';
 import { setCachedPriceStats, memoryCache, statsKey } from '../../src/scanner/cache.js';
 import { withConfig, withConfigs } from './helpers.js';
@@ -367,6 +367,16 @@ describe('isCardFilteredOut forScan', () => {
       assert.equal(isCardFilteredOut(fakeCard(), fAll), false);
       assert.equal(isCardFilteredOut(fakeCard(), fAll, { forScan: true }), false);
     });
+  });
+
+  it('defines 8 standard filter causes with reset mapping', () => {
+    assert.equal(FILTER_CAUSE_DEFS.length, 8);
+    const keys = FILTER_CAUSE_DEFS.map(d => d.flag);
+    assert.deepStrictEqual(keys, ['isNeg', 'isLowOffers', 'isDealerLoser', 'isBelowMinDiscount', 'isOutOfPriceRange', 'isBelowMinSavings', 'isUnchecked', 'isVortiefExcluded']);
+    const priceDef = FILTER_CAUSE_DEFS.find(d => d.flag === 'isOutOfPriceRange');
+    assert.equal(priceDef.enableKey, 'FILTER_PRICE_ENABLED');
+    const savingsDef = FILTER_CAUSE_DEFS.find(d => d.flag === 'isBelowMinSavings');
+    assert.equal(savingsDef.enableKey, 'FILTER_SAVINGS_ENABLED');
   });
 });
 
