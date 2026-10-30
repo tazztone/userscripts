@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.430
+// @version      2.18.431
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3274,6 +3274,7 @@ const SHADOW_MODAL_STYLES = `
     try {
       const now = Date.now();
       const maxAgeMs = 14 * 24 * 3600 * 1000;
+      const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
       const entries = [];
       const keysToRemove = [];
 
@@ -3302,13 +3303,10 @@ const SHADOW_MODAL_STYLES = `
         entries.sort((a, b) => a.time - b.time);
         const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
         entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
-      } else {
-        const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
-        if (entries.length > diskLimit) {
-          entries.sort((a, b) => a.time - b.time);
-          const target = Math.max(50, Math.round(diskLimit * 0.8));
-          entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
-        }
+      } else if (entries.length > diskLimit) {
+        entries.sort((a, b) => a.time - b.time);
+        const target = Math.max(50, Math.round(diskLimit * 0.8));
+        entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
       }
     } catch (e) {}
   }
@@ -3412,7 +3410,8 @@ const SHADOW_MODAL_STYLES = `
       : payload;
     try {
       statsWriteCount++;
-      if (statsWriteCount === 1 || statsWriteCount % 100 === 0) prunePriceStatsCache(storage);
+      const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+      if (statsWriteCount === 1 || (statsWriteCount % 100 === 0 && (storage?.length ?? 0) > diskLimit * 0.8)) prunePriceStatsCache(storage);
       storage?.setItem(key, JSON.stringify(persistPayload));
     } catch (e) {
       if (e?.name === 'QuotaExceededError' || e?.code === 22) {
@@ -14090,7 +14089,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.430';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.431';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

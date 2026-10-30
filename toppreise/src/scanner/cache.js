@@ -86,6 +86,7 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
   try {
     const now = Date.now();
     const maxAgeMs = 14 * 24 * 3600 * 1000;
+    const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
     const entries = [];
     const keysToRemove = [];
 
@@ -114,13 +115,10 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
       entries.sort((a, b) => a.time - b.time);
       const evictCount = Math.max(1, Math.ceil(entries.length * 0.25));
       entries.slice(0, evictCount).forEach(e => storage.removeItem(e.key));
-    } else {
-      const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
-      if (entries.length > diskLimit) {
-        entries.sort((a, b) => a.time - b.time);
-        const target = Math.max(50, Math.round(diskLimit * 0.8));
-        entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
-      }
+    } else if (entries.length > diskLimit) {
+      entries.sort((a, b) => a.time - b.time);
+      const target = Math.max(50, Math.round(diskLimit * 0.8));
+      entries.slice(0, Math.max(0, entries.length - target)).forEach(e => storage.removeItem(e.key));
     }
   } catch (e) {}
 }
@@ -224,7 +222,8 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
     : payload;
   try {
     statsWriteCount++;
-    if (statsWriteCount === 1 || statsWriteCount % 100 === 0) prunePriceStatsCache(storage);
+    const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+    if (statsWriteCount === 1 || (statsWriteCount % 100 === 0 && (storage?.length ?? 0) > diskLimit * 0.8)) prunePriceStatsCache(storage);
     storage?.setItem(key, JSON.stringify(persistPayload));
   } catch (e) {
     if (e?.name === 'QuotaExceededError' || e?.code === 22) {
