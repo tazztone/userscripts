@@ -349,6 +349,27 @@ export async function openPriceAlarmForProduct(pid, card = null) {
       const formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
 
       if (dialogNode) {
+        const dismissDialog = () => {
+          if (typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
+            try { window.AbstractDialog_hide(dialogId); } catch {}
+          }
+          dialogNode.style.display = 'none';
+          dialogNode.classList.remove('show');
+          dialogNode.remove();
+          if (typeof document !== 'undefined') document.removeEventListener('keydown', handleKeydown);
+        };
+        const handleKeydown = e => {
+          if (e.key === 'Escape') dismissDialog();
+        };
+        if (typeof document !== 'undefined') document.addEventListener('keydown', handleKeydown);
+        dialogNode.querySelector('.AbstractDialog_CloseButton')?.addEventListener('click', e => {
+          e.preventDefault();
+          dismissDialog();
+        });
+        dialogNode.querySelector('.modal')?.addEventListener('click', e => {
+          if (e.target === e.currentTarget) dismissDialog();
+        });
+
         document.body.appendChild(dialogNode);
         if (formUrl) {
           const formRes = await fetch(`${formUrl}&im_nimf_ch=${dialogHash}&lang=de`, {

@@ -3181,4 +3181,32 @@ def test_global_filter_toggle_temporarily_disables_all_filters(page: Page):
     assert 'tp-filters-paused' not in (filter_btn.get_attribute('class') or '')
 
 
+def test_card_alarm_bell_visible_in_listenansicht_and_positioned_above_price(page: Page):
+    """In Listenansicht or feed cards, .tp-card-alarm-btn must be positioned above
+    the price container without taking horizontal layout flow inside .Plugin_PriceInformation,
+    and reveal on hovering .Plugin_Product / .mixedBrowsingList."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.className = 'Plugin_Product mixedBrowsingList container mixedList';
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    card = page.locator('#card-cheapest')
+    bell = page.locator('#card-cheapest .tp-card-alarm-btn')
+    assert bell.count() == 1
+
+    # Hover over card reveals bell
+    card.hover()
+    assert bell.is_visible()
+
+    # Bounding box check: bell is placed above the price container (bottom: 100%)
+    boxes = page.evaluate("""() => {
+        const bellEl = document.querySelector('#card-cheapest .tp-card-alarm-btn');
+        const priceEl = document.querySelector('#card-cheapest .Plugin_PriceInformation');
+        const b = bellEl.getBoundingClientRect();
+        const p = priceEl.getBoundingClientRect();
+        return { bellY: b.y, bellBottom: b.bottom, priceY: p.y };
+    }""")
+    assert boxes['bellBottom'] <= boxes['priceY'] + 2
+
+
 

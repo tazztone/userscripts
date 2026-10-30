@@ -185,6 +185,14 @@ def test_card_alarm_bell_rendering_and_interaction(page: Page):
     page.hover('#card-cheapest')
     assert card_btn.is_visible()
 
+    # Positioned above price container (saves horizontal space)
+    pos = page.evaluate("""() => {
+        const bell = document.querySelector('#card-cheapest .tp-card-alarm-btn');
+        const price = document.querySelector('#card-cheapest .Plugin_PriceInformation');
+        return { bellBottom: bell.getBoundingClientRect().bottom, priceTop: price.getBoundingClientRect().top };
+    }""")
+    assert pos['bellBottom'] <= pos['priceTop'] + 2
+
     # Clicking it triggers openPriceAlarmForProduct and opens the dialog
     card_btn.click()
     page.wait_for_selector('#mock-alarm-dialog', state='visible')

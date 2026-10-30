@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.422
+// @version      2.18.423
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -539,20 +539,47 @@ const STYLES_CARDS = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> .tp-card-alarm-btn) {
+    position: relative !important;
+  }
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > button.tp-card-alarm-btn {
+    position: absolute !important;
+    right: 0 !important;
+    bottom: 100% !important;
+    margin-bottom: 2px !important;
+    z-index: 4 !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingListProduct) > button.tp-card-alarm-btn {
+    position: absolute !important;
+    right: 10px !important;
+    bottom: 46px !important;
+    z-index: 4 !important;
+  }
   button.tp-card-alarm-btn {
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 0 3px !important;
+    padding: 2px 4px !important;
     opacity: 0 !important;
     pointer-events: none !important;
-    flex: 0 0 auto !important;
     font-size: 13px !important;
     line-height: 1 !important;
     vertical-align: baseline !important;
     transition: opacity 0.15s ease !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingListProduct):is(:hover, :focus-within) button.tp-card-alarm-btn,
+  button.tp-card-alarm-btn:not(:focus-visible) {
+    outline: none !important;
+  }
+  button.tp-card-alarm-btn.tp-alarm-auto::after {
+    content: "\\26A1" !important;
+    position: absolute !important;
+    top: -6px !important;
+    right: -4px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    pointer-events: none !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-card-alarm-btn,
   button.tp-card-alarm-btn:hover,
   button.tp-card-alarm-btn:focus-visible {
     opacity: 0.75 !important;
@@ -704,9 +731,15 @@ const STYLES_CARDS = `
       touch-action: manipulation !important;
     }
     .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn,
-    button.tp-card-alarm-btn {
+    button.tp-dealer-name.tp-dealer-btn {
       position: relative !important;
+    }
+    button.tp-card-alarm-btn {
+      min-width: 26px !important;
+      min-height: 22px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
     .tp-share-btn:not(:disabled):active,
     .tp-review-search-btn:active,
@@ -723,8 +756,7 @@ const STYLES_CARDS = `
       right: -7px !important;
     }
     .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after,
-    button.tp-card-alarm-btn::after {
+    button.tp-dealer-name.tp-dealer-btn::after {
       content: "" !important;
       position: absolute !important;
       top: -8px !important;
@@ -13575,6 +13607,27 @@ const SHADOW_MODAL_STYLES = `
         const formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
 
         if (dialogNode) {
+          const dismissDialog = () => {
+            if (typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
+              try { window.AbstractDialog_hide(dialogId); } catch {}
+            }
+            dialogNode.style.display = 'none';
+            dialogNode.classList.remove('show');
+            dialogNode.remove();
+            if (typeof document !== 'undefined') document.removeEventListener('keydown', handleKeydown);
+          };
+          const handleKeydown = e => {
+            if (e.key === 'Escape') dismissDialog();
+          };
+          if (typeof document !== 'undefined') document.addEventListener('keydown', handleKeydown);
+          dialogNode.querySelector('.AbstractDialog_CloseButton')?.addEventListener('click', e => {
+            e.preventDefault();
+            dismissDialog();
+          });
+          dialogNode.querySelector('.modal')?.addEventListener('click', e => {
+            if (e.target === e.currentTarget) dismissDialog();
+          });
+
           document.body.appendChild(dialogNode);
           if (formUrl) {
             const formRes = await fetch(`${formUrl}&im_nimf_ch=${dialogHash}&lang=de`, {
@@ -13936,7 +13989,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.422';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.423';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

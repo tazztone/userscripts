@@ -472,20 +472,47 @@ export const STYLES_CARDS = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> .tp-card-alarm-btn) {
+    position: relative !important;
+  }
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > button.tp-card-alarm-btn {
+    position: absolute !important;
+    right: 0 !important;
+    bottom: 100% !important;
+    margin-bottom: 2px !important;
+    z-index: 4 !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingListProduct) > button.tp-card-alarm-btn {
+    position: absolute !important;
+    right: 10px !important;
+    bottom: 46px !important;
+    z-index: 4 !important;
+  }
   button.tp-card-alarm-btn {
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 0 3px !important;
+    padding: 2px 4px !important;
     opacity: 0 !important;
     pointer-events: none !important;
-    flex: 0 0 auto !important;
     font-size: 13px !important;
     line-height: 1 !important;
     vertical-align: baseline !important;
     transition: opacity 0.15s ease !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingListProduct):is(:hover, :focus-within) button.tp-card-alarm-btn,
+  button.tp-card-alarm-btn:not(:focus-visible) {
+    outline: none !important;
+  }
+  button.tp-card-alarm-btn.tp-alarm-auto::after {
+    content: "\\26A1" !important;
+    position: absolute !important;
+    top: -6px !important;
+    right: -4px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    pointer-events: none !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-card-alarm-btn,
   button.tp-card-alarm-btn:hover,
   button.tp-card-alarm-btn:focus-visible {
     opacity: 0.75 !important;
@@ -637,9 +664,15 @@ export const STYLES_CARDS = `
       touch-action: manipulation !important;
     }
     .tp-review-search-btn,
-    button.tp-dealer-name.tp-dealer-btn,
-    button.tp-card-alarm-btn {
+    button.tp-dealer-name.tp-dealer-btn {
       position: relative !important;
+    }
+    button.tp-card-alarm-btn {
+      min-width: 26px !important;
+      min-height: 22px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
     .tp-share-btn:not(:disabled):active,
     .tp-review-search-btn:active,
@@ -656,8 +689,7 @@ export const STYLES_CARDS = `
       right: -7px !important;
     }
     .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after,
-    button.tp-card-alarm-btn::after {
+    button.tp-dealer-name.tp-dealer-btn::after {
       content: "" !important;
       position: absolute !important;
       top: -8px !important;
