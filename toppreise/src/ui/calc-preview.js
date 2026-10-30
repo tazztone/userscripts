@@ -1,4 +1,5 @@
 import { sanitizeTimeSeries, recordRefForPrice, pctDrop, priceToCents, parsePrice, rollingMedians, extractCanonicalPrice } from "../domain/price.js";
+import { computeDealScore } from "../domain/deal-score.js";
 import { getCardProductId, getCardStats } from "../page/cards.js";
 import { extractShareData } from "../page/product-offers.js";
 import { horizonText, horizonUiToStored, minPointsFromIndex, clampMinPoints } from "../state/config.js";
@@ -48,17 +49,13 @@ export function previewStats(points, o) {
   const rawMedian = n === 0 ? 0 : (n % 2 ? sorted[n >> 1] : (sorted[(n >> 1) - 1] + sorted[n >> 1]) / 2);
   const median = Math.round(rawMedian * 100) / 100;
 
-  const dMedian = median > cardPrice ? pctDrop(median, cardPrice) : 0;
+  const mockStats = { tiefstpreis, hoechstpreis, medianPrice: median, timeSeries: clean };
+  const score = computeDealScore(mockStats, cardPrice, { minPoints, weightRecord });
+  const qualifies = score !== null;
+  const badge = score ? score.weightedDiff : null;
   const live = recordRefForPrice({ timeSeries: clean }, cardPrice);
-  const dRecord = (live.isNewRecord && live.previousLow > cardPrice) ? pctDrop(live.previousLow, cardPrice) : 0;
-
-  const varianceOk = tiefstpreis > 0 && (hoechstpreis - tiefstpreis) / tiefstpreis >= 0.02;
-  const qualifies = clean.length >= minPoints && varianceOk
-    && priceToCents(cardPrice) <= priceToCents(tiefstpreis) && median > 0;
-  const isZeroMargin = dMedian <= 0 && dRecord <= 0;
-  const badge = qualifies
-    ? (isZeroMargin ? 0 : Math.max(1, Math.round((1 - weightRecord) * dMedian + weightRecord * dRecord)))
-    : null;
+  const dMedian = score ? score.dMedian : (median > cardPrice ? pctDrop(median, cardPrice) : 0);
+  const dRecord = score ? score.dRecord : ((live.isNewRecord && live.previousLow > cardPrice) ? pctDrop(live.previousLow, cardPrice) : 0);
   const recordLow = live.previousLow ?? 0;
   const cutoffTs = horizonDays > 0 && !medianFallback ? now - horizonDays * DAY_MS : null;
 

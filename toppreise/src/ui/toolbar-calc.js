@@ -20,136 +20,117 @@ function pokePreviewFocus(kind) {
   box._tpFocusT = setTimeout(() => { if (box.dataset.focus === kind) delete box.dataset.focus; }, 600);
 }
 
-function bindWeightControls(wrapper) {
-  const weightRange = wrapper.querySelector('#tp-bar-weight-range');
-  const weightLabel = wrapper.querySelector('#tp-bar-weight-label');
-  if (!weightRange) return;
-  const readWeight = () => Math.max(0, Math.min(1, (parseInt(weightRange.value, 10) || 0) / 100));
-  const paintWeightLabel = () => {
-    if (!weightLabel) return;
-    const w = readWeight();
-    weightLabel.textContent = `⚖️ ${weightText(w, 'short')}`;
-    weightLabel.title = weightText(w, 'title');
-  };
-  paintWeightLabel();
-  let deb;
-  weightRange.oninput = () => {
-    paintWeightLabel();
-    pokePreviewFocus('weight');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      updateConfig('BESTPREISE_WEIGHT_RECORD', readWeight());
-    }, 175);
-  };
-  weightRange.onchange = () => {
-    clearTimeout(deb);
-    const w = readWeight();
-    paintWeightLabel();
-    updateConfig('BESTPREISE_WEIGHT_RECORD', w);
-    showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (Reihenfolge + Farb-Emphase)`);
-  };
-}
-
-
-function buildWeightWrapper() {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper';
-  wrapper.id = 'tp-bar-weight-wrapper';
-  wrapper.title = 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtung</span>
-    <span class="tp-weight-label" id="tp-bar-weight-label">⚖️ 50/50</span>
-    <input type="range" id="tp-bar-weight-range" min="0" max="100" step="5" value="50" title="Gewichtung: links Ø-Schnäppchen, rechts Rekord-Jagd">`;
-  bindWeightControls(wrapper);
-  return wrapper;
-}
-
-function bindMinPointsControls(wrapper) {
+function bindDebouncedSlider(wrapper, { rangeId, labelId, read, paint, onCommit, focus }) {
   if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-minpoints-range');
-  const label = wrapper.querySelector('#tp-bar-minpoints-label');
+  const range = wrapper.querySelector(rangeId);
+  const label = wrapper.querySelector(labelId);
   if (!range) return;
-  const readNum = () => minPointsFromIndex(range.value);
-  const paint = () => { if (label) label.textContent = `📊 ${readNum()} Pkt`; };
-  paint();
+  const doPaint = () => { if (label) paint(label, read(range)); };
+  doPaint();
   let deb;
   range.oninput = () => {
-    paint();
+    doPaint();
+    if (focus) pokePreviewFocus(focus);
     clearTimeout(deb);
-    deb = setTimeout(() => updateConfig('BESTPREISE_MIN_POINTS', readNum()), 175);
+    deb = setTimeout(() => onCommit(read(range), false), 175);
   };
   range.onchange = () => {
     clearTimeout(deb);
-    const n = readNum();
-    paint();
-    updateConfig('BESTPREISE_MIN_POINTS', n);
-    showToast(`Mindestanzahl Datenpunkte in der Preishistorie: ${n} (≈ Tage)`);
+    const v = read(range);
+    doPaint();
+    onCommit(v, true);
   };
+}
+
+function createSliderWrapper({ id, extraClass = '', title, labelTitle, labelText, labelId, rangeId, min, max, step, value, rangeTitle, sliderConfig }) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tp-threshold-wrapper' + (extraClass ? ` ${extraClass}` : '');
+  wrapper.id = id;
+  wrapper.title = title;
+  const labelAttr = labelTitle ? ` class="tp-stepper-label tp-glossary-term" title="${labelTitle}"` : ' class="tp-stepper-label"';
+  wrapper.innerHTML = `
+    <span${labelAttr}>${labelText}</span>
+    <span class="tp-weight-label" id="${labelId.replace('#', '')}"></span>
+    <input type="range" id="${rangeId.replace('#', '')}" min="${min}" max="${max}" step="${step}" value="${value}" title="${rangeTitle}">`;
+  bindDebouncedSlider(wrapper, { rangeId, labelId, ...sliderConfig });
+  return wrapper;
+}
+
+function buildWeightWrapper() {
+  const readWeight = range => Math.max(0, Math.min(1, (parseInt(range.value, 10) || 0) / 100));
+  return createSliderWrapper({
+    id: 'tp-bar-weight-wrapper',
+    title: 'Reihenfolge + Farb-Emphase — Badge zeigt die Gewichtete Differenz.',
+    labelTitle: 'Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.',
+    labelText: 'Gewichtung',
+    labelId: '#tp-bar-weight-label',
+    rangeId: '#tp-bar-weight-range',
+    min: 0, max: 100, step: 5, value: 50,
+    rangeTitle: 'Gewichtung: links Ø-Schnäppchen, rechts Rekord-Jagd',
+    sliderConfig: {
+      read: readWeight,
+      paint: (lbl, w) => {
+        lbl.textContent = `⚖️ ${weightText(w, 'short')}`;
+        lbl.title = weightText(w, 'title');
+      },
+      focus: 'weight',
+      onCommit: (w, isChange) => {
+        updateConfig('BESTPREISE_WEIGHT_RECORD', w);
+        if (isChange) showToast(`Sortier-Gewichtung: ${Math.round((1 - w) * 100)}% Ø-Preis / ${Math.round(w * 100)}% Rekord (Reihenfolge + Farb-Emphase)`);
+      }
+    }
+  });
 }
 
 function buildMinPointsWrapper() {
   const cur = clampMinPoints(CONFIG.BESTPREISE_MIN_POINTS);
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-minpoints-wrapper';
-  wrapper.title = 'Ø-Vergleich erst ab so vielen Punkten (Punkte ≈ Tage). Darunter: Fallback-Tief.';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Mindestpunkte</span>
-    <span class="tp-weight-label" id="tp-bar-minpoints-label">📊 ${cur} Pkt</span>
-    <input type="range" id="tp-bar-minpoints-range" min="0" max="${MIN_POINTS_STEPS.length - 1}" step="1" value="${minPointsToIndex(cur)}" title="Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100">`;
-  bindMinPointsControls(wrapper);
-  return wrapper;
-}
-
-function bindHorizonControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-horizon-range');
-  const label = wrapper.querySelector('#tp-bar-horizon-label');
-  if (!range) return;
-  const readHorizon = () => {
-    const raw = parseInt(range.value, 10);
-    return horizonUiToStored(raw);
-  };
-  const paintHorizonLabel = () => {
-    if (!label) return;
-    const v = readHorizon();
-    label.textContent = horizonText(v);
-    label.title = horizonText(v, 'title');
-  };
-  paintHorizonLabel();
-  let deb;
-  range.oninput = () => {
-    paintHorizonLabel();
-    pokePreviewFocus('window');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      const v = readHorizon();
-      recomputeCachedMedians(v);
-      updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    }, 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const v = readHorizon();
-    paintHorizonLabel();
-    recomputeCachedMedians(v);
-    updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
-    showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
-  };
+  const readNum = range => minPointsFromIndex(range.value);
+  return createSliderWrapper({
+    id: 'tp-bar-minpoints-wrapper',
+    extraClass: 'tp-deals-sep',
+    title: 'Ø-Vergleich erst ab so vielen Punkten (Punkte ≈ Tage). Darunter: Fallback-Tief.',
+    labelText: 'Mindestpunkte',
+    labelId: '#tp-bar-minpoints-label',
+    rangeId: '#tp-bar-minpoints-range',
+    min: 0, max: MIN_POINTS_STEPS.length - 1, step: 1, value: minPointsToIndex(cur),
+    rangeTitle: 'Mindestanzahl Datenpunkte: 1–5 fein, dann 10er-Schritte bis 100',
+    sliderConfig: {
+      read: readNum,
+      paint: (lbl, n) => { lbl.textContent = `📊 ${n} Pkt`; },
+      onCommit: (n, isChange) => {
+        updateConfig('BESTPREISE_MIN_POINTS', n);
+        if (isChange) showToast(`Mindestanzahl Datenpunkte in der Preishistorie: ${n} (≈ Tage)`);
+      }
+    }
+  });
 }
 
 function buildHorizonWrapper() {
   const cur = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-horizon-wrapper';
-  wrapper.title = 'Ø-Zeitraum für den Median (ändert auch die Modal-Einstellung).';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Ø-Zeitraum</span>
-    <span class="tp-weight-label" id="tp-bar-horizon-label" title="${horizonText(cur, 'title')}">${horizonText(cur)}</span>
-    <input type="range" id="tp-bar-horizon-range" min="30" max="760" step="30" value="${horizonStoredToUi(cur)}" title="${horizonText(cur, 'title')}">`;
-  bindHorizonControls(wrapper);
-  return wrapper;
+  const readHorizon = range => horizonUiToStored(parseInt(range.value, 10));
+  return createSliderWrapper({
+    id: 'tp-bar-horizon-wrapper',
+    extraClass: 'tp-deals-sep',
+    title: 'Ø-Zeitraum für den Median (ändert auch die Modal-Einstellung).',
+    labelText: 'Ø-Zeitraum',
+    labelId: '#tp-bar-horizon-label',
+    rangeId: '#tp-bar-horizon-range',
+    min: 30, max: 760, step: 30, value: horizonStoredToUi(cur),
+    rangeTitle: horizonText(cur, 'title'),
+    sliderConfig: {
+      read: readHorizon,
+      paint: (lbl, v) => {
+        lbl.textContent = horizonText(v);
+        lbl.title = horizonText(v, 'title');
+      },
+      focus: 'window',
+      onCommit: (v, isChange) => {
+        recomputeCachedMedians(v);
+        updateConfig('BESTPREISE_MEDIAN_HORIZON_DAYS', v);
+        if (isChange) showToast(`Ø-Vergleichszeitraum: ${horizonText(v)} — live aktualisiert`);
+      }
+    }
+  });
 }
 
 function bindOutlierControls(wrapper) {
@@ -191,100 +172,62 @@ export function paintOutlierDim() {
   }
 }
 
-function bindOutlierBandControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-outlier-band-range');
-  const label = wrapper.querySelector('#tp-bar-outlier-band-label');
-  if (!range) return;
-  const readBandPct = () => {
+function buildOutlierBandWrapper() {
+  const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 50;
+  const readBandPct = range => {
     const raw = parseInt(range.value, 10);
     return isNaN(raw) ? 50 : Math.min(50, Math.max(1, raw));
   };
-  const paintBandLabel = () => { if (label) label.textContent = `±${readBandPct()} %`; };
-  paintBandLabel();
-  let deb;
-  range.oninput = () => {
-    paintBandLabel();
-    pokePreviewFocus('band');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      const pct = readBandPct();
-      updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
-      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      triggerProcessListings();
-    }, 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const pct = readBandPct();
-    paintBandLabel();
-    updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
-    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    triggerProcessListings();
-    showToast(`Ausreisser-Band: ±${pct} % — live aktualisiert`);
-  };
-}
-
-function buildOutlierBandWrapper() {
-  const cur = typeof CONFIG.OUTLIER_DEVIATION_BAND === 'number' ? Math.round(CONFIG.OUTLIER_DEVIATION_BAND * 100) : 50;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-outlier-band-wrapper';
-  wrapper.title = 'Glitch-Band: Abweichung ab der gefiltert wird';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Glitch-Band</span>
-    <span class="tp-weight-label" id="tp-bar-outlier-band-label">±${cur} %</span>
-    <input type="range" id="tp-bar-outlier-band-range" min="1" max="50" step="1" value="${cur}" title="Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.">`;
-  bindOutlierBandControls(wrapper);
-  return wrapper;
-}
-
-function bindOutlierHoursControls(wrapper) {
-  if (!wrapper) return;
-  const range = wrapper.querySelector('#tp-bar-outlier-hours-range');
-  const label = wrapper.querySelector('#tp-bar-outlier-hours-label');
-  if (!range) return;
-  const readHours = () => {
-    const raw = parseInt(range.value, 10);
-    return isNaN(raw) ? 48 : Math.min(168, Math.max(24, raw));
-  };
-  const paintHoursLabel = () => { if (label) label.textContent = `${readHours()} h`; };
-  paintHoursLabel();
-  let deb;
-  range.oninput = () => {
-    paintHoursLabel();
-    pokePreviewFocus('band');
-    clearTimeout(deb);
-    deb = setTimeout(() => {
-      const hrs = readHours();
-      updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
-      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-      triggerProcessListings();
-    }, 175);
-  };
-  range.onchange = () => {
-    clearTimeout(deb);
-    const hrs = readHours();
-    paintHoursLabel();
-    updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
-    recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
-    triggerProcessListings();
-    showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
-  };
+  return createSliderWrapper({
+    id: 'tp-bar-outlier-band-wrapper',
+    extraClass: 'tp-deals-sep',
+    title: 'Glitch-Band: Abweichung ab der gefiltert wird',
+    labelText: 'Glitch-Band',
+    labelId: '#tp-bar-outlier-band-label',
+    rangeId: '#tp-bar-outlier-band-range',
+    min: 1, max: 50, step: 1, value: cur,
+    rangeTitle: 'Abweichung vom Median, ab der ein kurzer Sprung als Glitch gilt.',
+    sliderConfig: {
+      read: readBandPct,
+      paint: (lbl, pct) => { lbl.textContent = `±${pct} %`; },
+      focus: 'band',
+      onCommit: (pct, isChange) => {
+        updateConfig('OUTLIER_DEVIATION_BAND', pct / 100, { skipRender: true });
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+        triggerProcessListings();
+        if (isChange) showToast(`Ausreisser-Band: ±${pct} % — live aktualisiert`);
+      }
+    }
+  });
 }
 
 function buildOutlierHoursWrapper() {
   const cur = typeof CONFIG.OUTLIER_MAX_GLITCH_HOURS === 'number' ? CONFIG.OUTLIER_MAX_GLITCH_HOURS : 48;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'tp-threshold-wrapper tp-deals-sep';
-  wrapper.id = 'tp-bar-outlier-hours-wrapper';
-  wrapper.title = 'Glitch-Fenster: maximale Dauer eines Glitches';
-  wrapper.innerHTML = `
-    <span class="tp-stepper-label">Glitch-Fenster</span>
-    <span class="tp-weight-label" id="tp-bar-outlier-hours-label">${cur} h</span>
-    <input type="range" id="tp-bar-outlier-hours-range" min="24" max="168" step="24" value="${cur}" title="Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.">`;
-  bindOutlierHoursControls(wrapper);
-  return wrapper;
+  const readHours = range => {
+    const raw = parseInt(range.value, 10);
+    return isNaN(raw) ? 48 : Math.min(168, Math.max(24, raw));
+  };
+  return createSliderWrapper({
+    id: 'tp-bar-outlier-hours-wrapper',
+    extraClass: 'tp-deals-sep',
+    title: 'Glitch-Fenster: maximale Dauer eines Glitches',
+    labelText: 'Glitch-Fenster',
+    labelId: '#tp-bar-outlier-hours-label',
+    rangeId: '#tp-bar-outlier-hours-range',
+    min: 24, max: 168, step: 24, value: cur,
+    rangeTitle: 'Maximale Dauer eines Preissprungs, der noch als Glitch verworfen wird.',
+    sliderConfig: {
+      read: readHours,
+      paint: (lbl, hrs) => { lbl.textContent = `${hrs} h`; },
+      focus: 'band',
+      onCommit: (hrs, isChange) => {
+        updateConfig('OUTLIER_MAX_GLITCH_HOURS', hrs, { skipRender: true });
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+        triggerProcessListings();
+        if (isChange) showToast(`Glitch-Fenster: ${hrs} h — live aktualisiert`);
+      }
+    }
+  });
 }
 
 export function buildCalcControls(popover, resetBtn) {
