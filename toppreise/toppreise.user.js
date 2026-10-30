@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.420
+// @version      2.18.421
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5539,22 +5539,16 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
-  // ─── MODULE: src/features/category-tree.js ──────────────────────────────────
+  // ─── MODULE: src/features/category-tree-model.js ────────────────────────────
   /**
-   * Category Tree & Sidebar Expansion Feature
-   * Loads native category hierarchy (c_cm_data_de / /plugins/category/categorymenu),
-   * provides in-sidebar fan-out (▸/▾) for #Plugin_CategoryMainSelectionLeft,
-   * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
+   * Category Tree Model & Pure Data Layer
+   * Handles storage keys, entity decoding, category hierarchy indexing,
+   * virtual tree navigation, URL transforms, search filtering and token extraction.
    */
-
 
 
   const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
   const EXPANDED_STORAGE_KEY = 'tp_cat_expanded_branches';
-
-  // Memory cache for the indexed category tree
-  let treeIndex = null;
-  let treeLoadingPromise = null;
 
   function getStoredIdents() {
     try {
@@ -5678,68 +5672,6 @@ const SHADOW_MODAL_STYLES = `
     return { byId, childrenOf, allNodes };
   }
 
-  async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
-    if (treeIndex) return treeIndex;
-    if (treeLoadingPromise) return treeLoadingPromise;
-
-    treeLoadingPromise = (async () => {
-      try {
-        const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
-        const lang = menuEl?.getAttribute('data-lang') || 'de';
-        const hash = menuEl?.getAttribute('data-hash') || '';
-
-        // Check native Toppreise localStorage cache
-        const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
-        const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
-        if (cachedDataRaw && (!hash || cachedHash === hash)) {
-          try {
-            const parsed = JSON.parse(cachedDataRaw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              treeIndex = indexCategoryData(parsed);
-              return treeIndex;
-            }
-          } catch {}
-        }
-
-        // Fetch from native endpoint if element exists
-        if (menuEl && typeof fetch === 'function') {
-          const ajaxUrl = menuEl.getAttribute('data-ajax-url') || '/plugins/category/categorymenu';
-          const contextHash = menuEl.getAttribute('data-context-hash') || '';
-          const body = new URLSearchParams({
-            c_cm_ch: contextHash,
-            c_cm_la: lang,
-            lang
-          });
-          const resp = await fetch(ajaxUrl, {
-            method: 'POST',
-            headers: {
-              'X-Requested-With': 'XMLHttpRequest',
-              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-            },
-            body: body.toString()
-          });
-          if (resp.ok) {
-            const json = await resp.json();
-            if (json?.categories) {
-              try {
-                localStorage.setItem(`c_cm_data_${lang}`, JSON.stringify(json.categories));
-                if (json.hash) localStorage.setItem(`c_cm_hash_${lang}`, json.hash);
-              } catch {}
-              treeIndex = indexCategoryData(json.categories);
-              return treeIndex;
-            }
-          }
-        }
-      } catch (err) {
-        // Graceful fallback: return empty index
-      }
-      treeIndex = indexCategoryData([]);
-      return treeIndex;
-    })();
-
-    return treeLoadingPromise;
-  }
-
   function hasIgnoredAncestor(node, tree, ignoredIds) {
     if (!node || !tree?.byId || !ignoredIds) return false;
     const ignoredSet = (ignoredIds instanceof Set) ? ignoredIds : new Set(ignoredIds);
@@ -5814,26 +5746,6 @@ const SHADOW_MODAL_STYLES = `
     return map;
   }
 
-  async function hydrateBranchIdents(feedUrl, branchEl) {
-    if (!feedUrl || typeof fetch !== 'function') return;
-    try {
-      const resp = await fetch(feedUrl, { credentials: 'same-origin' });
-      if (!resp.ok) return;
-      const html = await resp.text();
-      const stored = parseCategoryIdentsFromText(html);
-
-      // Update rendered spans in this branch if present
-      if (branchEl) {
-        branchEl.querySelectorAll?.('.ignoreCategory[data-vcat-id]').forEach(span => {
-          const vcatId = span.getAttribute('data-vcat-id');
-          if (vcatId && stored[vcatId] && !span.getAttribute('data-ident')) {
-            span.setAttribute('data-ident', stored[vcatId]);
-          }
-        });
-      }
-    } catch {}
-  }
-
   function harvestExistingIdents(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
     const doc = sidebar?.ownerDocument || (typeof document !== 'undefined' ? document : null);
     const searchRoot = doc?.querySelectorAll ? doc : (sidebar?.querySelectorAll ? sidebar : null);
@@ -5880,6 +5792,269 @@ const SHADOW_MODAL_STYLES = `
     if (typeof globalThis !== 'undefined' && globalThis.document) return globalThis.document;
     return null;
   }
+
+  // Memory cache for the indexed category tree
+  let treeIndex = null;
+  let treeLoadingPromise = null;
+
+  async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
+    if (treeIndex) return treeIndex;
+    if (treeLoadingPromise) return treeLoadingPromise;
+
+    treeLoadingPromise = (async () => {
+      try {
+        const menuEl = doc?.querySelector?.('.Plugin_CategoryMenu');
+        const lang = menuEl?.getAttribute('data-lang') || 'de';
+        const hash = menuEl?.getAttribute('data-hash') || '';
+
+        // Check native Toppreise localStorage cache
+        const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
+        const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
+        if (cachedDataRaw && (!hash || cachedHash === hash)) {
+          try {
+            const parsed = JSON.parse(cachedDataRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              treeIndex = indexCategoryData(parsed);
+              return treeIndex;
+            }
+          } catch {}
+        }
+
+        // Fetch from native endpoint if element exists
+        if (menuEl && typeof fetch === 'function') {
+          const ajaxUrl = menuEl.getAttribute('data-ajax-url') || '/plugins/category/categorymenu';
+          const contextHash = menuEl.getAttribute('data-context-hash') || '';
+          const body = new URLSearchParams({
+            c_cm_ch: contextHash,
+            c_cm_la: lang,
+            lang
+          });
+          const resp = await fetch(ajaxUrl, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: body.toString()
+          });
+          if (resp.ok) {
+            const json = await resp.json();
+            if (json?.categories) {
+              try {
+                localStorage.setItem(`c_cm_data_${lang}`, JSON.stringify(json.categories));
+                if (json.hash) localStorage.setItem(`c_cm_hash_${lang}`, json.hash);
+              } catch {}
+              treeIndex = indexCategoryData(json.categories);
+              return treeIndex;
+            }
+          }
+        }
+      } catch (err) {
+        // Graceful fallback: return empty index
+      }
+      treeIndex = indexCategoryData([]);
+      return treeIndex;
+    })();
+
+    return treeLoadingPromise;
+  }
+
+  async function hydrateBranchIdents(feedUrl, branchEl) {
+    if (!feedUrl || typeof fetch !== 'function') return;
+    try {
+      const resp = await fetch(feedUrl, { credentials: 'same-origin' });
+      if (!resp.ok) return;
+      const html = await resp.text();
+      const stored = parseCategoryIdentsFromText(html);
+
+      if (branchEl) {
+        branchEl.querySelectorAll?.('.ignoreCategory[data-vcat-id]').forEach(span => {
+          const vcatId = span.getAttribute('data-vcat-id');
+          if (vcatId && stored[vcatId] && !span.getAttribute('data-ident')) {
+            span.setAttribute('data-ident', stored[vcatId]);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null) {
+    if (!item) return '';
+    const vcatId = String(item.numericId || item.vcatId || '').trim();
+    if (!vcatId) return '';
+    if (item.ident) return item.ident;
+
+    const stored = getStoredIdents();
+    if (stored[vcatId]) {
+      item.ident = stored[vcatId];
+      return item.ident;
+    }
+
+    const activeDoc = getDoc(doc);
+    const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${vcatId}"][data-ident]`)?.getAttribute?.('data-ident');
+    if (domToken) {
+      stored[vcatId] = domToken;
+      saveStoredIdents(stored);
+      item.ident = domToken;
+      return item.ident;
+    }
+
+    if (!tree) {
+      tree = await loadNativeCategoryTree(activeDoc);
+    }
+    if (!tree?.byId) return '';
+
+    const catId = item.id || `c${vcatId}`;
+    const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
+    if (!node) return '';
+
+    const fetchMenuIdents = async (pid) => {
+      if (!pid || typeof fetch !== 'function') return false;
+      const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+      const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
+      const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
+      const lang = menuEl?.getAttribute?.('data-lang') || 'de';
+      const contextHash = bar?.getAttribute?.('data-context-hash') ||
+                          activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
+
+      const body = new URLSearchParams({
+        aicatpr: pid,
+        fp_ic_ch: contextHash,
+        f_ic_ch: contextHash,
+        p_ic_ch: contextHash,
+        ic_ch: contextHash,
+        lang
+      });
+
+      try {
+        const resp = await fetch(ajaxUrl, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Accept': '*/*'
+          },
+          credentials: 'same-origin',
+          body: body.toString()
+        });
+        if (resp.ok) {
+          const text = await resp.text();
+          const updatedStored = parseCategoryIdentsFromText(text);
+          return !!updatedStored[vcatId];
+        }
+      } catch {}
+      return false;
+    };
+
+    const slug = node.url ? (node.url.split('/').pop()?.replace(/-c\d+$/, '') || '') : '';
+    if (slug && activeDoc?.querySelectorAll) {
+      const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${slug}/"]`);
+      if (matchingCard) {
+        const pid = matchingCard.getAttribute('data-entity-id') ||
+                    (matchingCard.getAttribute('href') || '').match(/-p(\d+)/)?.[1] || '';
+        if (pid) {
+          await fetchMenuIdents(pid);
+          const updatedStored = getStoredIdents();
+          if (updatedStored[vcatId]) {
+            item.ident = updatedStored[vcatId];
+            return item.ident;
+          }
+        }
+      }
+    }
+
+    const candidateUrls = [];
+    if (node.url) {
+      candidateUrls.push(toFeedUrl(node.url, currentPath));
+      candidateUrls.push(node.url);
+    }
+
+    if (node.parentID && tree.childrenOf?.has(node.parentID)) {
+      const siblings = tree.childrenOf.get(node.parentID) || [];
+      for (const sib of siblings) {
+        if (sib.id !== node.id && sib.url) {
+          candidateUrls.push(toFeedUrl(sib.url, currentPath));
+          break;
+        }
+      }
+    }
+
+    if (node.hasChildren && tree.childrenOf?.has(node.id)) {
+      const firstChild = tree.childrenOf.get(node.id)?.[0];
+      if (firstChild?.url) {
+        candidateUrls.push(firstChild.url);
+        candidateUrls.push(toFeedUrl(firstChild.url, currentPath));
+      }
+    }
+
+    let curr = node;
+    let depth = 0;
+    while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 10) {
+      depth++;
+      const pid = String(curr.parentID).trim();
+      const parentNode = tree.byId.get(pid) ||
+                         tree.byId.get(`c${pid}`) ||
+                         tree.byId.get(pid.replace(/^c/i, ''));
+      if (parentNode?.url) {
+        candidateUrls.push(toFeedUrl(parentNode.url, currentPath));
+        candidateUrls.push(parentNode.url);
+      }
+      curr = parentNode;
+    }
+
+    if (candidateUrls.length === 0) {
+      candidateUrls.push(currentPath || '/neue-toppreise');
+    }
+
+    const origin = (typeof location !== 'undefined' && location.origin && /^https?:/.test(location.origin))
+      ? location.origin
+      : 'https://www.toppreise.ch';
+
+    for (const targetUrl of candidateUrls) {
+      if (!targetUrl || typeof fetch !== 'function') continue;
+      try {
+        const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+        const resp = await fetch(fullUrl, {
+          credentials: 'same-origin',
+          headers: {
+            'Accept': 'text/html, */*'
+          }
+        });
+        if (resp.ok) {
+          const text = await resp.text();
+          const updatedStored = parseCategoryIdentsFromText(text);
+          if (updatedStored[vcatId]) {
+            item.ident = updatedStored[vcatId];
+            return item.ident;
+          }
+
+          const pidMatch = text.match(/(?:data-entity-id="(\d+)"|href="[^"]*?-p(\d+)")/);
+          const discoveredPid = pidMatch ? (pidMatch[1] || pidMatch[2]) : '';
+          if (discoveredPid) {
+            await fetchMenuIdents(discoveredPid);
+            const finalStored = getStoredIdents();
+            if (finalStored[vcatId]) {
+              item.ident = finalStored[vcatId];
+              return item.ident;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    return item.ident || '';
+  }
+
+  // ─── MODULE: src/features/category-tree.js ──────────────────────────────────
+  /**
+   * Category Tree & Sidebar Expansion Feature
+   * Loads native category hierarchy (c_cm_data_de / /plugins/category/categorymenu),
+   * provides in-sidebar fan-out (▸/▾) for #Plugin_CategoryMainSelectionLeft,
+   * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
+   */
+
+
+
 
   function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) {
     if (!html || !bar) return;
@@ -5939,245 +6114,7 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  async function ensureCategoryIdent(item, tree = null, currentPath = '', doc = null) {
-    if (!item) return '';
-    const vcatId = String(item.numericId || item.vcatId || '').trim();
-    if (!vcatId) return '';
-    if (item.ident) return item.ident;
-
-    const stored = getStoredIdents();
-    if (stored[vcatId]) {
-      item.ident = stored[vcatId];
-      return item.ident;
-    }
-
-    const activeDoc = getDoc(doc);
-    // Check active DOM first (chips, sidebar triggers, open menus)
-    const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${vcatId}"][data-ident]`)?.getAttribute?.('data-ident');
-    if (domToken) {
-      stored[vcatId] = domToken;
-      saveStoredIdents(stored);
-      item.ident = domToken;
-      return item.ident;
-    }
-
-    if (!tree) {
-      tree = await loadNativeCategoryTree(activeDoc);
-    }
-    if (!tree?.byId) return '';
-
-    const catId = item.id || `c${vcatId}`;
-    const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
-    if (!node) return '';
-
-    // Helper to query /plugins/filter/IgnoredCategories with product ID (aicatpr)
-    const fetchMenuIdents = async (pid) => {
-      if (!pid || typeof fetch !== 'function') return false;
-      const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-      const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-      const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-      const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-      const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                          activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
-
-      const body = new URLSearchParams({
-        aicatpr: pid,
-        fp_ic_ch: contextHash,
-        f_ic_ch: contextHash,
-        p_ic_ch: contextHash,
-        ic_ch: contextHash,
-        lang
-      });
-
-      try {
-        const resp = await fetch(ajaxUrl, {
-          method: 'POST',
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Accept': '*/*'
-          },
-          credentials: 'same-origin',
-          body: body.toString()
-        });
-        if (resp.ok) {
-          const text = await resp.text();
-          const updatedStored = parseCategoryIdentsFromText(text);
-          return !!updatedStored[vcatId];
-        }
-      } catch {}
-      return false;
-    };
-
-    // 1. Check in-page cards for matching category slug
-    const slug = node.url ? (node.url.split('/').pop()?.replace(/-c\d+$/, '') || '') : '';
-    if (slug && activeDoc?.querySelectorAll) {
-      const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${slug}/"]`);
-      if (matchingCard) {
-        const pid = matchingCard.getAttribute('data-entity-id') ||
-                    (matchingCard.getAttribute('href') || '').match(/-p(\d+)/)?.[1] || '';
-        if (pid) {
-          await fetchMenuIdents(pid);
-          const updatedStored = getStoredIdents();
-          if (updatedStored[vcatId]) {
-            item.ident = updatedStored[vcatId];
-            return item.ident;
-          }
-        }
-      }
-    }
-
-    // 2. Candidate URLs (catalog, feeds, siblings and ancestors)
-    const candidateUrls = [];
-    if (node.url) {
-      candidateUrls.push(toFeedUrl(node.url, currentPath));
-      candidateUrls.push(node.url);
-    }
-
-    // Sibling feed URL: on any sibling's feed page, Toppreise renders node's ident in sidebar
-    if (node.parentID && tree.childrenOf?.has(node.parentID)) {
-      const siblings = tree.childrenOf.get(node.parentID) || [];
-      for (const sib of siblings) {
-        if (sib.id !== node.id && sib.url) {
-          candidateUrls.push(toFeedUrl(sib.url, currentPath));
-          break;
-        }
-      }
-    }
-
-    // First child URL if intermediate node
-    if (node.hasChildren && tree.childrenOf?.has(node.id)) {
-      const firstChild = tree.childrenOf.get(node.id)?.[0];
-      if (firstChild?.url) {
-        candidateUrls.push(firstChild.url);
-        candidateUrls.push(toFeedUrl(firstChild.url, currentPath));
-      }
-    }
-
-    let curr = node;
-    let depth = 0;
-    while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 10) {
-      depth++;
-      const pid = String(curr.parentID).trim();
-      const parentNode = tree.byId.get(pid) ||
-                         tree.byId.get(`c${pid}`) ||
-                         tree.byId.get(pid.replace(/^c/i, ''));
-      if (parentNode?.url) {
-        candidateUrls.push(toFeedUrl(parentNode.url, currentPath));
-        candidateUrls.push(parentNode.url);
-      }
-      curr = parentNode;
-    }
-
-    if (candidateUrls.length === 0) {
-      candidateUrls.push(currentPath || '/neue-toppreise');
-    }
-
-    const origin = (typeof location !== 'undefined' && location.origin && /^https?:/.test(location.origin))
-      ? location.origin
-      : 'https://www.toppreise.ch';
-
-    for (const targetUrl of candidateUrls) {
-      if (!targetUrl || typeof fetch !== 'function') continue;
-      try {
-        const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
-        // Note: Do NOT send 'X-Requested-With' on full page GETs - Toppreise returns 403 Forbidden
-        const resp = await fetch(fullUrl, {
-          credentials: 'same-origin',
-          headers: {
-            'Accept': 'text/html, */*'
-          }
-        });
-        if (resp.ok) {
-          const text = await resp.text();
-          const updatedStored = parseCategoryIdentsFromText(text);
-          if (updatedStored[vcatId]) {
-            item.ident = updatedStored[vcatId];
-            return item.ident;
-          }
-
-          // Extract a product PID from the page
-          const pidMatch = text.match(/(?:data-entity-id="(\d+)"|href="[^"]*?-p(\d+)")/);
-          const discoveredPid = pidMatch ? (pidMatch[1] || pidMatch[2]) : '';
-          if (discoveredPid) {
-            await fetchMenuIdents(discoveredPid);
-            const finalStored = getStoredIdents();
-            if (finalStored[vcatId]) {
-              item.ident = finalStored[vcatId];
-              return item.ident;
-            }
-          }
-        }
-      } catch {}
-    }
-
-    return item.ident || '';
-  }
-
-  async function executeServerCategoryExclusion(vcatId, initialIdent = '', doc = (typeof document !== 'undefined' ? document : null)) {
-    if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
-
-    const activeDoc = getDoc(doc);
-    const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
-    const ajaxUrl = bar?.getAttribute?.('data-ajax-url') || '/plugins/filter/IgnoredCategories';
-    const menuEl = activeDoc?.querySelector?.('.Plugin_CategoryMenu');
-    const lang = menuEl?.getAttribute?.('data-lang') || 'de';
-    const contextHash = bar?.getAttribute?.('data-context-hash') ||
-                        activeDoc?.querySelector?.('[data-context-hash]')?.getAttribute?.('data-context-hash') || '';
-
-    if (typeof fetch !== 'function' || !ajaxUrl) return false;
-
-    const currentPath = typeof location !== 'undefined' ? location.pathname : '';
-    let ident = initialIdent || getStoredIdents()[vcatId] || '';
-    if (!ident) {
-      const tree = await loadNativeCategoryTree(activeDoc);
-      ident = await ensureCategoryIdent({ numericId: vcatId, vcatId, ident }, tree, currentPath, activeDoc);
-    }
-
-    if (!ident) {
-      console.info('[Toppreise-Suite] aicat token unavailable on server for category', vcatId);
-      showToast('Kategorie-Token konnte nicht geladen werden');
-      return false;
-    }
-
-    const body = new URLSearchParams({
-      lang,
-      aicat: ident,
-      aicatvc: vcatId,
-      fp_ic_ch: contextHash
-    });
-
-    try {
-      const resp = await fetch(ajaxUrl, {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-        },
-        credentials: 'same-origin',
-        body: body.toString()
-      });
-      if (resp.ok) {
-        const html = await resp.text();
-        const match = html.match(/data-context-hash="([^"]+)"/);
-        if (match && match[1] && bar) {
-          bar.setAttribute('data-context-hash', match[1]);
-        }
-        if (html.includes('Plugin_IgnoredCategories') || html.includes('ignoredCategoriesBar') || html.includes('ignoredCategory')) {
-          updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
-        }
-        await refreshProductFeed(activeDoc);
-        return true;
-      } else {
-        return false;
-      }
-    } catch (err) {
-      console.error('[Toppreise-Suite] Category exclusion error:', err);
-      return false;
-    }
-  }
-
-  async function executeServerCategoryRestore(vcatId, initialIdent = '', doc = (typeof document !== 'undefined' ? document : null)) {
+  async function executeServerCategoryToggle(vcatId, initialIdent = '', doc = null, isRestore = false) {
     if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
 
     const activeDoc = getDoc(doc);
@@ -6192,7 +6129,7 @@ const SHADOW_MODAL_STYLES = `
 
     const currentPath = typeof location !== 'undefined' ? location.pathname : '';
     let ident = initialIdent ||
-                activeDoc?.querySelector?.(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`)?.getAttribute?.('data-ident') ||
+                (isRestore ? activeDoc?.querySelector?.(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`)?.getAttribute?.('data-ident') : '') ||
                 getStoredIdents()[vcatId] || '';
 
     if (!ident) {
@@ -6201,7 +6138,7 @@ const SHADOW_MODAL_STYLES = `
     }
 
     if (!ident) {
-      console.info('[Toppreise-Suite] aicat token unavailable on server for restoring category', vcatId);
+      console.info(`[Toppreise-Suite] aicat token unavailable on server for ${isRestore ? 'restoring ' : ''}category`, vcatId);
       showToast('Kategorie-Token konnte nicht geladen werden');
       return false;
     }
@@ -6213,6 +6150,10 @@ const SHADOW_MODAL_STYLES = `
       fp_ic_ch: contextHash
     });
 
+    return postCategoryAction(ajaxUrl, body, bar, activeDoc, `Category ${isRestore ? 'restore' : 'exclusion'}`);
+  }
+
+  async function postCategoryAction(ajaxUrl, body, bar, activeDoc, contextName) {
     try {
       const resp = await fetch(ajaxUrl, {
         method: 'POST',
@@ -6237,9 +6178,17 @@ const SHADOW_MODAL_STYLES = `
       }
       return false;
     } catch (err) {
-      console.error('[Toppreise-Suite] Category restore error:', err);
+      console.error(`[Toppreise-Suite] ${contextName} error:`, err);
       return false;
     }
+  }
+
+  function executeServerCategoryExclusion(vcatId, initialIdent = '', doc = (typeof document !== 'undefined' ? document : null)) {
+    return executeServerCategoryToggle(vcatId, initialIdent, doc, false);
+  }
+
+  function executeServerCategoryRestore(vcatId, initialIdent = '', doc = (typeof document !== 'undefined' ? document : null)) {
+    return executeServerCategoryToggle(vcatId, initialIdent, doc, true);
   }
 
   async function executeServerCategoryReset(doc = (typeof document !== 'undefined' ? document : null)) {
@@ -6266,33 +6215,7 @@ const SHADOW_MODAL_STYLES = `
       lang
     });
 
-    try {
-      const resp = await fetch(ajaxUrl, {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-        },
-        credentials: 'same-origin',
-        body: body.toString()
-      });
-      if (resp.ok) {
-        const html = await resp.text();
-        const match = html.match(/data-context-hash="([^"]+)"/);
-        if (match && match[1] && bar) {
-          bar.setAttribute('data-context-hash', match[1]);
-        }
-        if (html.includes('Plugin_IgnoredCategories') || html.includes('ignoredCategoriesBar') || html.includes('ignoreCategoryHint')) {
-          updateIgnoredCategoriesBarWithServerHtml(html, bar, activeDoc);
-        }
-        await refreshProductFeed(activeDoc);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.error('[Toppreise-Suite] Category reset error:', err);
-      return false;
-    }
+    return postCategoryAction(ajaxUrl, body, bar, activeDoc, 'Category reset');
   }
 
   function syncSearchResultsIgnoredState(resultsBox, doc = null) {
@@ -6379,6 +6302,28 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  function bindTreeBranchToggle(toggle, catId, li, currentPath, expandedBranches, hydrateUrl = null) {
+    toggle.onclick = async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const tree = await loadNativeCategoryTree();
+      const children = tree.childrenOf.get(catId) || [];
+      const isExp = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!isExp));
+      toggle.textContent = isExp ? '▸' : '▾';
+      if (isExp) {
+        expandedBranches.delete(catId);
+        saveExpandedBranches(expandedBranches);
+        li.querySelector(':scope > .tp-cat-sublist')?.remove();
+      } else {
+        expandedBranches.add(catId);
+        saveExpandedBranches(expandedBranches);
+        renderChildList(children, li, currentPath, expandedBranches);
+        if (hydrateUrl) hydrateBranchIdents(hydrateUrl, li);
+      }
+    };
+  }
+
   function renderChildList(children, parentEl, currentPath, expandedBranches) {
     let sublist = parentEl.querySelector(':scope > .tp-cat-sublist');
     if (sublist) {
@@ -6419,25 +6364,7 @@ const SHADOW_MODAL_STYLES = `
           toggle.disabled = true;
           toggle.setAttribute('aria-disabled', 'true');
         }
-        toggle.onclick = async e => {
-          e.preventDefault();
-          e.stopPropagation();
-          const tree = await loadNativeCategoryTree();
-          const subChildren = tree.childrenOf.get(child.id) || [];
-          const isExp = toggle.getAttribute('aria-expanded') === 'true';
-          toggle.setAttribute('aria-expanded', String(!isExp));
-          toggle.textContent = isExp ? '▸' : '▾';
-          if (isExp) {
-            expandedBranches.delete(child.id);
-            saveExpandedBranches(expandedBranches);
-            li.querySelector(':scope > .tp-cat-sublist')?.remove();
-          } else {
-            expandedBranches.add(child.id);
-            saveExpandedBranches(expandedBranches);
-            renderChildList(subChildren, li, currentPath, expandedBranches);
-            hydrateBranchIdents(feedUrl, li);
-          }
-        };
+        bindTreeBranchToggle(toggle, child.id, li, currentPath, expandedBranches, feedUrl);
         row.appendChild(toggle);
       } else {
         const spacer = document.createElement('span');
@@ -6663,25 +6590,7 @@ const SHADOW_MODAL_STYLES = `
       toggle.textContent = '▸';
       toggle.title = 'Unterkategorien anzeigen';
 
-      toggle.onclick = async e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const tree = await loadNativeCategoryTree();
-        const children = tree.childrenOf.get(catId) || [];
-        const isExp = toggle.getAttribute('aria-expanded') === 'true';
-        toggle.setAttribute('aria-expanded', String(!isExp));
-        toggle.textContent = isExp ? '▸' : '▾';
-        if (isExp) {
-          expandedBranches.delete(catId);
-          saveExpandedBranches(expandedBranches);
-          li.querySelector(':scope > .tp-cat-sublist')?.remove();
-        } else {
-          expandedBranches.add(catId);
-          saveExpandedBranches(expandedBranches);
-          renderChildList(children, li, currentPath, expandedBranches);
-          hydrateBranchIdents(link.href || href, li);
-        }
-      };
+      bindTreeBranchToggle(toggle, catId, li, currentPath, expandedBranches, link.href || href);
 
       if (isCategoryIgnored(li)) {
         toggle.disabled = true;
@@ -6722,12 +6631,13 @@ const SHADOW_MODAL_STYLES = `
       const isLiveSite = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
 
       document.body.addEventListener('click', async e => {
-        const hideBtn = e.target?.closest?.('.f_IgnoredCategories_Hide');
-        if (hideBtn) {
-          const vcatId = hideBtn.getAttribute?.('data-vcat-id');
+        const toggleBtn = e.target?.closest?.('.f_IgnoredCategories_Hide, .f_IgnoredCategories_Show');
+        if (toggleBtn) {
+          const isShow = toggleBtn.classList.contains('f_IgnoredCategories_Show');
+          const vcatId = toggleBtn.getAttribute?.('data-vcat-id');
           if (!vcatId) return;
 
-          const isSubOrSearch = !!hideBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
+          const isSubOrSearch = !!toggleBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
           if (isLiveSite && isSubOrSearch) {
             e.preventDefault?.();
             e.stopPropagation?.();
@@ -6735,40 +6645,13 @@ const SHADOW_MODAL_STYLES = `
           }
 
           const cleanVcatId = String(vcatId).trim();
-          const ident = hideBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
-          const rowEl = hideBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || hideBtn;
+          const ident = toggleBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
+          const rowEl = toggleBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || toggleBtn;
 
           if (isLiveSite && isSubOrSearch) {
             rowEl.classList?.add?.('tp-cat-loading');
             try {
-              await executeServerCategoryExclusion(cleanVcatId, ident, document);
-            } finally {
-              rowEl.classList?.remove?.('tp-cat-loading');
-            }
-          }
-          return;
-        }
-
-        const showBtn = e.target?.closest?.('.f_IgnoredCategories_Show');
-        if (showBtn) {
-          const vcatId = showBtn.getAttribute?.('data-vcat-id');
-          if (!vcatId) return;
-
-          const isSubOrSearch = !!showBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
-          if (isLiveSite && isSubOrSearch) {
-            e.preventDefault?.();
-            e.stopPropagation?.();
-            e.stopImmediatePropagation?.();
-          }
-
-          const cleanVcatId = String(vcatId).trim();
-          const ident = showBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
-          const rowEl = showBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || showBtn;
-
-          if (isLiveSite && isSubOrSearch) {
-            rowEl.classList?.add?.('tp-cat-loading');
-            try {
-              await executeServerCategoryRestore(cleanVcatId, ident, document);
+              await executeServerCategoryToggle(cleanVcatId, ident, document, isShow);
             } finally {
               rowEl.classList?.remove?.('tp-cat-loading');
             }
@@ -14181,7 +14064,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.420';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.421';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

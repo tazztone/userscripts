@@ -26,9 +26,10 @@ function stripModuleSyntax(code) {
     .replace(/^import\s+[^;]+;\s*$/gm, '')
     // Replace export function / export const / export let / export var / export class / export async function
     .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s+/gm, '$1$2 ')
-    // Remove export default / export { ... }
+    // Remove export default / export { ... } / export * from ...
     .replace(/^export\s+default\s+[^;]+;\s*$/gm, '')
-    .replace(/^export\s*\{[^}]*\}\s*;?\s*$/gm, '')
+    .replace(/^export\s*\{[^}]*\}\s*(from\s+[^;]+)?;\s*$/gm, '')
+    .replace(/^export\s*\*\s*from\s+[^;]+;\s*$/gm, '')
     .trim();
 }
 
@@ -53,6 +54,7 @@ export function buildBundle() {
     'page/adapter.js',
     'page/cards.js',
     'page/product-offers.js',
+    'features/category-tree-model.js',
     'features/category-tree.js',
     'ui/sparkline.js',
     'features/discord-recipe.js',
