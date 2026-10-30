@@ -1,7 +1,34 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { setTextIfChanged, renderEmptyState } from '../../src/ui/badges.js';
+import { setTextIfChanged, setHtmlIfChanged, renderEmptyState } from '../../src/ui/badges.js';
 describe('Badges helpers', () => {
+  describe('setHtmlIfChanged', () => {
+    it('sets html when different', () => {
+      const el = { innerHTML: 'old' };
+      setHtmlIfChanged(el, '<span>new</span>');
+      assert.equal(el.innerHTML, '<span>new</span>');
+      assert.equal(el._tpLastHtml, '<span>new</span>');
+    });
+
+    it('skips innerHTML read and write when cached html is identical', () => {
+      let reads = 0;
+      let writes = 0;
+      const el = { _tpLastHtml: '<span>same</span>' };
+      Object.defineProperty(el, 'innerHTML', {
+        get: () => { reads++; return '<span>same</span>'; },
+        set: () => { writes++; },
+        configurable: true
+      });
+      setHtmlIfChanged(el, '<span>same</span>');
+      assert.equal(reads, 0);
+      assert.equal(writes, 0);
+    });
+
+    it('ignores null element', () => {
+      assert.equal(setHtmlIfChanged(null, '<span>x</span>'), undefined);
+    });
+  });
+
   describe('setTextIfChanged', () => {
     it('sets text when different', () => {
       const el = { textContent: 'old' };

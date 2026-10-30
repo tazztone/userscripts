@@ -4,9 +4,12 @@
  */
 
 export function setHtmlIfChanged(el, newHtml) {
-  if (el && el.innerHTML !== newHtml) {
+  if (!el) return;
+  if (el._tpLastHtml === newHtml) return;
+  if (el.innerHTML !== newHtml) {
     el.innerHTML = newHtml;
   }
+  el._tpLastHtml = newHtml;
 }
 
 export function setTextIfChanged(el, newText) {
