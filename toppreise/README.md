@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.414)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.415)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -124,7 +124,8 @@ Requires a userscript manager browser extension:
 
 ### 🔔 Price Alarm Auto-Filler
 
-* **Instant Prefill:** Clicking Toppreise's price alarm bell automatically populates target price (`5%–99%`, default `60%`) and duration (`3`, `6`, `12`, or `24` months), with full support for Swiss currency formats (`CHF 1'299.–`).
+* **Instant Prefill:** Clicking Toppreise's price alarm bell or the card-level `🔔` button on feed listings automatically populates target price (`5%–99%`, default `60%`) and duration (`3`, `6`, `12`, or `24` months), with full support for Swiss currency formats (`CHF 1'299.–`).
+* **Feed Cards Bell:** Every product card on `/neue-toppreise` and listing views reveals a `🔔` button on hover/focus next to the price, opening the alarm modal directly from the feed.
 * **Modes:** Supports **Fill-only** (default: inspect and submit manually) and **Auto-Submit** (ticks terms and submits on click, closing the dialog only after server confirmation).
 
 ### 💬 1-Click Discord Deal Sharing (`📤`)

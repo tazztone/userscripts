@@ -124,7 +124,8 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 ### 🔔 Preisalarm Auto-Filler
 
-* **Sofortiges Ausfüllen:** Klick auf Toppreises Alarm-Glocke setzt Zielpreis (`5%–99%`, Standard `60%`) und Laufzeit (`3`, `6`, `12` oder `24` Monate), passend zum Schweizer Währungsformat (`CHF 1'299.–`).
+* **Sofortiges Ausfüllen:** Klick auf Toppreises native Alarm-Glocke oder den kartenweiten `🔔`-Button im Feed setzt Zielpreis (`5%–99%`, Standard `60%`) und Laufzeit (`3`, `6`, `12` oder `24` Monate), passend zum Schweizer Währungsformat (`CHF 1'299.–`).
+* **Feed-Karten Button:** Jede Produktkarte (z.B. auf `/neue-toppreise`) zeigt bei Hover/Fokus neben dem Preis eine `🔔`-Glocke, um den Preisalarm direkt aus der Übersicht mit einem Klick zu öffnen.
 * **Modi:** **Nur Ausfüllen** (Standard: manuell prüfen und absenden) oder **Auto-Submit** (akzeptiert AGB und sendet direkt ab; schliesst erst nach bestätigter Server-Übermittlung).
 
 ### 💬 1-Klick Discord Deal-Sharing (`📤`)

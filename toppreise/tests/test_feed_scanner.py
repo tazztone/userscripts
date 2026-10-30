@@ -174,6 +174,23 @@ def test_alarm_cog_stays_single_when_site_inserts_nodes(page: Page):
     assert page.evaluate("() => document.querySelector('#mock-alarm-bell').nextElementSibling.classList.contains('tp-alarm-cog')")
     assert page.locator('#tp-test-intruder').count() == 1
 
+def test_card_alarm_bell_rendering_and_interaction(page: Page):
+    # Cards without a native bell (like feed cards) should render .tp-card-alarm-btn
+    card_btn = page.locator('#card-cheapest .tp-card-alarm-btn')
+    assert card_btn.count() == 1
+    assert '🔔' in card_btn.inner_text()
+    assert card_btn.get_attribute('data-tp-alarm-state') in ['fill', 'auto', 'off']
+
+    # Hover over card makes the button interactive (opacity > 0, pointer-events: auto)
+    page.hover('#card-cheapest')
+    assert card_btn.is_visible()
+
+    # Clicking it triggers openPriceAlarmForProduct and opens the dialog
+    card_btn.click()
+    page.wait_for_selector('#mock-alarm-dialog', state='visible')
+    assert page.locator('#mock-alarm-dialog').is_visible()
+
+
 
 def test_alarm_fill_clamps_corrupt_config(page: Page):
     # Fill-only mode: no auto-submit timers, deterministic asserts

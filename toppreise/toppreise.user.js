@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.414
+// @version      2.18.415
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -10385,12 +10385,13 @@ const SHADOW_MODAL_STYLES = `
         e.stopPropagation();
         openPriceAlarmForProduct(pid, card);
       });
-      const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
-        card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
-      if (anchor !== card) {
-        anchor.appendChild(bell);
+      const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
+      if (priceInfo) {
+        priceInfo.appendChild(bell);
       } else {
-        card.appendChild(bell);
+        const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
+        if (anchor !== card) anchor.appendChild(bell);
+        else card.appendChild(bell);
       }
     }
     refreshAlarmBellDecor();
@@ -14366,7 +14367,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.414';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.415';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

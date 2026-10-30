@@ -336,12 +336,13 @@ export function renderAlarmBell(ctx) {
       e.stopPropagation();
       openPriceAlarmForProduct(pid, card);
     });
-    const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
-      card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
-    if (anchor !== card) {
-      anchor.appendChild(bell);
+    const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
+    if (priceInfo) {
+      priceInfo.appendChild(bell);
     } else {
-      card.appendChild(bell);
+      const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
+      if (anchor !== card) anchor.appendChild(bell);
+      else card.appendChild(bell);
     }
   }
   refreshAlarmBellDecor();
