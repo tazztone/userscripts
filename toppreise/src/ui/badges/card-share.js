@@ -14,9 +14,6 @@ import { priceToCents } from '../../domain/price.js';
 import { openSharePreviewModal } from '../modal-share-preview.js';
 import {
   isDiscordWebhookUrl,
-  formatDealMessage,
-  forumRecipeFor,
-  resolveShareFields,
   withLivePrice,
   renderSparklinePng,
   postDealImageToDiscord,
@@ -27,6 +24,11 @@ import {
   discordForumFlagKey,
   fetchImageBlob
 } from '../../features/share-discord.js';
+import {
+  formatDealMessage,
+  forumRecipeFor,
+  resolveShareFields
+} from '../../features/discord-recipe.js';
 import {
   extractShareData,
   extractDealer,

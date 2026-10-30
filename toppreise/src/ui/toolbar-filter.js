@@ -3,17 +3,11 @@
  * stepper wiring, filter popover, row-count badges, dealer-row paint.
  */
 
-import { CONFIG, updateConfig, updateConfigs, FILTER_CYCLE, cycleStateOf } from '../state/config.js';
+import { CONFIG, updateConfig, updateConfigs, FILTER_CYCLE, cycleStateOf, paintCycleModeButton } from '../state/config.js';
 import { showToast } from './toast.js';
 import { setTextIfChanged } from './badges.js';
 import { paintCycleButton, syncMiniToggle } from './mini-toggle.js';
 
-const CYCLE_TITLE = {
-  off: 'Filter: Normal — klicken für Dimmen',
-  dim: 'Filter: Dimmen — klicken für Verbergen',
-  hide: 'Filter: Verbergen — klicken für Hervorheben',
-  highlight: 'Filter: Hervorheben — klicken für Normal'
-};
 const CYCLE_TOASTS = {
   FILTER_NEG_MODE: { dim: '📝 Begriffe: Dimmen', hide: '📝 Begriffe: Verbergen', highlight: '📝 Begriffe: Hervorheben', off: '📝 Begriffe: Normal' },
   FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
@@ -23,11 +17,6 @@ const CYCLE_TOASTS = {
   HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
   VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
 };
-function paintCycleModeButton(btn, modeKey) {
-  const s = cycleStateOf(modeKey);
-  paintCycleButton(btn, s);
-  btn.title = CYCLE_TITLE[s];
-}
 function cycleFilter(modeKey) {
   const pair = FILTER_CYCLE[modeKey];
   if (!pair) return;

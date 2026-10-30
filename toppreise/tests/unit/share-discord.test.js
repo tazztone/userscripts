@@ -2,6 +2,16 @@ import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isDiscordWebhookUrl,
+  withLivePrice,
+  renderSparklinePng,
+  postDealToDiscord,
+  postDealImageToDiscord,
+  buildThreadName,
+  isForumThreadError,
+  discordForumFlagKey,
+  fetchImageBlob,
+} from '../../src/features/share-discord.js';
+import {
   formatDealMessage,
   forumRecipeFor,
   renderLayout,
@@ -11,7 +21,9 @@ import {
   layoutOverLimitSuffix,
   DEFAULT_LAYOUT,
   resolveShareFields,
-  withLivePrice,
+  escapeDiscordMarkdown,
+} from '../../src/features/discord-recipe.js';
+import {
   extractShareData,
   extractDealer,
   extractDealerUrl,
@@ -21,15 +33,7 @@ import {
   parseProductOffers,
   pickCheapestOffer,
   fetchProductInfo,
-  renderSparklinePng,
-  postDealToDiscord,
-  postDealImageToDiscord,
-  buildThreadName,
-  isForumThreadError,
-  discordForumFlagKey,
-  fetchImageBlob,
-  escapeDiscordMarkdown,
-} from '../../src/features/share-discord.js';
+} from '../../src/page/product-offers.js';
 import { buildKeepaUrl } from '../../src/ui/sparkline.js';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF123_token-xyz';

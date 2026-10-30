@@ -170,48 +170,21 @@ export function addExtraChannelRow(container) {
 
 export function syncFieldsFromConfig(els) {
     // Every key syncUiControl covers (radios, toggles, weight, min-points,
-    // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
+    // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm, etc.) syncs
     // through it — toolbar mirrors included. Only modal-only controls below.
     for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k], { silent: true });
 
-    els.marginRange.value = CONFIG.MARGIN_PERCENT;
-    els.marginVal.value = CONFIG.MARGIN_PERCENT;
-
-    if (CONFIG.SORT_BY_OFFERS === 'desc') els.sortDesc.checked = true;
-    else if (CONFIG.SORT_BY_OFFERS === 'asc') els.sortAsc.checked = true;
-    else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') els.sortDiscount.checked = true;
-    else els.sortNone.checked = true;
-
-    const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
-    els.heatmapIntensityRange.value = heatIntensityPct;
-    els.heatmapIntensityVal.value = heatIntensityPct;
-
-    // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
-    {
-      const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-      if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = horizonStoredToUi(stored);
-      if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
-      if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
-    }
-
     if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
     if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
-    if (els.cacheMemoryRange) els.cacheMemoryRange.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
-    if (els.cacheMemoryVal) els.cacheMemoryVal.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
-    if (els.cacheDiskRange) els.cacheDiskRange.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
-    if (els.cacheDiskVal) els.cacheDiskVal.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
     if (els.cacheStatsLabel) {
       const count = countCachedPriceStats();
       els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
     }
 
-    if (els.tavilyEnabledToggle) els.tavilyEnabledToggle.checked = !!CONFIG.TAVILY_ENABLED;
     if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
     if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
     if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
     if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
-    if (els.tavilySearchDepth) els.tavilySearchDepth.value = CONFIG.TAVILY_SEARCH_DEPTH || 'basic';
-    if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(CONFIG.TAVILY_MAX_RESULTS || 5);
 
     const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
       ? CONFIG.DISCORD_CHANNELS
@@ -227,9 +200,6 @@ export function syncFieldsFromConfig(els) {
       renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
     }
 
-    if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
-    if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
-    if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
     if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
     renderLayoutPreview(els);
     updateKeywordPreview(els);

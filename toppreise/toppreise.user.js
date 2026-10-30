@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.421
+// @version      2.18.422
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -764,13 +764,6 @@ const STYLES_CHROME = `
     border-color: rgba(99, 102, 241, 0.45) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
   }
-  /* Deal controls live in the bar deals group; host keeps flex-wrap for the site row. */
-  :is(#timeframe-filter, .Plugin_TimePeriod) {
-    align-items: center !important;
-    gap: 6px 8px !important;
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
-  }
   #tp-bar-horizon-range {
     width: 84px !important;
     accent-color: #6366f1 !important;
@@ -897,31 +890,6 @@ const STYLES_CHROME = `
     height: 100% !important;
     line-height: 1 !important;
     vertical-align: middle !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn {
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #334155 !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-    height: 24px !important;
-    padding: 0 9px !important;
-    font-size: 11.5px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    line-height: 1 !important;
-    box-sizing: border-box !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn:hover {
-    background: #f8fafc !important;
-    border-color: #94a3b8 !important;
-    color: #0f172a !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn.tp-bestpreise-active {
-    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
-    border-color: #4338ca !important;
-    color: #ffffff !important;
-    box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
   }
   .tp-empty-state-notice {
     display: flex !important;
@@ -3972,89 +3940,44 @@ const SHADOW_MODAL_STYLES = `
     if (CONFIG[pair.enable] !== pair.on) return 'off';
     return CONFIG[modeKey] || 'dim';
   };
+  const CYCLE_TITLE = Object.freeze({
+    off: 'Filter: Normal — klicken für Dimmen',
+    dim: 'Filter: Dimmen — klicken für Verbergen',
+    hide: 'Filter: Verbergen — klicken für Hervorheben',
+    highlight: 'Filter: Hervorheben — klicken für Normal'
+  });
+
+  function paintCycleModeButton(btn, modeKey) {
+    if (!btn) return;
+    const s = cycleStateOf(modeKey);
+    paintCycleButton(btn, s);
+    btn.title = CYCLE_TITLE[s] || '';
+  }
+
   // Toolbar owns the cycle button element; config owns the state mapping.
   // Text/class paint shared with the toolbar via ui/mini-toggle.js.
   const paintCycleButtons = (bar, modeKey) => {
-    const s = cycleStateOf(modeKey);
-    bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => {
-      paintCycleButton(btn, s);
-      btn.title = s === 'off'
-        ? 'Filter: Normal — klicken für Dimmen'
-        : s === 'dim'
-          ? 'Filter: Dimmen — klicken für Verbergen'
-          : s === 'hide'
-            ? 'Filter: Verbergen — klicken für Hervorheben'
-            : 'Filter: Hervorheben — klicken für Normal';
-    });
+    if (!bar) return;
+    bar.querySelectorAll(`[data-mode-key="${modeKey}"]`).forEach(btn => paintCycleModeButton(btn, modeKey));
   };
 
-
-  const CONFIG = {
-    FILTER_NEG_ENABLED: sanitizeConfigValue('FILTER_NEG_ENABLED', _getValue('FILTER_NEG_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_NEG_ENABLED))),
-    FILTER_MIN_ENABLED: sanitizeConfigValue('FILTER_MIN_ENABLED', _getValue('FILTER_MIN_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTER_MIN_ENABLED))),
-    FILTER_DEAL_DISCOUNT_ENABLED: sanitizeConfigValue('FILTER_DEAL_DISCOUNT_ENABLED', _getValue('FILTER_DEAL_DISCOUNT_ENABLED', DEFAULTS.FILTER_DEAL_DISCOUNT_ENABLED)),
-    FILTER_PRICE_ENABLED: sanitizeConfigValue('FILTER_PRICE_ENABLED', _getValue('FILTER_PRICE_ENABLED', DEFAULTS.FILTER_PRICE_ENABLED)),
-    FILTER_PRICE_MIN: sanitizeConfigValue('FILTER_PRICE_MIN', _getValue('FILTER_PRICE_MIN', DEFAULTS.FILTER_PRICE_MIN)),
-    FILTER_PRICE_MAX: sanitizeConfigValue('FILTER_PRICE_MAX', _getValue('FILTER_PRICE_MAX', DEFAULTS.FILTER_PRICE_MAX)),
-    FILTER_SAVINGS_ENABLED: sanitizeConfigValue('FILTER_SAVINGS_ENABLED', _getValue('FILTER_SAVINGS_ENABLED', DEFAULTS.FILTER_SAVINGS_ENABLED)),
-    FILTER_SAVINGS_MIN: sanitizeConfigValue('FILTER_SAVINGS_MIN', _getValue('FILTER_SAVINGS_MIN', DEFAULTS.FILTER_SAVINGS_MIN)),
-    FILTERS_ENABLED: sanitizeConfigValue('FILTERS_ENABLED', _getValue('FILTERS_ENABLED', DEFAULTS.FILTERS_ENABLED)),
-    FILTER_NEG_MODE: _modeValue('FILTER_NEG_MODE'),
-    FILTER_MIN_MODE: _modeValue('FILTER_MIN_MODE'),
-    FILTER_DEAL_DISCOUNT_MODE: _modeValue('FILTER_DEAL_DISCOUNT_MODE'),
-    FILTER_PRICE_MODE: _modeValue('FILTER_PRICE_MODE'),
-    FILTER_SAVINGS_MODE: _modeValue('FILTER_SAVINGS_MODE'),
-    HIDE_UNCHECKED_MODE: _modeValue('HIDE_UNCHECKED_MODE'),
-    VORTIEF_MODE: _modeValue('VORTIEF_MODE'),
-    DEALER_MODE: _modeValue('DEALER_MODE'),
-    MIN_DEAL_DISCOUNT: sanitizeConfigValue('MIN_DEAL_DISCOUNT', _getValue('MIN_DEAL_DISCOUNT', DEFAULTS.MIN_DEAL_DISCOUNT)),
-    MARGIN_PERCENT: sanitizeConfigValue('MARGIN_PERCENT', _getValue('MARGIN_PERCENT', DEFAULTS.MARGIN_PERCENT)),
-    DIM_OPACITY: sanitizeConfigValue('DIM_OPACITY', _getValue('DIM_OPACITY', DEFAULTS.DIM_OPACITY)),
-    HIDE_ADS: sanitizeConfigValue('HIDE_ADS', _getValue('HIDE_ADS', DEFAULTS.HIDE_ADS)),
-    USE_SHIPPING_PRICE: sanitizeConfigValue('USE_SHIPPING_PRICE', _getValue('USE_SHIPPING_PRICE', DEFAULTS.USE_SHIPPING_PRICE)),
-    HEATMAP_ENABLED: sanitizeConfigValue('HEATMAP_ENABLED', _getValue('HEATMAP_ENABLED', DEFAULTS.HEATMAP_ENABLED)),
-    HEATMAP_INTENSITY: sanitizeConfigValue('HEATMAP_INTENSITY', _getValue('HEATMAP_INTENSITY', DEFAULTS.HEATMAP_INTENSITY)),
-    REAL_DEAL_MIN_DISCOUNT: sanitizeConfigValue('REAL_DEAL_MIN_DISCOUNT', _getValue('REAL_DEAL_MIN_DISCOUNT', DEFAULTS.REAL_DEAL_MIN_DISCOUNT)),
-    REAL_DEAL_CACHE_HOURS: sanitizeConfigValue('REAL_DEAL_CACHE_HOURS', _getValue('REAL_DEAL_CACHE_HOURS', DEFAULTS.REAL_DEAL_CACHE_HOURS)),
-    NEGATIVE_CACHE_HOURS: sanitizeConfigValue('NEGATIVE_CACHE_HOURS', _getValue('NEGATIVE_CACHE_HOURS', DEFAULTS.NEGATIVE_CACHE_HOURS)),
-    CACHE_MEMORY_LIMIT: sanitizeConfigValue('CACHE_MEMORY_LIMIT', _getValue('CACHE_MEMORY_LIMIT', DEFAULTS.CACHE_MEMORY_LIMIT)),
-    CACHE_DISK_LIMIT: sanitizeConfigValue('CACHE_DISK_LIMIT', _getValue('CACHE_DISK_LIMIT', DEFAULTS.CACHE_DISK_LIMIT)),
-    BESTPREISE_MODE_ACTIVE: sanitizeConfigValue('BESTPREISE_MODE_ACTIVE', _getValue('BESTPREISE_MODE_ACTIVE', DEFAULTS.BESTPREISE_MODE_ACTIVE)),
-    BESTPREISE_HIDE_UNCHECKED: sanitizeConfigValue('BESTPREISE_HIDE_UNCHECKED', _getValue('BESTPREISE_HIDE_UNCHECKED', DEFAULTS.BESTPREISE_HIDE_UNCHECKED)),
-    BESTPREISE_INCLUDE_VORTIEF: sanitizeConfigValue('BESTPREISE_INCLUDE_VORTIEF', _getValue('BESTPREISE_INCLUDE_VORTIEF', DEFAULTS.BESTPREISE_INCLUDE_VORTIEF)),
-    BESTPREISE_WEIGHT_RECORD: sanitizeConfigValue('BESTPREISE_WEIGHT_RECORD', _getValue('BESTPREISE_WEIGHT_RECORD', DEFAULTS.BESTPREISE_WEIGHT_RECORD)),
-    BESTPREISE_MIN_POINTS: sanitizeConfigValue('BESTPREISE_MIN_POINTS', _getValue('BESTPREISE_MIN_POINTS', DEFAULTS.BESTPREISE_MIN_POINTS)),
-    BESTPREISE_MEDIAN_HORIZON_DAYS: sanitizeConfigValue('BESTPREISE_MEDIAN_HORIZON_DAYS', _getValue('BESTPREISE_MEDIAN_HORIZON_DAYS', DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS)),
-    OUTLIER_REJECTION_ENABLED: sanitizeConfigValue('OUTLIER_REJECTION_ENABLED', _getValue('OUTLIER_REJECTION_ENABLED', DEFAULTS.OUTLIER_REJECTION_ENABLED)),
-    OUTLIER_DEVIATION_BAND: sanitizeConfigValue('OUTLIER_DEVIATION_BAND', _getValue('OUTLIER_DEVIATION_BAND', DEFAULTS.OUTLIER_DEVIATION_BAND)),
-    OUTLIER_MAX_GLITCH_HOURS: sanitizeConfigValue('OUTLIER_MAX_GLITCH_HOURS', _getValue('OUTLIER_MAX_GLITCH_HOURS', DEFAULTS.OUTLIER_MAX_GLITCH_HOURS)),
-    ENABLE_SPARKLINES: sanitizeConfigValue('ENABLE_SPARKLINES', _getValue('ENABLE_SPARKLINES', DEFAULTS.ENABLE_SPARKLINES)),
-    KEEPA_CHART_ENABLED: sanitizeConfigValue('KEEPA_CHART_ENABLED', _getValue('KEEPA_CHART_ENABLED', DEFAULTS.KEEPA_CHART_ENABLED)),
-    REVIEW_SEARCH_ENABLED: sanitizeConfigValue('REVIEW_SEARCH_ENABLED', _getValue('REVIEW_SEARCH_ENABLED', DEFAULTS.REVIEW_SEARCH_ENABLED)),
-    REVIEW_SEARCH_KEYWORD: sanitizeConfigValue('REVIEW_SEARCH_KEYWORD', _getValue('REVIEW_SEARCH_KEYWORD', DEFAULTS.REVIEW_SEARCH_KEYWORD)),
-    REVIEW_SEARCH_AI_MODE: sanitizeConfigValue('REVIEW_SEARCH_AI_MODE', _getValue('REVIEW_SEARCH_AI_MODE', DEFAULTS.REVIEW_SEARCH_AI_MODE)),
-    TAVILY_ENABLED: sanitizeConfigValue('TAVILY_ENABLED', _getValue('TAVILY_ENABLED', DEFAULTS.TAVILY_ENABLED)),
-    TAVILY_API_KEY: _getValue('TAVILY_API_KEY', DEFAULTS.TAVILY_API_KEY),
-    TAVILY_SEARCH_DEPTH: sanitizeConfigValue('TAVILY_SEARCH_DEPTH', _getValue('TAVILY_SEARCH_DEPTH', DEFAULTS.TAVILY_SEARCH_DEPTH)),
-    TAVILY_MAX_RESULTS: sanitizeConfigValue('TAVILY_MAX_RESULTS', _getValue('TAVILY_MAX_RESULTS', DEFAULTS.TAVILY_MAX_RESULTS)),
-    DEALER_AUTOFETCH: sanitizeConfigValue('DEALER_AUTOFETCH', _getValue('DEALER_AUTOFETCH', DEFAULTS.DEALER_AUTOFETCH)),
-    NEGATIVE_TERMS: sanitizeConfigValue('NEGATIVE_TERMS', _getValue('NEGATIVE_TERMS', DEFAULTS.NEGATIVE_TERMS)),
-    DISCORD_WEBHOOK_URL: _getValue('DISCORD_WEBHOOK_URL', DEFAULTS.DISCORD_WEBHOOK_URL),
-    DISCORD_CHANNELS: sanitizeConfigValue('DISCORD_CHANNELS', _getValue('DISCORD_CHANNELS', DEFAULTS.DISCORD_CHANNELS)),
-    DISCORD_SUPPRESS_DEALER_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_DEALER_EMBED', _getValue('DISCORD_SUPPRESS_DEALER_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_DEALER_EMBED)),
-    DISCORD_SUPPRESS_PRODUCT_EMBED: sanitizeConfigValue('DISCORD_SUPPRESS_PRODUCT_EMBED', _getValue('DISCORD_SUPPRESS_PRODUCT_EMBED', legacySuppressEmbeds ?? DEFAULTS.DISCORD_SUPPRESS_PRODUCT_EMBED)),
-    DISCORD_FORUM_TITLE: sanitizeConfigValue('DISCORD_FORUM_TITLE', _getValue('DISCORD_FORUM_TITLE', DEFAULTS.DISCORD_FORUM_TITLE)),
-    DISCORD_LAYOUT: sanitizeConfigValue('DISCORD_LAYOUT', (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : DEFAULTS.DISCORD_LAYOUT),
-    MIN_OFFERS: sanitizeConfigValue('MIN_OFFERS', _getValue('MIN_OFFERS', DEFAULTS.MIN_OFFERS)),
-    SORT_BY_OFFERS: sanitizeConfigValue('SORT_BY_OFFERS', _getValue('SORT_BY_OFFERS', DEFAULTS.SORT_BY_OFFERS)),
-    ALARM_ENABLED: sanitizeConfigValue('ALARM_ENABLED', _getValue('ALARM_ENABLED', DEFAULTS.ALARM_ENABLED)),
-    ALARM_TARGET_PERCENT: sanitizeConfigValue('ALARM_TARGET_PERCENT', _getValue('ALARM_TARGET_PERCENT', DEFAULTS.ALARM_TARGET_PERCENT)),
-    ALARM_DURATION_DAYS: sanitizeConfigValue('ALARM_DURATION_DAYS', _getValue('ALARM_DURATION_DAYS', DEFAULTS.ALARM_DURATION_DAYS)),
-    ALARM_AUTO_SUBMIT: sanitizeConfigValue('ALARM_AUTO_SUBMIT', _getValue('ALARM_AUTO_SUBMIT', DEFAULTS.ALARM_AUTO_SUBMIT)),
-    ALARM_FALLBACK_TIMEOUT_MS: sanitizeConfigValue('ALARM_FALLBACK_TIMEOUT_MS', _getValue('ALARM_FALLBACK_TIMEOUT_MS', DEFAULTS.ALARM_FALLBACK_TIMEOUT_MS)),
-    OBSERVER_DEBOUNCE_MS: sanitizeConfigValue('OBSERVER_DEBOUNCE_MS', _getValue('OBSERVER_DEBOUNCE_MS', DEFAULTS.OBSERVER_DEBOUNCE_MS)),
-    DEBUG: sanitizeConfigValue('DEBUG', _getValue('DEBUG', DEFAULTS.DEBUG))
-  };
+  const CONFIG = Object.fromEntries(
+    Object.entries(DEFAULTS).map(([k, defaultVal]) => {
+      let val;
+      if (k.endsWith('_MODE') && k !== 'REVIEW_SEARCH_AI_MODE') {
+        val = _modeValue(k);
+      } else if (k === 'FILTER_NEG_ENABLED' || k === 'FILTER_MIN_ENABLED') {
+        val = _getValue(k, _getValue('FILTERS_ENABLED', defaultVal));
+      } else if (k === 'DISCORD_SUPPRESS_DEALER_EMBED' || k === 'DISCORD_SUPPRESS_PRODUCT_EMBED') {
+        val = _getValue(k, legacySuppressEmbeds ?? defaultVal);
+      } else if (k === 'DISCORD_LAYOUT') {
+        val = (typeof _layoutRaw === 'string' && _layoutRaw.trim()) ? _layoutRaw : defaultVal;
+      } else {
+        val = _getValue(k, defaultVal);
+      }
+      return [k, sanitizeConfigValue(k, val)];
+    })
+  );
   const sanitizeReviewKeyword = raw => String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 150) || DEFAULTS.REVIEW_SEARCH_KEYWORD;
   // 0% is a legitimate threshold (check everything): only non-numeric storage
   // falls back to 30 — `|| 30` would silently discard an explicit 0.
@@ -7624,10 +7547,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  // Re-export layout, recipe, and offer extraction for backwards compatibility and tests
-
-
-
   const isDiscordWebhookUrl = url =>
     typeof url === 'string' &&
     /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/[\w-]+(?:\?[^\s#]*)?$/.test(url.trim());
@@ -9265,6 +9184,7 @@ const SHADOW_MODAL_STYLES = `
    * Discord 1-Click share button, click-time freshness validation, payload construction,
    * image/forum transport orchestration, and feedback toasts.
    */
+
 
 
 
@@ -10962,48 +10882,21 @@ const SHADOW_MODAL_STYLES = `
 
   function syncFieldsFromConfig(els) {
       // Every key syncUiControl covers (radios, toggles, weight, min-points,
-      // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm) syncs
+      // threshold, shipping, sparklines, dealer-autofetch, embeds, alarm, etc.) syncs
       // through it — toolbar mirrors included. Only modal-only controls below.
       for (const k of Object.keys(CONFIG)) syncUiControl(k, CONFIG[k], { silent: true });
 
-      els.marginRange.value = CONFIG.MARGIN_PERCENT;
-      els.marginVal.value = CONFIG.MARGIN_PERCENT;
-
-      if (CONFIG.SORT_BY_OFFERS === 'desc') els.sortDesc.checked = true;
-      else if (CONFIG.SORT_BY_OFFERS === 'asc') els.sortAsc.checked = true;
-      else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') els.sortDiscount.checked = true;
-      else els.sortNone.checked = true;
-
-      const heatIntensityPct = Math.round((CONFIG.HEATMAP_INTENSITY ?? 1.0) * 100);
-      els.heatmapIntensityRange.value = heatIntensityPct;
-      els.heatmapIntensityVal.value = heatIntensityPct;
-
-      // Berechnungsparameter shape browse heat too — always visible; mode only drives sort + scan.
-      {
-        const stored = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS ?? 365;
-        if (els.bestpreiseHorizonRange) els.bestpreiseHorizonRange.value = horizonStoredToUi(stored);
-        if (els.bestpreiseHorizonVal) els.bestpreiseHorizonVal.value = stored;
-        if (els.bestpreiseHorizonDesc) els.bestpreiseHorizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
-      }
-
       if (els.cacheTtlSelect) els.cacheTtlSelect.value = String(CONFIG.REAL_DEAL_CACHE_HOURS || 48);
       if (els.cacheNegTtlSelect) els.cacheNegTtlSelect.value = String(CONFIG.NEGATIVE_CACHE_HOURS || 2);
-      if (els.cacheMemoryRange) els.cacheMemoryRange.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
-      if (els.cacheMemoryVal) els.cacheMemoryVal.value = CONFIG.CACHE_MEMORY_LIMIT ?? 500;
-      if (els.cacheDiskRange) els.cacheDiskRange.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
-      if (els.cacheDiskVal) els.cacheDiskVal.value = CONFIG.CACHE_DISK_LIMIT ?? 300;
       if (els.cacheStatsLabel) {
         const count = countCachedPriceStats();
         els.cacheStatsLabel.textContent = `Lokaler Cache: ${count} / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
       }
 
-      if (els.tavilyEnabledToggle) els.tavilyEnabledToggle.checked = !!CONFIG.TAVILY_ENABLED;
       if (els.tavilyApiKeyInput) els.tavilyApiKeyInput.value = '';
       if (els.tavilyApiKeyEditor) els.tavilyApiKeyEditor.style.display = 'none';
       if (els.tavilyApiKeyReveal) { els.tavilyApiKeyReveal.style.display = ''; els.tavilyApiKeyReveal.setAttribute('aria-expanded', 'false'); }
       if (els.tavilyApiKeyStatus) els.tavilyApiKeyStatus.textContent = (CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) ? '✅ Key hinterlegt' : 'Kein Key hinterlegt';
-      if (els.tavilySearchDepth) els.tavilySearchDepth.value = CONFIG.TAVILY_SEARCH_DEPTH || 'basic';
-      if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(CONFIG.TAVILY_MAX_RESULTS || 5);
 
       const channels = Array.isArray(CONFIG.DISCORD_CHANNELS) && CONFIG.DISCORD_CHANNELS.length > 0
         ? CONFIG.DISCORD_CHANNELS
@@ -11019,9 +10912,6 @@ const SHADOW_MODAL_STYLES = `
         renderExtraChannelsList(els.discordExtraChannels, channels.slice(1));
       }
 
-      if (els.discordDealerEmbedToggle) els.discordDealerEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_DEALER_EMBED === false;
-      if (els.discordProductEmbedToggle) els.discordProductEmbedToggle.checked = CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED === false;
-      if (els.discordForumTitleToggle) els.discordForumTitleToggle.checked = CONFIG.DISCORD_FORUM_TITLE === true;
       if (els.discordLayoutInput) els.discordLayoutInput.value = CONFIG.DISCORD_LAYOUT;
       renderLayoutPreview(els);
       updateKeywordPreview(els);
@@ -12472,12 +12362,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  const CYCLE_TITLE = {
-    off: 'Filter: Normal — klicken für Dimmen',
-    dim: 'Filter: Dimmen — klicken für Verbergen',
-    hide: 'Filter: Verbergen — klicken für Hervorheben',
-    highlight: 'Filter: Hervorheben — klicken für Normal'
-  };
   const CYCLE_TOASTS = {
     FILTER_NEG_MODE: { dim: '📝 Begriffe: Dimmen', hide: '📝 Begriffe: Verbergen', highlight: '📝 Begriffe: Hervorheben', off: '📝 Begriffe: Normal' },
     FILTER_MIN_MODE: { dim: '🔢 Min-Angebote: Dimmen', hide: '🔢 Min-Angebote: Verbergen', highlight: '🔢 Min-Angebote: Hervorheben', off: '🔢 Min-Angebote: Normal' },
@@ -12487,11 +12371,6 @@ const SHADOW_MODAL_STYLES = `
     HIDE_UNCHECKED_MODE: { dim: '✓ Ungeprüfte: Dimmen', hide: '✓ Ungeprüfte: Verbergen', highlight: '✓ Ungeprüfte: Hervorheben', off: '✓ Ungeprüfte: Normal — alle werden angezeigt' },
     VORTIEF_MODE: { dim: 'Fallback-Tiefs werden gedimmt', hide: 'Fallback-Tiefs ausgeschlossen (Filtergrund)', highlight: 'Fallback-Tiefs werden hervorgehoben', off: 'Fallback-Tiefs eingeschlossen' },
   };
-  function paintCycleModeButton(btn, modeKey) {
-    const s = cycleStateOf(modeKey);
-    paintCycleButton(btn, s);
-    btn.title = CYCLE_TITLE[s];
-  }
   function cycleFilter(modeKey) {
     const pair = FILTER_CYCLE[modeKey];
     if (!pair) return;
@@ -13948,13 +13827,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       if (node.nodeType === 3) node = node.parentElement;
       if (!node || node.nodeType !== 1) return false;
       if (isOwnedNode(node)) return false;
-      if (node.id === 'tp-root' || node.id === 'tp-suite-filter-bar' || node.id === 'tp-empty-state-notice' || node.id === 'tp-floating-check-cta') return false;
-      if (node.classList?.contains('tp-card-subline-row') ||
-          node.classList?.contains('tp-sparkline-container') ||
-          node.classList?.contains('tp-best-price-badge') ||
-          node.classList?.contains('tp-empty-state-notice')) {
-        return false;
-      }
       return node.matches?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter') ||
              !!node.querySelector?.('.Plugin_Product, .mixedBrowsingListProduct, .Plugin_TopPriceReductionProductListFull, .standardList, .f_browsingListContainer, #Plugin_MixedBrowsingList, #product-list, .Plugin_NewInfoMailForm, .AbstractDialog, .Page_DetailProduct, .Plugin_ProductHeading, .Plugin_Price, .priceContainer, .Plugin_NewInfoMailButton, .filters, .f_remove_filter');
     };
@@ -14064,7 +13936,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.421';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.422';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

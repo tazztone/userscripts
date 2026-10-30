@@ -7,58 +7,6 @@
 import { renderDiscordChart } from '../ui/sparkline.js';
 import { priceToCents } from '../domain/price.js';
 
-// Re-export layout, recipe, and offer extraction for backwards compatibility and tests
-import {
-  DEFAULT_LAYOUT,
-  LAYOUT_TOKENS,
-  validateLayoutRecipe,
-  getLayoutRecipeNotice,
-  layoutOverLimitSuffix,
-  renderDiscordMarkdownPreview,
-  escapeDiscordMarkdown,
-  renderLayout,
-  forumRecipeFor,
-  formatDealMessage,
-  resolveShareFields
-} from './discord-recipe.js';
-
-import {
-  extractShareData,
-  extractCheapestDealerRow,
-  extractDealer,
-  extractDealerUrl,
-  parseJsonLdOffer,
-  jsonLdOfferTotal,
-  parseDealerRows,
-  parseProductOffers,
-  pickCheapestOffer,
-  fetchProductInfo
-} from '../page/product-offers.js';
-
-export {
-  DEFAULT_LAYOUT,
-  LAYOUT_TOKENS,
-  validateLayoutRecipe,
-  getLayoutRecipeNotice,
-  layoutOverLimitSuffix,
-  renderDiscordMarkdownPreview,
-  escapeDiscordMarkdown,
-  renderLayout,
-  forumRecipeFor,
-  formatDealMessage,
-  resolveShareFields,
-  extractShareData,
-  extractCheapestDealerRow,
-  extractDealer,
-  extractDealerUrl,
-  parseJsonLdOffer,
-  jsonLdOfferTotal,
-  parseDealerRows,
-  parseProductOffers,
-  pickCheapestOffer,
-  fetchProductInfo
-};
-
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
   /^https:\/\/(ptb\.|canary\.)?discord\.com\/api\/webhooks\/\d+\/[\w-]+(?:\?[^\s#]*)?$/.test(url.trim());

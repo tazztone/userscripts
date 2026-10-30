@@ -152,6 +152,26 @@ const localIn = code => {
   }
   for (const m of code.matchAll(/class\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
   for (const m of code.matchAll(/catch\s*\(\s*([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  // Function and arrow function parameters (including destructured params)
+  for (const m of code.matchAll(/(?:(?:async\s+)?function(?:\s+[A-Za-z_$][\w$]*)?|\=>|\()\s*\(([^)]*)\)/g)) {
+    for (const token of m[1].matchAll(/[A-Za-z_$][\w$]*/g)) {
+      if (token[0]) names.add(token[0]);
+    }
+  }
+  // Standard function parameter lists: function foo(a, b = c)
+  for (const m of code.matchAll(/(?:async\s+)?function(?:\s+[A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) {
+    for (const token of m[1].matchAll(/[A-Za-z_$][\w$]*/g)) {
+      if (token[0]) names.add(token[0]);
+    }
+  }
+  // Unparenthesized arrow parameter: x => ...
+  for (const m of code.matchAll(/(?:^|[;{}(,=:\s])([A-Za-z_$][\w$]*)\s*=>/g)) {
+    names.add(m[1]);
+  }
+  // Object method definitions: methodName(...) {
+  for (const m of code.matchAll(/(?:^|[;{},\s])(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g)) {
+    if (!KEYWORDS.has(m[1])) names.add(m[1]);
+  }
   return names;
 };
 
@@ -159,6 +179,7 @@ const GLOBALS = new Set([
   'console', 'document', 'window', 'self', 'location', 'navigator', 'localStorage',
   'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask',
   'fetch', 'Request', 'Response', 'Headers', 'URL', 'URLSearchParams', 'Blob', 'File', 'FileReader', 'FormData',
+  'ClipboardItem',
   'AbortController', 'MutationObserver', 'IntersectionObserver', 'ResizeObserver',
   'Event', 'CustomEvent', 'KeyboardEvent', 'MouseEvent', 'Image', 'DOMParser', 'XMLSerializer',
   'JSON', 'Math', 'Number', 'String', 'Array', 'Object', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Date', 'RegExp', 'Error', 'Symbol', 'BigInt',

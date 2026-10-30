@@ -27,13 +27,6 @@ export const STYLES_CHROME = `
     border-color: rgba(99, 102, 241, 0.45) !important;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2), 0 0 0 1px rgba(99, 102, 241, 0.2) !important;
   }
-  /* Deal controls live in the bar deals group; host keeps flex-wrap for the site row. */
-  :is(#timeframe-filter, .Plugin_TimePeriod) {
-    align-items: center !important;
-    gap: 6px 8px !important;
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
-  }
   #tp-bar-horizon-range {
     width: 84px !important;
     accent-color: #6366f1 !important;
@@ -160,31 +153,6 @@ export const STYLES_CHROME = `
     height: 100% !important;
     line-height: 1 !important;
     vertical-align: middle !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn {
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #334155 !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-    height: 24px !important;
-    padding: 0 9px !important;
-    font-size: 11.5px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    line-height: 1 !important;
-    box-sizing: border-box !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn:hover {
-    background: #f8fafc !important;
-    border-color: #94a3b8 !important;
-    color: #0f172a !important;
-  }
-  :is(#timeframe-filter, .Plugin_TimePeriod) #tp-bar-bestpreise-btn.tp-bestpreise-active {
-    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
-    border-color: #4338ca !important;
-    color: #ffffff !important;
-    box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
   }
   .tp-empty-state-notice {
     display: flex !important;
