@@ -432,23 +432,36 @@ export const STYLES_CARDS = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-dealer-name {
+    max-width: 140px !important;
+    flex: 0 1 auto !important;
+    margin-right: 4px !important;
+  }
   a.tp-dealer-name:hover {
     opacity: 1 !important;
     text-decoration: underline !important;
   }
-  button.tp-dealer-name.tp-dealer-btn {
+  button.tp-dealer-name.tp-dealer-btn,
+  .priceContainer:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
+  .Plugin_PriceInformation:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
+  .price_information_product:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
+  .product-price:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn {
     background: none !important;
     border: none !important;
     cursor: pointer !important;
     padding: 0 !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
+    opacity: 0.65 !important;
+    pointer-events: auto !important;
     flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    line-height: 1 !important;
+    text-align: left !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingListProduct):is(:hover, :focus-within) button.tp-dealer-name.tp-dealer-btn,
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-dealer-name.tp-dealer-btn,
   button.tp-dealer-name.tp-dealer-btn:hover,
   button.tp-dealer-name.tp-dealer-btn:focus-visible {
-    opacity: 0.75 !important;
+    opacity: 1 !important;
     pointer-events: auto !important;
   }
   button.tp-dealer-name.tp-dealer-btn:hover {
