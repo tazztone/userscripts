@@ -31,6 +31,7 @@ const ALARM_BELL_SELECTORS = [
   '.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog',
   '.Plugin_NewInfoMailButton a',
   'a[href*="NewInfoMail"]',
+  '.tp-card-alarm-btn',
 ];
 const BELL_STYLE_ID = 'tp-alarm-bell-style';
 
@@ -120,7 +121,7 @@ export function refreshAlarmBellDecor() {
           ? `Preisalarm: trägt Ziel ${pct}% / ${durLabel} ein — klicken zum Prüfen`
           : `Preisalarm AUTO: Ziel ${pct}% / ${durLabel}, sendet selbst`;
       if (bell.title !== nextTitle) bell.title = nextTitle;
-      ensureAlarmCog(bell);
+      if (!bell.classList.contains('tp-card-alarm-btn')) ensureAlarmCog(bell);
     }
   } catch (err) {
     if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] bell decor error', err);
@@ -276,6 +277,106 @@ export function processPriceAlarmModal() {
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
     }
+  }
+}
+
+/**
+ * Triggers or fetches the native Preisalarm dialog for a given product ID.
+ * If a native dialog trigger is in the card or document, it clicks it.
+ * Otherwise, fetches the form from Toppreise backend and opens via AbstractDialog_show.
+ */
+export async function openPriceAlarmForProduct(pid, card = null) {
+  if (!pid) return;
+  // 1. Check if card or nearby DOM already has a native bell anchor
+  const localBell = card?.querySelector?.('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog, a[href*="NewInfoMail"]');
+  if (localBell) {
+    localBell.click();
+    return;
+  }
+
+  // 2. If test mock dialog exists, display it directly
+  const mockDialog = document.querySelector('#mock-alarm-dialog');
+  if (mockDialog) {
+    mockDialog.style.display = 'block';
+    delete mockDialog.querySelector?.('.Plugin_NewInfoMailForm')?.dataset?.tpAlarmProcessed;
+    delete mockDialog.querySelector?.('.Plugin_NewInfoMailForm')?.dataset?.tpAlarmState;
+    processPriceAlarmModal();
+    return;
+  }
+
+  // 3. Native host interaction: check if Toppreise global helper exists
+  if (typeof window !== 'undefined' && typeof window.openInfoMailForm === 'function') {
+    // If there is any trigger button element created or available
+    const tempTrigger = document.createElement('a');
+    tempTrigger.className = 'f_showNewInfoMailFormDialog';
+    tempTrigger.setAttribute('data-ajax-form-url', `/plugins/infomails/NewInfoMailForm?im_nimf_pid=${pid}&im_nimf_cks=`);
+    const wrap = document.createElement('div');
+    wrap.className = 'Plugin_NewInfoMailButton';
+    wrap.appendChild(tempTrigger);
+    document.body.appendChild(wrap);
+    try {
+      window.openInfoMailForm(tempTrigger, false);
+      return;
+    } catch {
+      wrap.remove();
+    }
+  }
+
+  // 4. Fallback: Fetch NewInfoMailButton or NewInfoMailForm HTML and materialize
+  try {
+    const postBody = new URLSearchParams({
+      im_nimb_ch: '1',
+      im_nimb_pid: String(pid),
+      im_nimb_tmpl: 'btn',
+      lang: 'de'
+    });
+    const res = await fetch('/plugins/infomails/NewInfoMailButton', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: postBody
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      const tpl = tempDiv.querySelector('template.f_lazyDialog');
+      const dialogNode = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : tempDiv.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+      const dialogId = dialogNode?.id;
+      const dialogHash = dialogNode?.getAttribute('data-instance-hash') || '1';
+      const formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
+
+      if (dialogNode) {
+        document.body.appendChild(dialogNode);
+        if (formUrl) {
+          const formRes = await fetch(`${formUrl}&im_nimf_ch=${dialogHash}&lang=de`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          if (formRes.ok) {
+            const formHtml = await formRes.text();
+            const content = dialogNode.querySelector('.AbstractDialog_Content');
+            if (content) content.innerHTML = formHtml;
+          }
+        }
+        if (typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
+          window.AbstractDialog_show(dialogId);
+        } else {
+          dialogNode.style.display = 'block';
+          dialogNode.classList.add('show');
+        }
+        processPriceAlarmModal();
+        return;
+      }
+    }
+  } catch (err) {
+    if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
+  }
+
+  // 5. Ultimate fallback if AJAX fails: direct URL navigation in new tab
+  if (typeof window !== 'undefined') {
+    window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
   }
 }
 
