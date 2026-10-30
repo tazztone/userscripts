@@ -19,6 +19,7 @@ Zero-degree hits are candidates only: re-check with `rg`/LSP before deleting. Th
 ## Testing
 
 ```bash
+npm run test:smoke  # fast iteration smoke (<4s): all node unit tests + core lifecycle browser test
 node --test toppreise/tests/unit/*.test.js  # fast layer (<100ms); single file: tests/unit/<name>.test.js
 node --test --test-name-pattern="<name>" toppreise/tests/unit/<f>.test.js  # one case
 venv/bin/pytest toppreise/tests/test_ui_modal.py

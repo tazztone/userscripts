@@ -8,6 +8,7 @@
     "check": "npm --prefix toppreise run check",
     "lint": "npm --prefix toppreise run lint",
     "test": "npm --prefix toppreise test && node --test huggingface/tests/test_logic.js",
+    "test:smoke": "npm --prefix toppreise run test:smoke && node --test huggingface/tests/test_logic.js",
     "test:unit": "npm --prefix toppreise run test:unit",
     "test:toppreise": "npm --prefix toppreise test",
     "test:hf": "node --test huggingface/tests/test_logic.js"

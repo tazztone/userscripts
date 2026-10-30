@@ -8,6 +8,7 @@
     "check": "node tools/build.js --check",
     "test:unit": "node --test tests/unit/*.test.js",
     "lint": "node tools/check-modules.js",
-    "test": "node --test tests/unit/*.test.js"
+    "test": "node --test tests/unit/*.test.js",
+    "test:smoke": "node --test tests/unit/*.test.js && ../venv/bin/pytest tests/test_lifecycle.py"
   }
 }
