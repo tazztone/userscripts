@@ -22,17 +22,22 @@ const DEMO_BUNDLE_FILE = path.join(TOPPREISE_DIR, 'site', 'demo', 'toppreise.use
 
 function stripModuleSyntax(code) {
   return code
-    // Remove top-level import statements
+    // Remove top-level import statements (single or multiline)
     .replace(/^import\s+[^;]+;\s*$/gm, '')
-    // Replace export function / export const / export let / export var / export class / export async function
-    .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s+/gm, '$1$2 ')
-    // Remove export default / export { ... } / export * from ...
+    // Remove export default class/function name
+    .replace(/^export\s+default\s+(async\s+)?(function|class)\s+/gm, '$1$2 ')
+    // Remove export default expression / identifier / object
     .replace(/^export\s+default\s+[^;]+;\s*$/gm, '')
-    .replace(/^export\s*\{[^}]*\}\s*(from\s+[^;]+)?;\s*$/gm, '')
-    .replace(/^export\s*\*\s*from\s+[^;]+;\s*$/gm, '')
+    // Replace export const / let / var / function / class / async function
+    .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s+/gm, '$1$2 ')
+    // Remove export * from ... / export * as foo from ...
+    .replace(/^export\s*\*\s*(?:as\s+[A-Za-z_$][\w$]*\s+)?from\s+[^;]+;\s*$/gm, '')
+    // Remove export { ... } [from '...']
+    .replace(/^export\s*\{[^}]*\}\s*(?:from\s+[^;]+)?;\s*$/gm, '')
     .trim();
 }
 
+export { stripModuleSyntax };
 
 export function buildBundle() {
   // Styles assemble from parts in order (barrel composes STYLES at runtime;
