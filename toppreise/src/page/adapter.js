@@ -23,10 +23,6 @@ export function clearCardCache(card) {
 
 export function isShippingPriceActive(card = null) {
   if (!CONFIG.USE_SHIPPING_PRICE) return false;
-  if (typeof document !== 'undefined' && document.body) {
-    if (document.body.classList.contains('showproductprice')) return false;
-    if (document.body.classList.contains('showshippingprice')) return true;
-  }
   if (card) {
     const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
     const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
@@ -36,9 +32,18 @@ export function isShippingPriceActive(card = null) {
       if (shpContainer) {
         if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
         if (shpContainer.style?.display === 'none') return false;
+        if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+          try {
+            if (window.getComputedStyle(shpContainer).display === 'none') return false;
+          } catch { /* ignore */ }
+        }
         if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) return false;
       }
     }
+  }
+  if (typeof document !== 'undefined' && document.body) {
+    if (document.body.classList.contains('showproductprice')) return false;
+    if (document.body.classList.contains('showshippingprice')) return true;
   }
   return true;
 }

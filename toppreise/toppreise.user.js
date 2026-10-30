@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.416
+// @version      2.18.417
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4571,10 +4571,6 @@ const SHADOW_MODAL_STYLES = `
 
   function isShippingPriceActive(card = null) {
     if (!CONFIG.USE_SHIPPING_PRICE) return false;
-    if (typeof document !== 'undefined' && document.body) {
-      if (document.body.classList.contains('showproductprice')) return false;
-      if (document.body.classList.contains('showshippingprice')) return true;
-    }
     if (card) {
       const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
       const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
@@ -4584,9 +4580,18 @@ const SHADOW_MODAL_STYLES = `
         if (shpContainer) {
           if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
           if (shpContainer.style?.display === 'none') return false;
+          if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+            try {
+              if (window.getComputedStyle(shpContainer).display === 'none') return false;
+            } catch { /* ignore */ }
+          }
           if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) return false;
         }
       }
+    }
+    if (typeof document !== 'undefined' && document.body) {
+      if (document.body.classList.contains('showproductprice')) return false;
+      if (document.body.classList.contains('showshippingprice')) return true;
     }
     return true;
   }
@@ -10231,8 +10236,25 @@ const SHADOW_MODAL_STYLES = `
       const directUrl = cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '');
       const targetUrl = directUrl || productUrl || '';
       const hasUrl = /^https?:\/\//i.test(targetUrl);
-      const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
-        card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+      const isVisibleEl = el => {
+        if (!el) return false;
+        if (el.style?.display === 'none') return false;
+        if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+          try {
+            const cs = window.getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+          } catch { /* ignore */ }
+        }
+        return true;
+      };
+      let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;
+      if (!anchor || !isVisibleEl(anchor)) {
+        const pp = card.querySelector('.priceContainer.productPrice');
+        const sp = card.querySelector('.priceContainer.shippingPrice');
+        if (pp && isVisibleEl(pp)) anchor = pp;
+        else if (sp && isVisibleEl(sp)) anchor = sp;
+        else anchor = card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+      }
       const place = el => {
         el.dataset.tpDealerPid = dKey;
         // Prepend: links vom "ab CHF"-Prefix. insertBefore(cardPriceEl) landete
@@ -14380,7 +14402,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.416';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.417';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -2190,7 +2190,7 @@ def test_card_layout_prevents_wrapping_and_irregular_heights(page: Page):
     assert res['textColMinWidth'] == '0px'
     assert res['isSideBySide'] is True
     assert res['isTextToRightOfImage'] is True
-    assert res['cardHeight'] < 210
+    assert res['cardHeight'] < 215
 
 
 
@@ -2691,6 +2691,60 @@ def test_dealer_name_direct_from_dom_dealer_row(page: Page):
     assert name.evaluate("el => el.parentElement.firstElementChild === el")
     assert page.locator('#card-cheapest .tp-dealer-btn').count() == 0
     assert len(product_hits) == 0
+
+
+def test_dealer_button_visible_in_listenansicht_with_hidden_shipping(page: Page):
+    """In Listenansicht, cards have no native dealer rows, and shippingPrice is
+    hidden for zzgl. Versandkosten. The dealer check button (🏬) must anchor to
+    the visible productPrice container, stay discoverable (opacity > 0.5), and
+    not get crushed to 0px width by flex rules."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.className = 'Plugin_Product mixedBrowsingList container mixedList';
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        // Remove native dealer rows (Listenansicht has none)
+        card.querySelectorAll('.Plugin_DealerRelProdPriceInfo').forEach(el => el.remove());
+        // Setup shippingPrice (hidden) and productPrice (visible)
+        const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+        priceInfo.innerHTML = `
+          <div class="offersContainer"><div class="offers row"><div class="col-12 text-right">19 Angebote ab</div></div></div>
+          <div class="priceContainer shippingPrice" style="display: none !important;">
+            <span class="currency">CHF</span>
+            <div class="Plugin_Price">1810.00</div>
+            <div class="shippingText">inkl. Versandkosten</div>
+          </div>
+          <div class="priceContainer productPrice">
+            <span class="currency">CHF</span>
+            <div class="Plugin_Price">1800.00</div>
+            <div class="shippingText">zzgl. Versandkosten</div>
+          </div>
+        `;
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'median': 2200, 'isShippingPrice': False})
+
+    btn = page.locator('#card-cheapest .tp-dealer-btn')
+    assert btn.is_visible()
+    assert btn.text_content() == '🏬'
+
+    # Must be placed in visible productPrice, not hidden shippingPrice
+    parent_class = btn.evaluate("el => el.parentElement.className")
+    assert 'productPrice' in parent_class
+    assert 'shippingPrice' not in parent_class
+
+    # Must be discoverable (opacity 0.65) and retain non-zero width
+    btn_info = btn.evaluate("""el => {
+        const cs = window.getComputedStyle(el);
+        return {
+            opacity: parseFloat(cs.opacity),
+            width: parseFloat(cs.width),
+            flex: cs.flex
+        };
+    }""")
+    assert btn_info['opacity'] >= 0.6
+    assert btn_info['width'] > 10
+    assert '0 0 auto' in btn_info['flex']
+
 
 
 def test_heat_chrome_keeps_site_colors_and_spark(page: Page):

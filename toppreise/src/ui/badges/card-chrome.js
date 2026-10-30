@@ -169,8 +169,25 @@ export function renderDealerName(ctx, filters) {
     const directUrl = cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '');
     const targetUrl = directUrl || productUrl || '';
     const hasUrl = /^https?:\/\//i.test(targetUrl);
-    const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) ||
-      card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+    const isVisibleEl = el => {
+      if (!el) return false;
+      if (el.style?.display === 'none') return false;
+      if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+        try {
+          const cs = window.getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+        } catch { /* ignore */ }
+      }
+      return true;
+    };
+    let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;
+    if (!anchor || !isVisibleEl(anchor)) {
+      const pp = card.querySelector('.priceContainer.productPrice');
+      const sp = card.querySelector('.priceContainer.shippingPrice');
+      if (pp && isVisibleEl(pp)) anchor = pp;
+      else if (sp && isVisibleEl(sp)) anchor = sp;
+      else anchor = card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+    }
     const place = el => {
       el.dataset.tpDealerPid = dKey;
       // Prepend: links vom "ab CHF"-Prefix. insertBefore(cardPriceEl) landete
