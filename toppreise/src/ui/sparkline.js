@@ -210,24 +210,27 @@ export async function copySvgToClipboard(svgEl, width = 560, height = 220) {
     if (!svgEl || typeof document === 'undefined') return false;
     const svgText = new XMLSerializer().serializeToString(svgEl);
     const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
-    const img = new Image();
-    await new Promise((res, rej) => {
-      img.onload = res;
-      img.onerror = rej;
-      img.src = svgUrl;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = width * 2;
-    canvas.height = height * 2;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return false;
-    ctx.drawImage(img, 0, 0, width * 2, height * 2);
-    URL.revokeObjectURL(svgUrl);
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-    if (blob && typeof navigator?.clipboard?.write === 'function') {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      showToast('📋 Diagramm in Zwischenablage kopiert');
-      return true;
+    try {
+      const img = new Image();
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = svgUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+      ctx.drawImage(img, 0, 0, width * 2, height * 2);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      if (blob && typeof navigator?.clipboard?.write === 'function') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showToast('📋 Diagramm in Zwischenablage kopiert');
+        return true;
+      }
+    } finally {
+      URL.revokeObjectURL(svgUrl);
     }
   } catch (err) {
     console.debug('[Toppreise-Suite] SVG-Copy-Fehler', err);
@@ -237,9 +240,9 @@ export async function copySvgToClipboard(svgEl, width = 560, height = 220) {
 }
 
 export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallbackUrl = '') {
+  let objectUrl = null;
   try {
     let sourceImg = imgEl;
-    let objectUrl = null;
     if (typeof GM_xmlhttpRequest !== 'undefined' && fallbackUrl) {
       try {
         const blob = await new Promise((res, rej) => {
@@ -284,9 +287,6 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
     if (sourceImg) {
       ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
     }
-    if (objectUrl) {
-      try { URL.revokeObjectURL(objectUrl); } catch {}
-    }
 
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     if (blob && typeof navigator?.clipboard?.write === 'function') {
@@ -300,6 +300,10 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
       await navigator.clipboard.writeText(fallbackUrl);
       showToast('📋 Bild-Link kopiert');
       return true;
+    }
+  } finally {
+    if (objectUrl) {
+      try { URL.revokeObjectURL(objectUrl); } catch {}
     }
   }
   showToast('❌ Kopieren fehlgeschlagen');

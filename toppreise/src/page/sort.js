@@ -156,7 +156,8 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     // Ensure DOM order inside primaryRow matches sortedEntries order without unnecessary detach/re-attach
     const currentChildren = Array.from(primaryRow.children);
     const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
-    const cardIndices = currentChildren.map((c, i) => targetItems.includes(c) ? i : -1).filter(i => i !== -1);
+    const targetSet = new Set(targetItems);
+    const cardIndices = currentChildren.map((c, i) => targetSet.has(c) ? i : -1).filter(i => i !== -1);
     let domOrderMatches = cardIndices.length === targetItems.length;
     if (domOrderMatches) {
       for (let i = 0; i < targetItems.length; i++) {
@@ -239,7 +240,8 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
       if (!isAlreadySorted) {
         children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-        const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
+        const childSet = new Set(children);
+        const cardIndices = Array.from(row.children).map((c, i) => childSet.has(c) ? i : -1).filter(i => i !== -1);
         children.forEach((ch, idx) => {
           const saved = origPlacement.get(ch);
           if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {

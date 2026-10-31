@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.435
+// @version      2.18.436
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -16,6 +16,7 @@
 // @connect      api.tavily.com
 // @connect      toppreise.ch
 // @connect      amazon.de
+// @connect      amazon.com
 // @connect      graph.keepa.com
 // @connect      graph2.keepa.com
 // @connect      keepa.com
@@ -5481,9 +5482,11 @@ const SHADOW_MODAL_STYLES = `
 
   // In-memory ASIN cache for active session
   const memoryAsinCache = new Map();
+  const inFlightAsin = new Map();
 
   function clearMemoryAsinCache() {
     memoryAsinCache.clear();
+    inFlightAsin.clear();
   }
 
   // Resolves the Amazon ASIN from a direct dealer link or /ext_de redirect URL.
@@ -5522,58 +5525,72 @@ const SHADOW_MODAL_STYLES = `
       return null;
     }
 
-    if (fetchFn) {
-      try {
-        const res = await fetchFn(target);
-        const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
-        if (asin && productId) {
-          lruSet(memoryAsinCache, productId, asin, 500);
-          setCachedAsin(productId, asin, storage);
-        }
-        return asin || null;
-      } catch {
-        return null;
-      }
+    const inFlightKey = productId ? `pid:${productId}` : `url:${target}`;
+    if (inFlightAsin.has(inFlightKey)) {
+      return inFlightAsin.get(inFlightKey);
     }
 
-    return new Promise(resolve => {
-      try {
-        if (typeof GM_xmlhttpRequest !== 'undefined') {
-          GM_xmlhttpRequest({
-            method: 'HEAD',
-            url: target,
-            headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
-            timeout: 6000,
-            onload: res => {
-              const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
-              const asin = parseAmazonAsin(loc);
-              if (asin && productId) {
-                lruSet(memoryAsinCache, productId, asin, 500);
-                setCachedAsin(productId, asin, storage);
-              }
-              resolve(asin || null);
-            },
-            onerror: () => resolve(null),
-            ontimeout: () => resolve(null)
-          });
-        } else if (typeof fetch !== 'undefined') {
-          fetch(target, { method: 'HEAD', redirect: 'follow' })
-            .then(res => {
-              const asin = parseAmazonAsin(res.url);
-              if (asin && productId) {
-                lruSet(memoryAsinCache, productId, asin, 500);
-                setCachedAsin(productId, asin, storage);
-              }
-              resolve(asin || null);
-            })
-            .catch(() => resolve(null));
-        } else {
+    const resolvePromise = (async () => {
+      if (fetchFn) {
+        try {
+          const res = await fetchFn(target);
+          const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
+          if (asin && productId) {
+            lruSet(memoryAsinCache, productId, asin, 500);
+            setCachedAsin(productId, asin, storage);
+          }
+          return asin || null;
+        } catch {
+          return null;
+        }
+      }
+
+      return new Promise(resolve => {
+        try {
+          if (typeof GM_xmlhttpRequest !== 'undefined') {
+            GM_xmlhttpRequest({
+              method: 'HEAD',
+              url: target,
+              headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
+              timeout: 6000,
+              onload: res => {
+                const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
+                const asin = parseAmazonAsin(loc);
+                if (asin && productId) {
+                  lruSet(memoryAsinCache, productId, asin, 500);
+                  setCachedAsin(productId, asin, storage);
+                }
+                resolve(asin || null);
+              },
+              onerror: () => resolve(null),
+              ontimeout: () => resolve(null)
+            });
+          } else if (typeof fetch !== 'undefined') {
+            fetch(target, { method: 'HEAD', redirect: 'follow' })
+              .then(res => {
+                const asin = parseAmazonAsin(res.url);
+                if (asin && productId) {
+                  lruSet(memoryAsinCache, productId, asin, 500);
+                  setCachedAsin(productId, asin, storage);
+                }
+                resolve(asin || null);
+              })
+              .catch(() => resolve(null));
+          } else {
+            resolve(null);
+          }
+        } catch {
           resolve(null);
         }
-      } catch {
-        resolve(null);
-      }
-    });
+      });
+    })();
+
+    inFlightAsin.set(inFlightKey, resolvePromise);
+    try {
+      return await resolvePromise;
+    } finally {
+      inFlightAsin.delete(inFlightKey);
+    }
   }
 
   // ─── MODULE: src/features/category-tree-model.js ────────────────────────────
@@ -7026,24 +7043,27 @@ const SHADOW_MODAL_STYLES = `
       if (!svgEl || typeof document === 'undefined') return false;
       const svgText = new XMLSerializer().serializeToString(svgEl);
       const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
-      const img = new Image();
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = rej;
-        img.src = svgUrl;
-      });
-      const canvas = document.createElement('canvas');
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return false;
-      ctx.drawImage(img, 0, 0, width * 2, height * 2);
-      URL.revokeObjectURL(svgUrl);
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-      if (blob && typeof navigator?.clipboard?.write === 'function') {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        showToast('📋 Diagramm in Zwischenablage kopiert');
-        return true;
+      try {
+        const img = new Image();
+        await new Promise((res, rej) => {
+          img.onload = res;
+          img.onerror = rej;
+          img.src = svgUrl;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = width * 2;
+        canvas.height = height * 2;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return false;
+        ctx.drawImage(img, 0, 0, width * 2, height * 2);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        if (blob && typeof navigator?.clipboard?.write === 'function') {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          showToast('📋 Diagramm in Zwischenablage kopiert');
+          return true;
+        }
+      } finally {
+        URL.revokeObjectURL(svgUrl);
       }
     } catch (err) {
       console.debug('[Toppreise-Suite] SVG-Copy-Fehler', err);
@@ -7053,9 +7073,9 @@ const SHADOW_MODAL_STYLES = `
   }
 
   async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallbackUrl = '') {
+    let objectUrl = null;
     try {
       let sourceImg = imgEl;
-      let objectUrl = null;
       if (typeof GM_xmlhttpRequest !== 'undefined' && fallbackUrl) {
         try {
           const blob = await new Promise((res, rej) => {
@@ -7100,9 +7120,6 @@ const SHADOW_MODAL_STYLES = `
       if (sourceImg) {
         ctx.drawImage(sourceImg, 0, bannerHeight, w, h);
       }
-      if (objectUrl) {
-        try { URL.revokeObjectURL(objectUrl); } catch {}
-      }
 
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       if (blob && typeof navigator?.clipboard?.write === 'function') {
@@ -7116,6 +7133,10 @@ const SHADOW_MODAL_STYLES = `
         await navigator.clipboard.writeText(fallbackUrl);
         showToast('📋 Bild-Link kopiert');
         return true;
+      }
+    } finally {
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch {}
       }
     }
     showToast('❌ Kopieren fehlgeschlagen');
@@ -8137,7 +8158,8 @@ const SHADOW_MODAL_STYLES = `
       // Ensure DOM order inside primaryRow matches sortedEntries order without unnecessary detach/re-attach
       const currentChildren = Array.from(primaryRow.children);
       const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
-      const cardIndices = currentChildren.map((c, i) => targetItems.includes(c) ? i : -1).filter(i => i !== -1);
+      const targetSet = new Set(targetItems);
+      const cardIndices = currentChildren.map((c, i) => targetSet.has(c) ? i : -1).filter(i => i !== -1);
       let domOrderMatches = cardIndices.length === targetItems.length;
       if (domOrderMatches) {
         for (let i = 0; i < targetItems.length; i++) {
@@ -8220,7 +8242,8 @@ const SHADOW_MODAL_STYLES = `
         const isAlreadySorted = children.every((ch, i) => i === 0 || parseInt(ch.dataset.tpInitialOrder || '0', 10) >= parseInt(children[i - 1].dataset.tpInitialOrder || '0', 10));
         if (!isAlreadySorted) {
           children.sort((a, b) => parseInt(a.dataset.tpInitialOrder || '0', 10) - parseInt(b.dataset.tpInitialOrder || '0', 10));
-          const cardIndices = Array.from(row.children).map((c, i) => children.includes(c) ? i : -1).filter(i => i !== -1);
+          const childSet = new Set(children);
+          const cardIndices = Array.from(row.children).map((c, i) => childSet.has(c) ? i : -1).filter(i => i !== -1);
           children.forEach((ch, idx) => {
             const saved = origPlacement.get(ch);
             if (saved?.placeholder?.isConnected && saved.placeholder.parentElement === row) {
@@ -14162,7 +14185,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.435';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.436';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

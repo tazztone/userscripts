@@ -241,9 +241,11 @@ export function parseAmazonAsin(url) {
 
 // In-memory ASIN cache for active session
 const memoryAsinCache = new Map();
+const inFlightAsin = new Map();
 
 export function clearMemoryAsinCache() {
   memoryAsinCache.clear();
+  inFlightAsin.clear();
 }
 
 // Resolves the Amazon ASIN from a direct dealer link or /ext_de redirect URL.
@@ -282,56 +284,70 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
     return null;
   }
 
-  if (fetchFn) {
-    try {
-      const res = await fetchFn(target);
-      const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
-      if (asin && productId) {
-        lruSet(memoryAsinCache, productId, asin, 500);
-        setCachedAsin(productId, asin, storage);
-      }
-      return asin || null;
-    } catch {
-      return null;
-    }
+  const inFlightKey = productId ? `pid:${productId}` : `url:${target}`;
+  if (inFlightAsin.has(inFlightKey)) {
+    return inFlightAsin.get(inFlightKey);
   }
 
-  return new Promise(resolve => {
-    try {
-      if (typeof GM_xmlhttpRequest !== 'undefined') {
-        GM_xmlhttpRequest({
-          method: 'HEAD',
-          url: target,
-          headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
-          timeout: 6000,
-          onload: res => {
-            const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
-            const asin = parseAmazonAsin(loc);
-            if (asin && productId) {
-              lruSet(memoryAsinCache, productId, asin, 500);
-              setCachedAsin(productId, asin, storage);
-            }
-            resolve(asin || null);
-          },
-          onerror: () => resolve(null),
-          ontimeout: () => resolve(null)
-        });
-      } else if (typeof fetch !== 'undefined') {
-        fetch(target, { method: 'HEAD', redirect: 'follow' })
-          .then(res => {
-            const asin = parseAmazonAsin(res.url);
-            if (asin && productId) {
-              lruSet(memoryAsinCache, productId, asin, 500);
-              setCachedAsin(productId, asin, storage);
-            }
-            resolve(asin || null);
-          })
-          .catch(() => resolve(null));
-      } else {
+  const resolvePromise = (async () => {
+    if (fetchFn) {
+      try {
+        const res = await fetchFn(target);
+        const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
+        if (asin && productId) {
+          lruSet(memoryAsinCache, productId, asin, 500);
+          setCachedAsin(productId, asin, storage);
+        }
+        return asin || null;
+      } catch {
+        return null;
+      }
+    }
+
+    return new Promise(resolve => {
+      try {
+        if (typeof GM_xmlhttpRequest !== 'undefined') {
+          GM_xmlhttpRequest({
+            method: 'HEAD',
+            url: target,
+            headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
+            timeout: 6000,
+            onload: res => {
+              const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
+              const asin = parseAmazonAsin(loc);
+              if (asin && productId) {
+                lruSet(memoryAsinCache, productId, asin, 500);
+                setCachedAsin(productId, asin, storage);
+              }
+              resolve(asin || null);
+            },
+            onerror: () => resolve(null),
+            ontimeout: () => resolve(null)
+          });
+        } else if (typeof fetch !== 'undefined') {
+          fetch(target, { method: 'HEAD', redirect: 'follow' })
+            .then(res => {
+              const asin = parseAmazonAsin(res.url);
+              if (asin && productId) {
+                lruSet(memoryAsinCache, productId, asin, 500);
+                setCachedAsin(productId, asin, storage);
+              }
+              resolve(asin || null);
+            })
+            .catch(() => resolve(null));
+        } else {
+          resolve(null);
+        }
+      } catch {
         resolve(null);
       }
-    } catch {
-      resolve(null);
-    }
-  });
+    });
+  })();
+
+  inFlightAsin.set(inFlightKey, resolvePromise);
+  try {
+    return await resolvePromise;
+  } finally {
+    inFlightAsin.delete(inFlightKey);
+  }
 }

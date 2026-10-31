@@ -110,5 +110,22 @@ describe('Amazon ASIN resolution and caching', () => {
       assert.equal(asin, null);
       assert.equal(fetchCalled, false);
     });
+
+    it('deduplicates simultaneous in-flight ASIN lookups for the same product', async () => {
+      const s = memStorage();
+      let fetchCount = 0;
+      const delayedFetch = async () => {
+        fetchCount++;
+        await new Promise(r => setTimeout(r, 20));
+        return { url: 'https://www.amazon.de/dp/B0DEDUPAS1' };
+      };
+      const [res1, res2] = await Promise.all([
+        resolveAmazonAsin('/ext_de?pid=600', 'p600', s, delayedFetch),
+        resolveAmazonAsin('/ext_de?pid=600', 'p600', s, delayedFetch)
+      ]);
+      assert.equal(res1, 'B0DEDUPAS1');
+      assert.equal(res2, 'B0DEDUPAS1');
+      assert.equal(fetchCount, 1);
+    });
   });
 });
