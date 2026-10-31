@@ -25,6 +25,47 @@ import {
 let flyoutObserver = null;
 let boundBody = null;
 
+function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
+  if (isIgnored) {
+    targetEl.classList.add('ignoredCategoryEntry');
+    span.classList.remove('f_IgnoredCategories_Hide');
+    span.classList.add('f_IgnoredCategories_Show');
+    span.setAttribute('title', 'Kategorie einblenden');
+    const icon = span.querySelector('i');
+    if (icon) icon.className = 'TPIcons-plus';
+    if (toggle) {
+      toggle.disabled = true;
+      toggle.setAttribute('aria-disabled', 'true');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = '▸';
+      targetEl.querySelector(':scope > .tp-cat-sublist')?.remove();
+    }
+  } else {
+    targetEl.classList.remove('ignoredCategoryEntry');
+    span.classList.remove('f_IgnoredCategories_Show');
+    span.classList.add('f_IgnoredCategories_Hide');
+    span.setAttribute('title', 'Kategorie ausblenden');
+    const icon = span.querySelector('i');
+    if (icon) icon.className = 'TPIcons-cross';
+    if (toggle) {
+      toggle.disabled = false;
+      toggle.removeAttribute?.('aria-disabled');
+    }
+  }
+}
+
+export function createIgnoreCategoryBtn(vcatId, isIgnored, ident = '') {
+  const span = document.createElement('span');
+  span.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
+  span.setAttribute('data-vcat-id', vcatId);
+  if (ident) span.setAttribute('data-ident', ident);
+  span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
+  const icon = document.createElement('i');
+  icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
+  span.appendChild(icon);
+  return span;
+}
+
 export function syncSearchResultsIgnoredState(resultsBox, doc = null) {
   if (!resultsBox?.querySelectorAll) return;
   const activeDoc = getDoc(doc || resultsBox?.ownerDocument);
@@ -32,26 +73,9 @@ export function syncSearchResultsIgnoredState(resultsBox, doc = null) {
 
   resultsBox.querySelectorAll('.tp-cat-result-item[data-vcat-id]').forEach(item => {
     const vcatId = item.getAttribute('data-vcat-id');
-    if (!vcatId) return;
-
-    const isIgnored = ignoredIds.has(String(vcatId).trim());
     const span = item.querySelector('.ignoreCategory[data-vcat-id]');
-    if (!span) return;
-
-    if (isIgnored) {
-      item.classList.add('ignoredCategoryEntry');
-      span.classList.remove('f_IgnoredCategories_Hide');
-      span.classList.add('f_IgnoredCategories_Show');
-      span.setAttribute('title', 'Kategorie einblenden');
-      const icon = span.querySelector('i');
-      if (icon) icon.className = 'TPIcons-plus';
-    } else {
-      item.classList.remove('ignoredCategoryEntry');
-      span.classList.remove('f_IgnoredCategories_Show');
-      span.classList.add('f_IgnoredCategories_Hide');
-      span.setAttribute('title', 'Kategorie ausblenden');
-      const icon = span.querySelector('i');
-      if (icon) icon.className = 'TPIcons-cross';
+    if (vcatId && span) {
+      applyIgnoredElementState(item, span, ignoredIds.has(String(vcatId).trim()));
     }
   });
 }
@@ -68,39 +92,7 @@ export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'und
     const vcatId = span.getAttribute('data-vcat-id');
     if (!vcatId) return;
 
-    const isIgnored = ignoredIds.has(String(vcatId).trim());
-    const toggle = row.querySelector?.('.tp-cat-toggle');
-
-    if (isIgnored) {
-      li.classList.add('ignoredCategoryEntry');
-      span.classList.remove('f_IgnoredCategories_Hide');
-      span.classList.add('f_IgnoredCategories_Show');
-      span.setAttribute('title', 'Kategorie einblenden');
-      const icon = span.querySelector('i');
-      if (icon) {
-        icon.className = 'TPIcons-plus';
-      }
-      if (toggle) {
-        toggle.disabled = true;
-        toggle.setAttribute('aria-disabled', 'true');
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.textContent = '▸';
-        li.querySelector(':scope > .tp-cat-sublist')?.remove();
-      }
-    } else {
-      li.classList.remove('ignoredCategoryEntry');
-      span.classList.remove('f_IgnoredCategories_Show');
-      span.classList.add('f_IgnoredCategories_Hide');
-      span.setAttribute('title', 'Kategorie ausblenden');
-      const icon = span.querySelector('i');
-      if (icon) {
-        icon.className = 'TPIcons-cross';
-      }
-      if (toggle) {
-        toggle.disabled = false;
-        toggle.removeAttribute?.('aria-disabled');
-      }
-    }
+    applyIgnoredElementState(li, span, ignoredIds.has(String(vcatId).trim()), row.querySelector?.('.tp-cat-toggle'));
   });
 
   const resultsBox = sidebar.querySelector('.tp-cat-search-results');
@@ -196,16 +188,7 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
 
     // Native mute/unmute button (empty <i> so icon font renders single cross or plus)
     if (child.numericId) {
-      const span = document.createElement('span');
-      span.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
-      span.setAttribute('data-vcat-id', child.numericId);
-      const ident = storedIdents[child.numericId];
-      if (ident) span.setAttribute('data-ident', ident);
-      span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
-      const icon = document.createElement('i');
-      icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
-      span.appendChild(icon);
-      row.appendChild(span);
+      row.appendChild(createIgnoreCategoryBtn(child.numericId, isIgnored, storedIdents[child.numericId] || ''));
     }
 
     li.appendChild(row);
@@ -337,16 +320,7 @@ export function enhanceCategorySidebar() {
         item.appendChild(link);
 
         if (vcatId) {
-          const actionBtn = document.createElement('span');
-          actionBtn.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
-          actionBtn.setAttribute('data-vcat-id', vcatId);
-          if (ident) actionBtn.setAttribute('data-ident', ident);
-          actionBtn.title = isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden';
-
-          const icon = document.createElement('i');
-          icon.className = isIgnored ? 'TPIcons-plus' : 'TPIcons-cross';
-          actionBtn.appendChild(icon);
-          item.appendChild(actionBtn);
+          item.appendChild(createIgnoreCategoryBtn(vcatId, isIgnored, ident));
         }
 
         frag.appendChild(item);
