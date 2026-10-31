@@ -69,6 +69,7 @@ export function buildBundle() {
     'page/cards.js',
     'page/product-offers.js',
     'features/category-tree-model.js',
+    'features/category-tree-actions.js',
     'features/category-tree.js',
     'ui/sparkline.js',
     'features/discord-recipe.js',

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.436
+// @version      2.18.437
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -6142,20 +6142,18 @@ const SHADOW_MODAL_STYLES = `
     return item.ident || '';
   }
 
-  // ─── MODULE: src/features/category-tree.js ──────────────────────────────────
+  // ─── MODULE: src/features/category-tree-actions.js ──────────────────────────
   /**
-   * Category Tree & Sidebar Expansion Feature
-   * Loads native category hierarchy (c_cm_data_de / /plugins/category/categorymenu),
-   * provides in-sidebar fan-out (▸/▾) for #Plugin_CategoryMainSelectionLeft,
-   * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
+   * Category Tree Actions & Server Lifecycle
+   * Handles server POST endpoints for category exclusion, restoration,
+   * reset, AJAX bar updates, and bar MutationObserver wiring.
    */
 
 
 
 
+
   let ignoredBarObserver = null;
-  let flyoutObserver = null;
-  let boundBody = null;
 
   function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
     if (!activeDoc || typeof MutationObserver !== 'function') return;
@@ -6169,7 +6167,9 @@ const SHADOW_MODAL_STYLES = `
 
     ignoredBarObserver = new MutationObserver(() => {
       const sidebar = doc?.querySelector?.('.Plugin_CategoryMainSelectionLeft');
-      if (sidebar) syncCategoryTreeIgnoredState(sidebar);
+      if (sidebar && typeof syncCategoryTreeIgnoredState === 'function') {
+        syncCategoryTreeIgnoredState(sidebar);
+      }
     });
     ignoredBarObserver.observe(ignoredBar, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-ignored-count'] });
   }
@@ -6189,7 +6189,9 @@ const SHADOW_MODAL_STYLES = `
           newBar.setAttribute('data-ignored-count', String(chipCount));
           bar.replaceWith(newBar);
           harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || newBar);
-          syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+          if (typeof syncCategoryTreeIgnoredState === 'function') {
+            syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+          }
           observeIgnoredCategoriesBar(activeDoc);
         } else if (newContainer) {
           const curContainer = bar.querySelector('.ignoredCategoriesBar');
@@ -6201,7 +6203,9 @@ const SHADOW_MODAL_STYLES = `
           const chipCount = bar.querySelectorAll('.ignoredCategory').length;
           bar.setAttribute('data-ignored-count', String(chipCount));
           harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || bar);
-          syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+          if (typeof syncCategoryTreeIgnoredState === 'function') {
+            syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+          }
         }
       }
     } catch {}
@@ -6280,6 +6284,10 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
+    if (!ok) {
+      showToast('Kategorie-Aktion fehlgeschlagen');
+    }
+
     return ok;
   }
 
@@ -6348,6 +6356,21 @@ const SHADOW_MODAL_STYLES = `
 
     return postCategoryAction(ajaxUrl, body, bar, activeDoc, 'Category reset');
   }
+
+  // ─── MODULE: src/features/category-tree.js ──────────────────────────────────
+  /**
+   * Category Tree & Sidebar Expansion Feature
+   * Loads native category hierarchy (c_cm_data_de / /plugins/category/categorymenu),
+   * provides in-sidebar fan-out (▸/▾) for #Plugin_CategoryMainSelectionLeft,
+   * instant subcategory search, and lazy hydration of native ✕/＋ exclusion tokens.
+   */
+
+
+
+
+
+  let flyoutObserver = null;
+  let boundBody = null;
 
   function syncSearchResultsIgnoredState(resultsBox, doc = null) {
     if (!resultsBox?.querySelectorAll) return;
@@ -14185,7 +14208,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.436';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.437';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
