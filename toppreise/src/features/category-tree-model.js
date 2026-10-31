@@ -24,6 +24,20 @@ export function saveStoredIdents(map) {
   } catch {}
 }
 
+export function evictStoredIdent(vcatId) {
+  if (!vcatId) return;
+  try {
+    const raw = localStorage.getItem(IDENT_STORAGE_KEY);
+    if (!raw) return;
+    const map = JSON.parse(raw);
+    const key = String(vcatId).trim();
+    if (map && key in map) {
+      delete map[key];
+      localStorage.setItem(IDENT_STORAGE_KEY, JSON.stringify(map));
+    }
+  } catch {}
+}
+
 export function getExpandedBranches() {
   try {
     const raw = sessionStorage.getItem(EXPANDED_STORAGE_KEY);
@@ -318,11 +332,19 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
   return treeLoadingPromise;
 }
 
+const hydratedFeedUrls = new Set();
+
+export function resetHydratedFeedUrlsForTesting() {
+  hydratedFeedUrls.clear();
+}
+
 export async function hydrateBranchIdents(feedUrl, branchEl) {
   if (!feedUrl || typeof fetch !== 'function') return;
+  if (hydratedFeedUrls.has(feedUrl)) return;
   try {
     const resp = await fetch(feedUrl, { credentials: 'same-origin' });
     if (!resp.ok) return;
+    hydratedFeedUrls.add(feedUrl);
     const html = await resp.text();
     const stored = parseCategoryIdentsFromText(html);
 
@@ -343,18 +365,21 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
   if (!vcatId) return '';
   if (item.ident) return item.ident;
 
-  const stored = getStoredIdents();
-  if (stored[vcatId]) {
-    item.ident = stored[vcatId];
-    return item.ident;
-  }
-
   const activeDoc = getDoc(doc);
-  const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${vcatId}"][data-ident]`)?.getAttribute?.('data-ident');
+  // Live DOM takes precedence over stored localStorage cache (avoid stale tokens from older sessions)
+  // Exclude suite-created buttons (.tp-cat-action-btn) to prevent reading our own stale attributes
+  const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${vcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
   if (domToken) {
+    const stored = getStoredIdents();
     stored[vcatId] = domToken;
     saveStoredIdents(stored);
     item.ident = domToken;
+    return item.ident;
+  }
+
+  const stored = getStoredIdents();
+  if (stored[vcatId]) {
+    item.ident = stored[vcatId];
     return item.ident;
   }
 

@@ -17,7 +17,7 @@ An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies 
 | ⑤ | **Deceptive Markup Exposure** | Unmasks fake discounts: crosses out unverified site discount and displays true markup (+XX%) above historical low. |
 | ⑥ | **1-Click Discord Share** | Hover button to post deal details, interactive chart PNG, and merchant offer directly to your Discord webhook. |
 | ⑦ | **Transparent Deal Subline** | Displays previous low margin % and 1-year rolling median with margin %. |
-| ⑧ | **Cheapest Dealer (`🏬`)** | Direct link to the cheapest merchant offer without intermediary tracking redirects. |
+| ⑧ | **Cheapest Dealer (`🏬`)** | Direct link to the cheapest merchant offer. |
 | ⑨ | **Mini Trend Sparkline** | Compact 30-day price curve; click to expand interactive full-history chart modal. |
 | ⑩ | **1-Click Web Search (`🌐`)** | Appears on hover next to product title; opens a Google search for `<Product> <keyword>` in a new tab (keyword configurable, `{preis}` token for current price). |
 
@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.432)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.434)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.

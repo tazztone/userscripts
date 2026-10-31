@@ -7,6 +7,9 @@ import {
   searchCategoryTree,
   getStoredIdents,
   saveStoredIdents,
+  evictStoredIdent,
+  resetHydratedFeedUrlsForTesting,
+  hydrateBranchIdents,
   getExpandedBranches,
   saveExpandedBranches,
   isCategoryIgnored,
@@ -1048,5 +1051,47 @@ test('refreshProductFeed passes cache: no-cache to fetch', async () => {
   } finally {
     if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
     if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+  }
+});
+
+test('ensureCategoryIdent gives live DOM tokens precedence over stale localStorage', async () => {
+  saveStoredIdents({ '555': 'staleTokenOld' });
+  const root = createMockElement('div');
+  const span = createMockElement('span', { className: 'ignoreCategory' });
+  span.setAttribute('data-vcat-id', '555');
+  span.setAttribute('data-ident', 'freshServerTokenNew');
+  root.appendChild(span);
+
+  const doc = { querySelector: sel => root.querySelector(sel) };
+  const ident = await ensureCategoryIdent({ numericId: '555' }, null, '', doc);
+  assert.equal(ident, 'freshServerTokenNew');
+  assert.equal(getStoredIdents()['555'], 'freshServerTokenNew');
+  evictStoredIdent('555');
+  assert.equal(getStoredIdents()['555'], undefined);
+});
+
+test('hydrateBranchIdents tracks fetched URLs to avoid duplicate 300KB requests', async () => {
+  resetHydratedFeedUrlsForTesting();
+  const prevFetch = globalThis.fetch;
+  let fetchCount = 0;
+  try {
+    globalThis.fetch = async () => {
+      fetchCount++;
+      return {
+        ok: true,
+        text: async () => '<span data-vcat-id="777" data-ident="tok777"></span>'
+      };
+    };
+
+    const branch = createMockElement('li');
+    await hydrateBranchIdents('/neue-toppreise/cat-c777', branch);
+    assert.equal(fetchCount, 1);
+
+    // Repeated call with same URL is skipped
+    await hydrateBranchIdents('/neue-toppreise/cat-c777', branch);
+    assert.equal(fetchCount, 1);
+  } finally {
+    if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+    resetHydratedFeedUrlsForTesting();
   }
 });

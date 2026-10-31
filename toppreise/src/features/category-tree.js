@@ -12,8 +12,29 @@ import {
   getStoredIdents, getExpandedBranches, saveExpandedBranches,
   toFeedUrl, harvestExistingIdents, isCategoryIgnored, getIgnoredVcatIds,
   getDoc, loadNativeCategoryTree, hydrateBranchIdents, ensureCategoryIdent,
-  parseCategoryIdentsFromText, searchCategoryTree
+  evictStoredIdent, parseCategoryIdentsFromText, searchCategoryTree
 } from './category-tree-model.js';
+
+let ignoredBarObserver = null;
+let flyoutObserver = null;
+let boundBody = null;
+
+export function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
+  if (!activeDoc || typeof MutationObserver !== 'function') return;
+  const doc = getDoc(activeDoc);
+  const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+  if (ignoredBarObserver) {
+    try { ignoredBarObserver.disconnect(); } catch {}
+    ignoredBarObserver = null;
+  }
+  if (!ignoredBar) return;
+
+  ignoredBarObserver = new MutationObserver(() => {
+    const sidebar = doc?.querySelector?.('.Plugin_CategoryMainSelectionLeft');
+    if (sidebar) syncCategoryTreeIgnoredState(sidebar);
+  });
+  ignoredBarObserver.observe(ignoredBar, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-ignored-count'] });
+}
 
 export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) {
   if (!html || !bar) return;
@@ -31,6 +52,7 @@ export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) 
         bar.replaceWith(newBar);
         harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || newBar);
         syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
+        observeIgnoredCategoriesBar(activeDoc);
       } else if (newContainer) {
         const curContainer = bar.querySelector('.ignoredCategoriesBar');
         if (curContainer) {
@@ -102,14 +124,25 @@ export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc
     return false;
   }
 
-  const body = new URLSearchParams({
+  const buildBody = token => new URLSearchParams({
     lang,
-    aicat: ident,
+    aicat: token,
     aicatvc: vcatId,
     fp_ic_ch: contextHash
   });
 
-  return postCategoryAction(ajaxUrl, body, bar, activeDoc, `Category ${isRestore ? 'restore' : 'exclusion'}`);
+  let ok = await postCategoryAction(ajaxUrl, buildBody(ident), bar, activeDoc, `Category ${isRestore ? 'restore' : 'exclusion'}`);
+  if (!ok && !initialIdent) {
+    // Stale cached ident may have been rejected by HMAC. Evict and retry once via fresh discovery.
+    evictStoredIdent(vcatId);
+    const tree = await loadNativeCategoryTree(activeDoc);
+    const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc);
+    if (refreshed && refreshed !== ident) {
+      ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), bar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
+    }
+  }
+
+  return ok;
 }
 
 async function postCategoryAction(ajaxUrl, body, bar, activeDoc, contextName) {
@@ -163,7 +196,8 @@ export async function executeServerCategoryReset(doc = (typeof document !== 'und
 
   if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
-  const resetIdent = activeDoc?.querySelector?.('.f_IgnoredCategories_ResetConfirm[data-ident], .f_IgnoredCategories_Reset[data-ident]')?.getAttribute?.('data-ident') || 'all';
+  const resetIdent = activeDoc?.querySelector?.('.f_IgnoredCategories_ResetConfirm[data-ident], .f_IgnoredCategories_Reset[data-ident]')?.getAttribute?.('data-ident');
+  if (!resetIdent) return false;
 
   const body = new URLSearchParams({
     aicatrs: resetIdent,
@@ -278,7 +312,16 @@ function bindTreeBranchToggle(toggle, catId, li, currentPath, expandedBranches, 
       expandedBranches.add(catId);
       saveExpandedBranches(expandedBranches);
       renderChildList(children, li, currentPath, expandedBranches);
-      if (hydrateUrl) hydrateBranchIdents(hydrateUrl, li);
+      if (hydrateUrl) {
+        const stored = getStoredIdents();
+        const needsHydration = children.some(c => {
+          const numId = String(c.numericId || c.id || '').replace(/^c/i, '').trim();
+          return numId && !stored[numId];
+        });
+        if (needsHydration) {
+          hydrateBranchIdents(hydrateUrl, li);
+        }
+      }
     }
   };
 }
@@ -575,74 +618,77 @@ export function enhanceCategorySidebar() {
   syncCategoryTreeIgnoredState(sidebar);
 
   // 3. MutationObserver on .Plugin_IgnoredCategories for dynamic sync
-  if (typeof document !== 'undefined' && typeof MutationObserver === 'function') {
-    const ignoredBar = document.querySelector('.Plugin_IgnoredCategories');
-    if (ignoredBar) {
-      const observer = new MutationObserver(() => {
-        syncCategoryTreeIgnoredState(sidebar);
-      });
-      observer.observe(ignoredBar, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-ignored-count'] });
-    }
-  }
+  observeIgnoredCategoriesBar(document);
 
   // 4. Listen for category hide/show/reset to collapse/restore tree branches and sync chips
   if (typeof document !== 'undefined' && document.body?.addEventListener) {
-    const isLiveSite = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
+    if (boundBody !== document.body) {
+      boundBody = document.body;
+      const isLiveSite = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
 
-    document.body.addEventListener('click', async e => {
-      const toggleBtn = e.target?.closest?.('.f_IgnoredCategories_Hide, .f_IgnoredCategories_Show');
-      if (toggleBtn) {
-        const isShow = toggleBtn.classList.contains('f_IgnoredCategories_Show');
-        const vcatId = toggleBtn.getAttribute?.('data-vcat-id');
-        if (!vcatId) return;
+      document.body.addEventListener('click', async e => {
+        const toggleBtn = e.target?.closest?.('.f_IgnoredCategories_Hide, .f_IgnoredCategories_Show');
+        if (toggleBtn) {
+          const isShow = toggleBtn.classList.contains('f_IgnoredCategories_Show');
+          const vcatId = toggleBtn.getAttribute?.('data-vcat-id');
+          if (!vcatId) return;
 
-        const isSubOrSearch = !!toggleBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
-        if (isLiveSite && isSubOrSearch) {
-          e.preventDefault?.();
-          e.stopPropagation?.();
-          e.stopImmediatePropagation?.();
-        }
-
-        const cleanVcatId = String(vcatId).trim();
-        const ident = toggleBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
-        const rowEl = toggleBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || toggleBtn;
-
-        if (isLiveSite && isSubOrSearch) {
-          rowEl.classList?.add?.('tp-cat-loading');
-          try {
-            await executeServerCategoryToggle(cleanVcatId, ident, document, isShow);
-          } finally {
-            rowEl.classList?.remove?.('tp-cat-loading');
+          const isSubOrSearch = !!toggleBtn.closest?.('.tp-cat-sublist, .tp-cat-search-results, .category_level_sub');
+          if (isLiveSite && isSubOrSearch) {
+            e.preventDefault?.();
+            e.stopPropagation?.();
+            e.stopImmediatePropagation?.();
           }
-        }
-        return;
-      }
 
-      const resetBtn = e.target?.closest?.('.f_IgnoredCategories_Reset');
-      if (resetBtn) {
-        if (isLiveSite) {
-          executeServerCategoryReset(document);
-        }
-      }
-    }, { capture: true });
-  }
+          const cleanVcatId = String(vcatId).trim();
+          const ident = toggleBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
+          const rowEl = toggleBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || toggleBtn;
 
-  // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
-  if (typeof document !== 'undefined' && typeof MutationObserver === 'function') {
-    const flyoutObserver = new MutationObserver(mutations => {
-      for (const m of mutations) {
-        for (const node of m.addedNodes) {
-          if (node.nodeType === 1) {
-            const menu = node.classList?.contains('IgnoredCategoriesMenu')
-              ? node
-              : node.querySelector?.('.IgnoredCategoriesMenu');
-            if (menu) {
-              parseCategoryIdentsFromText(menu.outerHTML);
+          if (isLiveSite && isSubOrSearch) {
+            rowEl.classList?.add?.('tp-cat-loading');
+            try {
+              await executeServerCategoryToggle(cleanVcatId, ident, document, isShow);
+            } finally {
+              rowEl.classList?.remove?.('tp-cat-loading');
             }
           }
+          return;
         }
+
+        const resetBtn = e.target?.closest?.('.f_IgnoredCategories_ResetConfirm, .f_IgnoredCategories_Reset');
+        if (resetBtn && isLiveSite) {
+          const resetIdent = resetBtn.getAttribute?.('data-ident') ||
+            document.querySelector?.('.f_IgnoredCategories_ResetConfirm[data-ident], .f_IgnoredCategories_Reset[data-ident]')?.getAttribute?.('data-ident');
+          if (resetIdent) {
+            e.preventDefault?.();
+            e.stopPropagation?.();
+            e.stopImmediatePropagation?.();
+            executeServerCategoryReset(document);
+          }
+        }
+      }, { capture: true });
+
+      // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
+      if (typeof MutationObserver === 'function') {
+        if (flyoutObserver) {
+          try { flyoutObserver.disconnect(); } catch {}
+        }
+        flyoutObserver = new MutationObserver(mutations => {
+          for (const m of mutations) {
+            for (const node of m.addedNodes) {
+              if (node.nodeType === 1) {
+                const menu = node.classList?.contains('IgnoredCategoriesMenu')
+                  ? node
+                  : node.querySelector?.('.IgnoredCategoriesMenu');
+                if (menu) {
+                  parseCategoryIdentsFromText(menu.outerHTML);
+                }
+              }
+            }
+          }
+        });
+        flyoutObserver.observe(document.body, { childList: true, subtree: true });
       }
-    });
-    flyoutObserver.observe(document.body, { childList: true, subtree: true });
+    }
   }
 }
