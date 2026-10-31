@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.434
+// @version      2.18.435
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -34,9 +34,11 @@
 
 const TP_TOKEN_VARS = `
   --tp-bg: #ffffff;
+  --tp-bg-sub: rgba(15,23,42,0.04);
   --tp-panel: rgba(255,255,255,0.92);
   --tp-line: rgba(15,23,42,0.12);
   --tp-line-soft: rgba(15,23,42,0.16);
+  --tp-bdr: rgba(15,23,42,0.14);
   --tp-txt: #0f172a;
   --tp-txt-mid: #1e293b;
   --tp-txt-dim: #334155;
@@ -1638,7 +1640,7 @@ const STYLES_OVERLAYS = `
     box-sizing: border-box !important;
   }
   .tp-range-input:focus {
-    border-color: var(--tp-pri) !important;
+    border-color: var(--tp-focus) !important;
   }
   .tp-range-input::-webkit-inner-spin-button,
   .tp-range-input::-webkit-outer-spin-button {
@@ -1877,7 +1879,8 @@ const STYLES_OVERLAYS = `
     .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
   }
   @media (prefers-contrast: more) {
-    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { color: #fff !important; border-width: 2px !important; }
+    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { border-width: 2px !important; }
+    :is(.badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record)[style*="background"] { color: #fff !important; }
     .tp-tool-dim { opacity: 0.75 !important; }
   }
   #tp-floating-check-col {
@@ -5016,9 +5019,7 @@ const SHADOW_MODAL_STYLES = `
     const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
     if (specific) return specific;
     const fallback = getCachedPriceStats(pid, false, null, cardBasis !== 'shipping');
-    if (!fallback) return null;
-    if (!fallback.unavailable) return fallback;
-    return basisMatchesFor(fallback, cardBasis) ? fallback : null;
+    return fallback && !fallback.unavailable ? fallback : null;
   }
 
   // usable stats verify, fresh unavailable markers wait out the negative TTL,
@@ -14161,7 +14162,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.434';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.435';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

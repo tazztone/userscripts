@@ -97,7 +97,7 @@ export const STYLES_OVERLAYS = `
     box-sizing: border-box !important;
   }
   .tp-range-input:focus {
-    border-color: var(--tp-pri) !important;
+    border-color: var(--tp-focus) !important;
   }
   .tp-range-input::-webkit-inner-spin-button,
   .tp-range-input::-webkit-outer-spin-button {
@@ -336,7 +336,8 @@ export const STYLES_OVERLAYS = `
     .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
   }
   @media (prefers-contrast: more) {
-    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { color: #fff !important; border-width: 2px !important; }
+    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { border-width: 2px !important; }
+    :is(.badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record)[style*="background"] { color: #fff !important; }
     .tp-tool-dim { opacity: 0.75 !important; }
   }
   #tp-floating-check-col {

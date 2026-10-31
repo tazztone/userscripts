@@ -299,9 +299,7 @@ export function getCardStats(pid, cardBasis) {
   const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
   if (specific) return specific;
   const fallback = getCachedPriceStats(pid, false, null, cardBasis !== 'shipping');
-  if (!fallback) return null;
-  if (!fallback.unavailable) return fallback;
-  return basisMatchesFor(fallback, cardBasis) ? fallback : null;
+  return fallback && !fallback.unavailable ? fallback : null;
 }
 
 // usable stats verify, fresh unavailable markers wait out the negative TTL,

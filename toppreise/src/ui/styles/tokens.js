@@ -2,9 +2,11 @@
 
 export const TP_TOKEN_VARS = `
   --tp-bg: #ffffff;
+  --tp-bg-sub: rgba(15,23,42,0.04);
   --tp-panel: rgba(255,255,255,0.92);
   --tp-line: rgba(15,23,42,0.12);
   --tp-line-soft: rgba(15,23,42,0.16);
+  --tp-bdr: rgba(15,23,42,0.14);
   --tp-txt: #0f172a;
   --tp-txt-mid: #1e293b;
   --tp-txt-dim: #334155;
