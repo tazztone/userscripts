@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.438
+// @version      2.18.439
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -13490,6 +13490,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const ALARM_DURATIONS = ['90', '180', '365', '730'];
   const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
   const clampAlarmTarget = v =>
@@ -13702,6 +13703,7 @@ const SHADOW_MODAL_STYLES = `
         // Guarded write: the observer watches this subtree, so an unguarded
         // textContent assignment would re-trigger it into a microtask loop.
         if (el.textContent !== unconfirmedMsg) el.textContent = unconfirmedMsg;
+        showToast(unconfirmedMsg);
       };
       try {
         const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
@@ -13713,6 +13715,7 @@ const SHADOW_MODAL_STYLES = `
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
+            showToast('🔔 Preisalarm gesetzt');
             const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
@@ -13754,6 +13757,7 @@ const SHADOW_MODAL_STYLES = `
         modalContainer.dataset.tpAlarmState = 'scheduled';
       } catch (err) {
         if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm submit error', err);
+        showToast('⚠️ Preisalarm Übermittlungsfehler');
       }
     }
   }
@@ -13871,10 +13875,12 @@ const SHADOW_MODAL_STYLES = `
       }
     } catch (err) {
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
+      showToast('⚠️ Preisalarm konnte nicht geöffnet werden');
     }
 
     // 5. Ultimate fallback if AJAX fails: direct URL navigation in new tab
     if (typeof window !== 'undefined') {
+      showToast('⚠️ Preisalarm im neuen Tab geöffnet');
       window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
     }
   }
@@ -14209,7 +14215,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.438';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.439';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

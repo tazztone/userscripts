@@ -9,5 +9,11 @@ describe('Toast message recorder', () => {
 
     showToast('Zweiter Toast mit Spezialzeichen: 120T & Ø');
     assert.equal(getLastToastMessage(), 'Zweiter Toast mit Spezialzeichen: 120T & Ø');
+
+    showToast('🔔 Preisalarm gesetzt');
+    assert.equal(getLastToastMessage(), '🔔 Preisalarm gesetzt');
+
+    showToast('⚠️ Übermittlung nicht bestätigt — bitte prüfen');
+    assert.equal(getLastToastMessage(), '⚠️ Übermittlung nicht bestätigt — bitte prüfen');
   });
 });
