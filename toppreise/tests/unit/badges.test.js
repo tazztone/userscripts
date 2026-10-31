@@ -336,4 +336,72 @@ describe('Verdict badges F-03 & F-04', () => {
     const res = renderBadgeSetup({ card, pid: null }, false);
     assert.equal(res, null);
   });
+
+  it('ensureDealerInfo returns cached dealer immediately', async () => {
+    const { ensureDealerInfo } = await import('../../src/ui/badges/card-chrome.js');
+    const { dealerCache } = await import('../../src/ui/badges/deal-badge.js');
+    dealerCache.set('pid-test-dealer:p', { dealer: 'Amazon.de', url: 'https://www.amazon.de/dp/B012345678' });
+
+    const card = { querySelector: () => null };
+    const res = await ensureDealerInfo(card, 'pid-test-dealer', false);
+    assert.ok(res);
+    assert.equal(res.dealer, 'Amazon.de');
+    assert.equal(res.url, 'https://www.amazon.de/dp/B012345678');
+  });
+
+  it('ensureDealerInfo fetches dealer when un-cached', async () => {
+    const { ensureDealerInfo } = await import('../../src/ui/badges/card-chrome.js');
+    const prevFetch = globalThis.fetch;
+    const prevParser = globalThis.DOMParser;
+    const prevDoc = globalThis.document;
+    try {
+      globalThis.document = {
+        querySelectorAll: () => [],
+        querySelector: () => null,
+        body: {
+          getAttribute: () => null,
+          classList: { contains: () => false }
+        }
+      };
+      globalThis.fetch = async () => ({
+        ok: true,
+        text: async () => '<html></html>'
+      });
+      globalThis.DOMParser = class {
+        parseFromString() {
+          return {
+            querySelectorAll(sel) {
+              if (sel === 'script[type="application/ld+json"]') {
+                return [{
+                  textContent: JSON.stringify({
+                    '@type': 'Product',
+                    offers: [{
+                      '@type': 'Offer',
+                      price: 150,
+                      seller: { name: 'Amazon.de' }
+                    }]
+                  })
+                }];
+              }
+              return [];
+            }
+          };
+        }
+      };
+      const card = {
+        querySelector: sel => {
+          if (sel === 'a[href*="/preisvergleich/"]') return { getAttribute: () => 'https://www.toppreise.ch/preisvergleich/Prod-p999', href: 'https://www.toppreise.ch/preisvergleich/Prod-p999' };
+          return null;
+        }
+      };
+      const res = await ensureDealerInfo(card, 'p999', false);
+      assert.ok(res);
+      assert.equal(res.dealer, 'Amazon.de');
+      await new Promise(r => setTimeout(r, 60));
+    } finally {
+      globalThis.fetch = prevFetch;
+      if (prevParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevParser;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });

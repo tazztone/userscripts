@@ -108,6 +108,7 @@ export function getDetailLowestPrice() {
 }
 
 export function isProductDetailPage() {
+  if (typeof document === 'undefined') return false;
   return (typeof location !== 'undefined' && /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href)) ||
          /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(document.body?.getAttribute('data-current_url') || '') ||
          document.body?.classList.contains('Page_Product') ||
@@ -118,6 +119,7 @@ export function isProductDetailPage() {
 
 
 export function triggerProcessListings() {
+  if (typeof document === 'undefined') return;
   // Suite handle first so spies observe observer-triggered renders; in
   // production both references resolve to the same function.
   if (typeof window !== 'undefined' && typeof window.ToppreiseSuite?.processListings === 'function') {

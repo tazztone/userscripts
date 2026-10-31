@@ -26,6 +26,74 @@ import { openPriceAlarmForProduct, refreshAlarmBellDecor } from '../../features/
 
 export { renderShareButton };
 
+const dealerPromises = new Map();
+
+export async function ensureDealerInfo(card, pid, useShipping) {
+  if (!pid || !card) return null;
+  const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
+  let dealer = extractDealer(card, useShipping);
+  if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
+    if (dealerHydrated.size > 1000) dealerHydrated.clear();
+    dealerHydrated.add(dKey);
+    const stored = getCachedDealer(pid, useShipping);
+    if (stored?.dealer) lruSet(dealerCache, dKey, stored);
+  }
+  let cached = dealerCache.get(dKey);
+  if (dealer || cached?.dealer) {
+    return {
+      dealer: dealer || cached.dealer,
+      url: cached?.url || (dealer ? extractDealerUrl(card, useShipping) : '')
+    };
+  }
+
+  const { url: productUrl } = extractShareData(card);
+  if (!productUrl || !/^https?:\/\//i.test(productUrl)) return null;
+
+  if (dealerPromises.has(dKey)) {
+    try {
+      await dealerPromises.get(dKey);
+    } catch {}
+    cached = dealerCache.get(dKey);
+    return cached?.dealer ? { dealer: cached.dealer, url: cached.url || '' } : null;
+  }
+
+  if (dealerPending.has(dKey)) {
+    let attempts = 0;
+    while (dealerPending.has(dKey) && attempts++ < 20) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+    cached = dealerCache.get(dKey);
+    return cached?.dealer ? { dealer: cached.dealer, url: cached.url || '' } : null;
+  }
+
+  dealerPending.add(dKey);
+  const reqGen = currentCacheGen();
+  const reqShipping = useShipping;
+  const reqKey = dKey;
+
+  const promise = (async () => {
+    try {
+      const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
+      if (reqGen !== currentCacheGen()) return null;
+      if (info?.dealer) {
+        const entry = { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0, totalOffers: info.totalOffers || 0 };
+        lruSet(dealerCache, reqKey, entry);
+        setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0, info.totalOffers || 0);
+        return entry;
+      }
+      return null;
+    } finally {
+      dealerPending.delete(dKey);
+      dealerPromises.delete(dKey);
+    }
+  })();
+
+  dealerPromises.set(dKey, promise);
+  const res = await promise;
+  scheduleProcessListings();
+  return res ? { dealer: res.dealer, url: res.url || '' } : null;
+}
+
 // Mini price-trend sparkline + history strip (step 5).
 export function renderSparklineRow(ctx) {
   const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
@@ -57,13 +125,20 @@ export function renderSparklineRow(ctx) {
     sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
     if (!sparkContainer.dataset.tpPopoutBound) {
       sparkContainer.dataset.tpPopoutBound = 'true';
-      const openPopout = () => {
-        const shareData = extractShareData(card);
-        const title = shareData?.title || '';
-        const currentCached = getCachedDealer(pid, useShipping);
-        const currentDealer = currentCached?.dealer || extractDealer(card, useShipping) || '';
-        const directUrl = currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
-        openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+      const openPopout = async () => {
+        if (sparkContainer.dataset.tpPopoutLoading) return;
+        sparkContainer.dataset.tpPopoutLoading = 'true';
+        try {
+          const shareData = extractShareData(card);
+          const title = shareData?.title || '';
+          const dealerInfo = await ensureDealerInfo(card, pid, useShipping);
+          const currentCached = getCachedDealer(pid, useShipping);
+          const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, useShipping) || '';
+          const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
+          openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+        } finally {
+          delete sparkContainer.dataset.tpPopoutLoading;
+        }
       };
       sparkContainer.addEventListener('click', e => {
         e.preventDefault();
@@ -212,24 +287,11 @@ export function renderDealerName(ctx, filters) {
     } else if (hasUrl && !dealerCache.has(dKey)) {
       // Ein Loader für Klick + Auto-Fetch: Produktseite einmalig pro pid:Modus
       // (dealerPending-Guard), Ergebnis in Memory + localStorage, danach Render.
-      const loadDealer = async () => {
-        if (dealerPending.has(dKey)) return;
-        dealerPending.add(dKey);
-        // Stale-write guard: a clear/reset mid-flight voids the write; the
-        // basis snapshot avoids resolving the live mode after the await.
-        const reqGen = currentCacheGen();
-        const reqShipping = useShipping;
-        const reqKey = dKey;
-        try {
-          const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
-          if (reqGen !== currentCacheGen()) return;
-          if (info?.dealer) { lruSet(dealerCache, reqKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0, totalOffers: info.totalOffers || 0 }); setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0, info.totalOffers || 0); }
-        } finally {
-          dealerPending.delete(dKey);
-        }
-        scheduleProcessListings();
-      };
       let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
+      const loadDealer = async () => {
+        if (btn) btn.disabled = true;
+        await ensureDealerInfo(card, pid, useShipping);
+      };
       if (!btn) {
         dealerEl?.remove();
         btn = document.createElement('button');
@@ -241,7 +303,6 @@ export function renderDealerName(ctx, filters) {
         btn.addEventListener('click', e => {
           e.preventDefault();
           e.stopPropagation();
-          btn.disabled = true;
           loadDealer();
         });
         place(btn);
