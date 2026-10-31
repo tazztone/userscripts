@@ -24,6 +24,7 @@ export const TP_TOKEN_VARS = `
   --tp-rose: #f43f5e;
   --tp-warn: #f59e0b;
   --tp-focus: #047857;
+  --tp-btn-primary: #047857;
   --tp-grad-acc: linear-gradient(135deg, #047857 0%, #065f46 100%);
   --tp-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --tp-r-sm: 6px;
