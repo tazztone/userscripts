@@ -184,27 +184,13 @@ closing synchronously aborts the `/plugins/infomails/NewInfoMailForm` POST
 
 ### Sanitizing + median horizon (`price.js`)
 
-- `sanitizeTimeSeries`: median `M_raw`; dip candidate `< 0.35×M`
-  (spike `> 2.5×M` mirrored); glitch if duration <48h with neighbours
-  `≥ 0.60×M`, or extreme edge (`< 0.25×M` next to `≥ 0.70×M`). Stats derive
-  from clean points only; count exposed as `filteredOutliers`
-  (`ℹ️ N Ausreisser ignoriert`).
-- Median horizon `BESTPREISE_MEDIAN_HORIZON_DAYS`: `365` default, freier Bereich
-  `30–730` + `0` = Lifetime (Slider `30–760` Schritt 30, Zahl `0–730` frei;
-  `>730` → Lifetime, Toolbar `760` = Lifetime-Sentinel); fallback to lifetime
-  median if window has <3 points, flagged via `medianFallback`. True median
-  no upper bias). Labels via `medianHorizonLabel`: window label only when the
-  median really comes from that window, else `Lifetime` (legacy cache without
-  the flag keeps the old label until refresh). Sampling is strictly daily &
-  uniform (live-verified 2026-10-04: 607–3825 pts/product, max gap 1.0d) —
-  equal-weight == time-weighted, no duration weighting.
-  Subline combines: `Bisher: CHF … · Ø-Preis (1J): CHF 460.00` (fallback reads
-  `Lifetime`).
+- `sanitizeTimeSeries`: uses localized rolling medians (default window `±15` points / 31-point span) via `rollingMedians()`; dip candidate `< (1 - OUTLIER_DEVIATION_BAND) * M_local` (default deviation band `0.50`, spike mirrored at `> (1 + OUTLIER_DEVIATION_BAND) * M_local`); glitch if duration `< OUTLIER_MAX_GLITCH_HOURS` (default 48h) with clean baseline recovery. Points are anchored against verified live price (`isLiveAnchored`). Stats derive from clean points only; count exposed as `filteredOutliers` (`ℹ️ N Ausreisser ignoriert`).
+- Median horizon `BESTPREISE_MEDIAN_HORIZON_DAYS`: `365` default, freier Bereich `30–730` + `0` = Lifetime (Slider `30–760` Schritt 30, Zahl `0–730` frei; `>730` → Lifetime, Toolbar `760` = Lifetime-Sentinel); fallback to lifetime median if window has <3 points, flagged via `medianFallback`. True median (no upper bias). Labels via `medianHorizonLabel`: window label only when the median really comes from that window, else `Lifetime` (legacy cache without the flag keeps the old label until refresh). Sampling is strictly daily & uniform (live-verified 2026-10-04: 607–3825 pts/product, max gap 1.0d) — equal-weight == time-weighted, no duration weighting. Subline combines: `Bisher: CHF … · Ø-Preis (1J): CHF 460.00` (fallback reads `Lifetime`).
 
 ### Gewichtete Differenz (`deal-score.js`, ADR-0005)
 
 ```
-Blend = max(0, round((1−W)·D_median + W·D_record))
+Blend = isZeroMargin ? 0 : max(1, round((1−W)·D_median + W·D_record))
 D_median  = (P_median − P_curr)/P_median × 100      (everyday savings)
 D_record  = (P_prev_low − P_curr)/P_prev_low × 100  (0 if matching record)
 W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar slider 0–100 step 5
@@ -213,16 +199,8 @@ W         = BESTPREISE_WEIGHT_RECORD (default 0.50; toolbar slider 0–100 step 
             modal control two-way synced, skipped mid-drag)
 ```
 
-Gate: at/below low, ≥2% lifetime variance, ≥5 points, Blend > 0 —
-else `null` (hidden via `.tp-bestpreise-hidden`). One metric everywhere:
-the blend prints on the badge (`⚖️ −X%`), drives card heat via
-`getHeatInput()` and feed sort ↓. Rek/Ø survive only as a consolidated
-split in the subline (`📉 CHF curr (−X%) · Ø (1J) CHF med (−Y%)`); the
-percent-less star fallback and `Rekord`/`Ø-Preis` ribbon kind words are gone.
-±5% deadband: tiny blend prints but stays gray. No-blend fallback (thin
-history, no median): `Vortief-Abstand` on the badge + outer edge glow only,
-never full wash. Toggle `💎 Neue Tiefstpreise` is instant client-side (0
-network); `🔍 Tiefstpreise prüfen` / `≥30%` stay active to stream-threshold-scan into it.
+Gate: at/below low, ≥2% lifetime variance, ≥5 points (`BESTPREISE_MIN_POINTS`), non-negative savings (`isZeroMargin` supported for 0% exact-match deals) — else `null` (hidden via `.tp-bestpreise-hidden`). One metric everywhere: the blend prints on the badge (`⚖️ −X%`), drives card heat via `getHeatInput()` and feed sort ↓. Rek/Ø survive only as a consolidated split in the subline (`📉 CHF curr (−X%) · Ø (1J) CHF med (−Y%)`); the percent-less star fallback and `Rekord`/`Ø-Preis` ribbon kind words are gone.
+±1% deadband (`HEAT_NEUTRAL_DEADBAND_PCT = 1`): tiny raw blend (`rawBlend < 1%`) prints on badge text (`-1%`) but stays gray (`value: null`) on the card. No-blend fallback (thin history, no median): `Vortief-Abstand` on the badge + outer edge glow only, never full wash. Toggle `💎 Neue Tiefstpreise` is instant client-side (0 network); `🔍 Tiefstpreise prüfen` / `≥30%` stay active to stream-threshold-scan into it.
 
 ### Cache + scanner pacing
 
@@ -242,11 +220,9 @@ network); `🔍 Tiefstpreise prüfen` / `≥30%` stay active to stream-threshold
 
 ## 4. Rendering rules
 
-### Heatmap (`getHeatmapStyles(diff, intensity)` in `page/cards.js`)
+### Heatmap (`getInsetHeatStyle` / `getBadgeHeatStyle` in `page/cards.js`)
 
-Single-hue gray → red (no cold side; markups clamp to neutral slate),
-`t = -min(0, max(-100, diff)) / 100`, piecewise interpolated; card gets
-`.tp-heatmap-active` + `--tp-heat-bg/--tp-heat-border/--tp-heat-glow`:
+Single-hue warm amber (`-1%`) → vibrant coral/vermilion (`-40%`) → blazing ruby/red (`-100%`) (no cold side; markups clamp to neutral slate). Card receives `.tp-heat-blend` with glow-only inset box-shadow (`--tp-heat-glow` / `--tp-heat-color`), keeping card interiors transparent while badges mirror the exact border and fill colors. Markups (+XX%) and 0% deals remain clean without heat coloring.
 
 | t / discount | feel | base → accent |
 |---|---|---|
@@ -468,7 +444,7 @@ deliberately not pursued — nothing needs it.)
 - **Deep Leaf Token Resolution & HTTP 403 Avoidance:**
   1. *WAF GET Restriction:* Full page HTML GET requests (`/produktsuche/...` and `/neue-toppreise/...`) return `403 Forbidden` if sent with header `X-Requested-With: XMLHttpRequest`. Stripping that header on GET fetches returns `200 OK`.
   2. *Token Discovery Pipeline:* For deep leaves without listed deals on the current feed (e.g. `Controller-c2278` under `Computer & Zubehör > Server & Workstations > Zubehör...`):
-     - Check local cache (`tp_cat_stored_idents`) and in-page DOM triggers.
+     - Check live native DOM triggers first (`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id]`, native sidebar `li .ignoreCategory[data-vcat-id]`), then local storage cache (`IDENT_STORAGE_KEY = 'tp_vcat_ident_v1'`). If a cached token fails on the backend, it is evicted immediately and re-discovered.
      - Inspect sibling feed pages (`/neue-toppreise/.../<sibling>-c<id>`), which contain pre-baked tokens for all siblings in the sidebar HTML.
      - Extract a product PID from the catalog page (`.Plugin_Product[data-entity-id]` or `href="*-p<PID>"`).
      - Query `POST /plugins/filter/IgnoredCategories` with body `aicatpr=<PID>`, which triggers server generation and returns authentic `data-ident` tokens for all breadcrumb categories in that product's path.
