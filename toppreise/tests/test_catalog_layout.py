@@ -2441,6 +2441,7 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const firstLi = firstToggle?.closest('li');
         const hideBtn = firstLi?.querySelector('.f_IgnoredCategories_Hide');
         const hideColor = hideBtn ? window.getComputedStyle(hideBtn).color : null;
+        const hideOpacity = hideBtn ? window.getComputedStyle(hideBtn).opacity : null;
         if (hideBtn) hideBtn.click();
         await new Promise(r => setTimeout(r, 60));
 
@@ -2506,6 +2507,7 @@ def test_expandable_category_sidebar_interactions(page: Page):
             hasSublist: !!sublist,
             childCount,
             hideColor,
+            hideOpacity,
             sublistAfterHide: !!sublistAfterHide,
             toggleDisabledAfterHide,
             rowBgAfterHide,
@@ -2537,10 +2539,13 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert 'TPIcons-cross' in res['searchIconClassAfterRestore']
     assert res['hasSublist'] is True
     assert res['childCount'] >= 1
-    assert '239, 68, 68' in (res['hideColor'] or '')
+    # Vanilla styling: no permanent red color and hidden by default until hover
+    assert '239, 68, 68' not in (res['hideColor'] or '')
+    assert float(res['hideOpacity'] or '0') <= 0.1
     assert res['sublistAfterHide'] is False
     assert res['toggleDisabledAfterHide'] is True
-    assert '239, 68, 68' in (res['rowBgAfterHide'] or '')
+    # Vanilla styling: no red background tint on ignored row
+    assert '239, 68, 68' not in (res['rowBgAfterHide'] or '')
     assert res['childHitsWhenParentIgnored'] == 0
     assert res['toggleDisabledAfterShow'] is False
     assert res['childIgnoredBefore'] is False
