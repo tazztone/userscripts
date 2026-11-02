@@ -54,6 +54,8 @@ Hugging Face model cards render as `<article class="overview-card-wrapper">`:
 - SSR HTML cards are parsed via `DOMParser()` and adopted directly into the native `.grid` container, deduplicating cards by model ID.
 - Newly appended cards are immediately processed through `processModelCards()`, inheriting inline liking, date filters, keyword filters, and unliked highlights.
 - The scanner updates browser history via `window.history.replaceState` to reflect the latest scanned page (`?p=X`) and rewrites native bottom pagination links.
-- Scanning can be triggered via the widget's `Scan Next Unliked` button or directly via the `⚡ Scan Next Pages for Unliked` button within the empty-state notice when all current models are filtered out.
+- Scanning can be triggered via the widget's `Scan Next Unliked` button, a bottom scan bar (`#hf-bottom-scan-bar`) positioned directly after the cards grid, an empty-state button, or global hotkey `Alt+S`.
+- Progress tracking reports exact page reached (`thru p.X`), handles HTTP 429 rate limit toasts explicitly, and detects end of catalog (`End of catalog (p.X)`).
+- The bottom scan bar synchronizes state with the top widget and empty notice, and automatically hides when all cards are filtered out to prevent duplicate scan buttons.
 
 

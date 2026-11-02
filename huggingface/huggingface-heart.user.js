@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.7
+// @version      2.0.8
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -105,6 +105,54 @@ const CARD_STYLES = `
     background: rgba(16, 185, 129, 0.35);
     border-color: rgba(16, 185, 129, 0.6);
     color: #a7f3d0;
+  }
+  #hf-bottom-scan-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 24px 0 16px 0;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px dashed rgba(16, 185, 129, 0.3);
+    transition: all 0.2s ease;
+  }
+  .hf-bottom-scan-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    background: #10b981;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+  .hf-bottom-scan-btn:hover {
+    background: #059669;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  }
+  .hf-bottom-scan-btn.scanning {
+    background: #ef4444;
+  }
+  .hf-bottom-scan-btn.scanning:hover {
+    background: #dc2626;
+  }
+  .hf-bottom-scan-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #6b7280;
+  }
+  .hf-bottom-scan-status {
+    font-size: 12px;
+    font-weight: 500;
+    color: #10b981;
+    font-variant-numeric: tabular-nums;
   }
 `;
 
@@ -1204,6 +1252,7 @@ const SHADOW_WIDGET_STYLES = `
     if (runId !== processRunId) return;
     updateWidgetStats(visibleCards, totalCards, hiddenByDate, hiddenByText, hiddenByLiked, isDateFilterActive, isTextFilterActive, isLikedOnlyActive);
     updateEmptyNotice(visibleCards, totalCards, isDateFilterActive, isTextFilterActive, isLikedOnlyActive, hiddenByDate, hiddenByText, hiddenByLiked);
+    setupBottomScanBar(visibleCards, totalCards);
   }
 
   function updateEmptyNotice(visibleCount, totalCount, isDateActive, isTextActive, isLikedOnlyActive, hiddenByDate, hiddenByText, hiddenByLiked) {
@@ -1239,6 +1288,44 @@ const SHADOW_WIDGET_STYLES = `
       }
     } else if (noticeEl) {
       noticeEl.style.display = 'none';
+    }
+  }
+
+  let lastScanStatusText = '';
+
+  function setupBottomScanBar(visibleCount, totalCount) {
+    let bottomBar = document.getElementById('hf-bottom-scan-bar');
+    const firstCard = document.querySelector('article.overview-card-wrapper');
+    const gridContainer = firstCard ? (firstCard.closest('.grid, [class*="grid"]') || firstCard.parentElement) : null;
+
+    if (!gridContainer || (totalCount > 0 && visibleCount === 0)) {
+      if (bottomBar) bottomBar.style.display = 'none';
+      return;
+    }
+
+    if (!bottomBar) {
+      bottomBar = document.createElement('div');
+      bottomBar.id = 'hf-bottom-scan-bar';
+      bottomBar.innerHTML = `
+        <button type="button" class="hf-bottom-scan-btn" id="hf-bottom-scan-btn" title="Scan next pages until 10 unliked models found (Alt+S)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span id="hf-bottom-scan-btn-text">${isScanning ? 'Stop Scan' : 'Scan Next Unliked'}</span>
+        </button>
+        <span class="hf-bottom-scan-status" id="hf-bottom-scan-status">${lastScanStatusText || ''}</span>
+      `;
+      const btn = bottomBar.querySelector('#hf-bottom-scan-btn');
+      btn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        scanNextUnlikedPages({ targetUnliked: 10, maxPages: 5 });
+      });
+    }
+
+    bottomBar.style.display = 'flex';
+    if (bottomBar.parentElement !== gridContainer.parentElement || bottomBar.previousElementSibling !== gridContainer) {
+      gridContainer.parentElement.insertBefore(bottomBar, gridContainer.nextSibling);
     }
   }
 
@@ -1286,6 +1373,10 @@ const SHADOW_WIDGET_STYLES = `
   }
 
   function updateScanUI(scanning, statusText) {
+    if (statusText !== undefined) {
+      lastScanStatusText = statusText;
+    }
+
     if (widgetShadowRoot) {
       const scanBtn = widgetShadowRoot.getElementById('hf-scan-btn');
       const scanText = widgetShadowRoot.getElementById('hf-scan-btn-text');
@@ -1297,7 +1388,7 @@ const SHADOW_WIDGET_STYLES = `
           scanText.textContent = scanning ? 'Stop Scan' : 'Scan Next Unliked';
         }
       }
-      if (statusEl) {
+      if (statusEl && statusText !== undefined) {
         statusEl.textContent = statusText || '';
       }
     }
@@ -1305,6 +1396,19 @@ const SHADOW_WIDGET_STYLES = `
     const emptyNoticeBtn = document.getElementById('hf-empty-scan-btn');
     if (emptyNoticeBtn) {
       emptyNoticeBtn.textContent = scanning ? '⏹ Stop Scanning' : '⚡ Scan Next Pages for Unliked';
+    }
+
+    const bottomBtn = document.getElementById('hf-bottom-scan-btn');
+    const bottomBtnText = document.getElementById('hf-bottom-scan-btn-text');
+    const bottomStatus = document.getElementById('hf-bottom-scan-status');
+    if (bottomBtn) {
+      bottomBtn.classList.toggle('scanning', scanning);
+      if (bottomBtnText) {
+        bottomBtnText.textContent = scanning ? 'Stop Scan' : 'Scan Next Unliked';
+      }
+    }
+    if (bottomStatus && statusText !== undefined) {
+      bottomStatus.textContent = statusText || '';
     }
   }
 
@@ -1319,6 +1423,8 @@ const SHADOW_WIDGET_STYLES = `
     const startPage = getCurrentPageIndex();
     let foundUnlikedTotal = 0;
     let pagesScanned = 0;
+    let catalogEndReached = false;
+    let hitRateLimit = false;
 
     scanAbortController = new AbortController();
     isScanning = true;
@@ -1355,6 +1461,11 @@ const SHADOW_WIDGET_STYLES = `
             credentials: 'same-origin',
             signal: scanAbortController.signal
           });
+          if (resp.status === 429) {
+            console.warn(`[HF Scan] Page ${nextPageIndex + 1} HTTP 429 rate limit`);
+            hitRateLimit = true;
+            break;
+          }
           if (!resp.ok) {
             console.warn(`[HF Scan] Page ${nextPageIndex + 1} HTTP ${resp.status}`);
             break;
@@ -1371,6 +1482,7 @@ const SHADOW_WIDGET_STYLES = `
         const fetchedCards = Array.from(doc.querySelectorAll('article.overview-card-wrapper'));
 
         if (fetchedCards.length === 0) {
+          catalogEndReached = true;
           break;
         }
 
@@ -1423,6 +1535,16 @@ const SHADOW_WIDGET_STYLES = `
         const countText = foundUnlikedTotal > 0 ? ` (+${foundUnlikedTotal} unliked)` : '';
         updateScanUI(false, `Stopped at p.${lastPageReached}${countText}`);
         showToast(`Scan stopped at page ${lastPageReached}${foundUnlikedTotal > 0 ? ` (found ${foundUnlikedTotal} unliked)` : ''}.`);
+      } else if (hitRateLimit) {
+        const countText = foundUnlikedTotal > 0 ? ` (+${foundUnlikedTotal} unliked)` : '';
+        updateScanUI(false, `Rate limited at p.${lastPageReached}${countText}`);
+        showToast(`Hugging Face rate limit hit (429). Please wait a moment before scanning further.`);
+      } else if (catalogEndReached) {
+        const statusText = foundUnlikedTotal > 0
+          ? `+${foundUnlikedTotal} unliked (end of catalog p.${lastPageReached})`
+          : `End of catalog (p.${lastPageReached})`;
+        updateScanUI(false, statusText);
+        showToast(`Scan complete: reached end of catalog at page ${lastPageReached}${foundUnlikedTotal > 0 ? ` (found ${foundUnlikedTotal} unliked)` : ''}.`);
       } else {
         const statusText = foundUnlikedTotal > 0
           ? `+${foundUnlikedTotal} unliked (thru p.${lastPageReached})`
@@ -1449,7 +1571,7 @@ const SHADOW_WIDGET_STYLES = `
         if (!target) return false;
         const targetEl = target.nodeType === 1 ? target : target.parentElement;
         if (!targetEl) return false;
-        if (targetEl.id === 'hf-date-filter-root' || targetEl.id === 'hf-toast-root' || targetEl.closest('#hf-date-filter-root, #hf-toast-root')) {
+        if (targetEl.id === 'hf-date-filter-root' || targetEl.id === 'hf-toast-root' || targetEl.id === 'hf-bottom-scan-bar' || targetEl.closest('#hf-date-filter-root, #hf-toast-root, #hf-bottom-scan-bar')) {
           return true;
         }
         return false;
@@ -1881,8 +2003,13 @@ const SHADOW_WIDGET_STYLES = `
     });
   }
 
-  // Keyboard shortcut Alt+F
+  // Keyboard shortcuts Alt+S (scan) and Alt+F (filter)
   window.addEventListener('keydown', (e) => {
+    if (e.altKey && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')) {
+      e.preventDefault();
+      scanNextUnlikedPages({ targetUnliked: 10, maxPages: 5 });
+      return;
+    }
     if (e.altKey && (e.key === 'f' || e.key === 'F')) {
       e.preventDefault();
       if (!widgetShadowRoot) return;

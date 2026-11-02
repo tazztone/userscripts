@@ -21,6 +21,12 @@ assert(scriptSource.includes('parseNegativeFilter'), 'Missing parseNegativeFilte
 assert(scriptSource.includes('isCardExcludedByText'), 'Missing isCardExcludedByText');
 assert(scriptSource.includes('thru p.'), 'Missing thru p. scan status indicator');
 assert(scriptSource.includes('Stopped at p.'), 'Missing Stopped at p. scan status indicator');
+assert(scriptSource.includes('hf-bottom-scan-bar'), 'Missing hf-bottom-scan-bar element ID');
+assert(scriptSource.includes('setupBottomScanBar'), 'Missing setupBottomScanBar function');
+assert(scriptSource.includes('hf-bottom-scan-btn'), 'Missing hf-bottom-scan-btn element ID');
+assert(scriptSource.includes('KeyS'), 'Missing Alt+S keyboard shortcut');
+assert(scriptSource.includes('429'), 'Missing 429 rate limit check');
+assert(scriptSource.includes('End of catalog'), 'Missing End of catalog detection');
 
 // Execute parser logic in isolation
 function parseNegativeFilter(termsStr) {

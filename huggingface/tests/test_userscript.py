@@ -370,7 +370,7 @@ def test_scan_zero_unliked_status(page: Page):
     page.click('#hf-date-filter-root >> #hf-scan-btn')
     page.wait_for_selector('#hf-date-filter-root >> #hf-scan-btn:not(.scanning)', timeout=5000)
     status_text = page.locator('#hf-date-filter-root >> #hf-scan-status').inner_text()
-    assert '0 unliked (thru p.1)' in status_text
+    assert 'End of catalog (p.1)' in status_text
 
 
 def test_empty_notice_scan_button(page: Page):
@@ -381,6 +381,78 @@ def test_empty_notice_scan_button(page: Page):
     # Empty notice should display scan button
     assert page.locator('#hf-empty-scan-btn').count() == 1
     assert 'Scan Next Pages' in page.locator('#hf-empty-scan-btn').inner_text()
+
+
+def test_bottom_scan_bar_renders_after_grid(page: Page):
+    page.wait_for_selector('#hf-bottom-scan-bar')
+    bar = page.locator('#hf-bottom-scan-bar')
+    assert bar.count() == 1
+    assert bar.locator('#hf-bottom-scan-btn').count() == 1
+    assert 'Scan Next Unliked' in bar.locator('#hf-bottom-scan-btn').inner_text()
+    assert bar.locator('#hf-bottom-scan-status').count() == 1
+
+
+def test_bottom_scan_button_triggers_scan(page: Page):
+    page.evaluate("""() => {
+      window.nextPageHtml = `
+        <article id="card-scanned-bottom" class="overview-card-wrapper">
+          <a class="model-link" href="/scanned-bottom/model-bottom">
+            <div class="title">scanned-bottom/model-bottom</div>
+            <div class="metadata">
+              <time datetime="2026-08-11T09:00:00Z">just now</time>
+              <div id="scanned-like-b" class="mr-1 flex items-center">
+                <svg viewBox="0 0 30 30" fill="currentColor"><path d="M22.45,6a5.47,5.47,0,0,1,3.91,1.64m0-2"></path></svg>
+                <span>5</span>
+              </div>
+            </div>
+          </a>
+        </article>
+      `;
+    }""")
+    page.click('#hf-bottom-scan-btn')
+    page.wait_for_selector('#card-scanned-bottom')
+    assert page.locator('#card-scanned-bottom').count() == 1
+
+    # Status synchronizes on bottom bar
+    page.wait_for_selector('#hf-bottom-scan-btn:not(.scanning)', timeout=5000)
+    bottom_status = page.locator('#hf-bottom-scan-status').inner_text()
+    assert 'thru p.6' in bottom_status
+
+
+def test_bottom_scan_bar_hides_on_empty_filter(page: Page):
+    # Initially visible
+    assert page.locator('#hf-bottom-scan-bar').is_visible()
+
+    # Filter all cards
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', 'owner')
+    page.wait_for_selector('#hf-df-empty-notice')
+
+    # Bottom bar should be hidden when empty notice shows
+    assert not page.locator('#hf-bottom-scan-bar').is_visible()
+
+
+def test_scan_hotkey_alt_s(page: Page):
+    page.evaluate("""() => {
+      window.nextPageHtml = `
+        <article id="card-scanned-hotkey" class="overview-card-wrapper">
+          <a class="model-link" href="/scanned-hotkey/model-hotkey">
+            <div class="title">scanned-hotkey/model-hotkey</div>
+          </a>
+        </article>
+      `;
+    }""")
+    page.keyboard.press('Alt+KeyS')
+    page.wait_for_selector('#card-scanned-hotkey')
+    assert page.locator('#card-scanned-hotkey').count() == 1
+
+
+def test_scan_rate_limit_429(page: Page):
+    page.evaluate("() => { window.fetchMode = 'ratelimit'; }")
+    page.click('#hf-bottom-scan-btn')
+    page.wait_for_selector('#hf-bottom-scan-btn:not(.scanning)', timeout=5000)
+    status_text = page.locator('#hf-bottom-scan-status').inner_text()
+    assert 'Rate limited' in status_text
+
 
 
 
