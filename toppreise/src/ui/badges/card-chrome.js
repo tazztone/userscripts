@@ -253,6 +253,12 @@ export function renderDealerName(ctx, filters) {
           if (cs.display === 'none' || cs.visibility === 'hidden') return false;
         } catch { /* ignore */ }
       }
+      if (typeof el.getBoundingClientRect === 'function') {
+        try {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0 && el.children?.length > 0) return false;
+        } catch { /* ignore */ }
+      }
       return true;
     };
     let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;
@@ -270,6 +276,61 @@ export function renderDealerName(ctx, filters) {
       if (anchor !== card) anchor.insertBefore(el, anchor.firstChild);
       else anchor.appendChild(el);
     };
+
+    const actionRow = card.querySelector('.row.action, .action');
+    const actionMailBtn = actionRow?.querySelector('.Plugin_NewInfoMailButton')?.closest?.('.col-auto') || actionRow?.querySelector('.Plugin_NewInfoMailButton');
+    let actionEl = card.querySelector('.tp-action-dealer');
+
+    const loadDealer = async () => {
+      card.querySelectorAll('.tp-dealer-btn').forEach(b => { b.disabled = true; });
+      await ensureDealerInfo(card, pid, useShipping);
+    };
+
+    if (actionRow && actionMailBtn) {
+      if (!actionEl) {
+        actionEl = document.createElement('div');
+        actionEl.className = 'col-auto tp-action-dealer';
+        actionMailBtn.insertAdjacentElement('beforebegin', actionEl);
+      }
+      if (dealer) {
+        let link = actionEl.querySelector('a.tp-dealer-name');
+        if (!link) {
+          actionEl.innerHTML = '';
+          link = document.createElement(hasUrl ? 'a' : 'span');
+          link.className = 'tp-dealer-name';
+          if (hasUrl) { link.href = targetUrl; link.target = '_blank'; link.rel = 'noopener'; link.addEventListener('click', e => e.stopPropagation()); }
+          actionEl.appendChild(link);
+        } else if (hasUrl && link.getAttribute('href') !== targetUrl) {
+          link.href = targetUrl;
+        }
+        setTextIfChanged(link, `🏬 ${dealer}`);
+        setTitleIfChanged(link, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
+      } else if (hasUrl && !dealerCache.has(dKey)) {
+        let actionBtn = actionEl.querySelector('button.tp-dealer-btn');
+        if (!actionBtn) {
+          actionEl.innerHTML = '';
+          actionBtn = document.createElement('button');
+          actionBtn.type = 'button';
+          actionBtn.className = 'tp-dealer-name tp-dealer-btn';
+          actionBtn.textContent = '🏬';
+          actionBtn.setAttribute('aria-label', 'Händler laden');
+          actionBtn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';
+          actionBtn.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            loadDealer();
+          });
+          actionEl.appendChild(actionBtn);
+        } else if (!dealerPending.has(dKey) && actionBtn.disabled) {
+          actionBtn.disabled = false;
+        }
+      } else {
+        actionEl.remove();
+      }
+    } else {
+      actionEl?.remove();
+    }
+
     if (dealer) {
       let el = dealerEl?.dataset.tpDealerPid === dKey ? dealerEl : null;
       if (el && ((el.tagName === 'A') !== hasUrl)) { el.remove(); el = null; }
@@ -288,10 +349,6 @@ export function renderDealerName(ctx, filters) {
       // Ein Loader für Klick + Auto-Fetch: Produktseite einmalig pro pid:Modus
       // (dealerPending-Guard), Ergebnis in Memory + localStorage, danach Render.
       let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
-      const loadDealer = async () => {
-        if (btn) btn.disabled = true;
-        await ensureDealerInfo(card, pid, useShipping);
-      };
       if (!btn) {
         dealerEl?.remove();
         btn = document.createElement('button');
@@ -418,7 +475,12 @@ export function renderAlarmBell(ctx) {
     group.appendChild(bell);
     const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
     if (priceInfo) {
-      priceInfo.appendChild(group);
+      const pill = priceInfo.querySelector('.tp-deal-pill');
+      if (pill && card.classList?.contains('mixedBrowsingExpert')) {
+        if (group.nextElementSibling !== pill) priceInfo.insertBefore(group, pill);
+      } else {
+        priceInfo.appendChild(group);
+      }
     } else {
       const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
       if (anchor !== card) anchor.appendChild(group);

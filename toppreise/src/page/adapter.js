@@ -33,6 +33,10 @@ export function isShippingPriceActive(card = null) {
     }
     const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
     const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
+    if (!shp && prd) {
+      card._tpUseShipping = false;
+      return false;
+    }
     if (shp && prd) {
       const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
       const prdContainer = prd.closest ? prd.closest('.productPrice') : null;

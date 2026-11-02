@@ -31,7 +31,10 @@ export function extractShareData(card) {
     || (card.tagName?.toLowerCase() === 'a' ? card : null);
   let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
   if (url && !/^https?:\/\//i.test(url)) {
-    try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+    try {
+      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+      url = new URL(url, base).href;
+    } catch { /* relativ lassen */ }
   }
   const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
   let imageUrl = imgEl?.currentSrc || imgEl?.src
@@ -71,7 +74,10 @@ export function extractDealerUrl(card, useShipping = false) {
   const a = extractCheapestDealerRow(card, useShipping)?.querySelector?.('a[href]');
   let url = a?.getAttribute?.('href') || a?.href || '';
   if (url && !/^https?:\/\//i.test(url)) {
-    try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+    try {
+      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+      url = new URL(url, base).href;
+    } catch { /* relativ lassen */ }
   }
   return /^https:/i.test(url) ? url : '';
 }

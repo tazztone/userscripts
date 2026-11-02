@@ -3287,6 +3287,95 @@ def test_expertenansicht_alarm_bell_and_card_overflow(page: Page):
     overflow = page.evaluate("() => window.getComputedStyle(document.querySelector('#card-cheapest')).overflow")
     assert overflow == 'visible'
 
+    # Check that the alarm bell is inside the card vertical bounds (not floating above card)
+    bounds = page.evaluate("""() => {
+        const cardRect = document.querySelector('#card-cheapest').getBoundingClientRect();
+        const bellRect = document.querySelector('#card-cheapest .tp-card-alarm-btn').getBoundingClientRect();
+        return {
+            cardTop: cardRect.top,
+            cardBottom: cardRect.bottom,
+            bellTop: bellRect.top,
+            bellBottom: bellRect.bottom
+        };
+    }""")
+    assert bounds['bellTop'] >= bounds['cardTop'] - 1, f"Bell top {bounds['bellTop']} is above card top {bounds['cardTop']}"
+    assert bounds['bellBottom'] <= bounds['cardBottom'] + 1, f"Bell bottom {bounds['bellBottom']} is below card bottom {bounds['cardBottom']}"
+
+
+def test_listenansicht_shipping_text_within_card_bounds(page: Page):
+    """In Listenansicht (mixedBrowsingList), shipping text must wrap under price
+    and remain strictly within the card horizontal bounds."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.className = 'Plugin_Product mixedBrowsingList container mixedList';
+        card.setAttribute('data-entity-id', '797571');
+        const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product') || card;
+        priceInfo.innerHTML = `
+          <div class="offersContainer"><div class="offers row"><div class="col-12 text-right">2 Angebote ab</div></div></div>
+          <div class="priceContainer productPrice">
+            <span class="currency">CHF</span>
+            <div class="Plugin_Price">879.00</div>
+            <div class="shippingText">zzgl. Versandkosten</div>
+          </div>
+        `;
+        const stats = { tiefstpreis: 879, medianPrice: 1100, isShippingPrice: false, time: Date.now() };
+        localStorage.setItem('tp_hist_v1_797571_p', JSON.stringify(stats));
+        if (window.ToppreiseSuite?.memoryCache) {
+            window.ToppreiseSuite.memoryCache.set('tp_hist_v1_797571_p', stats);
+        }
+        window.ToppreiseSuite.processListings();
+    }""")
+    bounds = page.evaluate("""() => {
+        const cardRect = document.querySelector('#card-cheapest').getBoundingClientRect();
+        const st = document.querySelector('#card-cheapest .shippingText');
+        const stRect = st ? st.getBoundingClientRect() : null;
+        return {
+            cardRight: cardRect.right,
+            stRight: stRect ? stRect.right : null
+        };
+    }""")
+    assert bounds['stRight'] is not None
+    assert bounds['stRight'] <= bounds['cardRight'] + 1, f"Shipping text right {bounds['stRight']} extends past card right {bounds['cardRight']}"
+
+
+def test_listenansicht_dealer_check_in_action_row(page: Page):
+    """In Listenansicht cards with an action row, a dealer check button (🏬) is
+    injected into the action row to the left of the Preisalarm bell."""
+    page.evaluate("""() => {
+        document.body.className = 'color_bg Page_Browsing';
+        document.body.setAttribute('data-current_url', 'https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer/Kopfhoerer-c3308');
+        const feed = document.getElementById('product-list');
+        if (feed) feed.style.display = 'none';
+        if (!document.getElementById('Page_Browsing')) {
+            const tmpl = document.getElementById('mock-category-browsing-template');
+            if (tmpl) document.body.appendChild(tmpl.content.cloneNode(true));
+        }
+
+        const card = document.querySelector('#Plugin_Product_492326');
+        card.querySelectorAll('a').forEach(a => {
+            const h = a.getAttribute('href');
+            if (h && h.startsWith('/')) a.setAttribute('href', 'https://www.toppreise.ch' + h);
+        });
+    }""")
+    seed_verified_deal(page, '818734', {
+        'tiefstpreis': 170.19,
+        'medianPrice': 250,
+        'isShippingPrice': True,
+        'timeSeries': [[1700000000000, 250], [1700086400000, 170.19]]
+    }, clear=False)
+    action_dealer = page.locator('#Plugin_Product_492326 .tp-action-dealer')
+    assert action_dealer.count() == 1
+    assert action_dealer.locator('.tp-dealer-btn').count() == 1
+    assert action_dealer.locator('.tp-dealer-btn').text_content() == '🏬'
+    # Verify it is positioned before Plugin_NewInfoMailButton in the action row
+    is_before_bell = page.evaluate("""() => {
+        const dealer = document.querySelector('#Plugin_Product_492326 .tp-action-dealer');
+        const bell = document.querySelector('#Plugin_Product_492326 .Plugin_NewInfoMailButton').closest('.col-auto');
+        return dealer.nextElementSibling === bell;
+    }""")
+    assert is_before_bell is True
+
+
 
 
 

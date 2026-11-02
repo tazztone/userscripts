@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.443
+// @version      2.18.444
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -619,8 +619,10 @@ const STYLES_BADGES = `
   .product-price:has(> .tp-dealer-name),
   .priceContainer:has(> .tp-dealer-name) {
     display: flex !important;
+    flex-wrap: wrap !important;
     align-items: baseline !important;
-    gap: 6px !important;
+    justify-content: flex-end !important;
+    gap: 2px 6px !important;
   }
   .Plugin_PriceInformation:has(> .tp-dealer-name) > .tp-dealer-name,
   .price_information_product:has(> .tp-dealer-name) > .tp-dealer-name,
@@ -635,12 +637,56 @@ const STYLES_BADGES = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
-  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-dealer-name {
+  .priceContainer:has(> .tp-dealer-name) > .shippingText {
+    width: 100% !important;
+    flex: 0 0 100% !important;
+    text-align: right !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .shippingText {
+    white-space: normal !important;
+    text-align: right !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .priceContainer {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) :is(span.tp-dealer-name, a.tp-dealer-name) {
     max-width: 140px !important;
     flex: 0 1 auto !important;
     margin-right: 4px !important;
   }
   a.tp-dealer-name:hover {
+    opacity: 1 !important;
+    text-decoration: underline !important;
+  }
+  .tp-action-dealer {
+    display: flex !important;
+    align-items: center !important;
+  }
+  .tp-action-dealer button.tp-dealer-btn {
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    opacity: 0.75 !important;
+    transition: opacity 0.15s ease !important;
+  }
+  .tp-action-dealer button.tp-dealer-btn:hover {
+    opacity: 1 !important;
+  }
+  .tp-action-dealer button.tp-dealer-btn:disabled {
+    cursor: wait !important;
+    opacity: 0.4 !important;
+  }
+  .tp-action-dealer a.tp-dealer-name {
+    font: 500 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: inherit !important;
+    text-decoration: none !important;
+    opacity: 0.85 !important;
+  }
+  .tp-action-dealer a.tp-dealer-name:hover {
     opacity: 1 !important;
     text-decoration: underline !important;
   }
@@ -657,6 +703,7 @@ const STYLES_BADGES = `
     pointer-events: auto !important;
     flex: 0 0 auto !important;
     width: auto !important;
+    min-width: 18px !important;
     max-width: none !important;
     line-height: 1 !important;
     text-align: left !important;
@@ -691,10 +738,19 @@ const STYLES_BADGES = `
   .Plugin_Product:has(.badge-dif) {
     overflow: visible !important;
   }
+  .mixedBrowsingExpert :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn),
+  .mixedBrowsingExpert .tp-card-alarm-group {
+    position: static !important;
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    margin-right: 6px !important;
+    margin-bottom: 4px !important;
+    z-index: 4 !important;
+  }
   .Plugin_Product.mixedBrowsingExpert:has(.tp-card-alarm-group),
   .mixedBrowsingExpert:has(.tp-card-alarm-group) {
     overflow: visible !important;
-    padding-top: 14px !important;
+    padding-top: 0 !important;
   }
   :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
@@ -4465,6 +4521,10 @@ const SHADOW_MODAL_STYLES = `
       }
       const shp = card._tpPriceInfo?.mainShipping || card._tpPriceInfo?.fallbackShipping || card.querySelector?.('.priceContainer.shippingPrice');
       const prd = card._tpPriceInfo?.mainProduct || card._tpPriceInfo?.fallbackProduct || card.querySelector?.('.priceContainer.productPrice');
+      if (!shp && prd) {
+        card._tpUseShipping = false;
+        return false;
+      }
       if (shp && prd) {
         const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
         const prdContainer = prd.closest ? prd.closest('.productPrice') : null;
@@ -5135,7 +5195,10 @@ const SHADOW_MODAL_STYLES = `
       || (card.tagName?.toLowerCase() === 'a' ? card : null);
     let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
     if (url && !/^https?:\/\//i.test(url)) {
-      try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+      try {
+        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+        url = new URL(url, base).href;
+      } catch { /* relativ lassen */ }
     }
     const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
     let imageUrl = imgEl?.currentSrc || imgEl?.src
@@ -5175,7 +5238,10 @@ const SHADOW_MODAL_STYLES = `
     const a = extractCheapestDealerRow(card, useShipping)?.querySelector?.('a[href]');
     let url = a?.getAttribute?.('href') || a?.href || '';
     if (url && !/^https?:\/\//i.test(url)) {
-      try { url = new URL(url, location.href).href; } catch { /* relativ lassen */ }
+      try {
+        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+        url = new URL(url, base).href;
+      } catch { /* relativ lassen */ }
     }
     return /^https:/i.test(url) ? url : '';
   }
@@ -10049,6 +10115,12 @@ const SHADOW_MODAL_STYLES = `
             if (cs.display === 'none' || cs.visibility === 'hidden') return false;
           } catch { /* ignore */ }
         }
+        if (typeof el.getBoundingClientRect === 'function') {
+          try {
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0 && el.children?.length > 0) return false;
+          } catch { /* ignore */ }
+        }
         return true;
       };
       let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;
@@ -10066,6 +10138,61 @@ const SHADOW_MODAL_STYLES = `
         if (anchor !== card) anchor.insertBefore(el, anchor.firstChild);
         else anchor.appendChild(el);
       };
+
+      const actionRow = card.querySelector('.row.action, .action');
+      const actionMailBtn = actionRow?.querySelector('.Plugin_NewInfoMailButton')?.closest?.('.col-auto') || actionRow?.querySelector('.Plugin_NewInfoMailButton');
+      let actionEl = card.querySelector('.tp-action-dealer');
+
+      const loadDealer = async () => {
+        card.querySelectorAll('.tp-dealer-btn').forEach(b => { b.disabled = true; });
+        await ensureDealerInfo(card, pid, useShipping);
+      };
+
+      if (actionRow && actionMailBtn) {
+        if (!actionEl) {
+          actionEl = document.createElement('div');
+          actionEl.className = 'col-auto tp-action-dealer';
+          actionMailBtn.insertAdjacentElement('beforebegin', actionEl);
+        }
+        if (dealer) {
+          let link = actionEl.querySelector('a.tp-dealer-name');
+          if (!link) {
+            actionEl.innerHTML = '';
+            link = document.createElement(hasUrl ? 'a' : 'span');
+            link.className = 'tp-dealer-name';
+            if (hasUrl) { link.href = targetUrl; link.target = '_blank'; link.rel = 'noopener'; link.addEventListener('click', e => e.stopPropagation()); }
+            actionEl.appendChild(link);
+          } else if (hasUrl && link.getAttribute('href') !== targetUrl) {
+            link.href = targetUrl;
+          }
+          setTextIfChanged(link, `🏬 ${dealer}`);
+          setTitleIfChanged(link, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
+        } else if (hasUrl && !dealerCache.has(dKey)) {
+          let actionBtn = actionEl.querySelector('button.tp-dealer-btn');
+          if (!actionBtn) {
+            actionEl.innerHTML = '';
+            actionBtn = document.createElement('button');
+            actionBtn.type = 'button';
+            actionBtn.className = 'tp-dealer-name tp-dealer-btn';
+            actionBtn.textContent = '🏬';
+            actionBtn.setAttribute('aria-label', 'Händler laden');
+            actionBtn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';
+            actionBtn.addEventListener('click', e => {
+              e.preventDefault();
+              e.stopPropagation();
+              loadDealer();
+            });
+            actionEl.appendChild(actionBtn);
+          } else if (!dealerPending.has(dKey) && actionBtn.disabled) {
+            actionBtn.disabled = false;
+          }
+        } else {
+          actionEl.remove();
+        }
+      } else {
+        actionEl?.remove();
+      }
+
       if (dealer) {
         let el = dealerEl?.dataset.tpDealerPid === dKey ? dealerEl : null;
         if (el && ((el.tagName === 'A') !== hasUrl)) { el.remove(); el = null; }
@@ -10084,10 +10211,6 @@ const SHADOW_MODAL_STYLES = `
         // Ein Loader für Klick + Auto-Fetch: Produktseite einmalig pro pid:Modus
         // (dealerPending-Guard), Ergebnis in Memory + localStorage, danach Render.
         let btn = dealerEl?.dataset.tpDealerPid === dKey && dealerEl.tagName === 'BUTTON' ? dealerEl : null;
-        const loadDealer = async () => {
-          if (btn) btn.disabled = true;
-          await ensureDealerInfo(card, pid, useShipping);
-        };
         if (!btn) {
           dealerEl?.remove();
           btn = document.createElement('button');
@@ -10214,7 +10337,12 @@ const SHADOW_MODAL_STYLES = `
       group.appendChild(bell);
       const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
       if (priceInfo) {
-        priceInfo.appendChild(group);
+        const pill = priceInfo.querySelector('.tp-deal-pill');
+        if (pill && card.classList?.contains('mixedBrowsingExpert')) {
+          if (group.nextElementSibling !== pill) priceInfo.insertBefore(group, pill);
+        } else {
+          priceInfo.appendChild(group);
+        }
       } else {
         const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
         if (anchor !== card) anchor.appendChild(group);
@@ -13982,7 +14110,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -14113,7 +14241,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.443';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.444';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -328,8 +328,10 @@ export const STYLES_BADGES = `
   .product-price:has(> .tp-dealer-name),
   .priceContainer:has(> .tp-dealer-name) {
     display: flex !important;
+    flex-wrap: wrap !important;
     align-items: baseline !important;
-    gap: 6px !important;
+    justify-content: flex-end !important;
+    gap: 2px 6px !important;
   }
   .Plugin_PriceInformation:has(> .tp-dealer-name) > .tp-dealer-name,
   .price_information_product:has(> .tp-dealer-name) > .tp-dealer-name,
@@ -344,12 +346,56 @@ export const STYLES_BADGES = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
-  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-dealer-name {
+  .priceContainer:has(> .tp-dealer-name) > .shippingText {
+    width: 100% !important;
+    flex: 0 0 100% !important;
+    text-align: right !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .shippingText {
+    white-space: normal !important;
+    text-align: right !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .priceContainer {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) :is(span.tp-dealer-name, a.tp-dealer-name) {
     max-width: 140px !important;
     flex: 0 1 auto !important;
     margin-right: 4px !important;
   }
   a.tp-dealer-name:hover {
+    opacity: 1 !important;
+    text-decoration: underline !important;
+  }
+  .tp-action-dealer {
+    display: flex !important;
+    align-items: center !important;
+  }
+  .tp-action-dealer button.tp-dealer-btn {
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    opacity: 0.75 !important;
+    transition: opacity 0.15s ease !important;
+  }
+  .tp-action-dealer button.tp-dealer-btn:hover {
+    opacity: 1 !important;
+  }
+  .tp-action-dealer button.tp-dealer-btn:disabled {
+    cursor: wait !important;
+    opacity: 0.4 !important;
+  }
+  .tp-action-dealer a.tp-dealer-name {
+    font: 500 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: inherit !important;
+    text-decoration: none !important;
+    opacity: 0.85 !important;
+  }
+  .tp-action-dealer a.tp-dealer-name:hover {
     opacity: 1 !important;
     text-decoration: underline !important;
   }
@@ -366,6 +412,7 @@ export const STYLES_BADGES = `
     pointer-events: auto !important;
     flex: 0 0 auto !important;
     width: auto !important;
+    min-width: 18px !important;
     max-width: none !important;
     line-height: 1 !important;
     text-align: left !important;
@@ -400,10 +447,19 @@ export const STYLES_BADGES = `
   .Plugin_Product:has(.badge-dif) {
     overflow: visible !important;
   }
+  .mixedBrowsingExpert :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn),
+  .mixedBrowsingExpert .tp-card-alarm-group {
+    position: static !important;
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    margin-right: 6px !important;
+    margin-bottom: 4px !important;
+    z-index: 4 !important;
+  }
   .Plugin_Product.mixedBrowsingExpert:has(.tp-card-alarm-group),
   .mixedBrowsingExpert:has(.tp-card-alarm-group) {
     overflow: visible !important;
-    padding-top: 14px !important;
+    padding-top: 0 !important;
   }
   :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
