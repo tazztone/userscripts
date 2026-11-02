@@ -19,6 +19,8 @@ assert(scriptSource.includes('hf-scan-btn'), 'Missing hf-scan-btn');
 assert(scriptSource.includes('hf-empty-scan-btn'), 'Missing hf-empty-scan-btn');
 assert(scriptSource.includes('parseNegativeFilter'), 'Missing parseNegativeFilter');
 assert(scriptSource.includes('isCardExcludedByText'), 'Missing isCardExcludedByText');
+assert(scriptSource.includes('thru p.'), 'Missing thru p. scan status indicator');
+assert(scriptSource.includes('Stopped at p.'), 'Missing Stopped at p. scan status indicator');
 
 // Execute parser logic in isolation
 function parseNegativeFilter(termsStr) {

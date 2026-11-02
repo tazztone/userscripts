@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.6
+// @version      2.0.7
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -1312,10 +1312,7 @@ const SHADOW_WIDGET_STYLES = `
     if (isScanning) {
       if (scanAbortController) {
         scanAbortController.abort();
-        scanAbortController = null;
       }
-      isScanning = false;
-      updateScanUI(false, 'Scan stopped');
       return;
     }
 
@@ -1405,17 +1402,40 @@ const SHADOW_WIDGET_STYLES = `
           break;
         }
 
-        // 250ms throttle delay to respect rate limit
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // 250ms throttle delay to respect rate limit (abort-aware)
+        if (scanAbortController.signal.aborted) break;
+        await new Promise(resolve => {
+          const timer = setTimeout(resolve, 250);
+          scanAbortController?.signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            resolve();
+          }, { once: true });
+        });
       }
     } finally {
+      const wasAborted = Boolean(scanAbortController?.signal?.aborted);
       isScanning = false;
       scanAbortController = null;
-      updateScanUI(false, foundUnlikedTotal > 0 ? `+${foundUnlikedTotal} unliked (${pagesScanned}p)` : '');
-      if (foundUnlikedTotal > 0) {
-        showToast(`Scan complete: found ${foundUnlikedTotal} unliked model${foundUnlikedTotal === 1 ? '' : 's'} across ${pagesScanned} page${pagesScanned === 1 ? '' : 's'}.`);
-      } else if (pagesScanned > 0) {
-        showToast(`Scanned ${pagesScanned} page${pagesScanned === 1 ? '' : 's'}, no new unliked models.`);
+
+      const lastPageReached = pagesScanned > 0 ? startPage + pagesScanned + 1 : startPage + 1;
+
+      if (wasAborted) {
+        const countText = foundUnlikedTotal > 0 ? ` (+${foundUnlikedTotal} unliked)` : '';
+        updateScanUI(false, `Stopped at p.${lastPageReached}${countText}`);
+        showToast(`Scan stopped at page ${lastPageReached}${foundUnlikedTotal > 0 ? ` (found ${foundUnlikedTotal} unliked)` : ''}.`);
+      } else {
+        const statusText = foundUnlikedTotal > 0
+          ? `+${foundUnlikedTotal} unliked (thru p.${lastPageReached})`
+          : `0 unliked (thru p.${lastPageReached})`;
+        updateScanUI(false, statusText);
+
+        if (foundUnlikedTotal > 0) {
+          showToast(`Scan complete: found ${foundUnlikedTotal} unliked model${foundUnlikedTotal === 1 ? '' : 's'} through page ${lastPageReached} (scanned ${pagesScanned} page${pagesScanned === 1 ? '' : 's'}).`);
+        } else if (pagesScanned > 0) {
+          showToast(`Scanned through page ${lastPageReached} (${pagesScanned} page${pagesScanned === 1 ? '' : 's'}), no new unliked models.`);
+        } else {
+          showToast(`No additional pages found.`);
+        }
       }
     }
   }

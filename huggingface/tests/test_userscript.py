@@ -359,6 +359,19 @@ def test_scan_next_unliked_fetches_and_appends_cards(page: Page):
     assert 'hf-is-unliked' in (page.locator('#card-scanned').get_attribute('class') or '')
     assert page.locator('#scanned-like[data-hf-inline-bound]').count() == 1
 
+    # Wait until scanning completes and verify status shows exact page reached
+    page.wait_for_selector('#hf-date-filter-root >> #hf-scan-btn:not(.scanning)', timeout=5000)
+    status_text = page.locator('#hf-date-filter-root >> #hf-scan-status').inner_text()
+    assert '+1 unliked (thru p.6)' in status_text
+
+
+def test_scan_zero_unliked_status(page: Page):
+    page.evaluate("() => { window.nextPageHtml = ''; }")
+    page.click('#hf-date-filter-root >> #hf-scan-btn')
+    page.wait_for_selector('#hf-date-filter-root >> #hf-scan-btn:not(.scanning)', timeout=5000)
+    status_text = page.locator('#hf-date-filter-root >> #hf-scan-status').inner_text()
+    assert '0 unliked (thru p.1)' in status_text
+
 
 def test_empty_notice_scan_button(page: Page):
     # Filter everything out by an unmatched keyword
