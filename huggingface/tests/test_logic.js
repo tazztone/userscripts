@@ -27,6 +27,9 @@ assert(scriptSource.includes('hf-bottom-scan-btn'), 'Missing hf-bottom-scan-btn 
 assert(scriptSource.includes('KeyS'), 'Missing Alt+S keyboard shortcut');
 assert(scriptSource.includes('429'), 'Missing 429 rate limit check');
 assert(scriptSource.includes('End of catalog'), 'Missing End of catalog detection');
+assert(scriptSource.includes("targetEl.id === 'hf-df-empty-notice'"), 'observeCards must filter hf-df-empty-notice to prevent infinite observer loop');
+assert(scriptSource.includes('hf-empty-notice-text'), 'Empty notice must update text element in-place to avoid button teardown');
+assert(!scriptSource.includes('(${pagesScanned}p)'), 'Scan status must not use ambiguous batch count (${pagesScanned}p)');
 
 // Execute parser logic in isolation
 function parseNegativeFilter(termsStr) {

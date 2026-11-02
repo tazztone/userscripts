@@ -461,5 +461,124 @@ def test_scan_rate_limit_429(page: Page):
     assert 'Rate limited' in status_text
 
 
+def test_empty_notice_does_not_trigger_mutation_observer_loop(page: Page):
+    # Filter all models to trigger empty notice
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', 'owner')
+    page.wait_for_selector('#hf-df-empty-notice')
+
+    # Monitor empty notice for unexpected recurring mutations
+    page.evaluate("""() => {
+      window._emptyNoticeMutations = 0;
+      const target = document.querySelector('#hf-df-empty-notice');
+      const obs = new MutationObserver(() => {
+        window._emptyNoticeMutations++;
+      });
+      obs.observe(target, { childList: true, subtree: true, attributes: true, characterData: true });
+    }""")
+
+    # Wait 600ms (longer than 200ms observerTimer debounce)
+    page.wait_for_timeout(600)
+
+    # If an infinite observer loop existed, _emptyNoticeMutations would increment repeatedly every 200ms
+    mutation_count = page.evaluate("() => window._emptyNoticeMutations")
+    assert mutation_count == 0, f"Expected 0 mutations on idle empty notice, got {mutation_count} (infinite observer loop detected)"
+
+
+def test_empty_notice_scan_button_click_triggers_scan(page: Page):
+    # Filter all models
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', 'owner')
+    page.wait_for_selector('#hf-empty-scan-btn')
+
+    page.evaluate("""() => {
+      window.nextPageHtml = `
+        <article id="card-scanned-from-empty" class="overview-card-wrapper">
+          <a class="model-link" href="/scanned-empty/model-1">
+            <div class="title">scanned-empty/model-1</div>
+          </a>
+        </article>
+      `;
+    }""")
+
+    # Click the scan button in the empty notice
+    page.click('#hf-empty-scan-btn')
+    page.wait_for_selector('#card-scanned-from-empty')
+    assert page.locator('#card-scanned-from-empty').count() == 1
+
+
+def test_consecutive_scans_accumulate_and_report_last_page(page: Page):
+    # Setup mock page fetcher that generates distinct cards per page
+    page.evaluate("""() => {
+      window.scanFetchCalls = [];
+      window.fetch = async (url, options = {}) => {
+        window.scanFetchCalls.push(url);
+        const u = new URL(url, window.location.origin);
+        const p = u.searchParams.get('p') || '0';
+        return {
+          status: 200,
+          ok: true,
+          text: async () => `
+            <article id="card-p${p}" class="overview-card-wrapper">
+              <a class="model-link" href="/model/p${p}">
+                <div class="title">model/p${p}</div>
+                <div class="metadata"><div class="like-btn"><span>0</span></div></div>
+              </a>
+            </article>
+          `
+        };
+      };
+    }""")
+
+    # Run 1: Scans from p=0 (page 1) to p=5 (page 6)
+    page.click('#hf-bottom-scan-btn')
+    page.wait_for_selector('#hf-bottom-scan-btn:not(.scanning)', timeout=5000)
+    status_1 = page.locator('#hf-bottom-scan-status').inner_text()
+    assert 'thru p.6' in status_1
+    assert '(5p)' not in status_1, "Status incorrectly displayed batch count '(5p)' instead of page reached 'thru p.6'"
+
+    # Run 2: Scans next 5 pages from p=5 (page 6) to p=10 (page 11)
+    page.click('#hf-bottom-scan-btn')
+    page.wait_for_selector('#hf-bottom-scan-btn:not(.scanning)', timeout=5000)
+    status_2 = page.locator('#hf-bottom-scan-status').inner_text()
+    assert 'thru p.11' in status_2
+    assert '(5p)' not in status_2, "Status incorrectly displayed batch count '(5p)' on run 2 instead of cumulative page reached 'thru p.11'"
+
+
+def test_scan_abort_reports_exact_page_stopped_at(page: Page):
+    # Setup slow fetch so we can abort mid-scan on page 2
+    page.evaluate("""() => {
+      let callCount = 0;
+      window.fetch = async (url, options = {}) => {
+        callCount++;
+        if (callCount >= 2) {
+          // Delay to allow clicking Stop Scan
+          await new Promise(r => setTimeout(r, 600));
+        }
+        return {
+          status: 200,
+          ok: true,
+          text: async () => `
+            <article id="card-slow-${callCount}" class="overview-card-wrapper">
+              <a class="model-link" href="/model/slow-${callCount}"><div class="title">slow-${callCount}</div></a>
+            </article>
+          `
+        };
+      };
+    }""")
+
+    # Start scan
+    page.click('#hf-bottom-scan-btn')
+    page.wait_for_selector('#hf-bottom-scan-btn.scanning')
+    page.wait_for_selector('#card-slow-1')
+
+    # Click stop scan while scanning
+    page.click('#hf-bottom-scan-btn')
+    page.wait_for_selector('#hf-bottom-scan-btn:not(.scanning)', timeout=5000)
+
+    status = page.locator('#hf-bottom-scan-status').inner_text()
+    assert 'Stopped at p.' in status, f"Expected 'Stopped at p.X', got: {status}"
+    assert status != 'Scan stopped', "Status showed generic 'Scan stopped' without page progress"
+
+
+
 
 
