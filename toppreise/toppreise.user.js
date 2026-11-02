@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.444
+// @version      2.18.445
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -732,11 +732,8 @@ const STYLES_BADGES = `
     margin-bottom: 2px !important;
     z-index: 4 !important;
   }
-  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingExpert, .mixedBrowsingBox):has(.badge-dif) {
-    overflow: visible !important;
-  }
-  .Plugin_Product:has(.badge-dif) {
-    overflow: visible !important;
+  :is(.Plugin_Product, .medium-box, .mixedBrowsingBox):has(.badge-dif:not(.tp-deal-pill)) {
+    overflow: hidden !important;
   }
   .mixedBrowsingExpert :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn),
   .mixedBrowsingExpert .tp-card-alarm-group {
@@ -746,11 +743,6 @@ const STYLES_BADGES = `
     margin-right: 6px !important;
     margin-bottom: 4px !important;
     z-index: 4 !important;
-  }
-  .Plugin_Product.mixedBrowsingExpert:has(.tp-card-alarm-group),
-  .mixedBrowsingExpert:has(.tp-card-alarm-group) {
-    overflow: visible !important;
-    padding-top: 0 !important;
   }
   :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
@@ -14241,7 +14233,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.444';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.445';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

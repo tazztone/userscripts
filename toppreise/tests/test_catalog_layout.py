@@ -3261,9 +3261,9 @@ def test_galerieansicht_review_button_on_product_title_not_alarm_bell(page: Page
     assert 'tp-alarm-' in (bell_container.locator('a.f_showNewInfoMailFormDialog').get_attribute('class') or '')
 
 
-def test_expertenansicht_alarm_bell_and_card_overflow(page: Page):
-    """In Expertenansicht (dense list view), rows with injected alarm bells
-    must have overflow: visible so the bell is not clipped by the top border."""
+def test_expertenansicht_alarm_bell_within_card_bounds(page: Page):
+    """In Expertenansicht (dense list view), injected alarm bell is aligned inline
+    within the card vertical bounds without forcing overflow: visible."""
     page.evaluate("""() => {
         const card = document.querySelector('#card-cheapest');
         card.className = 'Plugin_Product mixedBrowsingExpert container';
@@ -3283,10 +3283,6 @@ def test_expertenansicht_alarm_bell_and_card_overflow(page: Page):
     bell = card.locator('.tp-card-alarm-btn')
     assert bell.count() == 1
 
-    # Check that overflow is visible on the card
-    overflow = page.evaluate("() => window.getComputedStyle(document.querySelector('#card-cheapest')).overflow")
-    assert overflow == 'visible'
-
     # Check that the alarm bell is inside the card vertical bounds (not floating above card)
     bounds = page.evaluate("""() => {
         const cardRect = document.querySelector('#card-cheapest').getBoundingClientRect();
@@ -3300,6 +3296,23 @@ def test_expertenansicht_alarm_bell_and_card_overflow(page: Page):
     }""")
     assert bounds['bellTop'] >= bounds['cardTop'] - 1, f"Bell top {bounds['bellTop']} is above card top {bounds['cardTop']}"
     assert bounds['bellBottom'] <= bounds['cardBottom'] + 1, f"Bell bottom {bounds['bellBottom']} is below card bottom {bounds['cardBottom']}"
+
+
+def test_card_with_badge_dif_does_not_force_overflow_visible(page: Page):
+    """Cards with corner ribbons (.badge-dif) must not have overflow: visible
+    forced on them, otherwise the rotated ribbon overflows and overlaps other cards."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.className = 'Plugin_Product medium-box mixedBrowsingBox';
+        card.innerHTML = `
+            <div class="product-name">Product With Ribbon</div>
+            <div class="badge badge-dif m_51_100"><div class="text">Differenz</div><p>-60%</p></div>
+        `;
+        window.ToppreiseSuite.clearCardCache(card);
+        window.ToppreiseSuite.processListings();
+    }""")
+    overflow = page.evaluate("() => window.getComputedStyle(document.querySelector('#card-cheapest')).overflow")
+    assert overflow != 'visible', f"Card overflow is '{overflow}', expected native/hidden to clip corner ribbons"
 
 
 def test_listenansicht_shipping_text_within_card_bounds(page: Page):
