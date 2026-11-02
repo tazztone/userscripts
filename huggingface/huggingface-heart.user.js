@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.8
+// @version      2.0.9
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -1263,9 +1263,22 @@ const SHADOW_WIDGET_STYLES = `
       if (!noticeEl) {
         noticeEl = document.createElement('div');
         noticeEl.id = 'hf-df-empty-notice';
+        noticeEl.innerHTML = `
+          <div id="hf-empty-notice-text"></div>
+          <button type="button" id="hf-empty-scan-btn" class="hf-empty-scan-btn">
+            ${isScanning ? '⏹ Stop Scanning' : '⚡ Scan Next Pages for Unliked'}
+          </button>
+        `;
         const card = document.querySelector('article.overview-card-wrapper');
         const parent = card ? card.closest('.grid, [class*="grid"], main') || card.parentElement : null;
         if (parent) parent.insertBefore(noticeEl, parent.firstChild);
+
+        const emptyBtn = noticeEl.querySelector('#hf-empty-scan-btn');
+        emptyBtn?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          scanNextUnlikedPages({ targetUnliked: 10, maxPages: 5 });
+        });
       }
       if (noticeEl) {
         noticeEl.style.display = 'block';
@@ -1273,18 +1286,18 @@ const SHADOW_WIDGET_STYLES = `
         if (isLikedOnlyActive && hiddenByLiked > 0) reasons.push(`${hiddenByLiked} liked models hidden`);
         if (isTextActive && hiddenByText > 0) reasons.push(`${hiddenByText} by keyword filter`);
         if (isDateActive && hiddenByDate > 0) reasons.push(`${hiddenByDate} by date filter`);
-        noticeEl.innerHTML = `
-          <div>No models match current filters (${reasons.join(', ')}). Adjust sidebar filter settings to see results.</div>
-          <button type="button" id="hf-empty-scan-btn" class="hf-empty-scan-btn">
-            ${isScanning ? '⏹ Stop Scanning' : '⚡ Scan Next Pages for Unliked'}
-          </button>
-        `;
+
+        const textEl = noticeEl.querySelector('#hf-empty-notice-text');
+        const newText = `No models match current filters (${reasons.join(', ')}). Adjust sidebar filter settings to see results.`;
+        if (textEl && textEl.textContent !== newText) {
+          textEl.textContent = newText;
+        }
+
         const emptyBtn = noticeEl.querySelector('#hf-empty-scan-btn');
-        emptyBtn?.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          scanNextUnlikedPages({ targetUnliked: 10, maxPages: 5 });
-        });
+        const newBtnText = isScanning ? '⏹ Stop Scanning' : '⚡ Scan Next Pages for Unliked';
+        if (emptyBtn && emptyBtn.textContent !== newBtnText) {
+          emptyBtn.textContent = newBtnText;
+        }
       }
     } else if (noticeEl) {
       noticeEl.style.display = 'none';
@@ -1571,7 +1584,7 @@ const SHADOW_WIDGET_STYLES = `
         if (!target) return false;
         const targetEl = target.nodeType === 1 ? target : target.parentElement;
         if (!targetEl) return false;
-        if (targetEl.id === 'hf-date-filter-root' || targetEl.id === 'hf-toast-root' || targetEl.id === 'hf-bottom-scan-bar' || targetEl.closest('#hf-date-filter-root, #hf-toast-root, #hf-bottom-scan-bar')) {
+        if (targetEl.id === 'hf-date-filter-root' || targetEl.id === 'hf-toast-root' || targetEl.id === 'hf-bottom-scan-bar' || targetEl.id === 'hf-df-empty-notice' || targetEl.closest('#hf-date-filter-root, #hf-toast-root, #hf-bottom-scan-bar, #hf-df-empty-notice')) {
           return true;
         }
         return false;

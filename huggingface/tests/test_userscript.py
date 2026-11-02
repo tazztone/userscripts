@@ -382,6 +382,13 @@ def test_empty_notice_scan_button(page: Page):
     assert page.locator('#hf-empty-scan-btn').count() == 1
     assert 'Scan Next Pages' in page.locator('#hf-empty-scan-btn').inner_text()
 
+    # Verify button DOM node remains stable (no teardown/rebuild cycle causing pulsing or dropped clicks)
+    page.evaluate("() => { window._testBtnRef = document.querySelector('#hf-empty-scan-btn'); }")
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', 'owner-different')
+    page.wait_for_timeout(300)
+    is_same_node = page.evaluate("() => window._testBtnRef === document.querySelector('#hf-empty-scan-btn')")
+    assert is_same_node is True
+
 
 def test_bottom_scan_bar_renders_after_grid(page: Page):
     page.wait_for_selector('#hf-bottom-scan-bar')
