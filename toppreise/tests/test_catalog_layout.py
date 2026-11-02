@@ -3214,4 +3214,79 @@ def test_card_alarm_bell_visible_in_listenansicht_and_positioned_above_price(pag
     assert boxes['bellBottom'] <= boxes['priceY'] + 2
 
 
+def test_galerieansicht_review_button_on_product_title_not_alarm_bell(page: Page):
+    """In Galerieansicht (box view), action buttons (native bell, compare) precede
+    .product-name in DOM tree order. Review button (🌐) must dock to the product title,
+    never hijack the native bell, and no duplicate alarm decor (🌐⚡) should appear."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.className = 'Plugin_Product mixedBrowsingBox container';
+        card.innerHTML = `
+            <div class="boxContainer">
+                <div class="actionOverlay">
+                    <div class="Plugin_NewInfoMailButton hoverBox">
+                        <a href="/neue-infomail?im_nimf_pid=797571" class="f_showNewInfoMailFormDialog" title="Preisalarm">
+                            <i class="TPIcons-alarm"></i>
+                        </a>
+                    </div>
+                    <div class="Plugin_AddToProductComparisonButton">
+                        <a title="Produktvergleich"><i class="TPIcons-diff"></i></a>
+                    </div>
+                </div>
+                <div class="product-name">
+                    <a href="/preisvergleich/Batterien/PANASONIC-eneloop-p797571" class="bold">PANASONIC eneloop BK-4MCDE/8BE</a>
+                </div>
+                <div class="Plugin_PriceInformation price_information_product">
+                    <div class="priceContainer productPrice"><div class="Plugin_Price">CHF 15.46</div></div>
+                </div>
+            </div>
+        `;
+        window.ToppreiseSuite.clearCardCache(card);
+        window.ToppreiseSuite.processListings();
+    }""")
+    card = page.locator('#card-cheapest')
+
+    # Review button must be inside .product-name, not in .Plugin_NewInfoMailButton
+    review_btn = card.locator('.product-name .tp-review-search-btn')
+    assert review_btn.count() == 1
+    assert review_btn.text_content() == '🌐'
+
+    # Review button is adjacent to product name link, not inside the bell container
+    bell_container = card.locator('.Plugin_NewInfoMailButton')
+    assert bell_container.locator('.tp-review-search-btn').count() == 0
+
+    # Native bell receives single cog, no duplicate cog or duplicate injected card-alarm-btn
+    assert card.locator('.tp-card-alarm-btn').count() == 0
+    assert bell_container.locator('.tp-alarm-cog').count() == 1
+    assert 'tp-alarm-' in (bell_container.locator('a.f_showNewInfoMailFormDialog').get_attribute('class') or '')
+
+
+def test_expertenansicht_alarm_bell_and_card_overflow(page: Page):
+    """In Expertenansicht (dense list view), rows with injected alarm bells
+    must have overflow: visible so the bell is not clipped by the top border."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.className = 'Plugin_Product mixedBrowsingExpert container';
+        card.innerHTML = `
+            <div class="product-name">
+                <a href="/preisvergleich/Batterien/PANASONIC-eneloop-p797571" class="bold">PANASONIC eneloop BK-4MCDE/8BE</a>
+            </div>
+            <div class="Plugin_PriceInformation price_information_product">
+                <div class="badge badge-dif tp-deal-pill"><p>+0%</p></div>
+                <div class="priceContainer productPrice"><div class="Plugin_Price">CHF 11.35</div></div>
+            </div>
+        `;
+        window.ToppreiseSuite.clearCardCache(card);
+        window.ToppreiseSuite.processListings();
+    }""")
+    card = page.locator('#card-cheapest')
+    bell = card.locator('.tp-card-alarm-btn')
+    assert bell.count() == 1
+
+    # Check that overflow is visible on the card
+    overflow = page.evaluate("() => window.getComputedStyle(document.querySelector('#card-cheapest')).overflow")
+    assert overflow == 'visible'
+
+
+
 

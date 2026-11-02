@@ -394,6 +394,17 @@ export const STYLES_BADGES = `
     margin-bottom: 2px !important;
     z-index: 4 !important;
   }
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingExpert, .mixedBrowsingBox):has(.badge-dif) {
+    overflow: visible !important;
+  }
+  .Plugin_Product:has(.badge-dif) {
+    overflow: visible !important;
+  }
+  .Plugin_Product.mixedBrowsingExpert:has(.tp-card-alarm-group),
+  .mixedBrowsingExpert:has(.tp-card-alarm-group) {
+    overflow: visible !important;
+    padding-top: 14px !important;
+  }
   :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
     position: absolute !important;
     right: 10px !important;

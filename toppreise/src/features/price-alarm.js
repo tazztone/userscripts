@@ -30,8 +30,9 @@ export const normalizeAlarmDuration = v => {
 const ALARM_BELL_SELECTORS = [
   '#mock-alarm-bell',
   '.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog',
-  '.Plugin_NewInfoMailButton a',
-  'a[href*="NewInfoMail"]',
+  '.Plugin_NewInfoMailButton a[href*="infomail"]:not(.tp-review-search-btn):not(.tp-alarm-cog)',
+  '.Plugin_NewInfoMailButton a:not(.tp-review-search-btn):not(.tp-alarm-cog)',
+  'a[href*="NewInfoMail"]:not(.tp-review-search-btn):not(.tp-alarm-cog)',
   '.tp-card-alarm-btn',
 ];
 const BELL_STYLE_ID = 'tp-alarm-bell-style';

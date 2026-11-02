@@ -375,7 +375,7 @@ export function renderReviewButton(ctx) {
       : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
     setTitleIfChanged(reviewBtn, tipText);
     reviewBtn.setAttribute('aria-label', tipText);
-    const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
+    const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
     if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
     else if (titleEl && titleEl.tagName === 'A') {
       // The variant deal pill owns the slot directly after the title
@@ -393,7 +393,7 @@ export function renderReviewButton(ctx) {
 // Preisalarm bell trigger next to price (step 10).
 export function renderAlarmBell(ctx) {
   const { card, pid, cardPriceEl } = ctx;
-  if (!pid || card.querySelector('.Plugin_NewInfoMailButton')) {
+  if (!pid || card.querySelector('.Plugin_NewInfoMailButton, .f_showNewInfoMailFormDialog, a[href*="NewInfoMail"], a[href*="infomail"]')) {
     card.querySelector('.tp-card-alarm-group')?.remove();
     card.querySelector('.tp-card-alarm-btn')?.remove();
     return;

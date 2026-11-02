@@ -243,7 +243,7 @@ describe('extractShareData / extractDealer', () => {
 
   it('reads title, absolutizes relative links, tolerates missing nodes', () => {
     const card = stubCard();
-    card.__set('.product-name, .productDetails, .bold, a[title]', { textContent: '  Beamer  ' });
+    card.__set('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])', { textContent: '  Beamer  ' });
     card.__set('a[href*="/preisvergleich/"]', { getAttribute: () => '/preisvergleich/Beamer/x-p9' });
     globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
     const { title, url } = extractShareData(card);

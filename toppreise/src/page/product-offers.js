@@ -18,7 +18,7 @@ const isToppreiseProductUrl = u => {
 // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).
 export function extractShareData(card) {
   if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
-  const titleEl = card.querySelector('.product-name, .productDetails, .bold, a[title]');
+  const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
   // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
   // sonst frisst sich sein Emoji bei jedem Re-Render in Titel, Query und Share-Text.
   let title = '';
