@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.455
+// @version      2.18.456
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -14438,6 +14438,13 @@ const SHADOW_MODAL_STYLES = `
     sparkContainer._tpSeries = series;
     sparkContainer._tpTitle = title;
 
+    const lastTs = series.length ? +series[series.length - 1][0] || 0 : 0;
+    const sig = [series.length, priceToCents(currentPrice), priceToCents(stats?.medianPrice ?? 0), stats?.time || 0, lastTs].join(':');
+    if (sparkContainer.dataset.tpSparkSig === sig) {
+      return;
+    }
+    sparkContainer.dataset.tpSparkSig = sig;
+
     if (!sparkContainer.dataset.tpPopoutBound) {
       sparkContainer.dataset.tpPopoutBound = 'true';
       const openPopout = () => {
@@ -14749,14 +14756,29 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   setupUI();
   triggerProcessListings();
 
+  async function safeProcessProductDetailPage() {
+    if (isModifyingDOM) return;
+    isModifyingDOM = true;
+    if (mainObserver) mainObserver.disconnect();
+    try {
+      await processProductDetailPage();
+    } finally {
+      isModifyingDOM = false;
+      if (mainObserver) {
+        mainObserver.takeRecords();
+        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
+      }
+    }
+  }
+
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.455';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.456';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
         processListings,
         processPriceAlarmModal,
-        processProductDetailPage,
+        processProductDetailPage: safeProcessProductDetailPage,
         updateConfig,
         openSettingsAt,
         saveConfigKey,

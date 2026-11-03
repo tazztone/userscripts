@@ -307,6 +307,13 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
   sparkContainer._tpSeries = series;
   sparkContainer._tpTitle = title;
 
+  const lastTs = series.length ? +series[series.length - 1][0] || 0 : 0;
+  const sig = [series.length, priceToCents(currentPrice), priceToCents(stats?.medianPrice ?? 0), stats?.time || 0, lastTs].join(':');
+  if (sparkContainer.dataset.tpSparkSig === sig) {
+    return;
+  }
+  sparkContainer.dataset.tpSparkSig = sig;
+
   if (!sparkContainer.dataset.tpPopoutBound) {
     sparkContainer.dataset.tpPopoutBound = 'true';
     const openPopout = () => {

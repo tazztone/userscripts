@@ -49,6 +49,9 @@ describe('Product Detail Page Feature Suite', () => {
       },
       setAttribute(k, v) { el[k] = v; },
       getAttribute(k) { return el[k] ?? null; },
+      get firstElementChild() {
+        return el.children[0] || null;
+      },
       appendChild(child) {
         if (!child) return;
         child.parentElement = el;
@@ -83,16 +86,17 @@ describe('Product Detail Page Feature Suite', () => {
         for (let i = 0; i < pool.length; i++) pool.push(...pool[i].children);
         const parts = sel.split(',').map(s => s.trim());
         for (const part of parts) {
-          if (part.startsWith('#')) {
-            const id = part.slice(1);
+          const lastPart = part.trim().split(/\s+/).pop();
+          if (lastPart.startsWith('#')) {
+            const id = lastPart.slice(1);
             const found = pool.find(c => c.id === id) || (el.id === id ? el : null);
             if (found) return found;
-          } else if (part.startsWith('.')) {
-            const cls = part.slice(1).split(/[\s.:>+]/)[0];
+          } else if (lastPart.startsWith('.')) {
+            const cls = lastPart.slice(1).split(/[\s.:>+]/)[0];
             const found = pool.find(c => c.classList.contains(cls)) || (el.classList.contains(cls) ? el : null);
             if (found) return found;
           } else {
-            const tagMatch = part.split(/[\s.:>+]/)[0].toLowerCase();
+            const tagMatch = lastPart.split(/[\s.:>+]/)[0].toLowerCase();
             const found = pool.find(c => c.tagName.toLowerCase() === tagMatch) || (el.tagName.toLowerCase() === tagMatch ? el : null);
             if (found) return found;
           }
@@ -297,6 +301,39 @@ describe('Product Detail Page Feature Suite', () => {
     assert.deepEqual(spark._tpSeries.slice(0, 3).map(p => p[1]), [1200, 500, 1000]);
   });
 
+  it('does NOT re-render sparkline SVG on repeated passes with identical data', () => {
+    const chart = mockNode('div');
+    chart.className = 'chartProductPrice';
+    document.body.appendChild(chart);
+
+    const stats = {
+      timeSeries: [[1000, 1200], [2000, 1050], [3000, 1000]],
+      medianPrice: 1100,
+      time: 12345
+    };
+
+    // First render creates container and SVG child
+    renderDetailSparkline('867323', 'Surface Laptop', 1000, stats);
+    const spark = document.getElementById('tp-detail-sparkline');
+    assert.ok(spark);
+    const initialSvg = spark.firstElementChild;
+    assert.ok(initialSvg, 'Initial SVG child must exist');
+    const initialSig = spark.dataset.tpSparkSig;
+    assert.ok(initialSig, 'tpSparkSig must be recorded on container');
+
+    // Run 10 consecutive identical passes (simulating mutation observer or interval passes)
+    for (let i = 0; i < 10; i++) {
+      renderDetailSparkline('867323', 'Surface Laptop', 1000, stats);
+      assert.equal(spark.firstElementChild, initialSvg, `Pass ${i + 1} must preserve exact SVG node identity without replacement`);
+      assert.equal(spark.dataset.tpSparkSig, initialSig);
+    }
+
+    // Changing price MUST update signature and replace SVG with updated data
+    renderDetailSparkline('867323', 'Surface Laptop', 950, stats);
+    assert.notEqual(spark.firstElementChild, initialSvg, 'Price change must trigger an updated SVG render');
+    assert.notEqual(spark.dataset.tpSparkSig, initialSig);
+  });
+
   it('cleans up decorations via removeDetailDecorations', () => {
     const subline = mockNode('div');
     subline.id = 'tp-detail-subline';
@@ -391,5 +428,46 @@ describe('Product Detail Page Feature Suite', () => {
     });
     assert.ok(mobileBell.querySelector('.tp-detail-share-btn'), 'Mobile bell has share button');
     assert.ok(desktopBell.querySelector('.tp-detail-share-btn'), 'Desktop bell has share button');
+  });
+
+  it('processProductDetailPage preserves sparkline DOM identity and popout handler across repeated calls', async () => {
+    const h1 = mockNode('h1');
+    h1.className = 'product-name m-0';
+    h1.textContent = 'Surface Laptop';
+    document.body.appendChild(h1);
+
+    const priceBox = mockNode('div');
+    priceBox.className = 'f_priceContainer';
+    const priceInfo = mockNode('div');
+    priceInfo.className = 'Plugin_PriceInformation price_information_product';
+    const priceEl = mockNode('div');
+    priceEl.className = 'Plugin_Price';
+    priceEl.textContent = '1000';
+    priceInfo.appendChild(priceEl);
+    priceBox.appendChild(priceInfo);
+    document.body.appendChild(priceBox);
+
+    const stats = {
+      tiefstpreis: 1000,
+      previousLow: 1200,
+      medianPrice: 1300,
+      horizonDays: 365,
+      timeSeries: [[1000, 1200], [2000, 1000]],
+      isShippingPrice: true,
+      time: Date.now()
+    };
+    setCachedPriceStats('867323', stats, false, null, true);
+
+    await processProductDetailPage();
+
+    const spark = document.getElementById('tp-detail-sparkline');
+    assert.ok(spark, 'Sparkline element should be created');
+    const initialSvg = spark.firstElementChild;
+    assert.ok(initialSvg, 'Initial SVG child must exist');
+
+    for (let i = 0; i < 5; i++) {
+      await processProductDetailPage();
+      assert.equal(spark.firstElementChild, initialSvg, `Pass ${i + 1} must not replace SVG child`);
+    }
   });
 });
