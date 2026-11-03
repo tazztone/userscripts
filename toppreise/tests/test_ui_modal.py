@@ -630,6 +630,8 @@ def test_discord_layout_editor(page: Page):
     expect(preview).to_contain_text('CHF 16.85')
     page.fill('#tp-root >> #tp-discord-layout-input', '# {price}\n{dealer}')
     expect(preview).to_contain_text('Amazon.de')
+    page.fill('#tp-root >> #tp-discord-layout-input', '# {price}\n{comment}')
+    expect(preview).to_contain_text('Gutscheincode: SALE10')
     page.fill('#tp-root >> #tp-discord-layout-input', '{foo}')
     expect(page.locator('#tp-root >> #tp-section-discord >> #tp-discord-layout-error')).to_contain_text('Unbekannte Tokens: {foo}')
     assert preview.evaluate('el => el.scrollWidth <= el.clientWidth + 1')

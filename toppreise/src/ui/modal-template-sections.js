@@ -75,10 +75,11 @@ export function renderDiscordSection() {
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{ai}">KI-Fazit {ai}</button>
+            <button type="button" class="tp-btn tp-btn-secondary" data-token="{comment}">Kommentar {comment}</button>
             <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
           </div>
           <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
+          <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {comment} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
           <pre id="tp-discord-layout-preview"></pre>
           <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
           <span id="tp-discord-layout-error" class="tp-switch-desc"></span>

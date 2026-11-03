@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.447
+// @version      2.18.448
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -10641,10 +10641,11 @@ const SHADOW_MODAL_STYLES = `
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{ai}">KI-Fazit {ai}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{comment}">Kommentar {comment}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
             </div>
             <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {comment} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
             <pre id="tp-discord-layout-preview"></pre>
             <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -11162,11 +11163,11 @@ const SHADOW_MODAL_STYLES = `
   function getLayoutPresets() {
     return {
       kompakt: DEFAULT_LAYOUT,
-      ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{prevlow}\n{median}\n{link}',
+      ausfuehrlich: '## {title}\n# {price}\n-# {dealer}\n-# {offers}\n{prevlow}\n{median}\n{comment}\n{link}',
       minimal: '## {title}\n# {price}\n{link}'
     };
   }
-  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61 };
+  const LAYOUT_SAMPLE = { title: 'URBANISTA Porto, Cloud White', url: 'https://www.toppreise.ch/preisvergleich/x-p802723', priceText: 'CHF 16.85', dealer: 'Amazon.de', dealerUrl: 'https://www.toppreise.ch/ext_de?pid=802723', offerCount: 25, prevLowText: 'CHF 29.70', prevLowPct: 43, medianText: 'Ø-Preis (90T): CHF 42.90', medianPct: 61, commentText: 'Gutscheincode: SALE10' };
   function renderLayoutPreview(els) {
       if (!els.discordLayoutInput || !els.discordLayoutPreview) return;
       const recipe = els.discordLayoutInput.value;
@@ -14360,7 +14361,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.447';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.448';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
