@@ -253,6 +253,17 @@ describe('extractShareData / extractDealer', () => {
     assert.deepEqual(extractShareData(null), { title: '', url: '', imageUrl: '' });
   });
 
+  it('prioritizes H1 headings over generic links and ignores PriceSwitch links', () => {
+    const card = stubCard();
+    card.__set('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1', { textContent: '  CHERRY Stream Ultimate  ' });
+    card.__set('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])', {
+      getAttribute: () => '/preisvergleich/Tastaturen/CHERRY-Stream-Ultimate-p1183561'
+    });
+    const { title, url } = extractShareData(card);
+    assert.equal(title, 'CHERRY Stream Ultimate');
+    assert.equal(url, 'https://www.toppreise.ch/preisvergleich/Tastaturen/CHERRY-Stream-Ultimate-p1183561');
+  });
+
   it('picks the card product image, empty when absent', () => {
     const card = stubCard();
     card.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: 'https://img/u.jpg' });

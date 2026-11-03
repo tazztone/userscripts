@@ -345,11 +345,16 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
 
   const series = withLivePrice(stats.timeSeries, currentPrice);
   sparkContainer._tpSeries = series;
+  sparkContainer._tpTitle = title;
 
   if (!sparkContainer.dataset.tpPopoutBound) {
     sparkContainer.dataset.tpPopoutBound = 'true';
     const openPopout = () => {
-      openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl: (typeof location !== 'undefined' ? location.href : '') });
+      openSparklinePopout(sparkContainer._tpSeries, {
+        title: sparkContainer._tpTitle || title,
+        pid,
+        directUrl: (typeof location !== 'undefined' ? location.href : '')
+      });
     };
     sparkContainer.addEventListener('click', e => {
       e.preventDefault();
@@ -383,7 +388,8 @@ export async function processProductDetailPage() {
   if (!(currentPrice > 0)) { removeDetailDecorations(); return; }
 
   const primaryHeading = headings[0];
-  const shareData = extractShareData(document.body || primaryHeading);
+  const shareScope = primaryHeading?.closest?.('.Page_DetailProduct, .Page_Product, #page, main, [class*="Product"]') || primaryHeading;
+  const shareData = extractShareData(shareScope);
   const title = shareData.title || primaryHeading.textContent?.trim() || '';
   const url = shareData.url || (typeof location !== 'undefined' ? location.href : '');
   const imageUrl = shareData.imageUrl || '';

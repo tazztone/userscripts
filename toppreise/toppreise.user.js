@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.451
+// @version      2.18.452
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5287,10 +5287,10 @@ const SHADOW_MODAL_STYLES = `
   // Titel + Produktlink aus der Karte oder Produktseite ziehen (tolerant, Layout-wechsel-sicher).
   function extractShareData(card) {
     if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
-    let titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-    if (!titleEl) {
-      titleEl = card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1');
-    }
+    let titleEl = (card.tagName?.toLowerCase() === 'h1' ? card : null)
+      || card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1')
+      || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
+      || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
     // Review-Button (Schritt 9) und Detail-Badge hängen im Titel-Element: für Titelzwecke ausblenden,
     // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
     let title = '';
@@ -5299,7 +5299,8 @@ const SHADOW_MODAL_STYLES = `
       clone?.querySelectorAll?.('.tp-review-search-btn, #tp-detail-deal-badge, .tp-detail-deal-badge')?.forEach(el => el.remove());
       title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
     }
-    const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
+    const linkEl = card.querySelector('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
+      || card.querySelector('a[href*="/preisvergleich/"]')
       || (card.tagName?.toLowerCase() === 'a' ? card : null);
     let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
     if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
@@ -14522,11 +14523,16 @@ const SHADOW_MODAL_STYLES = `
 
     const series = withLivePrice(stats.timeSeries, currentPrice);
     sparkContainer._tpSeries = series;
+    sparkContainer._tpTitle = title;
 
     if (!sparkContainer.dataset.tpPopoutBound) {
       sparkContainer.dataset.tpPopoutBound = 'true';
       const openPopout = () => {
-        openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl: (typeof location !== 'undefined' ? location.href : '') });
+        openSparklinePopout(sparkContainer._tpSeries, {
+          title: sparkContainer._tpTitle || title,
+          pid,
+          directUrl: (typeof location !== 'undefined' ? location.href : '')
+        });
       };
       sparkContainer.addEventListener('click', e => {
         e.preventDefault();
@@ -14560,7 +14566,8 @@ const SHADOW_MODAL_STYLES = `
     if (!(currentPrice > 0)) { removeDetailDecorations(); return; }
 
     const primaryHeading = headings[0];
-    const shareData = extractShareData(document.body || primaryHeading);
+    const shareScope = primaryHeading?.closest?.('.Page_DetailProduct, .Page_Product, #page, main, [class*="Product"]') || primaryHeading;
+    const shareData = extractShareData(shareScope);
     const title = shareData.title || primaryHeading.textContent?.trim() || '';
     const url = shareData.url || (typeof location !== 'undefined' ? location.href : '');
     const imageUrl = shareData.imageUrl || '';
@@ -14835,7 +14842,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.451';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.452';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
