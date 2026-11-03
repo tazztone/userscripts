@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.445
+// @version      2.18.446
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3577,7 +3577,7 @@ const SHADOW_MODAL_STYLES = `
     DISCORD_SUPPRESS_PRODUCT_EMBED: true,
     DISCORD_FORUM_TITLE: false,
     // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}',
+    DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}',
     MIN_OFFERS: 0,
     SORT_BY_OFFERS: 'none',
     ALARM_ENABLED: true,
@@ -7288,8 +7288,8 @@ const SHADOW_MODAL_STYLES = `
 
   // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
   // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
-  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}';
-  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'link']);
+  const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}';
+  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'comment', 'link']);
 
   function validateLayoutRecipe(recipe) {
     const value = String(recipe ?? '');
@@ -7359,6 +7359,12 @@ const SHADOW_MODAL_STYLES = `
       case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
       case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
       case 'ai': return ctx.aiText ? `> 💡 ${ctx.aiText}` : '';
+      case 'comment': {
+        if (!ctx.commentText) return '';
+        const text = ctx.commentText.trim();
+        const hasPrefix = /^([^\p{L}\p{N}\s]|>|-)/u.test(text);
+        return hasPrefix ? text : `💬 ${text}`;
+      }
       case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
       default: return '';
     }
@@ -7367,6 +7373,16 @@ const SHADOW_MODAL_STYLES = `
   function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     recipe = String(recipe || '').replace(/\r/g, '');
     if (!recipe.trim()) recipe = DEFAULT_LAYOUT;
+    if (fields?.commentText && !recipe.includes('{comment}')) {
+      const lines = recipe.split('\n');
+      const linkIdx = lines.findIndex(l => l.includes('{link}'));
+      if (linkIdx !== -1) {
+        lines.splice(linkIdx, 0, '{comment}');
+        recipe = lines.join('\n');
+      } else {
+        recipe = `${recipe.trimEnd()}\n{comment}`;
+      }
+    }
     const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
     const link = escapeUrlParens(((fields || {}).url || '').trim());
     const dealerUrl = escapeUrlParens((fields || {}).dealerUrl || '');
@@ -7383,6 +7399,7 @@ const SHADOW_MODAL_STYLES = `
       medianText: (fields || {}).medianText || '',
       medianPct: (fields || {}).medianPct || 0,
       aiText: (fields || {}).aiText || '',
+      commentText: String((fields || {}).commentText || '').trim(),
       suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
       forceLink: (fields || {}).forceLink === true,
     };
@@ -14233,7 +14250,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.445';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.446';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

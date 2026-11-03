@@ -8,8 +8,8 @@ import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal
 
 // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
 // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
-export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}';
-export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'link']);
+export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}';
+export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'comment', 'link']);
 
 export function validateLayoutRecipe(recipe) {
   const value = String(recipe ?? '');
@@ -79,6 +79,12 @@ function tokenText(name, ctx) {
     case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
     case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
     case 'ai': return ctx.aiText ? `> 💡 ${ctx.aiText}` : '';
+    case 'comment': {
+      if (!ctx.commentText) return '';
+      const text = ctx.commentText.trim();
+      const hasPrefix = /^([^\p{L}\p{N}\s]|>|-)/u.test(text);
+      return hasPrefix ? text : `💬 ${text}`;
+    }
     case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
     default: return '';
   }
@@ -87,6 +93,16 @@ function tokenText(name, ctx) {
 export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
   recipe = String(recipe || '').replace(/\r/g, '');
   if (!recipe.trim()) recipe = DEFAULT_LAYOUT;
+  if (fields?.commentText && !recipe.includes('{comment}')) {
+    const lines = recipe.split('\n');
+    const linkIdx = lines.findIndex(l => l.includes('{link}'));
+    if (linkIdx !== -1) {
+      lines.splice(linkIdx, 0, '{comment}');
+      recipe = lines.join('\n');
+    } else {
+      recipe = `${recipe.trimEnd()}\n{comment}`;
+    }
+  }
   const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
   const link = escapeUrlParens(((fields || {}).url || '').trim());
   const dealerUrl = escapeUrlParens((fields || {}).dealerUrl || '');
@@ -103,6 +119,7 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     medianText: (fields || {}).medianText || '',
     medianPct: (fields || {}).medianPct || 0,
     aiText: (fields || {}).aiText || '',
+    commentText: String((fields || {}).commentText || '').trim(),
     suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
     forceLink: (fields || {}).forceLink === true,
   };

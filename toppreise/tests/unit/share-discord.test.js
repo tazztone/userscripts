@@ -1101,6 +1101,27 @@ describe('layout recipe', () => {
     assert.equal(renderLayout({ ...base, aiText: '' }, '{ai}\n# {price}'), `# 💰 CHF 31.90`);
     assert.equal(renderLayout({ ...base, aiText: undefined }, '## {title}\n> {ai}\n# {price}'), `## [HyperX Pulsefire Fuse](${PRODUCT_URL})\n# 💰 CHF 31.90`);
   });
+  it('{comment} token renders with speech bubble prefix, drops line when empty', () => {
+    assert.equal(renderLayout({ ...base, commentText: 'Gutscheincode: DEAL10' }, '{comment}'), '💬 Gutscheincode: DEAL10');
+    assert.equal(renderLayout({ ...base, commentText: '' }, '{comment}\n# {price}'), '# 💰 CHF 31.90');
+    assert.equal(renderLayout({ ...base, commentText: undefined }, '## {title}\n{comment}\n# {price}'), `## [HyperX Pulsefire Fuse](${PRODUCT_URL})\n# 💰 CHF 31.90`);
+  });
+  it('{comment} avoids duplicate prefix when input already has symbol/emoji/quote', () => {
+    assert.equal(renderLayout({ ...base, commentText: '💬 Bereits mit Emoji' }, '{comment}'), '💬 Bereits mit Emoji');
+    assert.equal(renderLayout({ ...base, commentText: '> Im Warenkorb einloesen' }, '{comment}'), '> Im Warenkorb einloesen');
+    assert.equal(renderLayout({ ...base, commentText: '- Punkt 1\n- Punkt 2' }, '{comment}'), '- Punkt 1\n- Punkt 2');
+    assert.equal(renderLayout({ ...base, commentText: '🔥 Heisser Deal' }, '{comment}'), '🔥 Heisser Deal');
+  });
+  it('commentText auto-injects before {link} when recipe lacks {comment}', () => {
+    const customRecipe = '## {title}\n# {price}\n{link}';
+    const rendered = renderLayout({ ...base, commentText: 'Gutschein: MEGASALE' }, customRecipe);
+    assert.equal(rendered, `## [HyperX Pulsefire Fuse](${PRODUCT_URL})\n# 💰 CHF 31.90\n💬 Gutschein: MEGASALE\n${PRODUCT_URL}`);
+  });
+  it('commentText auto-injects at end when recipe lacks both {comment} and {link}', () => {
+    const customRecipe = '## {title}\n# {price}';
+    const rendered = renderLayout({ ...base, commentText: 'Gutschein: MEGASALE' }, customRecipe);
+    assert.equal(rendered, `## [HyperX Pulsefire Fuse](${PRODUCT_URL})\n# 💰 CHF 31.90\n💬 Gutschein: MEGASALE`);
+  });
   it('blank recipe falls back to the default layout', () => {
     assert.equal(renderLayout(base, '   \n  '), renderLayout(base, DEFAULT_LAYOUT));
     assert.equal(formatDealMessage(base, ''), formatDealMessage(base));

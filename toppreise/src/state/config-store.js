@@ -60,7 +60,7 @@ export const DEFAULTS = Object.freeze({
   DISCORD_SUPPRESS_PRODUCT_EMBED: true,
   DISCORD_FORUM_TITLE: false,
   // mirror of DEFAULT_LAYOUT in features/share-discord.js (drift-checked in share-discord.test.js)
-  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{link}',
+  DISCORD_LAYOUT: '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}',
   MIN_OFFERS: 0,
   SORT_BY_OFFERS: 'none',
   ALARM_ENABLED: true,
