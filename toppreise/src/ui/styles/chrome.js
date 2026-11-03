@@ -205,11 +205,12 @@ export const STYLES_CHROME = `
   }
   #tp-detail-subline.tp-is-record-low,
   .tp-detail-subline.tp-is-record-low {
-    color: #059669 !important;
+    color: var(--tp-acc-txt, #047857) !important;
+    font-weight: 700 !important;
   }
   #tp-detail-subline.tp-is-markup,
   .tp-detail-subline.tp-is-markup {
-    color: #d97706 !important;
+    color: #b45309 !important;
   }
   .tp-detail-share-btn {
     display: inline-flex !important;
