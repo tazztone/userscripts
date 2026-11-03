@@ -59,7 +59,11 @@ export function fullSeries(entry) {
   if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
   const base = entry.timeSeries;
   if (!Array.isArray(base)) return null;
-  const extra = Array.isArray(entry.filteredOutliers) ? entry.filteredOutliers.map(o => [o.timestamp, o.price]) : [];
+  const extra = Array.isArray(entry.filteredOutliers)
+    ? entry.filteredOutliers
+        .map(o => (Array.isArray(o) ? o : [o?.timestamp ?? o?.[0], o?.price ?? o?.[1]]))
+        .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+    : [];
   if (!extra.length) return base;
   return [...base, ...extra].sort((a, b) => a[0] - b[0]);
 }

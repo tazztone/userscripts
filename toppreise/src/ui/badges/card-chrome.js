@@ -7,7 +7,7 @@
 import { CONFIG, updateConfig, updateConfigs, sanitizeReviewKeyword, realDealMinDiscount } from '../../state/config.js';
 import { getDisplayDelta, getHeatInput, computeDealScore } from '../../domain/deal-score.js';
 import { basisMatchesFor, FILTER_CAUSE_DEFS } from '../../page/cards.js';
-import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen } from '../../scanner/cache.js';
+import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen, fullSeries } from '../../scanner/cache.js';
 import { priceToCents } from '../../domain/price.js';
 import { withLivePrice } from '../../features/share-discord.js';
 import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfo } from '../../page/product-offers.js';
@@ -101,7 +101,8 @@ export function renderSparklineRow(ctx) {
   // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
   // pill spans from the share-button zone to the card's right edge, using
   // full card width instead of the narrow price-info column).
-  const hasSeries = CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2;
+  const baseSeries = fullSeries(stats) || stats?.timeSeries;
+  const hasSeries = CONFIG.ENABLE_SPARKLINES && Array.isArray(baseSeries) && baseSeries.length >= 2;
   let sparkContainer = hasSeries ? card.querySelector('.tp-sparkline-container') : null;
   if (hasSeries) {
     if (!sparkContainer) {
@@ -109,11 +110,11 @@ export function renderSparklineRow(ctx) {
       sparkContainer.className = 'tp-sparkline-container';
     }
     // Click pops the full Discord-style chart (same series incl. live price).
-    sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
+    sparkContainer._tpSeries = withLivePrice(baseSeries, cardPrice);
     // Revision-aware: same length/price/median with refreshed points (new
     // fetch, recomputed median) must rebuild instead of showing stale art.
-    const lastTs = stats.timeSeries.length ? +stats.timeSeries[stats.timeSeries.length - 1][0] || 0 : 0;
-    const sig = [stats.timeSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
+    const lastTs = baseSeries.length ? +baseSeries[baseSeries.length - 1][0] || 0 : 0;
+    const sig = [baseSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
     const useShipping = isShippingPriceActive(card);
     const cachedDealer = getCachedDealer(pid, useShipping);
     const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';

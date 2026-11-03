@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.452
+// @version      2.18.453
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3273,7 +3273,11 @@ const SHADOW_MODAL_STYLES = `
     if (Array.isArray(entry.rawTimeSeries)) return entry.rawTimeSeries;
     const base = entry.timeSeries;
     if (!Array.isArray(base)) return null;
-    const extra = Array.isArray(entry.filteredOutliers) ? entry.filteredOutliers.map(o => [o.timestamp, o.price]) : [];
+    const extra = Array.isArray(entry.filteredOutliers)
+      ? entry.filteredOutliers
+          .map(o => (Array.isArray(o) ? o : [o?.timestamp ?? o?.[0], o?.price ?? o?.[1]]))
+          .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+      : [];
     if (!extra.length) return base;
     return [...base, ...extra].sort((a, b) => a[0] - b[0]);
   }
@@ -9721,7 +9725,7 @@ const SHADOW_MODAL_STYLES = `
             return keepaUrl ? fetchImageBlob(keepaUrl).catch(() => null) : null;
           })();
         }
-        const series = stats?.timeSeries || [];
+        const series = fullSeries(stats) || stats?.timeSeries || [];
         const png = await renderSparklinePng(withLivePrice(series, cardPrice), 360, 100, title).catch(() => null);
         if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
         const keepaBlob = keepaDl ? await keepaDl : null;
@@ -10167,7 +10171,8 @@ const SHADOW_MODAL_STYLES = `
     // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
     // pill spans from the share-button zone to the card's right edge, using
     // full card width instead of the narrow price-info column).
-    const hasSeries = CONFIG.ENABLE_SPARKLINES && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2;
+    const baseSeries = fullSeries(stats) || stats?.timeSeries;
+    const hasSeries = CONFIG.ENABLE_SPARKLINES && Array.isArray(baseSeries) && baseSeries.length >= 2;
     let sparkContainer = hasSeries ? card.querySelector('.tp-sparkline-container') : null;
     if (hasSeries) {
       if (!sparkContainer) {
@@ -10175,11 +10180,11 @@ const SHADOW_MODAL_STYLES = `
         sparkContainer.className = 'tp-sparkline-container';
       }
       // Click pops the full Discord-style chart (same series incl. live price).
-      sparkContainer._tpSeries = withLivePrice(stats.timeSeries, cardPrice);
+      sparkContainer._tpSeries = withLivePrice(baseSeries, cardPrice);
       // Revision-aware: same length/price/median with refreshed points (new
       // fetch, recomputed median) must rebuild instead of showing stale art.
-      const lastTs = stats.timeSeries.length ? +stats.timeSeries[stats.timeSeries.length - 1][0] || 0 : 0;
-      const sig = [stats.timeSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
+      const lastTs = baseSeries.length ? +baseSeries[baseSeries.length - 1][0] || 0 : 0;
+      const sig = [baseSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
       const useShipping = isShippingPriceActive(card);
       const cachedDealer = getCachedDealer(pid, useShipping);
       const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
@@ -14499,7 +14504,8 @@ const SHADOW_MODAL_STYLES = `
 
   function renderDetailSparkline(pid, title, currentPrice, stats) {
     let sparkContainer = document.getElementById('tp-detail-sparkline');
-    const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2;
+    const baseSeries = fullSeries(stats) || stats?.timeSeries;
+    const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && Array.isArray(baseSeries) && baseSeries.length >= 2;
     if (!hasSeries) {
       sparkContainer?.remove();
       return;
@@ -14521,7 +14527,7 @@ const SHADOW_MODAL_STYLES = `
       else document.body.appendChild(sparkContainer);
     }
 
-    const series = withLivePrice(stats.timeSeries, currentPrice);
+    const series = withLivePrice(baseSeries, currentPrice);
     sparkContainer._tpSeries = series;
     sparkContainer._tpTitle = title;
 
@@ -14842,7 +14848,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.452';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.453';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

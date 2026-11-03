@@ -280,6 +280,23 @@ describe('Product Detail Page Feature Suite', () => {
     assert.equal(chart.dataset.tpChartBound, undefined, 'Native chart click should remain untouched');
   });
 
+  it('renders mini sparkline with all real data points including outliers', () => {
+    const chart = mockNode('div');
+    chart.className = 'chartProductPrice';
+    document.body.appendChild(chart);
+
+    const stats = {
+      timeSeries: [[1000, 1200], [3000, 1000]],
+      filteredOutliers: [[2000, 500]]
+    };
+
+    renderDetailSparkline('867323', 'Surface Laptop', 1000, stats);
+    const spark = document.getElementById('tp-detail-sparkline');
+    assert.ok(spark);
+    assert.equal(spark._tpSeries.length, 3);
+    assert.deepEqual(spark._tpSeries.slice(0, 3).map(p => p[1]), [1200, 500, 1000]);
+  });
+
   it('cleans up decorations via removeDetailDecorations', () => {
     const h1 = mockNode('h1');
     h1.className = 'Plugin_ProductHeading';

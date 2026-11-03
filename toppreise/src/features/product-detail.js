@@ -16,7 +16,7 @@ import { openAiPopover } from '../ui/badges/card-ai-popover.js';
 import { openSparklinePopout, renderSparkline } from '../ui/sparkline.js';
 import { extractShareData } from '../page/product-offers.js';
 import { triggerDiscordShare } from '../ui/badges/card-share.js';
-import { getSharedDeal } from '../scanner/cache.js';
+import { getSharedDeal, fullSeries } from '../scanner/cache.js';
 import { setTextIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js';
 
 let detailRun = 0;
@@ -321,7 +321,8 @@ export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, 
 
 export function renderDetailSparkline(pid, title, currentPrice, stats) {
   let sparkContainer = document.getElementById('tp-detail-sparkline');
-  const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2;
+  const baseSeries = fullSeries(stats) || stats?.timeSeries;
+  const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && Array.isArray(baseSeries) && baseSeries.length >= 2;
   if (!hasSeries) {
     sparkContainer?.remove();
     return;
@@ -343,7 +344,7 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
     else document.body.appendChild(sparkContainer);
   }
 
-  const series = withLivePrice(stats.timeSeries, currentPrice);
+  const series = withLivePrice(baseSeries, currentPrice);
   sparkContainer._tpSeries = series;
   sparkContainer._tpTitle = title;
 

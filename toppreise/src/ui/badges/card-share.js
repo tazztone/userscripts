@@ -7,7 +7,7 @@
 import { CONFIG, _getValue, _setValue, getDiscordChannels } from '../../state/config.js';
 import { getDisplayDelta } from '../../domain/deal-score.js';
 import { basisMatchesFor, extractCardData } from '../../page/cards.js';
-import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal } from '../../scanner/cache.js';
+import { getCachedDealer, setCachedDealer, lruSet, getSharedDeal, setSharedDeal, fullSeries } from '../../scanner/cache.js';
 import { dealerCache } from './deal-badge.js';
 import { buildKeepaUrl } from '../sparkline.js';
 import { priceToCents } from '../../domain/price.js';
@@ -272,7 +272,7 @@ export async function triggerDiscordShare({
           return keepaUrl ? fetchImageBlob(keepaUrl).catch(() => null) : null;
         })();
       }
-      const series = stats?.timeSeries || [];
+      const series = fullSeries(stats) || stats?.timeSeries || [];
       const png = await renderSparklinePng(withLivePrice(series, cardPrice), 360, 100, title).catch(() => null);
       if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
       const keepaBlob = keepaDl ? await keepaDl : null;
