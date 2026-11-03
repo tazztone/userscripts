@@ -102,11 +102,24 @@ describe('Product Detail Page Feature Suite', () => {
       querySelectorAll: sel => {
         const pool = [...el.children];
         for (let i = 0; i < pool.length; i++) pool.push(...pool[i].children);
-        if (sel.startsWith('.')) {
-          const cls = sel.slice(1).split(/[\s.:>+]/)[0];
-          return pool.filter(c => c.classList.contains(cls));
+        const parts = sel.split(',').map(s => s.trim());
+        const results = [];
+        for (const node of pool) {
+          for (const part of parts) {
+            const lastPart = part.trim().split(/\s+/).pop();
+            if (lastPart.startsWith('.')) {
+              const cls = lastPart.slice(1).split(/[\s.:>+[]/)[0];
+              if (node.classList.contains(cls) && !results.includes(node)) results.push(node);
+            } else if (lastPart.startsWith('#')) {
+              const id = lastPart.slice(1);
+              if (node.id === id && !results.includes(node)) results.push(node);
+            } else {
+              const tagMatch = lastPart.split(/[\s.:>+[]/)[0].toLowerCase();
+              if (node.tagName.toLowerCase() === tagMatch && !results.includes(node)) results.push(node);
+            }
+          }
         }
-        return pool.filter(c => c.tagName.toLowerCase() === sel.toLowerCase());
+        return results;
       }
     };
     return el;
@@ -293,5 +306,81 @@ describe('Product Detail Page Feature Suite', () => {
     assert.equal(document.getElementById('tp-detail-subline'), null);
     assert.equal(document.getElementById('tp-detail-share-btn'), null);
     assert.equal(document.getElementById('tp-detail-sparkline'), null);
+  });
+
+  it('decorates both mobile and desktop headings and price blocks', () => {
+    // Mobile heading and desktop heading
+    const mobileH1 = mockNode('h1');
+    mobileH1.className = 'product-name m-0';
+    document.body.appendChild(mobileH1);
+
+    const desktopH1 = mockNode('h1');
+    desktopH1.className = 'product-name m-0 d-none d-lg-block';
+    document.body.appendChild(desktopH1);
+
+    // Mobile price container and desktop price container
+    const mobilePriceBox = mockNode('div');
+    mobilePriceBox.className = 'f_priceContainerFixIE';
+    const mobilePriceInfo = mockNode('div');
+    mobilePriceInfo.className = 'Plugin_PriceInformation price_information_product';
+    const mobileShipping = mockNode('div');
+    mobileShipping.className = 'shippingText';
+    mobilePriceInfo.appendChild(mobileShipping);
+    const mobileBell = mockNode('div');
+    mobileBell.className = 'Plugin_NewInfoMailButton hoverBox';
+    const mobileBellLink = mockNode('a');
+    mobileBellLink.className = 'f_showNewInfoMailFormDialog';
+    mobileBell.appendChild(mobileBellLink);
+    mobilePriceBox.appendChild(mobilePriceInfo);
+    mobilePriceBox.appendChild(mobileBell);
+    document.body.appendChild(mobilePriceBox);
+
+    const desktopPriceBox = mockNode('div');
+    desktopPriceBox.className = 'row f_priceContainer';
+    const desktopPriceInfo = mockNode('div');
+    desktopPriceInfo.className = 'Plugin_PriceInformation price_information_product';
+    const desktopShipping = mockNode('div');
+    desktopShipping.className = 'shippingText';
+    desktopPriceInfo.appendChild(desktopShipping);
+    const desktopBell = mockNode('div');
+    desktopBell.className = 'Plugin_NewInfoMailButton hoverBox';
+    const desktopBellLink = mockNode('a');
+    desktopBellLink.className = 'f_showNewInfoMailFormDialog';
+    desktopBell.appendChild(desktopBellLink);
+    desktopPriceBox.appendChild(desktopPriceInfo);
+    desktopPriceBox.appendChild(desktopBell);
+    document.body.appendChild(desktopPriceBox);
+
+    const stats = {
+      tiefstpreis: 1000,
+      previousLow: 1200,
+      medianPrice: 1300,
+      horizonDays: 365,
+      timeSeries: [[1000, 1200], [2000, 1000]]
+    };
+
+    // Review buttons and deal badges in both headings
+    renderDetailReviewButton(mobileH1, 'Surface Laptop', 1000, stats, '867323');
+    renderDetailReviewButton(desktopH1, 'Surface Laptop', 1000, stats, '867323');
+    assert.ok(mobileH1.querySelector('.tp-review-search-btn'), 'Mobile H1 has review button');
+    assert.ok(desktopH1.querySelector('.tp-review-search-btn'), 'Desktop H1 has review button');
+
+    // Sublines in both price blocks
+    renderDetailSubline(stats, 1000, 'product');
+    assert.ok(mobilePriceInfo.querySelector('.tp-detail-subline'), 'Mobile price block has subline');
+    assert.ok(desktopPriceInfo.querySelector('.tp-detail-subline'), 'Desktop price block has subline');
+
+    // Share buttons in both bell blocks
+    renderDetailShareButton({
+      pid: '867323',
+      currentPrice: 1000,
+      priceBasis: 'product',
+      stats,
+      title: 'Surface Laptop',
+      url: 'https://toppreise.ch/p867323',
+      imageUrl: ''
+    });
+    assert.ok(mobileBell.querySelector('.tp-detail-share-btn'), 'Mobile bell has share button');
+    assert.ok(desktopBell.querySelector('.tp-detail-share-btn'), 'Desktop bell has share button');
   });
 });

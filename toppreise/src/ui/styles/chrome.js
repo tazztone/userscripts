@@ -226,16 +226,19 @@ export const STYLES_CHROME = `
     box-shadow: 0 2px 10px rgba(190, 18, 60, 0.45) !important;
   }
 
-  #tp-detail-subline {
+  #tp-detail-subline,
+  .tp-detail-subline {
     margin: 6px 0 !important;
     font: 600 12.5px/1.4 var(--tp-font) !important;
     color: var(--tp-txt-mid) !important;
     display: block !important;
   }
-  #tp-detail-subline.tp-is-record-low {
+  #tp-detail-subline.tp-is-record-low,
+  .tp-detail-subline.tp-is-record-low {
     color: #059669 !important;
   }
-  #tp-detail-subline.tp-is-markup {
+  #tp-detail-subline.tp-is-markup,
+  .tp-detail-subline.tp-is-markup {
     color: #d97706 !important;
   }
   .tp-detail-share-btn {
@@ -268,7 +271,8 @@ export const STYLES_CHROME = `
     background: rgba(16, 185, 129, 0.2) !important;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.4) !important;
   }
-  #tp-detail-sparkline {
+  #tp-detail-sparkline,
+  .tp-detail-sparkline {
     display: inline-flex !important;
     align-items: center !important;
     margin: 6px 0 !important;
@@ -279,17 +283,21 @@ export const STYLES_CHROME = `
     cursor: pointer !important;
     transition: all 0.2s ease !important;
   }
-  #tp-detail-sparkline:hover {
+  #tp-detail-sparkline:hover,
+  .tp-detail-sparkline:hover {
     border-color: var(--tp-blue-soft) !important;
     background: rgba(59, 130, 246, 0.1) !important;
   }
-  .tp-detail-review-btn {
+  .tp-detail-review-btn,
+  h1 .tp-review-search-btn {
     opacity: 0.85 !important;
     pointer-events: auto !important;
     margin-left: 8px !important;
     vertical-align: middle !important;
+    display: inline-block !important;
   }
-  .tp-detail-review-btn:hover {
+  .tp-detail-review-btn:hover,
+  h1 .tp-review-search-btn:hover {
     opacity: 1 !important;
     transform: scale(1.15) !important;
   }

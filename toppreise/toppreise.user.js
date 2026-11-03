@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.450
+// @version      2.18.451
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1096,16 +1096,19 @@ const STYLES_CHROME = `
     box-shadow: 0 2px 10px rgba(190, 18, 60, 0.45) !important;
   }
 
-  #tp-detail-subline {
+  #tp-detail-subline,
+  .tp-detail-subline {
     margin: 6px 0 !important;
     font: 600 12.5px/1.4 var(--tp-font) !important;
     color: var(--tp-txt-mid) !important;
     display: block !important;
   }
-  #tp-detail-subline.tp-is-record-low {
+  #tp-detail-subline.tp-is-record-low,
+  .tp-detail-subline.tp-is-record-low {
     color: #059669 !important;
   }
-  #tp-detail-subline.tp-is-markup {
+  #tp-detail-subline.tp-is-markup,
+  .tp-detail-subline.tp-is-markup {
     color: #d97706 !important;
   }
   .tp-detail-share-btn {
@@ -1138,7 +1141,8 @@ const STYLES_CHROME = `
     background: rgba(16, 185, 129, 0.2) !important;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.4) !important;
   }
-  #tp-detail-sparkline {
+  #tp-detail-sparkline,
+  .tp-detail-sparkline {
     display: inline-flex !important;
     align-items: center !important;
     margin: 6px 0 !important;
@@ -1149,17 +1153,21 @@ const STYLES_CHROME = `
     cursor: pointer !important;
     transition: all 0.2s ease !important;
   }
-  #tp-detail-sparkline:hover {
+  #tp-detail-sparkline:hover,
+  .tp-detail-sparkline:hover {
     border-color: var(--tp-blue-soft) !important;
     background: rgba(59, 130, 246, 0.1) !important;
   }
-  .tp-detail-review-btn {
+  .tp-detail-review-btn,
+  h1 .tp-review-search-btn {
     opacity: 0.85 !important;
     pointer-events: auto !important;
     margin-left: 8px !important;
     vertical-align: middle !important;
+    display: inline-block !important;
   }
-  .tp-detail-review-btn:hover {
+  .tp-detail-review-btn:hover,
+  h1 .tp-review-search-btn:hover {
     opacity: 1 !important;
     transform: scale(1.15) !important;
   }
@@ -14191,12 +14199,29 @@ const SHADOW_MODAL_STYLES = `
   let detailRun = 0;
 
   const removeDetailDecorations = () => {
-    document.getElementById('tp-detail-deal-badge')?.remove();
-    document.getElementById('tp-detail-subline')?.remove();
-    document.getElementById('tp-detail-share-btn')?.remove();
-    document.getElementById('tp-detail-sparkline')?.remove();
-    document.querySelector('.Plugin_ProductHeading .tp-review-search-btn, h1 .tp-review-search-btn')?.remove();
+    document.querySelectorAll('#tp-detail-deal-badge, .tp-detail-deal-badge').forEach(el => el.remove());
+    document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
+    document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
+    document.querySelectorAll('#tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
+    document.querySelectorAll('.tp-detail-review-btn').forEach(el => el.remove());
   };
+
+  function getDetailHeadings() {
+    const candidates = [
+      ...document.querySelectorAll('.Plugin_ProductDetailsInfo h1'),
+      ...document.querySelectorAll('h1.product-name'),
+      ...document.querySelectorAll('.Plugin_ProductHeading h1'),
+      ...document.querySelectorAll('.productHeading h1'),
+      ...document.querySelectorAll('.product_title h1'),
+      ...document.querySelectorAll('h1.productTitle'),
+      ...document.querySelectorAll('h1')
+    ];
+    const unique = [];
+    for (const el of candidates) {
+      if (el && !unique.includes(el)) unique.push(el);
+    }
+    return unique;
+  }
 
   function renderDetailReviewButton(headingEl, title, currentPrice, stats, pid) {
     if (!headingEl || !title) return;
@@ -14240,25 +14265,67 @@ const SHADOW_MODAL_STYLES = `
     btn.setAttribute('aria-label', tipText);
   }
 
+  function renderDetailDealBadge(headingEl, stats, currentPrice) {
+    if (!headingEl || !stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) return;
+    let badge = headingEl.querySelector('.tp-detail-deal-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      if (!document.getElementById('tp-detail-deal-badge')) {
+        badge.id = 'tp-detail-deal-badge';
+      }
+      badge.className = 'tp-detail-deal-badge';
+      headingEl.appendChild(badge);
+    }
+
+    const displayKind = getDisplayDelta(currentPrice, stats).kind;
+    const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
+    const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
+
+    if (isAllTimeLow) {
+      const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
+      if (badge.className !== nextClass) badge.className = nextClass;
+      let peakContext = '';
+      if (hasSignificantPeak) {
+        const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
+        peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
+      }
+      const nextTitle = `Aktueller Preis (CHF ${currentPrice.toFixed(2)}) ist der Allzeit-Tiefstpreis!${peakContext}`;
+      if (badge.title !== nextTitle) badge.title = nextTitle;
+      if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
+    } else {
+      const markupPct = pctRise(stats.tiefstpreis, currentPrice);
+      const isSevere = markupPct >= 50;
+      const nextClass = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
+      if (badge.className !== nextClass) badge.className = nextClass;
+      const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
+      const nextTitle = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
+      if (badge.title !== nextTitle) badge.title = nextTitle;
+      const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
+      if (badge.textContent !== nextText) badge.textContent = nextText;
+    }
+  }
+
   function renderDetailSubline(stats, currentPrice, priceBasis) {
-    let subline = document.getElementById('tp-detail-subline');
     if (!stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) {
-      subline?.remove();
+      document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
       return;
     }
-    if (!subline) {
-      subline = document.createElement('div');
-      subline.id = 'tp-detail-subline';
-      const target = document.querySelector('.shippingText')
+
+    const targets = [];
+    const priceInfoBlocks = document.querySelectorAll(
+      '.Plugin_PriceInformation.price_information_product, .f_priceContainer .Plugin_PriceInformation, .f_priceContainerFixIE .Plugin_PriceInformation'
+    );
+    for (const block of priceInfoBlocks) {
+      const shipping = block.querySelector('.shippingText');
+      const pc = block.querySelector('.priceContainer');
+      targets.push(shipping || pc || block);
+    }
+    if (targets.length === 0) {
+      const fallback = document.querySelector('.shippingText')
         || document.querySelector('.priceContainer')
         || document.querySelector('.Plugin_PriceInformation')
         || document.querySelector('.Plugin_Price');
-      if (target?.parentElement) {
-        if (target.nextElementSibling) target.parentElement.insertBefore(subline, target.nextElementSibling);
-        else target.parentElement.appendChild(subline);
-      } else {
-        document.body.appendChild(subline);
-      }
+      if (fallback) targets.push(fallback);
     }
 
     const displayKind = getDisplayDelta(currentPrice, stats).kind;
@@ -14268,8 +14335,12 @@ const SHADOW_MODAL_STYLES = `
     const showMedian = !!(stats.medianPrice && stats.medianPrice > currentPrice);
     const horizon = medianHorizonLabel(stats);
 
+    let sublineText = '';
+    let sublineTitle = '';
+    let sublineClass = '';
+
     if (isAllTimeLow) {
-      subline.className = 'tp-detail-subline tp-is-record-low';
+      sublineClass = 'tp-detail-subline tp-is-record-low';
       const parts = [];
       if (showPrevLow) {
         const dRec = vortiefDropPct(currentPrice, stats);
@@ -14282,64 +14353,147 @@ const SHADOW_MODAL_STYLES = `
       if (parts.length === 0) {
         parts.push('🌟 Allzeit-Tiefstpreis');
       }
-      setTextIfChanged(subline, parts.join(' · '));
-      setTitleIfChanged(subline, 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.');
+      sublineText = parts.join(' · ');
+      sublineTitle = 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.';
     } else {
-      subline.className = 'tp-detail-subline tp-is-markup';
+      sublineClass = 'tp-detail-subline tp-is-markup';
       const markupPct = pctRise(stats.tiefstpreis, currentPrice);
       const parts = [`⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`];
       if (stats.medianPrice) {
         parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}`);
       }
-      setTextIfChanged(subline, parts.join(' · '));
-      setTitleIfChanged(subline, `Aktueller Preis liegt über dem historischen Tiefstpreis von CHF ${stats.tiefstpreis.toFixed(2)}.`);
+      sublineText = parts.join(' · ');
+      sublineTitle = `Aktueller Preis liegt über dem historischen Tiefstpreis von CHF ${stats.tiefstpreis.toFixed(2)}.`;
+    }
+
+    if (targets.length === 0) {
+      let subline = document.getElementById('tp-detail-subline');
+      if (!subline) {
+        subline = document.createElement('div');
+        subline.id = 'tp-detail-subline';
+        subline.className = sublineClass;
+        document.body?.appendChild(subline);
+      }
+      subline.className = sublineClass;
+      setTextIfChanged(subline, sublineText);
+      setTitleIfChanged(subline, sublineTitle);
+      return;
+    }
+
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
+      const parent = target.parentElement || target;
+      let subline = parent.querySelector?.('.tp-detail-subline');
+      if (!subline) {
+        subline = document.createElement('div');
+        if (i === 0 && !document.getElementById('tp-detail-subline')) {
+          subline.id = 'tp-detail-subline';
+        }
+        subline.className = sublineClass;
+        if (target.after) target.after(subline);
+        else if (target.nextElementSibling) target.parentElement.insertBefore(subline, target.nextElementSibling);
+        else parent.appendChild(subline);
+      }
+      subline.className = sublineClass;
+      setTextIfChanged(subline, sublineText);
+      setTitleIfChanged(subline, sublineTitle);
     }
   }
 
+  function createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl }) {
+    const shareBtn = document.createElement('button');
+    shareBtn.type = 'button';
+    shareBtn.className = 'tp-detail-share-btn';
+    shareBtn.textContent = '📤';
+    shareBtn.title = 'Deal / Preis in Discord teilen';
+    shareBtn.setAttribute('aria-label', 'Deal in Discord teilen');
+
+    shareBtn.addEventListener('click', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll('.tp-detail-share-btn').forEach(b => { b.disabled = true; });
+      await triggerDiscordShare({
+        pid,
+        cardPrice: currentPrice,
+        priceBasis,
+        stats,
+        title,
+        url,
+        imageUrl,
+        isDetailPage: true,
+        onDone: stillFresh => {
+          document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
+            b.disabled = false;
+            if (stillFresh) b.classList.add('tp-share-done');
+          });
+        }
+      });
+    });
+    return shareBtn;
+  }
+
   function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl }) {
-    let shareBtn = document.getElementById('tp-detail-share-btn');
     if (!(currentPrice > 0)) {
-      shareBtn?.remove();
+      document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
       return;
     }
-    if (!shareBtn) {
-      shareBtn = document.createElement('button');
-      shareBtn.id = 'tp-detail-share-btn';
-      shareBtn.type = 'button';
-      shareBtn.className = 'tp-detail-share-btn';
-      shareBtn.textContent = '📤';
-      shareBtn.title = 'Deal / Preis in Discord teilen';
-      shareBtn.setAttribute('aria-label', 'Deal in Discord teilen');
 
-      shareBtn.addEventListener('click', async e => {
-        e.preventDefault();
-        e.stopPropagation();
-        shareBtn.disabled = true;
-        await triggerDiscordShare({
-          pid,
-          cardPrice: currentPrice,
-          priceBasis,
-          stats,
-          title,
-          url,
-          imageUrl,
-          isDetailPage: true,
-          onDone: stillFresh => {
-            shareBtn.disabled = false;
-            if (stillFresh) shareBtn.classList.add('tp-share-done');
-          }
-        });
-      });
-
-      const bellEl = document.querySelector('.Plugin_NewInfoMailButton, a.f_showNewInfoMailFormDialog, a[href*="infomail"]:not(.tp-review-search-btn), #mock-alarm-bell');
-      const anchor = bellEl?.nextElementSibling?.classList?.contains('tp-alarm-cog')
-        ? bellEl.nextElementSibling
-        : (bellEl || document.querySelector('.Plugin_Price') || document.querySelector('.priceContainer'));
-      if (anchor?.after) anchor.after(shareBtn);
-      else if (anchor?.parentElement) anchor.parentElement.appendChild(shareBtn);
-      else document.body.appendChild(shareBtn);
+    const bellSelectors = [
+      '.f_priceContainer .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
+      '.f_priceContainerFixIE .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
+      '.Plugin_PriceInformation.price_information_product ~ * .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
+      '.Plugin_NewInfoMailButton.hoverBox a',
+      '.f_showNewInfoMailFormDialog',
+      '#mock-alarm-bell'
+    ];
+    const bellEls = [];
+    for (const sel of bellSelectors) {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el.closest?.('[data-templ="txt"]') || el.getAttribute?.('data-templ') === 'txt') continue;
+        if (!bellEls.includes(el)) bellEls.push(el);
+      }
     }
-    shareBtn.classList.toggle('tp-share-done', !!(pid && currentPrice > 0 && getSharedDeal(pid, priceToCents(currentPrice))));
+
+    if (bellEls.length === 0) {
+      const fallbackBell = document.querySelector('.Plugin_NewInfoMailButton, a.f_showNewInfoMailFormDialog, a[href*="infomail"]:not(.tp-review-search-btn)');
+      if (fallbackBell) bellEls.push(fallbackBell);
+      else {
+        const priceFallback = document.querySelector('.Plugin_Price') || document.querySelector('.priceContainer');
+        if (priceFallback) bellEls.push(priceFallback);
+      }
+    }
+
+    const isShared = !!(pid && currentPrice > 0 && getSharedDeal(pid, priceToCents(currentPrice)));
+
+    if (bellEls.length === 0) {
+      let shareBtn = document.getElementById('tp-detail-share-btn');
+      if (!shareBtn) {
+        shareBtn = createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+        shareBtn.id = 'tp-detail-share-btn';
+        document.body?.appendChild(shareBtn);
+      }
+      shareBtn.classList.toggle('tp-share-done', isShared);
+      return;
+    }
+
+    for (let i = 0; i < bellEls.length; i++) {
+      const bellEl = bellEls[i];
+      const anchor = bellEl.nextElementSibling?.classList?.contains('tp-alarm-cog')
+        ? bellEl.nextElementSibling
+        : bellEl;
+      const parent = anchor.parentElement || bellEl.parentElement;
+      let shareBtn = parent?.querySelector?.('.tp-detail-share-btn');
+      if (!shareBtn) {
+        shareBtn = createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+        if (i === 0 && !document.getElementById('tp-detail-share-btn')) {
+          shareBtn.id = 'tp-detail-share-btn';
+        }
+        if (anchor.after) anchor.after(shareBtn);
+        else if (anchor.nextElementSibling) parent.insertBefore(shareBtn, anchor.nextElementSibling);
+        else parent.appendChild(shareBtn);
+      }
+      shareBtn.classList.toggle('tp-share-done', isShared);
+    }
   }
 
   function renderDetailSparkline(pid, title, currentPrice, stats) {
@@ -14399,30 +14553,27 @@ const SHADOW_MODAL_STYLES = `
     const pid = getDetailProductId();
     if (!pid) { removeDetailDecorations(); return; }
 
-    const headingSelectors = ['.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1'];
-    let headingEl = null;
-    for (const sel of headingSelectors) {
-      headingEl = document.querySelector(sel);
-      if (headingEl) break;
-    }
-    if (!headingEl) { removeDetailDecorations(); return; }
+    const headings = getDetailHeadings();
+    if (headings.length === 0) { removeDetailDecorations(); return; }
 
     const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
     if (!(currentPrice > 0)) { removeDetailDecorations(); return; }
 
-    const shareData = extractShareData(document.body || headingEl);
-    const title = shareData.title || headingEl.textContent?.trim() || '';
+    const primaryHeading = headings[0];
+    const shareData = extractShareData(document.body || primaryHeading);
+    const title = shareData.title || primaryHeading.textContent?.trim() || '';
     const url = shareData.url || (typeof location !== 'undefined' ? location.href : '');
     const imageUrl = shareData.imageUrl || '';
 
-    // Render Web Search / AI Review next to H1 title
-    renderDetailReviewButton(headingEl, title, currentPrice, null, pid);
+    // Render Web Search / AI Review next to each H1 title
+    for (const h of headings) {
+      renderDetailReviewButton(h, title, currentPrice, null, pid);
+    }
 
-    let badge = document.getElementById('tp-detail-deal-badge');
     let stats = getCardStats(pid, priceBasis);
     if (!stats) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
-      if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
+      if (run !== detailRun || pid !== getDetailProductId()) {
         if (pid !== getDetailProductId()) removeDetailDecorations();
         return;
       }
@@ -14437,36 +14588,9 @@ const SHADOW_MODAL_STYLES = `
         return;
       }
 
-      if (!badge) {
-        badge = document.createElement('div');
-        badge.id = 'tp-detail-deal-badge';
-        headingEl.appendChild(badge);
-      }
-      const displayKind = getDisplayDelta(currentPrice, stats).kind;
-      const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
-      const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
-      if (isAllTimeLow) {
-        const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
-        if (badge.className !== nextClass) badge.className = nextClass;
-        let peakContext = '';
-        if (hasSignificantPeak) {
-          const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
-          peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
-        }
-        const nextTitle = `Aktueller Preis (CHF ${currentPrice.toFixed(2)}) ist der Allzeit-Tiefstpreis!${peakContext}`;
-        if (badge.title !== nextTitle) badge.title = nextTitle;
-        if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
-      } else {
-        const markupPct = pctRise(stats.tiefstpreis, currentPrice);
-        const isSevere = markupPct >= 50;
-        const nextClass = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
-        if (badge.className !== nextClass) badge.className = nextClass;
-        const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-        const nextTitle = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
-        if (badge.title !== nextTitle) badge.title = nextTitle;
-        const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
-        if (badge.textContent !== nextText) badge.textContent = nextText;
+      // Render Deal Badge on each H1 title
+      for (const h of headings) {
+        renderDetailDealBadge(h, stats, currentPrice);
       }
 
       // Render Deal Subline
@@ -14479,7 +14603,9 @@ const SHADOW_MODAL_STYLES = `
       renderDetailSparkline(pid, title, currentPrice, stats);
 
       // Update Web Search / AI review button with stats
-      renderDetailReviewButton(headingEl, title, currentPrice, stats, pid);
+      for (const h of headings) {
+        renderDetailReviewButton(h, title, currentPrice, stats, pid);
+      }
     } else {
       removeDetailDecorations();
     }
@@ -14709,7 +14835,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.450';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.451';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
