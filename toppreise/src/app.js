@@ -57,7 +57,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.448
+// @version      2.18.449
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -174,7 +174,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-deal-badge,#tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -305,7 +305,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.448';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.449';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.448
+// @version      2.18.449
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1094,6 +1094,74 @@ const STYLES_CHROME = `
     border: 1px solid var(--tp-rose) !important;
     color: #ffffff !important;
     box-shadow: 0 2px 10px rgba(190, 18, 60, 0.45) !important;
+  }
+
+  #tp-detail-subline {
+    margin: 6px 0 !important;
+    font: 600 12.5px/1.4 var(--tp-font) !important;
+    color: var(--tp-txt-mid) !important;
+    display: block !important;
+  }
+  #tp-detail-subline.tp-is-record-low {
+    color: #059669 !important;
+  }
+  #tp-detail-subline.tp-is-markup {
+    color: #d97706 !important;
+  }
+  .tp-detail-share-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 28px !important;
+    height: 28px !important;
+    margin-left: 6px !important;
+    font-size: 15px !important;
+    line-height: 1 !important;
+    background: rgba(88, 101, 242, 0.12) !important;
+    border: 1px solid rgba(88, 101, 242, 0.4) !important;
+    border-radius: var(--tp-r-sm) !important;
+    cursor: pointer !important;
+    opacity: 0.85 !important;
+    vertical-align: middle !important;
+    transition: all 0.2s ease !important;
+  }
+  .tp-detail-share-btn:hover,
+  .tp-detail-share-btn:focus-visible {
+    opacity: 1 !important;
+    background: rgba(88, 101, 242, 0.25) !important;
+    border-color: #5865f2 !important;
+    transform: scale(1.08) !important;
+  }
+  .tp-detail-share-btn.tp-share-done {
+    opacity: 1 !important;
+    border-color: var(--tp-acc-txt) !important;
+    background: rgba(16, 185, 129, 0.2) !important;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4) !important;
+  }
+  #tp-detail-sparkline {
+    display: inline-flex !important;
+    align-items: center !important;
+    margin: 6px 0 !important;
+    padding: 2px 6px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid var(--tp-bdr) !important;
+    border-radius: var(--tp-r-sm) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+  }
+  #tp-detail-sparkline:hover {
+    border-color: var(--tp-blue-soft) !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+  }
+  .tp-detail-review-btn {
+    opacity: 0.85 !important;
+    pointer-events: auto !important;
+    margin-left: 8px !important;
+    vertical-align: middle !important;
+  }
+  .tp-detail-review-btn:hover {
+    opacity: 1 !important;
+    transform: scale(1.15) !important;
   }
 
   #tp-suite-filter-bar {
@@ -5208,21 +5276,31 @@ const SHADOW_MODAL_STYLES = `
     } catch { return false; }
   };
 
-  // Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).
+  // Titel + Produktlink aus der Karte oder Produktseite ziehen (tolerant, Layout-wechsel-sicher).
   function extractShareData(card) {
     if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
-    const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-    // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
-    // sonst frisst sich sein Emoji bei jedem Re-Render in Titel, Query und Share-Text.
+    let titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
+    if (!titleEl) {
+      titleEl = card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1');
+    }
+    // Review-Button (Schritt 9) und Detail-Badge hängen im Titel-Element: für Titelzwecke ausblenden,
+    // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
     let title = '';
     if (titleEl) {
       const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
-      clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
+      clone?.querySelectorAll?.('.tp-review-search-btn, #tp-detail-deal-badge, .tp-detail-deal-badge')?.forEach(el => el.remove());
       title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
     }
     const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
       || (card.tagName?.toLowerCase() === 'a' ? card : null);
     let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
+    if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
+      url = location.href;
+    }
+    if (!url && typeof document !== 'undefined') {
+      const curUrl = document.body?.getAttribute?.('data-current_url') || document.body?.getAttribute?.('data-current-url');
+      if (curUrl && isToppreiseProductUrl(curUrl)) url = curUrl;
+    }
     if (url && !/^https?:\/\//i.test(url)) {
       try {
         const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
@@ -9444,12 +9522,245 @@ const SHADOW_MODAL_STYLES = `
   // pid:basis:price post once (button disabled alone is not enough).
   const shareInFlight = new Set();
 
-  // Discord 1-click share (step 7): verified lows only.
+  /**
+   * Shared Discord Deal Share Orchestrator
+   * Works for both feed/search product cards and product detail pages.
+   */
+  async function triggerDiscordShare({
+    card = null,
+    pid: inputPid = null,
+    cardPrice: inputPrice = 0,
+    priceBasis: inputBasis = null,
+    stats: inputStats = null,
+    title: overrideTitle = '',
+    url: overrideUrl = '',
+    imageUrl: overrideImageUrl = '',
+    dealer: overrideDealer = '',
+    dealerUrl: overrideDealerUrl = '',
+    offerCount: overrideOfferCount = 0,
+    onDone = null,
+    isDetailPage = false
+  } = {}) {
+    const channels = getDiscordChannels().filter(c => isDiscordWebhookUrl(c.url));
+    if (channels.length === 0) {
+      showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
+      onDone?.(false);
+      return false;
+    }
+
+    let fresh = null;
+    if (!isDetailPage && card) {
+      fresh = extractCardData(card);
+      const freshKind = fresh.displayDelta?.kind;
+      if (!(fresh.dealScore || freshKind === 'new-low' || freshKind === 'at-low')) {
+        showToast('Kein verifizierter Tiefstpreis mehr – Karte wird neu geprüft');
+        scheduleProcessListings();
+        onDone?.(false);
+        return false;
+      }
+    }
+
+    const pid = inputPid || fresh?.pid || (isDetailPage ? getDetailProductId() : null);
+    const cardPrice = inputPrice || fresh?.cardPrice || 0;
+    const cardPriceBasis = inputBasis || fresh?.cardPriceBasis || (isShippingPriceActive(card) ? 'shipping' : 'product');
+    const stats = inputStats || fresh?.verifiedStats || null;
+    const priceCents = priceToCents(cardPrice);
+
+    const snap = { pid, priceCents, basis: cardPriceBasis };
+    const stillFresh = () => {
+      if (isDetailPage) {
+        return !!(typeof document !== 'undefined' && getDetailProductId() === snap.pid);
+      }
+      if (!card || !card.isConnected) return false;
+      const cur = extractCardData(card);
+      if (cur.pid !== snap.pid || cur.cardPriceBasis !== snap.basis
+        || priceToCents(cur.cardPrice) !== snap.priceCents) return false;
+      const curKind = cur.displayDelta?.kind;
+      return !!(cur.dealScore || curKind === 'new-low' || curKind === 'at-low');
+    };
+
+    const abortStale = () => {
+      showToast(isDetailPage ? 'Produkt hat sich geändert – Seite wird aktualisiert' : 'Karte hat sich geändert – erneut prüfen');
+      if (!isDetailPage) scheduleProcessListings();
+    };
+
+    const shareKey = `${snap.pid}:${snap.basis}:${snap.priceCents}`;
+    if (shareInFlight.has(shareKey)) {
+      showToast('Teilen läuft bereits');
+      onDone?.(false);
+      return false;
+    }
+    shareInFlight.add(shareKey);
+
+    let preview = null;
+    let readyPayload = null;
+    let userComment = '';
+
+    const shareData = extractShareData(card || document.body);
+    const title = overrideTitle || shareData.title || '';
+    const url = overrideUrl || shareData.url || (typeof location !== 'undefined' ? location.href : '');
+    const imageUrl = overrideImageUrl || shareData.imageUrl || '';
+    const priceText = cardPrice > 0 ? `CHF ${cardPrice.toFixed(2)}` : '';
+    const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
+    let dealer = overrideDealer || extractDealer(card || document.body, useShipping);
+    let dealerUrl = overrideDealerUrl || extractDealerUrl(card || document.body, useShipping);
+    const cachedDealer = getCachedDealer(snap.pid, useShipping);
+    let loadedOffers = overrideOfferCount || fresh?.offerCount || cachedDealer?.offers || 0;
+    let totalOffers = cachedDealer?.totalOffers || 0;
+    let offers = totalOffers || loadedOffers;
+
+    let currentFields = {
+      title, url, priceText,
+      dealer, dealerUrl, offerCount: offers,
+      aiText: '',
+      ...resolveShareFields(cardPrice, stats),
+      suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+      suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+    };
+
+    const onCommentChange = commentText => {
+      userComment = commentText;
+      return formatDealMessage({ ...currentFields, commentText }, CONFIG.DISCORD_LAYOUT);
+    };
+
+    const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
+
+    const onCancel = () => {
+      shareInFlight.delete(shareKey);
+      onDone?.(false);
+    };
+
+    const onSend = async (targetChannel, controller, { comment } = {}) => {
+      if (!readyPayload) return;
+      const finalComment = comment ?? userComment;
+      const finalFields = { ...currentFields, commentText: finalComment };
+      const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
+      const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...finalFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+      const payloadToSend = {
+        ...readyPayload,
+        content,
+        forumContent
+      };
+      try {
+        await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
+        controller.close();
+        shareInFlight.delete(shareKey);
+        if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
+        showToast(`📤 Deal in #${targetChannel.name} geteilt`);
+        onDone?.(stillFresh());
+      } catch (err) {
+        if (err?.stale) {
+          controller.close();
+          shareInFlight.delete(shareKey);
+          onDone?.(false);
+          abortStale();
+        } else if (err?.status === 429) {
+          controller.setError('⏳ Discord-Limit – später erneut versuchen');
+        } else if (!err?.status) {
+          controller.setError('⚠️ Übermittlung nicht bestätigt — bitte Verbindung prüfen');
+        } else {
+          controller.setError(err?.message ? `Fehler: ${err.message}` : 'Teilen fehlgeschlagen');
+        }
+      }
+    };
+
+    preview = openSharePreviewModal({
+      channels,
+      onSend,
+      onCancel,
+      onCommentChange,
+      initialContent
+    });
+
+    // Background asset preparation runs in parallel with preview display
+    (async () => {
+      try {
+        const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
+        let aiPromise = null;
+        if (CONFIG.TAVILY_ENABLED && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+          const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
+          const cached = getCachedTavily(query);
+          if (cached?.answer) {
+            aiPromise = Promise.resolve(cached.answer);
+          } else {
+            aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
+          }
+        }
+        if ((!dealer || !dealerUrl || !offers) && url) {
+          const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
+          if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+          if (info) {
+            dealer = dealer || info.dealer;
+            dealerUrl = dealerUrl || info.dealerUrl;
+            loadedOffers = loadedOffers || info.offers || 0;
+            totalOffers = totalOffers || info.totalOffers || 0;
+            offers = totalOffers || loadedOffers;
+            if (info.dealer) {
+              const dKey = `${snap.pid}:${useShipping ? 's' : 'p'}`;
+              lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: loadedOffers, totalOffers });
+              setCachedDealer(snap.pid, useShipping, info.dealer, info.dealerUrl || '', undefined, loadedOffers, totalOffers);
+            }
+          }
+        }
+        const isAmazon = ((dealer && /amazon/i.test(dealer)) || (dealerUrl && /amazon\./i.test(dealerUrl))) && CONFIG.KEEPA_CHART_ENABLED !== false;
+        let keepaDl = null;
+        if (isAmazon) {
+          keepaDl = (async () => {
+            const asin = await resolveAmazonAsin(dealerUrl, snap.pid).catch(() => null);
+            if (!asin) return null;
+            const keepaUrl = buildKeepaUrl(asin);
+            return keepaUrl ? fetchImageBlob(keepaUrl).catch(() => null) : null;
+          })();
+        }
+        const series = stats?.timeSeries || [];
+        const png = await renderSparklinePng(withLivePrice(series, cardPrice), 360, 100, title).catch(() => null);
+        if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+        const keepaBlob = keepaDl ? await keepaDl : null;
+        if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+        const aiText = aiPromise ? (await aiPromise) : '';
+        if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+        currentFields = {
+          ...currentFields,
+          dealer, dealerUrl, offerCount: offers,
+          aiText
+        };
+        const activeComment = preview?.getComment?.() ?? userComment;
+        const content = formatDealMessage({ ...currentFields, commentText: activeComment }, CONFIG.DISCORD_LAYOUT);
+        const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+        const threadName = buildThreadName(title);
+        const productBlob = (png && productDl) ? await productDl : null;
+        if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
+        const productOpt = {
+          ...(productBlob ? { productImageBlob: productBlob } : null),
+          ...(imageUrl ? { productImageUrl: imageUrl } : null),
+          ...(keepaBlob ? { keepaImageBlob: keepaBlob } : null)
+        };
+        readyPayload = {
+          content,
+          forumContent,
+          threadName,
+          png,
+          productBlob,
+          keepaBlob,
+          productOpt
+        };
+        preview?.updateContent({
+          formattedContent: content,
+          chartBlob: png,
+          productBlob,
+          keepaBlob
+        });
+      } catch (err) {
+        preview?.setError('Vorbereitung fehlgeschlagen');
+      }
+    })();
+
+    return true;
+  }
+
+  // Discord 1-click share (step 7): verified lows only on cards.
   function renderShareButton(ctx, cd) {
     const { card } = ctx;
-    // 7. Discord 1-Klick-Share (nur verifizierte Tiefstpreise, nie Schein-Rabatte).
-    // Render-time gate from the basis-guarded ctx; the click handler below
-    // re-resolves everything from the live card — never from this closure.
     const basisOk = cd?.basisMatches ?? basisMatchesFor(ctx.stats, cd?.cardPriceBasis);
     const kindNow = ctx.displayDelta?.kind ?? (basisOk ? getDisplayDelta(ctx.cardPrice, ctx.stats).kind : 'unknown');
     const isShareable = !!(ctx.dealData || kindNow === 'new-low' || kindNow === 'at-low');
@@ -9464,203 +9775,15 @@ const SHADOW_MODAL_STYLES = `
         shareBtn.addEventListener('click', async e => {
           e.preventDefault();
           e.stopPropagation();
-          const channels = getDiscordChannels().filter(c => isDiscordWebhookUrl(c.url));
-          if (channels.length === 0) {
-            showToast('Discord-Webhook fehlt – in den Einstellungen (⚙️) eintragen');
-            return;
-          }
-          // Click-time resolve: the card may have been reused or repainted
-          // since render — shareability is re-derived from the live card.
-          const fresh = extractCardData(card);
-          const freshKind = fresh.displayDelta?.kind;
-          if (!(fresh.dealScore || freshKind === 'new-low' || freshKind === 'at-low')) {
-            showToast('Kein verifizierter Tiefstpreis mehr – Karte wird neu geprüft');
-            scheduleProcessListings();
-            return;
-          }
-          const snap = { pid: fresh.pid, priceCents: priceToCents(fresh.cardPrice), basis: fresh.cardPriceBasis };
-          const stillFresh = () => {
-            if (!card.isConnected) return false;
-            const cur = extractCardData(card);
-            if (cur.pid !== snap.pid || cur.cardPriceBasis !== snap.basis
-              || priceToCents(cur.cardPrice) !== snap.priceCents) return false;
-            // Shareability can lapse while price/pid/basis hold (cache
-            // eviction): re-derive the click-time verdict so the green paint
-            // never rewards a deal that is no longer verifiable.
-            const curKind = cur.displayDelta?.kind;
-            return !!(cur.dealScore || curKind === 'new-low' || curKind === 'at-low');
-          };
-          const abortStale = () => {
-            showToast('Karte hat sich geändert – erneut prüfen');
-            scheduleProcessListings();
-          };
-          const shareKey = `${snap.pid}:${snap.basis}:${snap.priceCents}`;
-          if (shareInFlight.has(shareKey)) { showToast('Teilen läuft bereits'); return; }
-          shareInFlight.add(shareKey);
           shareBtn.disabled = true;
-
-          let preview = null;
-          let readyPayload = null;
-          let userComment = '';
-
-          const { title, url, imageUrl } = extractShareData(card);
-          const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-          const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
-          let dealer = extractDealer(card, useShipping);
-          let dealerUrl = extractDealerUrl(card, useShipping);
-          const cachedDealer = getCachedDealer(snap.pid, useShipping);
-          let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
-          let totalOffers = cachedDealer?.totalOffers || 0;
-          let offers = totalOffers || loadedOffers;
-
-          let currentFields = {
-            title, url, priceText,
-            dealer, dealerUrl, offerCount: offers,
-            aiText: '',
-            ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
-            suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
-            suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
-          };
-
-          const onCommentChange = commentText => {
-            userComment = commentText;
-            return formatDealMessage({ ...currentFields, commentText }, CONFIG.DISCORD_LAYOUT);
-          };
-
-          const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
-
-          const onCancel = () => {
-            shareInFlight.delete(shareKey);
-            shareBtn.disabled = false;
-          };
-
-          const onSend = async (targetChannel, controller, { comment } = {}) => {
-            if (!readyPayload) return;
-            const finalComment = comment ?? userComment;
-            const finalFields = { ...currentFields, commentText: finalComment };
-            const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
-            const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...finalFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
-            const payloadToSend = {
-              ...readyPayload,
-              content,
-              forumContent
-            };
-            try {
-              await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
-              controller.close();
-              shareInFlight.delete(shareKey);
+          await triggerDiscordShare({
+            card,
+            onDone: stillFresh => {
               shareBtn.disabled = false;
-              if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
-              showToast(`📤 Deal in #${targetChannel.name} geteilt`);
-              if (stillFresh()) shareBtn.classList.add('tp-share-done');
-              else { showToast('📤 Deal geteilt – Karte hat sich danach geändert'); scheduleProcessListings(); }
-            } catch (err) {
-              if (err?.stale) {
-                controller.close();
-                shareInFlight.delete(shareKey);
-                shareBtn.disabled = false;
-                abortStale();
-              } else if (err?.status === 429) {
-                controller.setError('⏳ Discord-Limit – später erneut versuchen');
-              } else if (!err?.status) {
-                controller.setError('⚠️ Übermittlung nicht bestätigt — bitte Verbindung prüfen');
-              } else {
-                controller.setError(err?.message ? `Fehler: ${err.message}` : 'Teilen fehlgeschlagen');
-              }
+              if (stillFresh) shareBtn.classList.add('tp-share-done');
             }
-          };
-
-          preview = openSharePreviewModal({
-            channels,
-            onSend,
-            onCancel,
-            onCommentChange,
-            initialContent
           });
-
-          // Background asset preparation runs in parallel with preview display
-          (async () => {
-            try {
-              const productDl = imageUrl ? fetchImageBlob(imageUrl).catch(() => null) : null;
-              let aiPromise = null;
-              if (CONFIG.TAVILY_ENABLED && String(CONFIG.DISCORD_LAYOUT || '').includes('{ai}') && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
-                const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
-                const cached = getCachedTavily(query);
-                if (cached?.answer) {
-                  aiPromise = Promise.resolve(cached.answer);
-                } else {
-                  aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
-                }
-              }
-              if ((!dealer || !dealerUrl || !offers) && url) {
-                const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
-                if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-                if (info) {
-                  dealer = dealer || info.dealer;
-                  dealerUrl = dealerUrl || info.dealerUrl;
-                  loadedOffers = loadedOffers || info.offers || 0;
-                  totalOffers = totalOffers || info.totalOffers || 0;
-                  offers = totalOffers || loadedOffers;
-                  if (info.dealer) {
-                    const dKey = `${snap.pid}:${useShipping ? 's' : 'p'}`;
-                    lruSet(dealerCache, dKey, { dealer: info.dealer, url: info.dealerUrl || '', offers: loadedOffers, totalOffers });
-                    setCachedDealer(snap.pid, useShipping, info.dealer, info.dealerUrl || '', undefined, loadedOffers, totalOffers);
-                  }
-                }
-              }
-              const isAmazon = ((dealer && /amazon/i.test(dealer)) || (dealerUrl && /amazon\./i.test(dealerUrl))) && CONFIG.KEEPA_CHART_ENABLED !== false;
-              let keepaDl = null;
-              if (isAmazon) {
-                keepaDl = (async () => {
-                  const asin = await resolveAmazonAsin(dealerUrl, snap.pid).catch(() => null);
-                  if (!asin) return null;
-                  const keepaUrl = buildKeepaUrl(asin);
-                  return keepaUrl ? fetchImageBlob(keepaUrl).catch(() => null) : null;
-                })();
-              }
-              const png = await renderSparklinePng(withLivePrice(fresh.verifiedStats?.timeSeries, fresh.cardPrice), 360, 100, title).catch(() => null);
-              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-              const keepaBlob = keepaDl ? await keepaDl : null;
-              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-              const aiText = aiPromise ? (await aiPromise) : '';
-              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-              currentFields = {
-                ...currentFields,
-                dealer, dealerUrl, offerCount: offers,
-                aiText
-              };
-              const activeComment = preview?.getComment?.() ?? userComment;
-              const content = formatDealMessage({ ...currentFields, commentText: activeComment }, CONFIG.DISCORD_LAYOUT);
-              const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
-              const threadName = buildThreadName(title);
-              const productBlob = (png && productDl) ? await productDl : null;
-              if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-              const productOpt = {
-                ...(productBlob ? { productImageBlob: productBlob } : null),
-                ...(imageUrl ? { productImageUrl: imageUrl } : null),
-                ...(keepaBlob ? { keepaImageBlob: keepaBlob } : null)
-              };
-              readyPayload = {
-                content,
-                forumContent,
-                threadName,
-                png,
-                productBlob,
-                keepaBlob,
-                productOpt
-              };
-              preview?.updateContent({
-                formattedContent: content,
-                chartBlob: png,
-                productBlob,
-                keepaBlob
-              });
-            } catch (err) {
-              preview?.setError('Vorbereitung fehlgeschlagen');
-            }
-          })();
         });
-        // Eigener Positioning-Kontext: Host-CSS garantiert kein relative (ausser .tp-is-cheapest).
         if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
         card.appendChild(shareBtn);
       }
@@ -14047,8 +14170,8 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
   /**
    * Product Detail Page Feature
-   * Injects Tiefstpreis status badge and peak context
-   * into the main product detail heading.
+   * Injects Tiefstpreis status badge, peak context, 1-click Discord share,
+   * inline Web/AI search, deal subline, and mini sparkline with interactive modal.
    */
 
 
@@ -14056,51 +14179,275 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  // Stale-request guard: overlapping observer triggers race the fetch — only
-  // the latest run may paint. A generation token (not pid comparison alone)
-  // also covers same-product reprices and basis toggles mid-flight.
+
+
+
+
+
+
+
+
+
   let detailRun = 0;
-  const removeDetailBadge = () => document.getElementById('tp-detail-deal-badge')?.remove();
+
+  const removeDetailDecorations = () => {
+    document.getElementById('tp-detail-deal-badge')?.remove();
+    document.getElementById('tp-detail-subline')?.remove();
+    document.getElementById('tp-detail-share-btn')?.remove();
+    document.getElementById('tp-detail-sparkline')?.remove();
+    document.querySelector('.Plugin_ProductHeading .tp-review-search-btn, h1 .tp-review-search-btn')?.remove();
+  };
+
+  function renderDetailReviewButton(headingEl, title, currentPrice, stats, pid) {
+    if (!headingEl || !title) return;
+    let btn = headingEl.querySelector('.tp-review-search-btn');
+    if (CONFIG.REVIEW_SEARCH_ENABLED === false) {
+      btn?.remove();
+      return;
+    }
+    const rawKw = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
+    const priceText = currentPrice > 0 ? `CHF ${currentPrice.toFixed(2)}` : '';
+    const fullQuery = formatSearchQuery(title, rawKw, priceText);
+    const aiMode = CONFIG.REVIEW_SEARCH_AI_MODE === true;
+    const hasTavily = !!(CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim());
+
+    if (!btn) {
+      btn = document.createElement('a');
+      btn.className = 'tp-review-search-btn tp-detail-review-btn';
+      btn.textContent = '🌐';
+      btn.target = '_blank';
+      btn.rel = 'noopener';
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
+          e.preventDefault();
+          openAiPopover({
+            title,
+            priceText,
+            googleUrl: btn.href,
+            card: headingEl,
+            pid
+          });
+        }
+      });
+      headingEl.appendChild(btn);
+    }
+    btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
+    const tipText = hasTavily
+      ? `KI-Fazit & Google-Suche: ${fullQuery}`
+      : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
+    setTitleIfChanged(btn, tipText);
+    btn.setAttribute('aria-label', tipText);
+  }
+
+  function renderDetailSubline(stats, currentPrice, priceBasis) {
+    let subline = document.getElementById('tp-detail-subline');
+    if (!stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) {
+      subline?.remove();
+      return;
+    }
+    if (!subline) {
+      subline = document.createElement('div');
+      subline.id = 'tp-detail-subline';
+      const target = document.querySelector('.shippingText')
+        || document.querySelector('.priceContainer')
+        || document.querySelector('.Plugin_PriceInformation')
+        || document.querySelector('.Plugin_Price');
+      if (target?.parentElement) {
+        if (target.nextElementSibling) target.parentElement.insertBefore(subline, target.nextElementSibling);
+        else target.parentElement.appendChild(subline);
+      } else {
+        document.body.appendChild(subline);
+      }
+    }
+
+    const displayKind = getDisplayDelta(currentPrice, stats).kind;
+    const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
+    const prevLow = recordRefForPrice(stats, currentPrice).previousLow;
+    const showPrevLow = !!(prevLow && priceToCents(prevLow) > priceToCents(currentPrice));
+    const showMedian = !!(stats.medianPrice && stats.medianPrice > currentPrice);
+    const horizon = medianHorizonLabel(stats);
+
+    if (isAllTimeLow) {
+      subline.className = 'tp-detail-subline tp-is-record-low';
+      const parts = [];
+      if (showPrevLow) {
+        const dRec = vortiefDropPct(currentPrice, stats);
+        parts.push(`📉 Vor-Tief: CHF ${prevLow.toFixed(2)}${dRec > 0 ? ` (-${dRec}%)` : ''}`);
+      }
+      if (showMedian) {
+        const dMed = getLevelPct(currentPrice, stats);
+        parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
+      }
+      if (parts.length === 0) {
+        parts.push('🌟 Allzeit-Tiefstpreis');
+      }
+      setTextIfChanged(subline, parts.join(' · '));
+      setTitleIfChanged(subline, 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.');
+    } else {
+      subline.className = 'tp-detail-subline tp-is-markup';
+      const markupPct = pctRise(stats.tiefstpreis, currentPrice);
+      const parts = [`⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`];
+      if (stats.medianPrice) {
+        parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}`);
+      }
+      setTextIfChanged(subline, parts.join(' · '));
+      setTitleIfChanged(subline, `Aktueller Preis liegt über dem historischen Tiefstpreis von CHF ${stats.tiefstpreis.toFixed(2)}.`);
+    }
+  }
+
+  function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl }) {
+    let shareBtn = document.getElementById('tp-detail-share-btn');
+    if (!(currentPrice > 0)) {
+      shareBtn?.remove();
+      return;
+    }
+    if (!shareBtn) {
+      shareBtn = document.createElement('button');
+      shareBtn.id = 'tp-detail-share-btn';
+      shareBtn.type = 'button';
+      shareBtn.className = 'tp-detail-share-btn';
+      shareBtn.textContent = '📤';
+      shareBtn.title = 'Deal / Preis in Discord teilen';
+      shareBtn.setAttribute('aria-label', 'Deal in Discord teilen');
+
+      shareBtn.addEventListener('click', async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        shareBtn.disabled = true;
+        await triggerDiscordShare({
+          pid,
+          cardPrice: currentPrice,
+          priceBasis,
+          stats,
+          title,
+          url,
+          imageUrl,
+          isDetailPage: true,
+          onDone: stillFresh => {
+            shareBtn.disabled = false;
+            if (stillFresh) shareBtn.classList.add('tp-share-done');
+          }
+        });
+      });
+
+      const bellEl = document.querySelector('.Plugin_NewInfoMailButton, a.f_showNewInfoMailFormDialog, a[href*="infomail"]:not(.tp-review-search-btn), #mock-alarm-bell');
+      const anchor = bellEl?.nextElementSibling?.classList?.contains('tp-alarm-cog')
+        ? bellEl.nextElementSibling
+        : (bellEl || document.querySelector('.Plugin_Price') || document.querySelector('.priceContainer'));
+      if (anchor?.after) anchor.after(shareBtn);
+      else if (anchor?.parentElement) anchor.parentElement.appendChild(shareBtn);
+      else document.body.appendChild(shareBtn);
+    }
+    shareBtn.classList.toggle('tp-share-done', !!(pid && currentPrice > 0 && getSharedDeal(pid, priceToCents(currentPrice))));
+  }
+
+  function renderDetailSparkline(pid, title, currentPrice, stats) {
+    let sparkContainer = document.getElementById('tp-detail-sparkline');
+    const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && stats && Array.isArray(stats.timeSeries) && stats.timeSeries.length >= 2;
+    if (!hasSeries) {
+      sparkContainer?.remove();
+      return;
+    }
+
+    const chartEl = document.querySelector('.chartProductPrice, a[href*="pricechart"], img[src*="pricechart"], .Plugin_PriceChart');
+    if (!sparkContainer) {
+      sparkContainer = document.createElement('div');
+      sparkContainer.id = 'tp-detail-sparkline';
+      sparkContainer.className = 'tp-sparkline-container tp-detail-sparkline';
+      sparkContainer.style.cursor = 'pointer';
+      sparkContainer.setAttribute('role', 'button');
+      sparkContainer.setAttribute('tabindex', '0');
+      sparkContainer.setAttribute('title', 'Interaktiven Preisverlauf öffnen (inkl. Keepa)');
+
+      const target = chartEl || document.querySelector('.shippingText') || document.querySelector('.priceContainer');
+      if (target?.after) target.after(sparkContainer);
+      else if (target?.parentElement) target.parentElement.appendChild(sparkContainer);
+      else document.body.appendChild(sparkContainer);
+    }
+
+    const series = withLivePrice(stats.timeSeries, currentPrice);
+    sparkContainer._tpSeries = series;
+
+    if (!sparkContainer.dataset.tpPopoutBound) {
+      sparkContainer.dataset.tpPopoutBound = 'true';
+      const openPopout = () => {
+        openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl: (typeof location !== 'undefined' ? location.href : '') });
+      };
+      sparkContainer.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openPopout();
+      });
+      sparkContainer.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          openPopout();
+        }
+      });
+
+      if (chartEl && !chartEl.dataset.tpChartBound) {
+        chartEl.dataset.tpChartBound = 'true';
+        chartEl.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          openPopout();
+        });
+        chartEl.style.cursor = 'pointer';
+        chartEl.title = 'Interaktiven Preisverlauf öffnen (inkl. Keepa)';
+      }
+    }
+
+    const svg = renderSparkline(series, 64, 18);
+    if (svg) {
+      sparkContainer.replaceChildren(svg);
+    }
+  }
+
   async function processProductDetailPage() {
     const run = ++detailRun;
     const pid = getDetailProductId();
-    if (!pid) { removeDetailBadge(); return; }
+    if (!pid) { removeDetailDecorations(); return; }
 
-    // Ordered single queries (see getDetailLowestPrice): grouped selectors match
-    // in document order, so the bare h1 fallback must never outrank its scopes.
     const headingSelectors = ['.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1'];
     let headingEl = null;
     for (const sel of headingSelectors) {
       headingEl = document.querySelector(sel);
       if (headingEl) break;
     }
-    if (!headingEl) { removeDetailBadge(); return; }
+    if (!headingEl) { removeDetailDecorations(); return; }
 
     const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
-    if (!(currentPrice > 0)) { removeDetailBadge(); return; }
+    if (!(currentPrice > 0)) { removeDetailDecorations(); return; }
+
+    const shareData = extractShareData(document.body || headingEl);
+    const title = shareData.title || headingEl.textContent?.trim() || '';
+    const url = shareData.url || (typeof location !== 'undefined' ? location.href : '');
+    const imageUrl = shareData.imageUrl || '';
+
+    // Render Web Search / AI Review next to H1 title
+    renderDetailReviewButton(headingEl, title, currentPrice, null, pid);
 
     let badge = document.getElementById('tp-detail-deal-badge');
     let stats = getCardStats(pid, priceBasis);
     if (!stats) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
-      // Stale: a newer run started, the route changed, or the heading died.
       if (run !== detailRun || pid !== getDetailProductId() || !headingEl.isConnected) {
-        if (pid !== getDetailProductId()) removeDetailBadge();
+        if (pid !== getDetailProductId()) removeDetailDecorations();
         return;
       }
-      // Reprice/basis-toggle mid-flight: never paint a verdict for dead inputs.
       const fresh = getDetailLowestPrice();
       if (fresh.price !== currentPrice || fresh.basis !== priceBasis) return;
       stats = getCardStats(pid, priceBasis);
     }
+
     if (stats && stats.tiefstpreis > 0) {
-      // Basis gate (same rule as extractCardData): a live price on the other
-      // basis than the cached history renders no badge. A refetch cannot fix
-      // a missing DOM basis, so drop the badge instead of re-requesting.
       if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
-        document.getElementById('tp-detail-deal-badge')?.remove();
+        removeDetailDecorations();
         return;
       }
+
       if (!badge) {
         badge = document.createElement('div');
         badge.id = 'tp-detail-deal-badge';
@@ -14109,6 +14456,7 @@ const SHADOW_MODAL_STYLES = `
       const displayKind = getDisplayDelta(currentPrice, stats).kind;
       const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
       const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
+
       if (isAllTimeLow) {
         const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
         if (badge.className !== nextClass) badge.className = nextClass;
@@ -14131,9 +14479,20 @@ const SHADOW_MODAL_STYLES = `
         const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
         if (badge.textContent !== nextText) badge.textContent = nextText;
       }
+
+      // Render Deal Subline
+      renderDetailSubline(stats, currentPrice, priceBasis);
+
+      // Render Discord Share Button next to price alarm bell
+      renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+
+      // Render Mini Sparkline below chart thumbnail
+      renderDetailSparkline(pid, title, currentPrice, stats);
+
+      // Update Web Search / AI review button with stats
+      renderDetailReviewButton(headingEl, title, currentPrice, stats, pid);
     } else {
-      document.getElementById('tp-detail-deal-badge')?.remove();
-      return;
+      removeDetailDecorations();
     }
   }
 
@@ -14230,7 +14589,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-deal-badge,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-deal-badge,#tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -14361,7 +14720,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.448';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.449';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

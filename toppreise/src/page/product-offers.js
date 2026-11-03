@@ -15,21 +15,31 @@ const isToppreiseProductUrl = u => {
   } catch { return false; }
 };
 
-// Titel + Produktlink aus der Karte ziehen (alles tolerant, Layout-wechsel-sicher).
+// Titel + Produktlink aus der Karte oder Produktseite ziehen (tolerant, Layout-wechsel-sicher).
 export function extractShareData(card) {
   if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
-  const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-  // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
-  // sonst frisst sich sein Emoji bei jedem Re-Render in Titel, Query und Share-Text.
+  let titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
+  if (!titleEl) {
+    titleEl = card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1');
+  }
+  // Review-Button (Schritt 9) und Detail-Badge hängen im Titel-Element: für Titelzwecke ausblenden,
+  // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
   let title = '';
   if (titleEl) {
     const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
-    clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
+    clone?.querySelectorAll?.('.tp-review-search-btn, #tp-detail-deal-badge, .tp-detail-deal-badge')?.forEach(el => el.remove());
     title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
   }
   const linkEl = card.querySelector('a[href*="/preisvergleich/"]')
     || (card.tagName?.toLowerCase() === 'a' ? card : null);
   let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
+  if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
+    url = location.href;
+  }
+  if (!url && typeof document !== 'undefined') {
+    const curUrl = document.body?.getAttribute?.('data-current_url') || document.body?.getAttribute?.('data-current-url');
+    if (curUrl && isToppreiseProductUrl(curUrl)) url = curUrl;
+  }
   if (url && !/^https?:\/\//i.test(url)) {
     try {
       const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';

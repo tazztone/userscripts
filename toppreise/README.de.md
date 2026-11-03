@@ -175,7 +175,7 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 * **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber neben den Produkttiteln. Vollständige Unterstützung aller Katalogansichten:
   * **Expertenansicht:** Preisalarm-Glocke sitzt inline vor der Deal-Pill innerhalb der Kartenbegrenzung.
   * **Listenansicht:** Versandkostentext bricht sauber um ohne horizontalen Überlauf; Direktsprung zum günstigsten Händler (`🏬`) ist sowohl am Preis als auch in der Aktionsleiste neben der Alarm-Glocke platziert.
-* **Produkt-Detailseiten (`/preisvergleich/...-p...`):** Filterleiste wird ausgeblendet; ein dezentes Tiefstpreis-Badge wird direkt neben dem Haupttitel und Hauptpreis eingebettet.
+* **Produkt-Detailseiten (`/preisvergleich/...-p...`):** Filterleiste wird ausgeblendet und durch vollständige Feature-Parität ergänzt: dezidiertes Tiefstpreis-/Aufschlag-Badge (`🌟 Allzeit-Tiefstpreis` / `⚠️ Tiefstpreis...`), inline 1-Klick Review- & KI-Suche (`🌐`) am H1-Titel, transparente Deal-Subline (`📉 Vor-Tief` & `Ø Rollierender Median`) unter dem Versandtext, 1-Klick Discord-Share (`📤`) neben der Preisalarm-Glocke sowie interaktive Mini-Sparkline unter dem Chart (Klick öffnet das interaktive SVG-Diagramm-Modal mit Keepa-Integration und Bildexport).
 
 ---
 
