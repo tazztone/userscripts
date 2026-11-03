@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.453)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.454)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -110,7 +110,7 @@ Requires a userscript manager browser extension:
   * **Minimum Savings (*Min-Ersparnis*):** Filter out verified offers saving less than Min CHF (unverified offers remain visible).
   * **Unverified (*Ungeprüfte*):** Dim or hide unverified offers across all pages.
   * **Fallback Lows (*Fallback-Tiefs*):** Control visibility of low-history verified offers across all pages.
-  * **Selected Dealer Best-Price Check:** Highlights cards with an emerald border and `Toppreis` badge when your active dealer filter holds the cheapest offer (within a configurable `0%–50%` price tolerance margin).
+  * **Selected Dealer Best-Price Check:** Highlights cards with an emerald border and glow when your active dealer filter holds the cheapest offer (within a configurable `0%–50%` price tolerance margin).
 * **Live Grid Sorting:** Sort listings in-place by **Weighted Deal Score (`Tiefstpreis-Sortierung`)** (verified deals and fallback lows by badge % > unverified/unavailable > markups), **% Discount (`% Rabatt ⬇`)**, or **Offer Count (`Meiste ⬇` / `Wenigste ⬆`)**, with clean restoration to natural DOM order when disabled.
 * **Empty State Recovery:** If all products are hidden by active filters, an interactive prompt provides instant one-click recovery buttons (`[ ⚡ Filter ausschalten ]`, `[ 🔍 Tiefstpreise prüfen ]`, or `[ Ungeprüfte einblenden ]`).
 
@@ -175,7 +175,7 @@ The userscript dynamically tailors its UI to the current page type:
 * **Catalog & Search Listings (`/produktsuche/...`):** Streamlined toolbar with complete protection for grouped product families (`.Plugin_ProductCollItem`). Grouped variants (such as AirPods with or without wireless charging case) remain locked in their native collection containers, preserving Bootstrap grid integrity without splitting cards. Inline deal pills (`.tp-deal-pill`) sit neatly next to product titles. Full support for all catalog view layouts:
   * **Expert view:** Price alarm bell placed inline before the deal pill within card bounds.
   * **List view:** Shipping text wraps cleanly within card horizontal bounds; dealer check shortcut (`🏬`) is placed both at the price container and inside the action row next to the alarm bell.
-* **Product Detail Pages (`/preisvergleich/...-p...`):** Hides the top filter bar and embeds full feature parity: dedicated Tiefstpreis / markup status badge (`🌟 Allzeit-Tiefstpreis` / `⚠️ Tiefstpreis...`), inline 1-click Web Search & AI Review Verdict (`🌐`) next to the H1 title, transparent Deal Subline (`📉 Vor-Tief` & `Ø Rolling Median` savings) below shipping text, 1-click Discord Share (`📤`) next to the price alarm bell, and mini Sparkline below the native chart (clicking opens the interactive SVG history modal with Keepa Amazon chart and clipboard export).
+* **Product Detail Pages (`/preisvergleich/...-p...`):** Hides the top filter bar and embeds full feature parity: transparent Deal Subline (`📉 Vor-Tief` & `Ø Rolling Median` savings) below shipping text, inline 1-click Web Search & AI Review Verdict (`🌐`) next to the H1 title, 1-click Discord Share (`📤`) next to the price alarm bell, and mini Sparkline below the native chart (clicking opens the interactive SVG history modal with Keepa Amazon chart and clipboard export).
 
 ---
 

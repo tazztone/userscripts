@@ -63,21 +63,6 @@ export const STYLES_CARDS = `
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest.tp-heat-blend {
     box-shadow: 0 4px 20px rgba(16,185,129,0.25), var(--tp-heat-glow, none) !important;
   }
-  .tp-best-price-badge {
-    position: absolute;
-    top: 13px;
-    right: 68px;
-    background: var(--tp-grad-acc);
-    color: #fff;
-    font: 700 11px/1.2 var(--tp-font);
-    padding: 4px 10px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    z-index: 5;
-    box-shadow: 0 2px 8px rgba(16,185,129,0.4);
-    letter-spacing: 0.5px;
-    pointer-events: none;
-  }
   .tp-filtered, .tp-col-filtered {
     display: none !important;
   }

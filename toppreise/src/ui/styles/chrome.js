@@ -195,36 +195,6 @@ export const STYLES_CHROME = `
     border-color: var(--tp-blue-soft) !important;
     color: #ffffff !important;
   }
-  .tp-detail-deal-badge {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    padding: 4px 10px !important;
-    border-radius: var(--tp-r-md) !important;
-    font: 700 12.5px/1.3 var(--tp-font) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-    vertical-align: middle !important;
-    margin-left: 10px !important;
-    user-select: none !important;
-  }
-  .tp-detail-deal-badge.tp-is-alltime-low {
-    background: linear-gradient(135deg, rgba(4, 120, 87, 0.95) 0%, rgba(6, 95, 70, 0.95) 100%) !important;
-    border: 1px solid var(--tp-acc-txt) !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(4, 120, 87, 0.45) !important;
-  }
-  .tp-detail-deal-badge.tp-is-not-low {
-    background: linear-gradient(135deg, rgba(180, 83, 9, 0.95) 0%, rgba(146, 64, 14, 0.95) 100%) !important;
-    border: 1px solid #b45309 !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(180, 83, 9, 0.4) !important;
-  }
-  .tp-detail-deal-badge.tp-is-severe-markup {
-    background: linear-gradient(135deg, rgba(190, 18, 60, 0.95) 0%, rgba(159, 18, 57, 0.95)) !important;
-    border: 1px solid var(--tp-rose) !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(190, 18, 60, 0.45) !important;
-  }
 
   #tp-detail-subline,
   .tp-detail-subline {

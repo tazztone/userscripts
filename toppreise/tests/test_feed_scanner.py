@@ -640,12 +640,11 @@ def test_product_detail_page_deal_badge(page: Page):
         window.ToppreiseSuite?.processProductDetailPage?.();
     }''')
 
-    page.wait_for_selector('#tp-detail-deal-badge.tp-is-alltime-low')
-    badge = page.locator('#tp-detail-deal-badge')
-    assert 'Allzeit-Tiefstpreis' in (badge.text_content() or '')
-    title = badge.get_attribute('title') or ''
-    assert 'Allzeit-Tiefstpreis' in title
-    assert 'CHF 700.00' in title
+    page.wait_for_selector('#tp-detail-subline.tp-is-record-low')
+    subline = page.locator('#tp-detail-subline')
+    assert 'Vor-Tief' in (subline.text_content() or '')
+    assert '700.00' in (subline.text_content() or '')
+    assert page.locator('#tp-detail-deal-badge').count() == 0
 
 
 

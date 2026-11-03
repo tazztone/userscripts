@@ -205,24 +205,6 @@ def test_suite_text_contrast_on_light(page: Page):
     }""")
     assert _pair_ratio(cta['color'], 'rgba(0, 0, 0, 0)', cta_bg) >= 4.5
 
-    # Detail-page badges: shipped gradient rules pinned via synthetic hosts
-    page.evaluate("""() => {
-        for (const cls of ['tp-is-alltime-low', 'tp-is-not-low', 'tp-is-severe-markup']) {
-            const s = document.createElement('span');
-            s.className = 'tp-detail-deal-badge ' + cls;
-            s.id = 'tp-contrast-probe-' + cls;
-            s.textContent = '-25%';
-            document.body.appendChild(s);
-        }
-    }""")
-    for cls in ['tp-is-alltime-low', 'tp-is-not-low', 'tp-is-severe-markup']:
-        probe = _dump(page, f'#tp-contrast-probe-{cls}')
-        assert _pair_ratio(probe['color'], probe['backgroundColor'],
-                           probe['backgroundImage']) >= 4.5, cls
-    page.evaluate("""() => {
-        document.querySelectorAll('[id^="tp-contrast-probe-"]').forEach(el => el.remove());
-    }""")
-
     # Threshold popover selected option: white on dark emerald
     page.locator('#tp-floating-threshold-btn').click()
     page.wait_for_selector('#tp-floating-threshold-popover .tp-floating-option.tp-selected')

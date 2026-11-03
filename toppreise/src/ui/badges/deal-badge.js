@@ -178,22 +178,14 @@ export function renderFilterVerdict(ctx, filters, activeStores) {
   const dealerRows = activeStores.length > 0 ? getCardDealerRows(card) : [];
   if (activeStores.length === 0 || dealerRows.length === 0) {
     card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
-    card.querySelector('.tp-best-price-badge')?.remove();
     filters.isDealerLoser = false;
   } else if (dealerLoserFor(card, activeStores)) {
     card.classList.toggle('tp-not-cheapest', filtersActive);
     card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
-    card.querySelector('.tp-best-price-badge')?.remove();
     filters.isDealerLoser = true;
   } else {
     card.classList.add('tp-is-cheapest');
     card.classList.remove('tp-not-cheapest', 'tp-no-store-offer');
-    if (!card.querySelector('.tp-best-price-badge')) {
-      const badge = document.createElement('div');
-      badge.className = 'tp-best-price-badge';
-      badge.textContent = 'Toppreis';
-      card.appendChild(badge);
-    }
     filters.isDealerLoser = false;
   }
   const isHide = m => m !== 'dim' && m !== 'highlight';

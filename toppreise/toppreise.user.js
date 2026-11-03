@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.453
+// @version      2.18.454
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -133,21 +133,6 @@ const STYLES_CARDS = `
   }
   .Plugin_Product.mixedBrowsingList.tp-is-cheapest.tp-heat-blend {
     box-shadow: 0 4px 20px rgba(16,185,129,0.25), var(--tp-heat-glow, none) !important;
-  }
-  .tp-best-price-badge {
-    position: absolute;
-    top: 13px;
-    right: 68px;
-    background: var(--tp-grad-acc);
-    color: #fff;
-    font: 700 11px/1.2 var(--tp-font);
-    padding: 4px 10px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    z-index: 5;
-    box-shadow: 0 2px 8px rgba(16,185,129,0.4);
-    letter-spacing: 0.5px;
-    pointer-events: none;
   }
   .tp-filtered, .tp-col-filtered {
     display: none !important;
@@ -1064,36 +1049,6 @@ const STYLES_CHROME = `
     background: #1d4ed8 !important;
     border-color: var(--tp-blue-soft) !important;
     color: #ffffff !important;
-  }
-  .tp-detail-deal-badge {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    padding: 4px 10px !important;
-    border-radius: var(--tp-r-md) !important;
-    font: 700 12.5px/1.3 var(--tp-font) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-    vertical-align: middle !important;
-    margin-left: 10px !important;
-    user-select: none !important;
-  }
-  .tp-detail-deal-badge.tp-is-alltime-low {
-    background: linear-gradient(135deg, rgba(4, 120, 87, 0.95) 0%, rgba(6, 95, 70, 0.95) 100%) !important;
-    border: 1px solid var(--tp-acc-txt) !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(4, 120, 87, 0.45) !important;
-  }
-  .tp-detail-deal-badge.tp-is-not-low {
-    background: linear-gradient(135deg, rgba(180, 83, 9, 0.95) 0%, rgba(146, 64, 14, 0.95) 100%) !important;
-    border: 1px solid #b45309 !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(180, 83, 9, 0.4) !important;
-  }
-  .tp-detail-deal-badge.tp-is-severe-markup {
-    background: linear-gradient(135deg, rgba(190, 18, 60, 0.95) 0%, rgba(159, 18, 57, 0.95)) !important;
-    border: 1px solid var(--tp-rose) !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(190, 18, 60, 0.45) !important;
   }
 
   #tp-detail-subline,
@@ -4865,7 +4820,7 @@ const SHADOW_MODAL_STYLES = `
         if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
         else if (typeof card.cloneNode === 'function') {
           const clone = card.cloneNode(true);
-          clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
+          clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, [class*="tp-"]').forEach(el => el.remove());
           text = (clone.textContent || '').toLowerCase();
         } else {
           text = (card.textContent || '').toLowerCase();
@@ -5295,12 +5250,12 @@ const SHADOW_MODAL_STYLES = `
       || card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1')
       || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
       || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-    // Review-Button (Schritt 9) und Detail-Badge hängen im Titel-Element: für Titelzwecke ausblenden,
-    // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
+    // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
+    // sonst frisst er sich bei jedem Re-Render in Titel, Query und Share-Text.
     let title = '';
     if (titleEl) {
       const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
-      clone?.querySelectorAll?.('.tp-review-search-btn, #tp-detail-deal-badge, .tp-detail-deal-badge')?.forEach(el => el.remove());
+      clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
       title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
     }
     const linkEl = card.querySelector('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
@@ -9139,22 +9094,14 @@ const SHADOW_MODAL_STYLES = `
     const dealerRows = activeStores.length > 0 ? getCardDealerRows(card) : [];
     if (activeStores.length === 0 || dealerRows.length === 0) {
       card.classList.remove('tp-is-cheapest', 'tp-not-cheapest', 'tp-no-store-offer');
-      card.querySelector('.tp-best-price-badge')?.remove();
       filters.isDealerLoser = false;
     } else if (dealerLoserFor(card, activeStores)) {
       card.classList.toggle('tp-not-cheapest', filtersActive);
       card.classList.remove('tp-is-cheapest', 'tp-no-store-offer');
-      card.querySelector('.tp-best-price-badge')?.remove();
       filters.isDealerLoser = true;
     } else {
       card.classList.add('tp-is-cheapest');
       card.classList.remove('tp-not-cheapest', 'tp-no-store-offer');
-      if (!card.querySelector('.tp-best-price-badge')) {
-        const badge = document.createElement('div');
-        badge.className = 'tp-best-price-badge';
-        badge.textContent = 'Toppreis';
-        card.appendChild(badge);
-      }
       filters.isDealerLoser = false;
     }
     const isHide = m => m !== 'dim' && m !== 'highlight';
@@ -14184,8 +14131,8 @@ const SHADOW_MODAL_STYLES = `
   // ─── MODULE: src/features/product-detail.js ─────────────────────────────────
   /**
    * Product Detail Page Feature
-   * Injects Tiefstpreis status badge, peak context, 1-click Discord share,
-   * inline Web/AI search, deal subline, and mini sparkline with interactive modal.
+   * Injects 1-click Discord share, inline Web/AI search, deal subline,
+   * and mini sparkline with interactive modal.
    */
 
 
@@ -14205,7 +14152,6 @@ const SHADOW_MODAL_STYLES = `
   let detailRun = 0;
 
   const removeDetailDecorations = () => {
-    document.querySelectorAll('#tp-detail-deal-badge, .tp-detail-deal-badge').forEach(el => el.remove());
     document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
     document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
     document.querySelectorAll('#tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
@@ -14271,46 +14217,6 @@ const SHADOW_MODAL_STYLES = `
     btn.setAttribute('aria-label', tipText);
   }
 
-  function renderDetailDealBadge(headingEl, stats, currentPrice) {
-    if (!headingEl || !stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) return;
-    let badge = headingEl.querySelector('.tp-detail-deal-badge');
-    if (!badge) {
-      badge = document.createElement('div');
-      if (!document.getElementById('tp-detail-deal-badge')) {
-        badge.id = 'tp-detail-deal-badge';
-      }
-      badge.className = 'tp-detail-deal-badge';
-      headingEl.appendChild(badge);
-    }
-
-    const displayKind = getDisplayDelta(currentPrice, stats).kind;
-    const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
-    const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
-    if (isAllTimeLow) {
-      const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
-      if (badge.className !== nextClass) badge.className = nextClass;
-      let peakContext = '';
-      if (hasSignificantPeak) {
-        const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
-        peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
-      }
-      const nextTitle = `Aktueller Preis (CHF ${currentPrice.toFixed(2)}) ist der Allzeit-Tiefstpreis!${peakContext}`;
-      if (badge.title !== nextTitle) badge.title = nextTitle;
-      if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
-    } else {
-      const markupPct = pctRise(stats.tiefstpreis, currentPrice);
-      const isSevere = markupPct >= 50;
-      const nextClass = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
-      if (badge.className !== nextClass) badge.className = nextClass;
-      const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-      const nextTitle = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
-      if (badge.title !== nextTitle) badge.title = nextTitle;
-      const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
-      if (badge.textContent !== nextText) badge.textContent = nextText;
-    }
-  }
-
   function renderDetailSubline(stats, currentPrice, priceBasis) {
     if (!stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) {
       document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
@@ -14357,7 +14263,7 @@ const SHADOW_MODAL_STYLES = `
         parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
       }
       if (parts.length === 0) {
-        parts.push('🌟 Allzeit-Tiefstpreis');
+        parts.push('Allzeit-Tiefstpreis bestätigt');
       }
       sublineText = parts.join(' · ');
       sublineTitle = 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.';
@@ -14601,11 +14507,6 @@ const SHADOW_MODAL_STYLES = `
         return;
       }
 
-      // Render Deal Badge on each H1 title
-      for (const h of headings) {
-        renderDetailDealBadge(h, stats, currentPrice);
-      }
-
       // Render Deal Subline
       renderDetailSubline(stats, currentPrice, priceBasis);
 
@@ -14717,7 +14618,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-best-price-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-deal-badge,#tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -14848,7 +14749,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.453';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.454';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

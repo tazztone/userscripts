@@ -112,7 +112,7 @@ export function matchesNegativeTerms(card, termsList) {
       if (single?.textContent?.trim()) text = single.textContent.toLowerCase();
       else if (typeof card.cloneNode === 'function') {
         const clone = card.cloneNode(true);
-        clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, .tp-best-price-badge, [class*="tp-"]').forEach(el => el.remove());
+        clone.querySelectorAll?.('.tp-injected-badge, .tp-share-btn, .tp-dealer-name, [class*="tp-"]').forEach(el => el.remove());
         text = (clone.textContent || '').toLowerCase();
       } else {
         text = (card.textContent || '').toLowerCase();

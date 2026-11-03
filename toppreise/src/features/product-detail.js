@@ -1,7 +1,7 @@
 /**
  * Product Detail Page Feature
- * Injects Tiefstpreis status badge, peak context, 1-click Discord share,
- * inline Web/AI search, deal subline, and mini sparkline with interactive modal.
+ * Injects 1-click Discord share, inline Web/AI search, deal subline,
+ * and mini sparkline with interactive modal.
  */
 
 import { getDetailProductId, getDetailLowestPrice, isShippingPriceActive } from '../page/adapter.js';
@@ -22,7 +22,6 @@ import { setTextIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js
 let detailRun = 0;
 
 export const removeDetailDecorations = () => {
-  document.querySelectorAll('#tp-detail-deal-badge, .tp-detail-deal-badge').forEach(el => el.remove());
   document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
   document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
   document.querySelectorAll('#tp-detail-sparkline, .tp-detail-sparkline').forEach(el => el.remove());
@@ -88,46 +87,6 @@ export function renderDetailReviewButton(headingEl, title, currentPrice, stats, 
   btn.setAttribute('aria-label', tipText);
 }
 
-export function renderDetailDealBadge(headingEl, stats, currentPrice) {
-  if (!headingEl || !stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) return;
-  let badge = headingEl.querySelector('.tp-detail-deal-badge');
-  if (!badge) {
-    badge = document.createElement('div');
-    if (!document.getElementById('tp-detail-deal-badge')) {
-      badge.id = 'tp-detail-deal-badge';
-    }
-    badge.className = 'tp-detail-deal-badge';
-    headingEl.appendChild(badge);
-  }
-
-  const displayKind = getDisplayDelta(currentPrice, stats).kind;
-  const isAllTimeLow = (displayKind === 'new-low' || displayKind === 'at-low');
-  const hasSignificantPeak = stats.hoechstpreis && stats.hoechstpreis > stats.tiefstpreis * 1.02;
-
-  if (isAllTimeLow) {
-    const nextClass = 'tp-detail-deal-badge tp-is-alltime-low';
-    if (badge.className !== nextClass) badge.className = nextClass;
-    let peakContext = '';
-    if (hasSignificantPeak) {
-      const peakDropPct = pctDrop(stats.hoechstpreis, currentPrice);
-      peakContext = ` (-${peakDropPct}% vom Höchstpreis CHF ${stats.hoechstpreis.toFixed(2)})`;
-    }
-    const nextTitle = `Aktueller Preis (CHF ${currentPrice.toFixed(2)}) ist der Allzeit-Tiefstpreis!${peakContext}`;
-    if (badge.title !== nextTitle) badge.title = nextTitle;
-    if (badge.textContent !== '🌟 Allzeit-Tiefstpreis') badge.textContent = '🌟 Allzeit-Tiefstpreis';
-  } else {
-    const markupPct = pctRise(stats.tiefstpreis, currentPrice);
-    const isSevere = markupPct >= 50;
-    const nextClass = `tp-detail-deal-badge tp-is-not-low ${isSevere ? 'tp-is-severe-markup' : ''}`;
-    if (badge.className !== nextClass) badge.className = nextClass;
-    const peakContext = hasSignificantPeak ? ` | Höchstpreis: CHF ${stats.hoechstpreis.toFixed(2)}` : '';
-    const nextTitle = `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)${peakContext}`;
-    if (badge.title !== nextTitle) badge.title = nextTitle;
-    const nextText = `⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}%)`;
-    if (badge.textContent !== nextText) badge.textContent = nextText;
-  }
-}
-
 export function renderDetailSubline(stats, currentPrice, priceBasis) {
   if (!stats || !(currentPrice > 0) || !(stats.tiefstpreis > 0)) {
     document.querySelectorAll('#tp-detail-subline, .tp-detail-subline').forEach(el => el.remove());
@@ -174,7 +133,7 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
       parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
     }
     if (parts.length === 0) {
-      parts.push('🌟 Allzeit-Tiefstpreis');
+      parts.push('Allzeit-Tiefstpreis bestätigt');
     }
     sublineText = parts.join(' · ');
     sublineTitle = 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.';
@@ -416,11 +375,6 @@ export async function processProductDetailPage() {
     if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
       removeDetailDecorations();
       return;
-    }
-
-    // Render Deal Badge on each H1 title
-    for (const h of headings) {
-      renderDetailDealBadge(h, stats, currentPrice);
     }
 
     // Render Deal Subline

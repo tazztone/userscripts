@@ -298,13 +298,6 @@ describe('Product Detail Page Feature Suite', () => {
   });
 
   it('cleans up decorations via removeDetailDecorations', () => {
-    const h1 = mockNode('h1');
-    h1.className = 'Plugin_ProductHeading';
-    document.body.appendChild(h1);
-    const badge = mockNode('div');
-    badge.id = 'tp-detail-deal-badge';
-    h1.appendChild(badge);
-
     const subline = mockNode('div');
     subline.id = 'tp-detail-subline';
     document.body.appendChild(subline);
@@ -319,7 +312,6 @@ describe('Product Detail Page Feature Suite', () => {
 
     removeDetailDecorations();
 
-    assert.equal(document.getElementById('tp-detail-deal-badge'), null);
     assert.equal(document.getElementById('tp-detail-subline'), null);
     assert.equal(document.getElementById('tp-detail-share-btn'), null);
     assert.equal(document.getElementById('tp-detail-sparkline'), null);

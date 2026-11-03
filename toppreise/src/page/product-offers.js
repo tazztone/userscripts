@@ -22,12 +22,12 @@ export function extractShareData(card) {
     || card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1')
     || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
     || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-  // Review-Button (Schritt 9) und Detail-Badge hängen im Titel-Element: für Titelzwecke ausblenden,
-  // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
+  // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
+  // sonst frisst er sich bei jedem Re-Render in Titel, Query und Share-Text.
   let title = '';
   if (titleEl) {
     const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
-    clone?.querySelectorAll?.('.tp-review-search-btn, #tp-detail-deal-badge, .tp-detail-deal-badge')?.forEach(el => el.remove());
+    clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
     title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
   }
   const linkEl = card.querySelector('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')

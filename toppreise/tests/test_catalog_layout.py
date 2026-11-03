@@ -10,7 +10,6 @@ def test_best_price_highlighting_and_dimming(page: Page):
     # Card 1 is cheapest store price -> highlighted
     page.wait_for_selector('#card-cheapest.tp-is-cheapest')
     assert 'tp-is-cheapest' in (page.locator('#card-cheapest').get_attribute('class') or '')
-    assert page.locator('#card-cheapest .tp-best-price-badge').is_visible()
 
     # Card 2 is more expensive -> not cheapest
     assert 'tp-not-cheapest' in (page.locator('#card-expensive').get_attribute('class') or '')
@@ -732,31 +731,18 @@ def test_category_page_cards_not_dimmed_when_store_filter_active(page: Page):
 
 
 
-def test_grid_card_title_and_best_price_badge_clearance(page: Page):
+def test_grid_card_title_and_best_price_clearance(page: Page):
     # Test on default feed (/neue-toppreise)
     card = page.locator('#product-list .Plugin_Product').first
     assert card.is_visible()
 
-    # Inject best price badge
+    # Apply cheapest store class
     page.evaluate('''() => {
         const firstCard = document.querySelector('#product-list .Plugin_Product');
         firstCard.classList.add('tp-is-cheapest');
-        if (!firstCard.querySelector('.tp-best-price-badge')) {
-            const badge = document.createElement('div');
-            badge.className = 'tp-best-price-badge';
-            badge.textContent = 'Best Price';
-            firstCard.appendChild(badge);
-        }
     }''')
 
-    # Verify best price badge position
-    badge = card.locator('.tp-best-price-badge')
-    badge.wait_for(state='visible')
-    badge_right = page.evaluate("el => window.getComputedStyle(el).right", badge.element_handle())
-    assert badge_right == '68px'
-
-    # Verify best price badge clears the 50px circular badge (at right: 10px..60px)
-    # 68px gives an 8px clearance between badges, and card height remains compact (< 210px)
+    # Card height remains compact (< 210px)
     box = card.bounding_box()
     assert box is not None
     assert box['height'] < 210
