@@ -14,7 +14,7 @@ const escapeHtml = s => String(s ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
-export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
+export function openSharePreviewModal({ channels = [], onSend, onCancel, onCommentChange, initialContent = '' }) {
   ensureSkeleton();
   const shadow = uiShadowRoot;
   if (!shadow) return null;
@@ -42,15 +42,22 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
     </div>
 
     <div class="tp-share-preview-body">
-      <div class="tp-share-preview-loading" id="tp-share-preview-loading">
+      <div class="tp-share-preview-loading" id="tp-share-preview-loading"${initialContent ? ' style="display: none;"' : ''}>
         <span class="tp-share-preview-spinner">⏳</span>
         <span>Vorschau wird vorbereitet…</span>
       </div>
       <div class="tp-share-preview-error" id="tp-share-preview-error" style="display: none;"></div>
 
-      <div class="tp-share-preview-content-wrap" id="tp-share-preview-content-wrap" style="display: none;">
+      <div class="tp-share-preview-content-wrap" id="tp-share-preview-content-wrap"${initialContent ? '' : ' style="display: none;"'}>
         <div class="tp-share-preview-label">Discord-Vorschau:</div>
-        <div class="tp-share-preview-message" id="tp-share-preview-message"></div>
+        <div class="tp-share-preview-message" id="tp-share-preview-message">${initialContent ? renderDiscordMarkdownPreview(initialContent) : ''}</div>
+        <div class="tp-share-comment-wrap">
+          <div class="tp-share-comment-header">
+            <label for="tp-share-comment-input" class="tp-share-preview-label">Kommentar (optional):</label>
+            <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 1000</span>
+          </div>
+          <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="1000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+        </div>
         <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
       </div>
     </div>
@@ -73,6 +80,8 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
   const channelBtns = dialog.querySelectorAll('.tp-share-channel-btn');
   const closeBtn = dialog.querySelector('.tp-share-preview-close');
   const cancelBtn = dialog.querySelector('.tp-share-cancel-btn');
+  const commentInput = dialog.querySelector('#tp-share-comment-input');
+  const commentCount = dialog.querySelector('#tp-share-comment-count');
 
   const createdUrls = [];
 
@@ -99,6 +108,31 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
   closeBtn?.addEventListener('click', handleCancel);
   cancelBtn?.addEventListener('click', handleCancel);
 
+  const updateCount = () => {
+    if (commentCount && commentInput) {
+      commentCount.textContent = `${commentInput.value.length} / 1000`;
+    }
+  };
+
+  commentInput?.addEventListener('input', () => {
+    updateCount();
+    const currentVal = commentInput.value;
+    if (onCommentChange && messageEl) {
+      const updated = onCommentChange(currentVal);
+      if (typeof updated === 'string') {
+        messageEl.innerHTML = renderDiscordMarkdownPreview(updated);
+      }
+    }
+  });
+
+  commentInput?.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const firstActiveBtn = [...channelBtns].find(b => !b.disabled);
+      firstActiveBtn?.click();
+    }
+  });
+
   dialog.addEventListener('click', e => {
     if (e.target !== dialog) return;
     const rect = dialog.getBoundingClientRect();
@@ -118,12 +152,22 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
 
   const controller = {
     dialog,
+    getComment() {
+      return commentInput ? commentInput.value.trim() : '';
+    },
     updateContent({ formattedContent, chartBlob, productBlob, keepaBlob }) {
       if (loadingEl) loadingEl.style.display = 'none';
       if (errorEl) errorEl.style.display = 'none';
 
+      const currentComment = commentInput ? commentInput.value : '';
+      let displayMsg = formattedContent || '';
+      if (currentComment && onCommentChange) {
+        const recomputed = onCommentChange(currentComment);
+        if (typeof recomputed === 'string') displayMsg = recomputed;
+      }
+
       if (messageEl) {
-        messageEl.innerHTML = renderDiscordMarkdownPreview(formattedContent || '');
+        messageEl.innerHTML = renderDiscordMarkdownPreview(displayMsg);
       }
 
       if (imagesEl) {
@@ -204,7 +248,8 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
       const targetChannel = channels.find(c => c.id === channelId);
       if (!targetChannel) return;
       controller.setSending(channelId);
-      onSend?.(targetChannel, controller);
+      const comment = commentInput ? commentInput.value.trim() : '';
+      onSend?.(targetChannel, controller, { comment });
     });
   });
 
@@ -213,6 +258,8 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel }) {
   } else {
     dialog.setAttribute('open', '');
   }
+
+  setTimeout(() => commentInput?.focus(), 50);
 
   return controller;
 }

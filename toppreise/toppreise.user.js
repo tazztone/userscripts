@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.446
+// @version      2.18.447
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2329,6 +2329,43 @@ const SHADOW_MODAL_STYLES = `
   .tp-share-preview-message .tp-md-link { font-weight: 700; color: #00a8fc; text-decoration: none; }
   .tp-share-preview-message .tp-md-url { opacity: .65; font-size: 11px; }
   .tp-share-preview-message .tp-md-quote { display: block; border-left: 3px solid #5865f2; padding-left: 8px; margin: 2px 0; opacity: .9; }
+  .tp-share-comment-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .tp-share-comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tp-share-comment-count {
+    font-size: 11px;
+    color: var(--tp-mut);
+    font-variant-numeric: tabular-nums;
+  }
+  .tp-share-comment-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+    max-height: 120px;
+    resize: vertical;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.4;
+    border: 1px solid var(--tp-line-soft);
+    background: var(--tp-bg, #ffffff);
+    color: var(--tp-txt, #1e293b);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tp-share-comment-input:focus {
+    outline: none;
+    border-color: #5865f2;
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+  }
   .tp-share-preview-images {
     display: flex;
     gap: 8px;
@@ -9464,16 +9501,52 @@ const SHADOW_MODAL_STYLES = `
 
           let preview = null;
           let readyPayload = null;
+          let userComment = '';
+
+          const { title, url, imageUrl } = extractShareData(card);
+          const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
+          const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
+          let dealer = extractDealer(card, useShipping);
+          let dealerUrl = extractDealerUrl(card, useShipping);
+          const cachedDealer = getCachedDealer(snap.pid, useShipping);
+          let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
+          let totalOffers = cachedDealer?.totalOffers || 0;
+          let offers = totalOffers || loadedOffers;
+
+          let currentFields = {
+            title, url, priceText,
+            dealer, dealerUrl, offerCount: offers,
+            aiText: '',
+            ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
+            suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+            suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+          };
+
+          const onCommentChange = commentText => {
+            userComment = commentText;
+            return formatDealMessage({ ...currentFields, commentText }, CONFIG.DISCORD_LAYOUT);
+          };
+
+          const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
 
           const onCancel = () => {
             shareInFlight.delete(shareKey);
             shareBtn.disabled = false;
           };
 
-          const onSend = async (targetChannel, controller) => {
+          const onSend = async (targetChannel, controller, { comment } = {}) => {
             if (!readyPayload) return;
+            const finalComment = comment ?? userComment;
+            const finalFields = { ...currentFields, commentText: finalComment };
+            const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
+            const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...finalFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+            const payloadToSend = {
+              ...readyPayload,
+              content,
+              forumContent
+            };
             try {
-              await sendDealToChannel(targetChannel, readyPayload, stillFresh);
+              await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
               controller.close();
               shareInFlight.delete(shareKey);
               shareBtn.disabled = false;
@@ -9497,13 +9570,12 @@ const SHADOW_MODAL_STYLES = `
             }
           };
 
-          const { title, url, imageUrl } = extractShareData(card);
-          const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-
           preview = openSharePreviewModal({
             channels,
             onSend,
-            onCancel
+            onCancel,
+            onCommentChange,
+            initialContent
           });
 
           // Background asset preparation runs in parallel with preview display
@@ -9520,13 +9592,6 @@ const SHADOW_MODAL_STYLES = `
                   aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
                 }
               }
-              const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
-              let dealer = extractDealer(card, useShipping);
-              let dealerUrl = extractDealerUrl(card, useShipping);
-              const cachedDealer = getCachedDealer(snap.pid, useShipping);
-              let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
-              let totalOffers = cachedDealer?.totalOffers || 0;
-              let offers = totalOffers || loadedOffers;
               if ((!dealer || !dealerUrl || !offers) && url) {
                 const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
                 if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
@@ -9559,16 +9624,14 @@ const SHADOW_MODAL_STYLES = `
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
               const aiText = aiPromise ? (await aiPromise) : '';
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-              const fields = {
-                title, url, priceText,
+              currentFields = {
+                ...currentFields,
                 dealer, dealerUrl, offerCount: offers,
-                aiText,
-                ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
-                suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
-                suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+                aiText
               };
-              const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
-              const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+              const activeComment = preview?.getComment?.() ?? userComment;
+              const content = formatDealMessage({ ...currentFields, commentText: activeComment }, CONFIG.DISCORD_LAYOUT);
+              const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
               const threadName = buildThreadName(title);
               const productBlob = (png && productDl) ? await productDl : null;
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
@@ -11748,7 +11811,7 @@ const SHADOW_MODAL_STYLES = `
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  function openSharePreviewModal({ channels = [], onSend, onCancel }) {
+  function openSharePreviewModal({ channels = [], onSend, onCancel, onCommentChange, initialContent = '' }) {
     ensureSkeleton();
     const shadow = uiShadowRoot;
     if (!shadow) return null;
@@ -11776,15 +11839,22 @@ const SHADOW_MODAL_STYLES = `
       </div>
 
       <div class="tp-share-preview-body">
-        <div class="tp-share-preview-loading" id="tp-share-preview-loading">
+        <div class="tp-share-preview-loading" id="tp-share-preview-loading"${initialContent ? ' style="display: none;"' : ''}>
           <span class="tp-share-preview-spinner">⏳</span>
           <span>Vorschau wird vorbereitet…</span>
         </div>
         <div class="tp-share-preview-error" id="tp-share-preview-error" style="display: none;"></div>
 
-        <div class="tp-share-preview-content-wrap" id="tp-share-preview-content-wrap" style="display: none;">
+        <div class="tp-share-preview-content-wrap" id="tp-share-preview-content-wrap"${initialContent ? '' : ' style="display: none;"'}>
           <div class="tp-share-preview-label">Discord-Vorschau:</div>
-          <div class="tp-share-preview-message" id="tp-share-preview-message"></div>
+          <div class="tp-share-preview-message" id="tp-share-preview-message">${initialContent ? renderDiscordMarkdownPreview(initialContent) : ''}</div>
+          <div class="tp-share-comment-wrap">
+            <div class="tp-share-comment-header">
+              <label for="tp-share-comment-input" class="tp-share-preview-label">Kommentar (optional):</label>
+              <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 1000</span>
+            </div>
+            <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="1000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+          </div>
           <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
         </div>
       </div>
@@ -11807,6 +11877,8 @@ const SHADOW_MODAL_STYLES = `
     const channelBtns = dialog.querySelectorAll('.tp-share-channel-btn');
     const closeBtn = dialog.querySelector('.tp-share-preview-close');
     const cancelBtn = dialog.querySelector('.tp-share-cancel-btn');
+    const commentInput = dialog.querySelector('#tp-share-comment-input');
+    const commentCount = dialog.querySelector('#tp-share-comment-count');
 
     const createdUrls = [];
 
@@ -11833,6 +11905,31 @@ const SHADOW_MODAL_STYLES = `
     closeBtn?.addEventListener('click', handleCancel);
     cancelBtn?.addEventListener('click', handleCancel);
 
+    const updateCount = () => {
+      if (commentCount && commentInput) {
+        commentCount.textContent = `${commentInput.value.length} / 1000`;
+      }
+    };
+
+    commentInput?.addEventListener('input', () => {
+      updateCount();
+      const currentVal = commentInput.value;
+      if (onCommentChange && messageEl) {
+        const updated = onCommentChange(currentVal);
+        if (typeof updated === 'string') {
+          messageEl.innerHTML = renderDiscordMarkdownPreview(updated);
+        }
+      }
+    });
+
+    commentInput?.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        const firstActiveBtn = [...channelBtns].find(b => !b.disabled);
+        firstActiveBtn?.click();
+      }
+    });
+
     dialog.addEventListener('click', e => {
       if (e.target !== dialog) return;
       const rect = dialog.getBoundingClientRect();
@@ -11852,12 +11949,22 @@ const SHADOW_MODAL_STYLES = `
 
     const controller = {
       dialog,
+      getComment() {
+        return commentInput ? commentInput.value.trim() : '';
+      },
       updateContent({ formattedContent, chartBlob, productBlob, keepaBlob }) {
         if (loadingEl) loadingEl.style.display = 'none';
         if (errorEl) errorEl.style.display = 'none';
 
+        const currentComment = commentInput ? commentInput.value : '';
+        let displayMsg = formattedContent || '';
+        if (currentComment && onCommentChange) {
+          const recomputed = onCommentChange(currentComment);
+          if (typeof recomputed === 'string') displayMsg = recomputed;
+        }
+
         if (messageEl) {
-          messageEl.innerHTML = renderDiscordMarkdownPreview(formattedContent || '');
+          messageEl.innerHTML = renderDiscordMarkdownPreview(displayMsg);
         }
 
         if (imagesEl) {
@@ -11938,7 +12045,8 @@ const SHADOW_MODAL_STYLES = `
         const targetChannel = channels.find(c => c.id === channelId);
         if (!targetChannel) return;
         controller.setSending(channelId);
-        onSend?.(targetChannel, controller);
+        const comment = commentInput ? commentInput.value.trim() : '';
+        onSend?.(targetChannel, controller, { comment });
       });
     });
 
@@ -11947,6 +12055,8 @@ const SHADOW_MODAL_STYLES = `
     } else {
       dialog.setAttribute('open', '');
     }
+
+    setTimeout(() => commentInput?.focus(), 50);
 
     return controller;
   }
@@ -14250,7 +14360,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   triggerProcessListings();
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.446';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.447';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

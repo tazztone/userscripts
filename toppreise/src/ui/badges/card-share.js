@@ -139,16 +139,52 @@ export function renderShareButton(ctx, cd) {
 
         let preview = null;
         let readyPayload = null;
+        let userComment = '';
+
+        const { title, url, imageUrl } = extractShareData(card);
+        const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
+        const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
+        let dealer = extractDealer(card, useShipping);
+        let dealerUrl = extractDealerUrl(card, useShipping);
+        const cachedDealer = getCachedDealer(snap.pid, useShipping);
+        let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
+        let totalOffers = cachedDealer?.totalOffers || 0;
+        let offers = totalOffers || loadedOffers;
+
+        let currentFields = {
+          title, url, priceText,
+          dealer, dealerUrl, offerCount: offers,
+          aiText: '',
+          ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
+          suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
+          suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+        };
+
+        const onCommentChange = commentText => {
+          userComment = commentText;
+          return formatDealMessage({ ...currentFields, commentText }, CONFIG.DISCORD_LAYOUT);
+        };
+
+        const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
 
         const onCancel = () => {
           shareInFlight.delete(shareKey);
           shareBtn.disabled = false;
         };
 
-        const onSend = async (targetChannel, controller) => {
+        const onSend = async (targetChannel, controller, { comment } = {}) => {
           if (!readyPayload) return;
+          const finalComment = comment ?? userComment;
+          const finalFields = { ...currentFields, commentText: finalComment };
+          const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
+          const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...finalFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+          const payloadToSend = {
+            ...readyPayload,
+            content,
+            forumContent
+          };
           try {
-            await sendDealToChannel(targetChannel, readyPayload, stillFresh);
+            await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
             controller.close();
             shareInFlight.delete(shareKey);
             shareBtn.disabled = false;
@@ -172,13 +208,12 @@ export function renderShareButton(ctx, cd) {
           }
         };
 
-        const { title, url, imageUrl } = extractShareData(card);
-        const priceText = fresh.cardPrice > 0 ? `CHF ${fresh.cardPrice.toFixed(2)}` : '';
-
         preview = openSharePreviewModal({
           channels,
           onSend,
-          onCancel
+          onCancel,
+          onCommentChange,
+          initialContent
         });
 
         // Background asset preparation runs in parallel with preview display
@@ -195,13 +230,6 @@ export function renderShareButton(ctx, cd) {
                 aiPromise = fetchTavilySummary(CONFIG.TAVILY_API_KEY, query, { timeoutMs: 4000 }).catch(() => '');
               }
             }
-            const useShipping = snap.basis ? snap.basis === 'shipping' : isShippingPriceActive(card);
-            let dealer = extractDealer(card, useShipping);
-            let dealerUrl = extractDealerUrl(card, useShipping);
-            const cachedDealer = getCachedDealer(snap.pid, useShipping);
-            let loadedOffers = fresh.offerCount || cachedDealer?.offers || 0;
-            let totalOffers = cachedDealer?.totalOffers || 0;
-            let offers = totalOffers || loadedOffers;
             if ((!dealer || !dealerUrl || !offers) && url) {
               const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
               if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
@@ -234,16 +262,14 @@ export function renderShareButton(ctx, cd) {
             if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
             const aiText = aiPromise ? (await aiPromise) : '';
             if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
-            const fields = {
-              title, url, priceText,
+            currentFields = {
+              ...currentFields,
               dealer, dealerUrl, offerCount: offers,
-              aiText,
-              ...resolveShareFields(fresh.cardPrice, fresh.verifiedStats),
-              suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
-              suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
+              aiText
             };
-            const content = formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
-            const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...fields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+            const activeComment = preview?.getComment?.() ?? userComment;
+            const content = formatDealMessage({ ...currentFields, commentText: activeComment }, CONFIG.DISCORD_LAYOUT);
+            const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
             const threadName = buildThreadName(title);
             const productBlob = (png && productDl) ? await productDl : null;
             if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }

@@ -387,6 +387,43 @@ export const SHADOW_MODAL_STYLES = `
   .tp-share-preview-message .tp-md-link { font-weight: 700; color: #00a8fc; text-decoration: none; }
   .tp-share-preview-message .tp-md-url { opacity: .65; font-size: 11px; }
   .tp-share-preview-message .tp-md-quote { display: block; border-left: 3px solid #5865f2; padding-left: 8px; margin: 2px 0; opacity: .9; }
+  .tp-share-comment-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .tp-share-comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tp-share-comment-count {
+    font-size: 11px;
+    color: var(--tp-mut);
+    font-variant-numeric: tabular-nums;
+  }
+  .tp-share-comment-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+    max-height: 120px;
+    resize: vertical;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.4;
+    border: 1px solid var(--tp-line-soft);
+    background: var(--tp-bg, #ffffff);
+    color: var(--tp-txt, #1e293b);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tp-share-comment-input:focus {
+    outline: none;
+    border-color: #5865f2;
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+  }
   .tp-share-preview-images {
     display: flex;
     gap: 8px;
