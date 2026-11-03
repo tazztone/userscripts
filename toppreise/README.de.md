@@ -130,10 +130,10 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 ### 💬 1-Klick Discord Deal-Sharing (`📤`)
 
-* **Interaktive Vorschau & Multi-Channel:** Verifizierte Tiefstpreis-Karten zeigen bei Hover einen `📤`-Button. Ein Klick öffnet ein Vorschau-Modal mit formatiertem Markdown und Bildvorschau sowie Aktions-Buttons für jeden konfigurierten Kanal (z.B. `#deals`, `#gaming`).
+* **Interaktive Vorschau, eigener Kommentar & Multi-Channel:** Verifizierte Tiefstpreis-Karten zeigen bei Hover einen `📤`-Button. Ein Klick öffnet ein Vorschau-Modal mit formatiertem Markdown und Bildvorschau, optionalem Kommentarfeld (für Gutscheincodes, Bedingungen oder Notizen mit Live-Markdown-Vorschau und `Ctrl+Enter`-Schnellversand) sowie Aktions-Buttons für jeden konfigurierten Kanal (z.B. `#deals`, `#gaming`).
 * **Mehrere Webhook-Kanäle:** Beliebig viele benannte Discord-Webhooks in den Einstellungen verwalten (vertraulich in `GM_setValue`, nie exportiert oder committet).
 * **High-DPI Chart & Produktbild:** Rendert den Preisverlauf mit Achsenraster als PNG und hängt ihn zusammen mit dem Produktbild an (dient in Foren-Kanälen als Thread-Vorschau), inklusive automatischem Amazon-Keepa-Verlauf bei Amazon-Deals.
-* **Layout-Baukasten:** Eigene Nachrichtenstruktur mit Tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), Presets (*Kompakt*, *Ausführlich*, *Minimal*), Live-Markdown-Vorschau und getrennten Embed-Schaltern.
+* **Layout-Baukasten:** Eigene Nachrichtenstruktur mit Tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{comment}`, `{link}`), Presets (*Kompakt*, *Ausführlich*, *Minimal*), Live-Markdown-Vorschau und getrennten Embed-Schaltern.
 
 ---
 
@@ -212,7 +212,7 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 3. **💎 Sortieren:** Tiefstpreis-Sortierung nach Gewichteter Differenz (`💎`) und Angebots-/Rabatt-Sortierung (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtern:** Preis-Toleranz (%) für Händler-Bestpreis; Verweis auf Negativ-Begriffe, Min-Angebote, Ungeprüfte und Fallback-Tiefs im Filterleisten-Popover.
 5. **🔔 Preisalarm:** Zielpreis-Prozentsatz (5%–99%, Standard 60%), Laufzeit (3, 6, 12, 24 Monate) und automatisches Absenden & Schliessen.
-6. **💬 Discord Share:** Vertrauliche Webhook-Kanäle (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, `{ai}`, etc.), Presets und Live-Markdown-Vorschau.
+6. **💬 Discord Share:** Vertrauliche Webhook-Kanäle (nur lokal in `GM_setValue`), Embed-Unterdrückung, Layout-Baukasten mit Tokens (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.), Presets und Live-Markdown-Vorschau.
 7. **💾 Daten & Cache:** Händler-Autoload, Gewichtete Differenz (Sortierung + Farb-Emphase), Mindest-Datenpunkte, Median-Berechnungszeitraum, Prüf-Vorauswahl für Batch-Check, Versandkosten-Basis (`inkl. Versand`), Sparklines, Cache-TTL, Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`) und Konfigurations-Export/Import.
 
 ---

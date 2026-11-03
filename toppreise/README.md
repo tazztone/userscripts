@@ -130,10 +130,10 @@ Requires a userscript manager browser extension:
 
 ### 💬 1-Click Discord Deal Sharing (`📤`)
 
-* **Interactive Preview & Multi-Channel Support:** Verified all-time low cards display a `📤` button on hover. Clicking opens a real-time preview modal with rendered Markdown and chart/product images, featuring individual action buttons for each configured channel (e.g., `#deals`, `#gaming`).
+* **Interactive Preview, Custom Comment & Multi-Channel Support:** Verified all-time low cards display a `📤` button on hover. Clicking opens a real-time preview modal with rendered Markdown and chart/product images, an optional comment field (for voucher codes, remarks, or notes with live Markdown update and `Ctrl+Enter` quick dispatch), and individual action buttons for each configured channel (e.g., `#deals`, `#gaming`).
 * **Multiple Webhook Channels:** Configure and name multiple Discord webhooks in settings (confidential, stored locally in `GM_setValue`, never committed or exported).
 * **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels), automatically appending the Amazon Keepa history chart for Amazon deals.
-* **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
+* **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{comment}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
 
 ---
 
@@ -202,7 +202,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 | # | Setting / Action | Description |
 |---|---|---|
 | ① | **Discord Channels & Webhooks** | Configures confidential webhook URLs for multiple named Discord channels (never committed or exported). |
-| ② | **Discord Layout Chips** | Variable token builder (`{title}`, `{price}`, `{dealer}`, `{prevlow}`, `{median}`, `{link}`). |
+| ② | **Discord Layout Chips** | Variable token builder (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{comment}`, `{link}`). |
 | ③ | **Live Markdown Preview** | Instant preview of the rendered Discord embed and message structure. |
 | ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically for deals meeting threshold (max. 3 parallel). |
 | ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
@@ -212,7 +212,7 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 3. **💎 Sorting (*Sortieren*):** Authentic deal scoring sort (`💎 Tiefstpreis-Sortierung`) and secondary offer/discount sorting (`Standard`, `Meiste ⬇`, `Wenigste ⬆`, `% Rabatt ⬇`).
 4. **🧹 Filtering (*Filtern*):** Preferred dealer price tolerance margin (%); note directing to filter bar popover for negative keywords, min offers, unverified, and fallback lows.
 5. **🔔 Price Alarm (*Preisalarm*):** Target price percentage (5%–99%, default 60%), alarm duration (3, 6, 12, 24 months), and Auto-Submit toggle.
-6. **💬 Discord Share:** Confidential webhook channels (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, `{ai}`, etc.), presets, and live Markdown preview.
+6. **💬 Discord Share:** Confidential webhook channels (`GM_setValue` only), link embed suppression, layout token builder (`{title}`, `{price}`, `{ai}`, `{comment}`, etc.), presets, and live Markdown preview.
 7. **💾 Data & Cache (*Daten & Cache*):** Dealer background autoload, weighted deal blend slider (record vs. median), minimum history data points, rolling median horizon, batch check discount threshold, shipping basis (`inkl. Versand`), sparklines, configurable RAM & disk cache limits, cache TTL, cache purge (`🗑️`), full reset (`🧨`), and JSON configuration export/import.
 
 ---
