@@ -264,7 +264,7 @@ describe('Product Detail Page Feature Suite', () => {
     assert.ok(spark, 'Sparkline container should exist');
     assert.ok(spark.classList.contains('tp-sparkline-container'));
     assert.equal(spark.dataset.tpPopoutBound, 'true');
-    assert.equal(chart.dataset.tpChartBound, 'true');
+    assert.equal(chart.dataset.tpChartBound, undefined, 'Native chart click should remain untouched');
   });
 
   it('cleans up decorations via removeDetailDecorations', () => {

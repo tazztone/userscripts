@@ -217,17 +217,6 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
         openPopout();
       }
     });
-
-    if (chartEl && !chartEl.dataset.tpChartBound) {
-      chartEl.dataset.tpChartBound = 'true';
-      chartEl.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        openPopout();
-      });
-      chartEl.style.cursor = 'pointer';
-      chartEl.title = 'Interaktiven Preisverlauf öffnen (inkl. Keepa)';
-    }
   }
 
   const svg = renderSparkline(series, 64, 18);
