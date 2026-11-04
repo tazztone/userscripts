@@ -49,6 +49,14 @@ export const STYLES_CARDS = `
     pointer-events: none;
     z-index: 5;
   }
+  /* Newly arrived card from in-place feed refresh */
+  .tp-fresh-arrival {
+    animation: tp-arrival-glow 2.5s ease-out !important;
+  }
+  @keyframes tp-arrival-glow {
+    0% { outline: 2px solid var(--tp-acc); box-shadow: 0 0 14px rgba(16, 185, 129, 0.45); }
+    100% { outline: 2px solid transparent; box-shadow: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .tp-deal-fresh { animation: none; }
   }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.458
+// @version      2.18.459
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -119,6 +119,14 @@ const STYLES_CARDS = `
     border-radius: var(--tp-r-pill);
     pointer-events: none;
     z-index: 5;
+  }
+  /* Newly arrived card from in-place feed refresh */
+  .tp-fresh-arrival {
+    animation: tp-arrival-glow 2.5s ease-out !important;
+  }
+  @keyframes tp-arrival-glow {
+    0% { outline: 2px solid var(--tp-acc); box-shadow: 0 0 14px rgba(16, 185, 129, 0.45); }
+    100% { outline: 2px solid transparent; box-shadow: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .tp-deal-fresh { animation: none; }
@@ -1872,6 +1880,33 @@ const STYLES_OVERLAYS = `
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
   #tp-floating-check-main { font-size: 11.5px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-sub { font-size: 9.5px !important; font-weight: 500 !important; white-space: nowrap !important; }
+  #tp-floating-refresh-btn {
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    border-radius: 999px !important;
+    color: var(--tp-txt-dim) !important;
+    padding: 0 8px !important;
+    height: 28px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box !important;
+    transition: transform 0.2s ease, background 0.15s ease !important;
+  }
+  #tp-floating-refresh-btn:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.08) !important; }
+  #tp-floating-refresh-btn.tp-spinning {
+    animation: tp-spin 0.8s linear infinite !important;
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+  }
+  @keyframes tp-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
   #tp-floating-threshold-btn {
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
@@ -1941,7 +1976,7 @@ const STYLES_OVERLAYS = `
     box-sizing: border-box !important;
   }
   #tp-floating-cta-collapse:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.10) !important; }
-  #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
+  #tp-floating-check-btn:focus-visible, #tp-floating-refresh-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
   #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
@@ -1950,6 +1985,7 @@ const STYLES_OVERLAYS = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 24px !important; height: 24px !important; }
@@ -13592,6 +13628,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const FLOATING_CTA_ID = 'tp-floating-check-cta';
   const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
 
@@ -13600,15 +13637,18 @@ const SHADOW_MODAL_STYLES = `
   let lastIsDealFeed = false;
 
   /**
-   * Pure label state machine (no DOM): idle → scanning → done (empty).
+   * Pure label state machine (no DOM): idle → scanning → refreshing → done (empty).
    * The done state keeps the action name with a 0 count so the CTA never
    * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
    * Unit-tested in tests/unit/floating-cta.test.js.
    */
-  function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, total = 0 } = {}) {
+  function ctaStateFor({ unchecked = 0, isScanning = false, isRefreshing = false, completed = 0, total = 0 } = {}) {
     if (isScanning) {
       const progress = total > 0 ? ` (${completed}/${total})` : '';
       return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
+    }
+    if (isRefreshing) {
+      return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
     }
     if (unchecked > 0) {
       const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
@@ -13665,7 +13705,11 @@ const SHADOW_MODAL_STYLES = `
     }
     const unchecked = lastCounts.uncheckedDeals || 0;
     if (unchecked <= 0) {
-      showToast('Keine ungeprüften Deals vorhanden');
+      if (isFeedRefreshing()) {
+        showToast('Feed wird bereits aktualisiert');
+        return;
+      }
+      refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
       return;
     }
     const minDisc = realDealMinDiscount();
@@ -13733,6 +13777,7 @@ const SHADOW_MODAL_STYLES = `
           <span>🏬 Händler laden</span>
         </label>
       </div>
+      <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
       <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab Schwelle prüfen">≥30% ▾</button>
       <div id="tp-floating-threshold-popover" role="menu">
         <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
@@ -13761,6 +13806,12 @@ const SHADOW_MODAL_STYLES = `
 
     el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
     el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
+    const refreshBtnEl = el.querySelector('#tp-floating-refresh-btn');
+    if (refreshBtnEl) {
+      refreshBtnEl.onclick = () => {
+        refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
+      };
+    }
 
     const threshBtn = el.querySelector('#tp-floating-threshold-btn');
     threshBtn.onclick = e => {
@@ -13786,9 +13837,11 @@ const SHADOW_MODAL_STYLES = `
     if (!el) return;
     const state = scanState;
     const unchecked = lastCounts.uncheckedDeals || 0;
+    const refreshing = isFeedRefreshing();
     const { mainLabel, subLabel, mode } = ctaStateFor({
       unchecked,
       isScanning: state.isBatchChecking,
+      isRefreshing: refreshing,
       completed: state.progress?.completed || 0,
       total: state.progress?.total || 0
     });
@@ -13798,6 +13851,7 @@ const SHADOW_MODAL_STYLES = `
     setTextIfChanged(subEl, subLabel);
     subEl.style.display = subLabel ? 'block' : 'none';
     el.classList.toggle('tp-scanning', mode === 'scanning');
+    el.classList.toggle('tp-refreshing', mode === 'refreshing');
     // Empty (0 deals) stays visible but dimmed via .tp-empty (grey instead of
     // green) — the CTA must never disappear, only de-emphasize.
     el.classList.toggle('tp-empty', mode === 'done');
@@ -13808,8 +13862,13 @@ const SHADOW_MODAL_STYLES = `
     const total = state.progress?.total || 0;
     setTextIfChanged(
       el.querySelector('#tp-floating-check-count'),
-      mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : `🔍 ${unchecked}`
+      mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : (mode === 'refreshing' ? '⏳' : `🔍 ${unchecked}`)
     );
+    const refreshBtn = el.querySelector('#tp-floating-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.classList.toggle('tp-spinning', refreshing);
+      refreshBtn.disabled = refreshing;
+    }
     const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
     setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
     collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
@@ -14935,7 +14994,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.458';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.459';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

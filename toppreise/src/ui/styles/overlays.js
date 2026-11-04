@@ -387,6 +387,33 @@ export const STYLES_OVERLAYS = `
   #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
   #tp-floating-check-main { font-size: 11.5px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-sub { font-size: 9.5px !important; font-weight: 500 !important; white-space: nowrap !important; }
+  #tp-floating-refresh-btn {
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    border-radius: 999px !important;
+    color: var(--tp-txt-dim) !important;
+    padding: 0 8px !important;
+    height: 28px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box !important;
+    transition: transform 0.2s ease, background 0.15s ease !important;
+  }
+  #tp-floating-refresh-btn:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.08) !important; }
+  #tp-floating-refresh-btn.tp-spinning {
+    animation: tp-spin 0.8s linear infinite !important;
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+  }
+  @keyframes tp-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
   #tp-floating-threshold-btn {
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
@@ -456,7 +483,7 @@ export const STYLES_OVERLAYS = `
     box-sizing: border-box !important;
   }
   #tp-floating-cta-collapse:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.10) !important; }
-  #tp-floating-check-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
+  #tp-floating-check-btn:focus-visible, #tp-floating-refresh-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
   #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   /* Collapsed form: compact count pill — the action stays one click away. */
   #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
@@ -465,6 +492,7 @@ export const STYLES_OVERLAYS = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
+  #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 24px !important; height: 24px !important; }

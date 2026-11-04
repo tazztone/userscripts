@@ -30,6 +30,7 @@ import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
 import { getCardProductId } from "../page/cards.js";
+import { refreshFeed, isFeedRefreshing } from "../page/feed-refresh.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 export const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
@@ -39,15 +40,18 @@ let lastCounts = { uncheckedDeals: 0 };
 let lastIsDealFeed = false;
 
 /**
- * Pure label state machine (no DOM): idle → scanning → done (empty).
+ * Pure label state machine (no DOM): idle → scanning → refreshing → done (empty).
  * The done state keeps the action name with a 0 count so the CTA never
  * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
  * Unit-tested in tests/unit/floating-cta.test.js.
  */
-export function ctaStateFor({ unchecked = 0, isScanning = false, completed = 0, total = 0 } = {}) {
+export function ctaStateFor({ unchecked = 0, isScanning = false, isRefreshing = false, completed = 0, total = 0 } = {}) {
   if (isScanning) {
     const progress = total > 0 ? ` (${completed}/${total})` : '';
     return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
+  }
+  if (isRefreshing) {
+    return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
   }
   if (unchecked > 0) {
     const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
@@ -104,7 +108,11 @@ export function startBatchCheck() {
   }
   const unchecked = lastCounts.uncheckedDeals || 0;
   if (unchecked <= 0) {
-    showToast('Keine ungeprüften Deals vorhanden');
+    if (isFeedRefreshing()) {
+      showToast('Feed wird bereits aktualisiert');
+      return;
+    }
+    refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
     return;
   }
   const minDisc = realDealMinDiscount();
@@ -172,6 +180,7 @@ function ensureCta() {
         <span>🏬 Händler laden</span>
       </label>
     </div>
+    <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
     <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab Schwelle prüfen">≥30% ▾</button>
     <div id="tp-floating-threshold-popover" role="menu">
       <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
@@ -200,6 +209,12 @@ function ensureCta() {
 
   el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
   el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
+  const refreshBtnEl = el.querySelector('#tp-floating-refresh-btn');
+  if (refreshBtnEl) {
+    refreshBtnEl.onclick = () => {
+      refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
+    };
+  }
 
   const threshBtn = el.querySelector('#tp-floating-threshold-btn');
   threshBtn.onclick = e => {
@@ -225,9 +240,11 @@ function syncFloatingCTA() {
   if (!el) return;
   const state = scanState;
   const unchecked = lastCounts.uncheckedDeals || 0;
+  const refreshing = isFeedRefreshing();
   const { mainLabel, subLabel, mode } = ctaStateFor({
     unchecked,
     isScanning: state.isBatchChecking,
+    isRefreshing: refreshing,
     completed: state.progress?.completed || 0,
     total: state.progress?.total || 0
   });
@@ -237,6 +254,7 @@ function syncFloatingCTA() {
   setTextIfChanged(subEl, subLabel);
   subEl.style.display = subLabel ? 'block' : 'none';
   el.classList.toggle('tp-scanning', mode === 'scanning');
+  el.classList.toggle('tp-refreshing', mode === 'refreshing');
   // Empty (0 deals) stays visible but dimmed via .tp-empty (grey instead of
   // green) — the CTA must never disappear, only de-emphasize.
   el.classList.toggle('tp-empty', mode === 'done');
@@ -247,8 +265,13 @@ function syncFloatingCTA() {
   const total = state.progress?.total || 0;
   setTextIfChanged(
     el.querySelector('#tp-floating-check-count'),
-    mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : `🔍 ${unchecked}`
+    mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : (mode === 'refreshing' ? '⏳' : `🔍 ${unchecked}`)
   );
+  const refreshBtn = el.querySelector('#tp-floating-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.classList.toggle('tp-spinning', refreshing);
+    refreshBtn.disabled = refreshing;
+  }
   const collapseBtn = el.querySelector('#tp-floating-cta-collapse');
   setTextIfChanged(collapseBtn, collapsedForSession ? '»' : '«');
   collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
