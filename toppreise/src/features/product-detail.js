@@ -98,16 +98,27 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
     '.Plugin_PriceInformation.price_information_product, .f_priceContainer .Plugin_PriceInformation, .f_priceContainerFixIE .Plugin_PriceInformation'
   );
   for (const block of priceInfoBlocks) {
-    const shipping = block.querySelector('.shippingText');
-    const pc = block.querySelector('.priceContainer');
-    targets.push(shipping || pc || block);
+    const shippingNodes = block.querySelectorAll('.shippingText');
+    if (shippingNodes && shippingNodes.length > 0) {
+      for (const st of shippingNodes) {
+        if (!targets.includes(st)) targets.push(st);
+      }
+    } else {
+      const pcNodes = block.querySelectorAll('.priceContainer');
+      if (pcNodes && pcNodes.length > 0) {
+        for (const pc of pcNodes) {
+          if (!targets.includes(pc)) targets.push(pc);
+        }
+      } else {
+        targets.push(block);
+      }
+    }
   }
   if (targets.length === 0) {
-    const fallback = document.querySelector('.shippingText')
-      || document.querySelector('.priceContainer')
-      || document.querySelector('.Plugin_PriceInformation')
-      || document.querySelector('.Plugin_Price');
-    if (fallback) targets.push(fallback);
+    const fallbacks = document.querySelectorAll('.shippingText, .priceContainer, .Plugin_PriceInformation, .Plugin_Price');
+    for (const fb of fallbacks) {
+      if (!targets.includes(fb)) targets.push(fb);
+    }
   }
 
   const displayKind = getDisplayDelta(currentPrice, stats).kind;
@@ -165,7 +176,8 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
   for (let i = 0; i < targets.length; i++) {
     const target = targets[i];
     const parent = target.parentElement || target;
-    let subline = parent.querySelector?.('.tp-detail-subline');
+    let subline = (target.nextElementSibling?.classList?.contains('tp-detail-subline') ? target.nextElementSibling : null)
+      || parent.querySelector?.('.tp-detail-subline');
     if (!subline) {
       subline = document.createElement('div');
       if (i === 0 && !document.getElementById('tp-detail-subline')) {
@@ -307,8 +319,16 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
   sparkContainer._tpSeries = series;
   sparkContainer._tpTitle = title;
 
-  const lastTs = series.length ? +series[series.length - 1][0] || 0 : 0;
-  const sig = [series.length, priceToCents(currentPrice), priceToCents(stats?.medianPrice ?? 0), stats?.time || 0, lastTs].join(':');
+  const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
+  const lastPriceCents = priceToCents(currentPrice);
+  const sig = [
+    baseSeries.length,
+    lastPriceCents,
+    priceToCents(stats?.medianPrice ?? 0),
+    priceToCents(stats?.tiefstpreis ?? 0),
+    stats?.time || 0,
+    baseLastTs
+  ].join(':');
   if (sparkContainer.dataset.tpSparkSig === sig) {
     return;
   }

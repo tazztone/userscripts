@@ -470,4 +470,72 @@ describe('Product Detail Page Feature Suite', () => {
       assert.equal(spark.firstElementChild, initialSvg, `Pass ${i + 1} must not replace SVG child`);
     }
   });
+
+  it('renderDetailSubline attaches subline to both shipping and product price containers within Plugin_PriceInformation', () => {
+    const priceBox = mockNode('div');
+    priceBox.className = 'f_priceContainer';
+    const priceInfo = mockNode('div');
+    priceInfo.className = 'Plugin_PriceInformation price_information_product';
+
+    // Shipping price container (hidden by default on Toppreise)
+    const pcShipping = mockNode('div');
+    pcShipping.className = 'priceContainer shippingPrice';
+    const stShipping = mockNode('div');
+    stShipping.className = 'shippingText';
+    stShipping.textContent = 'inkl. Versandkosten';
+    pcShipping.appendChild(stShipping);
+
+    // Product price container (visible by default on Toppreise)
+    const pcProduct = mockNode('div');
+    pcProduct.className = 'priceContainer productPrice';
+    const stProduct = mockNode('div');
+    stProduct.className = 'shippingText';
+    stProduct.textContent = 'zzgl. Versandkosten';
+    pcProduct.appendChild(stProduct);
+
+    priceInfo.appendChild(pcShipping);
+    priceInfo.appendChild(pcProduct);
+    priceBox.appendChild(priceInfo);
+    document.body.appendChild(priceBox);
+
+    const stats = {
+      tiefstpreis: 1000,
+      previousLow: 1200,
+      medianPrice: 1300,
+      horizonDays: 365,
+      timeSeries: [[1000, 1200], [2000, 1000]]
+    };
+
+    renderDetailSubline(stats, 1000, 'product');
+
+    // Both containers must receive their own subline
+    assert.ok(pcShipping.querySelector('.tp-detail-subline'), 'Shipping container has subline');
+    assert.ok(pcProduct.querySelector('.tp-detail-subline'), 'Product container has subline (visible below zzgl. Versandkosten)');
+  });
+
+  it('renderDetailSparkline signature remains stable even when withLivePrice appends a live point', () => {
+    const chartEl = mockNode('div');
+    chartEl.className = 'chartProductPrice';
+    document.body.appendChild(chartEl);
+
+    const stats = {
+      tiefstpreis: 1000,
+      medianPrice: 1300,
+      time: 123456,
+      timeSeries: [[1000, 1200], [2000, 1100]] // Last price is 1100, live is 1000
+    };
+
+    // First render creates sparkline and SVG
+    renderDetailSparkline('867323', 'Surface Laptop', 1000, stats);
+    const spark = document.getElementById('tp-detail-sparkline');
+    assert.ok(spark, 'Sparkline created');
+    const firstSig = spark.dataset.tpSparkSig;
+    const initialSvg = spark.firstElementChild;
+    assert.ok(initialSvg, 'Initial SVG rendered');
+
+    // Subsequent call with same stats and price must produce exact same signature and keep same SVG
+    renderDetailSparkline('867323', 'Surface Laptop', 1000, stats);
+    assert.equal(spark.dataset.tpSparkSig, firstSig, 'Signature must be stable across calls');
+    assert.equal(spark.firstElementChild, initialSvg, 'SVG must not be replaced');
+  });
 });

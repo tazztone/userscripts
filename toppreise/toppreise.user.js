@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.456
+// @version      2.18.457
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -14229,16 +14229,27 @@ const SHADOW_MODAL_STYLES = `
       '.Plugin_PriceInformation.price_information_product, .f_priceContainer .Plugin_PriceInformation, .f_priceContainerFixIE .Plugin_PriceInformation'
     );
     for (const block of priceInfoBlocks) {
-      const shipping = block.querySelector('.shippingText');
-      const pc = block.querySelector('.priceContainer');
-      targets.push(shipping || pc || block);
+      const shippingNodes = block.querySelectorAll('.shippingText');
+      if (shippingNodes && shippingNodes.length > 0) {
+        for (const st of shippingNodes) {
+          if (!targets.includes(st)) targets.push(st);
+        }
+      } else {
+        const pcNodes = block.querySelectorAll('.priceContainer');
+        if (pcNodes && pcNodes.length > 0) {
+          for (const pc of pcNodes) {
+            if (!targets.includes(pc)) targets.push(pc);
+          }
+        } else {
+          targets.push(block);
+        }
+      }
     }
     if (targets.length === 0) {
-      const fallback = document.querySelector('.shippingText')
-        || document.querySelector('.priceContainer')
-        || document.querySelector('.Plugin_PriceInformation')
-        || document.querySelector('.Plugin_Price');
-      if (fallback) targets.push(fallback);
+      const fallbacks = document.querySelectorAll('.shippingText, .priceContainer, .Plugin_PriceInformation, .Plugin_Price');
+      for (const fb of fallbacks) {
+        if (!targets.includes(fb)) targets.push(fb);
+      }
     }
 
     const displayKind = getDisplayDelta(currentPrice, stats).kind;
@@ -14296,7 +14307,8 @@ const SHADOW_MODAL_STYLES = `
     for (let i = 0; i < targets.length; i++) {
       const target = targets[i];
       const parent = target.parentElement || target;
-      let subline = parent.querySelector?.('.tp-detail-subline');
+      let subline = (target.nextElementSibling?.classList?.contains('tp-detail-subline') ? target.nextElementSibling : null)
+        || parent.querySelector?.('.tp-detail-subline');
       if (!subline) {
         subline = document.createElement('div');
         if (i === 0 && !document.getElementById('tp-detail-subline')) {
@@ -14438,8 +14450,16 @@ const SHADOW_MODAL_STYLES = `
     sparkContainer._tpSeries = series;
     sparkContainer._tpTitle = title;
 
-    const lastTs = series.length ? +series[series.length - 1][0] || 0 : 0;
-    const sig = [series.length, priceToCents(currentPrice), priceToCents(stats?.medianPrice ?? 0), stats?.time || 0, lastTs].join(':');
+    const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
+    const lastPriceCents = priceToCents(currentPrice);
+    const sig = [
+      baseSeries.length,
+      lastPriceCents,
+      priceToCents(stats?.medianPrice ?? 0),
+      priceToCents(stats?.tiefstpreis ?? 0),
+      stats?.time || 0,
+      baseLastTs
+    ].join(':');
     if (sparkContainer.dataset.tpSparkSig === sig) {
       return;
     }
@@ -14626,7 +14646,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -14753,9 +14773,6 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   window.addEventListener('popstate', handleRouteTransition);
   window.addEventListener('hashchange', handleRouteTransition);
 
-  setupUI();
-  triggerProcessListings();
-
   async function safeProcessProductDetailPage() {
     if (isModifyingDOM) return;
     isModifyingDOM = true;
@@ -14772,7 +14789,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.456';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.457';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -14812,6 +14829,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       window.ToppreiseSuite = Object.freeze({
         version: suiteVersion,
         processListings,
+        processProductDetailPage: safeProcessProductDetailPage,
         snapshot: () => ({
           checkedCount: scanState.progress.completed,
           queueLength: Math.max(0, scanState.progress.total - scanState.progress.completed),
@@ -14820,4 +14838,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       });
     }
   }
+
+  setupUI();
+  triggerProcessListings();
 })();
