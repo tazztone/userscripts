@@ -23,7 +23,8 @@ export function getCardSortableUnit(card) {
   const collItem = card.closest('.Plugin_ProductCollItem');
   if (collItem) return collItem;
   const parent = card.parentElement;
-  if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
+  const docBody = typeof document !== 'undefined' ? document.body : null;
+  if (parent && parent !== docBody && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
     if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
       return parent;
     }

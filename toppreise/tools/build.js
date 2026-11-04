@@ -76,6 +76,7 @@ export function buildBundle() {
     'features/tavily-search.js',
     'features/share-discord.js',
     'page/sort.js',
+    'page/feed-refresh.js',
     'scanner/scanner.js',
     'ui/fresh-dismiss.js',
     'ui/badges/dom-helpers.js',

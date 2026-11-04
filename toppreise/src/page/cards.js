@@ -35,8 +35,10 @@ export function getDistinctProductIds(el) {
   return Array.from(ids);
 }
 
-export function getProductCards() {
-  const rawCards = Array.from(document.querySelectorAll(SELECTORS.cards.standard));
+export function getProductCards(root = (typeof document !== 'undefined' ? document : null)) {
+  if (!root || !root.querySelectorAll) return [];
+  const bodyEl = root.body || (root.ownerDocument ? root.ownerDocument.body : root);
+  const rawCards = Array.from(root.querySelectorAll(SELECTORS.cards.standard));
   const standardCards = rawCards.filter(c => {
     if (c.closest(SELECTORS.cards.excludedParents)) return false;
     if (c.closest(SELECTORS.cards.hiddenStyles)) return false;
@@ -49,10 +51,10 @@ export function getProductCards() {
   }
 
   const gridCards = new Set();
-  document.querySelectorAll(SELECTORS.cards.productLinks).forEach(link => {
+  root.querySelectorAll(SELECTORS.cards.productLinks).forEach(link => {
     if (link.closest(SELECTORS.cards.excludedParents)) return;
     let container = link.parentElement;
-    while (container && container !== document.body && container.parentElement !== document.body) {
+    while (container && container !== bodyEl && container.parentElement !== bodyEl) {
       if (container.matches && container.matches('.tab-content, .tab-pane, #FrameContent, .standardList, #product-list, main, section')) {
         break;
       }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.457
+// @version      2.18.458
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4744,8 +4744,10 @@ const SHADOW_MODAL_STYLES = `
     return Array.from(ids);
   }
 
-  function getProductCards() {
-    const rawCards = Array.from(document.querySelectorAll(SELECTORS.cards.standard));
+  function getProductCards(root = (typeof document !== 'undefined' ? document : null)) {
+    if (!root || !root.querySelectorAll) return [];
+    const bodyEl = root.body || (root.ownerDocument ? root.ownerDocument.body : root);
+    const rawCards = Array.from(root.querySelectorAll(SELECTORS.cards.standard));
     const standardCards = rawCards.filter(c => {
       if (c.closest(SELECTORS.cards.excludedParents)) return false;
       if (c.closest(SELECTORS.cards.hiddenStyles)) return false;
@@ -4758,10 +4760,10 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const gridCards = new Set();
-    document.querySelectorAll(SELECTORS.cards.productLinks).forEach(link => {
+    root.querySelectorAll(SELECTORS.cards.productLinks).forEach(link => {
       if (link.closest(SELECTORS.cards.excludedParents)) return;
       let container = link.parentElement;
-      while (container && container !== document.body && container.parentElement !== document.body) {
+      while (container && container !== bodyEl && container.parentElement !== bodyEl) {
         if (container.matches && container.matches('.tab-content, .tab-pane, #FrameContent, .standardList, #product-list, main, section')) {
           break;
         }
@@ -8044,7 +8046,8 @@ const SHADOW_MODAL_STYLES = `
     const collItem = card.closest('.Plugin_ProductCollItem');
     if (collItem) return collItem;
     const parent = card.parentElement;
-    if (parent && parent !== document.body && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
+    const docBody = typeof document !== 'undefined' ? document.body : null;
+    if (parent && parent !== docBody && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
       if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
         return parent;
       }
@@ -8283,6 +8286,149 @@ const SHADOW_MODAL_STYLES = `
           row.style.removeProperty('display');
         }
       });
+    }
+  }
+
+  // ─── MODULE: src/page/feed-refresh.js ───────────────────────────────────────
+  /**
+   * Feed Reconciliation & In-Place Refresh Engine
+   * Fetches current page listings in the background and merges newly
+   * arrived cards and updated prices without requiring a full page reload (F5).
+   */
+
+
+
+
+
+
+
+  let isRefreshing = false;
+
+  function isFeedRefreshing() {
+    return isRefreshing;
+  }
+
+  async function fetchFeedHtml(url, customFetch = (typeof fetch !== 'undefined' ? fetch : null)) {
+    if (!customFetch) {
+      throw new Error('Fetch API nicht verfügbar');
+    }
+    const res = await customFetch(url, { cache: 'no-cache' });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return await res.text();
+  }
+
+  function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
+    if (!incomingDoc || !targetDoc) {
+      return { added: 0, updated: 0 };
+    }
+
+    const incomingCards = getProductCards(incomingDoc);
+    if (incomingCards.length === 0) {
+      return { added: 0, updated: 0 };
+    }
+
+    const liveCards = getProductCards(targetDoc);
+    const liveMap = new Map();
+    for (const card of liveCards) {
+      const pid = getCardProductId(card);
+      if (pid) liveMap.set(pid, card);
+    }
+
+    // Find destination container in live document
+    let container = null;
+    if (liveCards.length > 0) {
+      container = getCardSortableUnit(liveCards[0])?.parentElement || null;
+    }
+    if (!container) {
+      for (const sel of SELECTORS.layout.containers) {
+        const el = targetDoc.querySelector(sel);
+        if (el) {
+          container = el;
+          break;
+        }
+      }
+    }
+    if (!container) {
+      return { added: 0, updated: 0 };
+    }
+
+    let added = 0;
+    let updated = 0;
+    const originalAnchor = container.firstElementChild;
+
+    for (let i = 0; i < incomingCards.length; i++) {
+      const inCard = incomingCards[i];
+      const pid = getCardProductId(inCard);
+      if (!pid) continue;
+
+      const existing = liveMap.get(pid);
+      if (existing) {
+        const inPrice = inCard.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim();
+        const livePrice = existing.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim();
+        if (inPrice && livePrice && inPrice !== livePrice) {
+          const inContainer = inCard.querySelector(SELECTORS.price.mainInfo) || inCard.querySelector('.priceContainer');
+          const liveContainer = existing.querySelector(SELECTORS.price.mainInfo) || existing.querySelector('.priceContainer');
+          if (inContainer && liveContainer) {
+            liveContainer.innerHTML = inContainer.innerHTML;
+            clearCardCache(existing);
+            updated++;
+          }
+        }
+      } else {
+        const inUnit = getCardSortableUnit(inCard);
+        if (!inUnit) continue;
+        const adopted = targetDoc.importNode(inUnit, true);
+        adopted.classList.add('tp-fresh-arrival');
+
+        if (originalAnchor && originalAnchor.parentElement === container) {
+          container.insertBefore(adopted, originalAnchor);
+        } else {
+          container.appendChild(adopted);
+        }
+        added++;
+      }
+    }
+
+    return { added, updated };
+  }
+
+  async function refreshFeed({ onStart, onEnd, customFetch } = {}) {
+    if (isRefreshing) {
+      showToast('Feed wird bereits aktualisiert');
+      return;
+    }
+    if (scanState?.isBatchChecking) {
+      showToast('Batch-Prüfung läuft · Bitte warten oder abbrechen');
+      return;
+    }
+
+    isRefreshing = true;
+    onStart?.();
+
+    try {
+      const url = (typeof location !== 'undefined' && location.href) ? location.href : '';
+      const html = await fetchFeedHtml(url, customFetch);
+      const parser = new (typeof DOMParser !== 'undefined' ? DOMParser : null)();
+      if (!parser) throw new Error('DOMParser nicht verfügbar');
+      const doc = parser.parseFromString(html, 'text/html');
+      const { added, updated } = reconcileFeedCards(doc, document);
+
+      if (added > 0 || updated > 0) {
+        triggerProcessListings();
+        const msg = added > 0
+          ? (added === 1 ? '✨ 1 neuer Deal geladen' : `✨ ${added} neue Deals geladen`)
+          : (updated === 1 ? '1 Deal aktualisiert' : `${updated} Deals aktualisiert`);
+        showToast(msg);
+      } else {
+        showToast('Keine neuen Deals gefunden');
+      }
+    } catch (err) {
+      showToast(`Aktualisierung fehlgeschlagen (${err.message || 'Fehler'})`);
+    } finally {
+      isRefreshing = false;
+      onEnd?.();
     }
   }
 
@@ -14789,7 +14935,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.457';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.458';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
