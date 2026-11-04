@@ -31,6 +31,10 @@ _Avoid_: Site-Rabatt, Site-%
 Eine Differenz anhand der Preishistorie verifizieren und dadurch in einen Tiefstpreis (oder Aufschlag) auflösen.
 _Avoid_: Check Deals, checken
 
+**Feed-Aktualisierung**:
+Hintergrund-Abruf der aktuellen Angebotsseite ohne Neuladen (F5): neue Deals werden oben eingefügt (`.tp-fresh-arrival`), Preisänderungen bestehender Karten aktualisiert und ungeprüfte Deals wieder zählbar gemacht. Auslösbar per `🔄`-Button am Floating-CTA oder Klick auf die leere Pill (`Alle geprüft`).
+_Avoid_: Page Reload, F5, Feed-Poller
+
 **Schlechter Deal**:
 Geprüfter Preis, der kein Tiefstpreis ist (Aufschlag gegenüber dem historischen Tief); Badge markiert ihn, Sortierung legt ihn nach hinten — kein Filtergrund, wird nie entfernt.
 _Avoid_: Non-Deal

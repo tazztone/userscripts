@@ -143,7 +143,7 @@ Requires a userscript manager browser extension:
 | --- | --- | --- |
 | **Sticky Filter Bar** | Top of product listings | Filter by negative keywords, minimum offers, and per-cause modes; toggle Heatmap and Tiefstpreis-Sortierung; open the `⚖️` calculation popover. |
 | **Category Sidebar (`▸`/`▾`)** | Left sidebar on deal feeds | Expand/collapse subcategories, search across 2,500+ categories, or navigate to sub-feeds. |
-| **Floating Check CTA** | Bottom-left floating pill | One-click batch verification of all visible deals meeting the discount threshold (`≥X%`), with an inline `🏬` dealer auto-fetch toggle. |
+| **Floating Check CTA** | Bottom-left floating pill | One-click batch verification of deals meeting threshold (`≥X%`), with inline `🏬` dealer auto-fetch and `🔄` in-place feed refresh (checks for new deals without F5). Clicking the empty pill (`Alle geprüft`) also triggers refresh. |
 | **Differenz Badge (`🔍` / `⚖️`)** | Top-right of product card | Click to verify or refresh a single product's price history and all-time low status. |
 | **Cheapest Dealer (`🏬`)** | Next to price on verified card | Click to jump directly to the merchant offer in a new tab; hover to load dealer on feed cards. |
 | **Mini Sparkline** | Bottom of verified card | Click to open the large interactive price history chart modal. |
