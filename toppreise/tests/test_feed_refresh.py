@@ -60,9 +60,9 @@ def test_feed_refresh_adds_new_card_and_updates_cta(page: Page):
     new_card = page.locator('a[data-entity-id="888123"]')
     assert 'tp-fresh-arrival' in (new_card.get_attribute('class') or '')
 
-    # Toast confirms 1 new deal loaded
+    # Toast confirms 1 new deal found
     last_toast = page.evaluate("() => window.ToppreiseSuite.lastToast()")
-    assert '1 neuer Deal' in last_toast
+    assert '1 neuer Deal gefunden' in last_toast
 
 
 def test_empty_cta_click_triggers_feed_refresh(page: Page):

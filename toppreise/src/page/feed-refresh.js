@@ -115,6 +115,7 @@ export async function refreshFeed({ onStart, onEnd, customFetch } = {}) {
 
   isRefreshing = true;
   onStart?.();
+  showToast('🔄 Suche nach neuen Deals...');
 
   try {
     const url = (typeof location !== 'undefined' && location.href) ? location.href : '';
@@ -127,7 +128,7 @@ export async function refreshFeed({ onStart, onEnd, customFetch } = {}) {
     if (added > 0 || updated > 0) {
       triggerProcessListings();
       const msg = added > 0
-        ? (added === 1 ? '✨ 1 neuer Deal geladen' : `✨ ${added} neue Deals geladen`)
+        ? (added === 1 ? '✨ 1 neuer Deal gefunden' : `✨ ${added} neue Deals gefunden`)
         : (updated === 1 ? '1 Deal aktualisiert' : `${updated} Deals aktualisiert`);
       showToast(msg);
     } else {
