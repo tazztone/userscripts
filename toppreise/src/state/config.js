@@ -9,6 +9,7 @@ import { paintCycleButton } from '../ui/mini-toggle.js';
 import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
 import { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels } from './config-migrate.js';
 import { syncUiControl } from './config-sync.js';
+import { triggerProcessListings } from '../page/adapter.js';
 
 
 // Shared clamps: single source for the min-points (1–100 data points) and
@@ -188,8 +189,8 @@ export function updateConfig(key, val, options = {}) {
   if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
     updateBodyClasses();
   }
-  if (!options.skipRender && !FAST_SYNC_KEYS.has(key) && typeof processListings === 'function') {
-    processListings();
+  if (!options.skipRender && !FAST_SYNC_KEYS.has(key)) {
+    triggerProcessListings();
   }
 }
 
@@ -198,8 +199,8 @@ export function updateConfigs(entries, options = {}) {
     updateConfig(k, v, { ...options, skipRender: true });
   }
   const needsRender = !options.skipRender && Object.keys(entries).some(k => !FAST_SYNC_KEYS.has(k));
-  if (needsRender && typeof processListings === 'function') {
-    processListings();
+  if (needsRender) {
+    triggerProcessListings();
   }
 }
 // Re-exports: storage/schema/migrate symbols moved to siblings — every

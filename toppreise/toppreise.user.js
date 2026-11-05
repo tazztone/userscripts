@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.460
+// @version      2.18.461
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3975,6 +3975,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   // Shared clamps: single source for the min-points (1–100 data points) and
   // heatmap-intensity (0.2–1.0) bounds previously copy-pasted across modules.
   const clampMinPoints = v => {
@@ -4151,8 +4152,8 @@ const SHADOW_MODAL_STYLES = `
     if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
       updateBodyClasses();
     }
-    if (!options.skipRender && !FAST_SYNC_KEYS.has(key) && typeof processListings === 'function') {
-      processListings();
+    if (!options.skipRender && !FAST_SYNC_KEYS.has(key)) {
+      triggerProcessListings();
     }
   }
 
@@ -4161,8 +4162,8 @@ const SHADOW_MODAL_STYLES = `
       updateConfig(k, v, { ...options, skipRender: true });
     }
     const needsRender = !options.skipRender && Object.keys(entries).some(k => !FAST_SYNC_KEYS.has(k));
-    if (needsRender && typeof processListings === 'function') {
-      processListings();
+    if (needsRender) {
+      triggerProcessListings();
     }
   }
   // Re-exports: storage/schema/migrate symbols moved to siblings — every
@@ -14995,7 +14996,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.460';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.461';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
