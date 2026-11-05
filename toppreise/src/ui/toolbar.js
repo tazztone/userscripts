@@ -18,7 +18,7 @@ import { wireFilterPopover, syncFilterRow } from './toolbar-filter.js';
 function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');
   const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
-  const targets = ['#Page_ListTopPriceReductionProducts', '#Page_ListTop100Products', '[id^="Page_List"]', '#Page_Browsing', '.f_browsingListContainer', '#Plugin_MixedBrowsingList', '.standardList', '#product-list'];
+  const targets = ['.standardList', '#product-list', '[id^="Plugin_TopPriceReductionProductList"]', '#Page_ListTopPriceReductionProducts', '#Page_ListTop100Products', '[id^="Page_List"]', '#Page_Browsing', '.f_browsingListContainer', '#Plugin_MixedBrowsingList'];
   for (const sel of targets) {
     const el = document.querySelector(sel);
     if (el?.parentElement && isSafe(el.parentElement) && el !== bar) return { container: el.parentElement, reference: el };
