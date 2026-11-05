@@ -193,6 +193,27 @@ describe('applySorting fallback-tief order', () => {
     assert.deepEqual(row.children, [cardFallback81, cardDeal56, cardDeal29, cardUnchecked40, cardMarkup50]);
   });
 
+  it('ranks by badge % when CONFIG.SORT_BY_OFFERS is discount-desc with mode inactive', () => {
+    const row = makeRow();
+    const cardDeal56 = makeCard(row, 0); // 56% blend deal
+    const cardDeal29 = makeCard(row, 1); // 29% blend deal
+    const cardFallback81 = makeCard(row, 2); // 81% fallback-tief
+    const cardUnchecked40 = makeCard(row, 3); // 40% unchecked card
+    const cardMarkup50 = makeCard(row, 4); // +50% markup (-50)
+    const data = [
+      { card: cardDeal56, cardPrice: 1113.35, stats: { tiefstpreis: 1113.35, medianPrice: 2671.85, dataPointCount: 10 }, dealScore: { weightedDiff: 56, dMedian: 58, dRecord: 55 } },
+      { card: cardDeal29, cardPrice: 63.19, stats: { tiefstpreis: 63.19, medianPrice: 134.80, dataPointCount: 10 }, dealScore: { weightedDiff: 29, dMedian: 53, dRecord: 19 } },
+      { card: cardFallback81, cardPrice: 37.17, stats: { tiefstpreis: 37.17, previousLow: 195.63, dataPointCount: 3 }, displayDelta: { kind: 'new-low', prevLow: 195.63, dRecord: 81 }, dealScore: null },
+      { card: cardUnchecked40, cardPrice: 60, stats: null, displayDelta: null, dealScore: null, discountVal: 40 },
+      { card: cardMarkup50, cardPrice: 150, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'above-low', markup: 50 }, dealScore: null },
+    ];
+    row.children = [cardMarkup50, cardDeal29, cardUnchecked40, cardDeal56, cardFallback81];
+    withConfig('BESTPREISE_MODE_ACTIVE', false, () =>
+      withConfig('SORT_BY_OFFERS', 'discount-desc', () =>
+        applySorting([cardDeal56, cardDeal29, cardFallback81, cardUnchecked40, cardMarkup50], false, data)));
+    assert.deepEqual(row.children, [cardFallback81, cardDeal56, cardDeal29, cardUnchecked40, cardMarkup50]);
+  });
+
   it('breaks offer count ties deterministically using initialOrder', () => {
     const row = makeRow();
     const cardA = makeCard(row, 0);

@@ -8,6 +8,5 @@ Now, all verified Tiefstpreise (both blend deals and fallback-tiefs) share a uni
 
 - `cards.js`: `getCardEffectiveDiscount(cd)` computes exact badge % for all cards (blend `weightedDiff`, fallback `vortiefDropPct` or site fallback, unverified site discount, or `-markup`).
 - `sort.js`:
-  - `CONFIG.BESTPREISE_MODE_ACTIVE`: evaluated as `tier = isDeal ? 2 : (usable ? 0 : 1)`, sorted by `(b.tier - a.tier) || (b.badgePct - a.badgePct) || (a.initialOrder - b.initialOrder)`.
-  - `CONFIG.SORT_BY_OFFERS === 'discount-desc'`: consumes `getCardEffectiveDiscount(cd)` when `level` is null, giving fallback-tiefs their authentic verified drop in offer sorting too.
+  - `CONFIG.BESTPREISE_MODE_ACTIVE` and `CONFIG.SORT_BY_OFFERS === 'discount-desc'`: evaluated as `tier = isDeal ? 2 : (usable ? 0 : 1)`, sorted by `(b.tier - a.tier) || (b.badgePct - a.badgePct) || (a.initialOrder - b.initialOrder)`, strictly aligning `% Rabatt ⬇` with authentic badge-% ranking.
 - `GLOSSARY.md`, `README.md`, `README.de.md`: documentation updated to reflect unified deal tier ranking by badge %.

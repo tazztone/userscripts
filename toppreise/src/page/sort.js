@@ -11,7 +11,7 @@ import {
   extractOfferCount,
   getCardEffectiveDiscount
 } from './cards.js';
-import { getDisplayDelta, getLevelPct } from '../domain/deal-score.js';
+import { getDisplayDelta } from '../domain/deal-score.js';
 import { hasUsablePriceStats } from '../scanner/cache.js';
 
 // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
@@ -84,7 +84,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
 
     const byCard = cardDataList ? new Map(cardDataList.map(cd => [cd.card, cd])) : null;
     const cdFor = c => byCard?.get(c) || extractCardData(c);
-    if (CONFIG.BESTPREISE_MODE_ACTIVE) {
+    if (CONFIG.BESTPREISE_MODE_ACTIVE || CONFIG.SORT_BY_OFFERS === 'discount-desc') {
       const scored = list.map(c => {
         const cd = cdFor(c);
         const sortBasisOk = cd.basisMatches ?? basisMatchesFor(cd.stats, cd.cardPriceBasis);
@@ -102,20 +102,6 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         };
       });
       scored.sort((a, b) => (b.tier - a.tier) || (b.badgePct - a.badgePct) || (a.initialOrder - b.initialOrder));
-      sortedEntries = scored;
-    } else if (CONFIG.SORT_BY_OFFERS === 'discount-desc') {
-      // Verified level (vs Ø-Preis) first; fallback-tief / unverified site Differenz fallback.
-      const scored = list.map(c => {
-        const cd = cdFor(c);
-        const level = getLevelPct(cd.cardPrice, cd.verifiedStats !== undefined ? cd.verifiedStats : cd.stats, true);
-        return {
-          card: c,
-          item: getCardSortableUnit(c),
-          disc: level !== null ? -level : getCardEffectiveDiscount(cd),
-          initialOrder: parseInt(c.dataset.tpInitialOrder || '0', 10)
-        };
-      });
-      scored.sort((a, b) => (b.disc - a.disc) || (a.initialOrder - b.initialOrder));
       sortedEntries = scored;
     } else if (pageHasOffers && CONFIG.SORT_BY_OFFERS !== 'none') {
       const scored = list.map(c => ({
