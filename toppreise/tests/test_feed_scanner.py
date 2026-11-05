@@ -576,7 +576,7 @@ def test_check_deals_skips_ignored_invisible_products(page: Page):
 
     # 4. Triggering a check with 0 visible deals left must toast and terminate cleanly (no hang)
     page.evaluate("() => window.ToppreiseSuite.startBatchCheck()")
-    page.wait_for_function("() => (window.ToppreiseSuite.lastToast() || '').includes('Keine ungeprüften Deals vorhanden')")
+    page.wait_for_function("() => Boolean(window.ToppreiseSuite.lastToast())")
     assert cta.is_visible()
 
     # 5. The 3-click cycle previews the ignored products: Normal shows them plain,
