@@ -13,11 +13,15 @@ def test_floating_cta_visible_with_unchecked_deals(page: Page):
 
 def test_floating_cta_threshold_syncs_with_toolbar(page: Page):
     thresh_btn = page.locator('#tp-floating-threshold-btn')
+    popover = page.locator('#tp-floating-threshold-popover')
     assert '≥30%' in (thresh_btn.text_content() or '')
+    assert not popover.is_visible()
 
     # Change threshold via floating CTA popover
     thresh_btn.click()
+    assert popover.is_visible()
     page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="40"]')
+    assert not popover.is_visible()
     assert '≥40%' in (thresh_btn.text_content() or '')
 
     # Shared config dispatcher persists the choice

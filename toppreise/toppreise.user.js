@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.472
+// @version      2.18.473
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1960,45 +1960,56 @@ const STYLES_FLOATING_CTA = `
     background: rgba(15, 23, 42, 0.1) !important;
     color: var(--tp-txt) !important;
   }
-  #tp-floating-threshold-menu {
+  #tp-floating-threshold-popover {
     position: absolute !important;
     bottom: calc(100% + 8px) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: blur(16px) !important;
-    -webkit-backdrop-filter: blur(16px) !important;
+    right: 0 !important;
+    background: rgba(255, 255, 255, 0.97) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
     border: 1px solid var(--tp-line-soft) !important;
-    border-radius: var(--tp-r-md) !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
-    padding: 6px !important;
+    border-radius: var(--tp-r-lg) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25) !important;
+    padding: 4px !important;
     display: none !important;
     flex-direction: column !important;
     gap: 2px !important;
-    min-width: 140px !important;
+    min-width: 200px !important;
     z-index: 99992 !important;
+    box-sizing: border-box !important;
   }
-  #tp-floating-threshold-menu.tp-show { display: flex !important; }
-  .tp-threshold-item {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    padding: 5px 8px !important;
-    border-radius: var(--tp-r-sm) !important;
-    border: none !important;
+  #tp-floating-threshold-popover.tp-show { display: flex !important; }
+  #tp-floating-threshold-popover .tp-floating-hint {
+    color: var(--tp-mut) !important;
+    padding: 4px 8px 2px !important;
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    cursor: default !important;
+    user-select: none !important;
+  }
+  #tp-floating-threshold-popover .tp-floating-option {
     background: transparent !important;
-    color: var(--tp-txt) !important;
-    font-family: inherit !important;
-    font-size: 11px !important;
+    border: none !important;
+    color: var(--tp-txt-dim) !important;
+    padding: 5px 8px !important;
+    font-size: 11.5px !important;
     font-weight: 600 !important;
+    border-radius: var(--tp-r-sm) !important;
     cursor: pointer !important;
-    transition: background 0.12s ease !important;
     text-align: left !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    transition: background 0.12s ease, color 0.12s ease !important;
   }
-  .tp-threshold-item:hover { background: rgba(16, 185, 129, 0.12) !important; color: #059669 !important; }
-  .tp-threshold-item.tp-active { background: #10b981 !important; color: #ffffff !important; font-weight: 700 !important; }
+  #tp-floating-threshold-popover .tp-floating-option:hover {
+    background: rgba(16, 185, 129, 0.15) !important;
+    color: var(--tp-txt) !important;
+  }
+  #tp-floating-threshold-popover .tp-floating-option.tp-selected {
+    background: #047857 !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+  }
   #tp-floating-refresh-btn,
   #tp-floating-cta-collapse {
     background: transparent !important;
@@ -15132,7 +15143,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.472';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.473';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
