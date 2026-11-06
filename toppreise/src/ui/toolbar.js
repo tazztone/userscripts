@@ -76,7 +76,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
       <div class="tp-filter-main-row">
       <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
         <div class="tp-calc-wrap">
-          <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter – Verbergen oder Dimmen je Ursache"><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge tp-pill tp-pill-hide" id="tp-filter-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-dim" id="tp-filter-dim-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-hl" id="tp-filter-hl-count" style="display: none;"></span> ▾</button>
+          <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter: Öffnet Kriterien zum Verbergen, Dimmen oder Hervorheben je Ursache."><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge tp-pill tp-pill-hide" id="tp-filter-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-dim" id="tp-filter-dim-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-hl" id="tp-filter-hl-count" style="display: none;"></span> ▾</button>
           <div class="tp-calc-popover" id="tp-bar-filter-popover" role="group" aria-label="Filter">
             <div class="tp-filter-row" data-filter-row="neg">
               <span class="tp-filter-label" title="Namen mit diesen Wörtern dimmen/verbergen (kommagetrennt, Wortgrenzen)">Begriffe</span>
@@ -145,22 +145,22 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
             <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset" title="Filter zurücksetzen">Zurücksetzen</button>
           </div>
         </div>
-        <label class="tp-mini-switch" id="tp-bar-filters-toggle-label" title="Filter ${CONFIG.FILTERS_ENABLED !== false ? 'AN' : 'AUS'}">
+        <label class="tp-mini-switch" id="tp-bar-filters-toggle-label" title="Filter aktivieren oder pausieren.">
           <input type="checkbox" id="tp-bar-filters-toggle" ${CONFIG.FILTERS_ENABLED !== false ? 'checked' : ''}>
           <span class="tp-mini-slider"></span>
         </label>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED !== false ? 'tp-active' : ''} ${CONFIG.HEATMAP_ENABLED === 'verified' ? 'tp-heat-verified' : ''}" id="tp-bar-heat-btn" data-heatmap-state="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'verified' : (CONFIG.HEATMAP_ENABLED !== false ? 'all' : 'off')}" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)' : (CONFIG.HEATMAP_ENABLED !== false ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)' : 'Deal-Intensität (Heatmap): Aus')}" style="display: flex;">${CONFIG.HEATMAP_ENABLED === 'verified' ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap'}</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED !== false ? 'tp-active' : ''} ${CONFIG.HEATMAP_ENABLED === 'verified' ? 'tp-heat-verified' : ''}" id="tp-bar-heat-btn" data-heatmap-state="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'verified' : (CONFIG.HEATMAP_ENABLED !== false ? 'all' : 'off')}" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Deal-Intensität (Heatmap): Farbverlauf proportional zum Rabatt (Alle Deals · Nur verifizierte Deals · Aus)." style="display: flex;">${CONFIG.HEATMAP_ENABLED === 'verified' ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap'}</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
-        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote." style="display: ${isSortPage ? 'flex' : 'none'};">
-          💎 <span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span> <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
+        <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Tiefstpreis-Sortierung: Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz aus Rekord-Marge & Ø-Rabatt)." style="display: ${isSortPage ? 'flex' : 'none'};">
+          💎 <span class="tp-glossary-term" title="Tiefstpreis-Sortierung: Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz aus Rekord-Marge & Ø-Rabatt).">Tiefstpreis-Sortierung</span> <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
         </button>
         <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
-          <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
+          <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter: Öffnet Regler für Gewichtung (Rekord/Median), Ø-Zeitraum und Mindest-Datenpunkte der Gewichteten Differenz.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
           <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
             <div class="tp-calc-head"><span class="tp-glossary-term" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">Berechnungsparameter</span><span>Formel für Deal-Score & Preishistorie</span></div>
             <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset" title="Berechnungsparameter zurücksetzen">Zurücksetzen</button>

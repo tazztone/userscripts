@@ -254,7 +254,7 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
             break;
           }
           case 'FILTERS_ENABLED': {
-            syncMiniToggle(bar.querySelector('#tp-bar-filters-toggle'), val !== false, 'Filter');
+            syncMiniToggle(bar.querySelector('#tp-bar-filters-toggle'), val !== false, 'Filter aktivieren oder pausieren.');
             const filterBtn = bar.querySelector('#tp-bar-filter-btn');
             if (filterBtn) {
               filterBtn.classList.toggle('tp-filters-paused', val === false);
@@ -271,11 +271,7 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
               heatBtn.setAttribute('aria-pressed', String(isActive));
               heatBtn.setAttribute('data-heatmap-state', isVerified ? 'verified' : (isActive ? 'all' : 'off'));
               heatBtn.textContent = isVerified ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap';
-              heatBtn.title = isVerified
-                ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)'
-                : (isActive
-                  ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)'
-                  : 'Deal-Intensität (Heatmap): Aus');
+              heatBtn.title = 'Deal-Intensität (Heatmap): Farbverlauf proportional zum Rabatt (Alle Deals · Nur verifizierte Deals · Aus).';
             }
             break;
           }

@@ -215,7 +215,7 @@ export function syncFilterRow(bar, counts, flags) {
 
   const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
   if (filtersToggle) {
-    syncMiniToggle(filtersToggle, CONFIG.FILTERS_ENABLED !== false, 'Filter');
+    syncMiniToggle(filtersToggle, CONFIG.FILTERS_ENABLED !== false, 'Filter aktivieren oder pausieren.');
   }
 
   const isPaused = CONFIG.FILTERS_ENABLED === false;

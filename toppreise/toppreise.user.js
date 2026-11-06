@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.467
+// @version      2.18.468
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3629,7 +3629,7 @@ const SHADOW_MODAL_STYLES = `
     if (!input) return;
     input.checked = !!enabled;
     const label = input.closest?.('.tp-mini-switch');
-    const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+    const title = titleBase?.includes(' ') ? titleBase : `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
     if (label) label.title = title;
     const state = label?.querySelector('.tp-mini-state');
     if (state) state.textContent = enabled ? 'ON' : 'OFF';
@@ -4456,7 +4456,7 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'FILTERS_ENABLED': {
-              syncMiniToggle(bar.querySelector('#tp-bar-filters-toggle'), val !== false, 'Filter');
+              syncMiniToggle(bar.querySelector('#tp-bar-filters-toggle'), val !== false, 'Filter aktivieren oder pausieren.');
               const filterBtn = bar.querySelector('#tp-bar-filter-btn');
               if (filterBtn) {
                 filterBtn.classList.toggle('tp-filters-paused', val === false);
@@ -4473,11 +4473,7 @@ const SHADOW_MODAL_STYLES = `
                 heatBtn.setAttribute('aria-pressed', String(isActive));
                 heatBtn.setAttribute('data-heatmap-state', isVerified ? 'verified' : (isActive ? 'all' : 'off'));
                 heatBtn.textContent = isVerified ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap';
-                heatBtn.title = isVerified
-                  ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)'
-                  : (isActive
-                    ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)'
-                    : 'Deal-Intensität (Heatmap): Aus');
+                heatBtn.title = 'Deal-Intensität (Heatmap): Farbverlauf proportional zum Rabatt (Alle Deals · Nur verifizierte Deals · Aus).';
               }
               break;
             }
@@ -13273,7 +13269,7 @@ const SHADOW_MODAL_STYLES = `
 
     const filtersToggle = bar.querySelector('#tp-bar-filters-toggle');
     if (filtersToggle) {
-      syncMiniToggle(filtersToggle, CONFIG.FILTERS_ENABLED !== false, 'Filter');
+      syncMiniToggle(filtersToggle, CONFIG.FILTERS_ENABLED !== false, 'Filter aktivieren oder pausieren.');
     }
 
     const isPaused = CONFIG.FILTERS_ENABLED === false;
@@ -13443,7 +13439,7 @@ const SHADOW_MODAL_STYLES = `
         <div class="tp-filter-main-row">
         <div class="tp-group tp-group-filter" role="group" aria-label="Filter">
           <div class="tp-calc-wrap">
-            <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter – Verbergen oder Dimmen je Ursache"><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge tp-pill tp-pill-hide" id="tp-filter-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-dim" id="tp-filter-dim-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-hl" id="tp-filter-hl-count" style="display: none;"></span> ▾</button>
+            <button class="tp-bar-btn" id="tp-bar-filter-btn" aria-expanded="false" aria-haspopup="true" title="Filter: Öffnet Kriterien zum Verbergen, Dimmen oder Hervorheben je Ursache."><span class="tp-btn-label">🧹 Filter</span><span class="tp-count-badge tp-pill tp-pill-hide" id="tp-filter-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-dim" id="tp-filter-dim-count" style="display: none;"></span><span class="tp-count-badge tp-pill tp-pill-hl" id="tp-filter-hl-count" style="display: none;"></span> ▾</button>
             <div class="tp-calc-popover" id="tp-bar-filter-popover" role="group" aria-label="Filter">
               <div class="tp-filter-row" data-filter-row="neg">
                 <span class="tp-filter-label" title="Namen mit diesen Wörtern dimmen/verbergen (kommagetrennt, Wortgrenzen)">Begriffe</span>
@@ -13512,22 +13508,22 @@ const SHADOW_MODAL_STYLES = `
               <button class="tp-bar-btn tp-calc-reset" id="tp-filter-reset" title="Filter zurücksetzen">Zurücksetzen</button>
             </div>
           </div>
-          <label class="tp-mini-switch" id="tp-bar-filters-toggle-label" title="Filter ${CONFIG.FILTERS_ENABLED !== false ? 'AN' : 'AUS'}">
+          <label class="tp-mini-switch" id="tp-bar-filters-toggle-label" title="Filter aktivieren oder pausieren.">
             <input type="checkbox" id="tp-bar-filters-toggle" ${CONFIG.FILTERS_ENABLED !== false ? 'checked' : ''}>
             <span class="tp-mini-slider"></span>
           </label>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED !== false ? 'tp-active' : ''} ${CONFIG.HEATMAP_ENABLED === 'verified' ? 'tp-heat-verified' : ''}" id="tp-bar-heat-btn" data-heatmap-state="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'verified' : (CONFIG.HEATMAP_ENABLED !== false ? 'all' : 'off')}" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)' : (CONFIG.HEATMAP_ENABLED !== false ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)' : 'Deal-Intensität (Heatmap): Aus')}" style="display: flex;">${CONFIG.HEATMAP_ENABLED === 'verified' ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap'}</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED !== false ? 'tp-active' : ''} ${CONFIG.HEATMAP_ENABLED === 'verified' ? 'tp-heat-verified' : ''}" id="tp-bar-heat-btn" data-heatmap-state="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'verified' : (CONFIG.HEATMAP_ENABLED !== false ? 'all' : 'off')}" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Deal-Intensität (Heatmap): Farbverlauf proportional zum Rabatt (Alle Deals · Nur verifizierte Deals · Aus)." style="display: flex;">${CONFIG.HEATMAP_ENABLED === 'verified' ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap'}</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
-          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote." style="display: ${isSortPage ? 'flex' : 'none'};">
-            💎 <span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span> <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
+          <button class="tp-bar-btn ${CONFIG.BESTPREISE_MODE_ACTIVE ? 'tp-bestpreise-active' : ''}" id="tp-bar-bestpreise-btn" title="Tiefstpreis-Sortierung: Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz aus Rekord-Marge & Ø-Rabatt)." style="display: ${isSortPage ? 'flex' : 'none'};">
+            💎 <span class="tp-glossary-term" title="Tiefstpreis-Sortierung: Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz aus Rekord-Marge & Ø-Rabatt).">Tiefstpreis-Sortierung</span> <span id="tp-bar-bestpreise-count" style="display: ${bestpreiseDeals > 0 ? 'inline-flex' : 'none'};">${bestpreiseDeals > 0 ? bestpreiseDeals : ''}</span>
           </button>
           <div class="tp-calc-wrap" id="tp-bar-calc-wrap">
-            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
+            <button class="tp-bar-btn" id="tp-bar-calc-btn" aria-expanded="false" aria-haspopup="true" title="Berechnungsparameter: Öffnet Regler für Gewichtung (Rekord/Median), Ø-Zeitraum und Mindest-Datenpunkte der Gewichteten Differenz.">⚖️ <span id="tp-bar-calc-summary">50/50 · 1J · 5 Pkt</span> ▾</button>
             <div class="tp-calc-popover" id="tp-bar-calc-popover" role="group" aria-label="Berechnungsparameter">
               <div class="tp-calc-head"><span class="tp-glossary-term" title="Regler für Gewichtung, Zeitraum und Mindestdaten zur Berechnung der Gewichteten Differenz. Filtert nichts.">Berechnungsparameter</span><span>Formel für Deal-Score & Preishistorie</span></div>
               <button class="tp-bar-btn tp-calc-reset" id="tp-bar-calc-reset" title="Berechnungsparameter zurücksetzen">Zurücksetzen</button>
@@ -15046,7 +15042,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.467';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.468';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

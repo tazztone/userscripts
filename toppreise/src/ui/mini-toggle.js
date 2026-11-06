@@ -8,7 +8,7 @@ export function syncMiniToggle(input, enabled, titleBase) {
   if (!input) return;
   input.checked = !!enabled;
   const label = input.closest?.('.tp-mini-switch');
-  const title = `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
+  const title = titleBase?.includes(' ') ? titleBase : `${titleBase} ${enabled ? 'AN' : 'AUS'}`;
   if (label) label.title = title;
   const state = label?.querySelector('.tp-mini-state');
   if (state) state.textContent = enabled ? 'ON' : 'OFF';
