@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.465
+// @version      2.18.466
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2029,10 +2029,10 @@ const SHADOW_MODAL_STYLES = `
   }
   #tp-settings-fab {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 42px;
-    height: 42px;
+    bottom: 8px;
+    right: 8px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
@@ -2048,6 +2048,14 @@ const SHADOW_MODAL_STYLES = `
     opacity: 0.6;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  @media (max-width: 600px) {
+    #tp-settings-fab {
+      bottom: 6px;
+      right: 6px;
+      width: 36px;
+      height: 36px;
+    }
+  }
   #tp-settings-fab:hover {
     background: rgba(16, 185, 129, 0.95);
     color: #fff;
@@ -2060,7 +2068,7 @@ const SHADOW_MODAL_STYLES = `
     outline: 2px solid var(--tp-focus);
     outline-offset: 2px;
   }
-  #tp-settings-fab svg { width: 24px; height: 24px; }
+  #tp-settings-fab svg { width: 22px; height: 22px; }
   dialog#tp-settings-dialog {
     box-sizing: border-box;
     width: 92%;
@@ -2292,13 +2300,19 @@ const SHADOW_MODAL_STYLES = `
   }
   #tp-toast-container {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 50px;
+    right: 8px;
     z-index: 100000;
     display: flex;
     flex-direction: column-reverse;
     gap: 8px;
     pointer-events: none;
+  }
+  @media (max-width: 600px) {
+    #tp-toast-container {
+      bottom: 46px;
+      right: 6px;
+    }
   }
   .tp-toast {
     background: rgba(255,255,255,0.97);
@@ -15007,7 +15021,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.465';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.466';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

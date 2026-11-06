@@ -10,10 +10,10 @@ export const SHADOW_MODAL_STYLES = `
   }
   #tp-settings-fab {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 42px;
-    height: 42px;
+    bottom: 8px;
+    right: 8px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
@@ -29,6 +29,14 @@ export const SHADOW_MODAL_STYLES = `
     opacity: 0.6;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  @media (max-width: 600px) {
+    #tp-settings-fab {
+      bottom: 6px;
+      right: 6px;
+      width: 36px;
+      height: 36px;
+    }
+  }
   #tp-settings-fab:hover {
     background: rgba(16, 185, 129, 0.95);
     color: #fff;
@@ -41,7 +49,7 @@ export const SHADOW_MODAL_STYLES = `
     outline: 2px solid var(--tp-focus);
     outline-offset: 2px;
   }
-  #tp-settings-fab svg { width: 24px; height: 24px; }
+  #tp-settings-fab svg { width: 22px; height: 22px; }
   dialog#tp-settings-dialog {
     box-sizing: border-box;
     width: 92%;
@@ -273,13 +281,19 @@ export const SHADOW_MODAL_STYLES = `
   }
   #tp-toast-container {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 50px;
+    right: 8px;
     z-index: 100000;
     display: flex;
     flex-direction: column-reverse;
     gap: 8px;
     pointer-events: none;
+  }
+  @media (max-width: 600px) {
+    #tp-toast-container {
+      bottom: 46px;
+      right: 6px;
+    }
   }
   .tp-toast {
     background: rgba(255,255,255,0.97);

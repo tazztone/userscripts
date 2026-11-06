@@ -10,6 +10,18 @@ def test_shadow_dom_settings_dialog_open_and_close(page: Page):
 
     assert not dialog.is_visible()
 
+    # Settings FAB sits pinned in the very bottom-right corner
+    coords = page.evaluate("""() => {
+        const btn = document.getElementById('tp-root').shadowRoot.getElementById('tp-settings-fab');
+        const r = btn.getBoundingClientRect();
+        return {
+            distBottom: window.innerHeight - r.bottom,
+            distRight: window.innerWidth - r.right
+        };
+    }""")
+    assert coords['distBottom'] <= 12
+    assert coords['distRight'] <= 12
+
     fab.click()
     page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
     assert dialog.is_visible()
