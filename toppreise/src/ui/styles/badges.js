@@ -431,14 +431,11 @@ export const STYLES_BADGES = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> :is(.tp-card-alarm-group, .tp-card-alarm-btn)) {
-    position: relative !important;
-  }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
-    position: absolute !important;
-    right: 0 !important;
-    bottom: 100% !important;
-    margin-bottom: 2px !important;
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    margin-left: 4px !important;
+    flex-shrink: 0 !important;
     z-index: 4 !important;
   }
   :is(.Plugin_Product, .medium-box, .mixedBrowsingBox):has(.badge-dif:not(.tp-deal-pill)) {
@@ -451,12 +448,6 @@ export const STYLES_BADGES = `
     vertical-align: middle !important;
     margin-right: 6px !important;
     margin-bottom: 4px !important;
-    z-index: 4 !important;
-  }
-  :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
-    position: absolute !important;
-    right: 10px !important;
-    bottom: 46px !important;
     z-index: 4 !important;
   }
   .tp-card-alarm-group {

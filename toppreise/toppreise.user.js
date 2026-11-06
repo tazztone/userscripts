@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.463
+// @version      2.18.464
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -240,10 +240,14 @@ const STYLES_CARDS = `
     .tp-share-btn:not(.tp-share-done):not(:disabled),
     .tp-review-search-btn,
     button.tp-dealer-name.tp-dealer-btn:not(:disabled),
+    .tp-card-alarm-group,
     button.tp-card-alarm-btn:not(:disabled) {
       opacity: 0.45 !important;
       pointer-events: auto !important;
       touch-action: manipulation !important;
+    }
+    .tp-card-alarm-group * {
+      pointer-events: auto !important;
     }
     .tp-review-search-btn,
     button.tp-dealer-name.tp-dealer-btn {
@@ -259,6 +263,7 @@ const STYLES_CARDS = `
     .tp-share-btn:not(:disabled):active,
     .tp-review-search-btn:active,
     button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
+    .tp-card-alarm-group:active,
     button.tp-card-alarm-btn:not(:disabled):active {
       opacity: 1 !important;
     }
@@ -715,14 +720,11 @@ const STYLES_BADGES = `
     opacity: 0.4 !important;
     pointer-events: auto !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small):has(> :is(.tp-card-alarm-group, .tp-card-alarm-btn)) {
-    position: relative !important;
-  }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
-    position: absolute !important;
-    right: 0 !important;
-    bottom: 100% !important;
-    margin-bottom: 2px !important;
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
+    display: inline-flex !important;
+    vertical-align: middle !important;
+    margin-left: 4px !important;
+    flex-shrink: 0 !important;
     z-index: 4 !important;
   }
   :is(.Plugin_Product, .medium-box, .mixedBrowsingBox):has(.badge-dif:not(.tp-deal-pill)) {
@@ -735,12 +737,6 @@ const STYLES_BADGES = `
     vertical-align: middle !important;
     margin-right: 6px !important;
     margin-bottom: 4px !important;
-    z-index: 4 !important;
-  }
-  :is(.Plugin_Product, .mixedBrowsingListProduct) > :is(.tp-card-alarm-group, button.tp-card-alarm-btn) {
-    position: absolute !important;
-    right: 10px !important;
-    bottom: 46px !important;
     z-index: 4 !important;
   }
   .tp-card-alarm-group {
@@ -10645,8 +10641,8 @@ const SHADOW_MODAL_STYLES = `
       return;
     }
     let bell = card.querySelector('.tp-card-alarm-btn');
+    let group = card.querySelector('.tp-card-alarm-group');
     if (!bell) {
-      let group = card.querySelector('.tp-card-alarm-group');
       if (!group) {
         group = document.createElement('div');
         group.className = 'tp-card-alarm-group';
@@ -10662,18 +10658,24 @@ const SHADOW_MODAL_STYLES = `
         openPriceAlarmForProduct(pid, card);
       });
       group.appendChild(bell);
-      const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
-      if (priceInfo) {
-        const pill = priceInfo.querySelector('.tp-deal-pill');
-        if (pill && card.classList?.contains('mixedBrowsingExpert')) {
-          if (group.nextElementSibling !== pill) priceInfo.insertBefore(group, pill);
-        } else {
-          priceInfo.appendChild(group);
+    }
+    if (group) {
+      const targetAnchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl) ||
+                           card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small') ||
+                           card;
+      if (targetAnchor === cardPriceEl) {
+        if (group.previousElementSibling !== cardPriceEl) {
+          cardPriceEl.insertAdjacentElement('afterend', group);
         }
-      } else {
-        const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
-        if (anchor !== card) anchor.appendChild(group);
-        else card.appendChild(group);
+      } else if (targetAnchor !== card) {
+        const pill = targetAnchor.querySelector('.tp-deal-pill');
+        if (pill && card.classList?.contains('mixedBrowsingExpert')) {
+          if (group.nextElementSibling !== pill) targetAnchor.insertBefore(group, pill);
+        } else if (group.parentElement !== targetAnchor) {
+          targetAnchor.appendChild(group);
+        }
+      } else if (group.parentElement !== card) {
+        card.appendChild(group);
       }
     }
     refreshAlarmBellDecor();
@@ -14982,7 +14984,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.463';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.464';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

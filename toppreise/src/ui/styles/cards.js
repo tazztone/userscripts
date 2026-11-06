@@ -169,10 +169,14 @@ export const STYLES_CARDS = `
     .tp-share-btn:not(.tp-share-done):not(:disabled),
     .tp-review-search-btn,
     button.tp-dealer-name.tp-dealer-btn:not(:disabled),
+    .tp-card-alarm-group,
     button.tp-card-alarm-btn:not(:disabled) {
       opacity: 0.45 !important;
       pointer-events: auto !important;
       touch-action: manipulation !important;
+    }
+    .tp-card-alarm-group * {
+      pointer-events: auto !important;
     }
     .tp-review-search-btn,
     button.tp-dealer-name.tp-dealer-btn {
@@ -188,6 +192,7 @@ export const STYLES_CARDS = `
     .tp-share-btn:not(:disabled):active,
     .tp-review-search-btn:active,
     button.tp-dealer-name.tp-dealer-btn:not(:disabled):active,
+    .tp-card-alarm-group:active,
     button.tp-card-alarm-btn:not(:disabled):active {
       opacity: 1 !important;
     }

@@ -457,8 +457,8 @@ export function renderAlarmBell(ctx) {
     return;
   }
   let bell = card.querySelector('.tp-card-alarm-btn');
+  let group = card.querySelector('.tp-card-alarm-group');
   if (!bell) {
-    let group = card.querySelector('.tp-card-alarm-group');
     if (!group) {
       group = document.createElement('div');
       group.className = 'tp-card-alarm-group';
@@ -474,18 +474,24 @@ export function renderAlarmBell(ctx) {
       openPriceAlarmForProduct(pid, card);
     });
     group.appendChild(bell);
-    const priceInfo = card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small');
-    if (priceInfo) {
-      const pill = priceInfo.querySelector('.tp-deal-pill');
-      if (pill && card.classList?.contains('mixedBrowsingExpert')) {
-        if (group.nextElementSibling !== pill) priceInfo.insertBefore(group, pill);
-      } else {
-        priceInfo.appendChild(group);
+  }
+  if (group) {
+    const targetAnchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl) ||
+                         card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small') ||
+                         card;
+    if (targetAnchor === cardPriceEl) {
+      if (group.previousElementSibling !== cardPriceEl) {
+        cardPriceEl.insertAdjacentElement('afterend', group);
       }
-    } else {
-      const anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || card;
-      if (anchor !== card) anchor.appendChild(group);
-      else card.appendChild(group);
+    } else if (targetAnchor !== card) {
+      const pill = targetAnchor.querySelector('.tp-deal-pill');
+      if (pill && card.classList?.contains('mixedBrowsingExpert')) {
+        if (group.nextElementSibling !== pill) targetAnchor.insertBefore(group, pill);
+      } else if (group.parentElement !== targetAnchor) {
+        targetAnchor.appendChild(group);
+      }
+    } else if (group.parentElement !== card) {
+      card.appendChild(group);
     }
   }
   refreshAlarmBellDecor();

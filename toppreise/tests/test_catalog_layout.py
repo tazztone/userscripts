@@ -3172,9 +3172,9 @@ def test_global_filter_toggle_temporarily_disables_all_filters(page: Page):
     assert 'tp-filters-paused' not in (filter_btn.get_attribute('class') or '')
 
 
-def test_card_alarm_bell_visible_in_listenansicht_and_positioned_above_price(page: Page):
-    """In Listenansicht or feed cards, .tp-card-alarm-btn must be positioned above
-    the price container without taking horizontal layout flow inside .Plugin_PriceInformation,
+def test_card_alarm_bell_visible_in_listenansicht_and_positioned_right_of_price(page: Page):
+    """In Listenansicht or feed cards, .tp-card-alarm-btn must be positioned to the right
+    of the price digits so it doesn't overlap title text / websearch icon (🌐),
     and reveal on hovering .Plugin_Product / .mixedBrowsingList."""
     page.evaluate("""() => {
         const card = document.querySelector('#card-cheapest');
@@ -3189,15 +3189,15 @@ def test_card_alarm_bell_visible_in_listenansicht_and_positioned_above_price(pag
     card.hover()
     assert bell.is_visible()
 
-    # Bounding box check: bell is placed above the price container (bottom: 100%)
+    # Bounding box check: bell is placed to the right of the price
     boxes = page.evaluate("""() => {
         const bellEl = document.querySelector('#card-cheapest .tp-card-alarm-btn');
-        const priceEl = document.querySelector('#card-cheapest .Plugin_PriceInformation');
+        const priceVal = document.querySelector('#card-cheapest .Plugin_Price');
         const b = bellEl.getBoundingClientRect();
-        const p = priceEl.getBoundingClientRect();
-        return { bellY: b.y, bellBottom: b.bottom, priceY: p.y };
+        const p = priceVal.getBoundingClientRect();
+        return { bellLeft: b.left, priceRight: p.right };
     }""")
-    assert boxes['bellBottom'] <= boxes['priceY'] + 2
+    assert boxes['bellLeft'] >= boxes['priceRight'] - 4
 
 
 def test_galerieansicht_review_button_on_product_title_not_alarm_bell(page: Page):
