@@ -130,3 +130,18 @@ def test_floating_cta_compact_labels_on_mobile_viewport(page: Page):
     assert not dealer_full.is_visible()
 
 
+def test_floating_cta_clears_recent_searches_tray_on_mobile(page: Page):
+    page.set_viewport_size({'width': 390, 'height': 844})
+    margin = page.evaluate("""() => {
+        const div = document.createElement('div');
+        div.className = 'Plugin_LastSearchTerms';
+        document.body.appendChild(div);
+        const style = window.getComputedStyle(div);
+        const mb = parseFloat(style.marginBottom);
+        div.remove();
+        return mb;
+    }""")
+    assert margin >= 48
+
+
+

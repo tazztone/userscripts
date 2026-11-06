@@ -239,4 +239,9 @@ export const STYLES_FLOATING_CTA = `
     .tp-label-full { display: none !important; }
     .tp-label-short { display: inline !important; }
   }
+  @media (max-width: 768px) {
+    .Plugin_LastSearchTerms {
+      margin-bottom: calc(48px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
 `;
