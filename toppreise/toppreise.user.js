@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.470
+// @version      2.18.471
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -854,6 +854,11 @@ const STYLES_BADGES = `
   }
   .tp-sparkline:hover {
     opacity: 1 !important;
+  }
+  @media (max-width: 360px) {
+    .tp-card-subline-row .tp-sparkline-container {
+      display: none !important;
+    }
   }
 `;
 
@@ -7269,7 +7274,7 @@ const SHADOW_MODAL_STYLES = `
     header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
     const title = document.createElement('div');
     title.textContent = productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf';
-    title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;';
+    title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;';
     if (productTitle) title.title = productTitle;
 
     const headerActions = document.createElement('div');
@@ -15075,7 +15080,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.470';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.471';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

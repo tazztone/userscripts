@@ -341,7 +341,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
   const title = document.createElement('div');
   title.textContent = productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf';
-  title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;';
+  title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;';
   if (productTitle) title.title = productTitle;
 
   const headerActions = document.createElement('div');

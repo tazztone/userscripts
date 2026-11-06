@@ -566,4 +566,9 @@ export const STYLES_BADGES = `
   .tp-sparkline:hover {
     opacity: 1 !important;
   }
+  @media (max-width: 360px) {
+    .tp-card-subline-row .tp-sparkline-container {
+      display: none !important;
+    }
+  }
 `;

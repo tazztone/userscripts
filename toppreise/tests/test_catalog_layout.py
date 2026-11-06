@@ -3398,6 +3398,21 @@ def test_listenansicht_dealer_check_in_action_row(page: Page):
     assert is_before_bell is True
 
 
+def test_card_subline_sparkline_hidden_on_narrow_viewport(page: Page):
+    seed_verified_deal(page, '797571', {
+        'tiefstpreis': 100,
+        'medianPrice': 200,
+        'timeSeries': [[1700000000000, 200], [1700086400000, 100]]
+    })
+    spark = page.locator('#card-cheapest .tp-sparkline-container')
+    assert spark.count() == 1
+    assert spark.is_visible()
+
+    page.set_viewport_size({'width': 320, 'height': 640})
+    assert not spark.is_visible()
+
+
+
 
 
 
