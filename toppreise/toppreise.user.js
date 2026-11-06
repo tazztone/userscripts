@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.473
+// @version      2.18.474
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1457,8 +1457,10 @@ const STYLES_CATEGORY_TREE = `
     display: flex !important; flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important;
     width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-sublist { display: none !important; }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle { opacity: 0.25 !important; pointer-events: none !important; cursor: default !important; }
+  /* Disabled categories remain expandable for read-only browsing; child mute buttons suppressed */
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) .tp-cat-sublist .ignoreCategory {
+    display: none !important;
+  }
 
   .tp-cat-row {
     display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important;
@@ -6526,11 +6528,8 @@ const SHADOW_MODAL_STYLES = `
       const icon = span.querySelector('i');
       if (icon) icon.className = 'TPIcons-plus';
       if (toggle) {
-        toggle.disabled = true;
-        toggle.setAttribute('aria-disabled', 'true');
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.textContent = '▸';
-        targetEl.querySelector(':scope > .tp-cat-sublist')?.remove();
+        toggle.disabled = false;
+        toggle.removeAttribute?.('aria-disabled');
       }
     } else {
       targetEl.classList.remove('ignoredCategoryEntry');
@@ -6660,10 +6659,6 @@ const SHADOW_MODAL_STYLES = `
         toggle.setAttribute('aria-expanded', 'false');
         toggle.textContent = '▸';
         toggle.title = 'Unterkategorien anzeigen';
-        if (isIgnored) {
-          toggle.disabled = true;
-          toggle.setAttribute('aria-disabled', 'true');
-        }
         bindTreeBranchToggle(toggle, child.id, li, currentPath, expandedBranches, feedUrl);
         row.appendChild(toggle);
       } else {
@@ -6686,8 +6681,8 @@ const SHADOW_MODAL_STYLES = `
       li.appendChild(row);
       sublist.appendChild(li);
 
-      // Reopen if previously expanded in session (and not ignored)
-      if (child.hasChildren && expandedBranches.has(child.id) && !isIgnored) {
+      // Reopen if previously expanded in session
+      if (child.hasChildren && expandedBranches.has(child.id)) {
         setTimeout(async () => {
           if (typeof document === 'undefined') return;
           const tree = await loadNativeCategoryTree();
@@ -6874,15 +6869,10 @@ const SHADOW_MODAL_STYLES = `
 
       bindTreeBranchToggle(toggle, catId, li, currentPath, expandedBranches, link.href || href);
 
-      if (isCategoryIgnored(li)) {
-        toggle.disabled = true;
-        toggle.setAttribute('aria-disabled', 'true');
-      }
-
       row.prepend(toggle);
 
-      // Auto-expand if active in session (and not ignored)
-      if (expandedBranches.has(catId) && !isCategoryIgnored(li)) {
+      // Auto-expand if active in session
+      if (expandedBranches.has(catId)) {
         setTimeout(async () => {
           if (typeof document === 'undefined') return;
           const tree = await loadNativeCategoryTree();
@@ -15143,7 +15133,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.473';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.474';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

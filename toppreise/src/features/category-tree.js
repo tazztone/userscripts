@@ -34,11 +34,8 @@ function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
     const icon = span.querySelector('i');
     if (icon) icon.className = 'TPIcons-plus';
     if (toggle) {
-      toggle.disabled = true;
-      toggle.setAttribute('aria-disabled', 'true');
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.textContent = '▸';
-      targetEl.querySelector(':scope > .tp-cat-sublist')?.remove();
+      toggle.disabled = false;
+      toggle.removeAttribute?.('aria-disabled');
     }
   } else {
     targetEl.classList.remove('ignoredCategoryEntry');
@@ -168,10 +165,6 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
       toggle.setAttribute('aria-expanded', 'false');
       toggle.textContent = '▸';
       toggle.title = 'Unterkategorien anzeigen';
-      if (isIgnored) {
-        toggle.disabled = true;
-        toggle.setAttribute('aria-disabled', 'true');
-      }
       bindTreeBranchToggle(toggle, child.id, li, currentPath, expandedBranches, feedUrl);
       row.appendChild(toggle);
     } else {
@@ -194,8 +187,8 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
     li.appendChild(row);
     sublist.appendChild(li);
 
-    // Reopen if previously expanded in session (and not ignored)
-    if (child.hasChildren && expandedBranches.has(child.id) && !isIgnored) {
+    // Reopen if previously expanded in session
+    if (child.hasChildren && expandedBranches.has(child.id)) {
       setTimeout(async () => {
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();
@@ -382,15 +375,10 @@ export function enhanceCategorySidebar() {
 
     bindTreeBranchToggle(toggle, catId, li, currentPath, expandedBranches, link.href || href);
 
-    if (isCategoryIgnored(li)) {
-      toggle.disabled = true;
-      toggle.setAttribute('aria-disabled', 'true');
-    }
-
     row.prepend(toggle);
 
-    // Auto-expand if active in session (and not ignored)
-    if (expandedBranches.has(catId) && !isCategoryIgnored(li)) {
+    // Auto-expand if active in session
+    if (expandedBranches.has(catId)) {
       setTimeout(async () => {
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();

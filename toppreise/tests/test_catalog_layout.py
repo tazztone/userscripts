@@ -2446,7 +2446,7 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const sublist = sidebar?.querySelector('.tp-cat-sublist');
         const childCount = sublist?.querySelectorAll('.tp-cat-item').length || 0;
 
-        // Disabling category auto-collapses sublist and disables toggle
+        // Disabling category keeps sublist expandable and toggle enabled for read-only browsing
         const firstLi = firstToggle?.closest('li');
         const hideBtn = firstLi?.querySelector('.f_IgnoredCategories_Hide');
         const hideColor = hideBtn ? window.getComputedStyle(hideBtn).color : null;
@@ -2457,6 +2457,19 @@ def test_expandable_category_sidebar_interactions(page: Page):
         const sublistAfterHide = firstLi?.querySelector('.tp-cat-sublist');
         const toggleDisabledAfterHide = !!firstToggle?.disabled;
         const rowBgAfterHide = firstLi?.querySelector('.tp-cat-row') ? window.getComputedStyle(firstLi.querySelector('.tp-cat-row')).backgroundColor : null;
+
+        // Subcategory mute buttons are suppressed under disabled parent
+        const childHideBtnWhileParentDisabled = firstLi?.querySelector('.tp-cat-sublist .ignoreCategory');
+        const childHideBtnDisplayAfterHide = childHideBtnWhileParentDisabled ? window.getComputedStyle(childHideBtnWhileParentDisabled).display : null;
+
+        // Can collapse and re-expand while parent is disabled
+        if (firstToggle) firstToggle.click();
+        await new Promise(r => setTimeout(r, 60));
+        const sublistAfterManualCollapse = firstLi?.querySelector('.tp-cat-sublist');
+
+        if (firstToggle) firstToggle.click();
+        await new Promise(r => setTimeout(r, 60));
+        const sublistAfterManualReexpand = firstLi?.querySelector('.tp-cat-sublist');
 
         // Searching for child category when parent is disabled returns 0 results
         searchInput.value = 'komplett';
@@ -2472,9 +2485,11 @@ def test_expandable_category_sidebar_interactions(page: Page):
         await new Promise(r => setTimeout(r, 60));
         const toggleDisabledAfterShow = !!firstToggle?.disabled;
 
-        // Expand again and test subcategory exclusion sync
-        if (firstToggle) firstToggle.click();
-        await new Promise(r => setTimeout(r, 60));
+        // Ensure sublist is open to test subcategory exclusion sync
+        if (!firstLi?.querySelector('.tp-cat-sublist') && firstToggle) {
+            firstToggle.click();
+            await new Promise(r => setTimeout(r, 60));
+        }
 
         const sublistReopened = firstLi?.querySelector('.tp-cat-sublist');
         const childLi = sublistReopened?.querySelector('.tp-cat-item');
@@ -2519,6 +2534,9 @@ def test_expandable_category_sidebar_interactions(page: Page):
             hideOpacity,
             sublistAfterHide: !!sublistAfterHide,
             toggleDisabledAfterHide,
+            childHideBtnDisplayAfterHide,
+            sublistAfterManualCollapse: !!sublistAfterManualCollapse,
+            sublistAfterManualReexpand: !!sublistAfterManualReexpand,
             rowBgAfterHide,
             childHitsWhenParentIgnored,
             toggleDisabledAfterShow,
@@ -2551,8 +2569,11 @@ def test_expandable_category_sidebar_interactions(page: Page):
     # Vanilla styling: no permanent red color and hidden by default until hover
     assert '239, 68, 68' not in (res['hideColor'] or '')
     assert float(res['hideOpacity'] or '0') <= 0.1
-    assert res['sublistAfterHide'] is False
-    assert res['toggleDisabledAfterHide'] is True
+    assert res['sublistAfterHide'] is True
+    assert res['toggleDisabledAfterHide'] is False
+    assert res['childHideBtnDisplayAfterHide'] == 'none'
+    assert res['sublistAfterManualCollapse'] is False
+    assert res['sublistAfterManualReexpand'] is True
     # Vanilla styling: no red background tint on ignored row
     assert '239, 68, 68' not in (res['rowBgAfterHide'] or '')
     assert res['childHitsWhenParentIgnored'] == 0

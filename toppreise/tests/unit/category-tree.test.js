@@ -485,7 +485,7 @@ test('renderChildList marks ignored categories with ignoredCategoryEntry and plu
     const swIcon = swSpan.querySelector('i');
     assert.ok(swIcon.classList.contains('TPIcons-plus'));
     const swToggle = softwareLi.querySelector('.tp-cat-toggle');
-    assert.equal(swToggle.disabled, true);
+    assert.ok(!swToggle.disabled); // Disabled categories remain expandable for read-only browsing
 
     // c40 (Hardware) is active
     const hardwareLi = items[1];
@@ -544,7 +544,7 @@ test('syncCategoryTreeIgnoredState updates existing rows when ignored chips chan
     assert.ok(li.classList.contains('ignoredCategoryEntry'));
     assert.ok(span.classList.contains('f_IgnoredCategories_Show'));
     assert.ok(icon.classList.contains('TPIcons-plus'));
-    assert.equal(toggle.disabled, true);
+    assert.equal(toggle.disabled, false); // Disabled categories remain expandable for read-only browsing
 
     // Remove chip and sync
     chip.remove();

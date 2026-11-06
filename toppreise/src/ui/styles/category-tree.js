@@ -37,8 +37,10 @@ export const STYLES_CATEGORY_TREE = `
     display: flex !important; flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important;
     width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important;
   }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-sublist { display: none !important; }
-  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) > .tp-cat-row .tp-cat-toggle { opacity: 0.25 !important; pointer-events: none !important; cursor: default !important; }
+  /* Disabled categories remain expandable for read-only browsing; child mute buttons suppressed */
+  .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) .tp-cat-sublist .ignoreCategory {
+    display: none !important;
+  }
 
   .tp-cat-row {
     display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important;
