@@ -49,6 +49,7 @@ export function buildBundle() {
     'ui/styles/chrome.js',
     'ui/styles/category-tree.js',
     'ui/styles/overlays.js',
+    'ui/styles/floating-cta.js',
     'ui/styles.js',
     'ui/styles/shadow-modal.js'
   ];
@@ -84,6 +85,8 @@ export function buildBundle() {
     'ui/badges/deal-verdict.js',
     'ui/badges/card-share.js',
     'ui/badges/card-ai-popover.js',
+    'ui/badges/card-dealer.js',
+    'ui/badges/card-alarm.js',
     'ui/badges/card-chrome.js',
     'ui/badges.js',
     'ui/shell.js',

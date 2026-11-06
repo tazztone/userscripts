@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.468
+// @version      2.18.469
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1773,6 +1773,14 @@ const STYLES_OVERLAYS = `
   @media (max-width: 700px) {
     .tp-input-wrapper { flex: 1 1 100% !important; max-width: none !important; }
   }
+`;
+
+/**
+ * Floating check-deals CTA styles.
+ * Split from ui/styles/overlays.js to satisfy module size budget.
+ */
+
+const STYLES_FLOATING_CTA = `
   /* ─── FLOATING CHECK-DEALS CTA (primary one-click verify action) ─── */
   #tp-floating-check-cta {
     position: fixed !important;
@@ -1812,173 +1820,176 @@ const STYLES_OVERLAYS = `
     box-shadow: none !important;
   }
   #tp-floating-check-cta.tp-empty #tp-floating-check-btn:hover {
-    background: rgba(15, 23, 42, 0.10) !important;
+    background: rgba(15, 23, 42, 0.12) !important;
     color: var(--tp-txt) !important;
-  }
-  #tp-floating-check-cta.tp-empty #tp-floating-check-sub {
-    opacity: 0.7 !important;
   }
   #tp-floating-check-cta.tp-hidden { display: none !important; }
   @keyframes tp-floating-pulse {
-    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 8px rgba(16,185,129,0.2); }
-    50% { box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 18px rgba(16,185,129,0.45); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    #tp-floating-check-cta { animation: none !important; }
-    .tp-tool-dim, .tp-mini-slider, .tp-mini-slider:before, .tp-switch .tp-slider, .tp-switch .tp-slider:before { transition: none !important; }
-  }
-  @media (prefers-contrast: more) {
-    .badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record { border-width: 2px !important; }
-    :is(.badge-dif.tp-is-verified, .badge-dif.tp-deal-alltime-low, .badge-dif.tp-deal-new-record)[style*="background"] { color: #fff !important; }
-    .tp-tool-dim { opacity: 0.75 !important; }
-  }
-  #tp-floating-check-col {
-    display: inline-flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 3px !important;
+    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+    50% { box-shadow: 0 4px 22px rgba(16, 185, 129, 0.35); }
   }
   #tp-floating-check-btn {
-    background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    color: #ffffff !important;
     border: none !important;
     border-radius: 999px !important;
-    color: #fff !important;
     padding: 2px 8px !important;
+    height: 24px !important;
+    font-family: inherit !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
     cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
+    white-space: nowrap !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+    box-sizing: border-box !important;
+  }
+  #tp-floating-check-btn:hover {
+    filter: brightness(1.08) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45) !important;
+  }
+  #tp-floating-check-btn:active {
+    transform: translateY(0) !important;
+  }
+  #tp-floating-check-cta.tp-scanning #tp-floating-check-btn {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35) !important;
+  }
+  #tp-floating-check-labels {
     display: inline-flex !important;
     flex-direction: column !important;
     align-items: flex-start !important;
-    justify-content: center !important;
-    gap: 0 !important;
-    line-height: 1.15 !important;
-    height: 26px !important;
-    box-sizing: border-box !important;
-    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3) !important;
-    transition: filter 0.15s ease !important;
+    line-height: 1.1 !important;
   }
-  #tp-floating-check-btn:hover { filter: brightness(1.12) !important; }
+  #tp-floating-check-main {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
+  }
+  #tp-floating-check-sub {
+    font-size: 8.5px !important;
+    font-weight: 500 !important;
+    opacity: 0.85 !important;
+    letter-spacing: -0.01em !important;
+  }
   #tp-floating-dealer-row {
     display: inline-flex !important;
     align-items: center !important;
     gap: 3px !important;
-    padding: 0 6px !important;
+    padding: 0 5px !important;
     height: 24px !important;
-    border-radius: 999px !important;
     background: rgba(15, 23, 42, 0.05) !important;
-    border: 1px solid rgba(15, 23, 42, 0.1) !important;
+    border-radius: 999px !important;
     font-size: 10px !important;
     font-weight: 600 !important;
     color: var(--tp-txt-dim) !important;
     cursor: pointer !important;
-    white-space: nowrap !important;
     user-select: none !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
     box-sizing: border-box !important;
   }
-  #tp-floating-dealer-row:hover { background: rgba(15, 23, 42, 0.08) !important; color: var(--tp-txt) !important; }
-  #tp-floating-dealer-row.tp-active { background: rgba(16, 185, 129, 0.2) !important; border-color: rgba(16, 185, 129, 0.4) !important; color: var(--tp-acc-txt) !important; }
-  #tp-floating-dealer-row input { accent-color: var(--tp-acc) !important; margin: 0 !important; cursor: pointer !important; }
-  #tp-floating-check-main { font-size: 11px !important; font-weight: 700 !important; white-space: nowrap !important; }
-  #tp-floating-check-sub { font-size: 8.5px !important; font-weight: 500 !important; white-space: nowrap !important; }
-  #tp-floating-refresh-btn {
-    background: rgba(15, 23, 42, 0.05) !important;
-    border: 1px solid rgba(15, 23, 42, 0.1) !important;
-    border-radius: 999px !important;
-    color: var(--tp-txt-dim) !important;
-    padding: 0 !important;
-    width: 24px !important;
-    height: 24px !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
+  #tp-floating-dealer-row:hover {
+    background: rgba(15, 23, 42, 0.1) !important;
+    color: var(--tp-txt) !important;
+  }
+  #tp-floating-dealer-toggle {
+    accent-color: #10b981 !important;
     cursor: pointer !important;
-    white-space: nowrap !important;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box !important;
-    transition: transform 0.2s ease, background 0.15s ease !important;
+    margin: 0 !important;
   }
-  #tp-floating-refresh-btn:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.08) !important; }
+  #tp-floating-threshold-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: none !important;
+    border-radius: 999px !important;
+    padding: 0 5px !important;
+    height: 24px !important;
+    font-family: inherit !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: var(--tp-txt-dim) !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
+    box-sizing: border-box !important;
+  }
+  #tp-floating-threshold-btn:hover {
+    background: rgba(15, 23, 42, 0.1) !important;
+    color: var(--tp-txt) !important;
+  }
+  #tp-floating-threshold-menu {
+    position: absolute !important;
+    bottom: calc(100% + 8px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    border-radius: var(--tp-r-md) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
+    padding: 6px !important;
+    display: none !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 140px !important;
+    z-index: 99992 !important;
+  }
+  #tp-floating-threshold-menu.tp-show { display: flex !important; }
+  .tp-threshold-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 5px 8px !important;
+    border-radius: var(--tp-r-sm) !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--tp-txt) !important;
+    font-family: inherit !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: background 0.12s ease !important;
+    text-align: left !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .tp-threshold-item:hover { background: rgba(16, 185, 129, 0.12) !important; color: #059669 !important; }
+  .tp-threshold-item.tp-active { background: #10b981 !important; color: #ffffff !important; font-weight: 700 !important; }
+  #tp-floating-refresh-btn,
+  #tp-floating-cta-collapse {
+    background: transparent !important;
+    border: none !important;
+    color: var(--tp-txt-dim) !important;
+    cursor: pointer !important;
+    font-size: 12px !important;
+    padding: 2px 4px !important;
+    line-height: 1 !important;
+    border-radius: 4px !important;
+    transition: color 0.15s ease, transform 0.15s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  #tp-floating-refresh-btn:hover,
+  #tp-floating-cta-collapse:hover {
+    color: var(--tp-txt) !important;
+    background: rgba(15, 23, 42, 0.06) !important;
+  }
   #tp-floating-refresh-btn.tp-spinning {
-    animation: tp-spin 0.8s linear infinite !important;
-    pointer-events: none !important;
-    opacity: 0.7 !important;
+    animation: tp-spin 0.9s linear infinite !important;
   }
   @keyframes tp-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
-  #tp-floating-threshold-btn {
-    background: rgba(15, 23, 42, 0.05) !important;
-    border: 1px solid rgba(15, 23, 42, 0.1) !important;
-    border-radius: 999px !important;
-    color: var(--tp-txt-dim) !important;
-    padding: 0 6px !important;
-    height: 24px !important;
-    font-size: 10px !important;
-    font-weight: 700 !important;
-    cursor: pointer !important;
-    white-space: nowrap !important;
-    display: inline-flex;
-    align-items: center;
-    box-sizing: border-box !important;
-  }
-  #tp-floating-threshold-btn:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.08) !important; }
-  #tp-floating-threshold-popover {
-    position: absolute !important;
-    bottom: calc(100% + 8px) !important;
-    right: 0 !important;
-    background: rgba(255, 255, 255, 0.97) !important;
-    backdrop-filter: blur(14px) !important;
-    border: 1px solid var(--tp-line-soft) !important;
-    border-radius: var(--tp-r-lg) !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25) !important;
-    padding: 4px !important;
-    display: none;
-    flex-direction: column !important;
-    gap: 2px !important;
-    min-width: 200px !important;
-  }
-  #tp-floating-threshold-popover.tp-show { display: flex !important; }
-  #tp-floating-threshold-popover .tp-floating-hint {
-    color: var(--tp-mut) !important;
-    padding: 4px 8px 2px !important;
-    font-size: 10px !important;
-    font-weight: 500 !important;
-    cursor: default !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option {
-    background: transparent !important;
-    border: none !important;
-    color: var(--tp-txt-dim) !important;
-    padding: 5px 8px !important;
-    font-size: 11.5px !important;
-    font-weight: 600 !important;
-    border-radius: var(--tp-r-sm) !important;
-    cursor: pointer !important;
-    text-align: left !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option:hover { background: rgba(16,185,129,0.25) !important; color: var(--tp-txt) !important; }
-  #tp-floating-threshold-popover .tp-floating-option.tp-selected { background: #047857 !important; color: #fff !important; }
-  #tp-floating-cta-collapse {
-    background: rgba(15, 23, 42, 0.05) !important;
-    border: 1px solid rgba(15, 23, 42, 0.1) !important;
-    border-radius: 50% !important;
-    color: var(--tp-mut) !important;
-    width: 22px !important;
-    height: 22px !important;
-    padding: 0 !important;
-    font-size: 10px !important;
-    font-weight: 800 !important;
-    cursor: pointer !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-sizing: border-box !important;
-  }
-  #tp-floating-cta-collapse:hover { color: var(--tp-txt) !important; background: rgba(15, 23, 42, 0.10) !important; }
-  #tp-floating-check-btn:focus-visible, #tp-floating-refresh-btn:focus-visible, #tp-floating-threshold-btn:focus-visible,
-  #tp-floating-cta-collapse:focus-visible, #tp-floating-threshold-popover .tp-floating-option:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
-  /* Collapsed form: compact count pill — the action stays one click away. */
   #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 2px !important; height: 26px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 0 8px !important; height: 22px !important; }
@@ -2019,7 +2030,8 @@ const STYLES_OVERLAYS = `
 
 
 
-const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS;
+
+const STYLES = STYLES_CARDS + STYLES_BADGES + STYLES_CHROME + STYLES_CATEGORY_TREE + STYLES_OVERLAYS + STYLES_FLOATING_CTA;
 
 /** Shadow-modal part (split from ui/styles.js): isolated Shadow DOM dialog styles. */
 
@@ -10229,26 +10241,11 @@ const SHADOW_MODAL_STYLES = `
     return backdrop;
   }
 
-  // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
+  // ─── MODULE: src/ui/badges/card-dealer.js ───────────────────────────────────
   /**
-   * Card chrome (split from ui/badges.js): sparkline row, verified cue, share
-   * button, dealer name, review button, fresh glow, empty state — plus the
-   * renderCardEffects orchestrator (signature frozen, app.js untouched).
+   * Card dealer extraction, background fetching, and UI rendering.
+   * Split from ui/badges/card-chrome.js to satisfy module size budget.
    */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -10324,129 +10321,6 @@ const SHADOW_MODAL_STYLES = `
     return res ? { dealer: res.dealer, url: res.url || '' } : null;
   }
 
-  // Mini price-trend sparkline + history strip (step 5).
-  function renderSparklineRow(ctx) {
-    const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
-    const pid = rawPid || card?.dataset?.tpProductId || null;
-    // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
-    // pill spans from the share-button zone to the card's right edge, using
-    // full card width instead of the narrow price-info column).
-    const baseSeries = fullSeries(stats) || stats?.timeSeries;
-    const hasSeries = CONFIG.ENABLE_SPARKLINES && Array.isArray(baseSeries) && baseSeries.length >= 2;
-    let sparkContainer = hasSeries ? card.querySelector('.tp-sparkline-container') : null;
-    if (hasSeries) {
-      if (!sparkContainer) {
-        sparkContainer = document.createElement('div');
-        sparkContainer.className = 'tp-sparkline-container';
-      }
-      // Click pops the full Discord-style chart (same series incl. live price).
-      sparkContainer._tpSeries = withLivePrice(baseSeries, cardPrice);
-      // Revision-aware: same length/price/median with refreshed points (new
-      // fetch, recomputed median) must rebuild instead of showing stale art.
-      const lastTs = baseSeries.length ? +baseSeries[baseSeries.length - 1][0] || 0 : 0;
-      const sig = [baseSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
-      const useShipping = isShippingPriceActive(card);
-      const cachedDealer = getCachedDealer(pid, useShipping);
-      const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
-      const isAmazon = /amazon/i.test(dealerName) && CONFIG.KEEPA_CHART_ENABLED !== false;
-      sparkContainer.classList.toggle('tp-sparkline-amazon', isAmazon);
-      sparkContainer.style.cursor = 'pointer';
-      sparkContainer.setAttribute('role', 'button');
-      sparkContainer.setAttribute('tabindex', '0');
-      sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
-      if (!sparkContainer.dataset.tpPopoutBound) {
-        sparkContainer.dataset.tpPopoutBound = 'true';
-        const openPopout = async () => {
-          if (sparkContainer.dataset.tpPopoutLoading) return;
-          sparkContainer.dataset.tpPopoutLoading = 'true';
-          try {
-            const shareData = extractShareData(card);
-            const title = shareData?.title || '';
-            const dealerInfo = await ensureDealerInfo(card, pid, useShipping);
-            const currentCached = getCachedDealer(pid, useShipping);
-            const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, useShipping) || '';
-            const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
-            openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
-          } finally {
-            delete sparkContainer.dataset.tpPopoutLoading;
-          }
-        };
-        sparkContainer.addEventListener('click', e => {
-          e.preventDefault();
-          e.stopPropagation();
-          openPopout();
-        });
-        sparkContainer.addEventListener('keydown', e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            e.stopPropagation();
-            openPopout();
-          }
-        });
-      }
-      if (sparkContainer.dataset.tpSparkSig !== sig) {
-        sparkContainer.dataset.tpSparkSig = sig;
-        const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
-        if (svg) {
-          sparkContainer.replaceChildren();
-          sparkContainer.appendChild(svg);
-        }
-      }
-    } else {
-      card.querySelector('.tp-sparkline-container')?.remove();
-    }
-    const histPriceEl = card.querySelector('.tp-card-historical-price');
-    if (histPriceEl) {
-      let subRow = card.querySelector('.tp-card-subline-row');
-      if (!subRow) {
-        subRow = document.createElement('div');
-        subRow.className = 'tp-card-subline-row';
-        card.appendChild(subRow);
-        subRow.appendChild(histPriceEl);
-      } else if (histPriceEl.parentElement !== subRow) {
-        subRow.insertBefore(histPriceEl, subRow.firstChild);
-      }
-      if (sparkContainer && sparkContainer.parentElement !== subRow) {
-        subRow.appendChild(sparkContainer);
-      }
-    } else {
-      card.querySelector('.tp-card-subline-row')?.remove();
-      if (sparkContainer) {
-        const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
-                               cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
-                               cardPriceEl?.parentElement ||
-                               card;
-        if (sparkContainer.parentElement !== priceContainer) {
-          priceContainer.appendChild(sparkContainer);
-        }
-      }
-    }
-  }
-
-  // Badge verified/unverified cue (step 6).
-  function applyVerifiedCue(ctx) {
-    const { card, stats } = ctx;
-    // 6. Badge geprüft/ungeprüft cue (always on): striped-gray ribbon when
-    // unchecked, solid heat ribbon when verified. Loading badge gets neither.
-    const badgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
-    if (badgeEl) {
-      if (badgeEl.classList.contains('tp-deal-loading')) {
-        badgeEl.classList.remove('tp-is-unverified', 'tp-is-verified');
-      } else if (!hasUsablePriceStats(stats)) {
-        // Negative markers ({unavailable:true}) and thin histories are not
-        // verified — truthiness of the stats object must not imply quality.
-        badgeEl.classList.add('tp-is-unverified');
-        badgeEl.classList.remove('tp-is-verified');
-      } else {
-        badgeEl.classList.add('tp-is-verified');
-        badgeEl.classList.remove('tp-is-unverified');
-      }
-    }
-  }
-
-
-
-  // Dealer name left of price (step 8). Owns the loadDealer closure.
   function renderDealerName(ctx, filters) {
     const { card, pid, cardPriceEl, stats, heatInfo } = ctx;
     // 8. Händlername links neben dem Preis: nur geprüfte Karten (stats != null).
@@ -10618,6 +10492,209 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  // ─── MODULE: src/ui/badges/card-alarm.js ────────────────────────────────────
+  /**
+   * Card Preisalarm bell trigger next to price.
+   * Split from ui/badges/card-chrome.js to satisfy module size budget.
+   */
+
+
+  function renderAlarmBell(ctx) {
+    const { card, pid, cardPriceEl } = ctx;
+    if (!pid || card.querySelector('.Plugin_NewInfoMailButton, .f_showNewInfoMailFormDialog, a[href*="NewInfoMail"], a[href*="infomail"]')) {
+      card.querySelector('.tp-card-alarm-group')?.remove();
+      card.querySelector('.tp-card-alarm-btn')?.remove();
+      return;
+    }
+    let bell = card.querySelector('.tp-card-alarm-btn');
+    let group = card.querySelector('.tp-card-alarm-group');
+    if (!bell) {
+      if (!group) {
+        group = document.createElement('div');
+        group.className = 'tp-card-alarm-group';
+      }
+      bell = document.createElement('button');
+      bell.type = 'button';
+      bell.className = 'tp-card-alarm-btn';
+      bell.textContent = '🔔';
+      bell.setAttribute('aria-label', 'Preisalarm');
+      bell.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openPriceAlarmForProduct(pid, card);
+      });
+      group.appendChild(bell);
+    }
+    if (group) {
+      const targetAnchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl) ||
+                           card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small') ||
+                           card;
+      if (targetAnchor === cardPriceEl) {
+        if (group.previousElementSibling !== cardPriceEl) {
+          cardPriceEl.insertAdjacentElement('afterend', group);
+        }
+      } else if (targetAnchor !== card) {
+        const pill = targetAnchor.querySelector('.tp-deal-pill');
+        if (pill && card.classList?.contains('mixedBrowsingExpert')) {
+          if (group.nextElementSibling !== pill) targetAnchor.insertBefore(group, pill);
+        } else if (group.parentElement !== targetAnchor) {
+          targetAnchor.appendChild(group);
+        }
+      } else if (group.parentElement !== card) {
+        card.appendChild(group);
+      }
+    }
+    refreshAlarmBellDecor();
+  }
+
+  // ─── MODULE: src/ui/badges/card-chrome.js ───────────────────────────────────
+  /**
+   * Card chrome (split from ui/badges.js): sparkline row, verified cue, share
+   * button, dealer name, review button, fresh glow, empty state — plus the
+   * renderCardEffects orchestrator (signature frozen, app.js untouched).
+   */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Mini price-trend sparkline + history strip (step 5).
+  function renderSparklineRow(ctx) {
+    const { card, pid: rawPid, cardPrice, cardPriceEl, stats } = ctx;
+    const pid = rawPid || card?.dataset?.tpProductId || null;
+    // 5. Mini Price-Trend Sparkline + history strip (card-level bottom row:
+    // pill spans from the share-button zone to the card's right edge, using
+    // full card width instead of the narrow price-info column).
+    const baseSeries = fullSeries(stats) || stats?.timeSeries;
+    const hasSeries = CONFIG.ENABLE_SPARKLINES && Array.isArray(baseSeries) && baseSeries.length >= 2;
+    let sparkContainer = hasSeries ? card.querySelector('.tp-sparkline-container') : null;
+    if (hasSeries) {
+      if (!sparkContainer) {
+        sparkContainer = document.createElement('div');
+        sparkContainer.className = 'tp-sparkline-container';
+      }
+      // Click pops the full Discord-style chart (same series incl. live price).
+      sparkContainer._tpSeries = withLivePrice(baseSeries, cardPrice);
+      // Revision-aware: same length/price/median with refreshed points (new
+      // fetch, recomputed median) must rebuild instead of showing stale art.
+      const lastTs = baseSeries.length ? +baseSeries[baseSeries.length - 1][0] || 0 : 0;
+      const sig = [baseSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
+      const useShipping = isShippingPriceActive(card);
+      const cachedDealer = getCachedDealer(pid, useShipping);
+      const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
+      const isAmazon = /amazon/i.test(dealerName) && CONFIG.KEEPA_CHART_ENABLED !== false;
+      sparkContainer.classList.toggle('tp-sparkline-amazon', isAmazon);
+      sparkContainer.style.cursor = 'pointer';
+      sparkContainer.setAttribute('role', 'button');
+      sparkContainer.setAttribute('tabindex', '0');
+      sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
+      if (!sparkContainer.dataset.tpPopoutBound) {
+        sparkContainer.dataset.tpPopoutBound = 'true';
+        const openPopout = async () => {
+          if (sparkContainer.dataset.tpPopoutLoading) return;
+          sparkContainer.dataset.tpPopoutLoading = 'true';
+          try {
+            const shareData = extractShareData(card);
+            const title = shareData?.title || '';
+            const dealerInfo = await ensureDealerInfo(card, pid, useShipping);
+            const currentCached = getCachedDealer(pid, useShipping);
+            const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, useShipping) || '';
+            const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
+            openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+          } finally {
+            delete sparkContainer.dataset.tpPopoutLoading;
+          }
+        };
+        sparkContainer.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          openPopout();
+        });
+        sparkContainer.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            openPopout();
+          }
+        });
+      }
+      if (sparkContainer.dataset.tpSparkSig !== sig) {
+        sparkContainer.dataset.tpSparkSig = sig;
+        const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
+        if (svg) {
+          sparkContainer.replaceChildren();
+          sparkContainer.appendChild(svg);
+        }
+      }
+    } else {
+      card.querySelector('.tp-sparkline-container')?.remove();
+    }
+    const histPriceEl = card.querySelector('.tp-card-historical-price');
+    if (histPriceEl) {
+      let subRow = card.querySelector('.tp-card-subline-row');
+      if (!subRow) {
+        subRow = document.createElement('div');
+        subRow.className = 'tp-card-subline-row';
+        card.appendChild(subRow);
+        subRow.appendChild(histPriceEl);
+      } else if (histPriceEl.parentElement !== subRow) {
+        subRow.insertBefore(histPriceEl, subRow.firstChild);
+      }
+      if (sparkContainer && sparkContainer.parentElement !== subRow) {
+        subRow.appendChild(sparkContainer);
+      }
+    } else {
+      card.querySelector('.tp-card-subline-row')?.remove();
+      if (sparkContainer) {
+        const priceContainer = card.querySelector('.Plugin_PriceInformation, .price_information_product') ||
+                               cardPriceEl?.closest('.priceContainer, .Plugin_PriceInformation, .price_information_product') ||
+                               cardPriceEl?.parentElement ||
+                               card;
+        if (sparkContainer.parentElement !== priceContainer) {
+          priceContainer.appendChild(sparkContainer);
+        }
+      }
+    }
+  }
+
+  // Badge verified/unverified cue (step 6).
+  function applyVerifiedCue(ctx) {
+    const { card, stats } = ctx;
+    // 6. Badge geprüft/ungeprüft cue (always on): striped-gray ribbon when
+    // unchecked, solid heat ribbon when verified. Loading badge gets neither.
+    const badgeEl = card.querySelector('.badge-dif, [class*="badge-dif"]');
+    if (badgeEl) {
+      if (badgeEl.classList.contains('tp-deal-loading')) {
+        badgeEl.classList.remove('tp-is-unverified', 'tp-is-verified');
+      } else if (!hasUsablePriceStats(stats)) {
+        // Negative markers ({unavailable:true}) and thin histories are not
+        // verified — truthiness of the stats object must not imply quality.
+        badgeEl.classList.add('tp-is-unverified');
+        badgeEl.classList.remove('tp-is-verified');
+      } else {
+        badgeEl.classList.add('tp-is-verified');
+        badgeEl.classList.remove('tp-is-unverified');
+      }
+    }
+  }
+
   // Review search on product name (step 9).
   function renderReviewButton(ctx) {
     const { card } = ctx;
@@ -10676,55 +10753,6 @@ const SHADOW_MODAL_STYLES = `
     } else {
       card.querySelector('.tp-review-search-btn')?.remove();
     }
-  }
-
-  // Preisalarm bell trigger next to price (step 10).
-  function renderAlarmBell(ctx) {
-    const { card, pid, cardPriceEl } = ctx;
-    if (!pid || card.querySelector('.Plugin_NewInfoMailButton, .f_showNewInfoMailFormDialog, a[href*="NewInfoMail"], a[href*="infomail"]')) {
-      card.querySelector('.tp-card-alarm-group')?.remove();
-      card.querySelector('.tp-card-alarm-btn')?.remove();
-      return;
-    }
-    let bell = card.querySelector('.tp-card-alarm-btn');
-    let group = card.querySelector('.tp-card-alarm-group');
-    if (!bell) {
-      if (!group) {
-        group = document.createElement('div');
-        group.className = 'tp-card-alarm-group';
-      }
-      bell = document.createElement('button');
-      bell.type = 'button';
-      bell.className = 'tp-card-alarm-btn';
-      bell.textContent = '🔔';
-      bell.setAttribute('aria-label', 'Preisalarm');
-      bell.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        openPriceAlarmForProduct(pid, card);
-      });
-      group.appendChild(bell);
-    }
-    if (group) {
-      const targetAnchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl) ||
-                           card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small') ||
-                           card;
-      if (targetAnchor === cardPriceEl) {
-        if (group.previousElementSibling !== cardPriceEl) {
-          cardPriceEl.insertAdjacentElement('afterend', group);
-        }
-      } else if (targetAnchor !== card) {
-        const pill = targetAnchor.querySelector('.tp-deal-pill');
-        if (pill && card.classList?.contains('mixedBrowsingExpert')) {
-          if (group.nextElementSibling !== pill) targetAnchor.insertBefore(group, pill);
-        } else if (group.parentElement !== targetAnchor) {
-          targetAnchor.appendChild(group);
-        }
-      } else if (group.parentElement !== card) {
-        card.appendChild(group);
-      }
-    }
-    refreshAlarmBellDecor();
   }
 
   // Fresh-deal glow for newly verified good deals.
@@ -15042,7 +15070,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.468';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.469';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
