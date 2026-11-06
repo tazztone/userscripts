@@ -25,7 +25,7 @@ import {
   runBatchDealCheck,
   cancelBatchDealCheck
 } from "../scanner/scanner.js";
-import { setTextIfChanged } from "./badges.js";
+import { setTextIfChanged, setHtmlIfChanged } from "./badges.js";
 import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
@@ -177,7 +177,8 @@ function ensureCta() {
       </button>
       <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">
         <input type="checkbox" id="tp-floating-dealer-toggle">
-        <span>🏬 Händler laden</span>
+        <span class="tp-label-full">🏬 Händler laden</span>
+        <span class="tp-label-short">🏬 Händler</span>
       </label>
     </div>
     <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
@@ -249,7 +250,16 @@ function syncFloatingCTA() {
     total: state.progress?.total || 0
   });
 
-  setTextIfChanged(el.querySelector('#tp-floating-check-main'), mainLabel);
+  const countMatch = mainLabel.match(/^🔍\s*(\d+)\s+Tiefstpreis/);
+  if (countMatch) {
+    const count = countMatch[1];
+    setHtmlIfChanged(
+      el.querySelector('#tp-floating-check-main'),
+      `<span class="tp-label-full">${mainLabel}</span><span class="tp-label-short">🔍 ${count} prüfen</span>`
+    );
+  } else {
+    setTextIfChanged(el.querySelector('#tp-floating-check-main'), mainLabel);
+  }
   const subEl = el.querySelector('#tp-floating-check-sub');
   setTextIfChanged(subEl, subLabel);
   subEl.style.display = subLabel ? 'block' : 'none';

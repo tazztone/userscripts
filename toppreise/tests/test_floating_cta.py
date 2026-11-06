@@ -112,3 +112,21 @@ def test_floating_cta_clicking_positive_count_never_toasts_no_deals(page: Page):
     page.wait_for_selector('#tp-floating-check-cta.tp-scanning')
     assert page.locator('#tp-root >> .tp-toast', has_text='Keine ungeprüften Deals vorhanden').count() == 0
 
+
+def test_floating_cta_compact_labels_on_mobile_viewport(page: Page):
+    page.set_viewport_size({'width': 390, 'height': 844})
+    cta = page.locator('#tp-floating-check-cta')
+    assert cta.is_visible()
+
+    short_label = page.locator('#tp-floating-check-main .tp-label-short')
+    full_label = page.locator('#tp-floating-check-main .tp-label-full')
+    assert short_label.is_visible()
+    assert not full_label.is_visible()
+    assert 'prüfen' in (short_label.text_content() or '')
+
+    dealer_short = page.locator('#tp-floating-dealer-row .tp-label-short')
+    dealer_full = page.locator('#tp-floating-dealer-row .tp-label-full')
+    assert dealer_short.is_visible()
+    assert not dealer_full.is_visible()
+
+
