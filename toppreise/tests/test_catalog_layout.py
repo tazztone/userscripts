@@ -2701,10 +2701,59 @@ def test_dealer_name_direct_from_dom_dealer_row(page: Page):
     assert name.is_visible()
     assert 'Digitec' in (name.text_content() or '')
     assert '/preisvergleich/' in (name.get_attribute('href') or '')
-    # Left of the whole price row: first element inside its container
+    # Inside its own row above the price row
+    assert name.evaluate("el => el.parentElement.className") == 'tp-card-dealer-row'
     assert name.evaluate("el => el.parentElement.firstElementChild === el")
     assert page.locator('#card-cheapest .tp-dealer-btn').count() == 0
     assert len(product_hits) == 0
+
+
+def test_dealer_row_sits_above_price_and_bell_never_wraps(page: Page):
+    """The merchant row sits directly above the price line and is right-aligned.
+    The price line container does not wrap, keeping the alarm bell on the exact
+    same horizontal line alongside the price."""
+    page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', 'https://www.toppreise.ch/preisvergleich/Grafikkarten/Nvidia-RTX-4090-p797571');
+        window.ToppreiseSuite.clearCardCache(card);
+    }""")
+    mock_pricechart(page, {'797571': 1800})
+    page.wait_for_selector('#card-cheapest .badge-dif')
+    page.click('#card-cheapest .badge-dif')
+    page.wait_for_selector('#card-cheapest .badge-dif.tp-deal-alltime-low')
+    page.wait_for_selector('#card-cheapest a.tp-dealer-name')
+
+    layout_info = page.evaluate("""() => {
+        const card = document.querySelector('#card-cheapest');
+        const dealerRow = card.querySelector('.tp-card-dealer-row');
+        const priceContainer = card.querySelector('.priceContainer:not([style*="display: none"])');
+        const priceEl = card.querySelector('.Plugin_Price');
+        const bellGroup = card.querySelector('.tp-card-alarm-group');
+        const dealerRect = dealerRow.getBoundingClientRect();
+        const priceRect = priceContainer.getBoundingClientRect();
+        const priceElRect = priceEl.getBoundingClientRect();
+        const bellRect = bellGroup.getBoundingClientRect();
+        const priceStyle = window.getComputedStyle(priceContainer);
+
+        return {
+            dealerTop: dealerRect.top,
+            priceTop: priceRect.top,
+            priceElTop: priceElRect.top,
+            bellTop: bellRect.top,
+            dealerBottom: dealerRect.bottom,
+            priceFlexWrap: priceStyle.flexWrap,
+            dealerRowJustify: window.getComputedStyle(dealerRow).justifyContent
+        };
+    }""")
+
+    # Dealer row must be strictly above price container
+    assert layout_info['dealerBottom'] <= layout_info['priceTop'] + 2
+    # Dealer row is right-aligned
+    assert layout_info['dealerRowJustify'] == 'flex-end'
+    # Bell and price must be on the same vertical level (not wrapped below)
+    assert abs(layout_info['priceElTop'] - layout_info['bellTop']) <= 6
+    # Price container does not wrap
+    assert layout_info['priceFlexWrap'] == 'nowrap'
 
 
 def test_dealer_button_visible_in_listenansicht_with_hidden_shipping(page: Page):
@@ -2741,10 +2790,11 @@ def test_dealer_button_visible_in_listenansicht_with_hidden_shipping(page: Page)
     assert btn.is_visible()
     assert btn.text_content() == '🏬'
 
-    # Must be placed in visible productPrice, not hidden shippingPrice
-    parent_class = btn.evaluate("el => el.parentElement.className")
-    assert 'productPrice' in parent_class
-    assert 'shippingPrice' not in parent_class
+    # Must be placed in dedicated dealer row immediately preceding visible productPrice
+    assert btn.evaluate("el => el.parentElement.className") == 'tp-card-dealer-row'
+    target_class = btn.evaluate("el => el.parentElement.nextElementSibling.className")
+    assert 'productPrice' in target_class
+    assert 'shippingPrice' not in target_class
 
     # Must be discoverable (opacity 0.65) and retain non-zero width
     btn_info = btn.evaluate("""el => {

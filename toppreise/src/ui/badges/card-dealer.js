@@ -90,6 +90,7 @@ export function renderDealerName(ctx, filters) {
   const dealerEl = card.querySelector('.tp-dealer-name');
   if (!hasUsablePriceStats(stats) || !pid) {
     dealerEl?.remove();
+    card.querySelector('.tp-card-dealer-row')?.remove();
   } else {
     const useShipping = isShippingPriceActive(card);
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
@@ -133,10 +134,23 @@ export function renderDealerName(ctx, filters) {
     }
     const place = el => {
       el.dataset.tpDealerPid = dKey;
-      // Prepend: links vom "ab CHF"-Prefix. insertBefore(cardPriceEl) landete
-      // dahinter (cardPriceEl ist nur die Zahl) und spaltete Prefix von Zahl.
-      if (anchor !== card) anchor.insertBefore(el, anchor.firstChild);
-      else anchor.appendChild(el);
+      let row = card.querySelector('.tp-card-dealer-row');
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'tp-card-dealer-row';
+      }
+      if (anchor !== card && anchor?.parentElement) {
+        if (row.nextElementSibling !== anchor) {
+          anchor.parentElement.insertBefore(row, anchor);
+        }
+      } else if (anchor && anchor !== card) {
+        if (row.parentElement !== anchor) anchor.insertBefore(row, anchor.firstChild);
+      } else if (card) {
+        if (row.parentElement !== card) card.appendChild(row);
+      }
+      if (el.parentElement !== row) {
+        row.replaceChildren(el);
+      }
     };
 
     const actionRow = card.querySelector('.row.action, .action');
@@ -202,8 +216,11 @@ export function renderDealerName(ctx, filters) {
         el.className = 'tp-dealer-name';
         if (hasUrl) { el.href = targetUrl; el.target = '_blank'; el.rel = 'noopener'; el.addEventListener('click', e => e.stopPropagation()); }
         place(el);
-      } else if (el.tagName === 'A' && hasUrl && el.getAttribute('href') !== targetUrl) {
-        el.href = targetUrl;
+      } else {
+        place(el);
+        if (el.tagName === 'A' && hasUrl && el.getAttribute('href') !== targetUrl) {
+          el.href = targetUrl;
+        }
       }
       setTextIfChanged(el, `🏬 ${dealer}`);
       setTitleIfChanged(el, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
@@ -225,8 +242,11 @@ export function renderDealerName(ctx, filters) {
           loadDealer();
         });
         place(btn);
-      } else if (!dealerPending.has(dKey) && btn.disabled) {
-        btn.disabled = false;
+      } else {
+        place(btn);
+        if (!dealerPending.has(dKey) && btn.disabled) {
+          btn.disabled = false;
+        }
       }
       // Opt-in (aus, Standard): Händler ohne Klick laden. Ein Versuch pro
       // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
@@ -245,6 +265,7 @@ export function renderDealerName(ctx, filters) {
       }
     } else {
       dealerEl?.remove();
+      card.querySelector('.tp-card-dealer-row')?.remove();
     }
   }
 }

@@ -320,9 +320,24 @@ export const STYLES_BADGES = `
     min-width: 0 !important;
     margin-right: auto !important;
   }
-  /* Preiszeile mit Händler als Flex-Row: der Name bekommt den verfügbaren
-  Platz (Ellipsis erst bei echtem Platzmangel), der Preis schrumpft nie.
-  40%-Cap oben gilt dann nur noch ohne Flex-Container (Fallback). */
+  /* Händlerzeile auf eigener Zeile über dem Preis (rechtsbündig). */
+  .tp-card-dealer-row {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin-bottom: 2px !important;
+    line-height: 1.2 !important;
+  }
+  .tp-card-dealer-row > .tp-dealer-name {
+    display: inline-flex !important;
+    justify-content: flex-end !important;
+    max-width: none !important;
+    margin-right: 0 !important;
+    flex: 1 1 auto !important;
+    text-align: right !important;
+  }
+  /* Fallback: Preiszeile mit Händler als direkter Kind-Knoten (Flex-Row). */
   .Plugin_PriceInformation:has(> .tp-dealer-name),
   .price_information_product:has(> .tp-dealer-name),
   .product-price:has(> .tp-dealer-name),
@@ -346,7 +361,16 @@ export const STYLES_BADGES = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
-  .priceContainer:has(> .tp-dealer-name) > .shippingText {
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer, .product-price):not(:has(> .shippingText)) {
+    flex-wrap: nowrap !important;
+  }
+  .priceContainer:has(> .shippingText) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: baseline !important;
+    justify-content: flex-end !important;
+  }
+  .priceContainer > .shippingText {
     width: 100% !important;
     flex: 0 0 100% !important;
     text-align: right !important;
@@ -358,11 +382,16 @@ export const STYLES_BADGES = `
   :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .priceContainer {
     max-width: 100% !important;
     box-sizing: border-box !important;
+    justify-content: flex-end !important;
   }
-  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) :is(span.tp-dealer-name, a.tp-dealer-name) {
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) :is(span.tp-dealer-name, a.tp-dealer-name):not(.tp-card-dealer-row *) {
     max-width: 140px !important;
     flex: 0 1 auto !important;
     margin-right: 4px !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-card-dealer-row :is(span.tp-dealer-name, a.tp-dealer-name) {
+    max-width: none !important;
+    margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {
     opacity: 1 !important;
@@ -400,6 +429,7 @@ export const STYLES_BADGES = `
     text-decoration: underline !important;
   }
   button.tp-dealer-name.tp-dealer-btn,
+  .tp-card-dealer-row > button.tp-dealer-name.tp-dealer-btn,
   .priceContainer:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
   .Plugin_PriceInformation:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
   .price_information_product:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
@@ -415,7 +445,7 @@ export const STYLES_BADGES = `
     min-width: 18px !important;
     max-width: none !important;
     line-height: 1 !important;
-    text-align: left !important;
+    text-align: right !important;
   }
   :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-dealer-name.tp-dealer-btn,
   button.tp-dealer-name.tp-dealer-btn:hover,
@@ -436,6 +466,7 @@ export const STYLES_BADGES = `
     vertical-align: middle !important;
     margin-left: 4px !important;
     flex-shrink: 0 !important;
+    white-space: nowrap !important;
     z-index: 4 !important;
   }
   :is(.Plugin_Product, .medium-box, .mixedBrowsingBox):has(.badge-dif:not(.tp-deal-pill)) {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.471
+// @version      2.18.472
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -609,9 +609,24 @@ const STYLES_BADGES = `
     min-width: 0 !important;
     margin-right: auto !important;
   }
-  /* Preiszeile mit Händler als Flex-Row: der Name bekommt den verfügbaren
-  Platz (Ellipsis erst bei echtem Platzmangel), der Preis schrumpft nie.
-  40%-Cap oben gilt dann nur noch ohne Flex-Container (Fallback). */
+  /* Händlerzeile auf eigener Zeile über dem Preis (rechtsbündig). */
+  .tp-card-dealer-row {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin-bottom: 2px !important;
+    line-height: 1.2 !important;
+  }
+  .tp-card-dealer-row > .tp-dealer-name {
+    display: inline-flex !important;
+    justify-content: flex-end !important;
+    max-width: none !important;
+    margin-right: 0 !important;
+    flex: 1 1 auto !important;
+    text-align: right !important;
+  }
+  /* Fallback: Preiszeile mit Händler als direkter Kind-Knoten (Flex-Row). */
   .Plugin_PriceInformation:has(> .tp-dealer-name),
   .price_information_product:has(> .tp-dealer-name),
   .product-price:has(> .tp-dealer-name),
@@ -635,7 +650,16 @@ const STYLES_BADGES = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
-  .priceContainer:has(> .tp-dealer-name) > .shippingText {
+  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer, .product-price):not(:has(> .shippingText)) {
+    flex-wrap: nowrap !important;
+  }
+  .priceContainer:has(> .shippingText) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: baseline !important;
+    justify-content: flex-end !important;
+  }
+  .priceContainer > .shippingText {
     width: 100% !important;
     flex: 0 0 100% !important;
     text-align: right !important;
@@ -647,11 +671,16 @@ const STYLES_BADGES = `
   :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .priceContainer {
     max-width: 100% !important;
     box-sizing: border-box !important;
+    justify-content: flex-end !important;
   }
-  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) :is(span.tp-dealer-name, a.tp-dealer-name) {
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) :is(span.tp-dealer-name, a.tp-dealer-name):not(.tp-card-dealer-row *) {
     max-width: 140px !important;
     flex: 0 1 auto !important;
     margin-right: 4px !important;
+  }
+  :is(.mixedBrowsingList, .mixedList, .priceAvailabilityContainer, .price-availability) .tp-card-dealer-row :is(span.tp-dealer-name, a.tp-dealer-name) {
+    max-width: none !important;
+    margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {
     opacity: 1 !important;
@@ -689,6 +718,7 @@ const STYLES_BADGES = `
     text-decoration: underline !important;
   }
   button.tp-dealer-name.tp-dealer-btn,
+  .tp-card-dealer-row > button.tp-dealer-name.tp-dealer-btn,
   .priceContainer:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
   .Plugin_PriceInformation:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
   .price_information_product:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,
@@ -704,7 +734,7 @@ const STYLES_BADGES = `
     min-width: 18px !important;
     max-width: none !important;
     line-height: 1 !important;
-    text-align: left !important;
+    text-align: right !important;
   }
   :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem):is(:hover, :focus-within) button.tp-dealer-name.tp-dealer-btn,
   button.tp-dealer-name.tp-dealer-btn:hover,
@@ -725,6 +755,7 @@ const STYLES_BADGES = `
     vertical-align: middle !important;
     margin-left: 4px !important;
     flex-shrink: 0 !important;
+    white-space: nowrap !important;
     z-index: 4 !important;
   }
   :is(.Plugin_Product, .medium-box, .mixedBrowsingBox):has(.badge-dif:not(.tp-deal-pill)) {
@@ -10343,6 +10374,7 @@ const SHADOW_MODAL_STYLES = `
     const dealerEl = card.querySelector('.tp-dealer-name');
     if (!hasUsablePriceStats(stats) || !pid) {
       dealerEl?.remove();
+      card.querySelector('.tp-card-dealer-row')?.remove();
     } else {
       const useShipping = isShippingPriceActive(card);
       const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
@@ -10386,10 +10418,23 @@ const SHADOW_MODAL_STYLES = `
       }
       const place = el => {
         el.dataset.tpDealerPid = dKey;
-        // Prepend: links vom "ab CHF"-Prefix. insertBefore(cardPriceEl) landete
-        // dahinter (cardPriceEl ist nur die Zahl) und spaltete Prefix von Zahl.
-        if (anchor !== card) anchor.insertBefore(el, anchor.firstChild);
-        else anchor.appendChild(el);
+        let row = card.querySelector('.tp-card-dealer-row');
+        if (!row) {
+          row = document.createElement('div');
+          row.className = 'tp-card-dealer-row';
+        }
+        if (anchor !== card && anchor?.parentElement) {
+          if (row.nextElementSibling !== anchor) {
+            anchor.parentElement.insertBefore(row, anchor);
+          }
+        } else if (anchor && anchor !== card) {
+          if (row.parentElement !== anchor) anchor.insertBefore(row, anchor.firstChild);
+        } else if (card) {
+          if (row.parentElement !== card) card.appendChild(row);
+        }
+        if (el.parentElement !== row) {
+          row.replaceChildren(el);
+        }
       };
 
       const actionRow = card.querySelector('.row.action, .action');
@@ -10455,8 +10500,11 @@ const SHADOW_MODAL_STYLES = `
           el.className = 'tp-dealer-name';
           if (hasUrl) { el.href = targetUrl; el.target = '_blank'; el.rel = 'noopener'; el.addEventListener('click', e => e.stopPropagation()); }
           place(el);
-        } else if (el.tagName === 'A' && hasUrl && el.getAttribute('href') !== targetUrl) {
-          el.href = targetUrl;
+        } else {
+          place(el);
+          if (el.tagName === 'A' && hasUrl && el.getAttribute('href') !== targetUrl) {
+            el.href = targetUrl;
+          }
         }
         setTextIfChanged(el, `🏬 ${dealer}`);
         setTitleIfChanged(el, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
@@ -10478,8 +10526,11 @@ const SHADOW_MODAL_STYLES = `
             loadDealer();
           });
           place(btn);
-        } else if (!dealerPending.has(dKey) && btn.disabled) {
-          btn.disabled = false;
+        } else {
+          place(btn);
+          if (!dealerPending.has(dKey) && btn.disabled) {
+            btn.disabled = false;
+          }
         }
         // Opt-in (aus, Standard): Händler ohne Klick laden. Ein Versuch pro
         // pid:Modus und Pageload (Fehler → Button für manuellen Retry), max. 3
@@ -10498,6 +10549,7 @@ const SHADOW_MODAL_STYLES = `
         }
       } else {
         dealerEl?.remove();
+        card.querySelector('.tp-card-dealer-row')?.remove();
       }
     }
   }
@@ -14937,7 +14989,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -15080,7 +15132,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.471';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.472';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
