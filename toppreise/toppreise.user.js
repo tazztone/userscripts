@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.466
+// @version      2.18.467
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1261,6 +1261,9 @@ const STYLES_CHROME = `
     border-color: var(--tp-acc-line) !important;
     color: var(--tp-acc-txt) !important;
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.15) !important;
+  }
+  .tp-bar-btn.tp-heat-verified {
+    border-color: rgba(16, 185, 129, 0.6) !important;
   }
   .tp-mini-switch {
     position: relative !important;
@@ -3781,7 +3784,7 @@ const SHADOW_MODAL_STYLES = `
     DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
     HIDE_ADS: { type: 'bool', default: true },
     USE_SHIPPING_PRICE: { type: 'bool', default: true },
-    HEATMAP_ENABLED: { type: 'bool', default: true },
+    HEATMAP_ENABLED: { type: 'heatmap_mode', default: true },
     HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
     REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
     REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
@@ -3850,6 +3853,11 @@ const SHADOW_MODAL_STYLES = `
     }
     switch (rule.type) {
       case 'bool': return raw === true;
+      case 'heatmap_mode': {
+        if (raw === 'verified') return 'verified';
+        if (raw === false || raw === 'false' || raw === 'off') return false;
+        return true;
+      }
       case 'mode': return (raw === 'dim' || raw === 'highlight' || raw === 'hide') ? raw : rule.default;
       case 'channels': return sanitizeChannels(raw);
       case 'int': {
@@ -4433,8 +4441,8 @@ const SHADOW_MODAL_STYLES = `
     }
 
     // 2. Sync Inline Filter Bar if present
-    if (typeof document !== 'undefined') {
-      const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
+    if (typeof document !== 'undefined' || opts?.bar) {
+      const bar = opts?.bar ?? document.getElementById('tp-suite-filter-bar') ?? document.getElementById('tp-inline-filter-bar');
       if (bar) {
         try {
           switch (key) {
@@ -4458,8 +4466,18 @@ const SHADOW_MODAL_STYLES = `
             case 'HEATMAP_ENABLED': {
               const heatBtn = bar.querySelector('#tp-bar-heat-btn');
               if (heatBtn) {
-                heatBtn.classList.toggle('tp-active', val !== false);
-                heatBtn.setAttribute('aria-pressed', String(val !== false));
+                const isVerified = val === 'verified';
+                const isActive = val !== false;
+                heatBtn.classList.toggle('tp-active', isActive);
+                heatBtn.classList.toggle('tp-heat-verified', isVerified);
+                heatBtn.setAttribute('aria-pressed', String(isActive));
+                heatBtn.setAttribute('data-heatmap-state', isVerified ? 'verified' : (isActive ? 'all' : 'off'));
+                heatBtn.textContent = isVerified ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap';
+                heatBtn.title = isVerified
+                  ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)'
+                  : (isActive
+                    ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)'
+                    : 'Deal-Intensität (Heatmap): Aus');
               }
               break;
             }
@@ -9205,8 +9223,13 @@ const SHADOW_MODAL_STYLES = `
     const verified = hasUsablePriceStats(stats);
     const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
     // Blind inset wash: every heatable card gets the same prominent signal,
-    // clipped to the card's own edges.
-    if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+    // clipped to the card's own edges. When HEATMAP_ENABLED is 'verified',
+    // only authentic verified deals (kind: 'blend') heat — no fallbacks or unverified cards.
+    const isHeatEnabled = CONFIG.HEATMAP_ENABLED === true || CONFIG.HEATMAP_ENABLED === 'all'
+      ? true
+      : (CONFIG.HEATMAP_ENABLED === 'verified' ? (verified && heatInfo?.kind === 'blend') : false);
+
+    if (isHeatEnabled && effectiveDiff !== null && !isNaN(effectiveDiff)) {
       const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
       if (card.dataset.tpAppliedHeat !== heatKey) {
         card.dataset.tpAppliedHeat = heatKey;
@@ -9237,7 +9260,7 @@ const SHADOW_MODAL_STYLES = `
     } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
       // Tripwire: heat stripped while the badge still claims a verified % means
       // a stats regression slipped through — enable DEBUG to catch it live.
-      if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+      if (CONFIG.DEBUG && CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
         console.warn('[Toppreise Suite] heat removed with verified badge present',
           { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
       }
@@ -13496,7 +13519,7 @@ const SHADOW_MODAL_STYLES = `
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
+          <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED !== false ? 'tp-active' : ''} ${CONFIG.HEATMAP_ENABLED === 'verified' ? 'tp-heat-verified' : ''}" id="tp-bar-heat-btn" data-heatmap-state="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'verified' : (CONFIG.HEATMAP_ENABLED !== false ? 'all' : 'off')}" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)' : (CONFIG.HEATMAP_ENABLED !== false ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)' : 'Deal-Intensität (Heatmap): Aus')}" style="display: flex;">${CONFIG.HEATMAP_ENABLED === 'verified' ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap'}</button>
          </div>
          <span class="tp-divider" aria-hidden="true"></span>
         <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
@@ -13521,7 +13544,9 @@ const SHADOW_MODAL_STYLES = `
       wireFilterPopover(bar);
 
       bar.querySelector('#tp-bar-heat-btn').onclick = () => {
-        const nextState = !CONFIG.HEATMAP_ENABLED;
+        const nextState = CONFIG.HEATMAP_ENABLED === true
+          ? 'verified'
+          : (CONFIG.HEATMAP_ENABLED === 'verified' ? false : true);
         updateConfig('HEATMAP_ENABLED', nextState);
       };
 
@@ -15021,7 +15046,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.466';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.467';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -72,7 +72,7 @@ Durch einen Filtergrund verborgene Karten (`tp-filtered`). Gedimmte (`tp-dimmed`
 _Avoid_: Gedimmte (für Entfernte)
 
  **Ansicht**:
- Rein visuelle Darstellung ohne Entfernen: Deal-Intensität / Heatmap-Farbe (warmes Bernstein bis Rubinrot für Rabatte, farblos/transparent für 0% und Aufschläge), Streifen, Kanten-Glow, Badge-Texte sowie per-cause Dimmen (`tp-dimmed`, Deckkraft per Dimmer-Einstellung) und Hervorheben (`tp-highlighted`). Ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge, solange ihr Filtergrund nicht auf Dimmen steht.
+ Rein visuelle Darstellung ohne Entfernen: Deal-Intensität / Heatmap-Farbe (warmes Bernstein bis Rubinrot für Rabatte, farblos/transparent für 0% und Aufschläge), Streifen, Kanten-Glow, Badge-Texte sowie per-cause Dimmen (`tp-dimmed`, Deckkraft per Dimmer-Einstellung) und Hervorheben (`tp-highlighted`). Der Heatmap-Button in der Leiste schaltet 3 Stufen durch: Alle Angebote heizen (inkl. Fallback-Tiefs & ungeprüfte Site-%), nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte), oder Heatmap aus. Ungeprüfte Karten lesen sich an voller Deckkraft mit grau gestreiftem Badge, solange ihr Filtergrund nicht auf Dimmen steht.
  _Avoid_: Anzeige (für Entfernen), Modus (für Darstellung — Neue Tiefstpreise bleibt Sortierung)
 
 **Neue Tiefstpreise**:

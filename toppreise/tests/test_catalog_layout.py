@@ -200,22 +200,40 @@ def test_discount_heatmap_toolbar_toggle(page: Page):
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
     heat_btn = page.locator('#tp-bar-heat-btn')
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
+    assert heat_btn.get_attribute('data-heatmap-state') == 'all'
+    # Unverified card also heats in default 'all' state
+    assert 'tp-heat-blend' in (page.locator('#card-expensive').get_attribute('class') or '')
 
-    # Click to toggle heatmap OFF
+    # Click 1: toggle to 'verified' deals only (no fallbacks / unverified)
+    heat_btn.click()
+    page.wait_for_function("() => document.querySelector('#tp-bar-heat-btn')?.getAttribute('data-heatmap-state') === 'verified'", timeout=5000)
+    assert 'tp-active' in (heat_btn.get_attribute('class') or '')
+    assert 'tp-heat-verified' in (heat_btn.get_attribute('class') or '')
+    assert 'Geprüft' in (heat_btn.inner_text() or '')
+    # Verified card still heats
+    assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    # Unverified card no longer heats
+    assert 'tp-heat-blend' not in (page.locator('#card-expensive').get_attribute('class') or '')
+
+    # Click 2: toggle heatmap OFF
     heat_btn.click()
     page.wait_for_function("() => !document.querySelector('#tp-bar-heat-btn')?.classList.contains('tp-active') && !document.querySelector('#card-cheapest')?.classList.contains('tp-heat-blend')", timeout=5000)
 
     assert 'tp-active' not in (heat_btn.get_attribute('class') or '')
+    assert heat_btn.get_attribute('data-heatmap-state') == 'off'
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' not in (page.locator('#card-expensive').get_attribute('class') or '')
     # Verified class survives without heat: state signal is heat-independent
     assert 'tp-is-verified' in (page.locator('#card-cheapest').get_attribute('class') or '')
 
-    # Click to toggle heatmap back ON
+    # Click 3: toggle heatmap back to 'all'
     heat_btn.click()
     page.wait_for_selector('#card-cheapest.tp-heat-blend', state='attached', timeout=5000)
 
     assert 'tp-active' in (heat_btn.get_attribute('class') or '')
+    assert heat_btn.get_attribute('data-heatmap-state') == 'all'
     assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
+    assert 'tp-heat-blend' in (page.locator('#card-expensive').get_attribute('class') or '')
 
 
 def test_suite_filter_bar_grouping(page: Page):
@@ -235,12 +253,17 @@ def test_discount_heatmap_bar_toggle_controls_heat(page: Page):
     seed_verified_deal(page)
     page.wait_for_selector('#card-cheapest.tp-heat-blend')
 
-    # Heatmap on/off lives in the bar now (canonical home); toggle off
+    # Step 1: Click once -> 'verified' state (verified deal still heats)
+    page.click('#tp-bar-heat-btn')
+    page.wait_for_function("() => document.querySelector('#tp-bar-heat-btn')?.getAttribute('data-heatmap-state') === 'verified'", timeout=5000)
+    assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')
+
+    # Step 2: Click again -> off (heat removed)
     page.click('#tp-bar-heat-btn')
     page.wait_for_function("() => !document.querySelector('#card-cheapest')?.classList.contains('tp-heat-blend')", timeout=5000)
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
 
-    # Re-enable via the bar button
+    # Step 3: Click again -> re-enable (all)
     page.click('#tp-bar-heat-btn')
     page.wait_for_selector('#card-cheapest.tp-heat-blend', state='attached', timeout=5000)
     assert 'tp-heat-blend' in (page.locator('#card-cheapest').get_attribute('class') or '')

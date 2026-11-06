@@ -292,6 +292,65 @@ describe('FILTER_CYCLE deal discount mapping', () => {
     assert.equal(elements['tp-tavily-max-results'].value, '8');
   });
 
+  it('sanitizes HEATMAP_ENABLED and syncs toolbar button across 3 states', () => {
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', true), true);
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', 'verified'), 'verified');
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', false), false);
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', 'false'), false);
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', 'off'), false);
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', 'all'), true);
+    assert.equal(sanitizeConfigValue('HEATMAP_ENABLED', 'unknown'), true);
+
+    const heatBtn = {
+      className: '',
+      classList: {
+        toggle(cls, force) {
+          const classes = new Set(heatBtn.className.split(' ').filter(Boolean));
+          if (force) classes.add(cls); else classes.delete(cls);
+          heatBtn.className = Array.from(classes).join(' ');
+        },
+        contains(cls) {
+          return heatBtn.className.split(' ').includes(cls);
+        }
+      },
+      attributes: {},
+      setAttribute(k, v) { heatBtn.attributes[k] = String(v); },
+      getAttribute(k) { return heatBtn.attributes[k]; },
+      textContent: '',
+      title: ''
+    };
+    const bar = {
+      querySelector(sel) {
+        if (sel === '#tp-bar-heat-btn') return heatBtn;
+        return null;
+      }
+    };
+
+    // 1. All
+    syncUiControl('HEATMAP_ENABLED', true, { bar });
+    assert.equal(heatBtn.classList.contains('tp-active'), true);
+    assert.equal(heatBtn.classList.contains('tp-heat-verified'), false);
+    assert.equal(heatBtn.getAttribute('data-heatmap-state'), 'all');
+    assert.equal(heatBtn.getAttribute('aria-pressed'), 'true');
+    assert.equal(heatBtn.textContent, '🔥 Heatmap');
+
+    // 2. Verified only
+    syncUiControl('HEATMAP_ENABLED', 'verified', { bar });
+    assert.equal(heatBtn.classList.contains('tp-active'), true);
+    assert.equal(heatBtn.classList.contains('tp-heat-verified'), true);
+    assert.equal(heatBtn.getAttribute('data-heatmap-state'), 'verified');
+    assert.equal(heatBtn.getAttribute('aria-pressed'), 'true');
+    assert.equal(heatBtn.textContent, '🔥 Heatmap (Geprüft)');
+
+    // 3. Off
+    syncUiControl('HEATMAP_ENABLED', false, { bar });
+    assert.equal(heatBtn.classList.contains('tp-active'), false);
+    assert.equal(heatBtn.classList.contains('tp-heat-verified'), false);
+    assert.equal(heatBtn.getAttribute('data-heatmap-state'), 'off');
+    assert.equal(heatBtn.getAttribute('aria-pressed'), 'false');
+    assert.equal(heatBtn.textContent, '🔥 Heatmap');
+  });
+
   it('sanitizes FILTER_PRICE_* and FILTER_SAVINGS_* settings and registers them in FILTER_CYCLE', () => {
     assert.equal(DEFAULTS.FILTER_PRICE_ENABLED, false);
     assert.equal(DEFAULTS.FILTER_PRICE_MIN, 0);

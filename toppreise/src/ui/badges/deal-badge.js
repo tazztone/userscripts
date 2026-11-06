@@ -95,8 +95,13 @@ export function renderHeat(ctx) {
   const verified = hasUsablePriceStats(stats);
   const heatIntensity = CONFIG.HEATMAP_INTENSITY * (verified ? 1 : 0.35);
   // Blind inset wash: every heatable card gets the same prominent signal,
-  // clipped to the card's own edges.
-  if (CONFIG.HEATMAP_ENABLED && effectiveDiff !== null && !isNaN(effectiveDiff)) {
+  // clipped to the card's own edges. When HEATMAP_ENABLED is 'verified',
+  // only authentic verified deals (kind: 'blend') heat — no fallbacks or unverified cards.
+  const isHeatEnabled = CONFIG.HEATMAP_ENABLED === true || CONFIG.HEATMAP_ENABLED === 'all'
+    ? true
+    : (CONFIG.HEATMAP_ENABLED === 'verified' ? (verified && heatInfo?.kind === 'blend') : false);
+
+  if (isHeatEnabled && effectiveDiff !== null && !isNaN(effectiveDiff)) {
     const heatKey = `${effectiveDiff}_${heatIntensity.toFixed(2)}`;
     if (card.dataset.tpAppliedHeat !== heatKey) {
       card.dataset.tpAppliedHeat = heatKey;
@@ -127,7 +132,7 @@ export function renderHeat(ctx) {
   } else if (card.dataset.tpAppliedHeat || card.classList.contains('tp-heat-blend') || card.querySelector('.badge-dif, [class*="badge-dif"]')?.style.background) {
     // Tripwire: heat stripped while the badge still claims a verified % means
     // a stats regression slipped through — enable DEBUG to catch it live.
-    if (CONFIG.DEBUG && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
+    if (CONFIG.DEBUG && CONFIG.HEATMAP_ENABLED === true && card.querySelector('.tp-deal-alltime-low, .tp-deal-new-record')) {
       console.warn('[Toppreise Suite] heat removed with verified badge present',
         { pid, median: stats?.medianPrice ?? null, tiefstpreis: stats?.tiefstpreis ?? null });
     }

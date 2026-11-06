@@ -152,7 +152,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-view" role="group" aria-label="Ansicht – entfernt nichts">
-        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED ? 'tp-active' : ''}" id="tp-bar-heat-btn" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)" style="display: flex;">🔥 Heatmap</button>
+        <button class="tp-bar-btn ${CONFIG.HEATMAP_ENABLED !== false ? 'tp-active' : ''} ${CONFIG.HEATMAP_ENABLED === 'verified' ? 'tp-heat-verified' : ''}" id="tp-bar-heat-btn" data-heatmap-state="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'verified' : (CONFIG.HEATMAP_ENABLED !== false ? 'all' : 'off')}" aria-pressed="${CONFIG.HEATMAP_ENABLED !== false}" title="${CONFIG.HEATMAP_ENABLED === 'verified' ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)' : (CONFIG.HEATMAP_ENABLED !== false ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)' : 'Deal-Intensität (Heatmap): Aus')}" style="display: flex;">${CONFIG.HEATMAP_ENABLED === 'verified' ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap'}</button>
        </div>
        <span class="tp-divider" aria-hidden="true"></span>
       <div class="tp-group tp-group-deals" role="group" aria-label="Sortieren">
@@ -177,7 +177,9 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     wireFilterPopover(bar);
 
     bar.querySelector('#tp-bar-heat-btn').onclick = () => {
-      const nextState = !CONFIG.HEATMAP_ENABLED;
+      const nextState = CONFIG.HEATMAP_ENABLED === true
+        ? 'verified'
+        : (CONFIG.HEATMAP_ENABLED === 'verified' ? false : true);
       updateConfig('HEATMAP_ENABLED', nextState);
     };
 

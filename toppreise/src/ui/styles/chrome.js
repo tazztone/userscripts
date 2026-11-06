@@ -403,6 +403,9 @@ export const STYLES_CHROME = `
     color: var(--tp-acc-txt) !important;
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.15) !important;
   }
+  .tp-bar-btn.tp-heat-verified {
+    border-color: rgba(16, 185, 129, 0.6) !important;
+  }
   .tp-mini-switch {
     position: relative !important;
     display: inline-flex !important;

@@ -404,4 +404,87 @@ describe('Verdict badges F-03 & F-04', () => {
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });
+
+  it('renderHeat respects HEATMAP_ENABLED: true, verified-only, and false', async () => {
+    const { renderHeat } = await import('../../src/ui/badges/deal-badge.js');
+    const { CONFIG } = await import('../../src/state/config.js');
+    const prevHeat = CONFIG.HEATMAP_ENABLED;
+
+    const createMockCard = () => {
+      const card = {
+        dataset: {},
+        className: '',
+        style: {
+          properties: {},
+          setProperty(k, v) { card.style.properties[k] = v; },
+          removeProperty(k) { delete card.style.properties[k]; }
+        },
+        classList: {
+          add(c) { if (!card.classList.contains(c)) card.className += ' ' + c; },
+          remove(c) { card.className = card.className.split(' ').filter(x => x !== c).join(' '); },
+          toggle(c, f) { if (f) card.classList.add(c); else card.classList.remove(c); },
+          contains(c) { return card.className.split(' ').includes(c); }
+        },
+        querySelector: () => null
+      };
+      return card;
+    };
+
+    try {
+      const verifiedStats = { tiefstpreis: 100, medianPrice: 150 };
+      const blendCtx = {
+        card: createMockCard(),
+        pid: '1',
+        stats: verifiedStats,
+        heatInfo: { pct: 33, kind: 'blend' },
+        effectiveDiff: -33,
+        dealData: { weightedDiff: 33 }
+      };
+      const fallbackCtx = {
+        card: createMockCard(),
+        pid: '2',
+        stats: verifiedStats,
+        heatInfo: { pct: 20, kind: 'vortief' },
+        effectiveDiff: -20,
+        dealData: null
+      };
+      const unverifiedCtx = {
+        card: createMockCard(),
+        pid: '3',
+        stats: null,
+        heatInfo: { pct: 15, kind: 'unverified' },
+        effectiveDiff: -15,
+        dealData: null
+      };
+
+      // 1. CONFIG.HEATMAP_ENABLED = true: all 3 heat
+      CONFIG.HEATMAP_ENABLED = true;
+      renderHeat(blendCtx);
+      renderHeat(fallbackCtx);
+      renderHeat(unverifiedCtx);
+      assert.equal(blendCtx.card.classList.contains('tp-heat-blend'), true);
+      assert.equal(fallbackCtx.card.classList.contains('tp-heat-blend'), true);
+      assert.equal(unverifiedCtx.card.classList.contains('tp-heat-blend'), true);
+
+      // 2. CONFIG.HEATMAP_ENABLED = 'verified': only verified blend heats
+      CONFIG.HEATMAP_ENABLED = 'verified';
+      renderHeat(blendCtx);
+      renderHeat(fallbackCtx);
+      renderHeat(unverifiedCtx);
+      assert.equal(blendCtx.card.classList.contains('tp-heat-blend'), true);
+      assert.equal(fallbackCtx.card.classList.contains('tp-heat-blend'), false);
+      assert.equal(unverifiedCtx.card.classList.contains('tp-heat-blend'), false);
+
+      // 3. CONFIG.HEATMAP_ENABLED = false: none heat
+      CONFIG.HEATMAP_ENABLED = false;
+      renderHeat(blendCtx);
+      renderHeat(fallbackCtx);
+      renderHeat(unverifiedCtx);
+      assert.equal(blendCtx.card.classList.contains('tp-heat-blend'), false);
+      assert.equal(fallbackCtx.card.classList.contains('tp-heat-blend'), false);
+      assert.equal(unverifiedCtx.card.classList.contains('tp-heat-blend'), false);
+    } finally {
+      CONFIG.HEATMAP_ENABLED = prevHeat;
+    }
+  });
 });

@@ -132,7 +132,7 @@ export const SETTING_SCHEMA = {
   DIM_OPACITY: { type: 'float', default: 0.25, min: 0.05, max: 1 },
   HIDE_ADS: { type: 'bool', default: true },
   USE_SHIPPING_PRICE: { type: 'bool', default: true },
-  HEATMAP_ENABLED: { type: 'bool', default: true },
+  HEATMAP_ENABLED: { type: 'heatmap_mode', default: true },
   HEATMAP_INTENSITY: { type: 'float', default: 1.0, min: 0.2, max: 1 },
   REAL_DEAL_MIN_DISCOUNT: { type: 'int', default: 30, min: 0, max: 90 },
   REAL_DEAL_CACHE_HOURS: { type: 'int', default: 48, min: 1, max: 336 },
@@ -201,6 +201,11 @@ export function sanitizeConfigValue(key, raw) {
   }
   switch (rule.type) {
     case 'bool': return raw === true;
+    case 'heatmap_mode': {
+      if (raw === 'verified') return 'verified';
+      if (raw === false || raw === 'false' || raw === 'off') return false;
+      return true;
+    }
     case 'mode': return (raw === 'dim' || raw === 'highlight' || raw === 'hide') ? raw : rule.default;
     case 'channels': return sanitizeChannels(raw);
     case 'int': {

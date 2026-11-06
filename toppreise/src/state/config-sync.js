@@ -239,8 +239,8 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
   }
 
   // 2. Sync Inline Filter Bar if present
-  if (typeof document !== 'undefined') {
-    const bar = document.getElementById('tp-suite-filter-bar') || document.getElementById('tp-inline-filter-bar');
+  if (typeof document !== 'undefined' || opts?.bar) {
+    const bar = opts?.bar ?? document.getElementById('tp-suite-filter-bar') ?? document.getElementById('tp-inline-filter-bar');
     if (bar) {
       try {
         switch (key) {
@@ -264,8 +264,18 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           case 'HEATMAP_ENABLED': {
             const heatBtn = bar.querySelector('#tp-bar-heat-btn');
             if (heatBtn) {
-              heatBtn.classList.toggle('tp-active', val !== false);
-              heatBtn.setAttribute('aria-pressed', String(val !== false));
+              const isVerified = val === 'verified';
+              const isActive = val !== false;
+              heatBtn.classList.toggle('tp-active', isActive);
+              heatBtn.classList.toggle('tp-heat-verified', isVerified);
+              heatBtn.setAttribute('aria-pressed', String(isActive));
+              heatBtn.setAttribute('data-heatmap-state', isVerified ? 'verified' : (isActive ? 'all' : 'off'));
+              heatBtn.textContent = isVerified ? '🔥 Heatmap (Geprüft)' : '🔥 Heatmap';
+              heatBtn.title = isVerified
+                ? 'Deal-Intensität (Heatmap): Nur verifizierte Deals heizen (ohne Fallbacks & Ungeprüfte)'
+                : (isActive
+                  ? 'Deal-Intensität (Heatmap): Farbe folgt dem Rabatt (bernstein bis tiefrot = Ersparnis, farblos = kein Rabatt/Aufschlag, gestreift = ungeprüft)'
+                  : 'Deal-Intensität (Heatmap): Aus');
             }
             break;
           }

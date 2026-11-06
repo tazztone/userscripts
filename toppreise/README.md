@@ -10,7 +10,7 @@ An all-in-one userscript suite (`v2.18.341`) for **Toppreise.ch** that verifies 
 
 | # | Signal / Feature | Description |
 |---|---|---|
-| ① | **Heatmap Toggle** | Switches continuous deal color wash on/off in the sticky toolbar. |
+| ① | **Heatmap Toggle** | Tri-state toggle in the sticky toolbar: all deals (including fallbacks/unverified), verified deals only (no fallbacks), or disabled. |
 | ② | **Best-Price Sorting** | Sorts listings in-place by authentic weighted deal score (`💎 Tiefstpreis-Sortierung`). |
 | ③ | **Single-Hue Deal Heatmap** | Proportional color glow (deep ruby for all-time record lows, warm amber for strong discounts). |
 | ④ | **Fallback Low (*Fallback-Tief*)** | Verified low with limited data points (< minPoints): displays breakthrough margin vs. previous record low. |
@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.466)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.467)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -81,7 +81,7 @@ Requires a userscript manager browser extension:
 
 ### 🔥 Visual Signals, Sparklines & Card Enhancements
 
-* **Single-Hue Deal Heatmap (Grau→Rot):** Verified deals glow with a customizable inset color ramp proportional to deal depth (neutral gray for small or zero discounts → warm amber → deep ruby for major discounts). Unverified cards show a striped-gray badge with provisional card warmth.
+* **Single-Hue Deal Heatmap (Grau→Rot):** Proportional inset color ramp following deal depth (neutral gray for small or zero discounts → warm amber → deep ruby for major discounts). The toolbar toggle supports 3 states: all deals (including fallbacks and unverified cards), verified deals only (qualified Gewichtete Differenz without fallbacks), or off. Unverified cards show a striped-gray badge with provisional card warmth when all deals heat.
 * **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`). Display the Vortief-Abstand instead of a blend (no `⚖️`) and can be filtered independently (Normal/Dim/Hide). Qualified deals with 0% savings display a neutral-gray 0% badge.
 * **Newly Verified Glow (*Neu*-Puls):** Freshly verified deals pulse with an emerald outline and `Neu` indicator for ≥5s until the next user interaction (click, scroll, keypress).
 * **Interactive SVG Sparklines:** Renders a compact mini price-trend chart on verified product cards. Clicking the sparkline opens a full-resolution modal chart with price and date axes.
