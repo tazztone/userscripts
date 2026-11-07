@@ -477,8 +477,8 @@ def setup_calc_popover(page, pids):
     page.evaluate("window.scrollTo(0, 0)")
     page.evaluate("""() => {
         document.body.style.paddingLeft = '90px';
-        // Cleanly hide all background page content, tabs, time period and categories
-        document.querySelectorAll('.mainContent, .leftColumn, #pageContent, .mainTopHeadContentWrapper, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .tpContentSidebar, .sidebarWrapper, .sidebar, .Plugin_CategoryList, .Plugin_IgnoredCategories, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .Plugin_Tab, .f_Plugin_Tab, .Plugin_Sort, .f_Plugin_Sort, .breadcrumb, #breadcrumb, [class*="Breadcrumb"], ul[class*="Tabs"], .Plugin_Tabs, .tabs, .tabWrapper, .Plugin_NavigationTab, .f_Plugin_NavigationTab, .Plugin_CollItemHead, .navigationTab, #feed-tabs, .tabbedContainer, .Plugin_TopProductListNavigation, .contentBox').forEach(el => el.style.setProperty('display', 'none', 'important'));
+        // Cleanly hide background cards and host page noise without hiding toolbar container
+        document.querySelectorAll('.Plugin_MainTopHead, .Plugin_GeneralBreadcrumb, .breadcrumb, #breadcrumb, .Plugin_TimePeriod, .f_Plugin_Filter_TimePeriod, .filterBoxContainer, .sidebarWrapper, .tpContentSidebar, .sidebar, .Plugin_IgnoredCategoriesHint, .Plugin_Hint, .alert, .mainContent, #pageContent, .mixedBrowsingListProduct, .Plugin_Product, .Plugin_CategoryList, .Plugin_IgnoredCategories, [class*="Breadcrumb"], [class*="Hint"], .Plugin_Tab, .f_Plugin_Tab, .Plugin_Sort, .f_Plugin_Sort, ul[class*="Tabs"], .Plugin_Tabs, .tabs, .tabWrapper, .Plugin_NavigationTab, .f_Plugin_NavigationTab, .Plugin_CollItemHead, .navigationTab, #feed-tabs, .Plugin_TopProductListNavigation').forEach(el => el.style.setProperty('display', 'none', 'important'));
         // Hide toolbar buttons except calc button so no partial buttons are visible
         document.querySelectorAll('#tp-suite-filter-bar .tp-group:not(.tp-group-deals), #tp-suite-filter-bar .tp-divider, #tp-bar-bestpreise-btn').forEach(el => el.style.setProperty('display', 'none', 'important'));
     }""")
