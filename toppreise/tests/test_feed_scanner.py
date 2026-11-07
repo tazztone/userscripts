@@ -185,13 +185,13 @@ def test_card_alarm_bell_rendering_and_interaction(page: Page):
     page.hover('#card-cheapest')
     assert card_btn.is_visible()
 
-    # Positioned above price container (saves horizontal space)
+    # Positioned inline to the right of price digits (saves vertical space)
     pos = page.evaluate("""() => {
         const bell = document.querySelector('#card-cheapest .tp-card-alarm-btn');
-        const price = document.querySelector('#card-cheapest .Plugin_PriceInformation');
-        return { bellBottom: bell.getBoundingClientRect().bottom, priceTop: price.getBoundingClientRect().top };
+        const price = document.querySelector('#card-cheapest .Plugin_Price');
+        return { bellLeft: bell.getBoundingClientRect().left, priceRight: price.getBoundingClientRect().right };
     }""")
-    assert pos['bellBottom'] <= pos['priceTop'] + 2
+    assert pos['bellLeft'] >= pos['priceRight'] - 4
 
     # Card bell group includes settings cog next to the bell
     cog_btn = page.locator('#card-cheapest .tp-card-alarm-group .tp-alarm-cog')

@@ -224,6 +224,67 @@ function buildMockToppreiseHtml(liveNeueHtml, cardsPartialHtml, existingMockHtml
     .Plugin_IgnoredCategories .resetAll { display: inline-block; cursor: pointer; white-space: nowrap; margin-left: auto; background: #f1f5f9; border: 1px solid #475569; padding: 0.25rem 0.5rem; border-radius: 4px; color: #f43f5e; font-size: 12px; text-decoration: none; }
     .availabilityInformationIcon, .TPIcons-avail_1 { display: inline-block; width: 16px; height: 16px; background: #10b981; border-radius: 50%; }
     .col { flex-basis: 0; flex-grow: 1; min-width: 0; max-width: 100%; }
+    .col-md { flex-basis: 0; flex-grow: 1; min-width: 0; max-width: 100%; }
+    .col-sm-auto { flex: 0 0 auto; width: auto; max-width: 100%; }
+    .col-lg-auto { flex: 0 0 auto; width: auto; max-width: 100%; }
+    .col-xl-auto { flex: 0 0 auto; width: auto; max-width: 100%; }
+    .col-xxl-auto { flex: 0 0 auto; width: auto; max-width: 100%; }
+    .flex-row { flex-direction: row !important; }
+    .align-items-end { align-items: flex-end !important; }
+    .align-self-center { align-self: center !important; }
+    .align-self-start { align-self: flex-start !important; }
+    .align-self-end { align-self: flex-end !important; }
+    .justify-content-end { justify-content: flex-end !important; }
+    .w-100 { width: 100% !important; }
+    .ml-auto { margin-left: auto !important; }
+    .text-right { text-align: right !important; }
+    .bold { font-weight: 700; color: #0f172a; text-decoration: none; }
+    .product-features { font-size: 13px; color: #64748b; text-decoration: none; }
+    .Page_Browsing a { color: #0f172a; text-decoration: none; }
+
+    /* Collection and Subcards */
+    .Plugin_ProductCollItem {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .Plugin_ProductCollItem .product-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .Plugin_ProductCollectionRelProductsList {
+      margin-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      padding-left: 0;
+    }
+    .Plugin_ProductCollectionRelProductsList .f_item {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0;
+    }
+    .Plugin_ProductCollectionRelProductsList .f_item:last-child {
+      border-bottom: none;
+    }
+    .Plugin_Product.f_collection {
+      background: transparent !important;
+      border: none !important;
+      border-radius: 0 !important;
+      padding: 10px 0 !important;
+      margin-bottom: 0 !important;
+      box-shadow: none !important;
+    }
+    .Plugin_Product.f_collection .action,
+    .Plugin_Product.f_collection .hoverBox {
+      display: none !important;
+    }
+    .priceContainer.shippingPrice { font-size: 14px; font-weight: 700; }
+    .priceContainer.shippingPrice .Plugin_Price { font-size: 17px; color: #f59e0b; }
+    .priceContainer.productPrice { font-size: 12px; color: #64748b; }
+    .shippingText { font-size: 11px; color: #64748b; }
+    .offersContainer { font-size: 12px; color: #64748b; }
+    #mock-site-dropdown { position: absolute; width: 220px; height: 64px; background: #fff; border: 1px solid #0f172a; z-index: 31; display: none; }
   </style>
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Product","name":"Mock Product","offers":{"@type":"AggregateOffer","lowPrice":"16.95","highPrice":"82.00","offerCount":6,"priceCurrency":"CHF"}}

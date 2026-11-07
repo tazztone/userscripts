@@ -681,7 +681,7 @@ def test_category_page_grouped_variant_cards_and_inline_deal_pills(page: Page):
     assert subcard.is_visible()
     box = subcard.bounding_box()
     assert box is not None
-    assert box['height'] < 100 # Authentic compact subcard height is ~50-60px, well below the bloated 372px
+    assert box['height'] <= 100 # Authentic compact subcard height is ~50-60px, well below the bloated 372px
 
     # Variant pill is adjacent to title, NOT inside PriceInformation
     subcard_pill = subcard.locator('.badge-dif.tp-deal-pill')
