@@ -101,3 +101,55 @@ def test_live_product_detail_structure_and_selectors(browser, userscript_content
     assert len(title.inner_text().strip()) > 0
 
     page.close()
+
+
+def test_live_neue_toppreise_relevance_hint_and_section_split(browser, userscript_content):
+    """Catches live feed layout drift: relevance notice, Weitere Preissenkungen separator,
+
+    and verifies that userscript processes and decorates cards across both sections.
+    """
+    assert os.path.exists(LIVE_NEUE_PATH), "live_neue_toppreise.html snapshot must exist"
+
+    page = _init_live_page(browser, userscript_content, LIVE_NEUE_PATH)
+
+    # 1. Relevance notice at top of feed
+    hint = page.locator('.relevanceHint')
+    assert hint.is_visible(), "Expected .relevanceHint notice on live feed"
+    hint_text = hint.inner_text().strip()
+    assert 'Ohne Kategorie zeigen wir nur gefragte Produkte' in hint_text
+    assert 'Kategorie wählen' in hint_text
+
+    # 2. Section divider further down
+    sep = page.locator('.fillUpSeparator')
+    assert sep.is_visible(), "Expected .fillUpSeparator divider on live feed"
+    sep_text = sep.inner_text().strip()
+    assert 'Weitere Preissenkungen' in sep_text
+
+    # 3. Verify cards exist in both sections (before and after separator)
+    cards = page.locator('a.Plugin_Product.medium-box')
+    total = cards.count()
+    assert total >= 20, f"Expected at least 20 feed cards, got {total}"
+
+    sep_y = sep.bounding_box()['y']
+    before_count = 0
+    after_count = 0
+    for i in range(total):
+        card_y = cards.nth(i).bounding_box()['y']
+        if card_y < sep_y:
+            before_count += 1
+        else:
+            after_count += 1
+
+    assert before_count >= 10, f"Expected >= 10 popular cards before separator, got {before_count}"
+    assert after_count >= 10, f"Expected >= 10 cards after 'Weitere Preissenkungen', got {after_count}"
+
+    # 4. Run userscript processing pass
+    page.evaluate("() => window.ToppreiseSuite?.processListings?.()")
+
+    # 5. Verify cards in both sections are decorated with alarm bells and badges
+    for i in range(min(5, before_count)):
+        assert cards.nth(i).locator('.tp-card-alarm-btn').count() == 1
+    for i in range(before_count, before_count + min(5, after_count)):
+        assert cards.nth(i).locator('.tp-card-alarm-btn').count() == 1
+
+    page.close()

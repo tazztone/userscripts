@@ -126,7 +126,7 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     sortedEntries = uniqueEntries;
 
     // Move sortable items into primaryRow and apply CSS flex order
-    const trailingAnchor = primaryRow.querySelector?.('.Plugin_ProductOfferSeparator, .Plugin_Offer') || null;
+    const trailingAnchor = primaryRow.querySelector?.('.Plugin_ProductOfferSeparator, .Plugin_Offer, .fillUpSeparator') || null;
     sortedEntries.forEach((entry, rank) => {
       const item = entry.item;
       if (item) {

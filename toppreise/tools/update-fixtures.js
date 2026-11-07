@@ -25,7 +25,14 @@ const TARGETS = {
   neue: {
     name: 'live_neue_toppreise.html',
     url: 'https://www.toppreise.ch/neue-toppreise',
-    requiredSelectors: ['.Plugin_Product.medium-box', '.product-name', '.Plugin_PriceInformation', '.badge-dif']
+    requiredSelectors: [
+      '.Plugin_Product.medium-box',
+      '.product-name',
+      '.Plugin_PriceInformation',
+      '.badge-dif',
+      '.relevanceHint',
+      '.fillUpSeparator'
+    ]
   },
   category: {
     name: 'live_category_browsing.html',
