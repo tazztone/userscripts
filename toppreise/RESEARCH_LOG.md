@@ -17,6 +17,16 @@
 > immediate subcategory slug `/preisvergleich/<CategorySlug>/<Title>-p<PID>` with
 > zero-network overhead. Native category management remains strictly subtractive
 > (`Plugin_IgnoredCategories` blacklist) with no native multi-branch whitelist.
+>
+> **Update (2026-11-07):** Live feed structural partition and automated drift audit:
+> - Uncategorized feed (`/neue-toppreise`) now renders a two-section layout:
+>   `<p class="relevanceHint">` ("Ohne Kategorie zeigen wir nur gefragte Produkte..."),
+>   followed by popular/in-demand cards, followed by `<div class="col-12 fillUpSeparator">Weitere Preissenkungen</div>`,
+>   and remaining price drops.
+> - Feed cards are direct `<a>` elements (`Plugin_Product col-12 ...`) lacking dealer sublines
+>   and offer count badges; suite decorates all cards across both sections seamlessly.
+> - Automated fixture sync and drift guardrails: `update-fixtures.js` (`npm run fixtures:check` /
+>   `fixtures:update`) and `test_site_drift.py` enforce contract integrity against live DOM snapshots.
 
 ## 1. Live DOM reference
 
@@ -32,9 +42,17 @@
         <div id="Plugin_IgnoredCategories_*">…native chips…</div>
         <div class="tabbedContainer"><div class="contentBox"><div class="f_tab selected"><div class="tabContent">
           <div id="Plugin_TimePeriod_*">…radio.f_timePeriod…</div>
-          <div id="Plugin_TopPriceReductionProductListFull_*"><div class="standardList"><div class="row">
-            <a class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3"
-               data-entity-id="PID" href="/preisvergleich/<CategorySlug>/<Title>-p<PID>">…card…</a>
+          <div id="Plugin_TopPriceReductionProductListFull_*" class="standardListWithoutBorder">
+            <p class="relevanceHint">Ohne Kategorie zeigen wir nur gefragte Produkte. Alle Preissenkungen sehen Sie, wenn Sie eine Kategorie wählen.</p>
+            <div class="standardList container"><div class="row">
+              <a class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3"
+                 data-entity-id="PID" href="/preisvergleich/<CategorySlug>/<Title>-p<PID>">…card…</a>
+              … (popular cards) …
+              <div class="col-12 fillUpSeparator">Weitere Preissenkungen</div>
+              <a class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3"
+                 data-entity-id="PID" href="/preisvergleich/<CategorySlug>/<Title>-p<PID>">…card…</a>
+              … (remaining cards) …
+            </div></div>
 ```
 
 - `isNeueToppreisePage()` checks `data-current_url` **and** `data-current-url`,
@@ -52,6 +70,11 @@
   inner text, but every card `href` exposes the immediate subcategory slug:
   `/preisvergleich/<CategorySlug>/<Title>-p<PID>`. Can be read synchronously via
   `card.getAttribute('href')` with zero network overhead for fast client-side filtering.
+- **Feed section partition:** On root `/neue-toppreise`, Toppreise splits the feed into
+  two sections separated by `.col-12.fillUpSeparator` ("Weitere Preissenkungen"), preceded by
+  `<p class="relevanceHint">` ("Ohne Kategorie zeigen wir nur gefragte Produkte..."). The suite's
+  card queries match all cards in both sections seamlessly, and DOM sort anchoring accounts for
+  `.fillUpSeparator` as a trailing boundary.
 - Cards are direct `<a>` anchors with grid classes on the anchor itself; on some
   catalog views the card sits inside a wrapper `div.col-*` instead — see §4
   (`getCardSortableUnit`). `card.closest('a[href]')` + tagName check required;
@@ -452,4 +475,24 @@ deliberately not pursued — nothing needs it.)
   - Toppreise filter architecture is strictly negative/additive (exclude category X). It has no whitelist or "include only" server endpoint.
   - Server-side isolation of a single subcategory under a parent branch requires N individual POST exclusion calls (one per sibling), which risks rate-limiting (HTTP 429) and session thrashing.
   - Native 0-overhead isolation is achieved via direct category navigation (`/neue-toppreise/.../<subcat>-c<id>`).
+
+## 25. Feed Partitioning & Automated Fixture Pipeline (2026-11-07)
+
+- **Two-Section Feed Architecture (`/neue-toppreise`):**
+  - Live inspection confirmed that the root uncategorized feed is partitioned into two distinct product groups:
+    1. *In-demand / Popular group:* Headed by `<p class="relevanceHint">Ohne Kategorie zeigen wir nur gefragte Produkte. Alle Preissenkungen sehen Sie, wenn Sie eine Kategorie wählen.</p>` before the card container.
+    2. *Extended price drops:* Separated by `<div class="col-12 fillUpSeparator">Weitere Preissenkungen</div>` directly within `.standardList.container > .row`.
+  - Both sections contain standard `.Plugin_Product` cards. When selecting a specific category (e.g. `/neue-toppreise/...-c<id>`), `.relevanceHint` and `.fillUpSeparator` are absent as all reductions for that category are presented directly.
+- **Card DOM Contract:**
+  - Cards in both feed sections are direct anchor elements (`<a class="Plugin_Product medium-box col-12 col-sm-6 col-lg-4 col-xxxl-3 ...">`), differing from catalog lists where cards may reside within a wrapper `div.col-*`.
+  - Feed cards lack `.Plugin_DealerRelProdPriceInfo` and `.offersCount`. The userscript extracts all cards across both sections without modification to query selectors (`.Plugin_Product`).
+- **DOM & Flex Sorting Mechanics:**
+  - Sorting reorders cards using negative CSS flex `order` (`order: -N` to `-1`) on `.Plugin_Product`.
+  - `.fillUpSeparator` defaults to `order: 0`, causing it to sit naturally below all actively sorted cards during custom sort.
+  - In `src/page/sort.js`, `trailingAnchor` resolution includes `.fillUpSeparator` (`primaryRow.querySelector?.('.Plugin_ProductOfferSeparator, .Plugin_Offer, .fillUpSeparator')`), ensuring detached or re-inserted elements anchor before trailing markup.
+- **Automated Fixture & Drift Verification:**
+  - Tooling script `toppreise/tools/update-fixtures.js` provides headless synchronization and validation of live HTML against required selectors (`TARGETS.neue`, `TARGETS.category`, `TARGETS.detail`).
+  - Running `npm run fixtures:check` verifies live site markup against contract rules and warns or errors on breaking selector drift.
+  - Offline snapshots in `toppreise/tests/fixtures/live_*.html` enable rapid regression assertions in `toppreise/tests/test_site_drift.py` without hitting live servers in CI.
+
 
