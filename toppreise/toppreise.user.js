@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.474
+// @version      2.18.475
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1942,7 +1942,7 @@ const STYLES_FLOATING_CTA = `
     margin: 0 !important;
   }
   #tp-floating-threshold-btn {
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center !important;
     gap: 2px !important;
     background: rgba(15, 23, 42, 0.05) !important;
@@ -14017,9 +14017,9 @@ const SHADOW_MODAL_STYLES = `
     // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
     // on catalog pages only the check action itself is offered.
     if (lastIsDealFeed) {
-      threshBtn.style.display = '';
+      threshBtn.style.removeProperty('display');
     } else {
-      threshBtn.style.display = 'none';
+      threshBtn.style.setProperty('display', 'none', 'important');
       el.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
     }
     setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
@@ -15133,7 +15133,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.474';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.475';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

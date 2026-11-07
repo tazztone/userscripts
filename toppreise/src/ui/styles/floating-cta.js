@@ -127,7 +127,7 @@ export const STYLES_FLOATING_CTA = `
     margin: 0 !important;
   }
   #tp-floating-threshold-btn {
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center !important;
     gap: 2px !important;
     background: rgba(15, 23, 42, 0.05) !important;

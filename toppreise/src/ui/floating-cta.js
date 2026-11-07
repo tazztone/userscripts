@@ -291,9 +291,9 @@ function syncFloatingCTA() {
   // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
   // on catalog pages only the check action itself is offered.
   if (lastIsDealFeed) {
-    threshBtn.style.display = '';
+    threshBtn.style.removeProperty('display');
   } else {
-    threshBtn.style.display = 'none';
+    threshBtn.style.setProperty('display', 'none', 'important');
     el.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
   }
   setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
