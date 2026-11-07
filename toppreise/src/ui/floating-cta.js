@@ -137,10 +137,6 @@ export function startBatchCheck() {
 function setCollapsed(collapsed) {
   collapsedForSession = !!collapsed;
   if (typeof document === 'undefined') return;
-  if (collapsedForSession) {
-    document.getElementById(FLOATING_CTA_ID)
-      ?.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
-  }
   syncFloatingCTA();
 }
 
@@ -182,31 +178,9 @@ function ensureCta() {
       </label>
     </div>
     <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
-    <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab Schwelle prüfen">≥30% ▾</button>
-    <div id="tp-floating-threshold-popover" role="menu">
-      <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
-    </div>
+    <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
     <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
   `;
-  const popover = el.querySelector('#tp-floating-threshold-popover');
-  for (const val of THRESHOLD_OPTIONS) {
-    const opt = document.createElement('button');
-    opt.type = 'button';
-    opt.className = 'tp-floating-option';
-    opt.dataset.val = String(val);
-    opt.setAttribute('role', 'menuitem');
-    opt.textContent = `≥ ${val}%`;
-    opt.onclick = e => {
-      e.preventDefault();
-      e.stopPropagation();
-      popover.classList.remove('tp-show');
-      updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
-      showToast(`Nur Differenzen ab ${val}% werden geprüft`);
-      triggerProcessListings();
-      syncFloatingCTA();
-    };
-    popover.appendChild(opt);
-  }
 
   el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
   el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
@@ -217,12 +191,43 @@ function ensureCta() {
     };
   }
 
-  const threshBtn = el.querySelector('#tp-floating-threshold-btn');
-  threshBtn.onclick = e => {
-    e.preventDefault();
-    e.stopPropagation();
-    popover.classList.toggle('tp-show');
-  };
+  const threshInput = el.querySelector('#tp-floating-threshold-input');
+  if (threshInput) {
+    const commitThreshold = () => {
+      const raw = threshInput.value.trim();
+      const parsed = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+      const current = realDealMinDiscount();
+      if (Number.isFinite(parsed)) {
+        const nextVal = Math.max(0, Math.min(90, parsed));
+        if (nextVal !== current) {
+          updateConfig('REAL_DEAL_MIN_DISCOUNT', nextVal);
+          showToast(`Nur Differenzen ab ${nextVal}% werden geprüft`);
+          triggerProcessListings();
+          syncFloatingCTA();
+          return;
+        }
+      }
+      threshInput.value = `≥${current}%`;
+    };
+
+    threshInput.onfocus = () => {
+      threshInput.select();
+    };
+    threshInput.onkeydown = e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        threshInput.blur();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        threshInput.value = `≥${realDealMinDiscount()}%`;
+        threshInput.blur();
+      }
+    };
+    threshInput.onkeyup = e => e.stopPropagation();
+    threshInput.onchange = () => commitThreshold();
+    threshInput.onblur = () => commitThreshold();
+  }
   // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
   // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
   el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
@@ -287,22 +292,22 @@ function syncFloatingCTA() {
   collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
 
   const minDisc = realDealMinDiscount();
-  const threshBtn = el.querySelector('#tp-floating-threshold-btn');
-  // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
-  // on catalog pages only the check action itself is offered.
-  if (lastIsDealFeed) {
-    threshBtn.style.removeProperty('display');
-  } else {
-    threshBtn.style.setProperty('display', 'none', 'important');
-    el.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
+  const threshInput = el.querySelector('#tp-floating-threshold-input');
+  if (threshInput) {
+    // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
+    // on catalog pages only the check action itself is offered.
+    if (lastIsDealFeed) {
+      threshInput.style.removeProperty('display');
+    } else {
+      threshInput.style.setProperty('display', 'none', 'important');
+    }
+    if (document.activeElement !== threshInput) {
+      threshInput.value = `≥${minDisc}%`;
+    }
+    threshInput.title = lastIsDealFeed
+      ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
+      : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
   }
-  setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
-  threshBtn.title = lastIsDealFeed
-    ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
-    : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
-  el.querySelectorAll('.tp-floating-option').forEach(opt => {
-    opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
-  });
   const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
   if (dealerToggle && document.activeElement !== dealerToggle) {
     dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;

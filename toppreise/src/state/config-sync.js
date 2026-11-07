@@ -382,12 +382,11 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
             break;
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
-            // Threshold lives only in the floating CTA (toolbar copy removed).
-            const floatingThresh = document.getElementById('tp-floating-threshold-btn');
-            if (floatingThresh) floatingThresh.textContent = `≥${val}% ▾`;
-            document.querySelectorAll('#tp-floating-threshold-popover .tp-floating-option').forEach(btn => {
-              btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
-            });
+            // Threshold lives in the floating CTA text input.
+            const floatingThreshInput = document.getElementById('tp-floating-threshold-input');
+            if (floatingThreshInput && document.activeElement !== floatingThreshInput) {
+              floatingThreshInput.value = `≥${val}%`;
+            }
             break;
           }
         }

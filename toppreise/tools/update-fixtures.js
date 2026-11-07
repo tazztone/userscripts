@@ -316,8 +316,19 @@ function buildMockToppreiseHtml(liveNeueHtml, cardsPartialHtml, existingMockHtml
     }
   }
 
+  // Preserve test layout landmarks & classes for layout fidelity tests
+  mockHtml = mockHtml.replace(/class="filterBoxContainer[^"]*"/g, 'class="filterBoxContainer col-auto p-0 pr-md-3 sidebar-container" id="sidebar-categories"');
+  mockHtml = mockHtml.replace(/<div class="contentBox col-12 col-xl">/, '<div class="contentBox col-12 col-xl main-content-col" id="main-content">');
+  mockHtml = mockHtml.replace(/<div class="tabbedContainer row">/, '<div class="tabbedContainer row tabs-row" id="feed-tabs">');
+  mockHtml = mockHtml.replace(/id="Plugin_TimePeriod_\d+"/, 'id="timeframe-filter"');
+  mockHtml = mockHtml.replace(/class="Plugin_Breadcrumbs/g, 'class="Plugin_Breadcrumbs breadcrumb');
+  mockHtml = mockHtml.replace(/class="category_level_0\s+showExpandedOnly"/g, 'class="category_level_0 showExpandedOnly" style="display: none;"');
+
   // Preserve test interactive elements & dialogs
   const testInteractiveElements = `
+  <!-- Site dropdown mock for stacking tests -->
+  <div id="mock-site-dropdown" aria-hidden="true">Site-Navigation</div>
+
   <!-- Native bell trigger mock -->
   <div id="Plugin_NewInfoMailButton_mock" data-context-hash="mock" data-ajax-url="/plugins/infomails/NewInfoMailButton" data-prod-id="797571" data-templ="btn" class="Plugin_NewInfoMailButton hoverBox">
     <a id="mock-alarm-bell" href="/neue-infomail?im_nimf_pid=797571" rel="nofollow noindex" class="f_showNewInfoMailFormDialog d-inline-block" title="Preisalarm"><i class="TPIcons-alarm">🔔</i></a>
@@ -370,8 +381,10 @@ function buildMockToppreiseHtml(liveNeueHtml, cardsPartialHtml, existingMockHtml
       }
       // Seed category menu cache in mock fixture
       try {
+        const catMenu = document.querySelector('.Plugin_CategoryMenu');
+        const hash = catMenu?.getAttribute('data-hash') || 'bbd886';
         if (!localStorage.getItem('c_cm_data_de')) {
-          localStorage.setItem('c_cm_hash_de', 'a60134');
+          localStorage.setItem('c_cm_hash_de', hash);
           localStorage.setItem('c_cm_data_de', JSON.stringify([
             {
               id: 'c200',

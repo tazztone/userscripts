@@ -12,17 +12,14 @@ def test_floating_cta_visible_with_unchecked_deals(page: Page):
 
 
 def test_floating_cta_threshold_syncs_with_toolbar(page: Page):
-    thresh_btn = page.locator('#tp-floating-threshold-btn')
-    popover = page.locator('#tp-floating-threshold-popover')
-    assert '≥30%' in (thresh_btn.text_content() or '')
-    assert not popover.is_visible()
+    thresh_input = page.locator('#tp-floating-threshold-input')
+    assert thresh_input.is_visible()
+    assert thresh_input.input_value() == '≥30%'
 
-    # Change threshold via floating CTA popover
-    thresh_btn.click()
-    assert popover.is_visible()
-    page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="40"]')
-    assert not popover.is_visible()
-    assert '≥40%' in (thresh_btn.text_content() or '')
+    # Change threshold via floating CTA text input
+    thresh_input.fill('40')
+    thresh_input.press('Enter')
+    assert thresh_input.input_value() == '≥40%'
 
     # Shared config dispatcher persists the choice
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 40
@@ -72,7 +69,7 @@ def test_floating_cta_collapses_but_never_closes(page: Page):
     assert 'tp-collapsed' in (cta.get_attribute('class') or '')
     assert cta.is_visible()
     assert page.locator('#tp-floating-check-count').text_content() == '🔍 3'
-    assert not page.locator('#tp-floating-threshold-btn').is_visible()
+    assert not page.locator('#tp-floating-threshold-input').is_visible()
 
     # Clicking the collapsed pill expands instead of checking
     page.locator('#tp-floating-check-btn').click()
@@ -91,9 +88,11 @@ def test_floating_cta_popover_threshold_change_updates_count_and_runs_batch(page
     cta = page.locator('#tp-floating-check-cta')
     assert '3 Tiefstpreise prüfen' in (cta.text_content() or '')
 
-    # Change to >=50% via floating CTA popover
-    page.click('#tp-floating-threshold-btn')
-    page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="50"]')
+    # Change to >=50% via floating CTA text input
+    thresh_input = page.locator('#tp-floating-threshold-input')
+    thresh_input.fill('50')
+    thresh_input.press('Enter')
+    assert thresh_input.input_value() == '≥50%'
 
     # Count immediately updates: -67% and -50% qualify -> 2
     assert '2 Tiefstpreise prüfen' in (cta.text_content() or '')

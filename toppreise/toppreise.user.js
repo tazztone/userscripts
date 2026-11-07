@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.478
+// @version      2.18.479
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1886,7 +1886,7 @@ const STYLES_FLOATING_CTA = `
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
     color: #ffffff !important;
     border: none !important;
     border-radius: 999px !important;
@@ -1957,76 +1957,30 @@ const STYLES_FLOATING_CTA = `
     cursor: pointer !important;
     margin: 0 !important;
   }
-  #tp-floating-threshold-btn {
-    display: inline-flex;
-    align-items: center !important;
-    gap: 2px !important;
-    background: rgba(15, 23, 42, 0.05) !important;
-    border: none !important;
-    border-radius: 999px !important;
-    padding: 0 5px !important;
+  #tp-floating-threshold-input {
+    width: 44px !important;
     height: 24px !important;
+    padding: 0 4px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 999px !important;
     font-family: inherit !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
     font-weight: 700 !important;
     color: var(--tp-txt-dim) !important;
-    cursor: pointer !important;
-    transition: background 0.15s ease, color 0.15s ease !important;
+    text-align: center !important;
     box-sizing: border-box !important;
+    outline: none !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
   }
-  #tp-floating-threshold-btn:hover {
-    background: rgba(15, 23, 42, 0.1) !important;
+  #tp-floating-threshold-input:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
     color: var(--tp-txt) !important;
   }
-  #tp-floating-threshold-popover {
-    position: absolute !important;
-    bottom: calc(100% + 8px) !important;
-    right: 0 !important;
-    background: rgba(255, 255, 255, 0.97) !important;
-    backdrop-filter: blur(14px) !important;
-    -webkit-backdrop-filter: blur(14px) !important;
-    border: 1px solid var(--tp-line-soft) !important;
-    border-radius: var(--tp-r-lg) !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25) !important;
-    padding: 4px !important;
-    display: none !important;
-    flex-direction: column !important;
-    gap: 2px !important;
-    min-width: 200px !important;
-    z-index: 99992 !important;
-    box-sizing: border-box !important;
-  }
-  #tp-floating-threshold-popover.tp-show { display: flex !important; }
-  #tp-floating-threshold-popover .tp-floating-hint {
-    color: var(--tp-mut) !important;
-    padding: 4px 8px 2px !important;
-    font-size: 10px !important;
-    font-weight: 500 !important;
-    cursor: default !important;
-    user-select: none !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option {
-    background: transparent !important;
-    border: none !important;
-    color: var(--tp-txt-dim) !important;
-    padding: 5px 8px !important;
-    font-size: 11.5px !important;
-    font-weight: 600 !important;
-    border-radius: var(--tp-r-sm) !important;
-    cursor: pointer !important;
-    text-align: left !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    transition: background 0.12s ease, color 0.12s ease !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option:hover {
-    background: rgba(16, 185, 129, 0.15) !important;
-    color: var(--tp-txt) !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option.tp-selected {
-    background: #047857 !important;
+  #tp-floating-threshold-input:focus {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: #10b981 !important;
     color: #fff !important;
-    font-weight: 700 !important;
   }
   #tp-floating-refresh-btn,
   #tp-floating-cta-collapse {
@@ -2062,7 +2016,7 @@ const STYLES_FLOATING_CTA = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-input { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 20px !important; height: 20px !important; }
   .tp-label-short { display: none !important; }
@@ -2077,7 +2031,7 @@ const STYLES_FLOATING_CTA = `
     }
     #tp-floating-check-btn { padding: 2px 6px !important; }
     #tp-floating-dealer-row { padding: 0 4px !important; }
-    #tp-floating-threshold-btn { padding: 0 4px !important; }
+    #tp-floating-threshold-input { width: 38px !important; padding: 0 2px !important; }
     .tp-label-full { display: none !important; }
     .tp-label-short { display: inline !important; }
   }
@@ -4666,12 +4620,11 @@ const SHADOW_MODAL_STYLES = `
               break;
             }
             case 'REAL_DEAL_MIN_DISCOUNT': {
-              // Threshold lives only in the floating CTA (toolbar copy removed).
-              const floatingThresh = document.getElementById('tp-floating-threshold-btn');
-              if (floatingThresh) floatingThresh.textContent = `≥${val}% ▾`;
-              document.querySelectorAll('#tp-floating-threshold-popover .tp-floating-option').forEach(btn => {
-                btn.classList.toggle('tp-selected', parseInt(btn.dataset.val, 10) === val);
-              });
+              // Threshold lives in the floating CTA text input.
+              const floatingThreshInput = document.getElementById('tp-floating-threshold-input');
+              if (floatingThreshInput && document.activeElement !== floatingThreshInput) {
+                floatingThreshInput.value = `≥${val}%`;
+              }
               break;
             }
           }
@@ -6029,7 +5982,7 @@ const SHADOW_MODAL_STYLES = `
   let treeLoadingPromise = null;
 
   async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
-    if (treeIndex) return treeIndex;
+    if (treeIndex && treeIndex.byId && treeIndex.byId.size > 0) return treeIndex;
     if (treeLoadingPromise) return treeLoadingPromise;
 
     treeLoadingPromise = (async () => {
@@ -6082,12 +6035,19 @@ const SHADOW_MODAL_STYLES = `
         }
       } catch (err) {
         // Graceful fallback: return empty index
+      } finally {
+        treeLoadingPromise = null;
       }
       treeIndex = indexCategoryData([]);
       return treeIndex;
     })();
 
     return treeLoadingPromise;
+  }
+
+  function resetCategoryTreeForTesting() {
+    treeIndex = null;
+    treeLoadingPromise = null;
   }
 
   const hydratedFeedUrls = new Set();
@@ -6902,10 +6862,10 @@ const SHADOW_MODAL_STYLES = `
 
     // Convert toggles to spacers on leaf categories without subcategories (e.g. Uhren)
     loadNativeCategoryTree().then(tree => {
-      if (!tree?.childrenOf) return;
+      if (!tree?.byId || tree.byId.size === 0) return;
       rootLis.forEach(li => {
         const catId = li.dataset.catId;
-        if (!catId) return;
+        if (!catId || !tree.byId.has(catId)) return;
         const children = tree.childrenOf.get(catId) || [];
         if (children.length === 0) {
           const toggle = li.querySelector('.tp-cat-toggle');
@@ -13808,7 +13768,7 @@ const SHADOW_MODAL_STYLES = `
         window._tpBarCalcDocBound = true;
         document.addEventListener('keydown', e => {
           if (e.key !== 'Escape') return;
-          for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn'], ['tp-floating-threshold-popover', 'tp-floating-threshold-btn']]) {
+          for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn']]) {
             const pop = document.getElementById(popId);
             if (!pop || !pop.classList.contains('tp-show')) continue;
             pop.classList.remove('tp-show');
@@ -13818,7 +13778,7 @@ const SHADOW_MODAL_STYLES = `
         });
         document.addEventListener('click', e => {
           if (!e.isTrusted) return; // Synthetic clicks (price-alarm auto-submit) must not dismiss the popover.
-          for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn'], ['tp-floating-threshold-popover', 'tp-floating-threshold-btn']]) {
+          for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn']]) {
             const pop = document.getElementById(popId);
             if (!pop || !pop.classList.contains('tp-show')) continue;
             const btn = document.getElementById(btnId);
@@ -14022,10 +13982,6 @@ const SHADOW_MODAL_STYLES = `
   function setCollapsed(collapsed) {
     collapsedForSession = !!collapsed;
     if (typeof document === 'undefined') return;
-    if (collapsedForSession) {
-      document.getElementById(FLOATING_CTA_ID)
-        ?.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
-    }
     syncFloatingCTA();
   }
 
@@ -14067,31 +14023,9 @@ const SHADOW_MODAL_STYLES = `
         </label>
       </div>
       <button type="button" id="tp-floating-refresh-btn" class="tp-floating-refresh-btn" title="Feed nach neuen Deals durchsuchen" aria-label="Feed aktualisieren">🔄</button>
-      <button type="button" id="tp-floating-threshold-btn" title="Nur Differenzen ab Schwelle prüfen">≥30% ▾</button>
-      <div id="tp-floating-threshold-popover" role="menu">
-        <div class="tp-floating-hint">Nur Differenz ≥ … wird geprüft</div>
-      </div>
+      <input type="text" id="tp-floating-threshold-input" inputmode="numeric" size="4" title="Nur Differenzen ab Schwelle prüfen (z.B. 20%)" aria-label="Mindestrabatt in Prozent" autocomplete="off" spellcheck="false">
       <button type="button" id="tp-floating-cta-collapse" title="Minimieren">«</button>
     `;
-    const popover = el.querySelector('#tp-floating-threshold-popover');
-    for (const val of THRESHOLD_OPTIONS) {
-      const opt = document.createElement('button');
-      opt.type = 'button';
-      opt.className = 'tp-floating-option';
-      opt.dataset.val = String(val);
-      opt.setAttribute('role', 'menuitem');
-      opt.textContent = `≥ ${val}%`;
-      opt.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        popover.classList.remove('tp-show');
-        updateConfig('REAL_DEAL_MIN_DISCOUNT', val);
-        showToast(`Nur Differenzen ab ${val}% werden geprüft`);
-        triggerProcessListings();
-        syncFloatingCTA();
-      };
-      popover.appendChild(opt);
-    }
 
     el.querySelector('#tp-floating-check-btn').onclick = onMainClick;
     el.querySelector('#tp-floating-cta-collapse').onclick = onCollapseToggle;
@@ -14102,12 +14036,43 @@ const SHADOW_MODAL_STYLES = `
       };
     }
 
-    const threshBtn = el.querySelector('#tp-floating-threshold-btn');
-    threshBtn.onclick = e => {
-      e.preventDefault();
-      e.stopPropagation();
-      popover.classList.toggle('tp-show');
-    };
+    const threshInput = el.querySelector('#tp-floating-threshold-input');
+    if (threshInput) {
+      const commitThreshold = () => {
+        const raw = threshInput.value.trim();
+        const parsed = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+        const current = realDealMinDiscount();
+        if (Number.isFinite(parsed)) {
+          const nextVal = Math.max(0, Math.min(90, parsed));
+          if (nextVal !== current) {
+            updateConfig('REAL_DEAL_MIN_DISCOUNT', nextVal);
+            showToast(`Nur Differenzen ab ${nextVal}% werden geprüft`);
+            triggerProcessListings();
+            syncFloatingCTA();
+            return;
+          }
+        }
+        threshInput.value = `≥${current}%`;
+      };
+
+      threshInput.onfocus = () => {
+        threshInput.select();
+      };
+      threshInput.onkeydown = e => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          threshInput.blur();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          threshInput.value = `≥${realDealMinDiscount()}%`;
+          threshInput.blur();
+        }
+      };
+      threshInput.onkeyup = e => e.stopPropagation();
+      threshInput.onchange = () => commitThreshold();
+      threshInput.onblur = () => commitThreshold();
+    }
     // Scan-Begleiter (gleicher Schalter wie im Feintuning): Händler beim
     // Verifizieren automatisch mitladen — updateConfig syncet das Modal mit.
     el.querySelector('#tp-floating-dealer-toggle').onchange = e => {
@@ -14172,22 +14137,22 @@ const SHADOW_MODAL_STYLES = `
     collapseBtn.title = collapsedForSession ? 'Erweitern' : 'Minimieren';
 
     const minDisc = realDealMinDiscount();
-    const threshBtn = el.querySelector('#tp-floating-threshold-btn');
-    // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
-    // on catalog pages only the check action itself is offered.
-    if (lastIsDealFeed) {
-      threshBtn.style.removeProperty('display');
-    } else {
-      threshBtn.style.setProperty('display', 'none', 'important');
-      el.querySelector('#tp-floating-threshold-popover')?.classList.remove('tp-show');
+    const threshInput = el.querySelector('#tp-floating-threshold-input');
+    if (threshInput) {
+      // Threshold is a deal-feed concept (mirrors the old toolbar behavior):
+      // on catalog pages only the check action itself is offered.
+      if (lastIsDealFeed) {
+        threshInput.style.removeProperty('display');
+      } else {
+        threshInput.style.setProperty('display', 'none', 'important');
+      }
+      if (document.activeElement !== threshInput) {
+        threshInput.value = `≥${minDisc}%`;
+      }
+      threshInput.title = lastIsDealFeed
+        ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
+        : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
     }
-    setTextIfChanged(threshBtn, `≥${minDisc}% ▾`);
-    threshBtn.title = lastIsDealFeed
-      ? `Nur Differenzen ≥ ${minDisc}% prüfen (ungeprüft ≠ Tiefstpreis)`
-      : `Nur Produkte mit Differenz ≥ ${minDisc}% prüfen`;
-    el.querySelectorAll('.tp-floating-option').forEach(opt => {
-      opt.classList.toggle('tp-selected', parseInt(opt.dataset.val, 10) === minDisc);
-    });
     const dealerToggle = el.querySelector('#tp-floating-dealer-toggle');
     if (dealerToggle && document.activeElement !== dealerToggle) {
       dealerToggle.checked = CONFIG.DEALER_AUTOFETCH === true;
@@ -15292,7 +15257,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.478';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.479';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

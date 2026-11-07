@@ -392,10 +392,10 @@ export function enhanceCategorySidebar() {
 
   // Convert toggles to spacers on leaf categories without subcategories (e.g. Uhren)
   loadNativeCategoryTree().then(tree => {
-    if (!tree?.childrenOf) return;
+    if (!tree?.byId || tree.byId.size === 0) return;
     rootLis.forEach(li => {
       const catId = li.dataset.catId;
-      if (!catId) return;
+      if (!catId || !tree.byId.has(catId)) return;
       const children = tree.childrenOf.get(catId) || [];
       if (children.length === 0) {
         const toggle = li.querySelector('.tp-cat-toggle');

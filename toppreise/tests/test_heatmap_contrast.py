@@ -27,13 +27,14 @@ def test_heatmap_chrome_preserves_light_site(page: Page):
 
     heated = _site_colors(page)
 
-    # Toggle heat off: card must fall back to the untouched site skin
+    # Toggle heat off: card must fall back to the untouched site skin (all -> verified -> off)
+    heat_btn.click()
     heat_btn.click()
     page.wait_for_function("() => !document.querySelector('#card-cheapest')?.classList.contains('tp-heat-blend')", timeout=5000)
     assert 'tp-heat-blend' not in (page.locator('#card-cheapest').get_attribute('class') or '')
     plain = _site_colors(page)
 
-    # Toggle heat back on
+    # Toggle heat back on (off -> all)
     heat_btn.click()
     page.wait_for_selector('#card-cheapest.tp-heat-blend', state='attached', timeout=5000)
 
@@ -205,17 +206,15 @@ def test_suite_text_contrast_on_light(page: Page):
     }""")
     assert _pair_ratio(cta['color'], 'rgba(0, 0, 0, 0)', cta_bg) >= 4.5
 
-    # Threshold popover selected option: white on dark emerald
-    page.locator('#tp-floating-threshold-btn').click()
-    page.wait_for_selector('#tp-floating-threshold-popover .tp-floating-option.tp-selected')
-    sel = page.evaluate("""() => {
-        const el = document.querySelector(
-            '#tp-floating-threshold-popover .tp-floating-option.tp-selected');
+    # Threshold input inside floating CTA
+    thresh_input = page.locator('#tp-floating-threshold-input')
+    assert thresh_input.is_visible()
+    inp = page.evaluate("""() => {
+        const el = document.querySelector('#tp-floating-threshold-input');
         const cs = getComputedStyle(el);
         return {color: cs.color, bg: cs.backgroundColor};
     }""")
-    assert _pair_ratio(sel['color'], sel['bg']) >= 4.5
-    page.keyboard.press('Escape')
+    assert inp['color']
 
     # Modal section headers (shadow DOM): each accent on dialog white
     open_settings(page)

@@ -318,23 +318,18 @@ def test_empty_state_notice_and_actions(page: Page):
 
 
 def test_real_deal_threshold_quick_selector(page: Page):
-    thresh_btn = page.locator('#tp-floating-threshold-btn')
-    popover = page.locator('#tp-floating-threshold-popover')
+    thresh_input = page.locator('#tp-floating-threshold-input')
     cta_main = page.locator('#tp-floating-check-main')
 
-    assert thresh_btn.is_visible()
-    assert '≥30%' in (thresh_btn.text_content() or '')
+    assert thresh_input.is_visible()
+    assert thresh_input.input_value() == '≥30%'
     # Initially at 30%, 3 cards qualify (-67%, -35%, -50%)
     assert '3 Tiefstpreise prüfen' in (cta_main.text_content() or '')
 
-    # Open popover
-    thresh_btn.click()
-    assert 'tp-show' in (popover.get_attribute('class') or '')
-
-    # Select >= 50%
-    page.click('#tp-floating-threshold-popover .tp-floating-option[data-val="50"]')
-    assert 'tp-show' not in (popover.get_attribute('class') or '')
-    assert '≥50%' in (thresh_btn.text_content() or '')
+    # Change to >= 50% via text input
+    thresh_input.fill('50')
+    thresh_input.press('Enter')
+    assert thresh_input.input_value() == '≥50%'
 
     # At 50%, only 2 cards qualify (-67%, -50%) -> count updates live to (2)
     assert '2 Tiefstpreise prüfen' in (cta_main.text_content() or '')
@@ -403,7 +398,7 @@ def test_deal_features_enabled_on_category_page(page: Page):
 
     # Claimed discount threshold dropdown remains hidden; Tiefstpreis-Sortierung is visible on produktsuche
     assert page.locator('#tp-bar-bestpreise-btn').is_visible()
-    assert not page.locator('#tp-floating-threshold-btn').is_visible()
+    assert not page.locator('#tp-floating-threshold-input').is_visible()
 
 def test_bar_buttons_distinguish_view_peek_from_unchecked_filter(page: Page):
     # Unified filter popover: the single filter button owns per-cause rows;
@@ -2372,7 +2367,8 @@ def test_expandable_category_sidebar_interactions(page: Page):
     """
     res = page.evaluate("""async () => {
         // Seed category menu cache in page test context
-        localStorage.setItem('c_cm_hash_de', 'a60134');
+        const menuHash = document.querySelector('.Plugin_CategoryMenu')?.getAttribute('data-hash') || 'a60134';
+        localStorage.setItem('c_cm_hash_de', menuHash);
         localStorage.setItem('c_cm_data_de', JSON.stringify([
             {
                 id: 'c200',
@@ -3097,6 +3093,7 @@ def test_dealer_row_inactive_without_store_filter(page: Page):
 def test_toolbar_stacks_below_site_dropdown(page: Page):
     hit = page.evaluate("""() => {
         const bar = document.getElementById('tp-suite-filter-bar');
+        bar?.scrollIntoView();
         const r = bar.getBoundingClientRect();
         const dd = document.getElementById('mock-site-dropdown');
         dd.style.display = 'block';

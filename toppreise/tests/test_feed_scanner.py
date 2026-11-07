@@ -1327,9 +1327,9 @@ def test_check_deals_active_in_bestpreise_mode(page: Page):
     cta = page.locator('#tp-floating-check-cta')
     assert cta.is_visible()
 
-    # Threshold button should be visible and interactive on the deal feed
-    thresh_btn = page.locator('#tp-floating-threshold-btn')
-    assert thresh_btn.is_visible()
+    # Threshold input should be visible and interactive on the deal feed
+    thresh_input = page.locator('#tp-floating-threshold-input')
+    assert thresh_input.is_visible()
 
 
 

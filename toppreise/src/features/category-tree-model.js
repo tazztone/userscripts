@@ -271,7 +271,7 @@ let treeIndex = null;
 let treeLoadingPromise = null;
 
 export async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
-  if (treeIndex) return treeIndex;
+  if (treeIndex && treeIndex.byId && treeIndex.byId.size > 0) return treeIndex;
   if (treeLoadingPromise) return treeLoadingPromise;
 
   treeLoadingPromise = (async () => {
@@ -324,12 +324,19 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
       }
     } catch (err) {
       // Graceful fallback: return empty index
+    } finally {
+      treeLoadingPromise = null;
     }
     treeIndex = indexCategoryData([]);
     return treeIndex;
   })();
 
   return treeLoadingPromise;
+}
+
+export function resetCategoryTreeForTesting() {
+  treeIndex = null;
+  treeLoadingPromise = null;
 }
 
 const hydratedFeedUrls = new Set();

@@ -55,7 +55,7 @@ export const STYLES_FLOATING_CTA = `
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
     color: #ffffff !important;
     border: none !important;
     border-radius: 999px !important;
@@ -126,76 +126,30 @@ export const STYLES_FLOATING_CTA = `
     cursor: pointer !important;
     margin: 0 !important;
   }
-  #tp-floating-threshold-btn {
-    display: inline-flex;
-    align-items: center !important;
-    gap: 2px !important;
-    background: rgba(15, 23, 42, 0.05) !important;
-    border: none !important;
-    border-radius: 999px !important;
-    padding: 0 5px !important;
+  #tp-floating-threshold-input {
+    width: 44px !important;
     height: 24px !important;
+    padding: 0 4px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 999px !important;
     font-family: inherit !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
     font-weight: 700 !important;
     color: var(--tp-txt-dim) !important;
-    cursor: pointer !important;
-    transition: background 0.15s ease, color 0.15s ease !important;
+    text-align: center !important;
     box-sizing: border-box !important;
+    outline: none !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
   }
-  #tp-floating-threshold-btn:hover {
-    background: rgba(15, 23, 42, 0.1) !important;
+  #tp-floating-threshold-input:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
     color: var(--tp-txt) !important;
   }
-  #tp-floating-threshold-popover {
-    position: absolute !important;
-    bottom: calc(100% + 8px) !important;
-    right: 0 !important;
-    background: rgba(255, 255, 255, 0.97) !important;
-    backdrop-filter: blur(14px) !important;
-    -webkit-backdrop-filter: blur(14px) !important;
-    border: 1px solid var(--tp-line-soft) !important;
-    border-radius: var(--tp-r-lg) !important;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25) !important;
-    padding: 4px !important;
-    display: none !important;
-    flex-direction: column !important;
-    gap: 2px !important;
-    min-width: 200px !important;
-    z-index: 99992 !important;
-    box-sizing: border-box !important;
-  }
-  #tp-floating-threshold-popover.tp-show { display: flex !important; }
-  #tp-floating-threshold-popover .tp-floating-hint {
-    color: var(--tp-mut) !important;
-    padding: 4px 8px 2px !important;
-    font-size: 10px !important;
-    font-weight: 500 !important;
-    cursor: default !important;
-    user-select: none !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option {
-    background: transparent !important;
-    border: none !important;
-    color: var(--tp-txt-dim) !important;
-    padding: 5px 8px !important;
-    font-size: 11.5px !important;
-    font-weight: 600 !important;
-    border-radius: var(--tp-r-sm) !important;
-    cursor: pointer !important;
-    text-align: left !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    transition: background 0.12s ease, color 0.12s ease !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option:hover {
-    background: rgba(16, 185, 129, 0.15) !important;
-    color: var(--tp-txt) !important;
-  }
-  #tp-floating-threshold-popover .tp-floating-option.tp-selected {
-    background: #047857 !important;
+  #tp-floating-threshold-input:focus {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: #10b981 !important;
     color: #fff !important;
-    font-weight: 700 !important;
   }
   #tp-floating-refresh-btn,
   #tp-floating-cta-collapse {
@@ -231,7 +185,7 @@ export const STYLES_FLOATING_CTA = `
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
-  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-btn { display: none !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-input { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 20px !important; height: 20px !important; }
   .tp-label-short { display: none !important; }
@@ -246,7 +200,7 @@ export const STYLES_FLOATING_CTA = `
     }
     #tp-floating-check-btn { padding: 2px 6px !important; }
     #tp-floating-dealer-row { padding: 0 4px !important; }
-    #tp-floating-threshold-btn { padding: 0 4px !important; }
+    #tp-floating-threshold-input { width: 38px !important; padding: 0 2px !important; }
     .tp-label-full { display: none !important; }
     .tp-label-short { display: inline !important; }
   }
