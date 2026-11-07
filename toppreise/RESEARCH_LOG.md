@@ -18,7 +18,7 @@
 > zero-network overhead. Native category management remains strictly subtractive
 > (`Plugin_IgnoredCategories` blacklist) with no native multi-branch whitelist.
 >
-> **Update (2026-11-07):** Live feed structural partition and automated drift audit:
+> **Update (2026-11-07):** Live feed structural partition, automated drift audit, and sidebar contract:
 > - Uncategorized feed (`/neue-toppreise`) now renders a two-section layout:
 >   `<p class="relevanceHint">` ("Ohne Kategorie zeigen wir nur gefragte Produkte..."),
 >   followed by popular/in-demand cards, followed by `<div class="col-12 fillUpSeparator">Weitere Preissenkungen</div>`,
@@ -27,6 +27,9 @@
 >   and offer count badges; suite decorates all cards across both sections seamlessly.
 > - Automated fixture sync and drift guardrails: `update-fixtures.js` (`npm run fixtures:check` /
 >   `fixtures:update`) and `test_site_drift.py` enforce contract integrity against live DOM snapshots.
+> - Native sidebar tree contract verified (§26): Toppreise server omits excluded root categories
+>   from `#Plugin_CategoryMainSelectionLeft` by design. Suite avoids synthetic root injection to
+>   prevent layout desync with native jQuery animations and AJAX filter reloads.
 
 ## 1. Live DOM reference
 
@@ -494,5 +497,21 @@ deliberately not pursued — nothing needs it.)
   - Tooling script `toppreise/tools/update-fixtures.js` provides headless synchronization and validation of live HTML against required selectors (`TARGETS.neue`, `TARGETS.category`, `TARGETS.detail`).
   - Running `npm run fixtures:check` verifies live site markup against contract rules and warns or errors on breaking selector drift.
   - Offline snapshots in `toppreise/tests/fixtures/live_*.html` enable rapid regression assertions in `toppreise/tests/test_site_drift.py` without hitting live servers in CI.
+
+## 26. Excluded Category Visibility & Native Sidebar Tree Contract (2026-11-07)
+
+- **Server Omission of Excluded Root Categories:**
+  - On `/neue-toppreise`, Toppreise server completely omits `li.category_level_0` nodes from `#Plugin_CategoryMainSelectionLeft ul` when a root category (e.g. `c900` Videogames) is excluded by the user.
+  - Excluded categories exist exclusively within `#Plugin_IgnoredCategories` (`<span class="ignoredCategory" data-vcat-id="900">`) in the top horizontal bar.
+  - When no categories are excluded, all 23 root categories render in the server HTML. When $N$ categories are excluded, the server sends only $23 - N$ root items.
+- **Toggle Lifecycle (`f_showMoreCatDetails`):**
+  - When the rendered root category count in the server HTML drops below the native threshold (~10 items), Toppreise server omits `.f_showMoreCatDetails` ("mehr anzeigen") completely.
+- **Architectural Boundary: Zero Synthetic Root Injection:**
+  - Synthetic injection of excluded root `<li>` elements into `#Plugin_CategoryMainSelectionLeft ul` was evaluated and rejected:
+    1. *Fragility:* Injected nodes fight native jQuery container height animations, `.opened` toggles, and server AJAX filter re-renders.
+    2. *Filter Semantics:* The left sidebar represents the *active feed filter*. Excluded categories produce zero items in the feed.
+    3. *Existing Recovery Paths:* Excluded categories remain 1-click restorable via top bar chips (`✕`) and "Alle einblenden". Furthermore, the userscript search bar (`Kategorie suchen...`) searches the full 1,500+ taxonomy (`c_cm_data_de`), surfacing excluded categories with a `+` unhide button.
+  - The native sidebar DOM is preserved untouched to maintain zero maintenance overhead and 100% native compatibility.
+
 
 
