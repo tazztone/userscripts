@@ -268,6 +268,15 @@ node --test toppreise/tests/unit/*.test.js
 # Targeted domain logic tests via pytest
 venv/bin/pytest toppreise/tests/test_price_logic.py
 
+# Offline live site contract & selector drift tests
+venv/bin/pytest toppreise/tests/test_site_drift.py
+
+# Audit live site selectors for DOM drift (dry run)
+npm run fixtures:check
+
+# Refresh live snapshots and rebuild mock_toppreise.html
+npm run fixtures:update
+
 # Playwright browser regression test suite (~40s)
 venv/bin/pytest toppreise/tests/test_catalog_layout.py
 ```
