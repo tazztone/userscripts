@@ -285,4 +285,53 @@ describe('applySorting fallback-tief order', () => {
     assert.equal(separator.style.order, '');
     assert.equal(offer.style.order, '');
   });
+
+  it('hides .fillUpSeparator during custom sort and unhides it upon restore', () => {
+    const row = makeRow();
+    const cardA = makeCard(row, 0);
+    const cardB = makeCard(row, 1);
+    const classes = new Set(['fillUpSeparator']);
+    const separator = {
+      classList: {
+        contains: cls => classes.has(cls),
+        add: cls => classes.add(cls),
+        remove: cls => classes.delete(cls)
+      },
+      parentElement: row,
+      style: {
+        setProperty(k, v) { this[k] = v; },
+        removeProperty(k) { delete this[k]; }
+      },
+      dataset: {}
+    };
+    row.children = [cardA, separator, cardB];
+
+    globalThis.document.querySelectorAll = sel => {
+      if (sel === '.fillUpSeparator') return [separator];
+      if (sel === '.tp-fillup-separator-hidden') return classes.has('tp-fillup-separator-hidden') ? [separator] : [];
+      return [];
+    };
+
+    const data = [
+      { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+      { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 5 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 10, dMedian: 10, dRecord: 10 } }
+    ];
+
+    // 1. Sort active: separator should be hidden
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false, data)));
+
+    assert.equal(separator.style.display, 'none');
+    assert.ok(separator.classList.contains('tp-fillup-separator-hidden'));
+
+    // 2. Sort deactivated: separator should be restored
+    withConfig('BESTPREISE_MODE_ACTIVE', false, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false)));
+
+    assert.equal(separator.style.display, undefined);
+    assert.ok(!separator.classList.contains('tp-fillup-separator-hidden'));
+    assert.deepEqual(row.children, [cardA, separator, cardB]);
+  });
 });

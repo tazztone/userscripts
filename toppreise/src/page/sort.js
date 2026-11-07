@@ -172,6 +172,13 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         }
       });
     }
+
+    // Hide feed section dividers during custom sort so sorted cards flow continuously
+    const fillUpSeparators = typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('.fillUpSeparator') : [];
+    fillUpSeparators.forEach(sep => {
+      sep.style.setProperty('display', 'none', 'important');
+      sep.classList.add('tp-fillup-separator-hidden');
+    });
   } else {
     // Natural order restoration: return items to original parents in initial order
     const itemsToRestore = list.map(c => {
@@ -248,6 +255,13 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         row.classList.remove('tp-empty-product-row-hidden');
         row.style.removeProperty('display');
       }
+    });
+
+    // Restore feed section dividers that were hidden during custom sort
+    const hiddenSeparators = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.tp-fillup-separator-hidden')) : [];
+    hiddenSeparators.forEach(sep => {
+      sep.classList.remove('tp-fillup-separator-hidden');
+      sep.style.removeProperty('display');
     });
   }
 }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.476
+// @version      2.18.477
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -8323,6 +8323,13 @@ const SHADOW_MODAL_STYLES = `
           }
         });
       }
+
+      // Hide feed section dividers during custom sort so sorted cards flow continuously
+      const fillUpSeparators = typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('.fillUpSeparator') : [];
+      fillUpSeparators.forEach(sep => {
+        sep.style.setProperty('display', 'none', 'important');
+        sep.classList.add('tp-fillup-separator-hidden');
+      });
     } else {
       // Natural order restoration: return items to original parents in initial order
       const itemsToRestore = list.map(c => {
@@ -8399,6 +8406,13 @@ const SHADOW_MODAL_STYLES = `
           row.classList.remove('tp-empty-product-row-hidden');
           row.style.removeProperty('display');
         }
+      });
+
+      // Restore feed section dividers that were hidden during custom sort
+      const hiddenSeparators = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.tp-fillup-separator-hidden')) : [];
+      hiddenSeparators.forEach(sep => {
+        sep.classList.remove('tp-fillup-separator-hidden');
+        sep.style.removeProperty('display');
       });
     }
   }
@@ -15133,7 +15147,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.476';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.477';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

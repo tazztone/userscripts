@@ -152,4 +152,13 @@ def test_live_neue_toppreise_relevance_hint_and_section_split(browser, userscrip
     for i in range(before_count, before_count + min(5, after_count)):
         assert cards.nth(i).locator('.tp-card-alarm-btn').count() == 1
 
+    # 6. Verify separator behavior during custom sorting
+    # Activate bestpreise / discount sort
+    page.evaluate("() => { window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true; window.ToppreiseSuite.processListings(); }")
+    assert not sep.is_visible(), "Expected .fillUpSeparator to be hidden during custom sort"
+
+    # Deactivate sort
+    page.evaluate("() => { window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false; window.ToppreiseSuite.processListings(); }")
+    assert sep.is_visible(), "Expected .fillUpSeparator to be restored after custom sort deactivation"
+
     page.close()
