@@ -31,11 +31,27 @@ export const STYLES_CATEGORY_TREE = `
   .tp-cat-res-path { font-size: 10.5px !important; color: var(--tp-txt-dim, #94a3b8) !important; opacity: 0.7 !important; margin-top: 1px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
   .tp-cat-no-results { padding: 8px !important; font-size: 11.5px !important; color: var(--tp-txt-dim) !important; text-align: center !important; }
 
-  /* Tree Nodes & Row Layout */
-  .Plugin_CategoryMainSelectionLeft li.tp-cat-node,
+  /* Tree Nodes & Row Layout: respect native collapsed/opened folding */
+  .Plugin_CategoryMainSelectionLeft li.tp-cat-node:not(.showExpandedOnly),
+  .Plugin_CategoryMainSelectionLeft.opened li.tp-cat-node.showExpandedOnly,
   .tp-cat-sublist li.tp-cat-node {
     display: flex !important; flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important;
     width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important;
+  }
+  .Plugin_CategoryMainSelectionLeft:not(.opened) .showExpandedOnly {
+    display: none !important;
+  }
+  .Plugin_CategoryMainSelectionLeft.opened .showClosedOnly {
+    display: none !important;
+  }
+  .Plugin_CategoryMainSelectionLeft .showClosedOnly {
+    display: block;
+  }
+  .Plugin_CategoryMainSelectionLeft.opened .showExpandedOnly.filterShowMore {
+    display: block !important;
+  }
+  .Plugin_CategoryMainSelectionLeft a.filterShowMore {
+    cursor: pointer !important;
   }
   /* Disabled categories remain expandable for read-only browsing; child mute buttons suppressed */
   .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) .tp-cat-sublist .ignoreCategory {

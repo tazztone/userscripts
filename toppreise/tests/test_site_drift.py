@@ -152,13 +152,83 @@ def test_live_neue_toppreise_relevance_hint_and_section_split(browser, userscrip
     for i in range(before_count, before_count + min(5, after_count)):
         assert cards.nth(i).locator('.tp-card-alarm-btn').count() == 1
 
-    # 6. Verify separator behavior during custom sorting
+    # 6. Verify per-section sorting behavior
     # Activate bestpreise / discount sort
     page.evaluate("() => { window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true; window.ToppreiseSuite.processListings(); }")
-    assert not sep.is_visible(), "Expected .fillUpSeparator to be hidden during custom sort"
+    assert sep.is_visible(), "Expected .fillUpSeparator to remain visible during per-section sort"
+
+    # Verify separator visual order
+    sep_order = page.evaluate("() => document.querySelector('.fillUpSeparator')?.style.order")
+    assert sep_order == '0', f"Expected separator order '0', got {sep_order}"
+
+    # Verify Section 1 cards have negative order, Section 2 cards have positive order
+    orders = page.evaluate("""() => {
+        const cards = Array.from(document.querySelectorAll('a.Plugin_Product.medium-box'));
+        return cards.map(c => ({
+            sec: c.dataset.tpSection,
+            order: parseInt(c.style.order, 10)
+        }));
+    }""")
+    for item in orders:
+        if item['sec'] == '1':
+            assert item['order'] < 0, f"Section 1 card expected negative order, got {item['order']}"
+        elif item['sec'] == '2':
+            assert item['order'] > 0, f"Section 2 card expected positive order, got {item['order']}"
 
     # Deactivate sort
     page.evaluate("() => { window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false; window.ToppreiseSuite.processListings(); }")
     assert sep.is_visible(), "Expected .fillUpSeparator to be restored after custom sort deactivation"
+    cleared_sep_order = page.evaluate("() => document.querySelector('.fillUpSeparator')?.style.order")
+    assert not cleared_sep_order, f"Expected cleared order on separator, got {cleared_sep_order}"
 
     page.close()
+
+
+def test_live_neue_toppreise_category_sidebar_folding_and_spacers(browser, userscript_content):
+    """Verifies category sidebar folding (mehr/weniger anzeigen) and leaf category spacer replacement."""
+    assert os.path.exists(LIVE_NEUE_PATH), "live_neue_toppreise.html snapshot must exist"
+
+    page = _init_live_page(browser, userscript_content, LIVE_NEUE_PATH)
+
+    # 1. Populate category tree cache so leaf categories like Uhren (c1783) can be identified
+    page.evaluate("""() => {
+        localStorage.setItem('c_cm_data_de', JSON.stringify([
+            {"id": "c200", "parentID": "root", "title": "Computer & Zubehör", "hasChildren": true},
+            {"id": "c1783", "parentID": "root", "title": "Uhren", "hasChildren": false}
+        ]));
+    }""")
+
+    # 2. Run userscript processing pass which enhances sidebar
+    page.evaluate("() => window.ToppreiseSuite?.processListings?.()")
+
+    # 3. Fixture HTML starts with .opened; verify showExpandedOnly items and 'weniger anzeigen' are visible
+    expanded_items = page.locator('.Plugin_CategoryMainSelectionLeft li.showExpandedOnly')
+    assert expanded_items.count() > 0, "Expected showExpandedOnly categories in fixture"
+    first_expanded = expanded_items.first
+    assert first_expanded.is_visible(), "Expected showExpandedOnly category to be visible in initial opened state"
+
+    hide_more_btn = page.locator('.Plugin_CategoryMainSelectionLeft .f_hideMoreCatDetails')
+    assert hide_more_btn.is_visible(), "Expected 'weniger anzeigen' button to be visible initially"
+
+    show_more_btn = page.locator('.Plugin_CategoryMainSelectionLeft .f_showMoreCatDetails')
+    assert not show_more_btn.is_visible(), "Expected 'mehr anzeigen' button to be hidden while opened"
+
+    # 4. Click 'weniger anzeigen' to fold sidebar
+    hide_more_btn.click()
+    assert not first_expanded.is_visible(), "Expected showExpandedOnly category to be hidden after collapsing"
+    assert show_more_btn.is_visible(), "Expected 'mehr anzeigen' button to be visible after collapsing"
+
+    # 5. Click 'mehr anzeigen' to unfold sidebar
+    show_more_btn.click()
+    assert first_expanded.is_visible(), "Expected showExpandedOnly category to be visible again after expanding"
+    assert hide_more_btn.is_visible(), "Expected 'weniger anzeigen' button to be visible again after expanding"
+
+    # 6. Check leaf categories without subcategories (Uhren) have spacer instead of toggle
+    uhren_li = page.locator('.Plugin_CategoryMainSelectionLeft li:has(a[href*="Uhren"])')
+    if uhren_li.count() > 0:
+        page.wait_for_timeout(200)
+        assert uhren_li.locator('.tp-cat-spacer').count() == 1, "Expected leaf category Uhren to have .tp-cat-spacer"
+        assert uhren_li.locator('.tp-cat-toggle').count() == 0, "Expected leaf category Uhren to NOT have .tp-cat-toggle"
+
+    page.close()
+

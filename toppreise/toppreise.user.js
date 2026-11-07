@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.477
+// @version      2.18.478
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1451,11 +1451,27 @@ const STYLES_CATEGORY_TREE = `
   .tp-cat-res-path { font-size: 10.5px !important; color: var(--tp-txt-dim, #94a3b8) !important; opacity: 0.7 !important; margin-top: 1px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
   .tp-cat-no-results { padding: 8px !important; font-size: 11.5px !important; color: var(--tp-txt-dim) !important; text-align: center !important; }
 
-  /* Tree Nodes & Row Layout */
-  .Plugin_CategoryMainSelectionLeft li.tp-cat-node,
+  /* Tree Nodes & Row Layout: respect native collapsed/opened folding */
+  .Plugin_CategoryMainSelectionLeft li.tp-cat-node:not(.showExpandedOnly),
+  .Plugin_CategoryMainSelectionLeft.opened li.tp-cat-node.showExpandedOnly,
   .tp-cat-sublist li.tp-cat-node {
     display: flex !important; flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important;
     width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important;
+  }
+  .Plugin_CategoryMainSelectionLeft:not(.opened) .showExpandedOnly {
+    display: none !important;
+  }
+  .Plugin_CategoryMainSelectionLeft.opened .showClosedOnly {
+    display: none !important;
+  }
+  .Plugin_CategoryMainSelectionLeft .showClosedOnly {
+    display: block;
+  }
+  .Plugin_CategoryMainSelectionLeft.opened .showExpandedOnly.filterShowMore {
+    display: block !important;
+  }
+  .Plugin_CategoryMainSelectionLeft a.filterShowMore {
+    cursor: pointer !important;
   }
   /* Disabled categories remain expandable for read-only browsing; child mute buttons suppressed */
   .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) .tp-cat-sublist .ignoreCategory {
@@ -6884,6 +6900,37 @@ const SHADOW_MODAL_STYLES = `
       }
     });
 
+    // Convert toggles to spacers on leaf categories without subcategories (e.g. Uhren)
+    loadNativeCategoryTree().then(tree => {
+      if (!tree?.childrenOf) return;
+      rootLis.forEach(li => {
+        const catId = li.dataset.catId;
+        if (!catId) return;
+        const children = tree.childrenOf.get(catId) || [];
+        if (children.length === 0) {
+          const toggle = li.querySelector('.tp-cat-toggle');
+          if (toggle) {
+            const spacer = document.createElement('span');
+            spacer.className = 'tp-cat-spacer';
+            toggle.replaceWith(spacer);
+          }
+        }
+      });
+    }).catch(() => {});
+
+    // Wire fallback toggle on 'mehr anzeigen' / 'weniger anzeigen' to ensure .opened state stays in sync
+    sidebar.querySelectorAll('.f_showMoreCatDetails, .f_hideMoreCatDetails').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const isShowMore = btn.classList.contains('f_showMoreCatDetails');
+        sidebar.classList.toggle('opened', isShowMore);
+        const container = sidebar.closest('.f_categoryMainSelectionLeftContainer');
+        if (container) {
+          container.classList.toggle('opened', isShowMore);
+          container.style.height = '';
+        }
+      });
+    });
+
     // Align any pre-rendered ignored states in sidebar with active chips
     syncCategoryTreeIgnoredState(sidebar);
 
@@ -8211,9 +8258,26 @@ const SHADOW_MODAL_STYLES = `
       if (!c.dataset.tpInitialOrder) {
         c.dataset.tpInitialOrder = String(nextInitialOrder++);
       }
+      if (!c.dataset.tpSection) {
+        const sep = c.parentElement?.querySelector?.('.fillUpSeparator');
+        if (sep) {
+          let isAfter = false;
+          if (typeof c.compareDocumentPosition === 'function') {
+            isAfter = !!(sep.compareDocumentPosition(c) & (typeof Node !== 'undefined' ? Node.DOCUMENT_POSITION_FOLLOWING : 4));
+          } else if (Array.isArray(c.parentElement?.children)) {
+            const sIdx = c.parentElement.children.indexOf(sep);
+            const cIdx = c.parentElement.children.indexOf(c);
+            isAfter = sIdx !== -1 && cIdx > sIdx;
+          }
+          c.dataset.tpSection = isAfter ? '2' : '1';
+        } else {
+          c.dataset.tpSection = '1';
+        }
+      }
       const item = getCardSortableUnit(c);
       if (item) {
         if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = c.dataset.tpInitialOrder;
+        if (!item.dataset.tpSection) item.dataset.tpSection = c.dataset.tpSection;
         if (!origPlacement.has(item) && item.parentElement) {
           // Non-DOM harnesses (unit tests) have no Comment nodes: record the
           // parent anyway; restore falls back to appendChild order.
@@ -8276,42 +8340,119 @@ const SHADOW_MODAL_STYLES = `
       }
       sortedEntries = uniqueEntries;
 
-      // Move sortable items into primaryRow and apply CSS flex order
-      const trailingAnchor = primaryRow.querySelector?.('.Plugin_ProductOfferSeparator, .Plugin_Offer, .fillUpSeparator') || null;
-      sortedEntries.forEach((entry, rank) => {
-        const item = entry.item;
-        if (item) {
-          if (item.parentElement !== primaryRow) {
-            primaryRow.insertBefore(item, trailingAnchor);
-          }
-          const flexOrder = String(rank - sortedEntries.length);
-          if (item.style.order !== flexOrder) {
-            item.style.setProperty('order', flexOrder, 'important');
-          }
-        }
-      });
+      const fillUpSeparator = primaryRow.querySelector?.('.fillUpSeparator') || null;
+      const hasSectionSplit = !!fillUpSeparator && uniqueEntries.some(e => e.item?.dataset.tpSection === '2');
 
-      // Ensure DOM order inside primaryRow matches sortedEntries order without unnecessary detach/re-attach
-      const currentChildren = Array.from(primaryRow.children);
-      const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
-      const targetSet = new Set(targetItems);
-      const cardIndices = currentChildren.map((c, i) => targetSet.has(c) ? i : -1).filter(i => i !== -1);
-      let domOrderMatches = cardIndices.length === targetItems.length;
-      if (domOrderMatches) {
-        for (let i = 0; i < targetItems.length; i++) {
-          if (currentChildren[cardIndices[i]] !== targetItems[i]) {
-            domOrderMatches = false;
-            break;
-          }
-        }
-      }
-      if (!domOrderMatches) {
-        targetItems.forEach((item, idx) => {
-          const targetPos = cardIndices[idx];
-          if (primaryRow.children[targetPos] !== item) {
-            primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
+      if (hasSectionSplit) {
+        // Per-section sorting: Section 1 ("gefragte Produkte") above separator, Section 2 below separator
+        const section1Entries = uniqueEntries.filter(e => (e.item?.dataset.tpSection || '1') === '1');
+        const section2Entries = uniqueEntries.filter(e => e.item?.dataset.tpSection === '2');
+
+        // Section 1 items: flex orders -N1 to -1
+        section1Entries.forEach((entry, rank) => {
+          const item = entry.item;
+          if (item) {
+            if (item.parentElement !== primaryRow) {
+              primaryRow.insertBefore(item, fillUpSeparator);
+            }
+            const flexOrder = String(rank - section1Entries.length);
+            if (item.style.order !== flexOrder) {
+              item.style.setProperty('order', flexOrder, 'important');
+            }
           }
         });
+
+        // Keep .fillUpSeparator visible between sections with order 0
+        if (fillUpSeparator.style.order !== '0') {
+          fillUpSeparator.style.setProperty('order', '0');
+        }
+        fillUpSeparator.style.removeProperty('display');
+        fillUpSeparator.classList.remove('tp-fillup-separator-hidden');
+
+        // Section 2 items: flex orders 1 to N2
+        section2Entries.forEach((entry, rank) => {
+          const item = entry.item;
+          if (item) {
+            if (item.parentElement !== primaryRow) {
+              primaryRow.appendChild(item);
+            }
+            const flexOrder = String(rank + 1);
+            if (item.style.order !== flexOrder) {
+              item.style.setProperty('order', flexOrder, 'important');
+            }
+          }
+        });
+
+        // Maintain DOM slot positions within each section
+        const currentChildren = Array.from(primaryRow.children);
+        const sepIndex = currentChildren.indexOf(fillUpSeparator);
+
+        const syncSectionDom = (entries, startIndex, endIndex) => {
+          const targetItems = entries.map(e => e.item).filter(Boolean);
+          const targetSet = new Set(targetItems);
+          const currentSlice = currentChildren.slice(startIndex, endIndex);
+          const cardIndices = currentSlice.map((c, i) => targetSet.has(c) ? startIndex + i : -1).filter(i => i !== -1);
+          let domMatches = cardIndices.length === targetItems.length;
+          if (domMatches) {
+            for (let i = 0; i < targetItems.length; i++) {
+              if (primaryRow.children[cardIndices[i]] !== targetItems[i]) {
+                domMatches = false;
+                break;
+              }
+            }
+          }
+          if (!domMatches) {
+            targetItems.forEach((item, idx) => {
+              const targetPos = cardIndices[idx];
+              if (targetPos !== undefined && primaryRow.children[targetPos] !== item) {
+                primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
+              }
+            });
+          }
+        };
+
+        if (sepIndex !== -1) {
+          syncSectionDom(section1Entries, 0, sepIndex);
+          syncSectionDom(section2Entries, sepIndex + 1, currentChildren.length);
+        }
+      } else {
+        // Move sortable items into primaryRow and apply CSS flex order
+        const trailingAnchor = primaryRow.querySelector?.('.Plugin_ProductOfferSeparator, .Plugin_Offer') || null;
+        sortedEntries.forEach((entry, rank) => {
+          const item = entry.item;
+          if (item) {
+            if (item.parentElement !== primaryRow) {
+              primaryRow.insertBefore(item, trailingAnchor);
+            }
+            const flexOrder = String(rank - sortedEntries.length);
+            if (item.style.order !== flexOrder) {
+              item.style.setProperty('order', flexOrder, 'important');
+            }
+          }
+        });
+
+        // Ensure DOM order inside primaryRow matches sortedEntries order without unnecessary detach/re-attach
+        const currentChildren = Array.from(primaryRow.children);
+        const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
+        const targetSet = new Set(targetItems);
+        const cardIndices = currentChildren.map((c, i) => targetSet.has(c) ? i : -1).filter(i => i !== -1);
+        let domOrderMatches = cardIndices.length === targetItems.length;
+        if (domOrderMatches) {
+          for (let i = 0; i < targetItems.length; i++) {
+            if (currentChildren[cardIndices[i]] !== targetItems[i]) {
+              domOrderMatches = false;
+              break;
+            }
+          }
+        }
+        if (!domOrderMatches) {
+          targetItems.forEach((item, idx) => {
+            const targetPos = cardIndices[idx];
+            if (primaryRow.children[targetPos] !== item) {
+              primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
+            }
+          });
+        }
       }
 
       // Hide empty secondary product rows
@@ -8323,13 +8464,6 @@ const SHADOW_MODAL_STYLES = `
           }
         });
       }
-
-      // Hide feed section dividers during custom sort so sorted cards flow continuously
-      const fillUpSeparators = typeof document?.querySelectorAll === 'function' ? document.querySelectorAll('.fillUpSeparator') : [];
-      fillUpSeparators.forEach(sep => {
-        sep.style.setProperty('display', 'none', 'important');
-        sep.classList.add('tp-fillup-separator-hidden');
-      });
     } else {
       // Natural order restoration: return items to original parents in initial order
       const itemsToRestore = list.map(c => {
@@ -8393,8 +8527,10 @@ const SHADOW_MODAL_STYLES = `
               row.insertBefore(ch, saved.placeholder);
             } else {
               const targetPos = cardIndices[idx];
-              if (targetPos !== undefined && row.children[targetPos] && row.children[targetPos] !== ch) {
-                row.insertBefore(ch, row.children[targetPos]);
+              if (targetPos !== undefined && row.children[targetPos]) {
+                if (row.children[targetPos] !== ch) {
+                  row.insertBefore(ch, row.children[targetPos]);
+                }
               } else {
                 row.appendChild(ch);
               }
@@ -8408,11 +8544,20 @@ const SHADOW_MODAL_STYLES = `
         }
       });
 
-      // Restore feed section dividers that were hidden during custom sort
-      const hiddenSeparators = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.tp-fillup-separator-hidden')) : [];
-      hiddenSeparators.forEach(sep => {
-        sep.classList.remove('tp-fillup-separator-hidden');
+      // Clear any sort flex order and restore separators
+      allOrigParents.forEach(row => {
+        const seps = row.querySelectorAll ? Array.from(row.querySelectorAll('.fillUpSeparator, .tp-fillup-separator-hidden')) : (Array.isArray(row.children) ? row.children.filter(c => c.classList?.contains?.('fillUpSeparator') || c.classList?.contains?.('tp-fillup-separator-hidden')) : []);
+        seps.forEach(sep => {
+          sep.style.removeProperty('order');
+          sep.style.removeProperty('display');
+          sep.classList.remove('tp-fillup-separator-hidden');
+        });
+      });
+      const separators = typeof document?.querySelectorAll === 'function' ? Array.from(document.querySelectorAll('.fillUpSeparator, .tp-fillup-separator-hidden')) : [];
+      separators.forEach(sep => {
+        sep.style.removeProperty('order');
         sep.style.removeProperty('display');
+        sep.classList.remove('tp-fillup-separator-hidden');
       });
     }
   }
@@ -15147,7 +15292,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.477';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.478';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

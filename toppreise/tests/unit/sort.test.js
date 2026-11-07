@@ -286,10 +286,10 @@ describe('applySorting fallback-tief order', () => {
     assert.equal(offer.style.order, '');
   });
 
-  it('hides .fillUpSeparator during custom sort and unhides it upon restore', () => {
+  it('sorts cards within their respective sections and keeps .fillUpSeparator visible between them', () => {
     const row = makeRow();
-    const cardA = makeCard(row, 0);
-    const cardB = makeCard(row, 1);
+    const cardA1 = makeCard(row, 0);
+    const cardA2 = makeCard(row, 1);
     const classes = new Set(['fillUpSeparator']);
     const separator = {
       classList: {
@@ -304,34 +304,42 @@ describe('applySorting fallback-tief order', () => {
       },
       dataset: {}
     };
-    row.children = [cardA, separator, cardB];
-
-    globalThis.document.querySelectorAll = sel => {
-      if (sel === '.fillUpSeparator') return [separator];
-      if (sel === '.tp-fillup-separator-hidden') return classes.has('tp-fillup-separator-hidden') ? [separator] : [];
-      return [];
-    };
+    row.children.push(separator);
+    const cardB1 = makeCard(row, 2);
+    const cardB2 = makeCard(row, 3);
+    row.children = [cardA1, cardA2, separator, cardB1, cardB2];
 
     const data = [
-      { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
-      { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 5 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 10, dMedian: 10, dRecord: 10 } }
+      { card: cardA1, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+      { card: cardA2, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 5 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 10, dMedian: 10, dRecord: 10 } },
+      { card: cardB1, cardPrice: 200, stats: null, displayDelta: null, dealScore: null },
+      { card: cardB2, cardPrice: 80, stats: { tiefstpreis: 200, dataPointCount: 5 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 20, dMedian: 20, dRecord: 20 } }
     ];
 
-    // 1. Sort active: separator should be hidden
+    // 1. Sort active: Section 1 sorts internally, Section 2 sorts internally, separator stays between
     withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
       withConfig('SORT_BY_OFFERS', 'none', () =>
-        applySorting([cardA, cardB], false, data)));
+        applySorting([cardA1, cardA2, cardB1, cardB2], false, data)));
 
-    assert.equal(separator.style.display, 'none');
-    assert.ok(separator.classList.contains('tp-fillup-separator-hidden'));
+    assert.equal(cardA2.style.order, '-2');
+    assert.equal(cardA1.style.order, '-1');
+    assert.equal(separator.style.order, '0');
+    assert.equal(separator.style.display, undefined);
+    assert.equal(cardB2.style.order, '1');
+    assert.equal(cardB1.style.order, '2');
 
-    // 2. Sort deactivated: separator should be restored
+    assert.deepEqual(row.children, [cardA2, cardA1, separator, cardB2, cardB1]);
+
+    // 2. Sort deactivated: natural order restored
     withConfig('BESTPREISE_MODE_ACTIVE', false, () =>
       withConfig('SORT_BY_OFFERS', 'none', () =>
-        applySorting([cardA, cardB], false)));
+        applySorting([cardA1, cardA2, cardB1, cardB2], false)));
 
-    assert.equal(separator.style.display, undefined);
-    assert.ok(!separator.classList.contains('tp-fillup-separator-hidden'));
-    assert.deepEqual(row.children, [cardA, separator, cardB]);
+    assert.equal(separator.style.order, undefined);
+    assert.equal(cardA1.style.order, undefined);
+    assert.equal(cardA2.style.order, undefined);
+    assert.equal(cardB1.style.order, undefined);
+    assert.equal(cardB2.style.order, undefined);
+    assert.deepEqual(row.children, [cardA1, cardA2, separator, cardB1, cardB2]);
   });
 });

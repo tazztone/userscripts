@@ -390,6 +390,37 @@ export function enhanceCategorySidebar() {
     }
   });
 
+  // Convert toggles to spacers on leaf categories without subcategories (e.g. Uhren)
+  loadNativeCategoryTree().then(tree => {
+    if (!tree?.childrenOf) return;
+    rootLis.forEach(li => {
+      const catId = li.dataset.catId;
+      if (!catId) return;
+      const children = tree.childrenOf.get(catId) || [];
+      if (children.length === 0) {
+        const toggle = li.querySelector('.tp-cat-toggle');
+        if (toggle) {
+          const spacer = document.createElement('span');
+          spacer.className = 'tp-cat-spacer';
+          toggle.replaceWith(spacer);
+        }
+      }
+    });
+  }).catch(() => {});
+
+  // Wire fallback toggle on 'mehr anzeigen' / 'weniger anzeigen' to ensure .opened state stays in sync
+  sidebar.querySelectorAll('.f_showMoreCatDetails, .f_hideMoreCatDetails').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const isShowMore = btn.classList.contains('f_showMoreCatDetails');
+      sidebar.classList.toggle('opened', isShowMore);
+      const container = sidebar.closest('.f_categoryMainSelectionLeftContainer');
+      if (container) {
+        container.classList.toggle('opened', isShowMore);
+        container.style.height = '';
+      }
+    });
+  });
+
   // Align any pre-rendered ignored states in sidebar with active chips
   syncCategoryTreeIgnoredState(sidebar);
 
