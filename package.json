@@ -4,6 +4,8 @@
   "description": "Userscripts collection and developer tooling",
   "private": true,
   "scripts": {
+    "dev": "node tools/dev-server.js",
+    "dev:check": "node tools/dev-server.js --self-test",
     "build": "npm --prefix toppreise run build",
     "check": "npm --prefix toppreise run check",
     "lint": "npm --prefix toppreise run lint",
