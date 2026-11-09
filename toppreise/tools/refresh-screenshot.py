@@ -581,10 +581,10 @@ def setup_feed_cards(page, pids):
         (1, css_box(page, "#tp-bar-heat-btn"), "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
         (2, css_box(page, "#tp-bar-bestpreise-btn"), "💎 Tiefstpreis-Sortierung (nach gewichtetem Deal-Score)", "outside-top"),
         (3, c1_box, "Single-Hue Deal-Heatmap (Gewichteter Deal-Score; tiefrot = neuer Rekord-Tiefstpreis)",
-         {"bx": c1_box["x"] - origin["x"] + c1_box["width"] / 2,
-          "by": c1_box["y"] - origin["y"] - 26,
-          "tx": c1_box["x"] - origin["x"] + c1_box["width"] / 2,
-          "ty": c1_box["y"] - origin["y"]}),
+         {"bx": 24,
+          "by": c1_box["y"] - origin["y"] + 28,
+          "tx": c1_box["x"] - origin["x"] - 2,
+          "ty": c1_box["y"] - origin["y"] + 28}),
         (4, r2_box, "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)",
          {"bx": r2_box["x"] - origin["x"] + r2_box["width"] / 2,
           "by": c2_box["y"] - origin["y"] + c2_box["height"] + 28,
@@ -674,15 +674,19 @@ def setup_search_cards(page, pids):
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
+    title_box = css_box(page, ".Plugin_ProductCollItem .product-name")
     deal_box = css_box(page, deal)
     unchecked_box = css_box(page, unchecked)
     callouts = [
-        (1, deal_box, "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)",
+        (1, title_box, "Modellfamilien-Schutz (Gruppierte Varianten bleiben im gemeinsamen Block gebündelt)",
+         {"bx": 28,
+          "by": title_box["y"] - origin["y"] + title_box["height"] / 2}),
+        (2, deal_box, "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)",
          {"bx": deal_box["x"] - origin["x"] + deal_box["width"] + 36,
           "by": deal_box["y"] - origin["y"] + deal_box["height"] / 2,
           "tx": deal_box["x"] - origin["x"] + deal_box["width"] + 4,
           "ty": deal_box["y"] - origin["y"] + deal_box["height"] / 2}),
-        (2, unchecked_box, "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)",
+        (3, unchecked_box, "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)",
          {"bx": unchecked_box["x"] - origin["x"] + unchecked_box["width"] + 36,
           "by": unchecked_box["y"] - origin["y"] + unchecked_box["height"] / 2,
           "tx": unchecked_box["x"] - origin["x"] + unchecked_box["width"] + 4,

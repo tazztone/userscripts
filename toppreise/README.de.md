@@ -48,7 +48,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 - [Violentmonkey](https://violentmonkey.github.io/) (empfohlen: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.345)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**HIER KLICKEN ZUR INSTALLATION (v2.18.481)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > Das Skript enthält `@updateURL`- und `@downloadURL`-Metadaten. Dein Userscript-Manager prüft GitHub automatisch im Hintergrund und hält die Installation aktuell.
@@ -71,7 +71,7 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 | ⑥ | **Glitch-Fenster** | Maximale Dauer eines Preissprungs (24h–168h), der als Glitch verworfen wird. |
 | ⑦ | **Glitch-Vorschau (Live-Chart)** | Interaktive SVG-Vorschau mit dynamischem Zeitachsen-Raster und Stichtag, Ø-Preis, Allzeit-Rekord, Glitch-Band und erkannten Glitches (rote ✕-Marker). |
 
-* **Prüfung auf Abruf & Batch-Checker:** Klicke auf das Differenz-Badge (`🔍`) einer Karte oder nutze den schwebenden **Batch-Checker** (unten links), um alle sichtbaren Deals ab dem Schwellenwert (`≥20%–60%`) nacheinander abzufragen (mit Live-Zähler und Abbruch-Option).
+* **Prüfung auf Abruf & Batch-Checker:** Klicke auf das Differenz-Badge (`🔍`) einer Karte oder nutze den schwebenden **Batch-Checker** (unten links), um alle sichtbaren Deals ab dem Schwellenwert (`≥X%`, direkt per Texteingabe anpassbar) nacheinander abzufragen (mit Live-Zähler und Abbruch-Option).
 * **Gewichtete Differenz (`⚖️`):** Verifizierte Tiefstpreise werden anhand einer frei wählbaren Mischung aus **Median-Rabatt (`Ø-Preis`)** und **Rekordmarge (`Rekord`)** bewertet. Diese Kennzahl steuert Badge-Prozentwert, Heatmap-Farbe und Feed-Reihenfolge.
 * **Rollierender Median-Zeithorizont (30–730 Tage + Lifetime):** Verhindert verzerrte Marktpreise bei älteren Produkten (z. B. 2 Jahre alte Grafikkarten mit hoher Launch-UVP). Ein Wechsel rechnet alle gecachten Mediane sofort lokal neu — ohne erneute Netzabfrage.
 * **Multi-Pass Preisfehler- & Ausreisser-Filter:** Erkennt und ignoriert automatisch kurzzeitige Fehllistings (z. B. ein CHF 15 Handy-Case, das versehentlich unter einem CHF 1'200 Smartphone gelistet war) mittels rollierendem ±15-Punkte-Lokalmedian (konfigurierbares Glitch-Band `±1%–50%`, Glitch-Fenster `24h–168h`), mit interaktiver Live-SVG-Vorschau im `⚖️`-Popover.
@@ -168,8 +168,9 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
 | # | Element | Beschreibung |
 |---|---|---|
-| ① | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Pill neben dem Produkttitel für geprüfte Tiefstpreise. |
-| ② | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
+| ① | **Modellfamilien-Schutz** | Gruppierte Varianten (z. B. AirPods) bleiben im gemeinsamen Container gebündelt; das Raster wird nicht zerrissen. |
+| ② | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Pill neben dem Produkttitel für geprüfte Tiefstpreise. |
+| ③ | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
 
 * **Tiefstpreis-Feeds (`/neue-toppreise`):** Zeigt die vollständige Toolbar mit konsolidiertem Filter-Button (`🧹 Filter (N)`), Heatmap, `💎 Tiefstpreis-Sortierung`, Batch-Scanner und Berechnungsparametern (`⚖️`).
 * **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber neben den Produkttiteln. Vollständige Unterstützung aller Katalogansichten:
