@@ -15,7 +15,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -322,11 +322,44 @@ async function runSelfTest() {
     // 4. Test rebuild execution
     SCRIPTS.toppreise.buildCmd();
 
+    // 5. Test launcher resolution logic
+    const launcherPath = path.join(REPO_ROOT, 'tools', 'launch-browser.sh');
+    if (!fs.existsSync(launcherPath)) {
+      throw new Error('launch-browser.sh does not exist');
+    }
+
     console.log('✅ All self-test assertions passed successfully.');
   } finally {
     server.close();
   }
 }
+
+function parseCliArgs(args) {
+  let port = DEFAULT_PORT;
+  let browser = null;
+  let targetScript = 'toppreise';
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--chrome') {
+      browser = 'chrome';
+    } else if (arg === '--firefox') {
+      browser = 'firefox';
+    } else if (arg === '--browser' && args[i + 1]) {
+      browser = args[++i];
+    } else if (arg === '--port' && args[i + 1]) {
+      port = parseInt(args[++i], 10) || DEFAULT_PORT;
+    } else if (!arg.startsWith('-')) {
+      if (SCRIPTS[arg]) {
+        targetScript = arg;
+      }
+    }
+  }
+
+  return { port, browser, targetScript };
+}
+
+export { parseCliArgs };
 
 function main() {
   const args = process.argv.slice(2);
@@ -340,25 +373,48 @@ function main() {
     return;
   }
 
-  let port = DEFAULT_PORT;
-  const portIdx = args.indexOf('--port');
-  if (portIdx !== -1 && args[portIdx + 1]) {
-    port = parseInt(args[portIdx + 1], 10) || DEFAULT_PORT;
-  }
+  const { port, browser, targetScript } = parseCliArgs(args);
 
   const server = createDevServer({ host: '127.0.0.1', port });
+  let browserChild = null;
+
   server.listen(port, '127.0.0.1', () => {
     console.log(`⚡ Userscript Sync Server running at http://127.0.0.1:${port}/`);
     console.log(`📁 Tracking source changes across toppreise/src/ ...`);
+
+    if (browser) {
+      const launcherScript = path.join(REPO_ROOT, 'tools', 'launch-browser.sh');
+      console.log(`🌐 Launching ${browser} for '${targetScript}'...`);
+      browserChild = spawn('bash', [launcherScript, browser, targetScript], {
+        cwd: REPO_ROOT,
+        stdio: 'inherit'
+      });
+      browserChild.on('error', (err) => {
+        console.error(`❌ Failed to launch browser:`, err.message);
+      });
+      browserChild.on('exit', (code) => {
+        if (code !== 0 && code !== null) {
+          console.log(`ℹ️ Browser process exited with code ${code}`);
+        }
+      });
+    }
   });
 
   setupWatchers();
 
-  process.on('SIGINT', () => {
+  const shutdown = () => {
     console.log('\nStopping Sync Server...');
+    if (browserChild && !browserChild.killed) {
+      try {
+        browserChild.kill('SIGTERM');
+      } catch {}
+    }
     server.close();
     process.exit(0);
-  });
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);

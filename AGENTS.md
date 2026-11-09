@@ -23,8 +23,9 @@ scratch/                                              # exploration (gitignored)
 Build-then-test; detail: `docs/agent-guide.md` (§Gates, §Testing, §Live Browser Loop).
 
 ```bash
-npm run dev                            # sync daemon + watcher at http://127.0.0.1:8765
-bash tools/launch-browser.sh chrome    # or firefox: debug port with dedicated profile
+npm run dev:chrome                     # 1-line: sync daemon + Chrome with tabs pre-loaded
+npm run dev:firefox                    # 1-line: sync daemon + Firefox with tabs pre-loaded
+npm run dev                            # sync daemon only at http://127.0.0.1:8765
 node toppreise/tools/build.js --check  # drift gate, run pre/post src/ edit
 venv/bin/pytest toppreise/tests/test_ui_modal.py
 ```

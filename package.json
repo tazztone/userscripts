@@ -5,6 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "node tools/dev-server.js",
+    "dev:chrome": "node tools/dev-server.js --chrome toppreise",
+    "dev:chrome:hf": "node tools/dev-server.js --chrome huggingface",
+    "dev:chrome:px": "node tools/dev-server.js --chrome perplexity",
+    "dev:firefox": "node tools/dev-server.js --firefox toppreise",
     "dev:check": "node tools/dev-server.js --self-test",
     "build": "npm --prefix toppreise run build",
     "check": "npm --prefix toppreise run check",

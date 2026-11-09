@@ -51,15 +51,17 @@ Local `.playwright-browsers` is auto-discovered by `conftest.py`. Fixture: `page
 Agentic workflow pairing an active browser session with CLI agent via MCP (`.agents/skills/userscript-development/SKILL.md`):
 
 ```bash
-npm run dev                            # start zero-cache sync daemon on http://127.0.0.1:8765
-bash tools/launch-browser.sh chrome    # launches Chrome on port 9222 (or 'firefox' on 2828)
+npm run dev:chrome                     # 1-line: sync daemon + Chrome with tabs pre-loaded
+npm run dev:firefox                    # 1-line: sync daemon + Firefox with tabs pre-loaded
+# Alternative single-script targets: npm run dev:chrome:hf / npm run dev:chrome:px
 ```
 
-1. Install script via `http://127.0.0.1:8765/` in Violentmonkey with **Track external edits** enabled.
-2. Edit `src/` modules — bundle recompiles automatically in <50ms.
-3. Reload target tab via MCP bridge (`reload_page`).
-4. Read telemetry snapshot on `#tp-root` via `evaluate_script` (`document.getElementById('tp-root')?.dataset.tpDiag`) and inspect filtered console logs (`[Toppreise-Suite]`).
-5. Run offline quality gates (`npm run test:smoke`) before committing.
+1. Run `npm run dev:chrome` — launches dev server and opens Chrome with Violentmonkey install tab and target site pre-loaded.
+2. In Violentmonkey, click **Track external edits** on the opened script tab once.
+3. Edit `src/` modules — bundle recompiles automatically in <50ms.
+4. Reload target tab via MCP bridge (`reload_page`).
+5. Read telemetry snapshot on `#tp-root` via `evaluate_script` (`document.getElementById('tp-root')?.dataset.tpDiag`) and inspect filtered console logs (`[Toppreise-Suite]`).
+6. Run offline quality gates (`npm run test:smoke`) before committing.
 
 ## Header
 
