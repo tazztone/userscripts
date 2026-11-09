@@ -571,8 +571,11 @@ def setup_feed_cards(page, pids):
     origin = {"x": clip["x"], "y": clip["y"]}
 
     c1_box = css_box(page, deep)
+    c2_box = css_box(page, fallback)
+    c3_box = css_box(page, markup)
     r2_box = css_box(page, f"{fallback} .badge-dif")
     r3_box = css_box(page, f"{markup} .badge-dif")
+    bell_box = css_box(page, f"{deep} .tp-card-alarm-btn")
 
     callouts = [
         (1, css_box(page, "#tp-bar-heat-btn"), "Heatmap-Umschalter (Farbe folgt der Rabatt-Tiefe)", "outside-top"),
@@ -584,19 +587,28 @@ def setup_feed_cards(page, pids):
           "ty": c1_box["y"] - origin["y"]}),
         (4, r2_box, "Fallback-Tief (Vortief-Vergleich bei wenigen Datenpunkten, dezent hervorgehoben)",
          {"bx": r2_box["x"] - origin["x"] + r2_box["width"] / 2,
-          "by": r2_box["y"] - origin["y"] - 26,
+          "by": c2_box["y"] - origin["y"] + c2_box["height"] + 28,
           "tx": r2_box["x"] - origin["x"] + r2_box["width"] / 2,
-          "ty": r2_box["y"] - origin["y"] + 4}),
+          "ty": c2_box["y"] - origin["y"] + c2_box["height"] + 4}),
         (5, r3_box, "Schein-Rabatt entlarvt (Preiserhöhung statt Ersparnis; echter Aufschlag in Schiefer/Bernstein)",
          {"bx": r3_box["x"] - origin["x"] + r3_box["width"] / 2,
-          "by": r3_box["y"] - origin["y"] - 26,
+          "by": c3_box["y"] - origin["y"] + c3_box["height"] + 28,
           "tx": r3_box["x"] - origin["x"] + r3_box["width"] / 2,
-          "ty": r3_box["y"] - origin["y"] + 4}),
+          "ty": c3_box["y"] - origin["y"] + c3_box["height"] + 4}),
         (6, css_box(page, f"{deep} > .tp-share-btn"), "Discord 1-Klick Share-Button (erscheint bei Hover zum Teilen via Webhook)", [-48, 0]),
         (7, css_box(page, f"{deep} .tp-card-subline-row"), "Transparente Deal-Subline (Vortief-Abstand in % · 1-Jahres-Ø mit Abstand in %)", {"dx": 48, "dy": 38}),
         (8, css_box(page, f"{deep} .tp-dealer-name .tp-dealer-icon"), "Günstigster Händler (Direktlink zum Angebot ohne Zwischenhändler)", [-50, 0]),
-        (9, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)", {"dx": 30, "dy": 38}),
-        (10, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", {"dx": 10, "dy": 42}),
+        (9, bell_box, "Preisalarm 1-Klick Trigger (🔔 Auto-Fill Modus mit Zielpreis & optionalem Zahnrad für Einstellungen)",
+         {"bx": bell_box["x"] - origin["x"] - 20,
+          "by": c1_box["y"] - origin["y"] + c1_box["height"] + 28,
+          "tx": bell_box["x"] - origin["x"] + bell_box["width"] / 2,
+          "ty": bell_box["y"] - origin["y"] + bell_box["height"] + 2}),
+        (10, css_box(page, f"{deep} .tp-sparkline-container svg"), "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)",
+         {"bx": bell_box["x"] - origin["x"] + 34,
+          "by": c1_box["y"] - origin["y"] + c1_box["height"] + 28,
+          "tx": css_box(page, f"{deep} .tp-sparkline-container svg")["x"] - origin["x"] + 22,
+          "ty": c1_box["y"] - origin["y"] + c1_box["height"] + 2}),
+        (11, css_box(page, f"{deep} .tp-review-search-btn"), "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)", {"dx": 10, "dy": 42}),
     ]
     return raw_bytes, origin, callouts, "02-feed-cards.webp"
 
@@ -713,11 +725,11 @@ def setup_settings_core(page, pids):
     origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-dim-opacity-group", "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)", [-44, 0]),
-        ("#tp-review-search-toggle", "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus", [-44, 0]),
-        ("#tp-bestpreise-mode-toggle", "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz", [-44, 0]),
-        ("#tp-margin-range", "Preis-Toleranz (%): Händler-Bestpreis-Marge", [-44, 0]),
-        ("#tp-section-alarm .tp-range-container", "Preisalarm Auto-Fill: Zielpreis (%) & Dauer", [-44, 0]),
+        ("#tp-section-display .tp-section-title", "🖥️ Ansicht (Dimmung, Heatmap-Farben, Transparenz & Layout)", {"bx": 32}),
+        ("#tp-section-review .tp-section-title", "🌐 Web-Suche (1-Klick Google-Testberichte & optionaler KI-Modus)", {"bx": 32}),
+        ("#tp-section-deals .tp-section-title", "💎 Sortieren (Tiefstpreis-Rangfolge, Gewichtung Rekord vs. Median)", {"bx": 32}),
+        ("#tp-section-filter .tp-section-title", "🧹 Filtern (Negativfilter, Min-Rabatt Stepper & Händlerzeilen-Filter)", {"bx": 32}),
+        ("#tp-section-alarm .tp-section-title", "🔔 Preisalarm (Auto-Fill Modus, Zielpreis in % & Alarm-Gültigkeit)", {"bx": 32}),
     ]
     callouts = []
     for sel, cap, anchor in controls:
@@ -765,11 +777,8 @@ def setup_settings_advanced(page, pids):
     origin = {"x": clip["x"], "y": clip["y"]}
 
     controls = [
-        ("#tp-discord-webhook-collapsed", "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)", [-44, 0]),
-        ("#tp-discord-layout-chips", "Discord Layout-Baukasten mit variablen Tokens", [-44, 0]),
-        ("#tp-discord-layout-preview", "Live-Markdown-Vorschau der generierten Nachricht", [-44, 0]),
-        ("#tp-dealer-autofetch-toggle", "Händler automatisch im Hintergrund laden (max. 3 parallel)", [-44, 0]),
-        ("#tp-cache-clear-btn", "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export", [-44, 0]),
+        ("#tp-section-discord .tp-section-title", "💬 Discord Share (Webhook, Deal-Sharing & anpassbare Layout-Tokens)", {"bx": 32}),
+        ("#tp-section-data .tp-section-title", "💾 Daten & Cache (Händler-Autofetch, TTL-Speicher & Backup-Export)", {"bx": 32}),
     ]
     callouts = []
     for sel, cap, anchor in controls:
@@ -777,7 +786,7 @@ def setup_settings_advanced(page, pids):
         if box is None:
             continue
         callouts.append((len(callouts) + 1, box, cap, anchor))
-    assert len(callouts) >= 3, "fewer than 3 settings advanced controls resolved"
+    assert len(callouts) >= 2, "fewer than 2 settings advanced controls resolved"
     return raw_bytes, origin, callouts, "04b-settings-advanced.webp"
 
 

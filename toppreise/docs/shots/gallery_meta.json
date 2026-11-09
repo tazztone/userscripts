@@ -131,10 +131,15 @@
       [
         9,
         null,
-        "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)"
+        "Preisalarm 1-Klick Trigger (🔔 Auto-Fill Modus mit Zielpreis & optionalem Zahnrad für Einstellungen)"
       ],
       [
         10,
+        null,
+        "Mini-Trend Sparkline (Kompakter 30-Tage-Preistrend; Klick öffnet Detail-Chart)"
+      ],
+      [
+        11,
         null,
         "1-Klick Review-Suche (🌐 erscheint bei Hover für direkte Google-Testberichtsuche)"
       ]
@@ -165,27 +170,27 @@
       [
         1,
         null,
-        "Deckkraft / Dimmung für gefilterte Angebote (Schieberegler)"
+        "🖥️ Ansicht (Dimmung, Heatmap-Farben, Transparenz & Layout)"
       ],
       [
         2,
         null,
-        "Review-Suche (🌐): Google-Suche mit optionalem KI-Modus"
+        "🌐 Web-Suche (1-Klick Google-Testberichte & optionaler KI-Modus)"
       ],
       [
         3,
         null,
-        "Tiefstpreis-Sortierung: Rangfolge nach Gewichteter Differenz"
+        "💎 Sortieren (Tiefstpreis-Rangfolge, Gewichtung Rekord vs. Median)"
       ],
       [
         4,
         null,
-        "Preis-Toleranz (%): Händler-Bestpreis-Marge"
+        "🧹 Filtern (Negativfilter, Min-Rabatt Stepper & Händlerzeilen-Filter)"
       ],
       [
         5,
         null,
-        "Preisalarm Auto-Fill: Zielpreis (%) & Dauer"
+        "🔔 Preisalarm (Auto-Fill Modus, Zielpreis in % & Alarm-Gültigkeit)"
       ]
     ]
   },
@@ -197,27 +202,12 @@
       [
         1,
         null,
-        "Discord Webhook: Direkte 1-Klick Deal-Integration (lokal gespeichert)"
+        "💬 Discord Share (Webhook, Deal-Sharing & anpassbare Layout-Tokens)"
       ],
       [
         2,
         null,
-        "Discord Layout-Baukasten mit variablen Tokens"
-      ],
-      [
-        3,
-        null,
-        "Live-Markdown-Vorschau der generierten Nachricht"
-      ],
-      [
-        4,
-        null,
-        "Händler automatisch im Hintergrund laden (max. 3 parallel)"
-      ],
-      [
-        5,
-        null,
-        "Cache-Verwaltung: TTL-Regler, Speicherbereinigung & Konfigurations-Export"
+        "💾 Daten & Cache (Händler-Autofetch, TTL-Speicher & Backup-Export)"
       ]
     ]
   }

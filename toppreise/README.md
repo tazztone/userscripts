@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.479)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.480)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -189,11 +189,11 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 | # | Setting / Action | Description |
 |---|---|---|
-| ① | **Dimmer Opacity Slider** | Adjusts background opacity of filtered and dimmed listings. |
-| ② | **Web Search (🌐)** | Configures Google Web quick search (keyword presets, `{preis}` token) with optional AI overview mode (`&udm=50`). |
-| ③ | **Best-Price Sorting** | Enables ranking by weighted deal quality score (`💎 Tiefstpreis-Sortierung`). |
-| ④ | **Price Tolerance Margin (%)** | Sets allowable premium over best price when evaluating preferred merchant deals. |
-| ⑤ | **Price Alarm Auto-Fill** | Pre-fills target price percentage (5%–99%) and duration (3–24 months). |
+| ① | **🖥️ Ansicht (*Display*)** | Adjusts background opacity of filtered listings, deal intensity & layout styling. |
+| ② | **🌐 Web-Suche (*Web Search*)** | Configures 1-click Google search (keyword presets, `{preis}` token) with optional AI overview mode (`&udm=50`). |
+| ③ | **💎 Sortieren (*Sorting*)** | Enables authentic deal scoring ranking (`💎 Tiefstpreis-Sortierung`), weight blend & time horizon. |
+| ④ | **🧹 Filtern (*Filtering*)** | Sets price tolerance margin (%) for preferred merchants, negative keywords & discount steppers. |
+| ⑤ | **🔔 Preisalarm (*Price Alarm*)** | Auto-fills target price percentage (5%–99%) and duration (3–24 months). |
 
 ### Advanced Settings (Sections 6–7: Discord Share & Data/Cache)
 
@@ -201,11 +201,8 @@ Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open t
 
 | # | Setting / Action | Description |
 |---|---|---|
-| ① | **Discord Channels & Webhooks** | Configures confidential webhook URLs for multiple named Discord channels (never committed or exported). |
-| ② | **Discord Layout Chips** | Variable token builder (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{comment}`, `{link}`). |
-| ③ | **Live Markdown Preview** | Instant preview of the rendered Discord embed and message structure. |
-| ④ | **Dealer Background Autoload** | Fetches cheapest merchant information automatically for deals meeting threshold (max. 3 parallel). |
-| ⑤ | **Local Data & Cache Management** | Cache purge (`🗑️`), full reset (`🧨`), TTL adjustments, and configuration export. |
+| ① | **💬 Discord Share** | Configures confidential multi-channel webhooks, tokenized layout builder & live Markdown preview. |
+| ② | **💾 Daten & Cache (*Data & Cache*)** | Dealer background autoload, TTL controls, cache purge (`🗑️`), reset (`🧨`) & backup export. |
 
 1. **🖥️ Display (*Ansicht*):** Dimmer opacity for filtered cards, hide ad placeholders / banners (removes top blank space and layout ad slots), and deal intensity / heatmap strength (20%–100%).
 2. **🌐 Web Search & AI Verdict (*Web-Suche*):** Search toggle (`🌐`) on product titles, custom keyword with `{preis}` placeholder, inline default reset, live query preview, Google AI mode (`&udm=50`), and Tavily AI toggle (defaults to off) with API key for 1-click in-page AI test verdicts and `{ai}` Discord sharing (48h cached).

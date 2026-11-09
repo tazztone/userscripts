@@ -370,6 +370,10 @@ export const STYLES_BADGES = `
     align-items: baseline !important;
     justify-content: flex-end !important;
   }
+  body.showshippingprice .Plugin_PriceInformation:has(.shippingPrice:not([style*="display: none"])) .productPrice:not(.showAsShippingPrice),
+  body.showproductprice .Plugin_PriceInformation:has(.productPrice:not([style*="display: none"])) .shippingPrice {
+    display: none !important;
+  }
   .priceContainer > .shippingText {
     width: 100% !important;
     flex: 0 0 100% !important;

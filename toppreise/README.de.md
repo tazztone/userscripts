@@ -189,11 +189,11 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 | # | Einstellung / Bereich | Beschreibung |
 |---|---|---|
-| ① | **Dimmungs-Deckkraft** | Regelt die Transparenz gedimmter und ausgefilterter Angebote im Raster. |
-| ② | **Review-Suche (🌐)** | Konfiguriert die Google-Suche mit optionalem KI-Modus (`&udm=50`). |
-| ③ | **Tiefstpreis-Sortierung** | Aktiviert die Sortierung nach authentischem gewichtetem Deal-Score (`💎`). |
-| ④ | **Preis-Toleranz (%)** | Erlaubter Aufschlag gegenüber dem Bestpreis für den bevorzugten Händler. |
-| ⑤ | **Preisalarm Auto-Fill** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%) und Alarmdauer. |
+| ① | **🖥️ Ansicht** | Regelt die Deckkraft gedimmter Angebote, Deal-Intensität und Layout-Anpassungen. |
+| ② | **🌐 Web-Suche** | Konfiguriert die 1-Klick-Google-Suche mit anpassbaren Begriffen und optionalem KI-Modus (`&udm=50`). |
+| ③ | **💎 Sortieren** | Aktiviert die authentische Tiefstpreis-Sortierung (`💎`), Gewichtung (Rekord vs. Median) & Zeithorizont. |
+| ④ | **🧹 Filtern** | Preis-Toleranz (%) für Händler-Bestpreis, Negativ-Filterung und Rabatt-Schwellen. |
+| ⑤ | **🔔 Preisalarm** | Automatische Vorbelegung von Zielpreis in Prozent (5%–99%) und Alarmdauer. |
 
 ### Erweiterte Einstellungen (Bereiche 6–7: Discord Share & Daten/Cache)
 
@@ -201,11 +201,8 @@ Klick auf das **Zahnrad-Symbol (`⚙️`)** unten rechts öffnet das Einstellung
 
 | # | Einstellung / Bereich | Beschreibung |
 |---|---|---|
-| ① | **Discord Kanäle & Webhooks** | Vertrauliche Webhook-URLs für mehrere Discord-Kanäle (nie exportiert oder committet). |
-| ② | **Layout-Baukasten** | Frei anpassbare Bausteine mit variablen Tokens (`{title}`, `{price}`, `{dealer}`, etc.). |
-| ③ | **Live-Markdown-Vorschau** | Sofortige Vorschau der generierten Discord-Nachricht. |
-| ④ | **Händler-Autoload** | Lädt den günstigsten Händler für Deals ab Schwelle automatisch im Hintergrund nach (max. 3 parallel). |
-| ⑤ | **Daten- & Cache-Verwaltung** | Cache leeren (`🗑️`), Daten zurücksetzen (`🧨`), Cache-TTL und Konfigurations-Export. |
+| ① | **💬 Discord Share** | Vertrauliche Webhook-URLs für mehrere Discord-Kanäle, Layout-Baukasten und Live-Markdown-Vorschau. |
+| ② | **💾 Daten & Cache** | Händler-Autoload, TTL-Regler, Cache leeren (`🗑️`), Daten-Reset (`🧨`) und Konfigurations-Export. |
 
 1. **🖥️ Ansicht:** Deckkraft für gedimmte Karten, Werbeplätze/Banner ausblenden (entfernt leere Werbeflächen oben und im Layout) und Deal-Intensität / Heatmap-Stärke (20%–100%).
 2. **🌐 Web-Suche & KI-Fazit:** Schalter für Suche (`🌐`) am Produktnamen, anpassbarer Suchbegriff (inkl. `{preis}`), Google-KI-Modus (`&udm=50`) und Tavily API-Key (ermöglicht 1-Klick KI-Fazit direkt auf der Karte und `{ai}` im Discord-Share; 48h gecached).
