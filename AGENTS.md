@@ -20,9 +20,11 @@ scratch/                                              # exploration (gitignored)
 
 ## Development Commands
 
-Build-then-test; detail: `docs/agent-guide.md` (§Gates, §Testing).
+Build-then-test; detail: `docs/agent-guide.md` (§Gates, §Testing, §Live Browser Loop).
 
 ```bash
+npm run dev                            # sync daemon + watcher at http://127.0.0.1:8765
+bash tools/launch-browser.sh chrome    # or firefox: debug port with dedicated profile
 node toppreise/tools/build.js --check  # drift gate, run pre/post src/ edit
 venv/bin/pytest toppreise/tests/test_ui_modal.py
 ```

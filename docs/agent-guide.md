@@ -46,6 +46,21 @@ Local `.playwright-browsers` is auto-discovered by `conftest.py`. Fixture: `page
 - Mocked routes fulfill with `headers={'access-control-allow-origin': '*'}`.
 - Switches: assert `is_checked()`, click `.tp-slider`; null-check dual range+number inputs before binding.
 
+## Live Browser Loop
+
+Agentic workflow pairing an active browser session with CLI agent via MCP (`.agents/skills/userscript-development/SKILL.md`):
+
+```bash
+npm run dev                            # start zero-cache sync daemon on http://127.0.0.1:8765
+bash tools/launch-browser.sh chrome    # launches Chrome on port 9222 (or 'firefox' on 2828)
+```
+
+1. Install script via `http://127.0.0.1:8765/` in Violentmonkey with **Track external edits** enabled.
+2. Edit `src/` modules — bundle recompiles automatically in <50ms.
+3. Reload target tab via MCP bridge (`reload_page`).
+4. Read telemetry snapshot on `#tp-root` via `evaluate_script` (`document.getElementById('tp-root')?.dataset.tpDiag`) and inspect filtered console logs (`[Toppreise-Suite]`).
+5. Run offline quality gates (`npm run test:smoke`) before committing.
+
 ## Header
 
 Header source of truth is `toppreise/src/app.js`. Branch testing: point `@updateURL/@downloadURL` at the branch raw URL, then `firefox "https://raw.githubusercontent.com/tazztone/userscripts/<branch>/<script>/<script>.user.js"`.
