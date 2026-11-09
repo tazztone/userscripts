@@ -141,8 +141,8 @@ EOF
       exit 1
     fi
 
-    echo "🚀 Launching $BIN on Marionette/BiDi port $PORT with profile $PROFILE_DIR..."
-    echo "🔗 MCP Connection Target: 127.0.0.1:$PORT"
+    echo "🚀 Launching $BIN on Marionette (port 2828) & BiDi (port 9222) with profile $PROFILE_DIR..."
+    echo "🔗 MCP Connection Target: Marionette 127.0.0.1:2828 | BiDi 127.0.0.1:9222"
     for u in "${URLS[@]}"; do
       echo "   • Tab: $u"
     done
@@ -151,7 +151,7 @@ EOF
       -new-instance \
       -no-remote \
       --marionette \
-      --remote-debugging-port "$PORT" \
+      --remote-debugging-port 9222 \
       -profile "$PROFILE_DIR" \
       "${URLS[@]}" \
       "$@"
