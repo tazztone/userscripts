@@ -125,6 +125,9 @@ EOF
       fi
     done
 
+    # Clean up stale lock files from abnormal exits
+    rm -f "$PROFILE_DIR/parent.lock" "$PROFILE_DIR/lock" "$PROFILE_DIR/.parentlock"
+
     if [ -z "$BIN" ]; then
       echo "❌ No Firefox executable found on PATH." >&2
       exit 1
@@ -137,6 +140,8 @@ EOF
     done
 
     exec "$BIN" \
+      -new-instance \
+      -no-remote \
       --marionette \
       --remote-debugging-port "$PORT" \
       -profile "$PROFILE_DIR" \
