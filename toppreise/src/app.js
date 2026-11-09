@@ -57,7 +57,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.481
+// @version      2.18.482
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -162,6 +162,23 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
       if (isNeueFeed) enhanceCategorySidebar();
       const mig = migrateFilterSplit();
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');
+
+      // Live Session Bridge Telemetry (MCP evaluate_script)
+      if (CONFIG.DEBUG) {
+        const rootEl = document.getElementById('tp-root');
+        if (rootEl) {
+          rootEl.setAttribute('data-tp-diag', JSON.stringify({
+            version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+            cards: cards.length,
+            checked: counts.bestpreiseDeals,
+            unchecked: counts.uncheckedDeals,
+            filtered: counts.filteredCount,
+            dimmed: counts.dimmed,
+            isNeueFeed,
+            ts: Date.now()
+          }));
+        }
+      }
     } finally {
       isModifyingDOM = false;
       if (mainObserver) {
@@ -317,7 +334,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.481';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.482';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
