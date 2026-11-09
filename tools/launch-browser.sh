@@ -97,7 +97,15 @@ case "$TARGET" in
     ;;
 
   firefox)
-    PROFILE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/userscript-dev-firefox"
+    # Ubuntu Snap confinement blocks access to ~/.config/userscript-dev-firefox.
+    # Snap Firefox has full AppArmor permissions inside ~/snap/firefox/common/.
+    if grep -q "snap/bin/firefox" /usr/bin/firefox 2>/dev/null || [ -d "$HOME/snap/firefox" ]; then
+      PROFILE_DIR="$HOME/snap/firefox/common/userscript-dev-firefox"
+    elif [ -d "$HOME/.mozilla/firefox" ]; then
+      PROFILE_DIR="$HOME/.mozilla/firefox/userscript-dev-firefox"
+    else
+      PROFILE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/userscript-dev-firefox"
+    fi
     PORT="2828"
     mkdir -p "$PROFILE_DIR"
 
