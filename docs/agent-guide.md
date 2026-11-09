@@ -51,9 +51,9 @@ Local `.playwright-browsers` is auto-discovered by `conftest.py`. Fixture: `page
 Agentic workflow pairing an active browser session with CLI agent via MCP (`.agents/skills/userscript-development/SKILL.md`):
 
 ```bash
-npm run dev:chrome                     # 1-line: sync daemon + Chrome with tabs pre-loaded
-npm run dev:firefox                    # 1-line: sync daemon + Firefox with tabs pre-loaded
-# Alternative single-script targets: npm run dev:chrome:hf / npm run dev:chrome:px
+npm run dev:chrome:tp                  # 1-line: sync daemon + Chrome with Toppreise tabs pre-loaded
+npm run dev:firefox:tp                 # 1-line: sync daemon + Firefox with Toppreise tabs pre-loaded
+# Single-script targets: npm run dev:chrome:hf / npm run dev:chrome:px (or :firefox:hf / :firefox:px)
 ```
 
 1. Run `npm run dev:chrome` — launches dev server and opens Chrome with Violentmonkey install tab and target site pre-loaded.

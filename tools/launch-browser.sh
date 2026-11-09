@@ -11,19 +11,19 @@ shift 2 2>/dev/null || shift 1 2>/dev/null || true
 # Resolve target userscript and destination page URLs
 URLS=()
 case "$SCRIPT_OR_ARG" in
-  toppreise)
+  toppreise|tp)
     URLS=(
       "http://127.0.0.1:8765/toppreise/toppreise.user.js"
       "https://www.toppreise.ch/"
     )
     ;;
-  huggingface)
+  huggingface|hf)
     URLS=(
       "http://127.0.0.1:8765/huggingface/huggingface-heart.user.js"
       "https://huggingface.co/models"
     )
     ;;
-  perplexity)
+  perplexity|px)
     URLS=(
       "http://127.0.0.1:8765/perplexity/perplexity-enhancements.user.js"
       "https://www.perplexity.ai/"

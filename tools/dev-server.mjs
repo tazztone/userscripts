@@ -350,8 +350,10 @@ function parseCliArgs(args) {
     } else if (arg === '--port' && args[i + 1]) {
       port = parseInt(args[++i], 10) || DEFAULT_PORT;
     } else if (!arg.startsWith('-')) {
-      if (SCRIPTS[arg]) {
-        targetScript = arg;
+      const aliasMap = { tp: 'toppreise', hf: 'huggingface', px: 'perplexity' };
+      const resolved = aliasMap[arg] || arg;
+      if (SCRIPTS[resolved]) {
+        targetScript = resolved;
       }
     }
   }
