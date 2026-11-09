@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.480
+// @version      2.18.481
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5998,7 +5998,7 @@ const SHADOW_MODAL_STYLES = `
         // Check native Toppreise localStorage cache
         const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
         const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
-        if (cachedDataRaw && (!hash || cachedHash === hash)) {
+        if (cachedDataRaw && (!hash || !cachedHash || cachedHash === hash)) {
           try {
             const parsed = JSON.parse(cachedDataRaw);
             if (Array.isArray(parsed) && parsed.length > 0) {
@@ -6680,10 +6680,35 @@ const SHADOW_MODAL_STYLES = `
     parentEl.appendChild(sublist);
   }
 
+  function convertLeafTogglesToSpacers(sidebar) {
+    const rootLis = sidebar?.querySelectorAll?.('ul > li.category_level_0');
+    if (!rootLis || !rootLis.length) return;
+    loadNativeCategoryTree().then(tree => {
+      if (!tree?.byId || tree.byId.size === 0) return;
+      rootLis.forEach(li => {
+        const catId = li.dataset.catId;
+        if (!catId || !tree.byId.has(catId)) return;
+        const children = tree.childrenOf.get(catId) || [];
+        if (children.length === 0) {
+          const toggle = li.querySelector('.tp-cat-toggle');
+          if (toggle) {
+            const spacer = document.createElement('span');
+            spacer.className = 'tp-cat-spacer';
+            toggle.replaceWith(spacer);
+          }
+        }
+      });
+    }).catch(() => {});
+  }
+
   function enhanceCategorySidebar() {
     if (!isNeueToppreisePage()) return;
     const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
-    if (!sidebar || sidebar.classList.contains('tp-tree-enhanced')) return;
+    if (!sidebar) return;
+    if (sidebar.classList.contains('tp-tree-enhanced')) {
+      convertLeafTogglesToSpacers(sidebar);
+      return;
+    }
     sidebar.classList.add('tp-tree-enhanced');
 
     // One-time cleanup of obsolete client persistence key if present
@@ -6865,22 +6890,7 @@ const SHADOW_MODAL_STYLES = `
     });
 
     // Convert toggles to spacers on leaf categories without subcategories (e.g. Uhren)
-    loadNativeCategoryTree().then(tree => {
-      if (!tree?.byId || tree.byId.size === 0) return;
-      rootLis.forEach(li => {
-        const catId = li.dataset.catId;
-        if (!catId || !tree.byId.has(catId)) return;
-        const children = tree.childrenOf.get(catId) || [];
-        if (children.length === 0) {
-          const toggle = li.querySelector('.tp-cat-toggle');
-          if (toggle) {
-            const spacer = document.createElement('span');
-            spacer.className = 'tp-cat-spacer';
-            toggle.replaceWith(spacer);
-          }
-        }
-      });
-    }).catch(() => {});
+    convertLeafTogglesToSpacers(sidebar);
 
     // Wire fallback toggle on 'mehr anzeigen' / 'weniger anzeigen' to ensure .opened state stays in sync
     sidebar.querySelectorAll('.f_showMoreCatDetails, .f_hideMoreCatDetails').forEach(btn => {
@@ -15261,7 +15271,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.480';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.481';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

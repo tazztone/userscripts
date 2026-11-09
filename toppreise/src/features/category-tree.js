@@ -206,10 +206,35 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
   parentEl.appendChild(sublist);
 }
 
+export function convertLeafTogglesToSpacers(sidebar) {
+  const rootLis = sidebar?.querySelectorAll?.('ul > li.category_level_0');
+  if (!rootLis || !rootLis.length) return;
+  loadNativeCategoryTree().then(tree => {
+    if (!tree?.byId || tree.byId.size === 0) return;
+    rootLis.forEach(li => {
+      const catId = li.dataset.catId;
+      if (!catId || !tree.byId.has(catId)) return;
+      const children = tree.childrenOf.get(catId) || [];
+      if (children.length === 0) {
+        const toggle = li.querySelector('.tp-cat-toggle');
+        if (toggle) {
+          const spacer = document.createElement('span');
+          spacer.className = 'tp-cat-spacer';
+          toggle.replaceWith(spacer);
+        }
+      }
+    });
+  }).catch(() => {});
+}
+
 export function enhanceCategorySidebar() {
   if (!isNeueToppreisePage()) return;
   const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
-  if (!sidebar || sidebar.classList.contains('tp-tree-enhanced')) return;
+  if (!sidebar) return;
+  if (sidebar.classList.contains('tp-tree-enhanced')) {
+    convertLeafTogglesToSpacers(sidebar);
+    return;
+  }
   sidebar.classList.add('tp-tree-enhanced');
 
   // One-time cleanup of obsolete client persistence key if present
@@ -391,22 +416,7 @@ export function enhanceCategorySidebar() {
   });
 
   // Convert toggles to spacers on leaf categories without subcategories (e.g. Uhren)
-  loadNativeCategoryTree().then(tree => {
-    if (!tree?.byId || tree.byId.size === 0) return;
-    rootLis.forEach(li => {
-      const catId = li.dataset.catId;
-      if (!catId || !tree.byId.has(catId)) return;
-      const children = tree.childrenOf.get(catId) || [];
-      if (children.length === 0) {
-        const toggle = li.querySelector('.tp-cat-toggle');
-        if (toggle) {
-          const spacer = document.createElement('span');
-          spacer.className = 'tp-cat-spacer';
-          toggle.replaceWith(spacer);
-        }
-      }
-    });
-  }).catch(() => {});
+  convertLeafTogglesToSpacers(sidebar);
 
   // Wire fallback toggle on 'mehr anzeigen' / 'weniger anzeigen' to ensure .opened state stays in sync
   sidebar.querySelectorAll('.f_showMoreCatDetails, .f_hideMoreCatDetails').forEach(btn => {

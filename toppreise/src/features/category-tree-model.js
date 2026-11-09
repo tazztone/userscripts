@@ -283,7 +283,7 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
       // Check native Toppreise localStorage cache
       const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
       const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
-      if (cachedDataRaw && (!hash || cachedHash === hash)) {
+      if (cachedDataRaw && (!hash || !cachedHash || cachedHash === hash)) {
         try {
           const parsed = JSON.parse(cachedDataRaw);
           if (Array.isArray(parsed) && parsed.length > 0) {
