@@ -168,9 +168,8 @@ Das Skript passt seine Oberfläche automatisch an den jeweiligen Seitentyp an:
 
 | # | Element | Beschreibung |
 |---|---|---|
-| ① | **Modellfamilien-Schutz** | Gruppierte Varianten (z. B. AirPods) bleiben im gemeinsamen Container gebündelt; das Raster wird nicht zerrissen. |
-| ② | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Pill neben dem Produkttitel für geprüfte Tiefstpreise. |
-| ③ | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
+| ① | **Verifizierte Rabatt-Pill** | Kompakte einzeilige Pill neben dem Produkttitel für geprüfte Tiefstpreise. |
+| ② | **Ungeprüft-Pill** | Gestreiftes Hinweissignal für noch nicht geprüfte Varianten (Klick startet Prüfung). |
 
 * **Tiefstpreis-Feeds (`/neue-toppreise`):** Zeigt die vollständige Toolbar mit konsolidiertem Filter-Button (`🧹 Filter (N)`), Heatmap, `💎 Tiefstpreis-Sortierung`, Batch-Scanner und Berechnungsparametern (`⚖️`).
 * **Katalog- & Suchergebnisse (`/produktsuche/...`):** Kompakte Leiste mit vollständigem Schutz für Produktvarianten-Serien (`.Plugin_ProductCollItem`). Gruppierte Produktfamilien (z. B. AirPods mit oder ohne Ladecase) bleiben stets als geschlossene Einheit erhalten; das Bootstrap-Layout wird nie zerrissen. Platzsparende 1-Zeilen-Pills (`.tp-deal-pill`) sitzen sauber neben den Produkttiteln. Vollständige Unterstützung aller Katalogansichten:

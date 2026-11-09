@@ -674,19 +674,15 @@ def setup_search_cards(page, pids):
     raw_bytes = page.screenshot(clip=clip)
     origin = {"x": clip["x"], "y": clip["y"]}
 
-    title_box = css_box(page, ".Plugin_ProductCollItem .product-name")
     deal_box = css_box(page, deal)
     unchecked_box = css_box(page, unchecked)
     callouts = [
-        (1, title_box, "Modellfamilien-Schutz (Gruppierte Varianten bleiben im gemeinsamen Block gebündelt)",
-         {"bx": 28,
-          "by": title_box["y"] - origin["y"] + title_box["height"] / 2}),
-        (2, deal_box, "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)",
+        (1, deal_box, "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)",
          {"bx": deal_box["x"] - origin["x"] + deal_box["width"] + 36,
           "by": deal_box["y"] - origin["y"] + deal_box["height"] / 2,
           "tx": deal_box["x"] - origin["x"] + deal_box["width"] + 4,
           "ty": deal_box["y"] - origin["y"] + deal_box["height"] / 2}),
-        (3, unchecked_box, "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)",
+        (2, unchecked_box, "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)",
          {"bx": unchecked_box["x"] - origin["x"] + unchecked_box["width"] + 36,
           "by": unchecked_box["y"] - origin["y"] + unchecked_box["height"] / 2,
           "tx": unchecked_box["x"] - origin["x"] + unchecked_box["width"] + 4,

@@ -153,15 +153,10 @@
       [
         1,
         null,
-        "Modellfamilien-Schutz (Gruppierte Varianten bleiben im gemeinsamen Block gebündelt)"
-      ],
-      [
-        2,
-        null,
         "Verifizierte Rabatt-Pill (Kompakte 1-zeilige Anzeige über dem Händlerangebot)"
       ],
       [
-        3,
+        2,
         null,
         "Ungeprüft-Pill (Gestreiftes Signal für noch nicht verifizierte Varianten; Klick prüft Historie)"
       ]
