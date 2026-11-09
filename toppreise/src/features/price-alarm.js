@@ -21,6 +21,27 @@ export const normalizeAlarmDuration = v => {
   const s = String(v);
   return ALARM_DURATIONS.includes(s) ? s : '730';
 };
+
+export function formatAlarmToast(targetPrice, durationDays) {
+  const dur = durationDays ? normalizeAlarmDuration(durationDays) : null;
+  const durLabel = dur ? (DURATION_LABELS[dur] || `${dur} Tage`) : '';
+  const cleanPrice = typeof targetPrice === 'number'
+    ? targetPrice.toFixed(2)
+    : (targetPrice != null && String(targetPrice).trim() !== '')
+      ? String(targetPrice).replace(/^CHF\s*/i, '').trim()
+      : '';
+  const pricePart = cleanPrice ? `CHF ${cleanPrice}` : '';
+  if (pricePart && durLabel) {
+    return `🔔 Preisalarm gesetzt: ${pricePart} (${durLabel})`;
+  }
+  if (pricePart) {
+    return `🔔 Preisalarm gesetzt: ${pricePart}`;
+  }
+  if (durLabel) {
+    return `🔔 Preisalarm gesetzt (${durLabel})`;
+  }
+  return '🔔 Preisalarm gesetzt';
+}
 // Live bell trigger (confirmed 2026-10-11 on search + product pages):
 // `.Plugin_NewInfoMailButton` container, clickable bell is
 // `a.f_showNewInfoMailFormDialog` with a `TPIcons-alarm` icon. Every match
@@ -238,7 +259,7 @@ export function processPriceAlarmModal() {
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
-          showToast('🔔 Preisalarm gesetzt');
+          showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
           const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();

@@ -109,6 +109,7 @@ def test_price_alarm_automation(page: Page):
     page.wait_for_function("() => document.querySelector('#mock-alarm-dialog')?.getAttribute('data-dialog-closed') === 'true'")
     assert page.locator('#mock-alarm-dialog').get_attribute('data-dialog-closed') == 'true'
     assert not page.locator('#mock-alarm-dialog').is_visible()
+    assert page.evaluate("() => window.ToppreiseSuite.lastToast()") == "🔔 Preisalarm gesetzt: CHF 600.00 (2 Jahre)"
 
 
 def test_alarm_bell_three_states_and_cog(page: Page):

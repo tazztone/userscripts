@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.482
+// @version      2.18.484
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -14211,6 +14211,27 @@ const SHADOW_MODAL_STYLES = `
     const s = String(v);
     return ALARM_DURATIONS.includes(s) ? s : '730';
   };
+
+  function formatAlarmToast(targetPrice, durationDays) {
+    const dur = durationDays ? normalizeAlarmDuration(durationDays) : null;
+    const durLabel = dur ? (DURATION_LABELS[dur] || `${dur} Tage`) : '';
+    const cleanPrice = typeof targetPrice === 'number'
+      ? targetPrice.toFixed(2)
+      : (targetPrice != null && String(targetPrice).trim() !== '')
+        ? String(targetPrice).replace(/^CHF\s*/i, '').trim()
+        : '';
+    const pricePart = cleanPrice ? `CHF ${cleanPrice}` : '';
+    if (pricePart && durLabel) {
+      return `🔔 Preisalarm gesetzt: ${pricePart} (${durLabel})`;
+    }
+    if (pricePart) {
+      return `🔔 Preisalarm gesetzt: ${pricePart}`;
+    }
+    if (durLabel) {
+      return `🔔 Preisalarm gesetzt (${durLabel})`;
+    }
+    return '🔔 Preisalarm gesetzt';
+  }
   // Live bell trigger (confirmed 2026-10-11 on search + product pages):
   // `.Plugin_NewInfoMailButton` container, clickable bell is
   // `a.f_showNewInfoMailFormDialog` with a `TPIcons-alarm` icon. Every match
@@ -14428,7 +14449,7 @@ const SHADOW_MODAL_STYLES = `
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
-            showToast('🔔 Preisalarm gesetzt');
+            showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
             const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
@@ -15288,12 +15309,13 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.482';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.484';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
         processListings,
         processPriceAlarmModal,
+        formatAlarmToast,
         processProductDetailPage: safeProcessProductDetailPage,
         updateConfig,
         openSettingsAt,
