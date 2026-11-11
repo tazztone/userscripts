@@ -109,12 +109,17 @@ case "$TARGET" in
     PORT="2828"
     mkdir -p "$PROFILE_DIR"
 
-    # Write user prefs for automated Marionette/BiDi support
+    # Write user prefs for automated Marionette/BiDi support and quiet dev logs
     cat << 'EOF' > "$PROFILE_DIR/user.js"
 user_pref("marionette.enabled", true);
 user_pref("marionette.port", 2828);
 user_pref("devtools.debugger.remote-enabled", true);
 user_pref("devtools.chrome.enabled", true);
+user_pref("signon.autofillForms", false);
+user_pref("browser.formfill.enable", false);
+user_pref("extensions.formautofill.addresses.enabled", false);
+user_pref("extensions.formautofill.creditCards.enabled", false);
+user_pref("identity.fxaccounts.enabled", false);
 EOF
 
     # Check if clean profile

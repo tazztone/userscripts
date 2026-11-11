@@ -199,18 +199,30 @@ export const STYLES_CHROME = `
   #tp-detail-subline,
   .tp-detail-subline {
     margin: 6px 0 !important;
-    font: 600 12.5px/1.4 var(--tp-font) !important;
+    padding: 3px 8px !important;
+    border-radius: var(--tp-r-sm, 6px) !important;
+    font: 600 12px/1.4 var(--tp-font) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(148, 163, 184, 0.12) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
     color: var(--tp-txt-mid) !important;
-    display: block !important;
+    width: fit-content !important;
+    box-sizing: border-box !important;
   }
   #tp-detail-subline.tp-is-record-low,
   .tp-detail-subline.tp-is-record-low {
-    color: var(--tp-acc-txt, #047857) !important;
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    color: #065f46 !important;
     font-weight: 700 !important;
   }
   #tp-detail-subline.tp-is-markup,
   .tp-detail-subline.tp-is-markup {
-    color: #b45309 !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+    color: #92400e !important;
   }
   .tp-detail-share-btn {
     display: inline-flex !important;

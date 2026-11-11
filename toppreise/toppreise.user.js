@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.487
+// @version      2.18.488
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1098,18 +1098,30 @@ const STYLES_CHROME = `
   #tp-detail-subline,
   .tp-detail-subline {
     margin: 6px 0 !important;
-    font: 600 12.5px/1.4 var(--tp-font) !important;
+    padding: 3px 8px !important;
+    border-radius: var(--tp-r-sm, 6px) !important;
+    font: 600 12px/1.4 var(--tp-font) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(148, 163, 184, 0.12) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
     color: var(--tp-txt-mid) !important;
-    display: block !important;
+    width: fit-content !important;
+    box-sizing: border-box !important;
   }
   #tp-detail-subline.tp-is-record-low,
   .tp-detail-subline.tp-is-record-low {
-    color: var(--tp-acc-txt, #047857) !important;
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    color: #065f46 !important;
     font-weight: 700 !important;
   }
   #tp-detail-subline.tp-is-markup,
   .tp-detail-subline.tp-is-markup {
-    color: #b45309 !important;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+    color: #92400e !important;
   }
   .tp-detail-share-btn {
     display: inline-flex !important;
@@ -15211,6 +15223,21 @@ const SHADOW_MODAL_STYLES = `
     } else {
       removeDetailDecorations();
     }
+
+    // Live Session Bridge Telemetry (MCP evaluate_script)
+    const rootEl = document.getElementById('tp-root');
+    if (rootEl) {
+      const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
+      rootEl.setAttribute('data-tp-diag', JSON.stringify({
+        version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+        pageType: 'detail',
+        pid,
+        currentPrice,
+        priceBasis,
+        isAllTimeLow,
+        ts: Date.now()
+      }));
+    }
   }
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
@@ -15464,7 +15491,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.487';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.488';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

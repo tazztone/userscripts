@@ -420,4 +420,19 @@ export async function processProductDetailPage() {
   } else {
     removeDetailDecorations();
   }
+
+  // Live Session Bridge Telemetry (MCP evaluate_script)
+  const rootEl = document.getElementById('tp-root');
+  if (rootEl) {
+    const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
+    rootEl.setAttribute('data-tp-diag', JSON.stringify({
+      version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+      pageType: 'detail',
+      pid,
+      currentPrice,
+      priceBasis,
+      isAllTimeLow,
+      ts: Date.now()
+    }));
+  }
 }
