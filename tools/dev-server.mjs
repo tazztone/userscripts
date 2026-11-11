@@ -50,6 +50,19 @@ for (const key of Object.keys(SCRIPTS)) {
   lastBuildTimestamps[key] = Date.now();
 }
 
+const sseClients = new Set();
+
+export function broadcastReload(scriptKey) {
+  const payload = JSON.stringify({ script: scriptKey, ts: Date.now() });
+  for (const client of sseClients) {
+    try {
+      client.write(`event: reload\ndata: ${payload}\n\n`);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
+
 export function generateDevLoaderStub(scriptKey, hostUrl) {
   const meta = SCRIPTS[scriptKey];
   if (!meta) return null;
@@ -65,26 +78,51 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
   const bundleFilename = path.basename(meta.bundleFile);
   const targetScriptUrl = `${hostUrl}/${meta.dir}/${bundleFilename}`;
 
-  // Dev header modification: adjust name and version, preserve match/grants/connects
-  const devHeader = baseHeader
+  // Dev header modification: adjust name and version, ensure local connect permissions
+  let devHeader = baseHeader
     .replace(/(@name\s+)([^\n]+)/, '$1[DEV] $2')
     .replace(/(@version\s+)([^\n]+)/, '$1$2.dev');
+
+  if (!devHeader.includes('@connect 127.0.0.1')) {
+    devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, '// @connect      127.0.0.1\n// @connect      localhost\n// ==/UserScript==');
+  }
+  if (!devHeader.includes('@grant GM_xmlhttpRequest')) {
+    devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, '// @grant        GM_xmlhttpRequest\n// ==/UserScript==');
+  }
 
   return `${devHeader}
 
 // ─── LOCAL DEV LOADER (Auto-Generated) ───────────────────────────────────────
 // Injected into Violentmonkey / Tampermonkey. Dynamically pulls the freshest
-// local build on every page navigation without caching.
+// local build on every page navigation without caching and connects to live
+// server-sent events for hands-free auto-reload on source rebuilds.
 // ─────────────────────────────────────────────────────────────────────────────
 (function() {
   'use strict';
   const targetUrl = ${JSON.stringify(targetScriptUrl)} + '?t=' + Date.now();
-  console.log('[userscript-dev] Fetching latest build from:', targetUrl);
+  const eventsUrl = ${JSON.stringify(`${hostUrl}/events`)};
+  console.log('[userscript-dev] Dev loader active for ${meta.name}.');
+
+  // Live SSE auto-reload on source rebuilds
+  if (typeof EventSource !== 'undefined') {
+    try {
+      const es = new EventSource(eventsUrl);
+      es.addEventListener('reload', function(e) {
+        console.log('[userscript-dev] Rebuild event received:', e.data);
+        window.location.reload();
+      });
+      es.onerror = function() {
+        // Silent native reconnect
+      };
+    } catch (err) {
+      console.warn('[userscript-dev] EventSource init failed:', err);
+    }
+  }
 
   function executeCode(sourceCode) {
     try {
-      const runner = new Function(sourceCode);
-      runner();
+      // Direct eval preserves all GM_* APIs, unsafeWindow, and context bindings
+      eval(sourceCode);
     } catch (err) {
       console.error('[userscript-dev] Runtime execution failure:', err);
     }
@@ -100,7 +138,7 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
         if (res.status >= 200 && res.status < 300) {
           executeCode(res.responseText);
         } else {
-          console.error('[userscript-dev] HTTP error:', res.status, res.statusText);
+          console.error('[userscript-dev] HTTP error loading bundle:', res.status, res.statusText);
         }
       },
       onerror: function(err) {
@@ -115,7 +153,7 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
       })
       .then(executeCode)
       .catch(function(err) {
-        console.error('[userscript-dev] Fetch error:', err);
+        console.error('[userscript-dev] Fetch error loading bundle:', err);
       });
   }
 })();
@@ -202,8 +240,24 @@ export function createDevServer(options = {}) {
       return;
     }
 
-    // Dev loader stubs: /<dir>/<script>.dev.user.js
-    const devStubMatch = pathname.match(/^\/([^/]+)\/([^/]+)\.dev\.user\.js$/);
+    // Server-Sent Events (SSE) live-reload endpoint
+    if (pathname === '/events') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.write('retry: 2000\n\n');
+      sseClients.add(res);
+      req.on('close', () => {
+        sseClients.delete(res);
+      });
+      return;
+    }
+
+    // Dev loader stubs: /<dir>/<script>.dev.user.js or /loader/<script>.user.js
+    const devStubMatch = pathname.match(/^\/([^/]+)\/([^/]+)\.dev\.user\.js$/) || pathname.match(/^\/loader\/([^/]+)\.user\.js$/);
     if (devStubMatch) {
       const scriptKey = devStubMatch[1];
       const stub = generateDevLoaderStub(scriptKey, hostUrl);
@@ -262,6 +316,7 @@ export function setupWatchers(onRebuild) {
           SCRIPTS.toppreise.buildCmd();
           lastBuildTimestamps.toppreise = Date.now();
           console.log('✅ [watcher] Toppreise rebuild complete.');
+          broadcastReload('toppreise');
           if (onRebuild) onRebuild('toppreise');
         } catch (err) {
           console.error('❌ [watcher] Build error:', err.message);
@@ -319,10 +374,23 @@ async function runSelfTest() {
       throw new Error('Dev stub target URL mismatch');
     }
 
-    // 4. Test rebuild execution
+    // 4. SSE events endpoint
+    await new Promise((resolve, reject) => {
+      const sseReq = http.get(`http://127.0.0.1:${testPort}/events`, (res) => {
+        if (res.statusCode !== 200 || res.headers['content-type'] !== 'text/event-stream') {
+          reject(new Error(`SSE endpoint failed: status ${res.statusCode}, type ${res.headers['content-type']}`));
+          return;
+        }
+        res.destroy();
+        resolve();
+      });
+      sseReq.on('error', reject);
+    });
+
+    // 5. Test rebuild execution
     SCRIPTS.toppreise.buildCmd();
 
-    // 5. Test launcher resolution logic
+    // 6. Test launcher resolution logic
     const launcherPath = path.join(REPO_ROOT, 'tools', 'launch-browser.sh');
     if (!fs.existsSync(launcherPath)) {
       throw new Error('launch-browser.sh does not exist');

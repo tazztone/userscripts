@@ -8,38 +8,47 @@ TARGET="${1:-chrome}"
 SCRIPT_OR_ARG="${2:-toppreise}"
 shift 2 2>/dev/null || shift 1 2>/dev/null || true
 
-# Resolve target userscript and destination page URLs
-URLS=()
+# Extract --install flag if present
+INSTALL_REQUESTED=0
+FILTERED_ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = "--install" ]; then
+    INSTALL_REQUESTED=1
+  else
+    FILTERED_ARGS+=("$arg")
+  fi
+done
+if [ ${#FILTERED_ARGS[@]} -gt 0 ]; then
+  set -- "${FILTERED_ARGS[@]}"
+else
+  set --
+fi
+
+# Resolve target destination and dev-loader URLs
+SITE_URL="https://www.toppreise.ch/"
+DEV_STUB_URL="http://127.0.0.1:8765/toppreise/toppreise.dev.user.js"
+
 case "$SCRIPT_OR_ARG" in
   toppreise|tp)
-    URLS=(
-      "http://127.0.0.1:8765/toppreise/toppreise.user.js"
-      "https://www.toppreise.ch/"
-    )
+    SITE_URL="https://www.toppreise.ch/"
+    DEV_STUB_URL="http://127.0.0.1:8765/toppreise/toppreise.dev.user.js"
     ;;
   huggingface|hf)
-    URLS=(
-      "http://127.0.0.1:8765/huggingface/huggingface-heart.user.js"
-      "https://huggingface.co/models"
-    )
+    SITE_URL="https://huggingface.co/models"
+    DEV_STUB_URL="http://127.0.0.1:8765/huggingface/huggingface.dev.user.js"
     ;;
   perplexity|px)
-    URLS=(
-      "http://127.0.0.1:8765/perplexity/perplexity-enhancements.user.js"
-      "https://www.perplexity.ai/"
-    )
+    SITE_URL="https://www.perplexity.ai/"
+    DEV_STUB_URL="http://127.0.0.1:8765/perplexity/perplexity.dev.user.js"
     ;;
   http://*|https://*)
-    URLS=("$SCRIPT_OR_ARG")
+    SITE_URL="$SCRIPT_OR_ARG"
+    DEV_STUB_URL=""
     ;;
   *)
     if [ -n "$SCRIPT_OR_ARG" ]; then
-      set -- "$SCRIPT_OR_ARG" "$@"
+      SITE_URL="$SCRIPT_OR_ARG"
     fi
-    URLS=(
-      "http://127.0.0.1:8765/toppreise/toppreise.user.js"
-      "https://www.toppreise.ch/"
-    )
     ;;
 esac
 
@@ -48,6 +57,20 @@ case "$TARGET" in
     PROFILE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/userscript-dev-chrome"
     PORT="9222"
     mkdir -p "$PROFILE_DIR"
+
+    # Assemble tabs: clean profiles or --install get the stub; standard runs open only the target site
+    EXT_DIR="$PROFILE_DIR/Default/Extensions"
+    if [ ! -d "$EXT_DIR" ] || [ -z "$(ls -A "$EXT_DIR" 2>/dev/null)" ]; then
+      echo "ℹ️ Clean profile detected. Prepending Violentmonkey Web Store install tab..."
+      VM_STORE="https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag"
+      URLS=("$VM_STORE")
+      [ -n "$DEV_STUB_URL" ] && URLS+=("$DEV_STUB_URL")
+      URLS+=("$SITE_URL")
+    elif [ "$INSTALL_REQUESTED" = "1" ] && [ -n "$DEV_STUB_URL" ]; then
+      URLS=("$DEV_STUB_URL" "$SITE_URL")
+    else
+      URLS=("$SITE_URL")
+    fi
 
     # 1. Probe for already-running Chrome session on debug port
     if curl -s -f --max-time 1 "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
@@ -58,14 +81,6 @@ case "$TARGET" in
         echo "   • Opened: $u"
       done
       exit 0
-    fi
-
-    # 2. Check if clean profile (no extensions installed yet)
-    EXT_DIR="$PROFILE_DIR/Default/Extensions"
-    if [ ! -d "$EXT_DIR" ] || [ -z "$(ls -A "$EXT_DIR" 2>/dev/null)" ]; then
-      echo "ℹ️ Clean profile detected. Prepending Violentmonkey Web Store install tab..."
-      VM_STORE="https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag"
-      URLS=("$VM_STORE" "http://127.0.0.1:8765/" "${URLS[@]}")
     fi
 
     BIN=""
@@ -122,12 +137,18 @@ user_pref("extensions.formautofill.creditCards.enabled", false);
 user_pref("identity.fxaccounts.enabled", false);
 EOF
 
-    # Check if clean profile
+    # Assemble tabs: clean profiles or --install get the stub; standard runs open only the target site
     EXT_DIR="$PROFILE_DIR/extensions"
     if [ ! -d "$EXT_DIR" ] || [ -z "$(ls -A "$EXT_DIR" 2>/dev/null)" ]; then
       echo "ℹ️ Clean profile detected. Prepending Violentmonkey add-on install tab..."
       VM_STORE="https://addons.mozilla.org/firefox/addon/violentmonkey/"
-      URLS=("$VM_STORE" "http://127.0.0.1:8765/" "${URLS[@]}")
+      URLS=("$VM_STORE")
+      [ -n "$DEV_STUB_URL" ] && URLS+=("$DEV_STUB_URL")
+      URLS+=("$SITE_URL")
+    elif [ "$INSTALL_REQUESTED" = "1" ] && [ -n "$DEV_STUB_URL" ]; then
+      URLS=("$DEV_STUB_URL" "$SITE_URL")
+    else
+      URLS=("$SITE_URL")
     fi
 
     BIN=""
