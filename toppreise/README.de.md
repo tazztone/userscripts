@@ -81,6 +81,19 @@ Erfordert einen Userscript-Manager als Browser-Erweiterung:
 
 ### 🔥 Visuelle Signale, Sparklines & Karten-Design
 
+![Interaktives Sparkline- & Amazon Keepa-Diagramm-Modal](docs/shots/02b-sparkline-modal.webp)
+
+| # | Element / Steuerung | Beschreibung |
+|---|---|---|
+| ① | **Interaktives Preishistorie-Diagramm** | Vollauflösende SVG-Kurve mit Preis- und Datumsachse, Tiefst-/Höchstwert-Orientierung und aktuellem Angebotspunkt. |
+| ② | **Diagramm kopieren (`📋 Bild kopieren`)** | 1-Klick Export des Toppreise SVG-Preisverlaufs direkt als PNG in die Zwischenablage. |
+| ③ | **Amazon.de Keepa-Integration** | Automatische Händlererkennung und ASIN-Ermittlung bei Produkten mit Amazon-Angebot. |
+| ④ | **Keepa Zeitraum-Wahl** | Interaktive Umschaltung des historischen Zeithorizonts (`90T`, `180T`, `365T`, `Alle`). |
+| ⑤ | **Keepa-Bild kopieren (`📋 Bild kopieren`)** | 1-Klick Export des Amazon Keepa-Charts in die Zwischenablage. |
+| ⑥ | **Amazon Keepa-Verlauf** | Detaillierte Mehrfarben-Historie (Buy Box, Amazon-eigener Preis und Neuangebote). |
+| ⑦ | **Direktlink zu Keepa.com** | 1-Klick Absprung zur vollständigen Keepa-Produktseite. |
+| ⑧ | **Direktlink zu Amazon.de** | 1-Klick Absprung zum direkten Amazon-Händlerangebot. |
+
 * **Kontinuierliche Heatmap (Grau→Rot-Skala):** Verifizierte Deals leuchten proportional zur Gewichteten Differenz (neutrales Grau bei geringem Rabatt → warmes Bernstein → tiefes Rubinrot bei Rekord-Deals). Ungeprüfte Karten tragen ein grau gestreiftes Badge mit vorläufiger Kartenwärme.
 * **Fallback-Tiefs:** Verifizierte Tiefstpreise ohne qualifizierten Median (zu wenige Datenpunkte `< minPoints`, HTML-Fallback ohne Zeitreihe oder flache Kurve `< 2%`). Zeigen den Vortief-Abstand statt des Blends (ohne `⚖️`) und lassen sich separat filtern (Normal/Dimmen/Verbergen). Qualifizierte Deals mit 0% Ersparnis tragen ein neutral-graues 0%-Badge.
 * **Neu-Geprüft-Glow (*Neu*-Puls):** Frisch verifizierte Tiefstpreise pulsieren mindestens 5s lang mit Kontur und `Neu`-Markierung bis zur nächsten Nutzerinteraktion.

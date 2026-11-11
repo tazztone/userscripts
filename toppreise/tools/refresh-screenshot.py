@@ -4,7 +4,7 @@ Usage (repo root, no display needed): toppreise/tools/refresh-screenshot.sh
 
 Headless and offline: serves toppreise/tools/snapshots/ over loopback,
 injects the current bundle, seeds deterministic histories (frozen clock),
-captures 5 bounding-box-driven crops into toppreise/docs/shots/*.webp.
+captures 7 bounding-box-driven crops into toppreise/docs/shots/*.webp.
 Snapshots come from capture-snapshots.py (headed, run once per site change);
 a missing snapshot dir fails with a pointer to it.
 """
@@ -28,6 +28,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BUNDLE_PATH = os.path.join(os.path.dirname(BASE_DIR), "toppreise.user.js")
 SNAP_DIR = os.path.join(BASE_DIR, "snapshots")
 OUT_DIR = os.path.join(os.path.dirname(BASE_DIR), "docs", "shots")
+KEEPA_FIXTURE_PATH = os.path.join(os.path.dirname(BASE_DIR), "tests", "fixtures", "keepa_sample.png")
 FROZEN_NOW = 1760000000000
 VIEWPORT = {"width": 1440, "height": 900}
 DSF = 2
@@ -184,6 +185,13 @@ def stub_pricechart(page):
         lambda url: any(x in url for x in ["imgsrv.toppreise.ch", "securepubads", "doubleclick"]),
         lambda route: route.fulfill(status=200, content_type="image/svg+xml", body=svg_ph)
     )
+    if os.path.exists(KEEPA_FIXTURE_PATH):
+        with open(KEEPA_FIXTURE_PATH, "rb") as f:
+            keepa_bytes = f.read()
+        page.route(
+            lambda url: "keepa.com" in url,
+            lambda route: route.fulfill(status=200, content_type="image/png", body=keepa_bytes)
+        )
 
 
 def open_snapshot(browser, base, name, roles, config=None, viewport=None):
@@ -613,6 +621,108 @@ def setup_feed_cards(page, pids):
     return raw_bytes, origin, callouts, "02-feed-cards.webp"
 
 
+def setup_sparkline_modal(page, pids):
+    """Shot 02b: Sparkline detail modal showing Toppreise price chart and Keepa Amazon.de history."""
+    page.evaluate("window.scrollTo(0, 0)")
+    pid0 = pids[0]
+    p0 = 74.57  # Calibrated deal price matching soundcore AeroClip
+    now = FROZEN_NOW
+    stats = {
+        "tiefstpreis": p0,
+        "previousLow": 135.00,
+        "hoechstpreis": 196.00,
+        "medianPrice": 165.00,
+        "timeSeries": [
+            [now - 10 * 86400000, 150.00],
+            [now - 7 * 86400000, 150.00],
+            [now - 6 * 86400000, 158.00],
+            [now - 4 * 86400000, 158.00],
+            [now - 3 * 86400000, 185.00],
+            [now - 2 * 86400000, 182.00],
+            [now - 1.5 * 86400000, 188.00],
+            [now - 1 * 86400000, 196.00],
+            [now - 0.5 * 86400000, 135.00],
+            [now, p0],
+        ],
+        "dataPointCount": 20,
+        "isNewAllTimeLow": True,
+    }
+
+    page.evaluate(r"""([pid, stats, p0]) => {
+        localStorage.clear();
+        stats.time = Date.now();
+        localStorage.setItem('tp_hist_v1_' + pid, JSON.stringify(stats));
+        localStorage.setItem('tp_dealer_v1_' + pid, JSON.stringify({
+            time: Date.now(),
+            p: { dealer: 'Amazon.de', url: 'https://www.amazon.de/dp/B0D1234567', offers: 3, totalOffers: 14, time: Date.now() },
+            s: { dealer: 'Amazon.de', url: 'https://www.amazon.de/dp/B0D1234567', offers: 3, totalOffers: 14, time: Date.now() }
+        }));
+        localStorage.setItem('tp_asin_v1_' + pid, JSON.stringify({
+            asin: 'B0D...',
+            time: Date.now()
+        }));
+
+        const card = document.querySelector(`a[href*="-p${pid}"]`);
+        if (card) {
+            const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, [class*="title"], [class*="Heading"]');
+            if (titleEl) titleEl.textContent = 'ANKER soundcore AeroClip';
+        }
+
+        window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
+        window.ToppreiseSuite.CONFIG.KEEPA_CHART_ENABLED = true;
+        window.ToppreiseSuite.processListings();
+    }""", [pid0, stats, p0])
+    page.wait_for_timeout(400)
+
+    # Click the mini sparkline container to open the interactive modal
+    spark = page.locator(f'a[href*="-p{pid0}"] .tp-sparkline-container').first
+    spark.click()
+    page.wait_for_selector("#tp-sparkline-popout #tp-keepa-section img", timeout=10000)
+    page.wait_for_timeout(400)
+
+    panel = page.locator("#tp-sparkline-popout > div").first
+    panel_box = panel.bounding_box()
+    clip = union([panel_box], pad=64)
+    raw_bytes = page.screenshot(clip=clip)
+    origin = {"x": clip["x"], "y": clip["y"]}
+
+    controls = [
+        ("#tp-sparkline-popout > div > div:first-child > div:first-child",
+         "Interaktives Preishistorie-Diagramm (Vollauflösend mit Preis- & Datumsachsen)",
+         {"bx": 32, "dy": -8}),
+        ("#tp-sparkline-popout button:has-text('Bild kopieren')",
+         "Diagramm kopieren (1-Klick Toppreise SVG-Grafik in Zwischenablage)",
+         {"bx": clip["width"] - 32, "dy": -8}),
+        ("#tp-keepa-section > div:first-child > div:first-child",
+         "Amazon.de Keepa-Integration (Automatische Erkennung & ASIN-Zuordnung)",
+         {"bx": 32, "dy": -4}),
+        ("#tp-keepa-section button:has-text('365T')",
+         "Zeitraum-Wahl (90T / 180T / 365T / Alle für Keepa-Verlauf)",
+         {"bx": 32, "dy": 20}),
+        ("#tp-keepa-section button:has-text('Bild kopieren')",
+         "Keepa-Bild kopieren (1-Klick Amazon Chart in Zwischenablage)",
+         {"bx": clip["width"] - 32, "dy": -6}),
+        ("#tp-keepa-section img",
+         "Amazon Keepa-Verlauf (Buy Box, Amazon & Neu-Preise mit Datumsverlauf)",
+         {"bx": 32, "dy": 80}),
+        ("#tp-keepa-section a[href*='keepa.com']",
+         "Direktlink zu Keepa.com",
+         {"bx": clip["width"] - 140, "dy": 28}),
+        ("#tp-keepa-section a[href*='amazon']",
+         "Direktlink zum Amazon.de-Angebot",
+         {"bx": clip["width"] - 32, "dy": 28}),
+    ]
+
+    callouts = []
+    for sel, cap, anchor in controls:
+        box = try_box(page, sel)
+        if box is not None:
+            callouts.append((len(callouts) + 1, box, cap, anchor))
+
+    assert len(callouts) >= 5, f"fewer than 5 sparkline modal controls resolved: {len(callouts)}"
+    return raw_bytes, origin, callouts, "02b-sparkline-modal.webp"
+
+
 def setup_search_cards(page, pids):
     """Shot 03: Search catalog listing highlighting variant protection and inline verification pills."""
     page.evaluate("""() => {
@@ -832,6 +942,18 @@ SCENES = {
         },
         "viewport": {"width": 1440, "height": 900},
         "setup": setup_feed_cards,
+    },
+    "sparkline_modal": {
+        "snapshot": "feed",
+        "roles": ["deep", "markup", "fallback"],
+        "config": {
+            "BESTPREISE_MODE_ACTIVE": True,
+            "BESTPREISE_WEIGHT_RECORD": 0.50,
+            "ENABLE_SPARKLINES": True,
+            "KEEPA_CHART_ENABLED": True,
+        },
+        "viewport": {"width": 1440, "height": 1000},
+        "setup": setup_sparkline_modal,
     },
     "search": {
         "snapshot": "search",

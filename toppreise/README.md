@@ -81,6 +81,19 @@ Requires a userscript manager browser extension:
 
 ### 🔥 Visual Signals, Sparklines & Card Enhancements
 
+![Interactive Sparkline & Amazon Keepa Chart Modal](docs/shots/02b-sparkline-modal.webp)
+
+| # | Feature / Element | Description |
+|---|---|---|
+| ① | **Interactive Price History Chart** | Full-resolution SVG curve with price and date axes, peak/trough benchmarks, and current price highlight. |
+| ② | **Copy Chart Image (`📋 Bild kopieren`)** | 1-click export of the Toppreise SVG price chart directly to the system clipboard as PNG. |
+| ③ | **Amazon.de Keepa Section** | Automatic dealer recognition and ASIN extraction for products with Amazon merchant offers. |
+| ④ | **Keepa Time Range Toggles** | Interactive historical filters (`90T`, `180T`, `365T`, `Alle`). |
+| ⑤ | **Copy Keepa Chart (`📋 Bild kopieren`)** | 1-click export of the Amazon Keepa graph to the clipboard. |
+| ⑥ | **Amazon Keepa Price History** | Comprehensive multi-tier price history (Buy Box, Amazon, and New offers). |
+| ⑦ | **Direct Keepa Link** | One-click shortcut to the detailed Keepa product tracking page. |
+| ⑧ | **Direct Amazon.de Link** | One-click shortcut to the direct Amazon merchant offer. |
+
 * **Single-Hue Deal Heatmap (Grau→Rot):** Proportional inset color ramp following deal depth (neutral gray for small or zero discounts → warm amber → deep ruby for major discounts). The toolbar toggle supports 3 states: all deals (including fallbacks and unverified cards), verified deals only (qualified Gewichtete Differenz without fallbacks), or off. Unverified cards show a striped-gray badge with provisional card warmth when all deals heat.
 * **Fallback Lows (*Fallback-Tiefs*):** Verified lows lacking a qualified median (insufficient data points `< minPoints`, HTML scrape without time series, or flat history `< 2%`). Display the Vortief-Abstand instead of a blend (no `⚖️`) and can be filtered independently (Normal/Dim/Hide). Qualified deals with 0% savings display a neutral-gray 0% badge.
 * **Newly Verified Glow (*Neu*-Puls):** Freshly verified deals pulse with an emerald outline and `Neu` indicator for ≥5s until the next user interaction (click, scroll, keypress).

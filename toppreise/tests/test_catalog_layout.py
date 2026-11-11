@@ -3126,6 +3126,7 @@ def test_stored_hide_modes_migrate_to_dim_once(page: Page, userscript_content):
         // evaluated bundle below only exposes CONFIG with DEBUG set.
         localStorage.setItem('tp_suite_v2_DEBUG', 'true');
         localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true');
+        localStorage.setItem('tp_suite_v2_FILTER_REMEMBER_PER_PAGE_TYPE', 'false');
         for (const k of ['FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE'])
             localStorage.setItem('tp_suite_v2_' + k, JSON.stringify('hide'));
     }""")

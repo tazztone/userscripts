@@ -210,5 +210,52 @@
         "💾 Daten & Cache (Händler-Autofetch, TTL-Speicher & Backup-Export)"
       ]
     ]
+  },
+  "sparkline_modal": {
+    "name": "sparkline_modal",
+    "file": "02b-sparkline-modal.webp",
+    "snapshot": "feed",
+    "callouts": [
+      [
+        1,
+        null,
+        "Interaktives Preishistorie-Diagramm (Vollauflösend mit Preis- & Datumsachsen)"
+      ],
+      [
+        2,
+        null,
+        "Diagramm kopieren (1-Klick Toppreise SVG-Grafik in Zwischenablage)"
+      ],
+      [
+        3,
+        null,
+        "Amazon.de Keepa-Integration (Automatische Erkennung & ASIN-Zuordnung)"
+      ],
+      [
+        4,
+        null,
+        "Zeitraum-Wahl (90T / 180T / 365T / Alle für Keepa-Verlauf)"
+      ],
+      [
+        5,
+        null,
+        "Keepa-Bild kopieren (1-Klick Amazon Chart in Zwischenablage)"
+      ],
+      [
+        6,
+        null,
+        "Amazon Keepa-Verlauf (Buy Box, Amazon & Neu-Preise mit Datumsverlauf)"
+      ],
+      [
+        7,
+        null,
+        "Direktlink zu Keepa.com"
+      ],
+      [
+        8,
+        null,
+        "Direktlink zum Amazon.de-Angebot"
+      ]
+    ]
   }
 }
