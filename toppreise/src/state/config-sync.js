@@ -7,6 +7,7 @@ import { uiShadowRoot } from '../ui/shell.js';
 import { syncMiniToggle, paintCycleButton } from '../ui/mini-toggle.js';
 import { weightText, horizonText, horizonStoredToUi } from './config-store.js';
 import { CONFIG, FILTER_CYCLE, paintMinPoints, notifyAlarmConfig, paintCycleButtons } from './config.js';
+import { getPageProfileType, getPageProfileLabel } from '../page/adapter.js';
 
 export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
   // 1. Sync Settings Modal (Shadow DOM) if open/exists
@@ -133,6 +134,24 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         case 'HIDE_ADS': {
           const toggle = shadow.getElementById('tp-hide-ads-toggle');
           if (toggle) toggle.checked = !!val;
+          break;
+        }
+        case 'FILTER_REMEMBER_PER_PAGE_TYPE': {
+          const toggle = shadow.getElementById('tp-filter-remember-per-page-type-toggle');
+          if (toggle) toggle.checked = !!val;
+          const badge = shadow.getElementById('tp-profile-active-badge');
+          if (badge) {
+            if (val) {
+              const activeType = getPageProfileType();
+              badge.textContent = getPageProfileLabel(activeType);
+              badge.title = `Aktiver Seitentyp: ${activeType === 'neue' ? 'Neue Toppreise Feed' : 'Produktsuche & Katalog'}`;
+              badge.style.opacity = '1';
+            } else {
+              badge.textContent = '🌐 Global (einheitlich)';
+              badge.title = 'Profiltrennung inaktiv: Einstellungen gelten global';
+              badge.style.opacity = '0.7';
+            }
+          }
           break;
         }
         case 'ENABLE_SPARKLINES': {

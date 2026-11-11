@@ -171,6 +171,20 @@ export const SHADOW_MODAL_STYLES = `
     color: var(--tp-dim);
     font-size: 11px;
   }
+  .tp-profile-indicator-group { margin-top: -4px; margin-bottom: 4px; }
+  .tp-profile-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tp-accent, #6366f1);
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 9999px;
+    padding: 2px 8px;
+    vertical-align: middle;
+  }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }

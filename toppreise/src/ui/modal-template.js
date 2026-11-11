@@ -158,6 +158,19 @@ export function ensureModalSection(shadow) {
       <section id="tp-section-filter" class="tp-section-card tp-section-filter">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-filter-body">
+        <div class="tp-settings-group tp-switch-container">
+          <div class="tp-switch-label">
+            <label title="Merkt sich Filter, Heatmap und Sortierung getrennt für Neue Toppreise vs. Suche & Katalog.">Einstellungen pro Seitentyp merken</label>
+            <span class="tp-switch-desc">Eigene Filter, Heatmap und Sortierung für Neue Toppreise vs. Suche/Katalog</span>
+          </div>
+          <label class="tp-switch tp-purple">
+            <input type="checkbox" id="tp-filter-remember-per-page-type-toggle">
+            <span class="tp-slider"></span>
+          </label>
+        </div>
+        <div class="tp-settings-group tp-profile-indicator-group">
+          <span class="tp-switch-desc tp-field-hint">Aktives Profil: <span id="tp-profile-active-badge" class="tp-profile-pill">⚡ Neue Toppreise</span></span>
+        </div>
         <div class="tp-settings-group">
           <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, <span class="tp-glossary-term" title="Angebote ohne geprüfte Preishistorie. Der Rabatt basiert nur auf UVP oder Toppreis.">Ungeprüfte</span>, <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span> und Händler stehen im Filter-Popover der Filterleiste.</span>
         </div>

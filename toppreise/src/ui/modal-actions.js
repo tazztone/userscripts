@@ -4,7 +4,7 @@
  */
 
 import { showToast } from './toast.js';
-import { CONFIG, DEFAULTS, SECRET_KEYS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue } from '../state/config.js';
+import { CONFIG, DEFAULTS, SECRET_KEYS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _setValue } from '../state/config.js';
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
@@ -153,6 +153,7 @@ export function wireModalActions(els) {
       const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
       if (hook && typeof GM_deleteValue !== 'undefined') GM_deleteValue(discordForumFlagKey(hook));
     } catch (e) {}
+    _setValue('PAGE_PROFILES', null);
     updateConfigs({ ...DEFAULTS });
     updateBodyClasses();
     syncFieldsFromConfig(els);
@@ -306,6 +307,7 @@ export function wireModalActions(els) {
     if (els.cacheDiskVal) { const rawD = parseInt(els.cacheDiskVal.value, 10); updates.CACHE_DISK_LIMIT = isNaN(rawD) ? 300 : rawD; }
     if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
     if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
+    if (els.filterRememberPerPageTypeToggle) updates.FILTER_REMEMBER_PER_PAGE_TYPE = els.filterRememberPerPageTypeToggle.checked;
     if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
     if (els.keepaChartToggle) updates.KEEPA_CHART_ENABLED = els.keepaChartToggle.checked;
     if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;

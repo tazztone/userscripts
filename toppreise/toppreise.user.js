@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.485
+// @version      2.18.486
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2233,6 +2233,20 @@ const SHADOW_MODAL_STYLES = `
     color: var(--tp-dim);
     font-size: 11px;
   }
+  .tp-profile-indicator-group { margin-top: -4px; margin-bottom: 4px; }
+  .tp-profile-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tp-accent, #6366f1);
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 9999px;
+    padding: 2px 8px;
+    vertical-align: middle;
+  }
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
@@ -4344,6 +4358,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function syncUiControl(key, val, opts = {}, shadowRoot = null) {
     // 1. Sync Settings Modal (Shadow DOM) if open/exists
     const shadow = shadowRoot ?? opts?.shadowRoot ?? uiShadowRoot ?? (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
@@ -4469,6 +4484,24 @@ const SHADOW_MODAL_STYLES = `
           case 'HIDE_ADS': {
             const toggle = shadow.getElementById('tp-hide-ads-toggle');
             if (toggle) toggle.checked = !!val;
+            break;
+          }
+          case 'FILTER_REMEMBER_PER_PAGE_TYPE': {
+            const toggle = shadow.getElementById('tp-filter-remember-per-page-type-toggle');
+            if (toggle) toggle.checked = !!val;
+            const badge = shadow.getElementById('tp-profile-active-badge');
+            if (badge) {
+              if (val) {
+                const activeType = getPageProfileType();
+                badge.textContent = getPageProfileLabel(activeType);
+                badge.title = `Aktiver Seitentyp: ${activeType === 'neue' ? 'Neue Toppreise Feed' : 'Produktsuche & Katalog'}`;
+                badge.style.opacity = '1';
+              } else {
+                badge.textContent = '🌐 Global (einheitlich)';
+                badge.title = 'Profiltrennung inaktiv: Einstellungen gelten global';
+                badge.style.opacity = '0.7';
+              }
+            }
             break;
           }
           case 'ENABLE_SPARKLINES': {
@@ -11583,6 +11616,19 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-filter" class="tp-section-card tp-section-filter">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-filter-body">
+          <div class="tp-settings-group tp-switch-container">
+            <div class="tp-switch-label">
+              <label title="Merkt sich Filter, Heatmap und Sortierung getrennt für Neue Toppreise vs. Suche & Katalog.">Einstellungen pro Seitentyp merken</label>
+              <span class="tp-switch-desc">Eigene Filter, Heatmap und Sortierung für Neue Toppreise vs. Suche/Katalog</span>
+            </div>
+            <label class="tp-switch tp-purple">
+              <input type="checkbox" id="tp-filter-remember-per-page-type-toggle">
+              <span class="tp-slider"></span>
+            </label>
+          </div>
+          <div class="tp-settings-group tp-profile-indicator-group">
+            <span class="tp-switch-desc tp-field-hint">Aktives Profil: <span id="tp-profile-active-badge" class="tp-profile-pill">⚡ Neue Toppreise</span></span>
+          </div>
           <div class="tp-settings-group">
             <span class="tp-switch-desc tp-field-hint">Negativ-Terme, Min-Angebote, <span class="tp-glossary-term" title="Angebote ohne geprüfte Preishistorie. Der Rabatt basiert nur auf UVP oder Toppreis.">Ungeprüfte</span>, <span class="tp-glossary-term" title="Verifizierter Tiefstpreis mit zu wenigen Datenpunkten für einen Ø-Vergleich. Zeigt ersatzweise den Abstand zum Vortief.">Fallback-Tiefs</span> und Händler stehen im Filter-Popover der Filterleiste.</span>
           </div>
@@ -11719,6 +11765,8 @@ const SHADOW_MODAL_STYLES = `
 
     const marginRange = shadow.getElementById('tp-margin-range');
     const marginVal = shadow.getElementById('tp-margin-val');
+    const filterRememberPerPageTypeToggle = shadow.getElementById('tp-filter-remember-per-page-type-toggle');
+    const profileActiveBadge = shadow.getElementById('tp-profile-active-badge');
     const opacityRange = shadow.getElementById('tp-opacity-range');
     const opacityVal = shadow.getElementById('tp-opacity-val');
     const hideAdsToggle = shadow.getElementById('tp-hide-ads-toggle');
@@ -11789,7 +11837,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -12147,6 +12195,7 @@ const SHADOW_MODAL_STYLES = `
         const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
         if (hook && typeof GM_deleteValue !== 'undefined') GM_deleteValue(discordForumFlagKey(hook));
       } catch (e) {}
+      _setValue('PAGE_PROFILES', null);
       updateConfigs({ ...DEFAULTS });
       updateBodyClasses();
       syncFieldsFromConfig(els);
@@ -12300,6 +12349,7 @@ const SHADOW_MODAL_STYLES = `
       if (els.cacheDiskVal) { const rawD = parseInt(els.cacheDiskVal.value, 10); updates.CACHE_DISK_LIMIT = isNaN(rawD) ? 300 : rawD; }
       if (els.realDealMinVal) { const rawMin = parseInt(els.realDealMinVal.value, 10); updates.REAL_DEAL_MIN_DISCOUNT = Number.isFinite(rawMin) ? Math.max(0, Math.min(90, rawMin)) : 30; }
       if (els.hideAdsToggle) updates.HIDE_ADS = els.hideAdsToggle.checked;
+      if (els.filterRememberPerPageTypeToggle) updates.FILTER_REMEMBER_PER_PAGE_TYPE = els.filterRememberPerPageTypeToggle.checked;
       if (els.sparklinesToggle) updates.ENABLE_SPARKLINES = els.sparklinesToggle.checked;
       if (els.keepaChartToggle) updates.KEEPA_CHART_ENABLED = els.keepaChartToggle.checked;
       if (els.dealerAutofetchToggle) updates.DEALER_AUTOFETCH = els.dealerAutofetchToggle.checked;
@@ -15416,7 +15466,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.485';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.486';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

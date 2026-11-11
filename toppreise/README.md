@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.485)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.486)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -102,6 +102,7 @@ Requires a userscript manager browser extension:
 | ⑦ | **Batch Verification CTA** | One-click batch scanner (`🔍 Tiefstpreise prüfen`) to verify all visible offers meeting discount criteria. |
 
 * **Context-Aware Toolbar:** Automatically adapts to deal feeds (`/neue-toppreise`), search listings (`/produktsuche/...`), and detail pages without UI clutter.
+* **Per-Page-Type Settings Memory:** Filters, heatmap, and deal sorting are remembered independently for **Neue Toppreise** (`/neue-toppreise`) versus **Search & Catalog** (`/produktsuche` / `/katalog`), configurable via modal setting (*Einstellungen pro Seitentyp merken*) with an active context indicator badge.
 * **4-State Per-Cause Filtering:** Every filter rule can be independently cycled between **Normal**, **Dimmen** (adjustable opacity), **Verbergen** (hide), and **Hervorheben** (highlight outline):
   * **Negative Keywords:** Exclude unwanted terms (comma/semicolon/newline lists; long terms `>3` chars match as substrings, short terms `≤3` chars enforce word boundaries).
   * **Minimum Offer Count:** Filter out marketplace listings with fewer than **N** merchants (shows inactive notice on pages without offer counts).
