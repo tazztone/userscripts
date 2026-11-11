@@ -406,6 +406,7 @@ function parseCliArgs(args) {
   let port = DEFAULT_PORT;
   let browser = null;
   let targetScript = 'toppreise';
+  let installRequested = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -417,6 +418,8 @@ function parseCliArgs(args) {
       browser = args[++i];
     } else if (arg === '--port' && args[i + 1]) {
       port = parseInt(args[++i], 10) || DEFAULT_PORT;
+    } else if (arg === '--install') {
+      installRequested = true;
     } else if (!arg.startsWith('-')) {
       const aliasMap = { tp: 'toppreise', hf: 'huggingface', px: 'perplexity' };
       const resolved = aliasMap[arg] || arg;
@@ -426,7 +429,7 @@ function parseCliArgs(args) {
     }
   }
 
-  return { port, browser, targetScript };
+  return { port, browser, targetScript, installRequested };
 }
 
 export { parseCliArgs };
@@ -443,7 +446,7 @@ function main() {
     return;
   }
 
-  const { port, browser, targetScript } = parseCliArgs(args);
+  const { port, browser, targetScript, installRequested } = parseCliArgs(args);
 
   const server = createDevServer({ host: '127.0.0.1', port });
   let browserChild = null;
@@ -455,7 +458,11 @@ function main() {
     if (browser) {
       const launcherScript = path.join(REPO_ROOT, 'tools', 'launch-browser.sh');
       console.log(`🌐 Launching ${browser} for '${targetScript}'...`);
-      browserChild = spawn('bash', [launcherScript, browser, targetScript], {
+      const launcherArgs = [launcherScript, browser, targetScript];
+      if (installRequested) {
+        launcherArgs.push('--install');
+      }
+      browserChild = spawn('bash', launcherArgs, {
         cwd: REPO_ROOT,
         stdio: 'inherit'
       });
