@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import functools
 import html
 import io
+import math
 import os
 import re
 import sys
@@ -237,16 +238,79 @@ def union(boxes, pad=32):
     return {"x": max(0, x0), "y": max(0, y0), "width": x1 - x0, "height": y1 - y0}
 
 
-def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
-    """Render numbered callout discs + SVG leader lines + HTML footer over raw_bytes."""
+def compute_callout_target(box, origin, bx, by):
+    """Compute the ideal target point (tx, ty) touching the element perimeter or center."""
+    rel_x = box["x"] - origin["x"]
+    rel_y = box["y"] - origin["y"]
+    bw, bh = box["width"], box["height"]
+    is_small = (bw <= 28 and bh <= 28)
+
+    if is_small:
+        return rel_x + bw / 2.0, rel_y + bh / 2.0
+
+    if bx < rel_x:
+        tx = rel_x + 2.0
+        ty = max(rel_y + 4.0, min(rel_y + bh - 4.0, by))
+    elif bx > rel_x + bw:
+        tx = rel_x + bw - 2.0
+        ty = max(rel_y + 4.0, min(rel_y + bh - 4.0, by))
+    elif by < rel_y:
+        ty = rel_y + 2.0
+        tx = max(rel_x + 4.0, min(rel_x + bw - 4.0, bx))
+    else:
+        ty = rel_y + bh - 2.0
+        tx = max(rel_x + 4.0, min(rel_x + bw - 4.0, bx))
+    return tx, ty
+
+
+def relax_badge_positions(placements, css_w, css_h, min_dist=28.0, max_iter=80):
+    """Nudge colliding badge circles apart while preserving canvas boundaries."""
+    pad = 16.0
+    for _ in range(max_iter):
+        moved = False
+        for i in range(len(placements)):
+            for j in range(i + 1, len(placements)):
+                b1 = placements[i]
+                b2 = placements[j]
+                dx = b2["bx"] - b1["bx"]
+                dy = b2["by"] - b1["by"]
+                d = math.hypot(dx, dy)
+                if d < min_dist:
+                    moved = True
+                    overlap = min_dist - d
+                    if d < 1e-4:
+                        dx, dy = 0.0, 1.0
+                        d = 1.0
+                    nx = dx / d
+                    ny = dy / d
+                    if abs(dx) < 8.0:
+                        nx = 0.0
+                        ny = 1.0 if dy >= 0 else -1.0
+                    elif abs(dy) < 8.0:
+                        ny = 0.0
+                        nx = 1.0 if dx >= 0 else -1.0
+
+                    b1["bx"] -= nx * overlap * 0.5
+                    b1["by"] -= ny * overlap * 0.5
+                    b2["bx"] += nx * overlap * 0.5
+                    b2["by"] += ny * overlap * 0.5
+
+                    b1["bx"] = max(pad, min(css_w - pad, b1["bx"]))
+                    b1["by"] = max(pad, min(css_h - pad, b1["by"]))
+                    b2["bx"] = max(pad, min(css_w - pad, b2["bx"]))
+                    b2["by"] = max(pad, min(css_h - pad, b2["by"]))
+        if not moved:
+            break
+    return placements
+
+
+def solve_callouts(raw_bytes, origin, callouts, out_file="shot"):
+    """Compute initial badge positions, relax collisions, anchor target dots, and assert invariants."""
     img_raw = Image.open(io.BytesIO(raw_bytes))
     css_w = round(img_raw.width / DSF)
     css_h = round(img_raw.height / DSF)
-    b64_data = base64.b64encode(raw_bytes).decode("ascii")
 
-    badges_html = []
-    svg_leaders = []
-    footer_items = []
+    placements = []
     for item in callouts:
         num, box, caption = item[0], item[1], item[2]
         anchor = item[3] if len(item) > 3 else "top-left"
@@ -256,94 +320,127 @@ def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
         bw = box["width"]
         bh = box["height"]
 
-        is_small = (bw <= 28 and bh <= 28)
+        explicit_tx = None
+        explicit_ty = None
 
         if anchor == "outside-left":
             bx = rel_x - 52
             by = rel_y + bh / 2
-            tx = (rel_x + bw / 2) if is_small else (rel_x - 8)
-            ty = (rel_y + bh / 2) if is_small else by
         elif anchor == "outside-top":
             bx = rel_x + bw / 2
             by = rel_y - 32
-            tx = bx
-            ty = (rel_y + bh / 2) if is_small else (rel_y - 6)
         elif anchor == "outside-right":
             bx = rel_x + bw + 52
             by = rel_y + bh / 2
-            tx = (rel_x + bw / 2) if is_small else (rel_x + bw + 8)
-            ty = (rel_y + bh / 2) if is_small else by
         elif anchor == "outside-bottom":
             bx = rel_x + bw / 2
             by = rel_y + bh + 32
-            tx = bx
-            ty = (rel_y + bh / 2) if is_small else (rel_y + bh + 6)
         elif anchor == "top-left":
             bx = rel_x - 36
             by = rel_y - 28
-            tx = (rel_x + bw / 2) if is_small else (rel_x - 8)
-            ty = (rel_y + bh / 2) if is_small else (rel_y - 6)
+        elif anchor == "top-right":
+            bx = rel_x + bw + 36
+            by = rel_y - 28
+        elif anchor == "bottom-left":
+            bx = rel_x - 36
+            by = rel_y + bh + 28
+        elif anchor == "bottom-right":
+            bx = rel_x + bw + 36
+            by = rel_y + bh + 28
         elif isinstance(anchor, dict):
             bx = anchor["bx"] if "bx" in anchor else (rel_x + anchor.get("dx", -52))
-            by = anchor["by"] if "by" in anchor else ((rel_y + bh / 2) if anchor.get("dy", 0) == 0 else rel_y + anchor["dy"])
+            by = anchor["by"] if "by" in anchor else (rel_y + bh / 2 + anchor.get("dy", 0))
             if "tx" in anchor:
-                tx = anchor["tx"]
-            else:
-                if is_small:
-                    tx = rel_x + bw / 2
-                else:
-                    tx = (rel_x - 8) if bx < rel_x else ((rel_x + bw + 8) if bx > rel_x + bw else bx)
+                explicit_tx = anchor["tx"]
             if "ty" in anchor:
-                ty = anchor["ty"]
-            else:
-                if is_small:
-                    ty = rel_y + bh / 2
-                else:
-                    ty = (rel_y - 6) if by < rel_y else ((rel_y + bh + 6) if by > rel_y + bh else by)
+                explicit_ty = anchor["ty"]
         elif isinstance(anchor, (list, tuple)) and len(anchor) == 2:
             dx, dy = anchor
             bx = rel_x + dx
-            by = (rel_y + bh / 2) if dy == 0 else (rel_y + dy)
-            if is_small:
-                tx = rel_x + bw / 2
-                ty = rel_y + bh / 2
-            else:
-                if dx < 0:
-                    tx = rel_x - 8
-                elif dx > bw:
-                    tx = rel_x + bw + 8
-                else:
-                    tx = rel_x + dx
-                if dy < 0:
-                    ty = rel_y - 6
-                elif dy > bh:
-                    ty = rel_y + bh + 6
-                else:
-                    ty = rel_y + bh / 2 if (dx < 0 or dx > bw) else rel_y + dy
+            by = rel_y + bh / 2 + dy
         else:
             bx = rel_x - 36
             by = rel_y - 28
-            tx = (rel_x + bw / 2) if is_small else (rel_x - 8)
-            ty = (rel_y + bh / 2) if is_small else (rel_y - 6)
 
-        # Clamp badge coordinates so discs never bleed outside the canvas
-        bx = max(14, min(css_w - 14, bx))
-        by = max(14, min(css_h - 14, by))
+        bx = max(16.0, min(css_w - 16.0, float(bx)))
+        by = max(16.0, min(css_h - 16.0, float(by)))
 
-        dist = ((bx - tx) ** 2 + (by - ty) ** 2) ** 0.5
-        if dist > 4:
+        placements.append({
+            "num": num,
+            "box": box,
+            "caption": caption,
+            "bx": bx,
+            "by": by,
+            "explicit_tx": explicit_tx,
+            "explicit_ty": explicit_ty,
+        })
+
+    relax_badge_positions(placements, css_w, css_h, min_dist=28.0)
+
+    for p in placements:
+        box = p["box"]
+        if p["explicit_tx"] is not None and p["explicit_ty"] is not None:
+            p["tx"] = float(p["explicit_tx"])
+            p["ty"] = float(p["explicit_ty"])
+        else:
+            tx, ty = compute_callout_target(box, origin, p["bx"], p["by"])
+            p["tx"] = p["explicit_tx"] if p["explicit_tx"] is not None else tx
+            p["ty"] = p["explicit_ty"] if p["explicit_ty"] is not None else ty
+
+        p["dist"] = math.hypot(p["bx"] - p["tx"], p["by"] - p["ty"])
+
+    # Invariant assertions
+    for i in range(len(placements)):
+        for j in range(i + 1, len(placements)):
+            p1, p2 = placements[i], placements[j]
+            d = math.hypot(p1["bx"] - p2["bx"], p1["by"] - p2["by"])
+            assert d >= 27.0, (
+                f"Badge overlap in {out_file}: #{p1['num']} and #{p2['num']} "
+                f"are only {d:.1f}px apart (minimum is 27.0px)"
+            )
+
+    for p in placements:
+        assert 13.0 <= p["bx"] <= css_w - 13.0, (
+            f"Badge #{p['num']} clipped horizontally in {out_file}: "
+            f"bx={p['bx']:.1f} not in [13.0, {css_w - 13.0}]"
+        )
+        assert 13.0 <= p["by"] <= css_h - 13.0, (
+            f"Badge #{p['num']} clipped vertically in {out_file}: "
+            f"by={p['by']:.1f} not in [13.0, {css_h - 13.0}]"
+        )
+
+    for p in placements:
+        if p["dist"] > 4.0:
+            assert p["dist"] >= 6.0, (
+                f"Leader line #{p['num']} collapsed in {out_file}: "
+                f"dist={p['dist']:.1f}px (< 6.0px)"
+            )
+            assert p["dist"] <= 260.0, (
+                f"Leader line #{p['num']} runaway length in {out_file}: "
+                f"dist={p['dist']:.1f}px (> 260.0px)"
+            )
+
+    return css_w, css_h, placements
+
+
+def render_annotated(annotator_page, raw_bytes, origin, callouts, out_path):
+    """Render numbered callout discs + SVG leader lines over raw_bytes."""
+    out_file = os.path.basename(out_path)
+    css_w, css_h, placements = solve_callouts(raw_bytes, origin, callouts, out_file=out_file)
+    b64_data = base64.b64encode(raw_bytes).decode("ascii")
+
+    badges_html = []
+    svg_leaders = []
+    for p in placements:
+        bx, by, tx, ty, dist, num = p["bx"], p["by"], p["tx"], p["ty"], p["dist"], p["num"]
+        if dist > 4.0:
             svg_leaders.append(
                 f'<line x1="{bx:.1f}" y1="{by:.1f}" x2="{tx:.1f}" y2="{ty:.1f}" '
                 f'stroke="#f97316" stroke-width="1.8" stroke-dasharray="3 3"/>'
                 f'<circle cx="{tx:.1f}" cy="{ty:.1f}" r="2.5" fill="#f97316"/>'
             )
-
         badges_html.append(
             f'<div class="tp-shot-badge" style="left: {bx:.1f}px; top: {by:.1f}px;">{num}</div>'
-        )
-        escaped_cap = html.escape(caption)
-        footer_items.append(
-            f'<li><span class="tp-shot-num">{num}.</span><span class="tp-shot-text">{escaped_cap}</span></li>'
         )
 
     template = f"""<!DOCTYPE html>
@@ -572,7 +669,7 @@ def setup_feed_cards(page, pids):
     card_boxes = [css_box(page, sel) for sel in anchors]
     boxes = [tb_box, *card_boxes]
     clip = union(boxes, pad=56)
-    clip["y"] = max(0, tb_box["y"] - 14)
+    clip["y"] = max(0, tb_box["y"] - 52)
     bottom_y = max(b["y"] + b["height"] for b in card_boxes) + 56
     clip["height"] = bottom_y - clip["y"]
     raw_bytes = page.screenshot(clip=clip)
@@ -689,28 +786,28 @@ def setup_sparkline_modal(page, pids):
     controls = [
         ("#tp-sparkline-popout > div > div:first-child > div:first-child",
          "Interaktives Preishistorie-Diagramm (Vollauflösend mit Preis- & Datumsachsen)",
-         {"bx": 32, "dy": -8}),
+         {"bx": 32}),
         ("#tp-sparkline-popout button:has-text('Bild kopieren')",
          "Diagramm kopieren (1-Klick Toppreise SVG-Grafik in Zwischenablage)",
-         {"bx": clip["width"] - 32, "dy": -8}),
+         {"bx": 672}),
         ("#tp-keepa-section > div:first-child > div:first-child",
          "Amazon.de Keepa-Integration (Automatische Erkennung & ASIN-Zuordnung)",
-         {"bx": 32, "dy": -4}),
+         {"bx": 32}),
         ("#tp-keepa-section button:has-text('365T')",
          "Zeitraum-Wahl (90T / 180T / 365T / Alle für Keepa-Verlauf)",
-         {"bx": 32, "dy": 20}),
+         {"bx": 180, "by": 350}),
         ("#tp-keepa-section button:has-text('Bild kopieren')",
          "Keepa-Bild kopieren (1-Klick Amazon Chart in Zwischenablage)",
-         {"bx": clip["width"] - 32, "dy": -6}),
+         {"bx": 385, "by": 400}),
         ("#tp-keepa-section img",
          "Amazon Keepa-Verlauf (Buy Box, Amazon & Neu-Preise mit Datumsverlauf)",
-         {"bx": 32, "dy": 80}),
+         {"bx": 32, "by": 537}),
         ("#tp-keepa-section a[href*='keepa.com']",
          "Direktlink zu Keepa.com",
-         {"bx": clip["width"] - 140, "dy": 28}),
+         {"bx": 426, "by": 700}),
         ("#tp-keepa-section a[href*='amazon']",
          "Direktlink zum Amazon.de-Angebot",
-         {"bx": clip["width"] - 32, "dy": 28}),
+         {"bx": 573, "by": 700}),
     ]
 
     callouts = []
@@ -1236,8 +1333,9 @@ def main():
                     )
                     try:
                         raw_bytes, origin, callouts, out_file = spec["setup"](page, pids)
+                        css_w, css_h, placements = solve_callouts(raw_bytes, origin, callouts, out_file=out_file)
                         if args.check:
-                            print(f"[check] OK '{name}': {len(callouts)} callouts resolved ({out_file})")
+                            print(f"[check] OK '{name}': {len(placements)} callouts resolved & hardened ({out_file})")
                         else:
                             render_annotated(annotator_page, raw_bytes, origin, callouts, os.path.join(OUT_DIR, out_file))
                             executed_items.append({
