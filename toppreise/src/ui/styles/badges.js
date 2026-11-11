@@ -361,10 +361,10 @@ export const STYLES_BADGES = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer, .product-price):not(:has(> .shippingText)) {
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_TopPriceReductionProductListFull) :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer, .product-price):not(:has(> .shippingText)) {
     flex-wrap: nowrap !important;
   }
-  .priceContainer:has(> .shippingText) {
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_TopPriceReductionProductListFull) .priceContainer:has(> .shippingText) {
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: baseline !important;
@@ -374,7 +374,7 @@ export const STYLES_BADGES = `
   body.showproductprice .Plugin_PriceInformation:has(.productPrice:not([style*="display: none"])) .shippingPrice {
     display: none !important;
   }
-  .priceContainer > .shippingText {
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_TopPriceReductionProductListFull) .priceContainer > .shippingText {
     width: 100% !important;
     flex: 0 0 100% !important;
     text-align: right !important;

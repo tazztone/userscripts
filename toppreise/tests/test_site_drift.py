@@ -232,3 +232,63 @@ def test_live_neue_toppreise_category_sidebar_folding_and_spacers(browser, users
 
     page.close()
 
+
+def test_live_product_detail_layout_no_wrap(browser, userscript_content):
+    """Verifies that product detail decorations do not cause desktop column wrapping or rail inflation."""
+    assert os.path.exists(LIVE_PRODUCT_PATH), "live_product_detail.html snapshot must exist"
+    css_path = os.path.join(os.path.dirname(os.path.dirname(FIXTURES_DIR)), 'site', 'demo', 'assets', '719228c24331.css')
+    assert os.path.exists(css_path), "719228c24331.css snapshot must exist"
+
+    for vw in [1280, 1366, 1440, 1600, 1673, 1920]:
+        page = browser.new_page(viewport={"width": vw, "height": 1000})
+        page.goto(f"file://{LIVE_PRODUCT_PATH}")
+        page.add_style_tag(path=css_path)
+
+        page.evaluate("""() => {
+            localStorage.setItem('tp_suite_v2_DEBUG', 'true');
+            localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true');
+            document.body.setAttribute('data-current_url', 'https://www.toppreise.ch/preisvergleich/Tastaturen/LOGITECH-MX-Keys-S-Spanisches-Layout-Graphit-920-011577-p818734');
+            const stats = {
+                tiefstpreis: 75.58,
+                currentPrice: 75.58,
+                medianPrice: 125.20,
+                vorTiefstpreis: 122.75,
+                vorTiefstpreisDiffPct: -38.4,
+                dropFromMedianPct: -39.6,
+                timeSeries: [[1700000000000, 125.2], [1710000000000, 122.75], [1720000000000, 75.58]],
+                time: Date.now()
+            };
+            localStorage.setItem('tp_hist_v1_818734_s', JSON.stringify(stats));
+            localStorage.setItem('tp_hist_v1_818734_p', JSON.stringify(stats));
+        }""")
+
+        page.evaluate(userscript_content)
+        page.evaluate("() => window.ToppreiseSuite?.processProductDetailPage?.()")
+        page.wait_for_timeout(200)
+
+        res = page.evaluate("""() => {
+            const rc = document.querySelector('.f_rightContainer');
+            const col = document.querySelector('.f_content > .row > .col-lg');
+            const sub = document.getElementById('tp-detail-subline');
+            const rcBox = rc?.getBoundingClientRect();
+            const colBox = col?.getBoundingClientRect();
+            return {
+                rcTop: rcBox?.top,
+                colTop: colBox?.top,
+                rcWidth: rcBox?.width,
+                rcX: rcBox?.x,
+                colWidth: colBox?.width,
+                colX: colBox?.x,
+                hasSub: !!sub,
+                wrapped: rcBox && colBox ? rcBox.top > colBox.top + 50 : true
+            };
+        }""")
+
+        assert res["hasSub"], f"Expected detail subline to be rendered at {vw}px"
+        assert not res["wrapped"], f"Expected f_rightContainer to NOT wrap at {vw}px: {res}"
+        assert res["rcWidth"] <= 285, f"Expected f_rightContainer width <= 285px at {vw}px, got {res['rcWidth']}"
+        assert res["rcX"] > res["colX"], f"Expected f_rightContainer to sit to the right of col-lg at {vw}px"
+
+        page.close()
+
+

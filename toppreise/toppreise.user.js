@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.490
+// @version      2.18.491
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -650,10 +650,10 @@ const STYLES_BADGES = `
   .priceContainer:has(> .tp-dealer-name) > :not(.tp-dealer-name) {
     flex-shrink: 0 !important;
   }
-  :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer, .product-price):not(:has(> .shippingText)) {
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_TopPriceReductionProductListFull) :is(.Plugin_PriceInformation, .price_information_product, .price_information_product_small, .priceContainer, .product-price):not(:has(> .shippingText)) {
     flex-wrap: nowrap !important;
   }
-  .priceContainer:has(> .shippingText) {
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_TopPriceReductionProductListFull) .priceContainer:has(> .shippingText) {
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: baseline !important;
@@ -663,7 +663,7 @@ const STYLES_BADGES = `
   body.showproductprice .Plugin_PriceInformation:has(.productPrice:not([style*="display: none"])) .shippingPrice {
     display: none !important;
   }
-  .priceContainer > .shippingText {
+  :is(.Plugin_Product, .mixedBrowsingList, .mixedBrowsingListProduct, .Plugin_ProductCollItem, .Plugin_TopPriceReductionProductListFull) .priceContainer > .shippingText {
     width: 100% !important;
     flex: 0 0 100% !important;
     text-align: right !important;
@@ -1097,17 +1097,23 @@ const STYLES_CHROME = `
 
   #tp-detail-subline,
   .tp-detail-subline {
-    margin: 6px 0 !important;
-    padding: 3px 8px !important;
+    margin: 6px auto !important;
+    padding: 3px 6px !important;
     border-radius: var(--tp-r-sm, 6px) !important;
-    font: 600 12px/1.4 var(--tp-font) !important;
-    display: inline-flex !important;
+    font: 600 11px/1.35 var(--tp-font) !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
-    gap: 6px !important;
+    justify-content: center !important;
+    text-align: center !important;
+    gap: 4px !important;
     background: rgba(148, 163, 184, 0.12) !important;
     border: 1px solid rgba(148, 163, 184, 0.25) !important;
     color: var(--tp-txt-mid) !important;
-    width: fit-content !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
     box-sizing: border-box !important;
   }
   #tp-detail-subline.tp-is-record-low,
@@ -1155,10 +1161,12 @@ const STYLES_CHROME = `
   }
   #tp-detail-sparkline,
   .tp-detail-sparkline {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
-    margin: 6px 0 !important;
+    justify-content: center !important;
+    margin: 6px auto !important;
     padding: 2px 6px !important;
+    width: fit-content !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border: 1px solid var(--tp-bdr) !important;
     border-radius: var(--tp-r-sm) !important;
@@ -1432,6 +1440,22 @@ const STYLES_CHROME = `
     min-height: 0 !important;
   }
 
+  /* Desktop guard for product detail page layout: prevent right rail wrap and container inflation */
+  @media (min-width: 1200px) {
+    .Page_Product .f_content > .row,
+    .Page_DetailProduct .f_content > .row {
+      flex-wrap: nowrap !important;
+    }
+    .Page_Product .f_content > .row > .col-lg,
+    .Page_DetailProduct .f_content > .row > .col-lg {
+      min-width: 0 !important;
+    }
+    .f_productDetailsInfo .f_rightContainer {
+      max-width: 280px !important;
+      width: 280px !important;
+      flex: 0 0 280px !important;
+    }
+  }
 `;
 
 /** Category tree sidebar styles (split from ui/styles/chrome.js). */
@@ -15516,7 +15540,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.490';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.491';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -198,17 +198,23 @@ export const STYLES_CHROME = `
 
   #tp-detail-subline,
   .tp-detail-subline {
-    margin: 6px 0 !important;
-    padding: 3px 8px !important;
+    margin: 6px auto !important;
+    padding: 3px 6px !important;
     border-radius: var(--tp-r-sm, 6px) !important;
-    font: 600 12px/1.4 var(--tp-font) !important;
-    display: inline-flex !important;
+    font: 600 11px/1.35 var(--tp-font) !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
-    gap: 6px !important;
+    justify-content: center !important;
+    text-align: center !important;
+    gap: 4px !important;
     background: rgba(148, 163, 184, 0.12) !important;
     border: 1px solid rgba(148, 163, 184, 0.25) !important;
     color: var(--tp-txt-mid) !important;
-    width: fit-content !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
     box-sizing: border-box !important;
   }
   #tp-detail-subline.tp-is-record-low,
@@ -256,10 +262,12 @@ export const STYLES_CHROME = `
   }
   #tp-detail-sparkline,
   .tp-detail-sparkline {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
-    margin: 6px 0 !important;
+    justify-content: center !important;
+    margin: 6px auto !important;
     padding: 2px 6px !important;
+    width: fit-content !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border: 1px solid var(--tp-bdr) !important;
     border-radius: var(--tp-r-sm) !important;
@@ -533,4 +541,20 @@ export const STYLES_CHROME = `
     min-height: 0 !important;
   }
 
+  /* Desktop guard for product detail page layout: prevent right rail wrap and container inflation */
+  @media (min-width: 1200px) {
+    .Page_Product .f_content > .row,
+    .Page_DetailProduct .f_content > .row {
+      flex-wrap: nowrap !important;
+    }
+    .Page_Product .f_content > .row > .col-lg,
+    .Page_DetailProduct .f_content > .row > .col-lg {
+      min-width: 0 !important;
+    }
+    .f_productDetailsInfo .f_rightContainer {
+      max-width: 280px !important;
+      width: 280px !important;
+      flex: 0 0 280px !important;
+    }
+  }
 `;
