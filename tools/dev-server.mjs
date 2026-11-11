@@ -121,10 +121,12 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
 
   function executeCode(sourceCode) {
     try {
-      // Direct eval preserves all GM_* APIs, unsafeWindow, and context bindings
-      eval(sourceCode);
+      // Map stack traces to target script filename via sourceURL
+      const mappedSource = sourceCode + '\n//# sourceURL=' + ${JSON.stringify(targetScriptUrl)};
+      eval(mappedSource);
     } catch (err) {
-      console.error('[userscript-dev] Runtime execution failure:', err);
+      const msg = (err && err.stack) ? err.stack : ((err && err.message) ? err.message : JSON.stringify(err));
+      console.error('\x1b[31m❌ [userscript-dev] Runtime Exception in ${meta.name}:\x1b[0m\n' + msg);
     }
   }
 

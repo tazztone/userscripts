@@ -58,7 +58,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.489
+// @version      2.18.490
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -178,6 +178,17 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
           filtered: counts.filteredCount,
           dimmed: counts.dimmed,
           isNeueFeed,
+          lastError: null,
+          ts: Date.now()
+        }));
+      }
+    } catch (err) {
+      console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
+      const rootEl = document.getElementById('tp-root');
+      if (rootEl) {
+        rootEl.setAttribute('data-tp-diag', JSON.stringify({
+          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+          lastError: { message: err.message, stack: err.stack, ts: Date.now() },
           ts: Date.now()
         }));
       }
@@ -326,6 +337,17 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
     if (mainObserver) mainObserver.disconnect();
     try {
       await processProductDetailPage();
+    } catch (err) {
+      console.error('[Toppreise-Suite] ❌ Error in processProductDetailPage:', err);
+      const rootEl = document.getElementById('tp-root');
+      if (rootEl) {
+        rootEl.setAttribute('data-tp-diag', JSON.stringify({
+          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+          pageType: 'detail',
+          lastError: { message: err.message, stack: err.stack, ts: Date.now() },
+          ts: Date.now()
+        }));
+      }
     } finally {
       isModifyingDOM = false;
       if (mainObserver) {
@@ -336,7 +358,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.489';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.490';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

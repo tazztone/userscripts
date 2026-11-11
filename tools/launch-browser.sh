@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Silence Linux GTK accessibility bridge warnings
+export NO_ATK_BRIDGE=1
+
 TARGET="${1:-chrome}"
 SCRIPT_OR_ARG="${2:-toppreise}"
 shift 2 2>/dev/null || shift 1 2>/dev/null || true
@@ -124,7 +127,7 @@ case "$TARGET" in
     PORT="2828"
     mkdir -p "$PROFILE_DIR"
 
-    # Write user prefs for automated Marionette/BiDi support and quiet dev logs
+    # Write user prefs for automated Marionette/BiDi support, ad suppression, and quiet dev logs
     cat << 'EOF' > "$PROFILE_DIR/user.js"
 user_pref("marionette.enabled", true);
 user_pref("marionette.port", 2828);
@@ -135,6 +138,12 @@ user_pref("browser.formfill.enable", false);
 user_pref("extensions.formautofill.addresses.enabled", false);
 user_pref("extensions.formautofill.creditCards.enabled", false);
 user_pref("identity.fxaccounts.enabled", false);
+user_pref("privacy.trackingprotection.enabled", true);
+user_pref("privacy.trackingprotection.annotate_channels", false);
+user_pref("network.cookie.cookieBehavior", 4);
+user_pref("javascript.options.strict", false);
+user_pref("devtools.console.stdout.content", false);
+user_pref("dom.report_all_js_exceptions", false);
 EOF
 
     # Assemble tabs: clean profiles or --install get the stub; standard runs open only the target site
@@ -173,6 +182,8 @@ EOF
       echo "   • Tab: $u"
     done
 
+    FILTER_PATTERNS="googlesyndication\.com|FormHandlerChild\.sys\.mjs|NavigationManager\.sys\.mjs|Promised response from onMessage|atk-bridge"
+
     exec "$BIN" \
       -new-instance \
       -no-remote \
@@ -180,7 +191,7 @@ EOF
       --remote-debugging-port 9222 \
       -profile "$PROFILE_DIR" \
       "${URLS[@]}" \
-      "$@"
+      "$@" 2> >(grep --line-buffered -vE "$FILTER_PATTERNS" >&2)
     ;;
 
   *)
