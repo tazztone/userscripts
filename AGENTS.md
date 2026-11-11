@@ -23,14 +23,24 @@ scratch/                                              # exploration (gitignored)
 Build-then-test; detail: `docs/agent-guide.md` (§Gates, §Testing, §Live Browser Loop).
 
 ```bash
-npm run dev:chrome:tp                  # 1-line: sync daemon + Chrome with Toppreise tabs pre-loaded
-npm run dev:firefox:tp                 # 1-line: sync daemon + Firefox with Toppreise tabs pre-loaded
+npm run dev:chrome:tp                  # 1-line: sync daemon + Chrome on target site
+npm run dev:firefox:tp                 # 1-line: sync daemon + Firefox on target site
+npm run dev:firefox:tp:install         # 1-line: one-time Dev Loader stub install in Firefox
+npm run dev:chrome:tp:install          # 1-line: one-time Dev Loader stub install in Chrome
 npm run dev                            # sync daemon only at http://127.0.0.1:8765
 node toppreise/tools/build.js --check  # drift gate, run pre/post src/ edit
 venv/bin/pytest toppreise/tests/test_ui_modal.py
 ```
 
 `package.json` scripts mirror the node commands. Stage only intended files.
+
+## Live Browser & MCP Loop
+
+Active browser sessions connect to the agent via DevTools MCP (`userscript-bridge_firefox-devtools` / `chrome-devtools`):
+- **Observe live**: Use `evaluate_script` to read `#tp-root` `data-tp-diag` (version, cards, counts, `lastError`) and computed element styles.
+- **Inspect visuals**: Use `take_snapshot` and `screenshot_page` / `screenshot_by_uid` directly. Never ask the user for screenshots or manual DOM checks when MCP is available.
+- **Hands-free reload**: Dev server SSE auto-reloads connected tabs on `src/` file saves in <50ms.
+- **Setup**: `npm run dev:firefox:tp` (daily) or `npm run dev:firefox:tp:install` (one-time stub install). Details: `docs/agent-guide.md` (§Live Browser Loop).
 
 ## Code Conventions & Common Patterns
 

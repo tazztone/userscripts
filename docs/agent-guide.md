@@ -48,20 +48,25 @@ Local `.playwright-browsers` is auto-discovered by `conftest.py`. Fixture: `page
 
 ## Live Browser Loop
 
-Agentic workflow pairing an active browser session with CLI agent via MCP (`.agents/skills/userscript-development/SKILL.md`):
+Agentic workflow pairing an active browser session with CLI agent via DevTools MCP (`.agents/skills/userscript-development/SKILL.md`):
 
 ```bash
-npm run dev:chrome:tp                  # 1-line: sync daemon + Chrome with Toppreise tabs pre-loaded
-npm run dev:firefox:tp                 # 1-line: sync daemon + Firefox with Toppreise tabs pre-loaded
-# Single-script targets: npm run dev:chrome:hf / npm run dev:chrome:px (or :firefox:hf / :firefox:px)
+npm run dev:firefox:tp                 # 1-line: sync daemon + Firefox on target site
+npm run dev:chrome:tp                  # 1-line: sync daemon + Chrome on target site
+npm run dev:firefox:tp:install         # one-time: opens Dev Loader stub install tab in Firefox
+npm run dev:chrome:tp:install          # one-time: opens Dev Loader stub install tab in Chrome
+# Single-script targets: :hf (HuggingFace) or :px (Perplexity)
 ```
 
-1. Run `npm run dev:chrome` — launches dev server and opens Chrome with Violentmonkey install tab and target site pre-loaded.
-2. In Violentmonkey, click **Track external edits** on the opened script tab once.
-3. Edit `src/` modules — bundle recompiles automatically in <50ms.
-4. Reload target tab via MCP bridge (`reload_page`).
-5. Read telemetry snapshot on `#tp-root` via `evaluate_script` (`document.getElementById('tp-root')?.dataset.tpDiag`) and inspect filtered console logs (`[Toppreise-Suite]`).
-6. Run offline quality gates (`npm run test:smoke`) before committing.
+1. **One-time stub setup**: Run `npm run dev:firefox:tp:install`, click "Confirm installation" once on `[DEV] Toppreise.ch Suite`. Never needs reinstallation.
+2. **Standard launch**: Run `npm run dev:firefox:tp`. Opens target site directly with remote debugging enabled (port 2828 Marionette + 9222 BiDi).
+3. **Zero-touch reload**: Edit `src/` modules — dev server auto-rebuilds and broadcasts an SSE event on `/events` that reloads connected tabs in <50ms.
+4. **Agent verification via MCP**:
+   - `evaluate_script`: Query `#tp-root` `data-tp-diag` (version, cards, counts, `lastError`) and computed element styles.
+   - `take_snapshot`: Get DOM hierarchy and stable UIDs without asking the user.
+   - `screenshot_page` / `screenshot_by_uid`: Capture screenshots directly to verify layouts.
+   - `navigate_page`: Navigate active tab on demand.
+5. **Quality gates**: Run offline gates (`npm run test:smoke`) before committing.
 
 ## Header
 
