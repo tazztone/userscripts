@@ -60,7 +60,15 @@ case "$TARGET" in
       exit 0
     fi
 
-    # 2. Check if clean profile (no extensions installed yet)
+    # 2. Auto-seed extensions from default Chrome profile if available
+    SRC_CHROME_EXT="${XDG_CONFIG_HOME:-$HOME/.config}/google-chrome/Default/Extensions"
+    if [ -d "$SRC_CHROME_EXT" ] && [ ! -d "$PROFILE_DIR/Default/Extensions" ]; then
+      echo "🔄 Syncing Chrome extensions from default profile..."
+      mkdir -p "$PROFILE_DIR/Default"
+      cp -rn "$SRC_CHROME_EXT" "$PROFILE_DIR/Default/" 2>/dev/null || true
+    fi
+
+    # 3. Check if clean profile (no extensions installed yet)
     EXT_DIR="$PROFILE_DIR/Default/Extensions"
     if [ ! -d "$EXT_DIR" ] || [ -z "$(ls -A "$EXT_DIR" 2>/dev/null)" ]; then
       echo "ℹ️ Clean profile detected. Prepending Violentmonkey Web Store install tab..."
@@ -116,6 +124,63 @@ user_pref("marionette.port", 2828);
 user_pref("devtools.debugger.remote-enabled", true);
 user_pref("devtools.chrome.enabled", true);
 EOF
+
+    # Auto-seed extensions from user's default Firefox profile if available
+    PROFILES_INI=""
+    FIREFOX_BASE=""
+    if [ -f "$HOME/snap/firefox/common/.mozilla/firefox/profiles.ini" ]; then
+      PROFILES_INI="$HOME/snap/firefox/common/.mozilla/firefox/profiles.ini"
+      FIREFOX_BASE="$HOME/snap/firefox/common/.mozilla/firefox"
+    elif [ -f "$HOME/.mozilla/firefox/profiles.ini" ]; then
+      PROFILES_INI="$HOME/.mozilla/firefox/profiles.ini"
+      FIREFOX_BASE="$HOME/.mozilla/firefox"
+    fi
+
+    if [ -n "$PROFILES_INI" ]; then
+      DEF_PATH=$(awk -F= '
+        /^\[Profile/ { in_p=1; p=""; d=0 }
+        in_p && /^Path=/ { p=$2 }
+        in_p && /^Default=1/ { d=1 }
+        in_p && /^$/ { if (d && p != "") { print p; exit } in_p=0 }
+        END { if (d && p != "") print p }
+      ' "$PROFILES_INI" | head -n1)
+
+      if [ -z "$DEF_PATH" ]; then
+        DEF_PATH=$(grep -m1 '^Path=' "$PROFILES_INI" | cut -d= -f2)
+      fi
+
+      SRC_PROFILE="$FIREFOX_BASE/$DEF_PATH"
+      if [ -d "$SRC_PROFILE" ] && [ "$SRC_PROFILE" != "$PROFILE_DIR" ]; then
+        if [ -d "$SRC_PROFILE/extensions" ]; then
+          mkdir -p "$PROFILE_DIR/extensions"
+          for xpi in "$SRC_PROFILE/extensions/"*.xpi; do
+            if [ -f "$xpi" ]; then
+              dest_xpi="$PROFILE_DIR/extensions/$(basename "$xpi")"
+              if [ ! -f "$dest_xpi" ]; then
+                cp "$xpi" "$dest_xpi" 2>/dev/null || true
+                echo "   📦 Synced addon: $(basename "$xpi")"
+              fi
+            fi
+          done
+
+          if [ -f "$SRC_PROFILE/extensions.json" ] && [ ! -f "$PROFILE_DIR/extensions.json" ]; then
+            sed "s|${SRC_PROFILE}|${PROFILE_DIR}|g" "$SRC_PROFILE/extensions.json" > "$PROFILE_DIR/extensions.json" 2>/dev/null || true
+          fi
+
+          for cfg in extension-preferences.json extension-settings.json; do
+            if [ -f "$SRC_PROFILE/$cfg" ] && [ ! -f "$PROFILE_DIR/$cfg" ]; then
+              cp "$SRC_PROFILE/$cfg" "$PROFILE_DIR/$cfg" 2>/dev/null || true
+            fi
+          done
+
+          # Sync extension storage (Violentmonkey scripts, settings) if not present
+          if [ -d "$SRC_PROFILE/storage/default" ] && [ ! -d "$PROFILE_DIR/storage/default" ]; then
+            mkdir -p "$PROFILE_DIR/storage/default"
+            cp -rn "$SRC_PROFILE/storage/default/moz-extension+++"* "$PROFILE_DIR/storage/default/" 2>/dev/null || true
+          fi
+        fi
+      fi
+    fi
 
     # Check if clean profile
     EXT_DIR="$PROFILE_DIR/extensions"
