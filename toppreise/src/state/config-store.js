@@ -14,6 +14,7 @@ export const DEFAULTS = Object.freeze({
   FILTER_SAVINGS_ENABLED: false,
   FILTER_SAVINGS_MIN: 0,
   FILTERS_ENABLED: true,
+  FILTER_REMEMBER_PER_PAGE_TYPE: true,
   FILTER_NEG_MODE: 'dim',
   FILTER_MIN_MODE: 'dim',
   FILTER_DEAL_DISCOUNT_MODE: 'dim',
@@ -72,6 +73,36 @@ export const DEFAULTS = Object.freeze({
   DEBUG: false
 });
 
+// Keys partitioned per page type when FILTER_REMEMBER_PER_PAGE_TYPE is enabled:
+// covers filter controls, filter cycle modes, heatmap, and deal sorting.
+export const PAGE_SCOPED_KEYS = Object.freeze(new Set([
+  'FILTER_NEG_ENABLED',
+  'FILTER_MIN_ENABLED',
+  'FILTER_DEAL_DISCOUNT_ENABLED',
+  'FILTER_PRICE_ENABLED',
+  'FILTER_PRICE_MIN',
+  'FILTER_PRICE_MAX',
+  'FILTER_SAVINGS_ENABLED',
+  'FILTER_SAVINGS_MIN',
+  'FILTERS_ENABLED',
+  'FILTER_NEG_MODE',
+  'FILTER_MIN_MODE',
+  'FILTER_DEAL_DISCOUNT_MODE',
+  'FILTER_PRICE_MODE',
+  'FILTER_SAVINGS_MODE',
+  'HIDE_UNCHECKED_MODE',
+  'VORTIEF_MODE',
+  'DEALER_MODE',
+  'MIN_DEAL_DISCOUNT',
+  'NEGATIVE_TERMS',
+  'MIN_OFFERS',
+  'MARGIN_PERCENT',
+  'HEATMAP_ENABLED',
+  'HEATMAP_INTENSITY',
+  'BESTPREISE_MODE_ACTIVE',
+  'SORT_BY_OFFERS'
+]));
+
 // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
 // domain backup survives script reinstalls; reads prefer GM, fall back to
 // the backup (reinstall recovery), then def. Corrupt JSON never throws.
@@ -119,6 +150,7 @@ export const SETTING_SCHEMA = {
   FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
   FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
   FILTERS_ENABLED: { type: 'bool', default: true },
+  FILTER_REMEMBER_PER_PAGE_TYPE: { type: 'bool', default: true },
   FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
   FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
   FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },

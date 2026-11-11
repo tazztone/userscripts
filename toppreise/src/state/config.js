@@ -6,10 +6,10 @@
 
 import { uiShadowRoot } from '../ui/shell.js';
 import { paintCycleButton } from '../ui/mini-toggle.js';
-import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
+import { SECRET_KEYS, _getValue, _setValue, DEFAULTS, PAGE_SCOPED_KEYS, sanitizeConfigValue, weightText, horizonText, horizonUiToStored, horizonStoredToUi } from './config-store.js';
 import { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels } from './config-migrate.js';
 import { syncUiControl } from './config-sync.js';
-import { triggerProcessListings } from '../page/adapter.js';
+import { triggerProcessListings, getPageProfileType } from '../page/adapter.js';
 
 
 // Shared clamps: single source for the min-points (1–100 data points) and
@@ -133,12 +133,65 @@ if (
 CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
 if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
+export function initPageProfiles(forceType = null) {
+  if (!CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) return;
+  const profileType = forceType || getPageProfileType();
+  let profiles = _getValue('PAGE_PROFILES', null);
+
+  if (!profiles || typeof profiles !== 'object') {
+    const initialSeed = {};
+    for (const k of PAGE_SCOPED_KEYS) {
+      if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
+    }
+    profiles = {
+      neue: { ...initialSeed },
+      search: { ...initialSeed }
+    };
+    _setValue('PAGE_PROFILES', profiles);
+    return;
+  }
+
+  let modified = false;
+  const initialSeed = {};
+  for (const k of PAGE_SCOPED_KEYS) {
+    if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
+  }
+  if (!profiles.neue || typeof profiles.neue !== 'object') {
+    profiles.neue = { ...initialSeed };
+    modified = true;
+  }
+  if (!profiles.search || typeof profiles.search !== 'object') {
+    profiles.search = { ...initialSeed };
+    modified = true;
+  }
+  if (modified) {
+    _setValue('PAGE_PROFILES', profiles);
+  }
+
+  const activeData = profiles[profileType];
+  if (activeData) {
+    for (const k of PAGE_SCOPED_KEYS) {
+      if (k in activeData) {
+        CONFIG[k] = sanitizeConfigValue(k, activeData[k]);
+      }
+    }
+  }
+}
+
 export const saveConfigKey = (key, val) => {
   if (SECRET_KEYS.has(key)) return;
   const clean = sanitizeConfigValue(key, val);
   if (clean === undefined) return;
   CONFIG[key] = clean;
   _setValue(key, clean);
+
+  if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
+    const profileType = getPageProfileType();
+    const profiles = _getValue('PAGE_PROFILES', null) || { neue: {}, search: {} };
+    if (!profiles[profileType]) profiles[profileType] = {};
+    profiles[profileType][key] = clean;
+    _setValue('PAGE_PROFILES', profiles);
+  }
 };
 // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
 // here (a static import would cycle config ← price-alarm; the concat-IIFE
@@ -186,6 +239,15 @@ export function updateConfig(key, val, options = {}) {
   if (!options.skipUiSync) {
     syncUiControl(key, val);
   }
+  if (key === 'FILTER_REMEMBER_PER_PAGE_TYPE') {
+    if (val === false) {
+      for (const k of PAGE_SCOPED_KEYS) {
+        _setValue(k, CONFIG[k]);
+      }
+    } else {
+      initPageProfiles();
+    }
+  }
   if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
     updateBodyClasses();
   }
@@ -206,6 +268,6 @@ export function updateConfigs(entries, options = {}) {
 // Re-exports: storage/schema/migrate symbols moved to siblings — every
 // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
 import { SETTING_SCHEMA, sanitizeChannels } from './config-store.js';
-export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
+export { SECRET_KEYS, _getValue, _setValue, DEFAULTS, PAGE_SCOPED_KEYS, SETTING_SCHEMA, sanitizeConfigValue, sanitizeChannels, weightText, horizonText, horizonUiToStored, horizonStoredToUi };
 export { migrateLegacyDebug, migrateHideToDimDefaults, migrateFilterSplit, migrateDiscordChannels };
 

@@ -87,6 +87,19 @@ export function isSearchPage() {
   return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
 }
 
+export function getPageProfileType(url = null) {
+  if (typeof url === 'string' && url) {
+    if (/(?:produktsuche|katalog|search|suche)/i.test(url)) return 'search';
+    if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(url)) return 'neue';
+    return 'search';
+  }
+  return isNeueToppreisePage() ? 'neue' : 'search';
+}
+
+export function getPageProfileLabel(type = getPageProfileType()) {
+  return type === 'neue' ? '⚡ Neue Toppreise' : '🔍 Suche & Katalog';
+}
+
 export function getDetailProductId() {
   const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
   if (match) return match[1];

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.484
+// @version      2.18.485
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3706,6 +3706,7 @@ const SHADOW_MODAL_STYLES = `
     FILTER_SAVINGS_ENABLED: false,
     FILTER_SAVINGS_MIN: 0,
     FILTERS_ENABLED: true,
+    FILTER_REMEMBER_PER_PAGE_TYPE: true,
     FILTER_NEG_MODE: 'dim',
     FILTER_MIN_MODE: 'dim',
     FILTER_DEAL_DISCOUNT_MODE: 'dim',
@@ -3764,6 +3765,36 @@ const SHADOW_MODAL_STYLES = `
     DEBUG: false
   });
 
+  // Keys partitioned per page type when FILTER_REMEMBER_PER_PAGE_TYPE is enabled:
+  // covers filter controls, filter cycle modes, heatmap, and deal sorting.
+  const PAGE_SCOPED_KEYS = Object.freeze(new Set([
+    'FILTER_NEG_ENABLED',
+    'FILTER_MIN_ENABLED',
+    'FILTER_DEAL_DISCOUNT_ENABLED',
+    'FILTER_PRICE_ENABLED',
+    'FILTER_PRICE_MIN',
+    'FILTER_PRICE_MAX',
+    'FILTER_SAVINGS_ENABLED',
+    'FILTER_SAVINGS_MIN',
+    'FILTERS_ENABLED',
+    'FILTER_NEG_MODE',
+    'FILTER_MIN_MODE',
+    'FILTER_DEAL_DISCOUNT_MODE',
+    'FILTER_PRICE_MODE',
+    'FILTER_SAVINGS_MODE',
+    'HIDE_UNCHECKED_MODE',
+    'VORTIEF_MODE',
+    'DEALER_MODE',
+    'MIN_DEAL_DISCOUNT',
+    'NEGATIVE_TERMS',
+    'MIN_OFFERS',
+    'MARGIN_PERCENT',
+    'HEATMAP_ENABLED',
+    'HEATMAP_INTENSITY',
+    'BESTPREISE_MODE_ACTIVE',
+    'SORT_BY_OFFERS'
+  ]));
+
   // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
   // domain backup survives script reinstalls; reads prefer GM, fall back to
   // the backup (reinstall recovery), then def. Corrupt JSON never throws.
@@ -3811,6 +3842,7 @@ const SHADOW_MODAL_STYLES = `
     FILTER_SAVINGS_ENABLED: { type: 'bool', default: false },
     FILTER_SAVINGS_MIN: { type: 'float', default: 0, min: 0, max: 1000000 },
     FILTERS_ENABLED: { type: 'bool', default: true },
+    FILTER_REMEMBER_PER_PAGE_TYPE: { type: 'bool', default: true },
     FILTER_NEG_MODE: { type: 'mode', default: 'dim' },
     FILTER_MIN_MODE: { type: 'mode', default: 'dim' },
     FILTER_DEAL_DISCOUNT_MODE: { type: 'mode', default: 'dim' },
@@ -4168,12 +4200,65 @@ const SHADOW_MODAL_STYLES = `
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
   if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
+  function initPageProfiles(forceType = null) {
+    if (!CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) return;
+    const profileType = forceType || getPageProfileType();
+    let profiles = _getValue('PAGE_PROFILES', null);
+
+    if (!profiles || typeof profiles !== 'object') {
+      const initialSeed = {};
+      for (const k of PAGE_SCOPED_KEYS) {
+        if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
+      }
+      profiles = {
+        neue: { ...initialSeed },
+        search: { ...initialSeed }
+      };
+      _setValue('PAGE_PROFILES', profiles);
+      return;
+    }
+
+    let modified = false;
+    const initialSeed = {};
+    for (const k of PAGE_SCOPED_KEYS) {
+      if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
+    }
+    if (!profiles.neue || typeof profiles.neue !== 'object') {
+      profiles.neue = { ...initialSeed };
+      modified = true;
+    }
+    if (!profiles.search || typeof profiles.search !== 'object') {
+      profiles.search = { ...initialSeed };
+      modified = true;
+    }
+    if (modified) {
+      _setValue('PAGE_PROFILES', profiles);
+    }
+
+    const activeData = profiles[profileType];
+    if (activeData) {
+      for (const k of PAGE_SCOPED_KEYS) {
+        if (k in activeData) {
+          CONFIG[k] = sanitizeConfigValue(k, activeData[k]);
+        }
+      }
+    }
+  }
+
   const saveConfigKey = (key, val) => {
     if (SECRET_KEYS.has(key)) return;
     const clean = sanitizeConfigValue(key, val);
     if (clean === undefined) return;
     CONFIG[key] = clean;
     _setValue(key, clean);
+
+    if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
+      const profileType = getPageProfileType();
+      const profiles = _getValue('PAGE_PROFILES', null) || { neue: {}, search: {} };
+      if (!profiles[profileType]) profiles[profileType] = {};
+      profiles[profileType][key] = clean;
+      _setValue('PAGE_PROFILES', profiles);
+    }
   };
   // Bell-decor repaint hook: price-alarm.js registers refreshAlarmBellDecor
   // here (a static import would cycle config ← price-alarm; the concat-IIFE
@@ -4219,6 +4304,15 @@ const SHADOW_MODAL_STYLES = `
     }
     if (!options.skipUiSync) {
       syncUiControl(key, val);
+    }
+    if (key === 'FILTER_REMEMBER_PER_PAGE_TYPE') {
+      if (val === false) {
+        for (const k of PAGE_SCOPED_KEYS) {
+          _setValue(k, CONFIG[k]);
+        }
+      } else {
+        initPageProfiles();
+      }
     }
     if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
       updateBodyClasses();
@@ -4751,6 +4845,19 @@ const SHADOW_MODAL_STYLES = `
   function isSearchPage() {
     const currentUrl = document.body?.getAttribute('data-current_url') ?? document.body?.getAttribute('data-current-url') ?? (typeof location !== 'undefined' ? location.href : '');
     return /(?:produktsuche|productsearch)/i.test(currentUrl || '');
+  }
+
+  function getPageProfileType(url = null) {
+    if (typeof url === 'string' && url) {
+      if (/(?:produktsuche|katalog|search|suche)/i.test(url)) return 'search';
+      if (/(?:neue-toppreise|new-best-prices|nouveaux-meilleurs-prix)/i.test(url)) return 'neue';
+      return 'search';
+    }
+    return isNeueToppreisePage() ? 'neue' : 'search';
+  }
+
+  function getPageProfileLabel(type = getPageProfileType()) {
+    return type === 'neue' ? '⚡ Neue Toppreise' : '🔍 Suche & Katalog';
   }
 
   function getDetailProductId() {
@@ -15309,7 +15416,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.484';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.485';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -15320,6 +15427,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         updateConfig,
         openSettingsAt,
         saveConfigKey,
+        initPageProfiles,
         startBatchCheck,
         runBatchDealCheck,
         cancelBatchDealCheck,
@@ -15360,6 +15468,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     }
   }
 
+  initPageProfiles();
   setupUI();
   triggerProcessListings();
 })();
