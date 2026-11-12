@@ -154,7 +154,6 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
 
   const promise = new Promise((resolve, reject) => {
     const payload = JSON.stringify({
-      api_key: trimmedKey,
       query: normalized,
       search_depth: searchDepth,
       include_answer: true,
@@ -188,7 +187,8 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
           url: TAVILY_API_ENDPOINT,
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${trimmedKey}`
           },
           data: payload,
           timeout: timeoutMs,
@@ -217,7 +217,8 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${trimmedKey}`
         },
         body: payload,
         signal: controller?.signal

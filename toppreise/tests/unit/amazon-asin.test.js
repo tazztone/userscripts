@@ -111,6 +111,16 @@ describe('Amazon ASIN resolution and caching', () => {
       assert.equal(fetchCalled, false);
     });
 
+    it('rejects redirect destinations on non-Amazon domains', async () => {
+      const s = memStorage();
+      const fakeFetch = async () => ({
+        url: 'https://evil-tracker.com/redirect?asin=B0FHWR36F6'
+      });
+      const asin = await resolveAmazonAsin('/ext_de?pid=550', 'p550', s, fakeFetch);
+      assert.equal(asin, null);
+      assert.equal(getCachedAsin('p550', s), null);
+    });
+
     it('deduplicates simultaneous in-flight ASIN lookups for the same product', async () => {
       const s = memStorage();
       let fetchCount = 0;

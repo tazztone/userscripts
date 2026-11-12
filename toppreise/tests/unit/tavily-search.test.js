@@ -152,7 +152,8 @@ describe('tavily-search: fetchTavilySummary', () => {
       callCount++;
       assert.equal(url, TAVILY_API_ENDPOINT);
       const parsed = JSON.parse(opts.body);
-      assert.equal(parsed.api_key, 'tvly-secret');
+      assert.equal(opts.headers['Authorization'], 'Bearer tvly-secret');
+      assert.equal(parsed.api_key, undefined);
       assert.equal(parsed.search_depth, 'basic');
       assert.equal(parsed.include_answer, true);
       assert.equal(parsed.language, 'de');

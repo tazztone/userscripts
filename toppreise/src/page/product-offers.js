@@ -247,6 +247,21 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
 }
 
 // Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.
+export function isAllowedAmazonUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const host = parsed.hostname.toLowerCase();
+    return host === 'amazon.de' || host.endsWith('.amazon.de') ||
+           host === 'amazon.com' || host.endsWith('.amazon.com') ||
+           host === 'amazon.fr' || host.endsWith('.amazon.fr') ||
+           host === 'amazon.it' || host.endsWith('.amazon.it') ||
+           host === 'amazon.co.uk' || host.endsWith('.amazon.co.uk');
+  } catch {
+    return false;
+  }
+}
+
 export function parseAmazonAsin(url) {
   if (!url || typeof url !== 'string') return null;
   const dpMatch = url.match(/(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})(?:[/?#]|$)/i);
@@ -310,7 +325,8 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
     if (fetchFn) {
       try {
         const res = await fetchFn(target);
-        const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
+        const resolvedUrl = res?.url || res?.location || (typeof res === 'string' ? res : '');
+        const asin = isAllowedAmazonUrl(resolvedUrl) ? parseAmazonAsin(resolvedUrl) : null;
         if (asin && productId) {
           lruSet(memoryAsinCache, productId, asin, 500);
           setCachedAsin(productId, asin, storage);
@@ -331,7 +347,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
             timeout: 6000,
             onload: res => {
               const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
-              const asin = parseAmazonAsin(loc);
+              const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
               if (asin && productId) {
                 lruSet(memoryAsinCache, productId, asin, 500);
                 setCachedAsin(productId, asin, storage);
@@ -344,7 +360,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
         } else if (typeof fetch !== 'undefined') {
           fetch(target, { method: 'HEAD', redirect: 'follow' })
             .then(res => {
-              const asin = parseAmazonAsin(res.url);
+              const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
               if (asin && productId) {
                 lruSet(memoryAsinCache, productId, asin, 500);
                 setCachedAsin(productId, asin, storage);

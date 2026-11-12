@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.492
+// @version      2.18.493
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5773,6 +5773,21 @@ const SHADOW_MODAL_STYLES = `
   }
 
   // Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.
+  function isAllowedAmazonUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    try {
+      const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+      const host = parsed.hostname.toLowerCase();
+      return host === 'amazon.de' || host.endsWith('.amazon.de') ||
+             host === 'amazon.com' || host.endsWith('.amazon.com') ||
+             host === 'amazon.fr' || host.endsWith('.amazon.fr') ||
+             host === 'amazon.it' || host.endsWith('.amazon.it') ||
+             host === 'amazon.co.uk' || host.endsWith('.amazon.co.uk');
+    } catch {
+      return false;
+    }
+  }
+
   function parseAmazonAsin(url) {
     if (!url || typeof url !== 'string') return null;
     const dpMatch = url.match(/(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})(?:[/?#]|$)/i);
@@ -5836,7 +5851,8 @@ const SHADOW_MODAL_STYLES = `
       if (fetchFn) {
         try {
           const res = await fetchFn(target);
-          const asin = parseAmazonAsin(res?.url || res?.location || (typeof res === 'string' ? res : ''));
+          const resolvedUrl = res?.url || res?.location || (typeof res === 'string' ? res : '');
+          const asin = isAllowedAmazonUrl(resolvedUrl) ? parseAmazonAsin(resolvedUrl) : null;
           if (asin && productId) {
             lruSet(memoryAsinCache, productId, asin, 500);
             setCachedAsin(productId, asin, storage);
@@ -5857,7 +5873,7 @@ const SHADOW_MODAL_STYLES = `
               timeout: 6000,
               onload: res => {
                 const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
-                const asin = parseAmazonAsin(loc);
+                const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
                 if (asin && productId) {
                   lruSet(memoryAsinCache, productId, asin, 500);
                   setCachedAsin(productId, asin, storage);
@@ -5870,7 +5886,7 @@ const SHADOW_MODAL_STYLES = `
           } else if (typeof fetch !== 'undefined') {
             fetch(target, { method: 'HEAD', redirect: 'follow' })
               .then(res => {
-                const asin = parseAmazonAsin(res.url);
+                const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
                 if (asin && productId) {
                   lruSet(memoryAsinCache, productId, asin, 500);
                   setCachedAsin(productId, asin, storage);
@@ -8016,7 +8032,6 @@ const SHADOW_MODAL_STYLES = `
 
     const promise = new Promise((resolve, reject) => {
       const payload = JSON.stringify({
-        api_key: trimmedKey,
         query: normalized,
         search_depth: searchDepth,
         include_answer: true,
@@ -8050,7 +8065,8 @@ const SHADOW_MODAL_STYLES = `
             url: TAVILY_API_ENDPOINT,
             headers: {
               'Content-Type': 'application/json',
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'Authorization': `Bearer ${trimmedKey}`
             },
             data: payload,
             timeout: timeoutMs,
@@ -8079,7 +8095,8 @@ const SHADOW_MODAL_STYLES = `
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${trimmedKey}`
           },
           body: payload,
           signal: controller?.signal
@@ -14746,13 +14763,24 @@ const SHADOW_MODAL_STYLES = `
       });
       if (res.ok) {
         const html = await res.text();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        const tpl = tempDiv.querySelector('template.f_lazyDialog');
-        const dialogNode = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : tempDiv.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+        let dialogNode = null;
+        let formUrl = null;
+        if (typeof DOMParser !== 'undefined') {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          doc.querySelectorAll('script').forEach(s => s.remove());
+          const tpl = doc.querySelector('template.f_lazyDialog');
+          const node = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : doc.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+          if (node) dialogNode = (typeof document !== 'undefined' && document.importNode ? document.importNode(node, true) : node);
+          formUrl = doc.querySelector('a')?.getAttribute('data-ajax-form-url');
+        } else {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = html;
+          const tpl = tempDiv.querySelector('template.f_lazyDialog');
+          dialogNode = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : tempDiv.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+          formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
+        }
         const dialogId = dialogNode?.id;
         const dialogHash = dialogNode?.getAttribute('data-instance-hash') || '1';
-        const formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
 
         if (dialogNode) {
           const dismissDialog = () => {
@@ -14784,7 +14812,16 @@ const SHADOW_MODAL_STYLES = `
             if (formRes.ok) {
               const formHtml = await formRes.text();
               const content = dialogNode.querySelector('.AbstractDialog_Content');
-              if (content) content.innerHTML = formHtml;
+              if (content) {
+                if (typeof DOMParser !== 'undefined') {
+                  const formDoc = new DOMParser().parseFromString(formHtml, 'text/html');
+                  formDoc.querySelectorAll('script').forEach(s => s.remove());
+                  const nodes = Array.from(formDoc.body.childNodes).map(n => (typeof document !== 'undefined' && document.importNode ? document.importNode(n, true) : n));
+                  content.replaceChildren(...nodes);
+                } else {
+                  content.innerHTML = formHtml;
+                }
+              }
             }
           }
           if (typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
@@ -15555,7 +15592,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.492';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.493';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

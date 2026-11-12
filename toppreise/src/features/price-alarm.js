@@ -366,13 +366,24 @@ export async function openPriceAlarmForProduct(pid, card = null) {
     });
     if (res.ok) {
       const html = await res.text();
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = html;
-      const tpl = tempDiv.querySelector('template.f_lazyDialog');
-      const dialogNode = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : tempDiv.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+      let dialogNode = null;
+      let formUrl = null;
+      if (typeof DOMParser !== 'undefined') {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        doc.querySelectorAll('script').forEach(s => s.remove());
+        const tpl = doc.querySelector('template.f_lazyDialog');
+        const node = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : doc.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+        if (node) dialogNode = (typeof document !== 'undefined' && document.importNode ? document.importNode(node, true) : node);
+        formUrl = doc.querySelector('a')?.getAttribute('data-ajax-form-url');
+      } else {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const tpl = tempDiv.querySelector('template.f_lazyDialog');
+        dialogNode = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : tempDiv.querySelector('.AbstractDialog_NewInfoMailFormDialog');
+        formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
+      }
       const dialogId = dialogNode?.id;
       const dialogHash = dialogNode?.getAttribute('data-instance-hash') || '1';
-      const formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
 
       if (dialogNode) {
         const dismissDialog = () => {
@@ -404,7 +415,16 @@ export async function openPriceAlarmForProduct(pid, card = null) {
           if (formRes.ok) {
             const formHtml = await formRes.text();
             const content = dialogNode.querySelector('.AbstractDialog_Content');
-            if (content) content.innerHTML = formHtml;
+            if (content) {
+              if (typeof DOMParser !== 'undefined') {
+                const formDoc = new DOMParser().parseFromString(formHtml, 'text/html');
+                formDoc.querySelectorAll('script').forEach(s => s.remove());
+                const nodes = Array.from(formDoc.body.childNodes).map(n => (typeof document !== 'undefined' && document.importNode ? document.importNode(n, true) : n));
+                content.replaceChildren(...nodes);
+              } else {
+                content.innerHTML = formHtml;
+              }
+            }
           }
         }
         if (typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
