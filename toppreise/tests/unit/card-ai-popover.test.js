@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatVerdictHtml } from '../../src/ui/badges/card-ai-popover.js';
+import { formatVerdictHtml, openAiPopover, closeAiPopover } from '../../src/ui/badges/card-ai-popover.js';
 
 describe('card-ai-popover: formatVerdictHtml', () => {
   it('handles null, undefined and empty input', () => {
@@ -36,5 +36,50 @@ describe('card-ai-popover: formatVerdictHtml', () => {
     const input = '**Fazit:**\n- Top Preis\n- Schneller Versand';
     const formatted = formatVerdictHtml(input);
     assert.equal(formatted, '<strong>Fazit:</strong>\n• Top Preis\n• Schneller Versand');
+  });
+});
+
+describe('card-ai-popover: lifecycle and closeAiPopover', () => {
+  it('opens and closes popover gracefully', () => {
+    const created = [];
+    const origDoc = globalThis.document;
+    globalThis.document = {
+      body: {
+        appendChild(el) { created.push(el); return el; }
+      },
+      addEventListener() {},
+      removeEventListener() {},
+      createElement(tag) {
+        return {
+          tagName: tag.toUpperCase(),
+          id: '',
+          style: {},
+          children: [],
+          appendChild(ch) { this.children.push(ch); return ch; },
+          setAttribute() {},
+          getAttribute() { return null; },
+          addEventListener() {},
+          removeEventListener() {},
+          remove() {
+            const idx = created.indexOf(this);
+            if (idx >= 0) created.splice(idx, 1);
+          }
+        };
+      },
+      getElementById(id) {
+        return created.find(c => c.id === id) || null;
+      }
+    };
+
+    try {
+      const popover = openAiPopover({ title: 'Test Smartphone', priceText: 'CHF 499' });
+      assert.ok(popover);
+      assert.equal(created.includes(popover), true);
+
+      closeAiPopover();
+      assert.equal(created.includes(popover), false);
+    } finally {
+      globalThis.document = origDoc;
+    }
   });
 });

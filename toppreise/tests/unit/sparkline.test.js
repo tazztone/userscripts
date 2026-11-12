@@ -123,6 +123,17 @@ describe('Interactive SVG Sparkline Component', () => {
     closeSparklinePopout();
   });
 
+  it('closeSparklinePopout cleans up popout element from document.body', () => {
+    const timeSeries = [[1700000000, 100], [1700100000, 90]];
+    globalThis.document.getElementById = id => globalThis.document.body.children.find(c => c.id === id) || null;
+    const popout = openSparklinePopout(timeSeries, { title: 'Test Product' });
+    assert.ok(popout);
+    assert.equal(globalThis.document.body.children.includes(popout), true);
+
+    closeSparklinePopout();
+    assert.equal(globalThis.document.body.children.includes(popout), false);
+  });
+
   it('returns null for insufficient data points (< 2)', () => {
     assert.equal(renderSparkline(null), null);
     assert.equal(renderSparkline([]), null);

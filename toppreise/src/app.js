@@ -37,6 +37,8 @@ import { renderFloatingCTA, hideFloatingCTA, startBatchCheck } from './ui/floati
 import { setupUI, openSettingsAt } from './ui/modal.js';
 import { showToast, getLastToastMessage } from './ui/toast.js';
 import { uiShadowRoot } from './ui/shell.js';
+import { closeSparklinePopout } from './ui/sparkline.js';
+import { closeAiPopover } from './ui/badges/card-ai-popover.js';
 import {
   CONFIG,
   SECRET_KEYS,
@@ -62,7 +64,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.497
+// @version      2.18.498
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -348,6 +350,9 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   function handleRouteTransition() {
+    closeSparklinePopout();
+    closeAiPopover();
+    uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
     cancelBatchDealCheck();
     clearDealerAutoTried();
     checkPageProfileTransition();
@@ -377,7 +382,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.497';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.498';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -389,6 +394,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
         openSettingsAt,
         saveConfigKey,
         initPageProfiles,
+        handleRouteTransition,
         startBatchCheck,
         runBatchDealCheck,
         cancelBatchDealCheck,
