@@ -100,19 +100,8 @@ export function renderDealerName(ctx, filters) {
     const hasUrl = /^https?:\/\//i.test(targetUrl);
     const isVisibleEl = el => {
       if (!el) return false;
-      if (el.style?.display === 'none') return false;
-      if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
-        try {
-          const cs = window.getComputedStyle(el);
-          if (cs.display === 'none' || cs.visibility === 'hidden') return false;
-        } catch { /* ignore */ }
-      }
-      if (typeof el.getBoundingClientRect === 'function') {
-        try {
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 && r.height === 0 && el.children?.length > 0) return false;
-        } catch { /* ignore */ }
-      }
+      if (el.style?.display === 'none' || el.hidden || el.classList?.contains('d-none')) return false;
+      if (el.offsetParent === null && !el.classList?.contains('tp-filtered')) return false;
       return true;
     };
     let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;

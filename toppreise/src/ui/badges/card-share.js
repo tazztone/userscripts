@@ -344,7 +344,7 @@ export function renderShareButton(ctx, cd) {
           }
         });
       });
-      if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
+      if (card.style && !card.style.position) card.style.position = 'relative';
       card.appendChild(shareBtn);
     }
     shareBtn.style.display = '';

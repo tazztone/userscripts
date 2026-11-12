@@ -140,6 +140,9 @@ export const STYLES_BADGES = `
   .badge-dif.tp-deal-badge-interactive * {
     pointer-events: none !important;
   }
+  :is(.Plugin_Product, .mixedBrowsingListProduct):has(> .tp-share-btn) {
+    position: relative !important;
+  }
   .tp-share-btn {
     position: absolute !important;
     bottom: 6px !important;

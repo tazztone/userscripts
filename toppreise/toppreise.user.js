@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.493
+// @version      2.18.494
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -428,6 +428,9 @@ const STYLES_BADGES = `
   .badge.badge-dif.tp-deal-badge-interactive *,
   .badge-dif.tp-deal-badge-interactive * {
     pointer-events: none !important;
+  }
+  :is(.Plugin_Product, .mixedBrowsingListProduct):has(> .tp-share-btn) {
+    position: relative !important;
   }
   .tp-share-btn {
     position: absolute !important;
@@ -9475,9 +9478,7 @@ const SHADOW_MODAL_STYLES = `
   function setHtmlIfChanged(el, newHtml) {
     if (!el) return;
     if (el._tpLastHtml === newHtml) return;
-    if (el.innerHTML !== newHtml) {
-      el.innerHTML = newHtml;
-    }
+    el.innerHTML = newHtml;
     el._tpLastHtml = newHtml;
   }
 
@@ -10343,7 +10344,7 @@ const SHADOW_MODAL_STYLES = `
             }
           });
         });
-        if (card.style.position === '' && getComputedStyle(card).position === 'static') card.style.position = 'relative';
+        if (card.style && !card.style.position) card.style.position = 'relative';
         card.appendChild(shareBtn);
       }
       shareBtn.style.display = '';
@@ -10717,19 +10718,8 @@ const SHADOW_MODAL_STYLES = `
       const hasUrl = /^https?:\/\//i.test(targetUrl);
       const isVisibleEl = el => {
         if (!el) return false;
-        if (el.style?.display === 'none') return false;
-        if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
-          try {
-            const cs = window.getComputedStyle(el);
-            if (cs.display === 'none' || cs.visibility === 'hidden') return false;
-          } catch { /* ignore */ }
-        }
-        if (typeof el.getBoundingClientRect === 'function') {
-          try {
-            const r = el.getBoundingClientRect();
-            if (r.width === 0 && r.height === 0 && el.children?.length > 0) return false;
-          } catch { /* ignore */ }
-        }
+        if (el.style?.display === 'none' || el.hidden || el.classList?.contains('d-none')) return false;
+        if (el.offsetParent === null && !el.classList?.contains('tp-filtered')) return false;
         return true;
       };
       let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;
@@ -15592,7 +15582,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.493';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.494';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
