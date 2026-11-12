@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.498
+// @version      2.18.499
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -460,6 +460,16 @@ const STYLES_BADGES = `
   .tp-share-btn:disabled {
     opacity: 0.4 !important;
     cursor: wait !important;
+  }
+  .tp-share-btn.tp-share-loading {
+    opacity: 0.85 !important;
+    pointer-events: auto !important;
+    cursor: wait !important;
+    animation: tp-share-pulse 1.2s infinite ease-in-out !important;
+  }
+  @keyframes tp-share-pulse {
+    0%, 100% { opacity: 0.85; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.92); }
   }
   .tp-share-btn.tp-share-done {
     opacity: 1 !important;
@@ -10322,7 +10332,8 @@ const SHADOW_MODAL_STYLES = `
           onDone?.(false);
           abortStale();
         } else if (err?.status === 429) {
-          controller.setError('⏳ Discord-Limit – später erneut versuchen');
+          const secs = Math.ceil((err?.retryAfterMs || 5000) / 1000);
+          controller.setError(`⏳ Discord-Limit – bitte ${secs}s warten`);
         } else if (!err?.status) {
           controller.setError('⚠️ Übermittlung nicht bestätigt — bitte Verbindung prüfen');
         } else {
@@ -10442,16 +10453,18 @@ const SHADOW_MODAL_STYLES = `
         shareBtn.addEventListener('click', async e => {
           e.preventDefault();
           e.stopPropagation();
+          if (shareBtn.disabled) return;
           shareBtn.disabled = true;
+          shareBtn.classList.add('tp-share-loading');
           await triggerDiscordShare({
             card,
             onDone: stillFresh => {
               shareBtn.disabled = false;
+              shareBtn.classList.remove('tp-share-loading');
               if (stillFresh) shareBtn.classList.add('tp-share-done');
             }
           });
         });
-        if (card.style && !card.style.position) card.style.position = 'relative';
         card.appendChild(shareBtn);
       }
       shareBtn.style.display = '';
@@ -12711,6 +12724,7 @@ const SHADOW_MODAL_STYLES = `
     const commentCount = dialog.querySelector('#tp-share-comment-count');
 
     const createdUrls = [];
+    let isSending = false;
 
     const cleanup = () => {
       while (createdUrls.length > 0) {
@@ -12720,6 +12734,7 @@ const SHADOW_MODAL_STYLES = `
     };
 
     const close = () => {
+      isSending = false;
       cleanup();
       if (typeof dialog.close === 'function') {
         try { dialog.close(); } catch {}
@@ -12728,6 +12743,7 @@ const SHADOW_MODAL_STYLES = `
     };
 
     const handleCancel = () => {
+      if (isSending) return;
       close();
       onCancel?.();
     };
@@ -12845,6 +12861,7 @@ const SHADOW_MODAL_STYLES = `
       },
 
       setError(errorMessage) {
+        isSending = false;
         if (errorEl) {
           errorEl.textContent = errorMessage || 'Fehler beim Senden';
           errorEl.style.display = '';
@@ -12857,6 +12874,7 @@ const SHADOW_MODAL_STYLES = `
       },
 
       setSending(channelId) {
+        isSending = true;
         if (errorEl) errorEl.style.display = 'none';
         channelBtns.forEach(btn => {
           btn.disabled = true;
@@ -12871,6 +12889,7 @@ const SHADOW_MODAL_STYLES = `
 
     channelBtns.forEach(btn => {
       btn.addEventListener('click', () => {
+        if (isSending) return;
         const channelId = btn.dataset.channelId;
         const targetChannel = channels.find(c => c.id === channelId);
         if (!targetChannel) return;
@@ -15161,7 +15180,11 @@ const SHADOW_MODAL_STYLES = `
     shareBtn.addEventListener('click', async e => {
       e.preventDefault();
       e.stopPropagation();
-      document.querySelectorAll('.tp-detail-share-btn').forEach(b => { b.disabled = true; });
+      if (shareBtn.disabled) return;
+      document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
+        b.disabled = true;
+        b.classList.add('tp-share-loading');
+      });
       await triggerDiscordShare({
         pid,
         cardPrice: currentPrice,
@@ -15174,6 +15197,7 @@ const SHADOW_MODAL_STYLES = `
         onDone: stillFresh => {
           document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
             b.disabled = false;
+            b.classList.remove('tp-share-loading');
             if (stillFresh) b.classList.add('tp-share-done');
           });
         }
@@ -15691,7 +15715,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.498';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.499';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

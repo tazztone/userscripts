@@ -205,7 +205,11 @@ function createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url
   shareBtn.addEventListener('click', async e => {
     e.preventDefault();
     e.stopPropagation();
-    document.querySelectorAll('.tp-detail-share-btn').forEach(b => { b.disabled = true; });
+    if (shareBtn.disabled) return;
+    document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
+      b.disabled = true;
+      b.classList.add('tp-share-loading');
+    });
     await triggerDiscordShare({
       pid,
       cardPrice: currentPrice,
@@ -218,6 +222,7 @@ function createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url
       onDone: stillFresh => {
         document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
           b.disabled = false;
+          b.classList.remove('tp-share-loading');
           if (stillFresh) b.classList.add('tp-share-done');
         });
       }

@@ -84,6 +84,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   const commentCount = dialog.querySelector('#tp-share-comment-count');
 
   const createdUrls = [];
+  let isSending = false;
 
   const cleanup = () => {
     while (createdUrls.length > 0) {
@@ -93,6 +94,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   };
 
   const close = () => {
+    isSending = false;
     cleanup();
     if (typeof dialog.close === 'function') {
       try { dialog.close(); } catch {}
@@ -101,6 +103,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   };
 
   const handleCancel = () => {
+    if (isSending) return;
     close();
     onCancel?.();
   };
@@ -218,6 +221,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
     },
 
     setError(errorMessage) {
+      isSending = false;
       if (errorEl) {
         errorEl.textContent = errorMessage || 'Fehler beim Senden';
         errorEl.style.display = '';
@@ -230,6 +234,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
     },
 
     setSending(channelId) {
+      isSending = true;
       if (errorEl) errorEl.style.display = 'none';
       channelBtns.forEach(btn => {
         btn.disabled = true;
@@ -244,6 +249,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
 
   channelBtns.forEach(btn => {
     btn.addEventListener('click', () => {
+      if (isSending) return;
       const channelId = btn.dataset.channelId;
       const targetChannel = channels.find(c => c.id === channelId);
       if (!targetChannel) return;

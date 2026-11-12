@@ -215,7 +215,8 @@ export async function triggerDiscordShare({
         onDone?.(false);
         abortStale();
       } else if (err?.status === 429) {
-        controller.setError('⏳ Discord-Limit – später erneut versuchen');
+        const secs = Math.ceil((err?.retryAfterMs || 5000) / 1000);
+        controller.setError(`⏳ Discord-Limit – bitte ${secs}s warten`);
       } else if (!err?.status) {
         controller.setError('⚠️ Übermittlung nicht bestätigt — bitte Verbindung prüfen');
       } else {
@@ -335,16 +336,18 @@ export function renderShareButton(ctx, cd) {
       shareBtn.addEventListener('click', async e => {
         e.preventDefault();
         e.stopPropagation();
+        if (shareBtn.disabled) return;
         shareBtn.disabled = true;
+        shareBtn.classList.add('tp-share-loading');
         await triggerDiscordShare({
           card,
           onDone: stillFresh => {
             shareBtn.disabled = false;
+            shareBtn.classList.remove('tp-share-loading');
             if (stillFresh) shareBtn.classList.add('tp-share-done');
           }
         });
       });
-      if (card.style && !card.style.position) card.style.position = 'relative';
       card.appendChild(shareBtn);
     }
     shareBtn.style.display = '';

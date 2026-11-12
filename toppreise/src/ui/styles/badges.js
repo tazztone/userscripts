@@ -172,6 +172,16 @@ export const STYLES_BADGES = `
     opacity: 0.4 !important;
     cursor: wait !important;
   }
+  .tp-share-btn.tp-share-loading {
+    opacity: 0.85 !important;
+    pointer-events: auto !important;
+    cursor: wait !important;
+    animation: tp-share-pulse 1.2s infinite ease-in-out !important;
+  }
+  @keyframes tp-share-pulse {
+    0%, 100% { opacity: 0.85; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.92); }
+  }
   .tp-share-btn.tp-share-done {
     opacity: 1 !important;
     pointer-events: auto !important;

@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTextIfChanged, setHtmlIfChanged, renderEmptyState } from '../../src/ui/badges.js';
+import { renderShareButton } from '../../src/ui/badges/card-share.js';
 describe('Badges helpers', () => {
   describe('setHtmlIfChanged', () => {
     it('sets html when different', () => {
@@ -507,6 +508,70 @@ describe('Verdict badges F-03 & F-04', () => {
       assert.equal(unverifiedCtx.card.classList.contains('tp-heat-blend'), false);
     } finally {
       CONFIG.HEATMAP_ENABLED = prevHeat;
+    }
+  });
+});
+
+describe('renderShareButton UX and positioning', () => {
+  it('renders share button without mutating card.style.position inline', () => {
+    const card = {
+      style: {},
+      children: [],
+      classList: {
+        classes: new Set(),
+        add(c) { this.classes.add(c); },
+        remove(c) { this.classes.delete(c); },
+        toggle(c, v) { if (v) this.classes.add(c); else this.classes.delete(c); },
+        contains(c) { return this.classes.has(c); }
+      },
+      querySelector(sel) {
+        if (sel === ':scope > .tp-share-btn') return this.children.find(c => c.className === 'tp-share-btn') || null;
+        return null;
+      },
+      appendChild(ch) { this.children.push(ch); return ch; }
+    };
+
+    const origDoc = globalThis.document;
+    globalThis.document = {
+      createElement(tag) {
+        return {
+          tagName: tag.toUpperCase(),
+          className: '',
+          style: {},
+          title: '',
+          type: '',
+          textContent: '',
+          classList: {
+            classes: new Set(),
+            add(c) { this.classes.add(c); },
+            remove(c) { this.classes.delete(c); },
+            toggle(c, v) { if (v) this.classes.add(c); else this.classes.delete(c); },
+            contains(c) { return this.classes.has(c); }
+          },
+          addEventListener() {},
+          removeEventListener() {},
+          remove() {}
+        };
+      }
+    };
+
+    try {
+      const ctx = {
+        card,
+        pid: '999',
+        cardPrice: 49.90,
+        dealData: { kind: 'new-low' },
+        stats: { tiefstpreis: 59.90 }
+      };
+      renderShareButton(ctx, { basisMatches: true, cardPriceBasis: 'shipping' });
+
+      const shareBtn = card.querySelector(':scope > .tp-share-btn');
+      assert.ok(shareBtn);
+      assert.equal(shareBtn.className, 'tp-share-btn');
+      // style.position should NOT be set inline (handled by CSS :has())
+      assert.equal(card.style.position, undefined);
+    } finally {
+      globalThis.document = origDoc;
     }
   });
 });
