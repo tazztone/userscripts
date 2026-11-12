@@ -97,6 +97,7 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
     const now = Date.now();
     const maxAgeMs = 14 * 24 * 3600 * 1000;
     const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+    const negTtlMs = (CONFIG?.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000;
     const entries = [];
     const keysToRemove = [];
 
@@ -108,7 +109,8 @@ export function prunePriceStatsCache(storage = null, forceEvict = false) {
           const fastTime = raw.match(/^\{"time":(\d+)/);
           const itemTime = fastTime ? Number(fastTime[1]) : (JSON.parse(raw || '{}').time || 0);
           const age = now - itemTime;
-          if (!itemTime || age > maxAgeMs) {
+          const isUnavailable = raw.includes('"unavailable":true');
+          if (!itemTime || age > maxAgeMs || (isUnavailable && age > negTtlMs)) {
             keysToRemove.push(key);
           } else {
             entries.push({ key, time: itemTime });

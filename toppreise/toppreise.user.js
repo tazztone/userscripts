@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.496
+// @version      2.18.497
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3496,6 +3496,7 @@ const SHADOW_MODAL_STYLES = `
       const now = Date.now();
       const maxAgeMs = 14 * 24 * 3600 * 1000;
       const diskLimit = CONFIG?.CACHE_DISK_LIMIT ?? 300;
+      const negTtlMs = (CONFIG?.NEGATIVE_CACHE_HOURS || 2) * 3600 * 1000;
       const entries = [];
       const keysToRemove = [];
 
@@ -3507,7 +3508,8 @@ const SHADOW_MODAL_STYLES = `
             const fastTime = raw.match(/^\{"time":(\d+)/);
             const itemTime = fastTime ? Number(fastTime[1]) : (JSON.parse(raw || '{}').time || 0);
             const age = now - itemTime;
-            if (!itemTime || age > maxAgeMs) {
+            const isUnavailable = raw.includes('"unavailable":true');
+            if (!itemTime || age > maxAgeMs || (isUnavailable && age > negTtlMs)) {
               keysToRemove.push(key);
             } else {
               entries.push({ key, time: itemTime });
@@ -4972,17 +4974,18 @@ const SHADOW_MODAL_STYLES = `
             card._tpUseShipping = false;
             return false;
           }
-          if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+          if (typeof shpContainer.offsetParent !== 'undefined') {
+            if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) {
+              card._tpUseShipping = false;
+              return false;
+            }
+          } else if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
             try {
               if (window.getComputedStyle(shpContainer).display === 'none') {
                 card._tpUseShipping = false;
                 return false;
               }
             } catch { /* ignore */ }
-          }
-          if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) {
-            card._tpUseShipping = false;
-            return false;
           }
         }
       }
@@ -15685,7 +15688,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.496';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.497';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

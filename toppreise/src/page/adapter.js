@@ -46,17 +46,18 @@ export function isShippingPriceActive(card = null) {
           card._tpUseShipping = false;
           return false;
         }
-        if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+        if (typeof shpContainer.offsetParent !== 'undefined') {
+          if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) {
+            card._tpUseShipping = false;
+            return false;
+          }
+        } else if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
           try {
             if (window.getComputedStyle(shpContainer).display === 'none') {
               card._tpUseShipping = false;
               return false;
             }
           } catch { /* ignore */ }
-        }
-        if (shpContainer.offsetParent === null && prdContainer?.offsetParent !== null) {
-          card._tpUseShipping = false;
-          return false;
         }
       }
     }

@@ -416,6 +416,23 @@ describe('Bounded Cache Module', () => {
       assert.notEqual(s.getItem('tp_hist_v1_leg_new'), null);
     });
 
+    it('eagerly purges unavailable (404) entries older than NEGATIVE_CACHE_HOURS', () => {
+      const s = memStorage();
+      const now = Date.now();
+      const HOUR = 3600 * 1000;
+      // Stored unavailable 3 hours ago (> 2h default TTL)
+      s.setItem('tp_hist_v1_unavail_old', `{"time":${now - 3 * HOUR},"unavailable":true,"isShippingPrice":false}`);
+      // Stored unavailable 1 hour ago (< 2h default TTL)
+      s.setItem('tp_hist_v1_unavail_fresh', `{"time":${now - 1 * HOUR},"unavailable":true,"isShippingPrice":false}`);
+      // Stored regular price stats 5 days ago (< 14d maxAge)
+      s.setItem('tp_hist_v1_valid_stat', `{"time":${now - 5 * 24 * HOUR},"tiefstpreis":199}`);
+
+      prunePriceStatsCache(s);
+      assert.equal(s.getItem('tp_hist_v1_unavail_old'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_unavail_fresh'), null);
+      assert.notEqual(s.getItem('tp_hist_v1_valid_stat'), null);
+    });
+
     it('respects configurable CACHE_DISK_LIMIT and prunes to 80% low-water mark', () => {
       const s = memStorage();
       const now = Date.now();

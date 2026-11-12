@@ -38,6 +38,56 @@ describe('Page Adapter Layer', () => {
         assert.equal(isShippingPriceActive(), false);
       });
     });
+
+    it('detects hidden shipping container via offsetParent without calling getComputedStyle', () => {
+      let computedStyleCalled = false;
+      const origGetComputedStyle = globalThis.window?.getComputedStyle;
+      if (globalThis.window) {
+        globalThis.window.getComputedStyle = () => {
+          computedStyleCalled = true;
+          return { display: 'none' };
+        };
+      }
+      try {
+        const card = {
+          _tpPriceInfo: {
+            mainShipping: { closest: () => ({ offsetParent: null, style: {} }) },
+            mainProduct: { closest: () => ({ offsetParent: {}, style: {} }) }
+          }
+        };
+        withConfig('USE_SHIPPING_PRICE', true, () => {
+          assert.equal(isShippingPriceActive(card), false);
+          assert.equal(computedStyleCalled, false);
+        });
+      } finally {
+        if (globalThis.window) globalThis.window.getComputedStyle = origGetComputedStyle;
+      }
+    });
+
+    it('falls back to getComputedStyle when offsetParent is undefined', () => {
+      let computedStyleCalled = false;
+      const origWindow = globalThis.window;
+      globalThis.window = {
+        getComputedStyle: () => {
+          computedStyleCalled = true;
+          return { display: 'none' };
+        }
+      };
+      try {
+        const card = {
+          _tpPriceInfo: {
+            mainShipping: { closest: () => ({ style: {} }) },
+            mainProduct: { closest: () => ({ style: {} }) }
+          }
+        };
+        withConfig('USE_SHIPPING_PRICE', true, () => {
+          assert.equal(isShippingPriceActive(card), false);
+          assert.equal(computedStyleCalled, true);
+        });
+      } finally {
+        globalThis.window = origWindow;
+      }
+    });
   });
 
   describe('Page detection & URL patterns', () => {
