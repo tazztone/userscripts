@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.494
+// @version      2.18.495
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2837,12 +2837,51 @@ const SHADOW_MODAL_STYLES = `
     const n = points.length;
     const result = new Array(n);
     const win = [];
+
+    const insertSorted = (arr, val) => {
+      let low = 0;
+      let high = arr.length;
+      while (low < high) {
+        const mid = (low + high) >> 1;
+        if (arr[mid] < val) low = mid + 1;
+        else high = mid;
+      }
+      arr.splice(low, 0, val);
+    };
+
+    const removeSorted = (arr, val) => {
+      let low = 0;
+      let high = arr.length;
+      while (low < high) {
+        const mid = (low + high) >> 1;
+        if (arr[mid] < val) low = mid + 1;
+        else high = mid;
+      }
+      if (low < arr.length && arr[low] === val) {
+        arr.splice(low, 1);
+      }
+    };
+
+    let prevStart = 0;
+    let prevEnd = -1;
+
     for (let m = 0; m < n; m++) {
-      win.length = 0;
       const start = Math.max(0, m - 15);
       const end = Math.min(n - 1, m + 15);
-      for (let w = start; w <= end; w++) win.push(points[w][1]);
-      win.sort((a, b) => a - b);
+
+      if (m === 0) {
+        for (let w = start; w <= end; w++) win.push(points[w][1]);
+        win.sort((a, b) => a - b);
+      } else {
+        for (let w = prevStart; w < start; w++) {
+          removeSorted(win, points[w][1]);
+        }
+        for (let w = prevEnd + 1; w <= end; w++) {
+          insertSorted(win, points[w][1]);
+        }
+      }
+      prevStart = start;
+      prevEnd = end;
       result[m] = medianOf(win);
     }
     return result;
@@ -3351,6 +3390,12 @@ const SHADOW_MODAL_STYLES = `
     map.delete(key);
     map.set(key, val);
     while (map.size > cap) map.delete(map.keys().next().value);
+  }
+
+  function trimMemoryCache(cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
+    while (memoryCache.size > cap) {
+      memoryCache.delete(memoryCache.keys().next().value);
+    }
   }
 
   const memoryCache = new Map();
@@ -4332,6 +4377,11 @@ const SHADOW_MODAL_STYLES = `
     }
   };
 
+  let cacheLimitListener = null;
+  function setCacheLimitListener(fn) {
+    cacheLimitListener = typeof fn === 'function' ? fn : null;
+  }
+
 
   function updateBodyClasses() {
     if (typeof document === 'undefined' || !document.body) return;
@@ -4375,6 +4425,9 @@ const SHADOW_MODAL_STYLES = `
     }
     if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
       updateBodyClasses();
+    }
+    if (key === 'CACHE_MEMORY_LIMIT') {
+      cacheLimitListener?.(val);
     }
     if (!options.skipRender && !FAST_SYNC_KEYS.has(key)) {
       triggerProcessListings();
@@ -5303,12 +5356,16 @@ const SHADOW_MODAL_STYLES = `
     typeof stats?.isShippingPrice !== 'boolean'
     || stats.isShippingPrice === (cardPriceBasis === 'shipping');
   // Single scan-eligibility resolver (counter + scanner queue share it):
-  function getCardStats(pid, cardBasis) {
+  function getCardStats(pid, cardBasis, allowCrossBasis = false) {
     if (!pid) return null;
     const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
     if (specific) return specific;
     const fallback = getCachedPriceStats(pid, false, null, cardBasis !== 'shipping');
-    return fallback && !fallback.unavailable ? fallback : null;
+    if (!fallback || fallback.unavailable) return null;
+    if (typeof fallback.isShippingPrice !== 'boolean' || allowCrossBasis) {
+      return fallback;
+    }
+    return null;
   }
 
   // usable stats verify, fresh unavailable markers wait out the negative TTL,
@@ -5320,7 +5377,7 @@ const SHADOW_MODAL_STYLES = `
     if (!(cardPrice > 0) || !cardBasis) {
       return { state: 'verified', canScan: false, retryAt: null, reason: 'no-price' };
     }
-    const stats = getCardStats(pid, cardBasis);
+    const stats = getCardStats(pid, cardBasis, true);
     if (stats && !basisMatchesFor(stats, cardBasis)) {
       return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
     }
@@ -6268,6 +6325,9 @@ const SHADOW_MODAL_STYLES = `
       const resp = await fetch(feedUrl, { credentials: 'same-origin' });
       if (!resp.ok) return;
       hydratedFeedUrls.add(feedUrl);
+      while (hydratedFeedUrls.size > 500) {
+        hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
+      }
       const html = await resp.text();
       const stored = parseCategoryIdentsFromText(html);
 
@@ -9542,6 +9602,12 @@ const SHADOW_MODAL_STYLES = `
   // Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
   // ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
   const dealerAutoTried = new Set();
+  function boundedSetAdd(set, key, limit = 500) {
+    set.add(key);
+    while (set.size > limit) {
+      set.delete(set.values().next().value);
+    }
+  }
   function clearDealerMemory() {
     dealerCache.clear();
     dealerHydrated.clear();
@@ -10635,8 +10701,7 @@ const SHADOW_MODAL_STYLES = `
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
     let dealer = extractDealer(card, useShipping);
     if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
-      if (dealerHydrated.size > 1000) dealerHydrated.clear();
-      dealerHydrated.add(dKey);
+      boundedSetAdd(dealerHydrated, dKey, 500);
       const stored = getCachedDealer(pid, useShipping);
       if (stored?.dealer) lruSet(dealerCache, dKey, stored);
     }
@@ -10705,8 +10770,7 @@ const SHADOW_MODAL_STYLES = `
       const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
       let dealer = extractDealer(card, useShipping);
       if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
-        if (dealerHydrated.size > 1000) dealerHydrated.clear();
-        dealerHydrated.add(dKey);
+        boundedSetAdd(dealerHydrated, dKey, 500);
         const stored = getCachedDealer(pid, useShipping);
         if (stored?.dealer) lruSet(dealerCache, dKey, stored);
       }
@@ -10857,7 +10921,7 @@ const SHADOW_MODAL_STYLES = `
           : 0;
         const meetsDealThreshold = effectivePct >= realDealMinDiscount();
         if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
-          dealerAutoTried.add(dKey);
+          boundedSetAdd(dealerAutoTried, dKey, 500);
           btn.disabled = true;
           loadDealer();
         }
@@ -15306,6 +15370,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   updateBodyClasses();
+  setCacheLimitListener(trimMemoryCache);
 
   let isModifyingDOM = false;
   let mainObserver = null;
@@ -15582,7 +15647,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.494';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.495';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

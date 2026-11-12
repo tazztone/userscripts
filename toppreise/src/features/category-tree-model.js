@@ -352,6 +352,9 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
     const resp = await fetch(feedUrl, { credentials: 'same-origin' });
     if (!resp.ok) return;
     hydratedFeedUrls.add(feedUrl);
+    while (hydratedFeedUrls.size > 500) {
+      hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
+    }
     const html = await resp.text();
     const stored = parseCategoryIdentsFromText(html);
 

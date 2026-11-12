@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   MAX_MEMORY_CACHE_ITEMS,
   memoryCache,
+  trimMemoryCache,
   isCacheEntryFresh,
   getCachedPriceStats,
   setCachedPriceStats,
@@ -91,6 +92,19 @@ describe('Bounded Cache Module', () => {
           assert.equal(memoryCache.has(statsKey('m52')), true);
         });
       });
+    });
+
+    it('trimMemoryCache evicts excess entries down to cap immediately', () => {
+      memoryCache.clear();
+      for (let i = 1; i <= 50; i++) {
+        memoryCache.set(`key_${i}`, i);
+      }
+      assert.equal(memoryCache.size, 50);
+      trimMemoryCache(20);
+      assert.equal(memoryCache.size, 20);
+      assert.equal(memoryCache.has('key_1'), false);
+      assert.equal(memoryCache.has('key_50'), true);
+      memoryCache.clear();
     });
   });
 

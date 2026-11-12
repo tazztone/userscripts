@@ -28,6 +28,12 @@ export function lruSet(map, key, val, cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_M
   while (map.size > cap) map.delete(map.keys().next().value);
 }
 
+export function trimMemoryCache(cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
+  while (memoryCache.size > cap) {
+    memoryCache.delete(memoryCache.keys().next().value);
+  }
+}
+
 export const memoryCache = new Map();
 // Default-arg `window.localStorage` access itself can throw (blocked
 // third-party storage); resolve lazily inside a guard so persistence

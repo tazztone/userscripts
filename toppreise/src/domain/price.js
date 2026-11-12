@@ -177,12 +177,51 @@ export function rollingMedians(points) {
   const n = points.length;
   const result = new Array(n);
   const win = [];
+
+  const insertSorted = (arr, val) => {
+    let low = 0;
+    let high = arr.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (arr[mid] < val) low = mid + 1;
+      else high = mid;
+    }
+    arr.splice(low, 0, val);
+  };
+
+  const removeSorted = (arr, val) => {
+    let low = 0;
+    let high = arr.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (arr[mid] < val) low = mid + 1;
+      else high = mid;
+    }
+    if (low < arr.length && arr[low] === val) {
+      arr.splice(low, 1);
+    }
+  };
+
+  let prevStart = 0;
+  let prevEnd = -1;
+
   for (let m = 0; m < n; m++) {
-    win.length = 0;
     const start = Math.max(0, m - 15);
     const end = Math.min(n - 1, m + 15);
-    for (let w = start; w <= end; w++) win.push(points[w][1]);
-    win.sort((a, b) => a - b);
+
+    if (m === 0) {
+      for (let w = start; w <= end; w++) win.push(points[w][1]);
+      win.sort((a, b) => a - b);
+    } else {
+      for (let w = prevStart; w < start; w++) {
+        removeSorted(win, points[w][1]);
+      }
+      for (let w = prevEnd + 1; w <= end; w++) {
+        insertSorted(win, points[w][1]);
+      }
+    }
+    prevStart = start;
+    prevEnd = end;
     result[m] = medianOf(win);
   }
   return result;

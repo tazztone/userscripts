@@ -212,6 +212,11 @@ export const notifyAlarmConfig = () => {
   }
 };
 
+let cacheLimitListener = null;
+export function setCacheLimitListener(fn) {
+  cacheLimitListener = typeof fn === 'function' ? fn : null;
+}
+
 
 export function updateBodyClasses() {
   if (typeof document === 'undefined' || !document.body) return;
@@ -256,6 +261,9 @@ export function updateConfig(key, val, options = {}) {
   }
   if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {
     updateBodyClasses();
+  }
+  if (key === 'CACHE_MEMORY_LIMIT') {
+    cacheLimitListener?.(val);
   }
   if (!options.skipRender && !FAST_SYNC_KEYS.has(key)) {
     triggerProcessListings();

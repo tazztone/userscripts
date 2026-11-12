@@ -296,12 +296,16 @@ export const basisMatchesFor = (stats, cardPriceBasis) =>
   typeof stats?.isShippingPrice !== 'boolean'
   || stats.isShippingPrice === (cardPriceBasis === 'shipping');
 // Single scan-eligibility resolver (counter + scanner queue share it):
-export function getCardStats(pid, cardBasis) {
+export function getCardStats(pid, cardBasis, allowCrossBasis = false) {
   if (!pid) return null;
   const specific = getCachedPriceStats(pid, false, null, cardBasis === 'shipping');
   if (specific) return specific;
   const fallback = getCachedPriceStats(pid, false, null, cardBasis !== 'shipping');
-  return fallback && !fallback.unavailable ? fallback : null;
+  if (!fallback || fallback.unavailable) return null;
+  if (typeof fallback.isShippingPrice !== 'boolean' || allowCrossBasis) {
+    return fallback;
+  }
+  return null;
 }
 
 // usable stats verify, fresh unavailable markers wait out the negative TTL,
@@ -313,7 +317,7 @@ export function scanEligibility(card) {
   if (!(cardPrice > 0) || !cardBasis) {
     return { state: 'verified', canScan: false, retryAt: null, reason: 'no-price' };
   }
-  const stats = getCardStats(pid, cardBasis);
+  const stats = getCardStats(pid, cardBasis, true);
   if (stats && !basisMatchesFor(stats, cardBasis)) {
     return { state: 'basis-mismatch', canScan: true, retryAt: null, reason: 'basis-mismatch' };
   }

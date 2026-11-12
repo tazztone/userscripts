@@ -8,7 +8,7 @@ import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentC
 import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfo } from '../../page/product-offers.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
 import { setTextIfChanged, setTitleIfChanged } from './dom-helpers.js';
-import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried } from './deal-badge.js';
+import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried, boundedSetAdd } from './deal-badge.js';
 
 const dealerPromises = new Map();
 
@@ -17,8 +17,7 @@ export async function ensureDealerInfo(card, pid, useShipping) {
   const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
   let dealer = extractDealer(card, useShipping);
   if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
-    if (dealerHydrated.size > 1000) dealerHydrated.clear();
-    dealerHydrated.add(dKey);
+    boundedSetAdd(dealerHydrated, dKey, 500);
     const stored = getCachedDealer(pid, useShipping);
     if (stored?.dealer) lruSet(dealerCache, dKey, stored);
   }
@@ -87,8 +86,7 @@ export function renderDealerName(ctx, filters) {
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
     let dealer = extractDealer(card, useShipping);
     if (!dealer && !dealerCache.has(dKey) && !dealerHydrated.has(dKey)) {
-      if (dealerHydrated.size > 1000) dealerHydrated.clear();
-      dealerHydrated.add(dKey);
+      boundedSetAdd(dealerHydrated, dKey, 500);
       const stored = getCachedDealer(pid, useShipping);
       if (stored?.dealer) lruSet(dealerCache, dKey, stored);
     }
@@ -239,7 +237,7 @@ export function renderDealerName(ctx, filters) {
         : 0;
       const meetsDealThreshold = effectivePct >= realDealMinDiscount();
       if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
-        dealerAutoTried.add(dKey);
+        boundedSetAdd(dealerAutoTried, dKey, 500);
         btn.disabled = true;
         loadDealer();
       }

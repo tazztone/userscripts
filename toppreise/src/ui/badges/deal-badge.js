@@ -31,6 +31,12 @@ export const dealerHydrated = new Set();
 // Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
 // ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
 export const dealerAutoTried = new Set();
+export function boundedSetAdd(set, key, limit = 500) {
+  set.add(key);
+  while (set.size > limit) {
+    set.delete(set.values().next().value);
+  }
+}
 export function clearDealerMemory() {
   dealerCache.clear();
   dealerHydrated.clear();
