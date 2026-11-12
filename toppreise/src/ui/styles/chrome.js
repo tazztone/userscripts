@@ -199,33 +199,41 @@ export const STYLES_CHROME = `
   #tp-detail-subline,
   .tp-detail-subline {
     margin: 6px auto !important;
-    padding: 3px 6px !important;
-    border-radius: var(--tp-r-sm, 6px) !important;
+    padding: 0 !important;
     font: 600 11px/1.35 var(--tp-font) !important;
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    gap: 4px !important;
-    background: rgba(148, 163, 184, 0.12) !important;
-    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    gap: 6px !important;
+    background: transparent !important;
+    border: none !important;
     color: var(--tp-txt-mid) !important;
     max-width: 100% !important;
-    white-space: normal !important;
-    word-break: normal !important;
-    overflow-wrap: break-word !important;
     box-sizing: border-box !important;
   }
-  #tp-detail-subline.tp-is-record-low,
-  .tp-detail-subline.tp-is-record-low {
+  #tp-detail-subline .tp-subline-pill,
+  .tp-detail-subline .tp-subline-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 3px 8px !important;
+    border-radius: var(--tp-r-sm, 6px) !important;
+    background: rgba(148, 163, 184, 0.12) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    color: inherit !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+  #tp-detail-subline.tp-is-record-low .tp-subline-pill,
+  .tp-detail-subline.tp-is-record-low .tp-subline-pill {
     background: rgba(16, 185, 129, 0.12) !important;
     border-color: rgba(16, 185, 129, 0.35) !important;
     color: #065f46 !important;
     font-weight: 700 !important;
   }
-  #tp-detail-subline.tp-is-markup,
-  .tp-detail-subline.tp-is-markup {
+  #tp-detail-subline.tp-is-markup .tp-subline-pill,
+  .tp-detail-subline.tp-is-markup .tp-subline-pill {
     background: rgba(245, 158, 11, 0.12) !important;
     border-color: rgba(245, 158, 11, 0.35) !important;
     color: #92400e !important;

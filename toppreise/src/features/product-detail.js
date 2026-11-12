@@ -17,7 +17,7 @@ import { openSparklinePopout, renderSparkline } from '../ui/sparkline.js';
 import { extractShareData } from '../page/product-offers.js';
 import { triggerDiscordShare } from '../ui/badges/card-share.js';
 import { getSharedDeal, fullSeries } from '../scanner/cache.js';
-import { setTextIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js';
+import { setHtmlIfChanged, setTextIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js';
 
 let detailRun = 0;
 
@@ -128,7 +128,7 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
   const showMedian = !!(stats.medianPrice && stats.medianPrice > currentPrice);
   const horizon = medianHorizonLabel(stats);
 
-  let sublineText = '';
+  let sublineHtml = '';
   let sublineTitle = '';
   let sublineClass = '';
 
@@ -141,21 +141,21 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
     }
     if (showMedian) {
       const dMed = getLevelPct(currentPrice, stats);
-      parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
+      parts.push(`📊 (Ø: ${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
     }
     if (parts.length === 0) {
       parts.push('Allzeit-Tiefstpreis bestätigt');
     }
-    sublineText = parts.join(' · ');
+    sublineHtml = parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join('');
     sublineTitle = 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.';
   } else {
     sublineClass = 'tp-detail-subline tp-is-markup';
     const markupPct = pctRise(stats.tiefstpreis, currentPrice);
     const parts = [`⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`];
     if (stats.medianPrice) {
-      parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}`);
+      parts.push(`📊 (Ø: ${horizon}): CHF ${stats.medianPrice.toFixed(2)}`);
     }
-    sublineText = parts.join(' · ');
+    sublineHtml = parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join('');
     sublineTitle = `Aktueller Preis liegt über dem historischen Tiefstpreis von CHF ${stats.tiefstpreis.toFixed(2)}.`;
   }
 
@@ -168,7 +168,7 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
       document.body?.appendChild(subline);
     }
     subline.className = sublineClass;
-    setTextIfChanged(subline, sublineText);
+    setHtmlIfChanged(subline, sublineHtml);
     setTitleIfChanged(subline, sublineTitle);
     return;
   }
@@ -189,7 +189,7 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
       else parent.appendChild(subline);
     }
     subline.className = sublineClass;
-    setTextIfChanged(subline, sublineText);
+    setHtmlIfChanged(subline, sublineHtml);
     setTitleIfChanged(subline, sublineTitle);
   }
 }

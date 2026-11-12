@@ -116,13 +116,35 @@ describe('renderCardEffects median line + sparkline signature', () => {
   let realDocument;
 
   const mockEl = (tag = 'div') => {
+    let _text = '';
     const el = {
       tagName: tag.toUpperCase(),
       children: [],
       dataset: {},
       attributes: {},
       className: '',
-      textContent: '',
+      get textContent() {
+        if (el.children.length > 0) return el.children.map(c => c.textContent).join(' ');
+        return _text;
+      },
+      set textContent(val) {
+        _text = String(val ?? '');
+      },
+      get innerHTML() {
+        return el.children.map(c => `<${c.tagName.toLowerCase()}${c.className ? ` class="${c.className}"` : ''}>${c.textContent}</${c.tagName.toLowerCase()}>`).join('');
+      },
+      set innerHTML(html) {
+        el.children = [];
+        const matches = [...String(html).matchAll(/<([a-z0-9]+)(?: class="([^"]*)")?>([^<]*)<\/\1>/gi)];
+        for (const m of matches) {
+          const child = mockEl(m[1]);
+          if (m[2]) child.className = m[2];
+          child.textContent = m[3];
+          child.parentElement = el;
+          el.children.push(child);
+        }
+        _text = el.children.length > 0 ? el.children.map(c => c.textContent).join(' ') : String(html).replace(/<[^>]+>/g, '');
+      },
       title: '',
       parentElement: null,
       style: { position: '', setProperty() {}, removeProperty() {} },

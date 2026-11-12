@@ -114,7 +114,8 @@ export function renderDealVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListVi
       if (!isMode && stats.tiefstpreis > 0) {
         histPriceEl = ensureHistPriceEl(card, cardPriceEl);
         histPriceEl.className = 'tp-card-historical-price tp-is-markup';
-        setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
+        const parts = [`Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`];
+        setHtmlIfChanged(histPriceEl, parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join(''));
         setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`);
       } else if (histPriceEl) {
         histPriceEl.remove();
@@ -126,16 +127,18 @@ export function renderDealVerdict(ctx, filters, isNeueFeed, badgeDifEl, isListVi
       const dRec = dealData ? dealData.dRecord : (showPrevLow ? pctDrop(prevLow, cardPrice) : 0);
       const hasRecPart = isNewRecord && dRec > 0;
       if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecPart ? ` (-${dRec}%)` : ''}`);
-      if (showMedianLine) parts.push(`Ø${horizonLabel} CHF ${stats.medianPrice.toFixed(2)} (-${dMed}%)`);
-      else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`Ø${horizonLabel} CHF ${stats.medianPrice.toFixed(2)} (0%)`);
+      if (showMedianLine) parts.push(`📊 (Ø: ${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (-${dMed}%)`);
+      else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`📊 (Ø: ${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (0%)`);
+
+      const pillsHtml = parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join('');
 
       if (isNewRecord && showPrevLow) {
         histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-        setTextIfChanged(histPriceEl, parts.join(' · '));
+        setHtmlIfChanged(histPriceEl, pillsHtml);
         setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)}${hasRecPart ? ` (-${dRec}%)` : ''}${showMedianLine ? ` · ${dMed}% unter dem ${horizonLabel}-Median (CHF ${stats.medianPrice.toFixed(2)})` : ''}${outlierText}`);
       } else {
         histPriceEl.className = 'tp-card-historical-price tp-is-at-low' + (showPrevLow ? ' tp-with-prev' : '');
-        setTextIfChanged(histPriceEl, parts.join(' · '));
+        setHtmlIfChanged(histPriceEl, pillsHtml);
         const sublineTip = dealData?.isZeroMargin
           ? `Allzeit-Tiefstpreis! Entspricht dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)} (0% Differenz).${outlierText}`
           : `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMed}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}${outlierText}`;

@@ -285,7 +285,11 @@ export const STYLES_BADGES = `
     color: #64748b !important;
     text-align: right !important;
     margin: 0 !important;
-    white-space: nowrap !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 3px !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     flex: 1 1 auto !important;
@@ -305,6 +309,29 @@ export const STYLES_BADGES = `
   }
   .tp-card-historical-price.tp-is-markup {
     color: #b45309 !important;
+  }
+  .tp-card-historical-price .tp-subline-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+    white-space: nowrap !important;
+    background: rgba(148, 163, 184, 0.12) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    color: inherit !important;
+    box-sizing: border-box !important;
+  }
+  .tp-card-historical-price.tp-is-record-low .tp-subline-pill {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+  }
+  .tp-card-historical-price.tp-is-at-low .tp-subline-pill {
+    background: rgba(4, 120, 87, 0.1) !important;
+    border-color: rgba(4, 120, 87, 0.25) !important;
+  }
+  .tp-card-historical-price.tp-is-markup .tp-subline-pill {
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
   }
   .tp-dealer-name {
     display: inline-block !important;

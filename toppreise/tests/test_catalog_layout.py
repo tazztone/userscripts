@@ -876,7 +876,7 @@ def test_bestpreise_card_heatmap_and_badge(page: Page):
 
     card1_subline = page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low')
     assert '📉 CHF 2200.00 (-18%)' in (card1_subline.text_content() or '')
-    assert 'ØLifetime CHF 2400.00 (-25%)' in (card1_subline.text_content() or '')
+    assert '📊 (Ø: Lifetime): CHF 2400.00 (-25%)' in (card1_subline.text_content() or '')
 
     # Card 2: Matching Low -> ribbon carries the blend (⚖️ -14%) with median subline
     card2_badge = page.locator('#card-expensive .badge-dif')
@@ -1642,7 +1642,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     assert horizon_range.get_attribute('step') == '30'
     assert horizon_range.input_value() == '360'  # 365 off-grid: snaps visually, stored stays 365
     assert page.locator('#tp-bar-horizon-label').inner_text() == '1J'
-    assert 'Ø1J' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+    assert '(Ø: 1J)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
 
     # Any pricechart request from here on is a live-update violation.
     hits = []
@@ -1661,7 +1661,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     assert entry['horizonDays'] == 120
     assert entry['medianFallback'] is False
     assert page.locator('#tp-bar-horizon-label').inner_text() == '120T'
-    assert 'Ø120T' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+    assert '(Ø: 120T)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
     assert hits == []
     page.wait_for_function("() => (window.ToppreiseSuite.lastToast() || '').includes('Ø-Vergleichszeitraum')")
 
@@ -1674,7 +1674,7 @@ def test_horizon_select_in_filter_bar(page: Page):
     }""")
     page.wait_for_function("() => window.ToppreiseSuite.CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS === 0")
     assert page.locator('#tp-bar-horizon-label').inner_text() == 'Lifetime'
-    assert 'ØLifetime' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
+    assert '(Ø: Lifetime)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
     assert hits == []
 
     # Modal round-trip: modal shows the bar value, saving there updates the bar.
@@ -1730,7 +1730,7 @@ def test_merged_blend_subline_rendering(page: Page):
     subline = card.locator('.tp-card-historical-price')
     text = subline.inner_text()
     assert '📉 CHF 2000.00 (-10%)' in text
-    assert 'ØLifetime CHF 2400.00 (-25%)' in text
+    assert '📊 (Ø: Lifetime): CHF 2400.00 (-25%)' in text
     # Truncation-safe order: previous-low leg first, Ø leg last — narrow cards
     # ellipsize from the left, so the Ø leg (the informative one) survives.
     assert text.index('📉') < text.index('Ø')

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.495
+// @version      2.18.496
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -574,7 +574,11 @@ const STYLES_BADGES = `
     color: #64748b !important;
     text-align: right !important;
     margin: 0 !important;
-    white-space: nowrap !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 3px !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     flex: 1 1 auto !important;
@@ -594,6 +598,29 @@ const STYLES_BADGES = `
   }
   .tp-card-historical-price.tp-is-markup {
     color: #b45309 !important;
+  }
+  .tp-card-historical-price .tp-subline-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+    white-space: nowrap !important;
+    background: rgba(148, 163, 184, 0.12) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    color: inherit !important;
+    box-sizing: border-box !important;
+  }
+  .tp-card-historical-price.tp-is-record-low .tp-subline-pill {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+  }
+  .tp-card-historical-price.tp-is-at-low .tp-subline-pill {
+    background: rgba(4, 120, 87, 0.1) !important;
+    border-color: rgba(4, 120, 87, 0.25) !important;
+  }
+  .tp-card-historical-price.tp-is-markup .tp-subline-pill {
+    background: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
   }
   .tp-dealer-name {
     display: inline-block !important;
@@ -1101,33 +1128,41 @@ const STYLES_CHROME = `
   #tp-detail-subline,
   .tp-detail-subline {
     margin: 6px auto !important;
-    padding: 3px 6px !important;
-    border-radius: var(--tp-r-sm, 6px) !important;
+    padding: 0 !important;
     font: 600 11px/1.35 var(--tp-font) !important;
     display: flex !important;
     flex-wrap: wrap !important;
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    gap: 4px !important;
-    background: rgba(148, 163, 184, 0.12) !important;
-    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    gap: 6px !important;
+    background: transparent !important;
+    border: none !important;
     color: var(--tp-txt-mid) !important;
     max-width: 100% !important;
-    white-space: normal !important;
-    word-break: normal !important;
-    overflow-wrap: break-word !important;
     box-sizing: border-box !important;
   }
-  #tp-detail-subline.tp-is-record-low,
-  .tp-detail-subline.tp-is-record-low {
+  #tp-detail-subline .tp-subline-pill,
+  .tp-detail-subline .tp-subline-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 3px 8px !important;
+    border-radius: var(--tp-r-sm, 6px) !important;
+    background: rgba(148, 163, 184, 0.12) !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    color: inherit !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+  #tp-detail-subline.tp-is-record-low .tp-subline-pill,
+  .tp-detail-subline.tp-is-record-low .tp-subline-pill {
     background: rgba(16, 185, 129, 0.12) !important;
     border-color: rgba(16, 185, 129, 0.35) !important;
     color: #065f46 !important;
     font-weight: 700 !important;
   }
-  #tp-detail-subline.tp-is-markup,
-  .tp-detail-subline.tp-is-markup {
+  #tp-detail-subline.tp-is-markup .tp-subline-pill,
+  .tp-detail-subline.tp-is-markup .tp-subline-pill {
     background: rgba(245, 158, 11, 0.12) !important;
     border-color: rgba(245, 158, 11, 0.35) !important;
     color: #92400e !important;
@@ -10001,7 +10036,8 @@ const SHADOW_MODAL_STYLES = `
         if (!isMode && stats.tiefstpreis > 0) {
           histPriceEl = ensureHistPriceEl(card, cardPriceEl);
           histPriceEl.className = 'tp-card-historical-price tp-is-markup';
-          setTextIfChanged(histPriceEl, `Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`);
+          const parts = [`Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)}`];
+          setHtmlIfChanged(histPriceEl, parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join(''));
           setTitleIfChanged(histPriceEl, `Historischer Tiefstpreis lag bei CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`);
         } else if (histPriceEl) {
           histPriceEl.remove();
@@ -10013,16 +10049,18 @@ const SHADOW_MODAL_STYLES = `
         const dRec = dealData ? dealData.dRecord : (showPrevLow ? pctDrop(prevLow, cardPrice) : 0);
         const hasRecPart = isNewRecord && dRec > 0;
         if (showPrevLow) parts.push(`📉 CHF ${prevLow.toFixed(2)}${hasRecPart ? ` (-${dRec}%)` : ''}`);
-        if (showMedianLine) parts.push(`Ø${horizonLabel} CHF ${stats.medianPrice.toFixed(2)} (-${dMed}%)`);
-        else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`Ø${horizonLabel} CHF ${stats.medianPrice.toFixed(2)} (0%)`);
+        if (showMedianLine) parts.push(`📊 (Ø: ${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (-${dMed}%)`);
+        else if (dealData?.isZeroMargin && stats?.medianPrice) parts.push(`📊 (Ø: ${horizonLabel}): CHF ${stats.medianPrice.toFixed(2)} (0%)`);
+
+        const pillsHtml = parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join('');
 
         if (isNewRecord && showPrevLow) {
           histPriceEl.className = 'tp-card-historical-price tp-is-record-low';
-          setTextIfChanged(histPriceEl, parts.join(' · '));
+          setHtmlIfChanged(histPriceEl, pillsHtml);
           setTitleIfChanged(histPriceEl, `Neuer Rekord-Tiefstpreis! Vorheriges Tief: CHF ${prevLow.toFixed(2)}${hasRecPart ? ` (-${dRec}%)` : ''}${showMedianLine ? ` · ${dMed}% unter dem ${horizonLabel}-Median (CHF ${stats.medianPrice.toFixed(2)})` : ''}${outlierText}`);
         } else {
           histPriceEl.className = 'tp-card-historical-price tp-is-at-low' + (showPrevLow ? ' tp-with-prev' : '');
-          setTextIfChanged(histPriceEl, parts.join(' · '));
+          setHtmlIfChanged(histPriceEl, pillsHtml);
           const sublineTip = dealData?.isZeroMargin
             ? `Allzeit-Tiefstpreis! Entspricht dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)} (0% Differenz).${outlierText}`
             : `Allzeit-Tiefstpreis!${showPrevLow ? ` Vorheriges Tief: CHF ${prevLow.toFixed(2)}.` : ''}${showMedianLine ? ` Liegt ${dMed}% unter dem ${horizonLabel}-Median von CHF ${stats.medianPrice.toFixed(2)}.` : ''}${outlierText}`;
@@ -15043,7 +15081,7 @@ const SHADOW_MODAL_STYLES = `
     const showMedian = !!(stats.medianPrice && stats.medianPrice > currentPrice);
     const horizon = medianHorizonLabel(stats);
 
-    let sublineText = '';
+    let sublineHtml = '';
     let sublineTitle = '';
     let sublineClass = '';
 
@@ -15056,21 +15094,21 @@ const SHADOW_MODAL_STYLES = `
       }
       if (showMedian) {
         const dMed = getLevelPct(currentPrice, stats);
-        parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
+        parts.push(`📊 (Ø: ${horizon}): CHF ${stats.medianPrice.toFixed(2)}${dMed > 0 ? ` (-${dMed}%)` : ''}`);
       }
       if (parts.length === 0) {
         parts.push('Allzeit-Tiefstpreis bestätigt');
       }
-      sublineText = parts.join(' · ');
+      sublineHtml = parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join('');
       sublineTitle = 'Allzeit-Tiefstpreis! Historischer Tiefstwert für dieses Produkt.';
     } else {
       sublineClass = 'tp-detail-subline tp-is-markup';
       const markupPct = pctRise(stats.tiefstpreis, currentPrice);
       const parts = [`⚠️ Tiefstpreis: CHF ${stats.tiefstpreis.toFixed(2)} (+${markupPct}% Aufschlag)`];
       if (stats.medianPrice) {
-        parts.push(`Ø (${horizon}): CHF ${stats.medianPrice.toFixed(2)}`);
+        parts.push(`📊 (Ø: ${horizon}): CHF ${stats.medianPrice.toFixed(2)}`);
       }
-      sublineText = parts.join(' · ');
+      sublineHtml = parts.map(text => `<span class="tp-subline-pill">${text}</span>`).join('');
       sublineTitle = `Aktueller Preis liegt über dem historischen Tiefstpreis von CHF ${stats.tiefstpreis.toFixed(2)}.`;
     }
 
@@ -15083,7 +15121,7 @@ const SHADOW_MODAL_STYLES = `
         document.body?.appendChild(subline);
       }
       subline.className = sublineClass;
-      setTextIfChanged(subline, sublineText);
+      setHtmlIfChanged(subline, sublineHtml);
       setTitleIfChanged(subline, sublineTitle);
       return;
     }
@@ -15104,7 +15142,7 @@ const SHADOW_MODAL_STYLES = `
         else parent.appendChild(subline);
       }
       subline.className = sublineClass;
-      setTextIfChanged(subline, sublineText);
+      setHtmlIfChanged(subline, sublineHtml);
       setTitleIfChanged(subline, sublineTitle);
     }
   }
@@ -15647,7 +15685,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.495';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.496';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
