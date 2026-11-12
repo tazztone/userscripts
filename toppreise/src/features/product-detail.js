@@ -363,16 +363,16 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
   }
 }
 
-export async function processProductDetailPage() {
+export async function processProductDetailPage(domLock = fn => fn()) {
   const run = ++detailRun;
   const pid = getDetailProductId();
-  if (!pid) { removeDetailDecorations(); return; }
+  if (!pid) { domLock(removeDetailDecorations); return; }
 
   const headings = getDetailHeadings();
-  if (headings.length === 0) { removeDetailDecorations(); return; }
+  if (headings.length === 0) { domLock(removeDetailDecorations); return; }
 
   const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
-  if (!(currentPrice > 0)) { removeDetailDecorations(); return; }
+  if (!(currentPrice > 0)) { domLock(removeDetailDecorations); return; }
 
   const primaryHeading = headings[0];
   const shareScope = primaryHeading?.closest?.('.Page_DetailProduct, .Page_Product, #page, main, [class*="Product"]') || primaryHeading;
@@ -382,15 +382,17 @@ export async function processProductDetailPage() {
   const imageUrl = shareData.imageUrl || '';
 
   // Render Web Search / AI Review next to each H1 title
-  for (const h of headings) {
-    renderDetailReviewButton(h, title, currentPrice, null, pid);
-  }
+  domLock(() => {
+    for (const h of headings) {
+      renderDetailReviewButton(h, title, currentPrice, null, pid);
+    }
+  });
 
   let stats = getCardStats(pid, priceBasis);
   if (!stats) {
     await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
     if (run !== detailRun || pid !== getDetailProductId()) {
-      if (pid !== getDetailProductId()) removeDetailDecorations();
+      if (pid !== getDetailProductId()) domLock(removeDetailDecorations);
       return;
     }
     const fresh = getDetailLowestPrice();
@@ -398,41 +400,43 @@ export async function processProductDetailPage() {
     stats = getCardStats(pid, priceBasis);
   }
 
-  if (stats && stats.tiefstpreis > 0) {
-    if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
+  domLock(() => {
+    if (stats && stats.tiefstpreis > 0) {
+      if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
+        removeDetailDecorations();
+        return;
+      }
+
+      // Render Deal Subline
+      renderDetailSubline(stats, currentPrice, priceBasis);
+
+      // Render Discord Share Button next to price alarm bell
+      renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+
+      // Render Mini Sparkline below chart thumbnail
+      renderDetailSparkline(pid, title, currentPrice, stats);
+
+      // Update Web Search / AI review button with stats
+      for (const h of headings) {
+        renderDetailReviewButton(h, title, currentPrice, stats, pid);
+      }
+    } else {
       removeDetailDecorations();
-      return;
     }
 
-    // Render Deal Subline
-    renderDetailSubline(stats, currentPrice, priceBasis);
-
-    // Render Discord Share Button next to price alarm bell
-    renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
-
-    // Render Mini Sparkline below chart thumbnail
-    renderDetailSparkline(pid, title, currentPrice, stats);
-
-    // Update Web Search / AI review button with stats
-    for (const h of headings) {
-      renderDetailReviewButton(h, title, currentPrice, stats, pid);
+    // Live Session Bridge Telemetry (MCP evaluate_script)
+    const rootEl = document.getElementById('tp-root');
+    if (rootEl) {
+      const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
+      rootEl.setAttribute('data-tp-diag', JSON.stringify({
+        version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+        pageType: 'detail',
+        pid,
+        currentPrice,
+        priceBasis,
+        isAllTimeLow,
+        ts: Date.now()
+      }));
     }
-  } else {
-    removeDetailDecorations();
-  }
-
-  // Live Session Bridge Telemetry (MCP evaluate_script)
-  const rootEl = document.getElementById('tp-root');
-  if (rootEl) {
-    const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
-    rootEl.setAttribute('data-tp-diag', JSON.stringify({
-      version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-      pageType: 'detail',
-      pid,
-      currentPrice,
-      priceBasis,
-      isAllTimeLow,
-      ts: Date.now()
-    }));
-  }
+  });
 }

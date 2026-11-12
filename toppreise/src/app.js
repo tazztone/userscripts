@@ -23,7 +23,8 @@ import {
   isSearchPage,
   isProductDetailPage,
   clearCardCache,
-  triggerProcessListings
+  triggerProcessListings,
+  getPageProfileType
 } from './page/adapter.js';
 import { applySorting } from './page/sort.js';
 import {
@@ -44,8 +45,10 @@ import {
   updateBodyClasses,
   migrateFilterSplit,
   realDealMinDiscount,
-  initPageProfiles
+  initPageProfiles,
+  PAGE_SCOPED_KEYS
 } from './state/config.js';
+import { syncUiControl } from './state/config-sync.js';
 import {
   runBatchDealCheck,
   cancelBatchDealCheck
@@ -58,7 +61,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.491
+// @version      2.18.492
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -100,15 +103,28 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   let isModifyingDOM = false;
   let mainObserver = null;
 
-  function processListings() {
-    const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
+  function withDomMutationLock(fn) {
     if (isModifyingDOM) return;
-    if (isProductDetailPage()) { dismissChrome(); return; }
     isModifyingDOM = true;
     if (mainObserver) mainObserver.disconnect();
     try {
-      const cards = getProductCards();
-      if (cards.length === 0) { try { applySorting([], false, []); } catch {} dismissChrome(); return; }
+      return fn();
+    } finally {
+      isModifyingDOM = false;
+      if (mainObserver) {
+        mainObserver.takeRecords();
+        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
+      }
+    }
+  }
+
+  function processListings() {
+    const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
+    if (isProductDetailPage()) { dismissChrome(); return; }
+    withDomMutationLock(() => {
+      try {
+        const cards = getProductCards();
+        if (cards.length === 0) { try { applySorting([], false, []); } catch {} dismissChrome(); return; }
 
       // --- Extract ---
       const activeStores = extractActiveStores();
@@ -182,23 +198,18 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
           ts: Date.now()
         }));
       }
-    } catch (err) {
-      console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
-      const rootEl = document.getElementById('tp-root');
-      if (rootEl) {
-        rootEl.setAttribute('data-tp-diag', JSON.stringify({
-          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-          lastError: { message: err.message, stack: err.stack, ts: Date.now() },
-          ts: Date.now()
-        }));
+      } catch (err) {
+        console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
+        const rootEl = document.getElementById('tp-root');
+        if (rootEl) {
+          rootEl.setAttribute('data-tp-diag', JSON.stringify({
+            version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+            lastError: { message: err.message, stack: err.stack, ts: Date.now() },
+            ts: Date.now()
+          }));
+        }
       }
-    } finally {
-      isModifyingDOM = false;
-      if (mainObserver) {
-        mainObserver.takeRecords();
-        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
-      }
-    }
+    });
   }
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
@@ -273,6 +284,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
+      checkPageProfileTransition();
       triggerProcessListings();
     }, CONFIG.OBSERVER_DEBOUNCE_MS);
   });
@@ -320,9 +332,23 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
     }
   });
 
+  let lastPageProfileType = getPageProfileType();
+
+  function checkPageProfileTransition() {
+    const curType = getPageProfileType();
+    if (curType !== lastPageProfileType) {
+      lastPageProfileType = curType;
+      initPageProfiles(curType);
+      for (const k of PAGE_SCOPED_KEYS) {
+        syncUiControl(k, CONFIG[k]);
+      }
+    }
+  }
+
   function handleRouteTransition() {
     cancelBatchDealCheck();
     clearDealerAutoTried();
+    checkPageProfileTransition();
     triggerProcessListings();
   }
   if (self.navigation?.addEventListener) {
@@ -332,11 +358,8 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   window.addEventListener('hashchange', handleRouteTransition);
 
   async function safeProcessProductDetailPage() {
-    if (isModifyingDOM) return;
-    isModifyingDOM = true;
-    if (mainObserver) mainObserver.disconnect();
     try {
-      await processProductDetailPage();
+      await processProductDetailPage(withDomMutationLock);
     } catch (err) {
       console.error('[Toppreise-Suite] ❌ Error in processProductDetailPage:', err);
       const rootEl = document.getElementById('tp-root');
@@ -348,17 +371,11 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
           ts: Date.now()
         }));
       }
-    } finally {
-      isModifyingDOM = false;
-      if (mainObserver) {
-        mainObserver.takeRecords();
-        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
-      }
     }
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.491';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.492';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

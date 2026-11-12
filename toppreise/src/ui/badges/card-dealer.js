@@ -41,15 +41,6 @@ export async function ensureDealerInfo(card, pid, useShipping) {
     return cached?.dealer ? { dealer: cached.dealer, url: cached.url || '' } : null;
   }
 
-  if (dealerPending.has(dKey)) {
-    let attempts = 0;
-    while (dealerPending.has(dKey) && attempts++ < 20) {
-      await new Promise(r => setTimeout(r, 50));
-    }
-    cached = dealerCache.get(dKey);
-    return cached?.dealer ? { dealer: cached.dealer, url: cached.url || '' } : null;
-  }
-
   dealerPending.add(dKey);
   const reqGen = currentCacheGen();
   const reqShipping = useShipping;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.491
+// @version      2.18.492
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -4250,9 +4250,15 @@ const SHADOW_MODAL_STYLES = `
   CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
   if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
+  let activeProfileType = null;
+  function getActiveProfileType() {
+    return activeProfileType || getPageProfileType();
+  }
+
   function initPageProfiles(forceType = null) {
     if (!CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) return;
     const profileType = forceType || getPageProfileType();
+    activeProfileType = profileType;
     let profiles = _getValue('PAGE_PROFILES', null);
 
     if (!profiles || typeof profiles !== 'object') {
@@ -4303,7 +4309,7 @@ const SHADOW_MODAL_STYLES = `
     _setValue(key, clean);
 
     if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
-      const profileType = getPageProfileType();
+      const profileType = getActiveProfileType();
       const profiles = _getValue('PAGE_PROFILES', null) || { neue: {}, search: {} };
       if (!profiles[profileType]) profiles[profileType] = {};
       profiles[profileType][key] = clean;
@@ -10635,15 +10641,6 @@ const SHADOW_MODAL_STYLES = `
       return cached?.dealer ? { dealer: cached.dealer, url: cached.url || '' } : null;
     }
 
-    if (dealerPending.has(dKey)) {
-      let attempts = 0;
-      while (dealerPending.has(dKey) && attempts++ < 20) {
-        await new Promise(r => setTimeout(r, 50));
-      }
-      cached = dealerCache.get(dKey);
-      return cached?.dealer ? { dealer: cached.dealer, url: cached.url || '' } : null;
-    }
-
     dealerPending.add(dKey);
     const reqGen = currentCacheGen();
     const reqShipping = useShipping;
@@ -15190,16 +15187,16 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  async function processProductDetailPage() {
+  async function processProductDetailPage(domLock = fn => fn()) {
     const run = ++detailRun;
     const pid = getDetailProductId();
-    if (!pid) { removeDetailDecorations(); return; }
+    if (!pid) { domLock(removeDetailDecorations); return; }
 
     const headings = getDetailHeadings();
-    if (headings.length === 0) { removeDetailDecorations(); return; }
+    if (headings.length === 0) { domLock(removeDetailDecorations); return; }
 
     const { price: currentPrice, basis: priceBasis } = getDetailLowestPrice();
-    if (!(currentPrice > 0)) { removeDetailDecorations(); return; }
+    if (!(currentPrice > 0)) { domLock(removeDetailDecorations); return; }
 
     const primaryHeading = headings[0];
     const shareScope = primaryHeading?.closest?.('.Page_DetailProduct, .Page_Product, #page, main, [class*="Product"]') || primaryHeading;
@@ -15209,15 +15206,17 @@ const SHADOW_MODAL_STYLES = `
     const imageUrl = shareData.imageUrl || '';
 
     // Render Web Search / AI Review next to each H1 title
-    for (const h of headings) {
-      renderDetailReviewButton(h, title, currentPrice, null, pid);
-    }
+    domLock(() => {
+      for (const h of headings) {
+        renderDetailReviewButton(h, title, currentPrice, null, pid);
+      }
+    });
 
     let stats = getCardStats(pid, priceBasis);
     if (!stats) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
       if (run !== detailRun || pid !== getDetailProductId()) {
-        if (pid !== getDetailProductId()) removeDetailDecorations();
+        if (pid !== getDetailProductId()) domLock(removeDetailDecorations);
         return;
       }
       const fresh = getDetailLowestPrice();
@@ -15225,43 +15224,45 @@ const SHADOW_MODAL_STYLES = `
       stats = getCardStats(pid, priceBasis);
     }
 
-    if (stats && stats.tiefstpreis > 0) {
-      if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
+    domLock(() => {
+      if (stats && stats.tiefstpreis > 0) {
+        if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
+          removeDetailDecorations();
+          return;
+        }
+
+        // Render Deal Subline
+        renderDetailSubline(stats, currentPrice, priceBasis);
+
+        // Render Discord Share Button next to price alarm bell
+        renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+
+        // Render Mini Sparkline below chart thumbnail
+        renderDetailSparkline(pid, title, currentPrice, stats);
+
+        // Update Web Search / AI review button with stats
+        for (const h of headings) {
+          renderDetailReviewButton(h, title, currentPrice, stats, pid);
+        }
+      } else {
         removeDetailDecorations();
-        return;
       }
 
-      // Render Deal Subline
-      renderDetailSubline(stats, currentPrice, priceBasis);
-
-      // Render Discord Share Button next to price alarm bell
-      renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
-
-      // Render Mini Sparkline below chart thumbnail
-      renderDetailSparkline(pid, title, currentPrice, stats);
-
-      // Update Web Search / AI review button with stats
-      for (const h of headings) {
-        renderDetailReviewButton(h, title, currentPrice, stats, pid);
+      // Live Session Bridge Telemetry (MCP evaluate_script)
+      const rootEl = document.getElementById('tp-root');
+      if (rootEl) {
+        const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
+        rootEl.setAttribute('data-tp-diag', JSON.stringify({
+          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+          pageType: 'detail',
+          pid,
+          currentPrice,
+          priceBasis,
+          isAllTimeLow,
+          ts: Date.now()
+        }));
       }
-    } else {
-      removeDetailDecorations();
-    }
-
-    // Live Session Bridge Telemetry (MCP evaluate_script)
-    const rootEl = document.getElementById('tp-root');
-    if (rootEl) {
-      const isAllTimeLow = !!(stats && stats.tiefstpreis > 0 && currentPrice <= stats.tiefstpreis);
-      rootEl.setAttribute('data-tp-diag', JSON.stringify({
-        version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-        pageType: 'detail',
-        pid,
-        currentPrice,
-        priceBasis,
-        isAllTimeLow,
-        ts: Date.now()
-      }));
-    }
+    });
   }
 
   // ─── APPLICATION & LIFECYCLE LOGIC ──────────────────────────────────────────
@@ -15282,15 +15283,28 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let isModifyingDOM = false;
   let mainObserver = null;
 
-  function processListings() {
-    const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
+  function withDomMutationLock(fn) {
     if (isModifyingDOM) return;
-    if (isProductDetailPage()) { dismissChrome(); return; }
     isModifyingDOM = true;
     if (mainObserver) mainObserver.disconnect();
     try {
-      const cards = getProductCards();
-      if (cards.length === 0) { try { applySorting([], false, []); } catch {} dismissChrome(); return; }
+      return fn();
+    } finally {
+      isModifyingDOM = false;
+      if (mainObserver) {
+        mainObserver.takeRecords();
+        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
+      }
+    }
+  }
+
+  function processListings() {
+    const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
+    if (isProductDetailPage()) { dismissChrome(); return; }
+    withDomMutationLock(() => {
+      try {
+        const cards = getProductCards();
+        if (cards.length === 0) { try { applySorting([], false, []); } catch {} dismissChrome(); return; }
 
       // --- Extract ---
       const activeStores = extractActiveStores();
@@ -15364,23 +15378,18 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
           ts: Date.now()
         }));
       }
-    } catch (err) {
-      console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
-      const rootEl = document.getElementById('tp-root');
-      if (rootEl) {
-        rootEl.setAttribute('data-tp-diag', JSON.stringify({
-          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-          lastError: { message: err.message, stack: err.stack, ts: Date.now() },
-          ts: Date.now()
-        }));
+      } catch (err) {
+        console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
+        const rootEl = document.getElementById('tp-root');
+        if (rootEl) {
+          rootEl.setAttribute('data-tp-diag', JSON.stringify({
+            version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+            lastError: { message: err.message, stack: err.stack, ts: Date.now() },
+            ts: Date.now()
+          }));
+        }
       }
-    } finally {
-      isModifyingDOM = false;
-      if (mainObserver) {
-        mainObserver.takeRecords();
-        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
-      }
-    }
+    });
   }
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
@@ -15455,6 +15464,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
 
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
+      checkPageProfileTransition();
       triggerProcessListings();
     }, CONFIG.OBSERVER_DEBOUNCE_MS);
   });
@@ -15502,9 +15512,23 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     }
   });
 
+  let lastPageProfileType = getPageProfileType();
+
+  function checkPageProfileTransition() {
+    const curType = getPageProfileType();
+    if (curType !== lastPageProfileType) {
+      lastPageProfileType = curType;
+      initPageProfiles(curType);
+      for (const k of PAGE_SCOPED_KEYS) {
+        syncUiControl(k, CONFIG[k]);
+      }
+    }
+  }
+
   function handleRouteTransition() {
     cancelBatchDealCheck();
     clearDealerAutoTried();
+    checkPageProfileTransition();
     triggerProcessListings();
   }
   if (self.navigation?.addEventListener) {
@@ -15514,11 +15538,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   window.addEventListener('hashchange', handleRouteTransition);
 
   async function safeProcessProductDetailPage() {
-    if (isModifyingDOM) return;
-    isModifyingDOM = true;
-    if (mainObserver) mainObserver.disconnect();
     try {
-      await processProductDetailPage();
+      await processProductDetailPage(withDomMutationLock);
     } catch (err) {
       console.error('[Toppreise-Suite] ❌ Error in processProductDetailPage:', err);
       const rootEl = document.getElementById('tp-root');
@@ -15530,17 +15551,11 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
           ts: Date.now()
         }));
       }
-    } finally {
-      isModifyingDOM = false;
-      if (mainObserver) {
-        mainObserver.takeRecords();
-        mainObserver.observe(document.documentElement, OBSERVE_OPTS);
-      }
     }
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.491';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.492';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

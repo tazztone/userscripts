@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey } from '../../src/state/config.js';
 import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
@@ -115,6 +115,22 @@ describe('Config dual-layer storage', () => {
     assert.equal(sanitizeConfigValue('TAVILY_ENABLED', 'invalid'), false);
   });
 
+  it('swaps PAGE_SCOPED_KEYS when initPageProfiles is called for different profile types', () => {
+    CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE = true;
+    initPageProfiles('neue');
+    saveConfigKey('MIN_DEAL_DISCOUNT', 40);
+    assert.equal(CONFIG.MIN_DEAL_DISCOUNT, 40);
+
+    initPageProfiles('search');
+    saveConfigKey('MIN_DEAL_DISCOUNT', 15);
+    assert.equal(CONFIG.MIN_DEAL_DISCOUNT, 15);
+
+    initPageProfiles('neue');
+    assert.equal(CONFIG.MIN_DEAL_DISCOUNT, 40);
+
+    initPageProfiles('search');
+    assert.equal(CONFIG.MIN_DEAL_DISCOUNT, 15);
+  });
 });
 
 describe('weightText desc (worked example moves with the slider)', () => {

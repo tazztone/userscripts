@@ -133,9 +133,15 @@ if (
 CONFIG.REVIEW_SEARCH_KEYWORD = sanitizeReviewKeyword(CONFIG.REVIEW_SEARCH_KEYWORD);
 if (typeof CONFIG.REVIEW_SEARCH_AI_MODE !== 'boolean') CONFIG.REVIEW_SEARCH_AI_MODE = DEFAULTS.REVIEW_SEARCH_AI_MODE;
 
+let activeProfileType = null;
+export function getActiveProfileType() {
+  return activeProfileType || getPageProfileType();
+}
+
 export function initPageProfiles(forceType = null) {
   if (!CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) return;
   const profileType = forceType || getPageProfileType();
+  activeProfileType = profileType;
   let profiles = _getValue('PAGE_PROFILES', null);
 
   if (!profiles || typeof profiles !== 'object') {
@@ -186,7 +192,7 @@ export const saveConfigKey = (key, val) => {
   _setValue(key, clean);
 
   if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
-    const profileType = getPageProfileType();
+    const profileType = getActiveProfileType();
     const profiles = _getValue('PAGE_PROFILES', null) || { neue: {}, search: {} };
     if (!profiles[profileType]) profiles[profileType] = {};
     profiles[profileType][key] = clean;
