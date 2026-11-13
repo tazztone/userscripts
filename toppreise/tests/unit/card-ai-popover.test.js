@@ -53,11 +53,13 @@ describe('card-ai-popover: lifecycle and closeAiPopover', () => {
         return {
           tagName: tag.toUpperCase(),
           id: '',
+          className: '',
           style: {},
+          attributes: {},
           children: [],
           appendChild(ch) { this.children.push(ch); return ch; },
-          setAttribute() {},
-          getAttribute() { return null; },
+          setAttribute(k, v) { this.attributes[k] = v; },
+          getAttribute(k) { return this.attributes[k] ?? null; },
           addEventListener() {},
           removeEventListener() {},
           remove() {
@@ -75,6 +77,16 @@ describe('card-ai-popover: lifecycle and closeAiPopover', () => {
       const popover = openAiPopover({ title: 'Test Smartphone', priceText: 'CHF 499' });
       assert.ok(popover);
       assert.equal(created.includes(popover), true);
+      assert.equal(popover.getAttribute('role'), 'dialog');
+      assert.equal(popover.getAttribute('aria-modal'), 'true');
+      const panel = popover.children[0];
+      assert.ok(panel.className.includes('tp-popout-panel'));
+      const closeBtn = panel.children[0].children[1].children[0];
+      assert.equal(closeBtn.className, 'tp-popout-close');
+      const footer = panel.children[3];
+      const retryBtn = footer.children[0];
+      assert.equal(retryBtn.hidden, true);
+      assert.ok(footer.children.every(b => b.className === 'tp-popout-btn'));
 
       closeAiPopover();
       assert.equal(created.includes(popover), false);

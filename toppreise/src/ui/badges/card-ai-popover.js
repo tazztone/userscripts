@@ -6,6 +6,7 @@
 
 import { CONFIG } from '../../state/config.js';
 import { buildTavilyQuery, fetchTavilySummary, getCachedTavily } from '../../features/tavily-search.js';
+import { createPopoutDialog } from '../popout-dialog.js';
 import { showToast } from '../toast.js';
 
 export function formatVerdictHtml(text) {
@@ -40,54 +41,41 @@ export function openAiPopover(options = {}) {
   closeAiPopover();
 
   const { title = '', priceText = '', googleUrl = '', card = null } = options;
-  const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
 
   const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
   const cached = getCachedTavily(query);
 
-  const backdrop = document.createElement('div');
-  backdrop.id = 'tp-ai-popout';
-  backdrop.setAttribute('role', 'dialog');
-  backdrop.setAttribute('aria-modal', 'true');
-  backdrop.setAttribute('aria-label', 'KI-Fazit und Preiseinschätzung');
-  backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);backdrop-filter:blur(2px);padding:16px;box-sizing:border-box;';
+  let statusTimers = [];
+  const clearTimers = () => {
+    statusTimers.forEach(t => clearTimeout(t));
+    statusTimers = [];
+  };
 
-  const panel = document.createElement('div');
-  panel.style.cssText = 'background:var(--tp-bg, #1e293b);color:var(--tp-txt, #f8fafc);border:1px solid var(--tp-line-soft, #334155);border-radius:var(--tp-r-lg, 12px);padding:18px 20px;max-width:min(520px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;flex-direction:column;gap:12px;';
-
-  // Header row
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--tp-line-soft, #334155);padding-bottom:10px;';
-
-  const titleRow = document.createElement('div');
-  titleRow.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--tp-txt-mid, #cbd5e1);';
-  titleRow.innerHTML = '<span>🤖 KI-Kurzfazit & Preiseinschätzung</span>';
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = '✕';
-  closeBtn.setAttribute('aria-label', 'Schliessen');
-  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;line-height:1;';
-  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#fff'; });
-  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = 'var(--tp-mut, #94a3b8)'; });
-
-  header.appendChild(titleRow);
-  header.appendChild(closeBtn);
-  panel.appendChild(header);
+  const { backdrop, panel, mount, close } = createPopoutDialog({
+    id: 'tp-ai-popout',
+    label: 'KI-Fazit und Preiseinschätzung',
+    title: '🤖 KI-Kurzfazit & Preiseinschätzung',
+    panelClass: 'tp-ai-panel',
+    onClose: () => {
+      clearTimers();
+      activeAiPopoverCleanup = null;
+    }
+  });
+  activeAiPopoverCleanup = close;
 
   // Subheader: Product title & price
   const subheader = document.createElement('div');
-  subheader.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:10px;';
+  subheader.className = 'tp-ai-sub';
 
   const prodName = document.createElement('div');
-  prodName.style.cssText = 'font-size:14px;font-weight:600;color:var(--tp-txt, #f8fafc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+  prodName.className = 'tp-ai-prod';
   prodName.textContent = title;
   prodName.title = title;
 
   subheader.appendChild(prodName);
   if (priceText) {
     const priceBadge = document.createElement('span');
-    priceBadge.style.cssText = 'font-size:13px;font-weight:700;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 6px;border-radius:4px;';
+    priceBadge.className = 'tp-ai-price';
     priceBadge.textContent = priceText;
     subheader.appendChild(priceBadge);
   }
@@ -95,53 +83,41 @@ export function openAiPopover(options = {}) {
 
   // Body content: loading / result / error
   const contentEl = document.createElement('div');
-  contentEl.style.cssText = 'font-size:13px;line-height:1.55;color:var(--tp-txt-mid, #cbd5e1);min-height:56px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;border-left:3px solid #5865f2;';
+  contentEl.className = 'tp-ai-body';
 
   let currentVerdict = '';
-  let statusTimers = [];
-  const clearTimers = () => {
-    statusTimers.forEach(t => clearTimeout(t));
-    statusTimers = [];
-  };
 
   const renderVerdict = (text) => {
     clearTimers();
     currentVerdict = text;
-    contentEl.style.borderLeftColor = '#5865f2';
+    contentEl.className = 'tp-ai-body';
     contentEl.innerHTML = formatVerdictHtml(text);
     copyBtn.disabled = false;
-    retryBtn.style.display = 'none';
+    retryBtn.hidden = true;
   };
 
   const renderError = (msg) => {
     clearTimers();
-    contentEl.style.borderLeftColor = '#ef4444';
+    contentEl.className = 'tp-ai-body tp-ai-error';
     contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
     copyBtn.disabled = true;
-    retryBtn.style.display = 'inline-flex';
+    retryBtn.hidden = false;
   };
-
-  if (cached?.answer) {
-    renderVerdict(cached.answer);
-  } else {
-    contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
-  }
-  panel.appendChild(contentEl);
 
   // Footer action buttons
   const footer = document.createElement('div');
-  footer.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px;';
+  footer.className = 'tp-popout-footer';
 
   const retryBtn = document.createElement('button');
   retryBtn.type = 'button';
-  retryBtn.className = 'tp-btn tp-btn-secondary';
-  retryBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  retryBtn.className = 'tp-popout-btn';
+  retryBtn.hidden = true;
   retryBtn.textContent = '🔄 Erneut versuchen';
 
   const fetchSummary = () => {
     clearTimers();
-    retryBtn.style.display = 'none';
-    contentEl.style.borderLeftColor = '#5865f2';
+    retryBtn.hidden = true;
+    contentEl.className = 'tp-ai-body';
     contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
 
     statusTimers.push(setTimeout(() => {
@@ -179,14 +155,12 @@ export function openAiPopover(options = {}) {
   googleBtn.href = googleUrl || ('https://www.google.com/search?q=' + encodeURIComponent(query));
   googleBtn.target = '_blank';
   googleBtn.rel = 'noopener';
-  googleBtn.className = 'tp-btn tp-btn-secondary';
-  googleBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
+  googleBtn.className = 'tp-popout-btn';
   googleBtn.textContent = '↗ Google-Suche';
 
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
-  copyBtn.className = 'tp-btn tp-btn-secondary';
-  copyBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  copyBtn.className = 'tp-popout-btn';
   copyBtn.textContent = '📋 Fazit kopieren';
   copyBtn.disabled = !cached?.answer;
 
@@ -204,8 +178,7 @@ export function openAiPopover(options = {}) {
 
   const discordBtn = document.createElement('button');
   discordBtn.type = 'button';
-  discordBtn.className = 'tp-btn tp-btn-secondary';
-  discordBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  discordBtn.className = 'tp-popout-btn';
   discordBtn.textContent = '📤 In Discord teilen';
 
   discordBtn.addEventListener('click', () => {
@@ -218,39 +191,20 @@ export function openAiPopover(options = {}) {
     }
   });
 
+  if (cached?.answer) {
+    renderVerdict(cached.answer);
+  } else {
+    contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+  }
+  panel.appendChild(contentEl);
+
   footer.appendChild(retryBtn);
   footer.appendChild(googleBtn);
   footer.appendChild(copyBtn);
   footer.appendChild(discordBtn);
   panel.appendChild(footer);
 
-  // Close handlers
-  const onKey = e => {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      e.stopImmediatePropagation?.();
-      close();
-    }
-  };
-
-  function close() {
-    clearTimers();
-    document.removeEventListener('keydown', onKey);
-    activeAiPopoverCleanup = null;
-    backdrop.remove();
-    try { prevFocus?.focus?.(); } catch {}
-  }
-
-  activeAiPopoverCleanup = close;
-  document.addEventListener('keydown', onKey);
-  closeBtn.addEventListener('click', close);
-  backdrop.addEventListener('click', e => {
-    if (e.target === backdrop) close();
-  });
-
-  backdrop.appendChild(panel);
-  document.body.appendChild(backdrop);
-  closeBtn.focus?.();
+  mount();
 
   // If not cached, trigger fetch now
   if (!cached?.answer) {

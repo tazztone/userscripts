@@ -72,6 +72,7 @@ export function buildBundle() {
     'features/category-tree-model.js',
     'features/category-tree-actions.js',
     'features/category-tree.js',
+    'ui/popout-dialog.js',
     'ui/sparkline.js',
     'features/discord-recipe.js',
     'features/tavily-search.js',

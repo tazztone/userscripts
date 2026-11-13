@@ -8,6 +8,7 @@
 import { CONFIG } from '../state/config.js';
 import { resolveAmazonAsin } from '../page/product-offers.js';
 import { showToast } from './toast.js';
+import { createPopoutDialog } from './popout-dialog.js';
 
 export function renderSparkline(timeSeries, width, height, opts = {}) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
@@ -322,7 +323,6 @@ export function closeSparklinePopout() {
 export function openSparklinePopout(timeSeries, chartCtx = null) {
   if (typeof document === 'undefined') return null;
   closeSparklinePopout();
-  const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
   const productTitle = chartCtx?.title || '';
   const svg = renderDiscordChart(timeSeries, 560, 220, productTitle);
   if (!svg) return null;
@@ -330,56 +330,21 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
   svg.style.height = 'auto';
   svg.style.display = 'block';
 
-  const backdrop = document.createElement('div');
-  backdrop.id = 'tp-sparkline-popout';
-  backdrop.setAttribute('role', 'dialog');
-  backdrop.setAttribute('aria-label', 'Preisverlauf');
-  backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);padding:16px;box-sizing:border-box;';
-  const panel = document.createElement('div');
-  panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
-  const title = document.createElement('div');
-  title.textContent = productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf';
-  title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;';
-  if (productTitle) title.title = productTitle;
-
-  const headerActions = document.createElement('div');
-  headerActions.style.cssText = 'display:flex;align-items:center;gap:6px;';
-
   const copyTpBtn = document.createElement('button');
   copyTpBtn.type = 'button';
+  copyTpBtn.className = 'tp-popout-btn';
   copyTpBtn.textContent = '📋 Bild kopieren';
   copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
-  copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;display:inline-flex;align-items:center;cursor:pointer;';
   copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
 
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = '✕';
-  closeBtn.setAttribute('aria-label', 'Schliessen');
-  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;';
-  const onKey = e => {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      e.stopImmediatePropagation?.();
-      close();
-    }
-  };
-  function close() {
-    document.removeEventListener('keydown', onKey);
-    activePopoutCleanup = null;
-    closeSparklinePopout();
-    try { prevFocus?.focus?.(); } catch {}
-  }
+  const { panel, mount, close } = createPopoutDialog({
+    id: 'tp-sparkline-popout',
+    label: 'Preisverlauf',
+    title: productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf',
+    actions: [copyTpBtn],
+    onClose: () => { activePopoutCleanup = null; }
+  });
   activePopoutCleanup = close;
-  document.addEventListener('keydown', onKey);
-  closeBtn.addEventListener('click', close);
-  headerActions.appendChild(copyTpBtn);
-  headerActions.appendChild(closeBtn);
-  header.appendChild(title);
-  header.appendChild(headerActions);
-  panel.appendChild(header);
   panel.appendChild(svg);
 
   // Stacked Keepa section for Amazon deals
@@ -387,17 +352,17 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
   if (isAmazon) {
     const keepaSection = document.createElement('div');
     keepaSection.id = 'tp-keepa-section';
-    keepaSection.style.cssText = 'margin-top:16px;padding-top:14px;border-top:1px solid var(--tp-bdr);';
+    keepaSection.className = 'tp-keepa-section';
 
     const keepaHeader = document.createElement('div');
-    keepaHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
+    keepaHeader.className = 'tp-keepa-header';
 
     const keepaTitle = document.createElement('div');
+    keepaTitle.className = 'tp-keepa-title';
     keepaTitle.textContent = '🛒 Amazon.de Preisverlauf (Keepa)';
-    keepaTitle.style.cssText = 'color:var(--tp-txt-mid);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;';
 
     const keepaToolbar = document.createElement('div');
-    keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
+    keepaToolbar.className = 'tp-keepa-toolbar';
 
     const ranges = [
       { label: '90T', days: 90 },
@@ -409,24 +374,26 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
     const rangeBtns = [];
 
     const keepaBody = document.createElement('div');
-    keepaBody.style.cssText = 'min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--tp-bg-sub);border-radius:var(--tp-r-sm);padding:8px;box-sizing:border-box;';
+    keepaBody.className = 'tp-keepa-body';
 
     const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'tp-keepa-status';
     loadingIndicator.textContent = '⏳ Lade Amazon.de Keepa-Verlauf...';
-    loadingIndicator.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:24px 0;';
     keepaBody.appendChild(loadingIndicator);
 
     const copyKeepaBtn = document.createElement('button');
     copyKeepaBtn.type = 'button';
+    copyKeepaBtn.className = 'tp-popout-btn';
     copyKeepaBtn.textContent = '📋 Bild kopieren';
-    copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;align-items:center;cursor:pointer;display:none;';
+    copyKeepaBtn.hidden = true;
 
     ranges.forEach(r => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = r.label;
       const setBtnStyle = active => {
-        btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:3px 8px;min-height:26px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;`;
+        btn.className = active ? 'tp-popout-chip tp-active' : 'tp-popout-chip';
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       };
       setBtnStyle(!!r.active);
       btn.addEventListener('click', () => {
@@ -455,7 +422,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
           while (keepaBody.firstChild) keepaBody.removeChild(keepaBody.firstChild);
         }
         const errNotice = document.createElement('div');
-        errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
+        errNotice.className = 'tp-keepa-status';
         const msgSpan = document.createElement('span');
         msgSpan.textContent = 'Amazon-ASIN konnte nicht ermittelt werden.';
         errNotice.appendChild(msgSpan);
@@ -465,7 +432,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
         a.href = safeUrl;
         a.target = '_blank';
         a.rel = 'noopener';
-        a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-flex;align-items:center;min-height:24px;';
+        a.className = 'tp-popout-link';
         a.textContent = 'Zum Amazon-Angebot ↗';
         errNotice.appendChild(a);
         keepaBody.appendChild(errNotice);
@@ -473,12 +440,12 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       }
 
       keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
-      copyKeepaBtn.style.display = 'inline-flex';
+      copyKeepaBtn.hidden = false;
 
       const keepaUrlFor = days => buildKeepaUrl(asin, days);
 
       const img = document.createElement('img');
-      img.style.cssText = 'max-width:100%;height:auto;border-radius:4px;display:block;';
+      img.className = 'tp-keepa-img';
       img.alt = `Keepa Preisverlauf für ${asin}`;
       img.src = keepaUrlFor(currentDays);
 
@@ -491,19 +458,19 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       };
 
       const linksRow = document.createElement('div');
-      linksRow.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;width:100%;margin-top:6px;font-size:11px;';
+      linksRow.className = 'tp-keepa-links';
       const keepaLink = document.createElement('a');
       keepaLink.href = `https://keepa.com/#!product/3-${asin}`;
       keepaLink.target = '_blank';
       keepaLink.rel = 'noopener';
-      keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
+      keepaLink.className = 'tp-popout-link';
       keepaLink.textContent = 'Auf Keepa ansehen ↗';
       const amzLink = document.createElement('a');
       const safeDirect = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : null;
       amzLink.href = safeDirect || `https://www.amazon.de/dp/${asin}`;
       amzLink.target = '_blank';
       amzLink.rel = 'noopener';
-      amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
+      amzLink.className = 'tp-popout-link';
       amzLink.textContent = 'Auf Amazon.de ansehen ↗';
       linksRow.appendChild(keepaLink);
       linksRow.appendChild(amzLink);
@@ -514,16 +481,12 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
     }).catch(() => {
       keepaBody.replaceChildren();
       const errNotice = document.createElement('div');
-      errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
+      errNotice.className = 'tp-keepa-status';
       errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
       keepaBody.appendChild(errNotice);
     });
   }
 
-  backdrop.appendChild(panel);
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
-  document.body.appendChild(backdrop);
-  closeBtn.focus?.();
-  return backdrop;
+  return mount();
 }
 

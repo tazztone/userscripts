@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.502
+// @version      2.18.503
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2174,6 +2174,311 @@ const STYLES_OVERLAYS = `
   }
   @media (max-width: 700px) {
     .tp-input-wrapper { flex: 1 1 100% !important; max-width: none !important; }
+  }
+
+  /* Light-DOM Popouts (#tp-sparkline-popout, #tp-ai-popout) */
+  .tp-popout-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(15, 23, 42, 0.45) !important;
+    backdrop-filter: blur(2px) !important;
+    padding: 16px !important;
+    box-sizing: border-box !important;
+    font-family: var(--tp-font) !important;
+  }
+  .tp-popout-panel {
+    background: var(--tp-bg) !important;
+    color: var(--tp-txt) !important;
+    border: 1px solid var(--tp-line-soft) !important;
+    border-radius: var(--tp-r-lg) !important;
+    padding: 16px 18px !important;
+    max-width: min(608px, 94vw) !important;
+    width: 100% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45) !important;
+    box-sizing: border-box !important;
+  }
+  .tp-popout-panel.tp-ai-panel {
+    max-width: min(520px, 94vw) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 18px 20px !important;
+  }
+  .tp-popout-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 8px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .tp-ai-panel > .tp-popout-header {
+    border-bottom: 1px solid var(--tp-line-soft) !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 0 !important;
+  }
+  .tp-popout-title {
+    color: var(--tp-txt-mid) !important;
+    font-size: var(--tp-fs-lg) !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .tp-popout-actions {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-popout-footer {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    margin-top: 4px !important;
+  }
+  .tp-popout-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    min-height: 28px !important;
+    padding: 4px 12px !important;
+    background: var(--tp-bg-sub) !important;
+    border: 1px solid var(--tp-bdr) !important;
+    border-radius: var(--tp-r-sm) !important;
+    color: var(--tp-txt-mid) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+  }
+  .tp-popout-btn[hidden],
+  .tp-popout-chip[hidden] {
+    display: none !important;
+  }
+  .tp-popout-btn:hover:not(:disabled) {
+    background: rgba(15, 23, 42, 0.09) !important;
+    border-color: var(--tp-line-soft) !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-popout-btn:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+  }
+  .tp-popout-close {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    padding: 4px 8px !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--tp-r-sm) !important;
+    color: var(--tp-mut) !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    transition: color 0.15s ease, background 0.15s ease !important;
+  }
+  .tp-popout-close:hover {
+    color: var(--tp-txt) !important;
+    background: var(--tp-bg-sub) !important;
+  }
+  .tp-popout-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 38px !important;
+    min-height: 26px !important;
+    padding: 3px 8px !important;
+    background: transparent !important;
+    border: 1px solid var(--tp-bdr) !important;
+    border-radius: var(--tp-r-sm) !important;
+    color: var(--tp-txt-mid) !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+  }
+  .tp-popout-chip:hover:not(.tp-active) {
+    background: var(--tp-bg-sub) !important;
+    color: var(--tp-txt) !important;
+  }
+  .tp-popout-chip.tp-active {
+    background: var(--tp-btn-primary, #047857) !important;
+    border-color: var(--tp-btn-primary, #047857) !important;
+    color: #ffffff !important;
+  }
+  .tp-popout-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 24px !important;
+    padding: 2px 4px !important;
+    color: var(--tp-link, var(--tp-blue-soft, #2563eb)) !important;
+    text-decoration: none !important;
+    border-radius: 4px !important;
+    box-sizing: border-box !important;
+  }
+  .tp-popout-link:hover {
+    text-decoration: underline !important;
+  }
+  .tp-popout-btn:focus-visible,
+  .tp-popout-close:focus-visible,
+  .tp-popout-chip:focus-visible,
+  .tp-popout-link:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
+  }
+  .tp-keepa-section {
+    margin-top: 16px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid var(--tp-bdr) !important;
+  }
+  .tp-keepa-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 8px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .tp-keepa-title {
+    color: var(--tp-txt-mid) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+    flex: 1 1 200px !important;
+    min-width: 0 !important;
+  }
+  .tp-keepa-toolbar {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  .tp-keepa-body {
+    min-height: 120px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: var(--tp-bg-sub) !important;
+    border-radius: var(--tp-r-sm) !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+  }
+  .tp-keepa-status {
+    color: var(--tp-mut) !important;
+    font-size: 12px !important;
+    padding: 16px !important;
+    text-align: center !important;
+  }
+  .tp-keepa-img {
+    max-width: 100% !important;
+    height: auto !important;
+    border-radius: 4px !important;
+    display: block !important;
+  }
+  .tp-keepa-links {
+    display: flex !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+    width: 100% !important;
+    margin-top: 6px !important;
+    font-size: 11px !important;
+  }
+  .tp-ai-sub {
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+  .tp-ai-prod {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--tp-txt) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .tp-ai-price {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: var(--tp-acc-deep, #047857) !important;
+    white-space: nowrap !important;
+    background: rgba(16, 185, 129, 0.12) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .tp-ai-body {
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+    color: var(--tp-txt-mid) !important;
+    min-height: 56px !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    background: var(--tp-bg-sub) !important;
+    padding: 12px !important;
+    border-radius: var(--tp-r-md) !important;
+    border-left: 3px solid #5865f2 !important;
+    box-sizing: border-box !important;
+  }
+  .tp-ai-body.tp-ai-error {
+    border-left-color: #ef4444 !important;
+  }
+  @media (max-width: 480px) {
+    .tp-popout-backdrop { padding: 10px !important; }
+    .tp-popout-panel,
+    .tp-popout-panel.tp-ai-panel { padding: 12px !important; max-width: 96vw !important; }
+    .tp-popout-footer > .tp-popout-btn { flex: 1 1 auto !important; }
+  }
+  @media (hover: none), (pointer: coarse) {
+    .tp-popout-btn {
+      min-height: 36px !important;
+      padding: 6px 12px !important;
+      touch-action: manipulation !important;
+    }
+    .tp-popout-close {
+      min-width: 36px !important;
+      min-height: 36px !important;
+      touch-action: manipulation !important;
+    }
+    .tp-popout-chip {
+      min-width: 44px !important;
+      min-height: 34px !important;
+      padding: 4px 10px !important;
+      touch-action: manipulation !important;
+    }
+    .tp-popout-link {
+      min-height: 34px !important;
+      padding: 4px 6px !important;
+      touch-action: manipulation !important;
+    }
   }
 `;
 
@@ -7609,6 +7914,113 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  // ─── MODULE: src/ui/popout-dialog.js ────────────────────────────────────────
+  /**
+   * Shared accessible modal shell for light-DOM card/chart popouts (#tp-sparkline-popout, #tp-ai-popout).
+   * Uses plain className/hidden properties and guards querySelectorAll so Node DOM mocks work cleanly.
+   */
+
+  const FOCUSABLE_SEL = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function visibleFocusables(panel) {
+    if (typeof panel?.querySelectorAll !== 'function') return [];
+    return Array.from(panel.querySelectorAll(FOCUSABLE_SEL)).filter(el => {
+      if (!el || el.hidden || el.disabled) return false;
+      if (el.getAttribute?.('aria-hidden') === 'true') return false;
+      return typeof el.getClientRects !== 'function' || el.getClientRects().length > 0;
+    });
+  }
+
+  function createPopoutDialog({ id, label, title = '', panelClass = '', closeLabel = 'Schliessen', actions = [], onClose = null } = {}) {
+    const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
+
+    const backdrop = document.createElement('div');
+    if (id) backdrop.id = id;
+    backdrop.className = 'tp-popout-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    if (label) backdrop.setAttribute('aria-label', label);
+
+    const panel = document.createElement('div');
+    panel.className = panelClass ? `tp-popout-panel ${panelClass}` : 'tp-popout-panel';
+
+    const header = document.createElement('div');
+    header.className = 'tp-popout-header';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'tp-popout-title';
+    titleEl.textContent = title;
+    if (title) titleEl.title = title;
+
+    const headerActions = document.createElement('div');
+    headerActions.className = 'tp-popout-actions';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'tp-popout-close';
+    closeBtn.textContent = '✕';
+    closeBtn.setAttribute('aria-label', closeLabel);
+
+    for (const act of actions) headerActions.appendChild(act);
+    headerActions.appendChild(closeBtn);
+    header.appendChild(titleEl);
+    header.appendChild(headerActions);
+    panel.appendChild(header);
+    backdrop.appendChild(panel);
+
+    let closed = false;
+    const onKey = e => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        close();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusables = visibleFocusables(panel);
+      if (!focusables.length) {
+        e.preventDefault();
+        closeBtn.focus?.();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || !panel.contains?.(active))) {
+        e.preventDefault();
+        last.focus?.();
+      } else if (!e.shiftKey && (active === last || !panel.contains?.(active))) {
+        e.preventDefault();
+        first.focus?.();
+      }
+    };
+
+    function close() {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener('keydown', onKey);
+      try { onClose?.(); } catch {}
+      backdrop.remove();
+      try {
+        if (prevFocus && prevFocus.isConnected !== false) prevFocus.focus?.();
+      } catch {}
+    }
+
+    closeBtn.addEventListener('click', close);
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) close();
+    });
+
+    function mount() {
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(backdrop);
+      closeBtn.focus?.();
+      return backdrop;
+    }
+
+    return { backdrop, panel, header, titleEl, headerActions, closeBtn, mount, close };
+  }
+
   // ─── MODULE: src/ui/sparkline.js ────────────────────────────────────────────
   /**
    * Interactive SVG Sparkline Component
@@ -7616,6 +8028,7 @@ const SHADOW_MODAL_STYLES = `
    * with interactive tooltips. Single neutral color: history samples can be stale
    * relative to the live card price, so trend coloring would mislead.
    */
+
 
 
 
@@ -7933,7 +8346,6 @@ const SHADOW_MODAL_STYLES = `
   function openSparklinePopout(timeSeries, chartCtx = null) {
     if (typeof document === 'undefined') return null;
     closeSparklinePopout();
-    const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
     const productTitle = chartCtx?.title || '';
     const svg = renderDiscordChart(timeSeries, 560, 220, productTitle);
     if (!svg) return null;
@@ -7941,56 +8353,21 @@ const SHADOW_MODAL_STYLES = `
     svg.style.height = 'auto';
     svg.style.display = 'block';
 
-    const backdrop = document.createElement('div');
-    backdrop.id = 'tp-sparkline-popout';
-    backdrop.setAttribute('role', 'dialog');
-    backdrop.setAttribute('aria-label', 'Preisverlauf');
-    backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);padding:16px;box-sizing:border-box;';
-    const panel = document.createElement('div');
-    panel.style.cssText = 'background:var(--tp-bg);border-radius:var(--tp-r-lg);padding:16px;max-width:min(608px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;';
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
-    const title = document.createElement('div');
-    title.textContent = productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf';
-    title.style.cssText = 'color:var(--tp-txt-mid);font-size:var(--tp-fs-lg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0;';
-    if (productTitle) title.title = productTitle;
-
-    const headerActions = document.createElement('div');
-    headerActions.style.cssText = 'display:flex;align-items:center;gap:6px;';
-
     const copyTpBtn = document.createElement('button');
     copyTpBtn.type = 'button';
+    copyTpBtn.className = 'tp-popout-btn';
     copyTpBtn.textContent = '📋 Bild kopieren';
     copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
-    copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;display:inline-flex;align-items:center;cursor:pointer;';
     copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
 
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = '✕';
-    closeBtn.setAttribute('aria-label', 'Schliessen');
-    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;';
-    const onKey = e => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        e.stopImmediatePropagation?.();
-        close();
-      }
-    };
-    function close() {
-      document.removeEventListener('keydown', onKey);
-      activePopoutCleanup = null;
-      closeSparklinePopout();
-      try { prevFocus?.focus?.(); } catch {}
-    }
+    const { panel, mount, close } = createPopoutDialog({
+      id: 'tp-sparkline-popout',
+      label: 'Preisverlauf',
+      title: productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf',
+      actions: [copyTpBtn],
+      onClose: () => { activePopoutCleanup = null; }
+    });
     activePopoutCleanup = close;
-    document.addEventListener('keydown', onKey);
-    closeBtn.addEventListener('click', close);
-    headerActions.appendChild(copyTpBtn);
-    headerActions.appendChild(closeBtn);
-    header.appendChild(title);
-    header.appendChild(headerActions);
-    panel.appendChild(header);
     panel.appendChild(svg);
 
     // Stacked Keepa section for Amazon deals
@@ -7998,17 +8375,17 @@ const SHADOW_MODAL_STYLES = `
     if (isAmazon) {
       const keepaSection = document.createElement('div');
       keepaSection.id = 'tp-keepa-section';
-      keepaSection.style.cssText = 'margin-top:16px;padding-top:14px;border-top:1px solid var(--tp-bdr);';
+      keepaSection.className = 'tp-keepa-section';
 
       const keepaHeader = document.createElement('div');
-      keepaHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;';
+      keepaHeader.className = 'tp-keepa-header';
 
       const keepaTitle = document.createElement('div');
+      keepaTitle.className = 'tp-keepa-title';
       keepaTitle.textContent = '🛒 Amazon.de Preisverlauf (Keepa)';
-      keepaTitle.style.cssText = 'color:var(--tp-txt-mid);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;';
 
       const keepaToolbar = document.createElement('div');
-      keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
+      keepaToolbar.className = 'tp-keepa-toolbar';
 
       const ranges = [
         { label: '90T', days: 90 },
@@ -8020,24 +8397,26 @@ const SHADOW_MODAL_STYLES = `
       const rangeBtns = [];
 
       const keepaBody = document.createElement('div');
-      keepaBody.style.cssText = 'min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--tp-bg-sub);border-radius:var(--tp-r-sm);padding:8px;box-sizing:border-box;';
+      keepaBody.className = 'tp-keepa-body';
 
       const loadingIndicator = document.createElement('div');
+      loadingIndicator.className = 'tp-keepa-status';
       loadingIndicator.textContent = '⏳ Lade Amazon.de Keepa-Verlauf...';
-      loadingIndicator.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:24px 0;';
       keepaBody.appendChild(loadingIndicator);
 
       const copyKeepaBtn = document.createElement('button');
       copyKeepaBtn.type = 'button';
+      copyKeepaBtn.className = 'tp-popout-btn';
       copyKeepaBtn.textContent = '📋 Bild kopieren';
-      copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;align-items:center;cursor:pointer;display:none;';
+      copyKeepaBtn.hidden = true;
 
       ranges.forEach(r => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = r.label;
         const setBtnStyle = active => {
-          btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:3px 8px;min-height:26px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;`;
+          btn.className = active ? 'tp-popout-chip tp-active' : 'tp-popout-chip';
+          btn.setAttribute('aria-pressed', active ? 'true' : 'false');
         };
         setBtnStyle(!!r.active);
         btn.addEventListener('click', () => {
@@ -8066,7 +8445,7 @@ const SHADOW_MODAL_STYLES = `
             while (keepaBody.firstChild) keepaBody.removeChild(keepaBody.firstChild);
           }
           const errNotice = document.createElement('div');
-          errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
+          errNotice.className = 'tp-keepa-status';
           const msgSpan = document.createElement('span');
           msgSpan.textContent = 'Amazon-ASIN konnte nicht ermittelt werden.';
           errNotice.appendChild(msgSpan);
@@ -8076,7 +8455,7 @@ const SHADOW_MODAL_STYLES = `
           a.href = safeUrl;
           a.target = '_blank';
           a.rel = 'noopener';
-          a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-flex;align-items:center;min-height:24px;';
+          a.className = 'tp-popout-link';
           a.textContent = 'Zum Amazon-Angebot ↗';
           errNotice.appendChild(a);
           keepaBody.appendChild(errNotice);
@@ -8084,12 +8463,12 @@ const SHADOW_MODAL_STYLES = `
         }
 
         keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
-        copyKeepaBtn.style.display = 'inline-flex';
+        copyKeepaBtn.hidden = false;
 
         const keepaUrlFor = days => buildKeepaUrl(asin, days);
 
         const img = document.createElement('img');
-        img.style.cssText = 'max-width:100%;height:auto;border-radius:4px;display:block;';
+        img.className = 'tp-keepa-img';
         img.alt = `Keepa Preisverlauf für ${asin}`;
         img.src = keepaUrlFor(currentDays);
 
@@ -8102,19 +8481,19 @@ const SHADOW_MODAL_STYLES = `
         };
 
         const linksRow = document.createElement('div');
-        linksRow.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;width:100%;margin-top:6px;font-size:11px;';
+        linksRow.className = 'tp-keepa-links';
         const keepaLink = document.createElement('a');
         keepaLink.href = `https://keepa.com/#!product/3-${asin}`;
         keepaLink.target = '_blank';
         keepaLink.rel = 'noopener';
-        keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
+        keepaLink.className = 'tp-popout-link';
         keepaLink.textContent = 'Auf Keepa ansehen ↗';
         const amzLink = document.createElement('a');
         const safeDirect = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : null;
         amzLink.href = safeDirect || `https://www.amazon.de/dp/${asin}`;
         amzLink.target = '_blank';
         amzLink.rel = 'noopener';
-        amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
+        amzLink.className = 'tp-popout-link';
         amzLink.textContent = 'Auf Amazon.de ansehen ↗';
         linksRow.appendChild(keepaLink);
         linksRow.appendChild(amzLink);
@@ -8125,17 +8504,13 @@ const SHADOW_MODAL_STYLES = `
       }).catch(() => {
         keepaBody.replaceChildren();
         const errNotice = document.createElement('div');
-        errNotice.style.cssText = 'color:var(--tp-mut);font-size:12px;padding:16px;text-align:center;';
+        errNotice.className = 'tp-keepa-status';
         errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
         keepaBody.appendChild(errNotice);
       });
     }
 
-    backdrop.appendChild(panel);
-    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
-    document.body.appendChild(backdrop);
-    closeBtn.focus?.();
-    return backdrop;
+    return mount();
   }
 
   // ─── MODULE: src/features/discord-recipe.js ─────────────────────────────────
@@ -10800,6 +11175,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function formatVerdictHtml(text) {
     if (!text) return '';
     const escaped = String(text)
@@ -10832,54 +11208,41 @@ const SHADOW_MODAL_STYLES = `
     closeAiPopover();
 
     const { title = '', priceText = '', googleUrl = '', card = null } = options;
-    const prevFocus = typeof document.activeElement !== 'undefined' ? document.activeElement : null;
 
     const query = buildTavilyQuery(title, CONFIG.REVIEW_SEARCH_KEYWORD, priceText);
     const cached = getCachedTavily(query);
 
-    const backdrop = document.createElement('div');
-    backdrop.id = 'tp-ai-popout';
-    backdrop.setAttribute('role', 'dialog');
-    backdrop.setAttribute('aria-modal', 'true');
-    backdrop.setAttribute('aria-label', 'KI-Fazit und Preiseinschätzung');
-    backdrop.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.45);backdrop-filter:blur(2px);padding:16px;box-sizing:border-box;';
+    let statusTimers = [];
+    const clearTimers = () => {
+      statusTimers.forEach(t => clearTimeout(t));
+      statusTimers = [];
+    };
 
-    const panel = document.createElement('div');
-    panel.style.cssText = 'background:var(--tp-bg, #1e293b);color:var(--tp-txt, #f8fafc);border:1px solid var(--tp-line-soft, #334155);border-radius:var(--tp-r-lg, 12px);padding:18px 20px;max-width:min(520px,94vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);box-sizing:border-box;display:flex;flex-direction:column;gap:12px;';
-
-    // Header row
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--tp-line-soft, #334155);padding-bottom:10px;';
-
-    const titleRow = document.createElement('div');
-    titleRow.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--tp-txt-mid, #cbd5e1);';
-    titleRow.innerHTML = '<span>🤖 KI-Kurzfazit & Preiseinschätzung</span>';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = '✕';
-    closeBtn.setAttribute('aria-label', 'Schliessen');
-    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;line-height:1;';
-    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#fff'; });
-    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = 'var(--tp-mut, #94a3b8)'; });
-
-    header.appendChild(titleRow);
-    header.appendChild(closeBtn);
-    panel.appendChild(header);
+    const { backdrop, panel, mount, close } = createPopoutDialog({
+      id: 'tp-ai-popout',
+      label: 'KI-Fazit und Preiseinschätzung',
+      title: '🤖 KI-Kurzfazit & Preiseinschätzung',
+      panelClass: 'tp-ai-panel',
+      onClose: () => {
+        clearTimers();
+        activeAiPopoverCleanup = null;
+      }
+    });
+    activeAiPopoverCleanup = close;
 
     // Subheader: Product title & price
     const subheader = document.createElement('div');
-    subheader.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:10px;';
+    subheader.className = 'tp-ai-sub';
 
     const prodName = document.createElement('div');
-    prodName.style.cssText = 'font-size:14px;font-weight:600;color:var(--tp-txt, #f8fafc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+    prodName.className = 'tp-ai-prod';
     prodName.textContent = title;
     prodName.title = title;
 
     subheader.appendChild(prodName);
     if (priceText) {
       const priceBadge = document.createElement('span');
-      priceBadge.style.cssText = 'font-size:13px;font-weight:700;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 6px;border-radius:4px;';
+      priceBadge.className = 'tp-ai-price';
       priceBadge.textContent = priceText;
       subheader.appendChild(priceBadge);
     }
@@ -10887,53 +11250,41 @@ const SHADOW_MODAL_STYLES = `
 
     // Body content: loading / result / error
     const contentEl = document.createElement('div');
-    contentEl.style.cssText = 'font-size:13px;line-height:1.55;color:var(--tp-txt-mid, #cbd5e1);min-height:56px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;border-left:3px solid #5865f2;';
+    contentEl.className = 'tp-ai-body';
 
     let currentVerdict = '';
-    let statusTimers = [];
-    const clearTimers = () => {
-      statusTimers.forEach(t => clearTimeout(t));
-      statusTimers = [];
-    };
 
     const renderVerdict = (text) => {
       clearTimers();
       currentVerdict = text;
-      contentEl.style.borderLeftColor = '#5865f2';
+      contentEl.className = 'tp-ai-body';
       contentEl.innerHTML = formatVerdictHtml(text);
       copyBtn.disabled = false;
-      retryBtn.style.display = 'none';
+      retryBtn.hidden = true;
     };
 
     const renderError = (msg) => {
       clearTimers();
-      contentEl.style.borderLeftColor = '#ef4444';
+      contentEl.className = 'tp-ai-body tp-ai-error';
       contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
       copyBtn.disabled = true;
-      retryBtn.style.display = 'inline-flex';
+      retryBtn.hidden = false;
     };
-
-    if (cached?.answer) {
-      renderVerdict(cached.answer);
-    } else {
-      contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
-    }
-    panel.appendChild(contentEl);
 
     // Footer action buttons
     const footer = document.createElement('div');
-    footer.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px;';
+    footer.className = 'tp-popout-footer';
 
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
-    retryBtn.className = 'tp-btn tp-btn-secondary';
-    retryBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    retryBtn.className = 'tp-popout-btn';
+    retryBtn.hidden = true;
     retryBtn.textContent = '🔄 Erneut versuchen';
 
     const fetchSummary = () => {
       clearTimers();
-      retryBtn.style.display = 'none';
-      contentEl.style.borderLeftColor = '#5865f2';
+      retryBtn.hidden = true;
+      contentEl.className = 'tp-ai-body';
       contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
 
       statusTimers.push(setTimeout(() => {
@@ -10971,14 +11322,12 @@ const SHADOW_MODAL_STYLES = `
     googleBtn.href = googleUrl || ('https://www.google.com/search?q=' + encodeURIComponent(query));
     googleBtn.target = '_blank';
     googleBtn.rel = 'noopener';
-    googleBtn.className = 'tp-btn tp-btn-secondary';
-    googleBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
+    googleBtn.className = 'tp-popout-btn';
     googleBtn.textContent = '↗ Google-Suche';
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
-    copyBtn.className = 'tp-btn tp-btn-secondary';
-    copyBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    copyBtn.className = 'tp-popout-btn';
     copyBtn.textContent = '📋 Fazit kopieren';
     copyBtn.disabled = !cached?.answer;
 
@@ -10996,8 +11345,7 @@ const SHADOW_MODAL_STYLES = `
 
     const discordBtn = document.createElement('button');
     discordBtn.type = 'button';
-    discordBtn.className = 'tp-btn tp-btn-secondary';
-    discordBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    discordBtn.className = 'tp-popout-btn';
     discordBtn.textContent = '📤 In Discord teilen';
 
     discordBtn.addEventListener('click', () => {
@@ -11010,39 +11358,20 @@ const SHADOW_MODAL_STYLES = `
       }
     });
 
+    if (cached?.answer) {
+      renderVerdict(cached.answer);
+    } else {
+      contentEl.innerHTML = '<span style="opacity:0.75;">🤖 Analysiere Testberichte & Preiseinschätzung...</span>';
+    }
+    panel.appendChild(contentEl);
+
     footer.appendChild(retryBtn);
     footer.appendChild(googleBtn);
     footer.appendChild(copyBtn);
     footer.appendChild(discordBtn);
     panel.appendChild(footer);
 
-    // Close handlers
-    const onKey = e => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        e.stopImmediatePropagation?.();
-        close();
-      }
-    };
-
-    function close() {
-      clearTimers();
-      document.removeEventListener('keydown', onKey);
-      activeAiPopoverCleanup = null;
-      backdrop.remove();
-      try { prevFocus?.focus?.(); } catch {}
-    }
-
-    activeAiPopoverCleanup = close;
-    document.addEventListener('keydown', onKey);
-    closeBtn.addEventListener('click', close);
-    backdrop.addEventListener('click', e => {
-      if (e.target === backdrop) close();
-    });
-
-    backdrop.appendChild(panel);
-    document.body.appendChild(backdrop);
-    closeBtn.focus?.();
+    mount();
 
     // If not cached, trigger fetch now
     if (!cached?.answer) {
@@ -16034,7 +16363,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.502';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.503';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

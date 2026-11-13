@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderSparkline, renderDiscordChart, openSparklinePopout, closeSparklinePopout } from '../../src/ui/sparkline.js';
+import { STYLES_OVERLAYS } from '../../src/ui/styles/overlays.js';
 
 const DAY_S = 86400; // seconds, not helpers.js DAY (ms) — do not "fix"
 
@@ -102,23 +103,37 @@ describe('Interactive SVG Sparkline Component', () => {
       directUrl: 'https://www.amazon.de/dp/B0FHWR36F6'
     });
     assert.ok(popout);
+    assert.equal(popout.getAttribute('role'), 'dialog');
+    assert.equal(popout.getAttribute('aria-modal'), 'true');
     const panel = popout.children[0];
     assert.ok(panel);
-    assert.ok(panel.style.cssText.includes('max-height:90vh'));
+    assert.ok(panel.className.includes('tp-popout-panel'));
+    assert.ok(STYLES_OVERLAYS.includes('.tp-popout-panel') && STYLES_OVERLAYS.includes('max-height: 90vh'));
+    assert.ok(STYLES_OVERLAYS.includes('.tp-popout-btn[hidden]'));
+    assert.ok(STYLES_OVERLAYS.includes('@media (hover: none), (pointer: coarse)'));
 
     // Check header title contains product title
     const header = panel.children[0];
     const titleEl = header.children[0];
     assert.ok(titleEl.textContent.includes('Thermaltake View 390'));
 
-    // Check copy button in header
+    // Check copy button + close button in header
     const headerActions = header.children[1];
     const copyBtn = headerActions.children.find(c => c.textContent.includes('Bild kopieren'));
     assert.ok(copyBtn, 'expected Toppreise copy button');
+    assert.equal(copyBtn.className, 'tp-popout-btn');
+    const closeBtn = headerActions.children.find(c => c.className === 'tp-popout-close');
+    assert.ok(closeBtn, 'expected popout close button');
 
-    // Check Keepa section was appended
+    // Check Keepa section was appended with hidden copy button and chip range buttons
     const keepaSection = panel.children.find(c => c.id === 'tp-keepa-section');
     assert.ok(keepaSection, 'expected #tp-keepa-section for Amazon deal');
+    const keepaToolbar = keepaSection.children[0].children[1];
+    const keepaCopyBtn = keepaToolbar.children.find(c => c.textContent.includes('Bild kopieren'));
+    assert.equal(keepaCopyBtn?.hidden, true);
+    const activeRangeBtn = keepaToolbar.children.find(c => c.textContent === '365T');
+    assert.equal(activeRangeBtn?.className, 'tp-popout-chip tp-active');
+    assert.equal(activeRangeBtn?.getAttribute('aria-pressed'), 'true');
 
     closeSparklinePopout();
   });
