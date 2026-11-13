@@ -145,11 +145,11 @@ export const STYLES_BADGES = `
   }
   .tp-share-btn {
     position: absolute !important;
-    bottom: 6px !important;
-    left: 6px !important;
+    bottom: 5px !important;
+    left: 5px !important;
     z-index: 5 !important;
-    width: 26px !important;
-    height: 26px !important;
+    width: 28px !important;
+    height: 28px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -188,7 +188,11 @@ export const STYLES_BADGES = `
     box-shadow: 0 0 10px var(--tp-acc) !important;
   }
   .tp-review-search-btn {
-    display: inline-block !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 2px 4px !important;
+    vertical-align: middle !important;
     margin-left: 6px !important;
     font-size: 13px !important;
     line-height: 1 !important;
@@ -451,7 +455,7 @@ export const STYLES_BADGES = `
     cursor: pointer !important;
     font-size: 16px !important;
     line-height: 1 !important;
-    padding: 0 !important;
+    padding: 2px 5px !important;
     opacity: 0.75 !important;
     transition: opacity 0.15s ease !important;
   }
@@ -481,12 +485,11 @@ export const STYLES_BADGES = `
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 0 !important;
+    padding: 2px 5px !important;
     opacity: 0.65 !important;
     pointer-events: auto !important;
     flex: 0 0 auto !important;
     width: auto !important;
-    min-width: 18px !important;
     max-width: none !important;
     line-height: 1 !important;
     text-align: right !important;
@@ -528,7 +531,7 @@ export const STYLES_BADGES = `
   .tp-card-alarm-group {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 3px !important;
+    gap: 6px !important;
     opacity: 0 !important;
     pointer-events: none !important;
     transition: opacity 0.15s ease !important;
@@ -537,8 +540,9 @@ export const STYLES_BADGES = `
     pointer-events: none !important;
   }
   .tp-card-alarm-group button.tp-alarm-cog {
+    position: relative !important;
     margin-left: 0 !important;
-    padding: 0 2px !important;
+    padding: 2px 4px !important;
     border: none !important;
     background: transparent !important;
     color: inherit !important;
@@ -552,10 +556,11 @@ export const STYLES_BADGES = `
     opacity: 1 !important;
   }
   button.tp-card-alarm-btn {
+    position: relative !important;
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 1px 3px !important;
+    padding: 2px 4px !important;
     opacity: 0 !important;
     pointer-events: none !important;
     font-size: 16px !important;
@@ -598,8 +603,8 @@ export const STYLES_BADGES = `
   }
   .tp-card-subline-row {
     position: absolute !important;
-    bottom: 4px !important;
-    left: 38px !important;
+    bottom: 5px !important;
+    left: 40px !important;
     right: 6px !important;
     display: flex !important;
     align-items: center !important;
@@ -618,15 +623,16 @@ export const STYLES_BADGES = `
   .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box:has(> .tp-card-subline-row),
   .Plugin_Product:has(> .tp-card-subline-row) {
     position: relative !important;
-    padding-bottom: 30px !important;
+    padding-bottom: 34px !important;
   }
   .tp-sparkline-container {
+    position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
     vertical-align: middle !important;
     margin: 0 !important;
     line-height: 1 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
   .tp-sparkline-container.tp-sparkline-amazon {
     box-shadow: 0 0 6px rgba(255, 153, 0, 0.45) !important;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.499
+// @version      2.18.500
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -232,8 +232,72 @@ const STYLES_CARDS = `
     min-width: 0 !important;
     max-width: 100% !important;
   }
+  /* Desktop card & inline interactive target adequacy (min >= 24x24, near-miss shield) */
+  .tp-review-search-btn,
+  .tp-dealer-btn,
+  .tp-card-alarm-group button.tp-alarm-cog {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+  }
+  button.tp-card-alarm-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    box-sizing: border-box !important;
+  }
+  a.tp-dealer-name {
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 22px !important;
+    padding: 2px 4px !important;
+    border-radius: 4px !important;
+    box-sizing: border-box !important;
+  }
   .tp-sparkline-container {
     flex-shrink: 0 !important;
+    justify-content: center !important;
+    min-width: 58px !important;
+    min-height: 24px !important;
+    padding: 3px 5px !important;
+    border: 1px solid transparent !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+    z-index: 2 !important;
+    touch-action: manipulation !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+  }
+  .tp-sparkline-container:hover {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: rgba(59, 130, 246, 0.35) !important;
+  }
+  .tp-sparkline-container.tp-sparkline-amazon:hover {
+    border-color: rgba(255, 153, 0, 0.8) !important;
+  }
+  .tp-sparkline-container:focus-visible,
+  .tp-share-btn:focus-visible,
+  .tp-review-search-btn:focus-visible,
+  .tp-dealer-btn:focus-visible,
+  a.tp-dealer-name:focus-visible,
+  .tp-card-alarm-group .tp-alarm-cog:focus-visible,
+  button.tp-card-alarm-btn:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
+  }
+  /* Desktop near-miss hit buffer inside wrapping card anchors */
+  .tp-sparkline-container::after {
+    content: "" !important;
+    position: absolute !important;
+    top: -5px !important;
+    bottom: -5px !important;
+    left: -4px !important;
+    right: -4px !important;
   }
   /* Touch visibility & hit area expansion for hover-only card actions */
   @media (hover: none), (pointer: coarse) {
@@ -246,6 +310,15 @@ const STYLES_CARDS = `
       pointer-events: auto !important;
       touch-action: manipulation !important;
     }
+    .tp-sparkline-container,
+    .tp-alarm-cog,
+    .tp-detail-sparkline,
+    .tp-detail-share-btn,
+    .badge-dif.tp-deal-pill,
+    .tp-action-dealer button.tp-dealer-btn {
+      position: relative !important;
+      touch-action: manipulation !important;
+    }
     .tp-card-alarm-group * {
       pointer-events: auto !important;
     }
@@ -255,7 +328,7 @@ const STYLES_CARDS = `
     }
     button.tp-card-alarm-btn {
       min-width: 26px !important;
-      min-height: 22px !important;
+      min-height: 26px !important;
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -267,22 +340,66 @@ const STYLES_CARDS = `
     button.tp-card-alarm-btn:not(:disabled):active {
       opacity: 1 !important;
     }
-    .tp-share-btn::after {
+    .tp-card-subline-row .tp-sparkline-container::after {
       content: "" !important;
       position: absolute !important;
-      top: -7px !important;
-      bottom: -7px !important;
-      left: -7px !important;
-      right: -7px !important;
+      top: -15px !important;
+      bottom: -5px !important;
+      left: -8px !important;
+      right: -6px !important;
     }
-    .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after {
+    .tp-detail-sparkline::after {
       content: "" !important;
       position: absolute !important;
       top: -8px !important;
       bottom: -8px !important;
-      left: -8px !important;
-      right: -8px !important;
+      left: -6px !important;
+      right: -6px !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -11px !important;
+      bottom: -5px !important;
+      left: -5px !important;
+      right: -6px !important;
+    }
+    .tp-detail-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -8px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after,
+    .tp-action-dealer button.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -10px !important;
+    }
+    /* Alarm bell ::after renders .tp-alarm-auto lightning badge; expand bell hit area on ::before */
+    button.tp-card-alarm-btn::before {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -9px !important;
+      right: -2px !important;
+    }
+    .tp-alarm-cog::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -10px !important;
+      bottom: -10px !important;
+      left: -2px !important;
+      right: -10px !important;
+    }
+    .badge-dif.tp-deal-pill::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -4px !important;
+      right: -4px !important;
     }
   }
 `;
@@ -434,11 +551,11 @@ const STYLES_BADGES = `
   }
   .tp-share-btn {
     position: absolute !important;
-    bottom: 6px !important;
-    left: 6px !important;
+    bottom: 5px !important;
+    left: 5px !important;
     z-index: 5 !important;
-    width: 26px !important;
-    height: 26px !important;
+    width: 28px !important;
+    height: 28px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -477,7 +594,11 @@ const STYLES_BADGES = `
     box-shadow: 0 0 10px var(--tp-acc) !important;
   }
   .tp-review-search-btn {
-    display: inline-block !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 2px 4px !important;
+    vertical-align: middle !important;
     margin-left: 6px !important;
     font-size: 13px !important;
     line-height: 1 !important;
@@ -740,7 +861,7 @@ const STYLES_BADGES = `
     cursor: pointer !important;
     font-size: 16px !important;
     line-height: 1 !important;
-    padding: 0 !important;
+    padding: 2px 5px !important;
     opacity: 0.75 !important;
     transition: opacity 0.15s ease !important;
   }
@@ -770,12 +891,11 @@ const STYLES_BADGES = `
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 0 !important;
+    padding: 2px 5px !important;
     opacity: 0.65 !important;
     pointer-events: auto !important;
     flex: 0 0 auto !important;
     width: auto !important;
-    min-width: 18px !important;
     max-width: none !important;
     line-height: 1 !important;
     text-align: right !important;
@@ -817,7 +937,7 @@ const STYLES_BADGES = `
   .tp-card-alarm-group {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 3px !important;
+    gap: 6px !important;
     opacity: 0 !important;
     pointer-events: none !important;
     transition: opacity 0.15s ease !important;
@@ -826,8 +946,9 @@ const STYLES_BADGES = `
     pointer-events: none !important;
   }
   .tp-card-alarm-group button.tp-alarm-cog {
+    position: relative !important;
     margin-left: 0 !important;
-    padding: 0 2px !important;
+    padding: 2px 4px !important;
     border: none !important;
     background: transparent !important;
     color: inherit !important;
@@ -841,10 +962,11 @@ const STYLES_BADGES = `
     opacity: 1 !important;
   }
   button.tp-card-alarm-btn {
+    position: relative !important;
     background: none !important;
     border: none !important;
     cursor: pointer !important;
-    padding: 1px 3px !important;
+    padding: 2px 4px !important;
     opacity: 0 !important;
     pointer-events: none !important;
     font-size: 16px !important;
@@ -887,8 +1009,8 @@ const STYLES_BADGES = `
   }
   .tp-card-subline-row {
     position: absolute !important;
-    bottom: 4px !important;
-    left: 38px !important;
+    bottom: 5px !important;
+    left: 40px !important;
     right: 6px !important;
     display: flex !important;
     align-items: center !important;
@@ -907,15 +1029,16 @@ const STYLES_BADGES = `
   .Plugin_TopPriceReductionProductListFull .Plugin_Product.medium-box:has(> .tp-card-subline-row),
   .Plugin_Product:has(> .tp-card-subline-row) {
     position: relative !important;
-    padding-bottom: 30px !important;
+    padding-bottom: 34px !important;
   }
   .tp-sparkline-container {
+    position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
     vertical-align: middle !important;
     margin: 0 !important;
     line-height: 1 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
   .tp-sparkline-container.tp-sparkline-amazon {
     box-shadow: 0 0 6px rgba(255, 153, 0, 0.45) !important;
@@ -1178,6 +1301,7 @@ const STYLES_CHROME = `
     color: #92400e !important;
   }
   .tp-detail-share-btn {
+    position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -1192,6 +1316,7 @@ const STYLES_CHROME = `
     cursor: pointer !important;
     opacity: 0.85 !important;
     vertical-align: middle !important;
+    touch-action: manipulation !important;
     transition: all 0.2s ease !important;
   }
   .tp-detail-share-btn:hover,
@@ -1209,16 +1334,20 @@ const STYLES_CHROME = `
   }
   #tp-detail-sparkline,
   .tp-detail-sparkline {
+    position: relative !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     margin: 6px auto !important;
-    padding: 2px 6px !important;
+    min-height: 30px !important;
+    padding: 4px 10px !important;
     width: fit-content !important;
+    box-sizing: border-box !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border: 1px solid var(--tp-bdr) !important;
     border-radius: var(--tp-r-sm) !important;
     cursor: pointer !important;
+    touch-action: manipulation !important;
     transition: all 0.2s ease !important;
   }
   #tp-detail-sparkline:hover,
@@ -1226,13 +1355,31 @@ const STYLES_CHROME = `
     border-color: var(--tp-blue-soft) !important;
     background: rgba(59, 130, 246, 0.1) !important;
   }
+  #tp-detail-sparkline:focus-visible,
+  .tp-detail-sparkline:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
+  }
   .tp-detail-review-btn,
   h1 .tp-review-search-btn {
     opacity: 0.85 !important;
     pointer-events: auto !important;
     margin-left: 8px !important;
     vertical-align: middle !important;
-    display: inline-block !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    font-size: 16px !important;
+    border-radius: 6px !important;
+    touch-action: manipulation !important;
+  }
+  .tp-detail-review-btn:focus-visible,
+  h1 .tp-review-search-btn:focus-visible {
+    opacity: 1 !important;
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
   }
   .tp-detail-review-btn:hover,
   h1 .tp-review-search-btn:hover {
@@ -11098,7 +11245,9 @@ const SHADOW_MODAL_STYLES = `
       sparkContainer.style.cursor = 'pointer';
       sparkContainer.setAttribute('role', 'button');
       sparkContainer.setAttribute('tabindex', '0');
-      sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
+      const tip = isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern';
+      sparkContainer.setAttribute('title', tip);
+      sparkContainer.setAttribute('aria-label', tip);
       if (!sparkContainer.dataset.tpPopoutBound) {
         sparkContainer.dataset.tpPopoutBound = 'true';
         const openPopout = async () => {
@@ -11131,7 +11280,7 @@ const SHADOW_MODAL_STYLES = `
       }
       if (sparkContainer.dataset.tpSparkSig !== sig) {
         sparkContainer.dataset.tpSparkSig = sig;
-        const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
+        const svg = renderSparkline(sparkContainer._tpSeries, 52, 16);
         if (svg) {
           sparkContainer.replaceChildren();
           sparkContainer.appendChild(svg);
@@ -14590,8 +14739,9 @@ const SHADOW_MODAL_STYLES = `
       '.tp-alarm-off{opacity:.45 !important;}',
       '.tp-alarm-fill,.tp-alarm-auto{position:relative !important;outline:2px solid #3b82f6 !important;outline-offset:2px;border-radius:4px;}',
       '.tp-alarm-auto::after{content:"\\26A1";position:absolute;top:-10px;right:-10px;font-size:12px;line-height:1;}',
-      '.tp-alarm-cog{margin-left:6px;padding:0 4px;border:none;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
-      '.tp-alarm-cog:hover{opacity:1;}',
+      '.tp-alarm-cog{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;margin-left:6px;padding:2px 4px;border:none;border-radius:4px;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
+      '.tp-alarm-cog:hover,.tp-alarm-cog:focus-visible{opacity:1;}',
+      '.tp-alarm-cog:focus-visible{outline:2px solid var(--tp-focus,#3b82f6);outline-offset:2px;}',
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -15337,7 +15487,7 @@ const SHADOW_MODAL_STYLES = `
       });
     }
 
-    const svg = renderSparkline(series, 64, 18);
+    const svg = renderSparkline(series, 76, 22);
     if (svg) {
       sparkContainer.replaceChildren(svg);
     }
@@ -15715,7 +15865,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.499';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.500';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

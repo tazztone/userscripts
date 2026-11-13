@@ -79,8 +79,9 @@ function ensureAlarmBellStyle() {
     '.tp-alarm-off{opacity:.45 !important;}',
     '.tp-alarm-fill,.tp-alarm-auto{position:relative !important;outline:2px solid #3b82f6 !important;outline-offset:2px;border-radius:4px;}',
     '.tp-alarm-auto::after{content:"\\26A1";position:absolute;top:-10px;right:-10px;font-size:12px;line-height:1;}',
-    '.tp-alarm-cog{margin-left:6px;padding:0 4px;border:none;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
-    '.tp-alarm-cog:hover{opacity:1;}',
+    '.tp-alarm-cog{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;margin-left:6px;padding:2px 4px;border:none;border-radius:4px;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:.75;}',
+    '.tp-alarm-cog:hover,.tp-alarm-cog:focus-visible{opacity:1;}',
+    '.tp-alarm-cog:focus-visible{outline:2px solid var(--tp-focus,#3b82f6);outline-offset:2px;}',
   ].join('\n');
   document.head.appendChild(style);
 }

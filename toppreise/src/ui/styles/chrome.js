@@ -239,6 +239,7 @@ export const STYLES_CHROME = `
     color: #92400e !important;
   }
   .tp-detail-share-btn {
+    position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -253,6 +254,7 @@ export const STYLES_CHROME = `
     cursor: pointer !important;
     opacity: 0.85 !important;
     vertical-align: middle !important;
+    touch-action: manipulation !important;
     transition: all 0.2s ease !important;
   }
   .tp-detail-share-btn:hover,
@@ -270,16 +272,20 @@ export const STYLES_CHROME = `
   }
   #tp-detail-sparkline,
   .tp-detail-sparkline {
+    position: relative !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     margin: 6px auto !important;
-    padding: 2px 6px !important;
+    min-height: 30px !important;
+    padding: 4px 10px !important;
     width: fit-content !important;
+    box-sizing: border-box !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border: 1px solid var(--tp-bdr) !important;
     border-radius: var(--tp-r-sm) !important;
     cursor: pointer !important;
+    touch-action: manipulation !important;
     transition: all 0.2s ease !important;
   }
   #tp-detail-sparkline:hover,
@@ -287,13 +293,31 @@ export const STYLES_CHROME = `
     border-color: var(--tp-blue-soft) !important;
     background: rgba(59, 130, 246, 0.1) !important;
   }
+  #tp-detail-sparkline:focus-visible,
+  .tp-detail-sparkline:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
+  }
   .tp-detail-review-btn,
   h1 .tp-review-search-btn {
     opacity: 0.85 !important;
     pointer-events: auto !important;
     margin-left: 8px !important;
     vertical-align: middle !important;
-    display: inline-block !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    font-size: 16px !important;
+    border-radius: 6px !important;
+    touch-action: manipulation !important;
+  }
+  .tp-detail-review-btn:focus-visible,
+  h1 .tp-review-search-btn:focus-visible {
+    opacity: 1 !important;
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
   }
   .tp-detail-review-btn:hover,
   h1 .tp-review-search-btn:hover {

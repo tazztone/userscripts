@@ -161,8 +161,72 @@ export const STYLES_CARDS = `
     min-width: 0 !important;
     max-width: 100% !important;
   }
+  /* Desktop card & inline interactive target adequacy (min >= 24x24, near-miss shield) */
+  .tp-review-search-btn,
+  .tp-dealer-btn,
+  .tp-card-alarm-group button.tp-alarm-cog {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+  }
+  button.tp-card-alarm-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    box-sizing: border-box !important;
+  }
+  a.tp-dealer-name {
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 22px !important;
+    padding: 2px 4px !important;
+    border-radius: 4px !important;
+    box-sizing: border-box !important;
+  }
   .tp-sparkline-container {
     flex-shrink: 0 !important;
+    justify-content: center !important;
+    min-width: 58px !important;
+    min-height: 24px !important;
+    padding: 3px 5px !important;
+    border: 1px solid transparent !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+    z-index: 2 !important;
+    touch-action: manipulation !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+  }
+  .tp-sparkline-container:hover {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: rgba(59, 130, 246, 0.35) !important;
+  }
+  .tp-sparkline-container.tp-sparkline-amazon:hover {
+    border-color: rgba(255, 153, 0, 0.8) !important;
+  }
+  .tp-sparkline-container:focus-visible,
+  .tp-share-btn:focus-visible,
+  .tp-review-search-btn:focus-visible,
+  .tp-dealer-btn:focus-visible,
+  a.tp-dealer-name:focus-visible,
+  .tp-card-alarm-group .tp-alarm-cog:focus-visible,
+  button.tp-card-alarm-btn:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
+  }
+  /* Desktop near-miss hit buffer inside wrapping card anchors */
+  .tp-sparkline-container::after {
+    content: "" !important;
+    position: absolute !important;
+    top: -5px !important;
+    bottom: -5px !important;
+    left: -4px !important;
+    right: -4px !important;
   }
   /* Touch visibility & hit area expansion for hover-only card actions */
   @media (hover: none), (pointer: coarse) {
@@ -175,6 +239,15 @@ export const STYLES_CARDS = `
       pointer-events: auto !important;
       touch-action: manipulation !important;
     }
+    .tp-sparkline-container,
+    .tp-alarm-cog,
+    .tp-detail-sparkline,
+    .tp-detail-share-btn,
+    .badge-dif.tp-deal-pill,
+    .tp-action-dealer button.tp-dealer-btn {
+      position: relative !important;
+      touch-action: manipulation !important;
+    }
     .tp-card-alarm-group * {
       pointer-events: auto !important;
     }
@@ -184,7 +257,7 @@ export const STYLES_CARDS = `
     }
     button.tp-card-alarm-btn {
       min-width: 26px !important;
-      min-height: 22px !important;
+      min-height: 26px !important;
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -196,22 +269,66 @@ export const STYLES_CARDS = `
     button.tp-card-alarm-btn:not(:disabled):active {
       opacity: 1 !important;
     }
-    .tp-share-btn::after {
+    .tp-card-subline-row .tp-sparkline-container::after {
       content: "" !important;
       position: absolute !important;
-      top: -7px !important;
-      bottom: -7px !important;
-      left: -7px !important;
-      right: -7px !important;
+      top: -15px !important;
+      bottom: -5px !important;
+      left: -8px !important;
+      right: -6px !important;
     }
-    .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after {
+    .tp-detail-sparkline::after {
       content: "" !important;
       position: absolute !important;
       top: -8px !important;
       bottom: -8px !important;
-      left: -8px !important;
-      right: -8px !important;
+      left: -6px !important;
+      right: -6px !important;
+    }
+    .tp-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -11px !important;
+      bottom: -5px !important;
+      left: -5px !important;
+      right: -6px !important;
+    }
+    .tp-detail-share-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -8px !important;
+    }
+    .tp-review-search-btn::after,
+    button.tp-dealer-name.tp-dealer-btn::after,
+    .tp-action-dealer button.tp-dealer-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -10px !important;
+    }
+    /* Alarm bell ::after renders .tp-alarm-auto lightning badge; expand bell hit area on ::before */
+    button.tp-card-alarm-btn::before {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -9px !important;
+      right: -2px !important;
+    }
+    .tp-alarm-cog::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -10px !important;
+      bottom: -10px !important;
+      left: -2px !important;
+      right: -10px !important;
+    }
+    .badge-dif.tp-deal-pill::after {
+      content: "" !important;
+      position: absolute !important;
+      top: -9px !important;
+      bottom: -9px !important;
+      left: -4px !important;
+      right: -4px !important;
     }
   }
 `;

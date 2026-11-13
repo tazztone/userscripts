@@ -362,7 +362,7 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
     });
   }
 
-  const svg = renderSparkline(series, 64, 18);
+  const svg = renderSparkline(series, 76, 22);
   if (svg) {
     sparkContainer.replaceChildren(svg);
   }

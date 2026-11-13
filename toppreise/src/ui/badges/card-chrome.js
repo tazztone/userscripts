@@ -56,7 +56,9 @@ export function renderSparklineRow(ctx) {
     sparkContainer.style.cursor = 'pointer';
     sparkContainer.setAttribute('role', 'button');
     sparkContainer.setAttribute('tabindex', '0');
-    sparkContainer.setAttribute('title', isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern');
+    const tip = isAmazon ? 'Preisverlauf vergrössern (inkl. Amazon / Keepa)' : 'Preisverlauf vergrössern';
+    sparkContainer.setAttribute('title', tip);
+    sparkContainer.setAttribute('aria-label', tip);
     if (!sparkContainer.dataset.tpPopoutBound) {
       sparkContainer.dataset.tpPopoutBound = 'true';
       const openPopout = async () => {
@@ -89,7 +91,7 @@ export function renderSparklineRow(ctx) {
     }
     if (sparkContainer.dataset.tpSparkSig !== sig) {
       sparkContainer.dataset.tpSparkSig = sig;
-      const svg = renderSparkline(sparkContainer._tpSeries, 44, 13);
+      const svg = renderSparkline(sparkContainer._tpSeries, 52, 16);
       if (svg) {
         sparkContainer.replaceChildren();
         sparkContainer.appendChild(svg);
