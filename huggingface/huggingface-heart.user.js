@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.9
+// @version      2.0.10
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @match        https://huggingface.co/*
@@ -76,6 +76,31 @@ const CARD_STYLES = `
   }
   .hf-inline-like-btn {
     cursor: pointer !important;
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    padding: 2px 5px !important;
+    margin: -2px -4px !important;
+    border-radius: 6px !important;
+    touch-action: manipulation !important;
+    transition: background 0.15s ease !important;
+  }
+  .hf-inline-like-btn:hover {
+    background: rgba(239, 68, 68, 0.12) !important;
+  }
+  .hf-inline-like-btn:focus-visible {
+    outline: 2px solid #f59e0b !important;
+    outline-offset: 2px !important;
+  }
+  @media (hover: none), (pointer: coarse) {
+    .hf-inline-like-btn::after {
+      content: "" !important;
+      position: absolute !important;
+      inset: -8px !important;
+    }
   }
   #hf-df-empty-notice {
     margin: 12px 0;
@@ -89,9 +114,12 @@ const CARD_STYLES = `
     line-height: 1.4;
   }
   .hf-empty-scan-btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     margin-top: 8px;
-    padding: 5px 12px;
+    padding: 6px 14px;
+    min-height: 28px;
     border-radius: 6px;
     background: rgba(16, 185, 129, 0.2);
     border: 1px solid rgba(16, 185, 129, 0.4);
@@ -99,7 +127,12 @@ const CARD_STYLES = `
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
+    touch-action: manipulation;
     transition: all 0.2s ease;
+  }
+  .hf-empty-scan-btn:focus-visible {
+    outline: 2px solid #34d399;
+    outline-offset: 2px;
   }
   .hf-empty-scan-btn:hover {
     background: rgba(16, 185, 129, 0.35);
@@ -252,14 +285,21 @@ const SHADOW_WIDGET_STYLES = `
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: #94a3b8;
     cursor: pointer;
-    padding: 2px 5px;
+    padding: 3px 6px;
+    min-width: 24px;
+    min-height: 24px;
     border-radius: 4px;
     font-size: 10px;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: manipulation;
     transition: all 0.15s ease;
+  }
+  .hf-df-header-btn:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 2px;
   }
   .hf-df-header-btn:hover {
     color: #f8fafc;
@@ -321,7 +361,8 @@ const SHADOW_WIDGET_STYLES = `
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 8px;
+    padding: 4px 10px;
+    min-height: 26px;
     border-radius: 5px;
     background: rgba(16, 185, 129, 0.15);
     border: 1px solid rgba(16, 185, 129, 0.35);
@@ -329,9 +370,14 @@ const SHADOW_WIDGET_STYLES = `
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
+    touch-action: manipulation;
     transition: all 0.15s ease;
     user-select: none;
     white-space: nowrap;
+  }
+  .hf-scan-btn:focus-visible {
+    outline: 2px solid #34d399;
+    outline-offset: 2px;
   }
   .hf-scan-btn:hover {
     background: rgba(16, 185, 129, 0.25);
@@ -377,8 +423,8 @@ const SHADOW_WIDGET_STYLES = `
   .hf-exclude-input {
     box-sizing: border-box;
     width: 100%;
-    height: 26px;
-    padding: 3px 22px 3px 7px;
+    height: 28px;
+    padding: 3px 28px 3px 8px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 5px;
     background: rgba(15, 23, 42, 0.85);
@@ -394,7 +440,7 @@ const SHADOW_WIDGET_STYLES = `
   }
   .hf-clear-btn {
     position: absolute;
-    right: 5px;
+    right: 2px;
     top: 50%;
     transform: translateY(-50%);
     background: none;
@@ -403,26 +449,39 @@ const SHADOW_WIDGET_STYLES = `
     font-size: 12px;
     line-height: 1;
     cursor: pointer;
-    padding: 1px 3px;
-    border-radius: 3px;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 2px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    touch-action: manipulation;
     display: none;
   }
   .hf-clear-btn.visible {
-    display: block;
+    display: inline-flex;
   }
   .hf-clear-btn:hover {
     color: #f87171;
+  }
+  .hf-clear-btn:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 1px;
   }
 
   /* Date Presets Row */
   .hf-df-presets {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px;
+    gap: 4px;
     margin-bottom: 6px;
   }
   .hf-df-preset-btn {
-    padding: 2px 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 3px 8px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.04);
@@ -430,8 +489,13 @@ const SHADOW_WIDGET_STYLES = `
     font-size: 10px;
     font-weight: 600;
     cursor: pointer;
+    touch-action: manipulation;
     transition: all 0.15s ease;
     line-height: 1.2;
+  }
+  .hf-df-preset-btn:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 1px;
   }
   .hf-df-preset-btn:hover {
     background: rgba(251, 191, 36, 0.12);
@@ -459,13 +523,13 @@ const SHADOW_WIDGET_STYLES = `
   .hf-df-slider-inputs-row input[type="range"] {
     flex: 1;
     accent-color: #f59e0b;
-    height: 4px;
+    min-height: 24px;
     cursor: pointer;
   }
   .hf-df-inline-input {
     box-sizing: border-box;
     width: 44px;
-    height: 22px;
+    height: 24px;
     padding: 1px 4px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 4px;
@@ -499,11 +563,12 @@ const SHADOW_WIDGET_STYLES = `
 
   /* Switch Toggle */
   .hf-switch {
-    width: 28px;
-    height: 16px;
+    width: 34px;
+    height: 20px;
     position: relative;
     display: inline-block;
     flex-shrink: 0;
+    touch-action: manipulation;
   }
   .hf-switch input {
     opacity: 0;
@@ -524,8 +589,8 @@ const SHADOW_WIDGET_STYLES = `
     position: absolute;
     left: 2px;
     bottom: 2px;
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: #94a3b8;
     transition: transform 0.2s ease, background 0.2s ease;
@@ -535,8 +600,12 @@ const SHADOW_WIDGET_STYLES = `
     border-color: #f59e0b;
   }
   .hf-switch input:checked + .hf-slider::before {
-    transform: translateX(12px);
+    transform: translateX(14px);
     background: #fff;
+  }
+  .hf-switch input:focus-visible + .hf-slider {
+    outline: 2px solid #f59e0b;
+    outline-offset: 2px;
   }
 
   /* Highlighter Settings */
@@ -550,8 +619,15 @@ const SHADOW_WIDGET_STYLES = `
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0;
+    min-height: 24px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    touch-action: manipulation;
     transition: color 0.15s ease;
+  }
+  .hf-df-settings-toggle:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 2px;
   }
   .hf-df-settings-toggle:hover {
     color: #fbbf24;
@@ -575,13 +651,22 @@ const SHADOW_WIDGET_STYLES = `
     color: #cbd5e1;
   }
   .hf-settings-row input[type="color"] {
-    width: 24px;
-    height: 18px;
+    width: 28px;
+    height: 24px;
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
+    border-radius: 4px;
     background: transparent;
     cursor: pointer;
+  }
+  @media (hover: none), (pointer: coarse) {
+    .hf-df-header-btn, .hf-df-preset-btn, .hf-clear-btn { min-width: 32px; min-height: 32px; }
+    .hf-scan-btn, .hf-df-settings-toggle { min-height: 34px; }
+    .hf-exclude-input { height: 34px; padding-right: 36px; }
+    .hf-df-inline-input { height: 32px; }
+    .hf-df-slider-inputs-row input[type="range"] { min-height: 32px; }
+    .hf-df-slider-inputs-row input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; }
+    .hf-df-slider-inputs-row input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; }
   }
 
   #hf-toast-container {

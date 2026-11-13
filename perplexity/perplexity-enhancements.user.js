@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Perplexity Enhancements
 // @namespace    https://github.com/tazztone/userscripts
-// @version      1.1.3
+// @version      1.1.4
 // @description  Keeps a preferred Perplexity model active and safely automates agent approvals and GitHub connector enablement.
 // @author       tazztone
 // @match        https://www.perplexity.ai/*
@@ -57,11 +57,16 @@ const SHADOW_STYLES = `
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: manipulation;
     transition: all .2s ease;
   }
   #px-settings-fab:hover {
     background: rgba(59,130,246,.95);
     transform: scale(1.08);
+  }
+  #px-settings-fab:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
   }
   #px-settings-fab svg { width: 24px; height: 24px; }
 
@@ -93,16 +98,23 @@ const SHADOW_STYLES = `
     box-sizing: border-box; width: 100%; min-height: 34px; padding: 6px 8px;
     border: 1px solid rgba(255,255,255,.12); border-radius: 6px; background: rgba(15,23,42,.7); color: #fff;
   }
-  .px-settings-group input[type="range"] { width: 100%; accent-color: #3b82f6; }
+  .px-settings-group input[type="range"] { width: 100%; min-height: 28px; cursor: pointer; accent-color: #3b82f6; }
   .px-switch-container { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-  .px-switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+  .px-switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; touch-action: manipulation; }
   .px-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .px-slider { position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.12); border-radius: 24px; background: rgba(15,23,42,.7); cursor: pointer; }
   .px-slider::before { content: ""; position: absolute; left: 3px; bottom: 3px; width: 16px; height: 16px; border-radius: 50%; background: #94a3b8; transition: transform .2s ease; }
   .px-switch input:checked + .px-slider { background: #3b82f6; }
   .px-switch input:checked + .px-slider::before { transform: translateX(20px); background: #fff; }
+  .px-switch input:focus-visible + .px-slider { outline: 2px solid #60a5fa; outline-offset: 2px; }
   .px-modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
-  .px-btn { padding: 10px 18px; border-radius: 8px; border: 0; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .px-btn { padding: 10px 18px; min-height: 36px; border-radius: 8px; border: 0; font-size: 13px; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+  .px-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+  @media (hover: none), (pointer: coarse) {
+    .px-settings-group input[type="range"] { min-height: 36px; }
+    .px-settings-group input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+    .px-settings-group input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+  }
   .px-btn-secondary { border: 1px solid rgba(255,255,255,.12); background: transparent; color: #cbd5e1; }
   .px-btn-primary { background: linear-gradient(135deg,#60a5fa,#2563eb); color: #fff; }
 

@@ -579,6 +579,51 @@ def test_scan_abort_reports_exact_page_stopped_at(page: Page):
     assert status != 'Scan stopped', "Status showed generic 'Scan stopped' without page progress"
 
 
+def test_interactive_click_target_geometry(page: Page):
+    """Inline like button and shadow widget controls satisfy >= 24px desktop minimums."""
+    like_box = page.locator('#unliked-like').bounding_box()
+    assert like_box is not None
+    assert like_box['width'] >= 24, f"Inline like width {like_box['width']} < 24"
+    assert like_box['height'] >= 24, f"Inline like height {like_box['height']} < 24"
+
+    # Expand shadow widget if collapsed so internal controls are measurable
+    shadow = page.locator('#hf-date-filter-root')
+    assert shadow.count() == 1
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', 'gguf')
+    page.evaluate("""() => {
+        const sr = document.getElementById('hf-date-filter-root').shadowRoot;
+        const w = sr.getElementById('hf-date-filter-widget');
+        if (w && w.classList.contains('collapsed')) {
+            w.classList.remove('collapsed');
+        }
+    }""")
+
+    boxes = page.evaluate("""() => {
+        const sr = document.getElementById('hf-date-filter-root').shadowRoot;
+        const r = (sel) => {
+            const el = sr.querySelector(sel);
+            if (!el) return null;
+            const b = el.getBoundingClientRect();
+            return { w: b.width, h: b.height };
+        };
+        return {
+            headerBtn: r('.hf-df-header-btn'),
+            scanBtn: r('.hf-scan-btn'),
+            presetBtn: r('.hf-df-preset-btn'),
+            clearBtn: r('.hf-clear-btn'),
+            switchEl: r('.hf-switch'),
+            slider: r('.hf-df-slider-inputs-row input[type="range"]'),
+            settingsToggle: r('.hf-df-settings-toggle'),
+        };
+    }""")
+    for name in ('headerBtn', 'scanBtn', 'presetBtn', 'clearBtn', 'settingsToggle'):
+        assert boxes[name] is not None, f"Missing {name}"
+        assert boxes[name]['w'] >= 24 and boxes[name]['h'] >= 24, f"{name} too small: {boxes[name]}"
+    assert boxes['slider'] is not None and boxes['slider']['h'] >= 24
+    assert boxes['switchEl'] is not None and boxes['switchEl']['w'] >= 32 and boxes['switchEl']['h'] >= 20
+
+
+
 
 
 

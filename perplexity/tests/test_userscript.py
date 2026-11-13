@@ -104,3 +104,30 @@ def test_settings_escape_and_legacy_migration(browser, userscript_content):
     assert page.locator('#px-root >> #px-model-lock-target').input_value() == 'Sonar 2'
     assert page.evaluate("localStorage.getItem('px_enhancements_TARGET_MODEL')") == '"Sonar 2"'
     page.close()
+
+
+def test_settings_click_targets_geometry(settings_page: Page):
+    page = settings_page
+    fab_box = page.locator('#px-root >> #px-settings-fab').bounding_box()
+    assert fab_box is not None and fab_box['width'] >= 48 and fab_box['height'] >= 48
+
+    page.click('#px-root >> #px-settings-fab')
+    page.wait_for_selector('#px-root >> #px-settings-dialog')
+    boxes = page.evaluate("""() => {
+        const sr = document.getElementById('px-root').shadowRoot;
+        const r = (sel) => {
+            const b = sr.querySelector(sel).getBoundingClientRect();
+            return { w: b.width, h: b.height };
+        };
+        return {
+            range: r('input[type="range"]'),
+            switchEl: r('.px-switch'),
+            saveBtn: r('#px-btn-save'),
+            closeBtn: r('#px-btn-close'),
+        };
+    }""")
+    assert boxes['range']['h'] >= 28
+    assert boxes['switchEl']['w'] >= 44 and boxes['switchEl']['h'] >= 24
+    assert boxes['saveBtn']['h'] >= 36
+    assert boxes['closeBtn']['h'] >= 36
+
