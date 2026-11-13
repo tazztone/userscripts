@@ -3552,7 +3552,7 @@ def test_click_targets_desktop_minimum_and_no_overlap(page: Page):
 
 
 def test_sparkline_near_miss_click_does_not_navigate_card_anchor(page: Page):
-    """Clicking near the sparkline outer edge opens the popout and does not bubble to card anchor navigation."""
+    """Clicking inside or on the external ::after buffer of card actions stops wrapping <a class="Plugin_Product"> navigation."""
     seed_verified_deal(page, '797571', {
         'tiefstpreis': 1800,
         'hoechstpreis': 2600,
@@ -3560,11 +3560,15 @@ def test_sparkline_near_miss_click_does_not_navigate_card_anchor(page: Page):
         'timeSeries': _deal_series()
     })
     page.evaluate("""() => {
-        window._tpAnchorNavigated = false;
         const card = document.querySelector('#card-cheapest');
+        card.setAttribute('href', '#tp-card-nav');
+        window._tpCaptureAnchorLeak = 0;
         card.addEventListener('click', (e) => {
-            if (!e.defaultPrevented && e.target.closest('a')) {
-                window._tpAnchorNavigated = true;
+            if (!e.defaultPrevented) window._tpCaptureAnchorLeak += 1;
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.defaultPrevented && e.target.closest('#card-cheapest')) {
+                window._tpCaptureAnchorLeak += 1;
             }
         });
     }""")
@@ -3572,20 +3576,45 @@ def test_sparkline_near_miss_click_does_not_navigate_card_anchor(page: Page):
     spark.scroll_into_view_if_needed()
     box = spark.bounding_box()
     assert box is not None and box['width'] >= 56 and box['height'] >= 24
-    # Click 2px inside the top-left edge of the sparkline pill
+
+    # 1. Click inside sparkline pill
     page.mouse.click(box['x'] + 2, box['y'] + 2)
     page.wait_for_selector('#tp-sparkline-popout')
-    navigated = page.evaluate("() => window._tpAnchorNavigated")
-    assert navigated is False
-    # Check popout controls meet >=24px minimum
-    popout_ok = page.evaluate("""() => {
-        const p = document.getElementById('tp-sparkline-popout');
-        return Array.from(p.querySelectorAll('button')).every(btn => {
-            const b = btn.getBoundingClientRect();
-            return b.width >= 24 && b.height >= 24;
-        });
+    assert page.evaluate("() => ({ h: window.location.hash, leak: window._tpCaptureAnchorLeak })") == {'h': '', 'leak': 0}
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-sparkline-popout', state='detached')
+
+    # 2. Click outside sparkline border inside the external ::after near-miss buffer (-2px left, -3px top)
+    for click_x, click_y in ((box['x'] - 2, box['y'] + box['height'] / 2), (box['x'] + box['width'] / 2, box['y'] - 3)):
+        page.mouse.click(click_x, click_y)
+        page.wait_for_selector('#tp-sparkline-popout')
+        assert page.evaluate("() => ({ h: window.location.hash, leak: window._tpCaptureAnchorLeak })") == {'h': '', 'leak': 0}
+        page.keyboard.press('Escape')
+        page.wait_for_selector('#tp-sparkline-popout', state='detached')
+
+    # 3. Alarm bell, Share button, and Review AI trigger inside wrapping <a> never navigate card
+    page.locator('#card-cheapest').hover()
+    page.locator('#card-cheapest .tp-card-alarm-btn').click()
+    assert page.evaluate("() => ({ h: window.location.hash, leak: window._tpCaptureAnchorLeak })") == {'h': '', 'leak': 0}
+    if page.locator('.AbstractDialog_CloseButton:visible').count() > 0:
+        page.locator('.AbstractDialog_CloseButton:visible').first.click()
+
+    page.locator('#card-cheapest').hover()
+    page.locator('#card-cheapest .tp-share-btn').click()
+    assert page.evaluate("() => ({ h: window.location.hash, leak: window._tpCaptureAnchorLeak })") == {'h': '', 'leak': 0}
+
+    page.evaluate("""() => {
+        const pn = document.querySelector('#card-cheapest .product-name');
+        if (pn) pn.style.paddingRight = '58px';
+        window.ToppreiseSuite.updateConfig('TAVILY_ENABLED', true);
+        window.ToppreiseSuite.updateConfig('TAVILY_API_KEY', 'tvly-mock-key');
     }""")
-    assert popout_ok is True
+    page.locator('#card-cheapest').hover()
+    page.locator('#card-cheapest a.tp-review-search-btn').click()
+    page.wait_for_selector('#tp-ai-popout')
+    assert page.evaluate("() => ({ h: window.location.hash, leak: window._tpCaptureAnchorLeak })") == {'h': '', 'leak': 0}
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-ai-popout', state='detached')
 
 
 def test_coarse_pointer_touch_targets_enlarged(browser, userscript_content):
@@ -3631,6 +3660,308 @@ def test_coarse_pointer_touch_targets_enlarged(browser, userscript_content):
     finally:
         touch_page.close()
         context.close()
+
+
+def test_popout_dialogs_accessibility_and_touch_geometry(page: Page, browser, userscript_content):
+    """Sparkline (+Keepa) and AI popouts enforce aria-modal, focus management, target minimums, and 360px fit."""
+    from conftest import MOCK_HTML
+
+    page.route("**/graph.keepa.com/**", lambda route: route.fulfill(
+        status=200,
+        content_type="image/png",
+        body=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82"
+    ))
+    page.route("https://api.tavily.com/**", lambda route: route.fulfill(
+        status=200,
+        content_type="application/json",
+        body='{"answer":"Solider Preis."}'
+    ))
+
+    # Desktop popout verification (including Amazon Keepa section)
+    page.evaluate("""() => {
+        const dealerEl = document.querySelector('#card-cheapest .Plugin_DealerRelProdPriceInfo .title');
+        if (dealerEl) dealerEl.textContent = 'Amazon.de';
+        const now = Date.now();
+        const slot = { dealer: 'Amazon.de', url: 'https://www.amazon.de/dp/B0FHWR36F6', time: now };
+        localStorage.setItem('tp_dealer_v1_797571', JSON.stringify({ time: now, p: slot, s: slot }));
+        localStorage.setItem('tp_asin_v1_797571', JSON.stringify({ asin: 'B0FHWR36F6', time: now }));
+    }""")
+    seed_verified_deal(page, '797571', {
+        'tiefstpreis': 1800,
+        'hoechstpreis': 2600,
+        'medianPrice': 3600,
+        'timeSeries': _deal_series()
+    }, clear=False)
+
+    spark = page.locator('#card-cheapest .tp-sparkline-container')
+    spark.focus()
+    spark.press('Enter')
+    page.wait_for_selector('#tp-sparkline-popout .tp-keepa-links a')
+
+    spark_diag = page.evaluate("""() => {
+        const pop = document.getElementById('tp-sparkline-popout');
+        const closeBtn = pop.querySelector('.tp-popout-close');
+        const controls = Array.from(pop.querySelectorAll('button, a')).filter(el => !el.hidden);
+        const mins = controls.map(el => {
+            const b = el.getBoundingClientRect();
+            return { cls: el.className, w: b.width, h: b.height };
+        });
+        return {
+            role: pop.getAttribute('role'),
+            modal: pop.getAttribute('aria-modal'),
+            focusedClose: document.activeElement === closeBtn,
+            count: mins.length,
+            allOk: mins.every(m => m.w >= 24 && m.h >= 24),
+            mins
+        };
+    }""")
+    assert spark_diag['role'] == 'dialog' and spark_diag['modal'] == 'true'
+    assert spark_diag['focusedClose'] is True
+    assert spark_diag['count'] >= 7 and spark_diag['allOk'] is True, spark_diag['mins']
+
+    # Tab stays trapped inside popout panel; Escape restores focus to sparkline container
+    page.keyboard.press('Tab')
+    assert page.evaluate("() => !!document.activeElement?.closest('#tp-sparkline-popout .tp-popout-panel')") is True
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-sparkline-popout', state='detached')
+    assert page.evaluate("() => document.activeElement === document.querySelector('#card-cheapest .tp-sparkline-container')") is True
+
+    # Desktop AI popover
+    page.evaluate("""() => {
+        const pn = document.querySelector('#card-cheapest .product-name');
+        if (pn) pn.style.paddingRight = '58px';
+        window.ToppreiseSuite.updateConfig('TAVILY_ENABLED', true);
+        window.ToppreiseSuite.updateConfig('TAVILY_API_KEY', 'tvly-mock-key');
+    }""")
+    page.locator('#card-cheapest').hover()
+    page.locator('#card-cheapest a.tp-review-search-btn').click()
+    page.wait_for_selector('#tp-ai-popout .tp-popout-footer')
+    ai_diag = page.evaluate("""() => {
+        const pop = document.getElementById('tp-ai-popout');
+        const closeBtn = pop.querySelector('.tp-popout-close');
+        const controls = Array.from(pop.querySelectorAll('button, a')).filter(el => !el.hidden && el.offsetParent !== null);
+        const mins = controls.map(el => {
+            const b = el.getBoundingClientRect();
+            return { cls: el.className, w: b.width, h: b.height };
+        });
+        return {
+            role: pop.getAttribute('role'),
+            modal: pop.getAttribute('aria-modal'),
+            focusedClose: document.activeElement === closeBtn,
+            closeColor: window.getComputedStyle(closeBtn).color,
+            allOk: mins.every(m => m.w >= 24 && m.h >= 24),
+            hasShadowBtnClass: mins.some(m => m.cls.includes('tp-btn-secondary')),
+            mins
+        };
+    }""")
+    assert ai_diag['role'] == 'dialog' and ai_diag['modal'] == 'true'
+    assert ai_diag['focusedClose'] is True
+    assert ai_diag['hasShadowBtnClass'] is False
+    assert ai_diag['allOk'] is True, ai_diag['mins']
+    page.keyboard.press('Escape')
+    page.wait_for_selector('#tp-ai-popout', state='detached')
+
+    # Coarse mobile 360x640 check: enlarged touch targets & zero horizontal overflow
+    context = browser.new_context(is_mobile=True, has_touch=True, viewport={'width': 360, 'height': 640})
+    m_page = context.new_page()
+    try:
+        m_page.set_default_timeout(2500)
+        m_page.route("**/graph.keepa.com/**", lambda route: route.fulfill(
+            status=200,
+            content_type="image/png",
+            body=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82"
+        ))
+        m_page.goto(MOCK_HTML)
+        m_page.evaluate("""() => {
+            localStorage.clear();
+            localStorage.setItem('tp_suite_v2_DEBUG', 'true');
+            localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true');
+            const now = Date.now();
+            const slot = { dealer: 'Amazon.de', url: 'https://www.amazon.de/dp/B0FHWR36F6', time: now };
+            localStorage.setItem('tp_dealer_v1_797571', JSON.stringify({ time: now, p: slot, s: slot }));
+            localStorage.setItem('tp_asin_v1_797571', JSON.stringify({ asin: 'B0FHWR36F6', time: now }));
+        }""")
+        m_page.evaluate(userscript_content)
+        m_page.wait_for_selector('#tp-root >> #tp-settings-fab')
+        m_page.evaluate("""() => {
+            const dealerEl = document.querySelector('#card-cheapest .Plugin_DealerRelProdPriceInfo .title');
+            if (dealerEl) dealerEl.textContent = 'Amazon.de';
+        }""")
+        seed_verified_deal(m_page, '797571', {
+            'tiefstpreis': 1800,
+            'hoechstpreis': 2600,
+            'medianPrice': 3600,
+            'timeSeries': _deal_series()
+        }, clear=False)
+        m_page.locator('#card-cheapest .tp-sparkline-container').evaluate("el => el.click()")
+        m_page.wait_for_selector('#tp-sparkline-popout .tp-keepa-links a')
+        coarse_diag = m_page.evaluate("""() => {
+            const panel = document.querySelector('#tp-sparkline-popout .tp-popout-panel');
+            const btns = Array.from(panel.querySelectorAll('.tp-popout-btn, .tp-popout-close')).filter(el => !el.hidden);
+            const chipsLinks = Array.from(panel.querySelectorAll('.tp-popout-chip, .tp-popout-link')).filter(el => !el.hidden);
+            return {
+                noOverflow: panel.scrollWidth <= panel.clientWidth,
+                btnsOk: btns.every(el => { const b = el.getBoundingClientRect(); return b.height >= 36; }),
+                closeWOk: panel.querySelector('.tp-popout-close').getBoundingClientRect().width >= 36,
+                chipsLinksOk: chipsLinks.every(el => el.getBoundingClientRect().height >= 34)
+            };
+        }""")
+        assert coarse_diag == {'noOverflow': True, 'btnsOk': True, 'closeWOk': True, 'chipsLinksOk': True}, coarse_diag
+    finally:
+        m_page.close()
+        context.close()
+
+
+def test_category_tree_toolbar_popovers_and_settings_target_geometry(page: Page, browser, userscript_content):
+    """Category tree, toolbar/calc/filter popovers, and settings modal controls meet desktop & coarse-pointer geometry."""
+    from conftest import MOCK_HTML, open_settings
+
+    # 1. Category tree + toolbar + calc/filter popovers + settings modal on desktop
+    page.evaluate("""() => {
+        localStorage.setItem('c_cm_data_de', JSON.stringify([
+            { id: 'c200', title: 'Computer & Zubehör', url: '/produktsuche/Computer-Zubehoer-c200', parentID: '', hasChildren: true, children: [
+                { id: 'c9', title: 'PC-Komponenten', url: '/produktsuche/Computer-Zubehoer/PC-Komponenten-c9', parentID: 'c200', hasChildren: false }
+            ]},
+            { id: 'c900', title: 'Videogames', url: '/produktsuche/Videogames-c900', parentID: '', hasChildren: false }
+        ]));
+        window.ToppreiseSuite.processListings();
+    }""")
+    cat_tree = page.evaluate("""() => {
+        const s = document.querySelector('.Plugin_CategoryMainSelectionLeft');
+        const li = Array.from(s.querySelectorAll('ul > li')).find(el => el.querySelector('.tp-cat-toggle') && el.getBoundingClientRect().height > 0);
+        const toggle = li?.querySelector('.tp-cat-toggle')?.getBoundingClientRect();
+        const rowMute = li?.querySelector('.tp-cat-row .ignoreCategory')?.getBoundingClientRect();
+        const rowLink = li?.querySelector('.tp-cat-row > a')?.getBoundingClientRect();
+        return {
+            toggle: toggle && { w: toggle.width, h: toggle.height, right: toggle.right },
+            rowLink: rowLink && { left: rowLink.left, right: rowLink.right },
+            rowMute: rowMute && { w: rowMute.width, h: rowMute.height, left: rowMute.left }
+        };
+    }""")
+    page.locator('.Plugin_CategoryMainSelectionLeft .tp-cat-search-input').fill('videogames')
+    page.wait_for_selector('.Plugin_CategoryMainSelectionLeft .tp-cat-search-results .tp-cat-result-item')
+    cat_search = page.evaluate("""() => {
+        const s = document.querySelector('.Plugin_CategoryMainSelectionLeft');
+        const clear = s.querySelector('.tp-cat-search-clear')?.getBoundingClientRect();
+        const resMute = s.querySelector('.tp-cat-result-item .ignoreCategory')?.getBoundingClientRect();
+        return {
+            clear: clear && { w: clear.width, h: clear.height },
+            resMute: resMute && { w: resMute.width, h: resMute.height }
+        };
+    }""")
+    cat_desk = {**cat_tree, **cat_search}
+    for key in ('clear', 'toggle', 'rowMute', 'resMute'):
+        assert cat_desk[key] is not None and cat_desk[key]['w'] >= 24 and cat_desk[key]['h'] >= 24, f"{key}: {cat_desk[key]}"
+    assert cat_desk['toggle']['right'] <= cat_desk['rowLink']['left'] + 1
+    assert cat_desk['rowLink']['right'] <= cat_desk['rowMute']['left'] + 1
+
+    # Negative input clear button + filter popover + calc popover
+    page.click('#tp-bar-filter-btn')
+    page.wait_for_selector('#tp-bar-filter-popover.tp-show')
+    page.fill('#tp-inline-negative-input', 'case')
+    page.wait_for_selector('#tp-clear-neg-btn', state='visible')
+    filter_desk = page.evaluate("""() => {
+        const clr = document.getElementById('tp-clear-neg-btn').getBoundingClientRect();
+        const box = document.getElementById('tp-inline-negative-input').getBoundingClientRect();
+        const step = document.querySelector('#tp-bar-filter-popover .tp-stepper-btn').getBoundingClientRect();
+        const mode = document.querySelector('#tp-bar-filter-popover .tp-filter-mode-btn').getBoundingClientRect();
+        const inp = document.querySelector('#tp-bar-filter-popover .tp-range-input').getBoundingClientRect();
+        return {
+            clrW: clr.width, clrH: clr.height, clrInside: clr.right <= box.right + 1,
+            stepW: step.width, stepH: step.height,
+            modeH: mode.height, inpH: inp.height
+        };
+    }""")
+    assert filter_desk['clrW'] >= 24 and filter_desk['clrH'] >= 24 and filter_desk['clrInside']
+    assert filter_desk['stepW'] >= 24 and filter_desk['stepH'] >= 24
+    assert filter_desk['modeH'] >= 24 and filter_desk['inpH'] >= 24
+
+    page.click('#tp-bar-calc-btn')
+    page.wait_for_selector('#tp-bar-calc-popover.tp-show')
+    calc_desk = page.evaluate("""() => {
+        const sw = document.querySelector('#tp-bar-calc-popover .tp-mini-switch').getBoundingClientRect();
+        const rng = document.querySelector('#tp-bar-calc-popover input[type="range"]').getBoundingClientRect();
+        const sel = document.querySelector('#tp-bar-calc-popover .tp-preview-select').getBoundingClientRect();
+        return { swW: sw.width, swH: sw.height, rngH: rng.height, selH: sel.height };
+    }""")
+    assert calc_desk['swW'] >= 32 and calc_desk['swH'] >= 24 and calc_desk['rngH'] >= 24 and calc_desk['selH'] >= 24
+
+    # Settings modal controls + dynamically added Discord channel remove button
+    open_settings(page)
+    page.locator('#tp-root >> #tp-discord-add-channel-btn').click()
+    settings_desk = page.evaluate("""() => {
+        const s = document.getElementById('tp-root').shadowRoot;
+        const hdr = s.querySelector('.tp-section-header').getBoundingClientRect();
+        const sw = s.querySelector('.tp-switch').getBoundingClientRect();
+        const btn = s.querySelector('.tp-btn').getBoundingClientRect();
+        const rm = s.querySelector('.tp-discord-remove-channel-btn').getBoundingClientRect();
+        const rng = s.querySelector('.tp-range-container input[type="range"]').getBoundingClientRect();
+        return { hdrH: hdr.height, swW: sw.width, swH: sw.height, btnH: btn.height, rmW: rm.width, rmH: rm.height, rngH: rng.height };
+    }""")
+    assert settings_desk['hdrH'] >= 28 and settings_desk['swW'] >= 36 and settings_desk['swH'] >= 24
+    assert settings_desk['btnH'] >= 28 and settings_desk['rmW'] >= 28 and settings_desk['rmH'] >= 28 and settings_desk['rngH'] >= 24
+
+    # 2. Coarse mobile geometry checks across toolbar, calc/filter popovers, category mute visibility & settings modal
+    context = browser.new_context(is_mobile=True, has_touch=True, viewport={'width': 390, 'height': 844})
+    c_page = context.new_page()
+    try:
+        c_page.set_default_timeout(2500)
+        c_page.goto(MOCK_HTML)
+        c_page.evaluate("""() => {
+            localStorage.clear();
+            localStorage.setItem('tp_suite_v2_DEBUG', 'true');
+            localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true');
+            localStorage.setItem('c_cm_data_de', JSON.stringify([
+                { id: 'c200', title: 'Computer & Zubehör', url: '/produktsuche/Computer-Zubehoer-c200', parentID: '', hasChildren: true, children: [
+                    { id: 'c9', title: 'PC-Komponenten', url: '/produktsuche/Computer-Zubehoer/PC-Komponenten-c9', parentID: 'c200', hasChildren: false }
+                ]},
+                { id: 'c900', title: 'Videogames', url: '/produktsuche/Videogames-c900', parentID: '', hasChildren: false }
+            ]));
+        }""")
+        c_page.evaluate(userscript_content)
+        c_page.wait_for_selector('#tp-root >> #tp-settings-fab')
+        c_page.click('#tp-bar-filter-btn')
+        c_page.wait_for_selector('#tp-bar-filter-popover.tp-show')
+        c_page.fill('#tp-inline-negative-input', 'case')
+        c_page.wait_for_selector('#tp-clear-neg-btn', state='visible')
+        c_filter = c_page.evaluate("""() => {
+            const clr = document.getElementById('tp-clear-neg-btn').getBoundingClientRect();
+            const step = document.querySelector('#tp-bar-filter-popover .tp-stepper-btn').getBoundingClientRect();
+            const mode = document.querySelector('#tp-bar-filter-popover .tp-filter-mode-btn').getBoundingClientRect();
+            const mute = document.querySelector('.Plugin_CategoryMainSelectionLeft .ignoreCategory.f_IgnoredCategories_Hide');
+            return {
+                clrW: clr.width, clrH: clr.height,
+                stepW: step.width, stepH: step.height,
+                modeH: mode.height,
+                muteOpacity: mute ? parseFloat(window.getComputedStyle(mute).opacity) : null,
+                muteTouch: mute ? window.getComputedStyle(mute).touchAction : null
+            };
+        }""")
+        assert c_filter['clrW'] >= 32 and c_filter['clrH'] >= 32
+        assert c_filter['stepW'] >= 32 and c_filter['stepH'] >= 32
+        assert c_filter['modeH'] >= 34
+        assert c_filter['muteOpacity'] is not None and c_filter['muteOpacity'] > 0
+        assert c_filter['muteTouch'] == 'manipulation'
+
+        c_page.locator('#tp-root >> #tp-settings-fab').evaluate("el => el.click()")
+        c_page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='visible')
+        c_page.locator('#tp-root >> #tp-discord-add-channel-btn').evaluate("el => el.click()")
+        c_settings = c_page.evaluate("""() => {
+            const s = document.getElementById('tp-root').shadowRoot;
+            return {
+                btnH: s.querySelector('.tp-btn').getBoundingClientRect().height,
+                hdrH: s.querySelector('.tp-section-header').getBoundingClientRect().height,
+                rmW: s.querySelector('.tp-discord-remove-channel-btn').getBoundingClientRect().width,
+                rmH: s.querySelector('.tp-discord-remove-channel-btn').getBoundingClientRect().height,
+                rngH: s.querySelector('.tp-range-container input[type="range"]').getBoundingClientRect().height
+            };
+        }""")
+        assert c_settings['btnH'] >= 36 and c_settings['hdrH'] >= 38
+        assert c_settings['rmW'] >= 36 and c_settings['rmH'] >= 36 and c_settings['rngH'] >= 34
+    finally:
+        c_page.close()
+        context.close()
+
 
 
 

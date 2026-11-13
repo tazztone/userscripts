@@ -147,4 +147,46 @@ def test_floating_cta_clears_recent_searches_tray_on_mobile(page: Page):
     assert margin >= 48
 
 
+def test_floating_cta_no_overflow_or_fab_overlap_on_narrow_coarse_mobile(browser, userscript_content):
+    """Narrow coarse viewports (360px, 390px) keep CTA children inside container without FAB collision."""
+    from conftest import MOCK_HTML
+
+    for vw, vh in ((360, 640), (390, 844)):
+        context = browser.new_context(is_mobile=True, has_touch=True, viewport={'width': vw, 'height': vh})
+        m_page = context.new_page()
+        try:
+            m_page.set_default_timeout(2500)
+            m_page.goto(MOCK_HTML)
+            m_page.evaluate("""() => {
+                localStorage.clear();
+                localStorage.setItem('tp_suite_v2_DEBUG', 'true');
+                localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true');
+            }""")
+            m_page.evaluate(userscript_content)
+            m_page.wait_for_selector('#tp-root >> #tp-settings-fab')
+            m_page.wait_for_selector('#tp-floating-check-cta')
+
+            metrics = m_page.evaluate("""() => {
+                const cta = document.getElementById('tp-floating-check-cta');
+                const ctaRect = cta.getBoundingClientRect();
+                const fabRect = document.getElementById('tp-root').shadowRoot.getElementById('tp-settings-fab').getBoundingClientRect();
+                const visibleChildren = Array.from(cta.querySelectorAll('#tp-floating-check-btn, #tp-floating-dealer-row, #tp-floating-refresh-btn, #tp-floating-threshold-input, #tp-floating-cta-collapse'))
+                    .map(el => ({ id: el.id, right: el.getBoundingClientRect().right, left: el.getBoundingClientRect().left }));
+                return {
+                    scrollW: cta.scrollWidth,
+                    clientW: cta.clientWidth,
+                    ctaRight: ctaRect.right,
+                    fabLeft: fabRect.left,
+                    clipped: visibleChildren.filter(c => c.right > ctaRect.right + 1 || c.left < ctaRect.left - 1)
+                };
+            }""")
+            assert metrics['scrollW'] <= metrics['clientW'], f"CTA overflows at {vw}px: {metrics}"
+            assert metrics['clipped'] == [], f"CTA children clipped at {vw}px: {metrics}"
+            assert metrics['ctaRight'] <= metrics['fabLeft'] + 1, f"CTA overlaps FAB at {vw}px: {metrics}"
+        finally:
+            m_page.close()
+            context.close()
+
+
+
 
