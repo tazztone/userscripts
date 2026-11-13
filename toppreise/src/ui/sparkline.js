@@ -351,14 +351,14 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
   copyTpBtn.type = 'button';
   copyTpBtn.textContent = '📋 Bild kopieren';
   copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
-  copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:3px 8px;cursor:pointer;';
+  copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;display:inline-flex;align-items:center;cursor:pointer;';
   copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = '✕';
   closeBtn.setAttribute('aria-label', 'Schliessen');
-  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
+  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;';
   const onKey = e => {
     if (e.key === 'Escape') {
       e.stopPropagation();
@@ -397,7 +397,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
     keepaTitle.style.cssText = 'color:var(--tp-txt-mid);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;';
 
     const keepaToolbar = document.createElement('div');
-    keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:4px;';
+    keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
 
     const ranges = [
       { label: '90T', days: 90 },
@@ -419,14 +419,14 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
     const copyKeepaBtn = document.createElement('button');
     copyKeepaBtn.type = 'button';
     copyKeepaBtn.textContent = '📋 Bild kopieren';
-    copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:3px 8px;cursor:pointer;display:none;';
+    copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;align-items:center;cursor:pointer;display:none;';
 
     ranges.forEach(r => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = r.label;
       const setBtnStyle = active => {
-        btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:2px 6px;cursor:pointer;`;
+        btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:3px 8px;min-height:26px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;`;
       };
       setBtnStyle(!!r.active);
       btn.addEventListener('click', () => {
@@ -465,7 +465,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
         a.href = safeUrl;
         a.target = '_blank';
         a.rel = 'noopener';
-        a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;';
+        a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-flex;align-items:center;min-height:24px;';
         a.textContent = 'Zum Amazon-Angebot ↗';
         errNotice.appendChild(a);
         keepaBody.appendChild(errNotice);
@@ -473,7 +473,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       }
 
       keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
-      copyKeepaBtn.style.display = 'inline-block';
+      copyKeepaBtn.style.display = 'inline-flex';
 
       const keepaUrlFor = days => buildKeepaUrl(asin, days);
 
@@ -496,14 +496,14 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       keepaLink.href = `https://keepa.com/#!product/3-${asin}`;
       keepaLink.target = '_blank';
       keepaLink.rel = 'noopener';
-      keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
+      keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
       keepaLink.textContent = 'Auf Keepa ansehen ↗';
       const amzLink = document.createElement('a');
       const safeDirect = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : null;
       amzLink.href = safeDirect || `https://www.amazon.de/dp/${asin}`;
       amzLink.target = '_blank';
       amzLink.rel = 'noopener';
-      amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
+      amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
       amzLink.textContent = 'Auf Amazon.de ansehen ↗';
       linksRow.appendChild(keepaLink);
       linksRow.appendChild(amzLink);

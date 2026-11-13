@@ -27,14 +27,15 @@ export const SHADOW_MODAL_STYLES = `
     justify-content: center;
     color: var(--tp-txt);
     opacity: 0.6;
+    touch-action: manipulation;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   @media (max-width: 600px) {
     #tp-settings-fab {
       bottom: 6px;
       right: 6px;
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
     }
   }
   #tp-settings-fab:hover {
@@ -93,7 +94,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
-  .tp-section-header { background:none; border:none; padding:4px 0; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; }
+  .tp-section-header { background:none; border:none; padding:6px 0; min-height:32px; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; }
   .tp-section-header:focus-visible { outline:2px solid var(--tp-focus); outline-offset:2px; border-radius:6px; }
   .tp-section-header .tp-chevron { color: var(--tp-mut); font-size: 14px; }
   .tp-section-header .tp-chevron::after { content:"▾"; display:inline-block; transition:transform .15s ease; }
@@ -112,6 +113,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-discord-channel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .tp-discord-channel-name { font-weight: 600; font-size: 13px; }
   .tp-discord-extra-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tp-discord-remove-channel-btn { min-width: 32px; min-height: 32px; padding: 4px 8px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
   #tp-discord-extra-channels { display: flex; flex-direction: column; gap: 8px; }
   #tp-discord-layout-preview { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
   #tp-discord-layout-preview .tp-md-lg { font-size: 16px !important; font-weight: 800 !important; }
@@ -188,7 +190,7 @@ export const SHADOW_MODAL_STYLES = `
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
-  .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: var(--tp-fs-md); }
+  .tp-cache-row #tp-cache-clear-btn { padding: 5px 12px; min-height: 28px; font-size: var(--tp-fs-md); }
   .tp-segmented-control {
     display: flex;
     background: rgba(255,255,255,0.7);
@@ -215,7 +217,7 @@ export const SHADOW_MODAL_STYLES = `
   }
   .tp-segmented-control-blue input[type="radio"]:checked + label { background: var(--tp-blue) !important; }
   .tp-range-container { display: flex; align-items: center; gap: 12px; }
-  .tp-range-container input[type="range"] { flex: 1; accent-color: var(--tp-acc); }
+  .tp-range-container input[type="range"] { flex: 1; accent-color: var(--tp-acc); min-height: 28px; cursor: pointer; }
   .tp-range-container.tp-blue input[type="range"] { accent-color: var(--tp-blue); }
   .tp-range-container.tp-rose input[type="range"] { accent-color: var(--tp-rose); }
   .tp-range-container input[type="number"] {
@@ -280,11 +282,13 @@ export const SHADOW_MODAL_STYLES = `
   }
   .tp-btn {
     padding: 8px 16px;
+    min-height: 32px;
     border-radius: var(--tp-r-md);
     font-size: var(--tp-fs-lg);
     font-weight: 600;
     cursor: pointer;
     border: none;
+    touch-action: manipulation;
   }
   .tp-btn-secondary { background: rgba(15,23,42,0.06); color: var(--tp-mut); }
   .tp-btn-secondary:hover { background: rgba(15,23,42,0.10); color: var(--tp-txt); }
@@ -370,9 +374,16 @@ export const SHADOW_MODAL_STYLES = `
     cursor: pointer;
     color: var(--tp-mut);
     line-height: 1;
-    padding: 0 4px;
+    padding: 4px 6px;
+    min-width: 28px;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
   }
   .tp-share-preview-close:hover { color: var(--tp-txt); }
+  .tp-share-preview-close:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
   .tp-share-preview-body {
     max-height: 52vh;
     overflow-y: auto;
@@ -504,6 +515,16 @@ export const SHADOW_MODAL_STYLES = `
   .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   @media (prefers-reduced-motion: reduce) {
     #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
+  }
+  @media (hover: none), (pointer: coarse) {
+    #tp-settings-fab { width: 42px; height: 42px; }
+    #tp-toast-container { bottom: 56px; }
+    .tp-btn, .tp-share-channel-btn { min-height: 36px; touch-action: manipulation; }
+    .tp-section-header { min-height: 38px; }
+    .tp-share-preview-close, .tp-discord-remove-channel-btn { min-width: 36px; min-height: 36px; }
+    .tp-range-container input[type="range"] { min-height: 34px; }
+    .tp-range-container input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+    .tp-range-container input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
   }
   @media (prefers-contrast: more) {
     .tp-switch-desc, .tp-section-header, .tp-cache-row #tp-cache-stats-label { opacity: 1 !important; }

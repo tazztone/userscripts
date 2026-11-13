@@ -134,7 +134,7 @@ export function renderExtraChannelsList(container, extras) {
     card.innerHTML = `
       <div class="tp-discord-channel-header">
         <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtmlAttr(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
-        <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+        <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen">🗑️</button>
       </div>
       <div class="tp-discord-extra-collapsed">
         <span class="tp-switch-desc tp-discord-extra-status">${isDiscordWebhookUrl(ch.url) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt'}</span>
@@ -158,7 +158,7 @@ export function addExtraChannelRow(container) {
   card.innerHTML = `
     <div class="tp-discord-channel-header">
       <input type="text" class="tp-field-dark tp-discord-channel-name" value="" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
-      <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+      <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen">🗑️</button>
     </div>
     <div class="tp-discord-extra-editor">
       <input type="password" class="tp-field-dark tp-discord-extra-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password">

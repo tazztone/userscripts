@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.501
+// @version      2.18.502
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2468,14 +2468,15 @@ const SHADOW_MODAL_STYLES = `
     justify-content: center;
     color: var(--tp-txt);
     opacity: 0.6;
+    touch-action: manipulation;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   @media (max-width: 600px) {
     #tp-settings-fab {
       bottom: 6px;
       right: 6px;
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
     }
   }
   #tp-settings-fab:hover {
@@ -2534,7 +2535,7 @@ const SHADOW_MODAL_STYLES = `
   .tp-section-card { background: rgba(255, 255, 255, 0.65); border: 1px solid var(--tp-line-soft); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .tp-section-card.tp-flash { border-color: var(--tp-blue-soft); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.45); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   .tp-section-card .tp-settings-group { margin-bottom: 10px; }
-  .tp-section-header { background:none; border:none; padding:4px 0; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; }
+  .tp-section-header { background:none; border:none; padding:6px 0; min-height:32px; margin:0; width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:13px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--tp-txt); font-family:inherit; }
   .tp-section-header:focus-visible { outline:2px solid var(--tp-focus); outline-offset:2px; border-radius:6px; }
   .tp-section-header .tp-chevron { color: var(--tp-mut); font-size: 14px; }
   .tp-section-header .tp-chevron::after { content:"▾"; display:inline-block; transition:transform .15s ease; }
@@ -2553,6 +2554,7 @@ const SHADOW_MODAL_STYLES = `
   .tp-discord-channel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .tp-discord-channel-name { font-weight: 600; font-size: 13px; }
   .tp-discord-extra-collapsed { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tp-discord-remove-channel-btn { min-width: 32px; min-height: 32px; padding: 4px 8px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
   #tp-discord-extra-channels { display: flex; flex-direction: column; gap: 8px; }
   #tp-discord-layout-preview { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: break-word !important; }
   #tp-discord-layout-preview .tp-md-lg { font-size: 16px !important; font-weight: 800 !important; }
@@ -2629,7 +2631,7 @@ const SHADOW_MODAL_STYLES = `
   #tp-import-config-file { display: none; }
   .tp-cache-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
-  .tp-cache-row #tp-cache-clear-btn { padding: 4px 10px; font-size: var(--tp-fs-md); }
+  .tp-cache-row #tp-cache-clear-btn { padding: 5px 12px; min-height: 28px; font-size: var(--tp-fs-md); }
   .tp-segmented-control {
     display: flex;
     background: rgba(255,255,255,0.7);
@@ -2656,7 +2658,7 @@ const SHADOW_MODAL_STYLES = `
   }
   .tp-segmented-control-blue input[type="radio"]:checked + label { background: var(--tp-blue) !important; }
   .tp-range-container { display: flex; align-items: center; gap: 12px; }
-  .tp-range-container input[type="range"] { flex: 1; accent-color: var(--tp-acc); }
+  .tp-range-container input[type="range"] { flex: 1; accent-color: var(--tp-acc); min-height: 28px; cursor: pointer; }
   .tp-range-container.tp-blue input[type="range"] { accent-color: var(--tp-blue); }
   .tp-range-container.tp-rose input[type="range"] { accent-color: var(--tp-rose); }
   .tp-range-container input[type="number"] {
@@ -2721,11 +2723,13 @@ const SHADOW_MODAL_STYLES = `
   }
   .tp-btn {
     padding: 8px 16px;
+    min-height: 32px;
     border-radius: var(--tp-r-md);
     font-size: var(--tp-fs-lg);
     font-weight: 600;
     cursor: pointer;
     border: none;
+    touch-action: manipulation;
   }
   .tp-btn-secondary { background: rgba(15,23,42,0.06); color: var(--tp-mut); }
   .tp-btn-secondary:hover { background: rgba(15,23,42,0.10); color: var(--tp-txt); }
@@ -2811,9 +2815,16 @@ const SHADOW_MODAL_STYLES = `
     cursor: pointer;
     color: var(--tp-mut);
     line-height: 1;
-    padding: 0 4px;
+    padding: 4px 6px;
+    min-width: 28px;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
   }
   .tp-share-preview-close:hover { color: var(--tp-txt); }
+  .tp-share-preview-close:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
   .tp-share-preview-body {
     max-height: 52vh;
     overflow-y: auto;
@@ -2945,6 +2956,16 @@ const SHADOW_MODAL_STYLES = `
   .tp-segmented-control input:focus-visible + label { outline: 2px solid var(--tp-focus) !important; outline-offset: 2px !important; }
   @media (prefers-reduced-motion: reduce) {
     #tp-settings-fab, .tp-switch .tp-slider, .tp-switch .tp-slider:before, .tp-segmented-control label, .tp-toast { transition: none !important; }
+  }
+  @media (hover: none), (pointer: coarse) {
+    #tp-settings-fab { width: 42px; height: 42px; }
+    #tp-toast-container { bottom: 56px; }
+    .tp-btn, .tp-share-channel-btn { min-height: 36px; touch-action: manipulation; }
+    .tp-section-header { min-height: 38px; }
+    .tp-share-preview-close, .tp-discord-remove-channel-btn { min-width: 36px; min-height: 36px; }
+    .tp-range-container input[type="range"] { min-height: 34px; }
+    .tp-range-container input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+    .tp-range-container input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
   }
   @media (prefers-contrast: more) {
     .tp-switch-desc, .tp-section-header, .tp-cache-row #tp-cache-stats-label { opacity: 1 !important; }
@@ -7941,14 +7962,14 @@ const SHADOW_MODAL_STYLES = `
     copyTpBtn.type = 'button';
     copyTpBtn.textContent = '📋 Bild kopieren';
     copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
-    copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:3px 8px;cursor:pointer;';
+    copyTpBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;display:inline-flex;align-items:center;cursor:pointer;';
     copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.textContent = '✕';
     closeBtn.setAttribute('aria-label', 'Schliessen');
-    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;';
+    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;';
     const onKey = e => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -7987,7 +8008,7 @@ const SHADOW_MODAL_STYLES = `
       keepaTitle.style.cssText = 'color:var(--tp-txt-mid);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;';
 
       const keepaToolbar = document.createElement('div');
-      keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:4px;';
+      keepaToolbar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
 
       const ranges = [
         { label: '90T', days: 90 },
@@ -8009,14 +8030,14 @@ const SHADOW_MODAL_STYLES = `
       const copyKeepaBtn = document.createElement('button');
       copyKeepaBtn.type = 'button';
       copyKeepaBtn.textContent = '📋 Bild kopieren';
-      copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:3px 8px;cursor:pointer;display:none;';
+      copyKeepaBtn.style.cssText = 'background:var(--tp-bg-sub);border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:var(--tp-txt-mid);font-size:12px;padding:4px 10px;min-height:28px;align-items:center;cursor:pointer;display:none;';
 
       ranges.forEach(r => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = r.label;
         const setBtnStyle = active => {
-          btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:2px 6px;cursor:pointer;`;
+          btn.style.cssText = `background:${active ? 'var(--tp-btn-primary, #3b82f6)' : 'transparent'};border:1px solid var(--tp-bdr);border-radius:var(--tp-r-sm);color:${active ? '#ffffff' : 'var(--tp-txt-mid)'};font-size:11px;padding:3px 8px;min-height:26px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;`;
         };
         setBtnStyle(!!r.active);
         btn.addEventListener('click', () => {
@@ -8055,7 +8076,7 @@ const SHADOW_MODAL_STYLES = `
           a.href = safeUrl;
           a.target = '_blank';
           a.rel = 'noopener';
-          a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-block;';
+          a.style.cssText = 'color:var(--tp-link,#3b82f6);text-decoration:underline;margin-top:6px;display:inline-flex;align-items:center;min-height:24px;';
           a.textContent = 'Zum Amazon-Angebot ↗';
           errNotice.appendChild(a);
           keepaBody.appendChild(errNotice);
@@ -8063,7 +8084,7 @@ const SHADOW_MODAL_STYLES = `
         }
 
         keepaTitle.textContent = `🛒 Amazon.de: ${productTitle || asin} (ASIN: ${asin})`;
-        copyKeepaBtn.style.display = 'inline-block';
+        copyKeepaBtn.style.display = 'inline-flex';
 
         const keepaUrlFor = days => buildKeepaUrl(asin, days);
 
@@ -8086,14 +8107,14 @@ const SHADOW_MODAL_STYLES = `
         keepaLink.href = `https://keepa.com/#!product/3-${asin}`;
         keepaLink.target = '_blank';
         keepaLink.rel = 'noopener';
-        keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
+        keepaLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
         keepaLink.textContent = 'Auf Keepa ansehen ↗';
         const amzLink = document.createElement('a');
         const safeDirect = /^https?:\/\//i.test(chartCtx.directUrl || '') ? chartCtx.directUrl : null;
         amzLink.href = safeDirect || `https://www.amazon.de/dp/${asin}`;
         amzLink.target = '_blank';
         amzLink.rel = 'noopener';
-        amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;';
+        amzLink.style.cssText = 'color:var(--tp-link, #3b82f6);text-decoration:none;display:inline-flex;align-items:center;min-height:24px;';
         amzLink.textContent = 'Auf Amazon.de ansehen ↗';
         linksRow.appendChild(keepaLink);
         linksRow.appendChild(amzLink);
@@ -10838,7 +10859,7 @@ const SHADOW_MODAL_STYLES = `
     closeBtn.type = 'button';
     closeBtn.textContent = '✕';
     closeBtn.setAttribute('aria-label', 'Schliessen');
-    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1;';
+    closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;line-height:1;';
     closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#fff'; });
     closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = 'var(--tp-mut, #94a3b8)'; });
 
@@ -10906,7 +10927,7 @@ const SHADOW_MODAL_STYLES = `
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
     retryBtn.className = 'tp-btn tp-btn-secondary';
-    retryBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    retryBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
     retryBtn.textContent = '🔄 Erneut versuchen';
 
     const fetchSummary = () => {
@@ -10951,13 +10972,13 @@ const SHADOW_MODAL_STYLES = `
     googleBtn.target = '_blank';
     googleBtn.rel = 'noopener';
     googleBtn.className = 'tp-btn tp-btn-secondary';
-    googleBtn.style.cssText = 'padding:6px 12px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
+    googleBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
     googleBtn.textContent = '↗ Google-Suche';
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'tp-btn tp-btn-secondary';
-    copyBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    copyBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
     copyBtn.textContent = '📋 Fazit kopieren';
     copyBtn.disabled = !cached?.answer;
 
@@ -10976,7 +10997,7 @@ const SHADOW_MODAL_STYLES = `
     const discordBtn = document.createElement('button');
     discordBtn.type = 'button';
     discordBtn.className = 'tp-btn tp-btn-secondary';
-    discordBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+    discordBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
     discordBtn.textContent = '📤 In Discord teilen';
 
     discordBtn.addEventListener('click', () => {
@@ -12336,7 +12357,7 @@ const SHADOW_MODAL_STYLES = `
       card.innerHTML = `
         <div class="tp-discord-channel-header">
           <input type="text" class="tp-field-dark tp-discord-channel-name" value="${escapeHtmlAttr(ch.name || '')}" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
-          <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+          <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen">🗑️</button>
         </div>
         <div class="tp-discord-extra-collapsed">
           <span class="tp-switch-desc tp-discord-extra-status">${isDiscordWebhookUrl(ch.url) ? '✅ Webhook hinterlegt' : 'Kein Webhook hinterlegt'}</span>
@@ -12360,7 +12381,7 @@ const SHADOW_MODAL_STYLES = `
     card.innerHTML = `
       <div class="tp-discord-channel-header">
         <input type="text" class="tp-field-dark tp-discord-channel-name" value="" placeholder="Kanalname (z.B. Gaming)" style="flex:1;">
-        <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen" style="padding:4px 8px;">🗑️</button>
+        <button type="button" class="tp-btn tp-btn-danger tp-discord-remove-channel-btn" title="Kanal entfernen">🗑️</button>
       </div>
       <div class="tp-discord-extra-editor">
         <input type="password" class="tp-field-dark tp-discord-extra-url" placeholder="https://discord.com/api/webhooks/…" autocomplete="new-password">
@@ -16013,7 +16034,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.501';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.502';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

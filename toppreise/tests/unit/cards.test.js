@@ -748,6 +748,17 @@ describe('Min-Rabatt threshold filter core', () => {
       assert.ok(STYLES_CARDS.includes('.tp-share-btn::after'));
       assert.ok(STYLES_CARDS.includes('.tp-review-search-btn::after,'));
       assert.ok(STYLES_CARDS.includes('button.tp-dealer-name.tp-dealer-btn::after'));
+      assert.ok(STYLES_CARDS.includes('button.tp-card-alarm-btn::before'));
+      assert.ok(STYLES_CARDS.includes('.tp-sparkline-container::after'));
+    });
+
+    it('enforces >= 24px desktop hit targets, touch-action, and focus-visible rings', () => {
+      assert.ok(STYLES_CARDS.includes('min-width: 24px !important'));
+      assert.ok(STYLES_CARDS.includes('min-height: 24px !important'));
+      assert.ok(STYLES_CARDS.includes('min-width: 58px !important'));
+      assert.ok(STYLES_CARDS.includes('touch-action: manipulation'));
+      assert.ok(STYLES_CARDS.includes('.tp-sparkline-container:focus-visible'));
+      assert.ok(STYLES_CARDS.includes('.tp-share-btn:focus-visible'));
     });
   });
 });

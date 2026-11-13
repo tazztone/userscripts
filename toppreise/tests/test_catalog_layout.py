@@ -3481,6 +3481,159 @@ def test_card_subline_sparkline_hidden_on_narrow_viewport(page: Page):
     assert not spark.is_visible()
 
 
+def _rects_overlap(a, b, pad=0):
+    return not (
+        a['right'] <= b['left'] + pad
+        or b['right'] <= a['left'] + pad
+        or a['bottom'] <= b['top'] + pad
+        or b['bottom'] <= a['top'] + pad
+    )
+
+
+def _deal_series():
+    import time as _time
+    now = int(_time.time() * 1000)
+    day = 86400 * 1000
+    return [[now - 2 * day, 2400], [now - day, 2000], [now, 1800]]
+
+
+def test_click_targets_desktop_minimum_and_no_overlap(page: Page):
+    """Desktop interactive controls meet >=24x24px minimum without colliding."""
+    seed_verified_deal(page, '797571', {
+        'tiefstpreis': 1800,
+        'hoechstpreis': 2600,
+        'medianPrice': 3600,
+        'timeSeries': _deal_series()
+    })
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    rects = page.evaluate("""() => {
+        const r = (el) => {
+            if (!el) return null;
+            const b = el.getBoundingClientRect();
+            return { left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.width, height: b.height };
+        };
+        const shadow = document.getElementById('tp-root')?.shadowRoot;
+        return {
+            share: r(document.querySelector('#card-cheapest .tp-share-btn')),
+            spark: r(document.querySelector('#card-cheapest .tp-sparkline-container')),
+            subline: r(document.querySelector('#card-cheapest .tp-card-subline-row')),
+            review: r(document.querySelector('#card-cheapest .tp-review-search-btn')),
+            alarmBell: r(document.querySelector('#card-cheapest .tp-card-alarm-btn')),
+            alarmCog: r(document.querySelector('#card-cheapest .tp-card-alarm-group .tp-alarm-cog')),
+            ctaScan: r(document.querySelector('#tp-floating-check-btn')),
+            ctaCollapse: r(document.querySelector('#tp-floating-cta-collapse')),
+            fab: r(shadow?.getElementById('tp-settings-fab')),
+        };
+    }""")
+
+    for key in ('share', 'spark', 'review', 'alarmBell', 'alarmCog', 'ctaScan', 'ctaCollapse', 'fab'):
+        box = rects[key]
+        assert box is not None, f"Missing target '{key}'"
+        assert box['width'] >= 24, f"{key} width {box['width']} < 24px"
+        assert box['height'] >= 24, f"{key} height {box['height']} < 24px"
+
+    assert not _rects_overlap(rects['share'], rects['subline']), f"Share {rects['share']} overlaps subline {rects['subline']}"
+    assert not _rects_overlap(rects['alarmBell'], rects['alarmCog']), f"Alarm bell {rects['alarmBell']} overlaps cog {rects['alarmCog']}"
+
+    page.set_viewport_size({'width': 390, 'height': 844})
+    mobile_rects = page.evaluate("""() => {
+        const r = (el) => {
+            const b = el.getBoundingClientRect();
+            return { left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.width, height: b.height };
+        };
+        const shadow = document.getElementById('tp-root')?.shadowRoot;
+        return {
+            cta: r(document.getElementById('tp-floating-check-cta')),
+            fab: r(shadow.getElementById('tp-settings-fab')),
+        };
+    }""")
+    assert not _rects_overlap(mobile_rects['cta'], mobile_rects['fab']), f"Mobile CTA {mobile_rects['cta']} overlaps FAB {mobile_rects['fab']}"
+
+
+def test_sparkline_near_miss_click_does_not_navigate_card_anchor(page: Page):
+    """Clicking near the sparkline outer edge opens the popout and does not bubble to card anchor navigation."""
+    seed_verified_deal(page, '797571', {
+        'tiefstpreis': 1800,
+        'hoechstpreis': 2600,
+        'medianPrice': 3600,
+        'timeSeries': _deal_series()
+    })
+    page.evaluate("""() => {
+        window._tpAnchorNavigated = false;
+        const card = document.querySelector('#card-cheapest');
+        card.addEventListener('click', (e) => {
+            if (!e.defaultPrevented && e.target.closest('a')) {
+                window._tpAnchorNavigated = true;
+            }
+        });
+    }""")
+    spark = page.locator('#card-cheapest .tp-sparkline-container')
+    spark.scroll_into_view_if_needed()
+    box = spark.bounding_box()
+    assert box is not None and box['width'] >= 56 and box['height'] >= 24
+    # Click 2px inside the top-left edge of the sparkline pill
+    page.mouse.click(box['x'] + 2, box['y'] + 2)
+    page.wait_for_selector('#tp-sparkline-popout')
+    navigated = page.evaluate("() => window._tpAnchorNavigated")
+    assert navigated is False
+    # Check popout controls meet >=24px minimum
+    popout_ok = page.evaluate("""() => {
+        const p = document.getElementById('tp-sparkline-popout');
+        return Array.from(p.querySelectorAll('button')).every(btn => {
+            const b = btn.getBoundingClientRect();
+            return b.width >= 24 && b.height >= 24;
+        });
+    }""")
+    assert popout_ok is True
+
+
+def test_coarse_pointer_touch_targets_enlarged(browser, userscript_content):
+    """Coarse-pointer (touch/mobile) view enlarges FAB and shows hover-gated card actions."""
+    from conftest import MOCK_HTML
+    context = browser.new_context(is_mobile=True, has_touch=True, viewport={'width': 390, 'height': 844})
+    touch_page = context.new_page()
+    try:
+        touch_page.set_default_timeout(2500)
+        touch_page.goto(MOCK_HTML)
+        touch_page.evaluate("() => { localStorage.clear(); localStorage.setItem('tp_suite_v2_DEBUG', 'true'); localStorage.setItem('tp_suite_v2_MIGRATED_DEBUG_OFF', 'true'); }")
+        touch_page.evaluate(userscript_content)
+        touch_page.wait_for_selector('#tp-root >> #tp-settings-fab')
+        seed_verified_deal(touch_page, '797571', {
+            'tiefstpreis': 1800,
+            'hoechstpreis': 2600,
+            'medianPrice': 3600,
+            'timeSeries': _deal_series()
+        })
+        touch_page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+        coarse = touch_page.evaluate("() => window.matchMedia('(hover: none), (pointer: coarse)').matches")
+        assert coarse is True
+
+        metrics = touch_page.evaluate("""() => {
+            const shadow = document.getElementById('tp-root').shadowRoot;
+            const fab = shadow.getElementById('tp-settings-fab').getBoundingClientRect();
+            const share = document.querySelector('#card-cheapest .tp-share-btn');
+            const shareAfter = window.getComputedStyle(share, '::after');
+            const cta = document.getElementById('tp-floating-check-cta').getBoundingClientRect();
+            return {
+                fabW: fab.width,
+                fabH: fab.height,
+                ctaRight: cta.right,
+                fabLeft: fab.left,
+                shareOpacity: parseFloat(window.getComputedStyle(share).opacity),
+                shareAfterTop: shareAfter.top,
+            };
+        }""")
+        assert metrics['fabW'] >= 40 and metrics['fabH'] >= 40
+        assert metrics['shareOpacity'] > 0
+        assert metrics['ctaRight'] <= metrics['fabLeft'] + 1
+    finally:
+        touch_page.close()
+        context.close()
+
+
+
 
 
 

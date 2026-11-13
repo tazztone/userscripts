@@ -67,7 +67,7 @@ export function openAiPopover(options = {}) {
   closeBtn.type = 'button';
   closeBtn.textContent = '✕';
   closeBtn.setAttribute('aria-label', 'Schliessen');
-  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1;';
+  closeBtn.style.cssText = 'background:transparent;border:0;color:var(--tp-mut, #94a3b8);font-size:16px;cursor:pointer;padding:4px 8px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;line-height:1;';
   closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#fff'; });
   closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = 'var(--tp-mut, #94a3b8)'; });
 
@@ -135,7 +135,7 @@ export function openAiPopover(options = {}) {
   const retryBtn = document.createElement('button');
   retryBtn.type = 'button';
   retryBtn.className = 'tp-btn tp-btn-secondary';
-  retryBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  retryBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:none;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
   retryBtn.textContent = '🔄 Erneut versuchen';
 
   const fetchSummary = () => {
@@ -180,13 +180,13 @@ export function openAiPopover(options = {}) {
   googleBtn.target = '_blank';
   googleBtn.rel = 'noopener';
   googleBtn.className = 'tp-btn tp-btn-secondary';
-  googleBtn.style.cssText = 'padding:6px 12px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
+  googleBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px;';
   googleBtn.textContent = '↗ Google-Suche';
 
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'tp-btn tp-btn-secondary';
-  copyBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  copyBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
   copyBtn.textContent = '📋 Fazit kopieren';
   copyBtn.disabled = !cached?.answer;
 
@@ -205,7 +205,7 @@ export function openAiPopover(options = {}) {
   const discordBtn = document.createElement('button');
   discordBtn.type = 'button';
   discordBtn.className = 'tp-btn tp-btn-secondary';
-  discordBtn.style.cssText = 'padding:6px 12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
+  discordBtn.style.cssText = 'padding:6px 12px;min-height:28px;font-size:12px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;cursor:pointer;';
   discordBtn.textContent = '📤 In Discord teilen';
 
   discordBtn.addEventListener('click', () => {
