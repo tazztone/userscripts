@@ -92,6 +92,10 @@ export const STYLES_CHROME = `
   .tp-threshold-wrapper .tp-mini-switch {
     display: inline-flex !important;
     align-items: center !important;
+    min-width: 32px !important;
+    min-height: 28px !important;
+    padding: 4px 2px !important;
+    box-sizing: border-box !important;
     height: 100% !important;
     gap: 4px !important;
     margin: 0 !important;
@@ -183,6 +187,7 @@ export const STYLES_CHROME = `
     background: rgba(255, 255, 255, 0.9) !important;
     border: 1px solid var(--tp-line-soft) !important;
     color: var(--tp-txt) !important;
+    min-height: 30px !important;
     padding: 6px 12px !important;
     border-radius: var(--tp-r-sm) !important;
     font-size: var(--tp-fs-md) !important;
@@ -194,6 +199,10 @@ export const STYLES_CHROME = `
     background: #1d4ed8 !important;
     border-color: var(--tp-blue-soft) !important;
     color: #ffffff !important;
+  }
+  .tp-empty-state-btn:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
   }
 
   #tp-detail-subline,
@@ -410,7 +419,7 @@ export const STYLES_CHROME = `
     border: 1px solid var(--tp-line) !important;
     border-radius: var(--tp-r-md) !important;
     color: var(--tp-txt) !important;
-    padding: 6px 26px 6px 10px !important;
+    padding: 6px 30px 6px 10px !important;
     font-size: var(--tp-fs-md) !important;
     outline: none !important;
     box-sizing: border-box !important;
@@ -418,7 +427,12 @@ export const STYLES_CHROME = `
   #tp-inline-negative-input:focus { border-color: var(--tp-acc) !important; }
   #tp-clear-neg-btn {
     position: absolute !important;
-    right: 8px !important;
+    right: 3px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    border-radius: 4px !important;
     background: transparent !important;
     border: none !important;
     color: var(--tp-dim) !important;
@@ -426,6 +440,7 @@ export const STYLES_CHROME = `
     padding: 2px 6px !important;
   }
   #tp-clear-neg-btn:hover { color: var(--tp-rose) !important; }
+  #tp-clear-neg-btn:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 1px !important; }
   .tp-bar-btn {
     background: rgba(15, 23, 42, 0.05) !important;
     border: 1px solid rgba(15, 23, 42, 0.1) !important;
@@ -462,6 +477,10 @@ export const STYLES_CHROME = `
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
+    min-width: 32px !important;
+    min-height: 28px !important;
+    padding: 4px 2px !important;
+    box-sizing: border-box !important;
     line-height: 1 !important;
     gap: 5px !important;
     cursor: pointer !important;

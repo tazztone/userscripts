@@ -82,7 +82,7 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
               <span class="tp-filter-label" title="Namen mit diesen Wörtern dimmen/verbergen (kommagetrennt, Wortgrenzen)">Begriffe</span>
               <div class="tp-input-field-box">
                 <input type="text" id="tp-inline-negative-input" aria-label="Negativ-Filter (Text)" placeholder="Wörter ausschliessen..." value="">
-                <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'block' : 'none'};">✕</button>
+                <button id="tp-clear-neg-btn" title="Text leeren" style="display: ${CONFIG.NEGATIVE_TERMS ? 'inline-flex' : 'none'};">✕</button>
               </div>
               <span class="tp-count-badge" data-row-count="neg" style="display: ${negHidden > 0 ? 'inline-flex' : 'none'};">${negHidden > 0 ? negHidden : ''}</span>
               <button class="tp-filter-mode-btn" data-mode-key="FILTER_NEG_MODE">Normal</button>

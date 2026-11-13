@@ -14,7 +14,7 @@ export const STYLES_FLOATING_CTA = `
     align-items: center !important;
     gap: 3px !important;
     max-width: none !important;
-    height: 30px !important;
+    height: 34px !important;
     background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
@@ -60,7 +60,7 @@ export const STYLES_FLOATING_CTA = `
     border: none !important;
     border-radius: 999px !important;
     padding: 2px 8px !important;
-    height: 24px !important;
+    height: 28px !important;
     font-family: inherit !important;
     font-size: 11px !important;
     font-weight: 700 !important;
@@ -106,7 +106,7 @@ export const STYLES_FLOATING_CTA = `
     align-items: center !important;
     gap: 3px !important;
     padding: 0 5px !important;
-    height: 24px !important;
+    height: 28px !important;
     background: rgba(15, 23, 42, 0.05) !important;
     border-radius: 999px !important;
     font-size: 10px !important;
@@ -123,12 +123,14 @@ export const STYLES_FLOATING_CTA = `
   }
   #tp-floating-dealer-toggle {
     accent-color: #10b981 !important;
+    width: 15px !important;
+    height: 15px !important;
     cursor: pointer !important;
     margin: 0 !important;
   }
   #tp-floating-threshold-input {
     width: 44px !important;
-    height: 24px !important;
+    height: 28px !important;
     padding: 0 4px !important;
     background: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.16) !important;
@@ -158,13 +160,24 @@ export const STYLES_FLOATING_CTA = `
     color: var(--tp-txt-dim) !important;
     cursor: pointer !important;
     font-size: 12px !important;
-    padding: 2px 4px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    padding: 2px 5px !important;
     line-height: 1 !important;
     border-radius: 4px !important;
     transition: color 0.15s ease, transform 0.15s ease !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+  #tp-floating-check-btn:focus-visible,
+  #tp-floating-dealer-row:focus-within,
+  #tp-floating-threshold-input:focus-visible,
+  #tp-floating-refresh-btn:focus-visible,
+  #tp-floating-cta-collapse:focus-visible {
+    outline: 2px solid var(--tp-focus) !important;
+    outline-offset: 2px !important;
   }
   #tp-floating-refresh-btn:hover,
   #tp-floating-cta-collapse:hover {
@@ -179,15 +192,15 @@ export const STYLES_FLOATING_CTA = `
     to { transform: rotate(360deg); }
   }
   #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
-  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 2px !important; height: 26px !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 0 8px !important; height: 22px !important; }
+  #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 2px !important; height: 30px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 0 8px !important; height: 24px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
   #tp-floating-check-cta.tp-collapsed #tp-floating-refresh-btn,
   #tp-floating-check-cta.tp-collapsed #tp-floating-threshold-input { display: none !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-count { display: inline !important; }
-  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 20px !important; height: 20px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse { border-radius: 50% !important; border: 1px solid rgba(15,23,42,0.12) !important; width: 24px !important; height: 24px !important; min-width: 24px !important; min-height: 24px !important; padding: 0 !important; }
   .tp-label-short { display: none !important; }
   .tp-label-full { display: inline !important; }
   @media (max-width: 600px) {
@@ -195,7 +208,7 @@ export const STYLES_FLOATING_CTA = `
     #tp-floating-check-cta {
       left: 8px !important;
       bottom: 8px !important;
-      max-width: calc(100vw - 52px) !important;
+      max-width: calc(100vw - 62px) !important;
       gap: 2px !important;
     }
     #tp-floating-check-btn { padding: 2px 6px !important; }
@@ -203,6 +216,28 @@ export const STYLES_FLOATING_CTA = `
     #tp-floating-threshold-input { width: 38px !important; padding: 0 2px !important; }
     .tp-label-full { display: none !important; }
     .tp-label-short { display: inline !important; }
+  }
+  @media (hover: none), (pointer: coarse) {
+    #tp-floating-check-cta { height: 40px !important; }
+    #tp-floating-check-cta.tp-collapsed { height: 36px !important; }
+    #tp-floating-check-btn,
+    #tp-floating-dealer-row,
+    #tp-floating-threshold-input {
+      height: 34px !important;
+      touch-action: manipulation !important;
+    }
+    #tp-floating-refresh-btn,
+    #tp-floating-cta-collapse {
+      min-width: 34px !important;
+      min-height: 34px !important;
+      touch-action: manipulation !important;
+    }
+    #tp-floating-check-cta.tp-collapsed #tp-floating-cta-collapse {
+      width: 30px !important;
+      height: 30px !important;
+      min-width: 30px !important;
+      min-height: 30px !important;
+    }
   }
   @media (max-width: 768px) {
     .Plugin_LastSearchTerms {

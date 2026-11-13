@@ -4,17 +4,20 @@ export const STYLES_CATEGORY_TREE = `
   /* Sidebar Search Box */
   .tp-cat-search-box { position: relative !important; margin: 6px 0 10px !important; width: 100% !important; box-sizing: border-box !important; }
   .tp-cat-search-input {
-    width: 100% !important; height: 28px !important; padding: 3px 22px 3px 8px !important;
+    width: 100% !important; height: 32px !important; padding: 4px 30px 4px 8px !important;
     font: 500 12px var(--tp-font) !important; border-radius: var(--tp-r-sm) !important;
     border: 1px solid var(--tp-line-soft) !important; background: rgba(255, 255, 255, 0.08) !important;
     color: inherit !important; box-sizing: border-box !important; outline: none !important;
   }
   .tp-cat-search-input:focus { border-color: var(--tp-blue-soft) !important; background: rgba(255, 255, 255, 0.14) !important; }
   .tp-cat-search-clear {
-    position: absolute !important; right: 6px !important; top: 50% !important; transform: translateY(-50%) !important;
-    background: transparent !important; border: none !important; cursor: pointer !important; font-size: 11px !important;
+    position: absolute !important; right: 4px !important; top: 50% !important; transform: translateY(-50%) !important;
+    display: inline-flex !important; align-items: center !important; justify-content: center !important;
+    width: 24px !important; height: 24px !important; border-radius: 4px !important;
+    background: transparent !important; border: none !important; cursor: pointer !important; font-size: 12px !important;
     color: var(--tp-txt-dim) !important; padding: 0 !important; line-height: 1 !important;
   }
+  .tp-cat-search-clear:focus-visible { outline: 2px solid var(--tp-focus) !important; outline-offset: 1px !important; }
   .tp-cat-search-results {
     max-height: 260px !important; overflow-y: auto !important; background: var(--tp-panel, #1e293b) !important;
     border: 1px solid var(--tp-line-soft) !important; border-radius: var(--tp-r-sm) !important; margin-top: 4px !important;
@@ -52,6 +55,10 @@ export const STYLES_CATEGORY_TREE = `
   }
   .Plugin_CategoryMainSelectionLeft a.filterShowMore {
     cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 28px !important;
+    padding: 4px 6px !important;
   }
   /* Disabled categories remain expandable for read-only browsing; child mute buttons suppressed */
   .Plugin_CategoryMainSelectionLeft li:is(.ignoredCategoryEntry, :has(> .tp-cat-row > .f_IgnoredCategories_Show, > .f_IgnoredCategories_Show)) .tp-cat-sublist .ignoreCategory {
@@ -60,28 +67,33 @@ export const STYLES_CATEGORY_TREE = `
 
   .tp-cat-row {
     display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important;
-    width: 100% !important; min-height: 22px !important; padding: 2px 0 !important; box-sizing: border-box !important;
+    width: 100% !important; min-height: 28px !important; padding: 2px 0 !important; gap: 2px !important; box-sizing: border-box !important;
   }
   .tp-cat-row > a {
     flex: 1 1 auto !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important;
     white-space: nowrap !important; text-decoration: none !important; color: inherit !important; font-size: 12px !important; line-height: 1.3 !important;
+    padding: 4px 2px !important;
   }
   .tp-cat-row > a:hover { color: var(--tp-blue-soft, #38bdf8) !important; }
 
   .tp-cat-toggle {
+    position: relative !important;
     background: transparent !important; border: none !important; cursor: pointer !important; padding: 0 !important;
-    margin: 0 3px 0 0 !important; font-size: 9px !important; color: inherit !important; opacity: 0.45 !important;
-    width: 14px !important; height: 14px !important; line-height: 14px !important; text-align: center !important; flex: 0 0 14px !important;
-    transition: opacity 0.15s ease, transform 0.15s ease !important;
+    margin: 0 !important; font-size: 11px !important; color: inherit !important; opacity: 0.55 !important;
+    width: 24px !important; height: 24px !important; line-height: 24px !important; text-align: center !important; flex: 0 0 24px !important;
+    display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 4px !important;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease !important;
   }
-  .tp-cat-toggle:hover { opacity: 0.9 !important; color: var(--tp-blue-soft, #38bdf8) !important; }
-  .tp-cat-spacer { display: inline-block !important; width: 14px !important; height: 14px !important; margin: 0 3px 0 0 !important; flex: 0 0 14px !important; }
+  .tp-cat-toggle:hover { opacity: 0.95 !important; color: var(--tp-blue-soft, #38bdf8) !important; background: rgba(56, 189, 248, 0.1) !important; }
+  .tp-cat-toggle:focus-visible { opacity: 1 !important; outline: 2px solid var(--tp-focus) !important; outline-offset: 1px !important; }
+  .tp-cat-spacer { display: inline-block !important; width: 24px !important; height: 24px !important; margin: 0 !important; flex: 0 0 24px !important; }
 
   /* Shared Mute/Restore Controls (Vanilla: hidden until hover, subtle plus when ignored) */
   .tp-cat-row .ignoreCategory,
   .tp-cat-result-item .ignoreCategory {
-    flex: 0 0 auto !important; cursor: pointer !important; font-size: 11px !important; line-height: 1 !important;
-    border-radius: 3px !important; transition: opacity 0.15s ease, color 0.15s ease !important;
+    position: relative !important; flex: 0 0 auto !important; cursor: pointer !important; font-size: 12px !important; line-height: 1 !important;
+    min-width: 24px !important; min-height: 24px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important;
+    border-radius: 4px !important; transition: opacity 0.15s ease, color 0.15s ease !important;
   }
   .tp-cat-row .ignoreCategory { margin-left: 4px !important; padding: 1px 4px !important; }
   .tp-cat-result-item .ignoreCategory { margin-left: 8px !important; padding: 2px 6px !important; }
@@ -122,4 +134,25 @@ export const STYLES_CATEGORY_TREE = `
   .tp-cat-sublist .tp-cat-row > a:hover { opacity: 1 !important; color: var(--tp-blue-soft, #38bdf8) !important; }
   .tp-cat-row.tp-cat-loading,
   .tp-cat-result-item.tp-cat-loading { opacity: 0.4 !important; pointer-events: none !important; transition: opacity 0.2s ease !important; }
+
+  @media (hover: none), (pointer: coarse) {
+    .Plugin_CategoryMainSelectionLeft .ignoreCategory.f_IgnoredCategories_Hide,
+    .tp-cat-result-item .ignoreCategory.f_IgnoredCategories_Hide {
+      opacity: 0.45 !important; pointer-events: auto !important;
+    }
+    .tp-cat-toggle,
+    .tp-cat-row .ignoreCategory,
+    .tp-cat-result-item .ignoreCategory,
+    .tp-cat-search-clear {
+      touch-action: manipulation !important;
+    }
+    .tp-cat-toggle::after {
+      content: "" !important; position: absolute !important; top: -6px !important; bottom: -6px !important; left: -6px !important; right: -4px !important;
+    }
+    .tp-cat-row .ignoreCategory::after,
+    .tp-cat-result-item .ignoreCategory::after,
+    .tp-cat-search-clear::after {
+      content: "" !important; position: absolute !important; inset: -6px !important;
+    }
+  }
 `;

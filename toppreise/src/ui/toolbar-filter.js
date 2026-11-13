@@ -197,7 +197,7 @@ export function syncFilterRow(bar, counts, flags) {
   const clearBtn = bar.querySelector('#tp-clear-neg-btn');
   if (input && document.activeElement !== input) {
     input.value = CONFIG.NEGATIVE_TERMS || '';
-    if (clearBtn) clearBtn.style.display = CONFIG.NEGATIVE_TERMS ? 'block' : 'none';
+    if (clearBtn) clearBtn.style.display = CONFIG.NEGATIVE_TERMS ? 'inline-flex' : 'none';
   }
 
   const pMin = bar.querySelector('#tp-price-min-input');
