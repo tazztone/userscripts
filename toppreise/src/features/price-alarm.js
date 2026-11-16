@@ -12,6 +12,7 @@ import { openSettingsAt } from '../ui/modal.js';
 import { parsePrice } from '../domain/price.js';
 import { isShippingPriceActive } from '../page/adapter.js';
 import { showToast } from '../ui/toast.js';
+import { fetchWithTimeout } from '../state/net.js';
 
 const ALARM_DURATIONS = ['90', '180', '365', '730'];
 const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
@@ -357,16 +358,15 @@ export async function openPriceAlarmForProduct(pid, card = null) {
       im_nimb_tmpl: 'btn',
       lang: 'de'
     });
-    const res = await fetch('/plugins/infomails/NewInfoMailButton', {
+    const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'X-Requested-With': 'XMLHttpRequest'
       },
       body: postBody
-    });
+    }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
     if (res.ok) {
-      const html = await res.text();
       let dialogNode = null;
       let formUrl = null;
       if (typeof DOMParser !== 'undefined') {
@@ -410,11 +410,12 @@ export async function openPriceAlarmForProduct(pid, card = null) {
 
         document.body.appendChild(dialogNode);
         if (formUrl) {
-          const formRes = await fetch(`${formUrl}&im_nimf_ch=${dialogHash}&lang=de`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-          });
+          const { res: formRes, body: formHtml } = await fetchWithTimeout(
+            `${formUrl}&im_nimf_ch=${dialogHash}&lang=de`,
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+            { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
+          );
           if (formRes.ok) {
-            const formHtml = await formRes.text();
             const content = dialogNode.querySelector('.AbstractDialog_Content');
             if (content) {
               if (typeof DOMParser !== 'undefined') {

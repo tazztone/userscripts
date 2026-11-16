@@ -6,6 +6,7 @@
 import { SELECTORS } from './selectors.js';
 import { parsePrice } from '../domain/price.js';
 import { getCachedAsin, setCachedAsin, lruSet } from '../scanner/cache.js';
+import { fetchWithTimeout } from '../state/net.js';
 
 const isToppreiseProductUrl = u => {
   try {
@@ -358,7 +359,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
             ontimeout: () => resolve(null)
           });
         } else if (typeof fetch !== 'undefined') {
-          fetch(target, { method: 'HEAD', redirect: 'follow' })
+          fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' })
             .then(res => {
               const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
               if (asin && productId) {

@@ -11,6 +11,7 @@ import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } fr
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
 import { setHtmlIfChanged } from '../ui/badges/dom-helpers.js';
+import { logActivity } from '../state/activity-log.js';
 
 export const activeFetches = new Map();
 
@@ -79,6 +80,7 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
           continue;
         }
         originCooldownUntil = Date.now() + Math.max(wait, baseDelayMs);
+        logActivity('warn', 'scanner', `429 Cooldown aktiviert (${Math.max(wait, baseDelayMs)}ms)`);
         const e = new Error('429');
         e.transient = true;
         throw e;
@@ -187,6 +189,7 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
       return { res, data: json };
     }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
     if (res && !res.ok && (res.status === 401 || res.status === 403)) {
+      logActivity('warn', 'scanner', `HTTP ${res.status} für ${productId}`);
       const e = new Error('unauthorized');
       e.unauthorized = true;
       throw e;
@@ -531,5 +534,6 @@ export const runBatchDealCheck = (minDiscount = 30, onProgress = null, onComplet
 
 export function cancelBatchDealCheck() {
   Object.assign(scanState, { batchCancelRequested: true });
+  logActivity('info', 'scanner', 'Batch-Prüfung abgebrochen');
   try { batchController?.abort(); } catch {}
 }

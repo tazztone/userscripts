@@ -6,6 +6,7 @@
 
 import { renderDiscordChart } from '../ui/sparkline.js';
 import { priceToCents } from '../domain/price.js';
+import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
 
 export const isDiscordWebhookUrl = url =>
   typeof url === 'string' &&
@@ -92,12 +93,12 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
         if (!isAllowedHost) return reject(new Error('Ungültige Bild-URL'));
       } catch { return reject(new Error('Ungültige Bild-URL')); }
       if (typeof GM_xmlhttpRequest !== 'undefined') {
-        GM_xmlhttpRequest({
+        gmRequestWithTimeout({
           method: 'GET',
           url: imageUrl.trim(),
           responseType: 'blob',
-          timeout: timeoutMs,
-          onload: res => {
+        }, { timeoutMs, source: 'discord', label: 'image' })
+          .then(res => {
             const data = res?.response;
             if (res.status >= 200 && res.status < 300 && data) {
               const blob = data instanceof Blob ? data : new Blob([data]);
@@ -106,12 +107,10 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
               if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
               resolve(blob);
             } else reject(new Error(`Bild-Download ${res.status}`));
-          },
-          onerror: () => reject(new Error('Netzwerkfehler')),
-          ontimeout: () => reject(new Error('Timeout'))
-        });
+          })
+          .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
       } else if (typeof fetch !== 'undefined') {
-        fetch(imageUrl.trim())
+        fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image' })
           .then(async res => {
             if (res.status >= 200 && res.status < 300) {
               const blob = await res.blob();
@@ -121,7 +120,7 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
               resolve(blob);
             } else reject(new Error(`Bild-Download ${res.status}`));
           })
-          .catch(() => reject(new Error('Netzwerkfehler')));
+          .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
       } else {
         reject(new Error('Kein HTTP-Transport verfügbar'));
       }
@@ -156,18 +155,21 @@ const discordError = (status, body, headers) =>
     { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 
 function gmPost({ url, data, headers, timeoutMs }) {
-  return new Promise((resolve, reject) => {
-    GM_xmlhttpRequest({
-      method: 'POST',
-      url,
-      ...(headers ? { headers } : {}),
-      data,
-      timeout: timeoutMs,
-      onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(discordError(res.status, res?.responseText, res?.responseHeaders))),
-      onerror: () => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })),
-      ontimeout: () => reject(Object.assign(new Error('Timeout'), { status: 0, retryAfterMs: 0 }))
-    });
-  });
+  return gmRequestWithTimeout({
+    method: 'POST',
+    url,
+    ...(headers ? { headers } : {}),
+    data,
+  }, { timeoutMs, source: 'discord', label: 'post' })
+    .then(
+      (res) => {
+        if (res.status >= 200 && res.status < 300) return;
+        throw discordError(res.status, res?.responseText, res?.responseHeaders);
+      },
+      (err) => {
+        throw Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 });
+      }
+    );
 }
 
 export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
@@ -204,12 +206,12 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
       } else if (typeof fetch !== 'undefined') {
-        fetch(url, { method: 'POST', body: form })
+        fetchWithTimeout(url, { method: 'POST', body: form }, { timeoutMs: 20000, source: 'discord', label: 'multipart' })
           .then(async res => {
             if (res.ok) return resolve();
             reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
           })
-          .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
+          .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
       } else {
         reject(new Error('Kein Multipart-Transport'));
       }
@@ -228,12 +230,12 @@ export function postDealToDiscord(webhookUrl, content, options = {}) {
     if (typeof GM_xmlhttpRequest !== 'undefined') {
       gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
     } else if (typeof fetch !== 'undefined') {
-      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
+      fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
         .then(async res => {
           if (res.ok) return resolve();
           reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
         })
-        .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
+        .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
     } else {
       reject(new Error('Kein HTTP-Transport verfügbar'));
     }

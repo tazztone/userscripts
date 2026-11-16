@@ -195,4 +195,26 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
       assert.equal(liveCard._tpPriceInfo, undefined);
     });
   });
+
+  describe('fetchFeedHtml timeout & cancel', () => {
+    it('aborts fetchFeedHtml when timeoutMs elapses', async () => {
+      const slowFetch = (_url, opts) => new Promise((_resolve, reject) => {
+        opts.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      });
+      await assert.rejects(
+        () => fetchFeedHtml('https://www.toppreise.ch/de/neue-toppreise', slowFetch, { timeoutMs: 25 }),
+        (err) => err.timeout === true
+      );
+    });
+
+    it('aborts fetchFeedHtml when external signal aborts', async () => {
+      const ac = new AbortController();
+      const slowFetch = (_url, opts) => new Promise((_resolve, reject) => {
+        opts.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      });
+      const p = fetchFeedHtml('https://www.toppreise.ch/de/neue-toppreise', slowFetch, { signal: ac.signal, timeoutMs: 5000 });
+      setTimeout(() => ac.abort(), 15);
+      await assert.rejects(() => p, (err) => err.cancelled === true);
+    });
+  });
 });

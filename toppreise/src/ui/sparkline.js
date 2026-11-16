@@ -9,6 +9,7 @@ import { CONFIG } from '../state/config.js';
 import { resolveAmazonAsin } from '../page/product-offers.js';
 import { showToast } from './toast.js';
 import { createPopoutDialog } from './popout-dialog.js';
+import { gmRequestWithTimeout } from '../state/net.js';
 
 export function renderSparkline(timeSeries, width, height, opts = {}) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
@@ -246,16 +247,13 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
     let sourceImg = imgEl;
     if (typeof GM_xmlhttpRequest !== 'undefined' && fallbackUrl) {
       try {
-        const blob = await new Promise((res, rej) => {
-          GM_xmlhttpRequest({
-            method: 'GET',
-            url: fallbackUrl,
-            responseType: 'blob',
-            onload: r => r.response ? res(r.response) : rej(new Error('no blob')),
-            onerror: rej,
-            ontimeout: rej
-          });
-        });
+        const r = await gmRequestWithTimeout({
+          method: 'GET',
+          url: fallbackUrl,
+          responseType: 'blob'
+        }, { timeoutMs: 8000, source: 'sparkline', label: 'keepa' });
+        if (!r?.response) throw new Error('no blob');
+        const blob = r.response;
         objectUrl = URL.createObjectURL(blob);
         const tempImg = new Image();
         await new Promise((res, rej) => {

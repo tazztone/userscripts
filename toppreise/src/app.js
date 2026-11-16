@@ -38,6 +38,8 @@ import { setupUI, openSettingsAt } from './ui/modal.js';
 import { showToast, getLastToastMessage } from './ui/toast.js';
 import { uiShadowRoot } from './ui/shell.js';
 import { closeSparklinePopout } from './ui/sparkline.js';
+import { cancelFeedRefresh, getFeedRefreshState } from './page/feed-refresh.js';
+import { logActivity, getActivityLog, subscribeActivityLog } from './state/activity-log.js';
 import { closeAiPopover } from './ui/badges/card-ai-popover.js';
 import {
   CONFIG,
@@ -64,7 +66,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.506
+// @version      2.18.507
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -188,33 +190,38 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');
 
       // Live Session Bridge Telemetry (MCP evaluate_script)
-      const rootEl = document.getElementById('tp-root');
-      if (rootEl) {
-        rootEl.setAttribute('data-tp-diag', JSON.stringify({
-          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-          cards: cards.length,
-          checked: counts.bestpreiseDeals,
-          unchecked: counts.uncheckedDeals,
-          filtered: counts.filteredCount,
-          dimmed: counts.dimmed,
-          isNeueFeed,
-          lastError: null,
-          ts: Date.now()
-        }));
-      }
+      updateDiagAttr({
+        cards: cards.length,
+        checked: counts.bestpreiseDeals,
+        unchecked: counts.uncheckedDeals,
+        filtered: counts.filteredCount,
+        dimmed: counts.dimmed,
+        isNeueFeed,
+        lastError: null,
+      });
       } catch (err) {
         console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
-        const rootEl = document.getElementById('tp-root');
-        if (rootEl) {
-          rootEl.setAttribute('data-tp-diag', JSON.stringify({
-            version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-            lastError: { message: err.message, stack: err.stack, ts: Date.now() },
-            ts: Date.now()
-          }));
-        }
+        logActivity('error', 'app', 'processListings error', err?.message || String(err));
+        updateDiagAttr({ lastError: { message: err.message, stack: err.stack, ts: Date.now() } });
       }
     });
   }
+
+  let lastDiagBase = {};
+  function updateDiagAttr(extra = null) {
+    if (extra) lastDiagBase = { ...lastDiagBase, ...extra };
+    const rootEl = document.getElementById('tp-root');
+    if (!rootEl) return;
+    rootEl.setAttribute('data-tp-diag', JSON.stringify({
+      version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+      ...lastDiagBase,
+      scan: { active: scanState.isBatchChecking, progress: scanState.progress },
+      refresh: getFeedRefreshState(),
+      recentLog: getActivityLog().slice(-10),
+      ts: Date.now()
+    }));
+  }
+  subscribeActivityLog(() => updateDiagAttr());
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
@@ -354,6 +361,8 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
     closeAiPopover();
     uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
     cancelBatchDealCheck();
+    cancelFeedRefresh();
+    logActivity('info', 'app', 'Route transition');
     clearDealerAutoTried();
     checkPageProfileTransition();
     triggerProcessListings();
@@ -369,20 +378,16 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
       await processProductDetailPage(withDomMutationLock);
     } catch (err) {
       console.error('[Toppreise-Suite] ❌ Error in processProductDetailPage:', err);
-      const rootEl = document.getElementById('tp-root');
-      if (rootEl) {
-        rootEl.setAttribute('data-tp-diag', JSON.stringify({
-          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-          pageType: 'detail',
-          lastError: { message: err.message, stack: err.stack, ts: Date.now() },
-          ts: Date.now()
-        }));
-      }
+      logActivity('error', 'app', 'processProductDetailPage error', err?.message || String(err));
+      updateDiagAttr({
+        pageType: 'detail',
+        lastError: { message: err.message, stack: err.stack, ts: Date.now() },
+      });
     }
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.506';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.507';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

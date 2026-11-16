@@ -5,6 +5,7 @@
  */
 
 import { lruSet } from '../scanner/cache.js';
+import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
 
 export const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
 export const TAVILY_CACHE_KEY_PREFIX = 'tp_suite_v2_tavily_';
@@ -181,52 +182,19 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
     };
 
     if (typeof GM_xmlhttpRequest !== 'undefined') {
-      try {
-        GM_xmlhttpRequest({
-          method: 'POST',
-          url: TAVILY_API_ENDPOINT,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${trimmedKey}`
-          },
-          data: payload,
-          timeout: timeoutMs,
-          onload: (res) => {
-            if (res.status >= 200 && res.status < 300) {
-              handleSuccess(res.responseText);
-            } else if (res.status === 401 || res.status === 403) {
-              reject(new Error('Tavily API-Key ungültig'));
-            } else if (res.status === 429) {
-              reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
-            } else {
-              reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
-            }
-          },
-          onerror: () => reject(new Error('Netzwerkfehler bei Verbindung zu Tavily')),
-          ontimeout: () => reject(new Error('Zeitüberschreitung bei Tavily'))
-        });
-      } catch (e) {
-        reject(e);
-      }
-    } else if (typeof fetch !== 'undefined') {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-
-      fetch(TAVILY_API_ENDPOINT, {
+      gmRequestWithTimeout({
         method: 'POST',
+        url: TAVILY_API_ENDPOINT,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': `Bearer ${trimmedKey}`
         },
-        body: payload,
-        signal: controller?.signal
-      })
-        .then(async (res) => {
-          if (timer) clearTimeout(timer);
-          if (res.ok) {
-            handleSuccess(await res.text());
+        data: payload,
+      }, { timeoutMs, source: 'tavily', label: 'search' })
+        .then((res) => {
+          if (res.status >= 200 && res.status < 300) {
+            handleSuccess(res.responseText);
           } else if (res.status === 401 || res.status === 403) {
             reject(new Error('Tavily API-Key ungültig'));
           } else if (res.status === 429) {
@@ -236,12 +204,31 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
           }
         })
         .catch((err) => {
-          if (timer) clearTimeout(timer);
-          if (err?.name === 'AbortError') {
-            reject(new Error('Zeitüberschreitung bei Tavily'));
+          reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
+        });
+    } else if (typeof fetch !== 'undefined') {
+      fetchWithTimeout(TAVILY_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${trimmedKey}`
+        },
+        body: payload,
+      }, { timeoutMs, source: 'tavily', label: 'search', readAs: 'text' })
+        .then(({ res, body }) => {
+          if (res.ok) {
+            handleSuccess(body);
+          } else if (res.status === 401 || res.status === 403) {
+            reject(new Error('Tavily API-Key ungültig'));
+          } else if (res.status === 429) {
+            reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
           } else {
-            reject(new Error('Netzwerkfehler bei Verbindung zu Tavily'));
+            reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
           }
+        })
+        .catch((err) => {
+          reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
         });
     } else {
       reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));

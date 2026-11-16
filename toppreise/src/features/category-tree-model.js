@@ -5,6 +5,7 @@
  */
 
 import { showToast } from '../ui/toast.js';
+import { fetchWithTimeout } from '../state/net.js';
 
 const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
 const EXPANDED_STORAGE_KEY = 'tp_cat_expanded_branches';
@@ -333,16 +334,15 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
           c_cm_la: lang,
           lang
         });
-        const resp = await fetch(ajaxUrl, {
+        const { res: resp, body: json } = await fetchWithTimeout(ajaxUrl, {
           method: 'POST',
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
           },
           body: body.toString()
-        });
+        }, { timeoutMs: 8000, source: 'category-tree', label: 'tree', readAs: 'json' });
         if (resp.ok) {
-          const json = await resp.json();
           if (json?.categories) {
             try {
               localStorage.setItem(`c_cm_data_${lang}`, JSON.stringify(json.categories));
@@ -380,13 +380,16 @@ export async function hydrateBranchIdents(feedUrl, branchEl) {
   if (!feedUrl || typeof fetch !== 'function') return;
   if (hydratedFeedUrls.has(feedUrl)) return;
   try {
-    const resp = await fetch(feedUrl, { credentials: 'same-origin' });
+    const { res: resp, body: html } = await fetchWithTimeout(
+      feedUrl,
+      { credentials: 'same-origin' },
+      { timeoutMs: 8000, source: 'category-tree', label: 'hydrate', readAs: 'text' }
+    );
     if (!resp.ok) return;
     hydratedFeedUrls.add(feedUrl);
     while (hydratedFeedUrls.size > 500) {
       hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
     }
-    const html = await resp.text();
     const stored = parseCategoryIdentsFromText(html);
 
     if (branchEl) {

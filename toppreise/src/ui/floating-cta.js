@@ -30,7 +30,7 @@ import { showToast } from "./toast.js";
 import { triggerProcessListings } from "../page/adapter.js";
 import { markFreshVerified, armFreshDismiss } from "./fresh-dismiss.js";
 import { getCardProductId } from "../page/cards.js";
-import { refreshFeed, isFeedRefreshing } from "../page/feed-refresh.js";
+import { refreshFeed, isFeedRefreshing, cancelFeedRefresh, getFeedRefreshState } from "../page/feed-refresh.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
 export const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
@@ -45,13 +45,30 @@ let lastIsDealFeed = false;
  * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
  * Unit-tested in tests/unit/floating-cta.test.js.
  */
-export function ctaStateFor({ unchecked = 0, isScanning = false, isRefreshing = false, completed = 0, total = 0 } = {}) {
+export function ctaStateFor({
+  unchecked = 0,
+  isScanning = false,
+  isRefreshing = false,
+  completed = 0,
+  total = 0,
+  refreshStage = null,
+  refreshElapsedSec = 0,
+} = {}) {
   if (isScanning) {
     const progress = total > 0 ? ` (${completed}/${total})` : '';
     return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
   }
   if (isRefreshing) {
-    return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
+    if (refreshStage == null && refreshElapsedSec === 0) {
+      return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
+    }
+    const mainLabel = refreshElapsedSec >= 1 ? `⏳ Suche… (${refreshElapsedSec}s)` : '⏳ Suche neue Deals...';
+    const stageLabel = refreshStage === 'parsing'
+      ? 'Verarbeite...'
+      : refreshStage === 'reconciling'
+        ? 'Gleiche ab...'
+        : 'Feed wird aktualisiert';
+    return { mode: 'refreshing', mainLabel, subLabel: `${stageLabel} · Klicken = Abbrechen` };
   }
   if (unchecked > 0) {
     const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
@@ -106,13 +123,15 @@ export function startBatchCheck() {
     syncFloatingCTA();
     return;
   }
+  if (isFeedRefreshing()) {
+    cancelFeedRefresh();
+    showToast('Feed-Aktualisierung abgebrochen');
+    syncFloatingCTA();
+    return;
+  }
   const unchecked = lastCounts.uncheckedDeals || 0;
   if (unchecked <= 0) {
-    if (isFeedRefreshing()) {
-      showToast('Feed wird bereits aktualisiert');
-      return;
-    }
-    refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
+    refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
     return;
   }
   const minDisc = realDealMinDiscount();
@@ -187,7 +206,7 @@ function ensureCta() {
   const refreshBtnEl = el.querySelector('#tp-floating-refresh-btn');
   if (refreshBtnEl) {
     refreshBtnEl.onclick = () => {
-      refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
+      refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
     };
   }
 
@@ -247,12 +266,15 @@ function syncFloatingCTA() {
   const state = scanState;
   const unchecked = lastCounts.uncheckedDeals || 0;
   const refreshing = isFeedRefreshing();
+  const refreshState = refreshing ? getFeedRefreshState() : null;
   const { mainLabel, subLabel, mode } = ctaStateFor({
     unchecked,
     isScanning: state.isBatchChecking,
     isRefreshing: refreshing,
     completed: state.progress?.completed || 0,
-    total: state.progress?.total || 0
+    total: state.progress?.total || 0,
+    refreshStage: refreshState?.stage ?? null,
+    refreshElapsedSec: refreshState?.elapsedSec ?? 0,
   });
 
   const countMatch = mainLabel.match(/^🔍\s*(\d+)\s+Tiefstpreis/);
@@ -280,7 +302,11 @@ function syncFloatingCTA() {
   const total = state.progress?.total || 0;
   setTextIfChanged(
     el.querySelector('#tp-floating-check-count'),
-    mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : (mode === 'refreshing' ? '⏳' : `🔍 ${unchecked}`)
+    mode === 'scanning'
+      ? (total > 0 ? `⏳${completed}/${total}` : '⏳')
+      : (mode === 'refreshing'
+        ? (refreshState?.elapsedSec >= 1 ? `⏳${refreshState.elapsedSec}s` : '⏳')
+        : `🔍 ${unchecked}`)
   );
   const refreshBtn = el.querySelector('#tp-floating-refresh-btn');
   if (refreshBtn) {

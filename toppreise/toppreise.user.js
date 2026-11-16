@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.506
+// @version      2.18.507
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -2679,6 +2679,15 @@ const STYLES_FLOATING_CTA = `
   }
   #tp-floating-refresh-btn.tp-spinning {
     animation: tp-spin 0.9s linear infinite !important;
+  }
+  #tp-floating-check-cta.tp-refreshing {
+    animation: none !important;
+    border-color: rgba(2, 132, 199, 0.6) !important;
+  }
+  #tp-floating-check-cta.tp-refreshing #tp-floating-check-btn {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35) !important;
+    color: #ffffff !important;
   }
   @keyframes tp-spin {
     from { transform: rotate(0deg); }
@@ -5709,7 +5718,7 @@ const SHADOW_MODAL_STYLES = `
       });
 
       if (readAs === 'text' || readAs === 'json' || readAs === 'blob') {
-        const body = await res[readAs]();
+        const body = typeof res?.[readAs] === 'function' ? await res[readAs]() : null;
         const elapsed = Date.now() - startedAt;
         const bytes = typeof body === 'string'
           ? body.length
@@ -5778,7 +5787,7 @@ const SHADOW_MODAL_STYLES = `
         gmFn({
           ...gmOpts,
           timeout: timeoutMs,
-          onload(res) {
+          onload: (res) => {
             if (settled) return;
             settled = true;
             cleanup();
@@ -6519,6 +6528,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const isToppreiseProductUrl = u => {
     try {
       const parsed = new URL(u);
@@ -6870,7 +6880,7 @@ const SHADOW_MODAL_STYLES = `
               ontimeout: () => resolve(null)
             });
           } else if (typeof fetch !== 'undefined') {
-            fetch(target, { method: 'HEAD', redirect: 'follow' })
+            fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' })
               .then(res => {
                 const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
                 if (asin && productId) {
@@ -6903,6 +6913,7 @@ const SHADOW_MODAL_STYLES = `
    * Handles storage keys, entity decoding, category hierarchy indexing,
    * virtual tree navigation, URL transforms, search filtering and token extraction.
    */
+
 
 
   const IDENT_STORAGE_KEY = 'tp_vcat_ident_v1';
@@ -7232,16 +7243,15 @@ const SHADOW_MODAL_STYLES = `
             c_cm_la: lang,
             lang
           });
-          const resp = await fetch(ajaxUrl, {
+          const { res: resp, body: json } = await fetchWithTimeout(ajaxUrl, {
             method: 'POST',
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
               'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
             },
             body: body.toString()
-          });
+          }, { timeoutMs: 8000, source: 'category-tree', label: 'tree', readAs: 'json' });
           if (resp.ok) {
-            const json = await resp.json();
             if (json?.categories) {
               try {
                 localStorage.setItem(`c_cm_data_${lang}`, JSON.stringify(json.categories));
@@ -7279,13 +7289,16 @@ const SHADOW_MODAL_STYLES = `
     if (!feedUrl || typeof fetch !== 'function') return;
     if (hydratedFeedUrls.has(feedUrl)) return;
     try {
-      const resp = await fetch(feedUrl, { credentials: 'same-origin' });
+      const { res: resp, body: html } = await fetchWithTimeout(
+        feedUrl,
+        { credentials: 'same-origin' },
+        { timeoutMs: 8000, source: 'category-tree', label: 'hydrate', readAs: 'text' }
+      );
       if (!resp.ok) return;
       hydratedFeedUrls.add(feedUrl);
       while (hydratedFeedUrls.size > 500) {
         hydratedFeedUrls.delete(hydratedFeedUrls.values().next().value);
       }
-      const html = await resp.text();
       const stored = parseCategoryIdentsFromText(html);
 
       if (branchEl) {
@@ -7498,6 +7511,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let ignoredBarObserver = null;
 
   function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
@@ -7564,9 +7578,12 @@ const SHADOW_MODAL_STYLES = `
     if (!container || typeof fetch !== 'function') return;
 
     try {
-      const resp = await fetch(location.href, { credentials: 'same-origin', cache: 'no-cache' });
+      const { res: resp, body: html } = await fetchWithTimeout(
+        location.href,
+        { credentials: 'same-origin', cache: 'no-cache' },
+        { timeoutMs: 10000, source: 'category-tree', label: 'refresh-feed', readAs: 'text' }
+      );
       if (!resp.ok) return;
-      const html = await resp.text();
       if (typeof DOMParser !== 'undefined') {
         const parser = new DOMParser();
         const parsedDoc = parser.parseFromString(html, 'text/html');
@@ -7638,7 +7655,7 @@ const SHADOW_MODAL_STYLES = `
 
   async function postCategoryAction(ajaxUrl, body, bar, activeDoc, contextName) {
     try {
-      const resp = await fetch(ajaxUrl, {
+      const { res: resp, body: html } = await fetchWithTimeout(ajaxUrl, {
         method: 'POST',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
@@ -7646,9 +7663,8 @@ const SHADOW_MODAL_STYLES = `
         },
         credentials: 'same-origin',
         body: body.toString()
-      });
+      }, { timeoutMs: 8000, source: 'category-tree', label: contextName || 'action', readAs: 'text' });
       if (resp.ok) {
-        const html = await resp.text();
         const match = html.match(/data-context-hash="([^"]+)"/);
         if (match && match[1] && bar) {
           bar.setAttribute('data-context-hash', match[1]);
@@ -8358,6 +8374,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function renderSparkline(timeSeries, width, height, opts = {}) {
     if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
     const axes = opts && opts.axes === true;
@@ -8594,16 +8611,13 @@ const SHADOW_MODAL_STYLES = `
       let sourceImg = imgEl;
       if (typeof GM_xmlhttpRequest !== 'undefined' && fallbackUrl) {
         try {
-          const blob = await new Promise((res, rej) => {
-            GM_xmlhttpRequest({
-              method: 'GET',
-              url: fallbackUrl,
-              responseType: 'blob',
-              onload: r => r.response ? res(r.response) : rej(new Error('no blob')),
-              onerror: rej,
-              ontimeout: rej
-            });
-          });
+          const r = await gmRequestWithTimeout({
+            method: 'GET',
+            url: fallbackUrl,
+            responseType: 'blob'
+          }, { timeoutMs: 8000, source: 'sparkline', label: 'keepa' });
+          if (!r?.response) throw new Error('no blob');
+          const blob = r.response;
           objectUrl = URL.createObjectURL(blob);
           const tempImg = new Image();
           await new Promise((res, rej) => {
@@ -9011,6 +9025,7 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
+
   const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
   const TAVILY_CACHE_KEY_PREFIX = 'tp_suite_v2_tavily_';
   const TAVILY_CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48h
@@ -9186,52 +9201,19 @@ const SHADOW_MODAL_STYLES = `
       };
 
       if (typeof GM_xmlhttpRequest !== 'undefined') {
-        try {
-          GM_xmlhttpRequest({
-            method: 'POST',
-            url: TAVILY_API_ENDPOINT,
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Authorization': `Bearer ${trimmedKey}`
-            },
-            data: payload,
-            timeout: timeoutMs,
-            onload: (res) => {
-              if (res.status >= 200 && res.status < 300) {
-                handleSuccess(res.responseText);
-              } else if (res.status === 401 || res.status === 403) {
-                reject(new Error('Tavily API-Key ungültig'));
-              } else if (res.status === 429) {
-                reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
-              } else {
-                reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
-              }
-            },
-            onerror: () => reject(new Error('Netzwerkfehler bei Verbindung zu Tavily')),
-            ontimeout: () => reject(new Error('Zeitüberschreitung bei Tavily'))
-          });
-        } catch (e) {
-          reject(e);
-        }
-      } else if (typeof fetch !== 'undefined') {
-        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-
-        fetch(TAVILY_API_ENDPOINT, {
+        gmRequestWithTimeout({
           method: 'POST',
+          url: TAVILY_API_ENDPOINT,
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': `Bearer ${trimmedKey}`
           },
-          body: payload,
-          signal: controller?.signal
-        })
-          .then(async (res) => {
-            if (timer) clearTimeout(timer);
-            if (res.ok) {
-              handleSuccess(await res.text());
+          data: payload,
+        }, { timeoutMs, source: 'tavily', label: 'search' })
+          .then((res) => {
+            if (res.status >= 200 && res.status < 300) {
+              handleSuccess(res.responseText);
             } else if (res.status === 401 || res.status === 403) {
               reject(new Error('Tavily API-Key ungültig'));
             } else if (res.status === 429) {
@@ -9241,12 +9223,31 @@ const SHADOW_MODAL_STYLES = `
             }
           })
           .catch((err) => {
-            if (timer) clearTimeout(timer);
-            if (err?.name === 'AbortError') {
-              reject(new Error('Zeitüberschreitung bei Tavily'));
+            reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
+          });
+      } else if (typeof fetch !== 'undefined') {
+        fetchWithTimeout(TAVILY_API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${trimmedKey}`
+          },
+          body: payload,
+        }, { timeoutMs, source: 'tavily', label: 'search', readAs: 'text' })
+          .then(({ res, body }) => {
+            if (res.ok) {
+              handleSuccess(body);
+            } else if (res.status === 401 || res.status === 403) {
+              reject(new Error('Tavily API-Key ungültig'));
+            } else if (res.status === 429) {
+              reject(new Error('Tavily Monatslimit oder Rate-Limit erreicht'));
             } else {
-              reject(new Error('Netzwerkfehler bei Verbindung zu Tavily'));
+              reject(new Error(`Tavily HTTP-Fehler ${res.status}`));
             }
+          })
+          .catch((err) => {
+            reject(new Error(err?.timeout ? 'Zeitüberschreitung bei Tavily' : 'Netzwerkfehler bei Verbindung zu Tavily'));
           });
       } else {
         reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
@@ -9265,6 +9266,7 @@ const SHADOW_MODAL_STYLES = `
    * 1-Klick-Share verifizierter Tiefstpreise in einen Discord-Channel via
    * user-eigenem Webhook (GM-privat gespeichert, nie im Repo/Export/localStorage).
    */
+
 
 
 
@@ -9353,12 +9355,12 @@ const SHADOW_MODAL_STYLES = `
           if (!isAllowedHost) return reject(new Error('Ungültige Bild-URL'));
         } catch { return reject(new Error('Ungültige Bild-URL')); }
         if (typeof GM_xmlhttpRequest !== 'undefined') {
-          GM_xmlhttpRequest({
+          gmRequestWithTimeout({
             method: 'GET',
             url: imageUrl.trim(),
             responseType: 'blob',
-            timeout: timeoutMs,
-            onload: res => {
+          }, { timeoutMs, source: 'discord', label: 'image' })
+            .then(res => {
               const data = res?.response;
               if (res.status >= 200 && res.status < 300 && data) {
                 const blob = data instanceof Blob ? data : new Blob([data]);
@@ -9367,12 +9369,10 @@ const SHADOW_MODAL_STYLES = `
                 if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
                 resolve(blob);
               } else reject(new Error(`Bild-Download ${res.status}`));
-            },
-            onerror: () => reject(new Error('Netzwerkfehler')),
-            ontimeout: () => reject(new Error('Timeout'))
-          });
+            })
+            .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
         } else if (typeof fetch !== 'undefined') {
-          fetch(imageUrl.trim())
+          fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image' })
             .then(async res => {
               if (res.status >= 200 && res.status < 300) {
                 const blob = await res.blob();
@@ -9382,7 +9382,7 @@ const SHADOW_MODAL_STYLES = `
                 resolve(blob);
               } else reject(new Error(`Bild-Download ${res.status}`));
             })
-            .catch(() => reject(new Error('Netzwerkfehler')));
+            .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
         } else {
           reject(new Error('Kein HTTP-Transport verfügbar'));
         }
@@ -9417,18 +9417,21 @@ const SHADOW_MODAL_STYLES = `
       { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 
   function gmPost({ url, data, headers, timeoutMs }) {
-    return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        method: 'POST',
-        url,
-        ...(headers ? { headers } : {}),
-        data,
-        timeout: timeoutMs,
-        onload: res => (res.status >= 200 && res.status < 300 ? resolve() : reject(discordError(res.status, res?.responseText, res?.responseHeaders))),
-        onerror: () => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })),
-        ontimeout: () => reject(Object.assign(new Error('Timeout'), { status: 0, retryAfterMs: 0 }))
-      });
-    });
+    return gmRequestWithTimeout({
+      method: 'POST',
+      url,
+      ...(headers ? { headers } : {}),
+      data,
+    }, { timeoutMs, source: 'discord', label: 'post' })
+      .then(
+        (res) => {
+          if (res.status >= 200 && res.status < 300) return;
+          throw discordError(res.status, res?.responseText, res?.responseHeaders);
+        },
+        (err) => {
+          throw Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 });
+        }
+      );
   }
 
   function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {}) {
@@ -9465,12 +9468,12 @@ const SHADOW_MODAL_STYLES = `
         if (typeof GM_xmlhttpRequest !== 'undefined') {
           gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
         } else if (typeof fetch !== 'undefined') {
-          fetch(url, { method: 'POST', body: form })
+          fetchWithTimeout(url, { method: 'POST', body: form }, { timeoutMs: 20000, source: 'discord', label: 'multipart' })
             .then(async res => {
               if (res.ok) return resolve();
               reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
             })
-            .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
+            .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
         } else {
           reject(new Error('Kein Multipart-Transport'));
         }
@@ -9489,12 +9492,12 @@ const SHADOW_MODAL_STYLES = `
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
       } else if (typeof fetch !== 'undefined') {
-        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
+        fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
           .then(async res => {
             if (res.ok) return resolve();
             reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
           })
-          .catch(() => reject(Object.assign(new Error('Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
+          .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
       } else {
         reject(new Error('Kein HTTP-Transport verfügbar'));
       }
@@ -9875,21 +9878,54 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   let isRefreshing = false;
+  let refreshController = null;
+  const refreshState = {
+    active: false,
+    stage: 'idle',
+    startedAt: 0,
+    elapsedSec: 0,
+    lastOutcome: null,
+    lastError: null,
+    lastUrl: null,
+  };
 
   function isFeedRefreshing() {
     return isRefreshing;
   }
 
-  async function fetchFeedHtml(url, customFetch = (typeof fetch !== 'undefined' ? fetch : null)) {
-    if (!customFetch) {
+  function getFeedRefreshState() {
+    return { ...refreshState };
+  }
+
+  function cancelFeedRefresh() {
+    if (!isRefreshing || !refreshController) return false;
+    refreshController.abort();
+    logActivity('info', 'feed-refresh', 'Feed-Aktualisierung abgebrochen');
+    return true;
+  }
+
+  async function fetchFeedHtml(url, customFetch = undefined, { signal = null, timeoutMs = 15000 } = {}) {
+    if (customFetch === null || (customFetch === undefined && typeof globalThis.fetch !== 'function')) {
       throw new Error('Fetch API nicht verfügbar');
     }
-    const res = await customFetch(url, { cache: 'no-cache' });
+    const { res, body } = await fetchWithTimeout(
+      url,
+      { cache: 'no-cache', credentials: 'same-origin' },
+      { timeoutMs, source: 'feed-refresh', label: 'feed', readAs: 'text', customFetch, signal }
+    );
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    return await res.text();
+    return body;
+  }
+
+  function queryLivePriceText(card) {
+    const cleanPlugin = card.querySelector('.Plugin_Price:not([class*="tp-"])');
+    if (cleanPlugin) return cleanPlugin.textContent?.trim() || '';
+    return card.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim() || '';
   }
 
   function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
@@ -9938,8 +9974,8 @@ const SHADOW_MODAL_STYLES = `
 
       const existing = liveMap.get(pid);
       if (existing) {
-        const inPrice = inCard.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim();
-        const livePrice = existing.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim();
+        const inPrice = queryLivePriceText(inCard);
+        const livePrice = queryLivePriceText(existing);
         if (inPrice && livePrice && inPrice !== livePrice) {
           const inContainer = inCard.querySelector(SELECTORS.price.mainInfo) || inCard.querySelector('.priceContainer');
           const liveContainer = existing.querySelector(SELECTORS.price.mainInfo) || existing.querySelector('.priceContainer');
@@ -9967,7 +10003,7 @@ const SHADOW_MODAL_STYLES = `
     return { added, updated };
   }
 
-  async function refreshFeed({ onStart, onEnd, customFetch } = {}) {
+  async function refreshFeed({ onStart, onEnd, onProgress, customFetch, timeoutMs = 15000 } = {}) {
     if (isRefreshing) {
       showToast('Feed wird bereits aktualisiert');
       return;
@@ -9978,16 +10014,55 @@ const SHADOW_MODAL_STYLES = `
     }
 
     isRefreshing = true;
+    refreshController = new AbortController();
+    refreshState.active = true;
+    refreshState.stage = 'fetching';
+    refreshState.startedAt = Date.now();
+    refreshState.elapsedSec = 0;
+    refreshState.lastError = null;
+
+    const url = (typeof location !== 'undefined' && location.href) ? location.href : '';
+    refreshState.lastUrl = url;
+    logActivity('info', 'feed-refresh', 'Feed-Aktualisierung gestartet');
+
+    const emitProgress = (stage) => {
+      refreshState.stage = stage;
+      refreshState.elapsedSec = Math.floor((Date.now() - refreshState.startedAt) / 1000);
+      onProgress?.({ stage: refreshState.stage, elapsedSec: refreshState.elapsedSec });
+    };
+
+    const ticker = setInterval(() => {
+      if (!isRefreshing) return;
+      const elapsed = Math.floor((Date.now() - refreshState.startedAt) / 1000);
+      if (elapsed >= 1 && elapsed !== refreshState.elapsedSec) {
+        refreshState.elapsedSec = elapsed;
+        onProgress?.({ stage: refreshState.stage, elapsedSec: elapsed });
+      }
+    }, 1000);
+
     onStart?.();
     showToast('🔄 Suche nach neuen Deals...');
 
     try {
-      const url = (typeof location !== 'undefined' && location.href) ? location.href : '';
-      const html = await fetchFeedHtml(url, customFetch);
-      const parser = new (typeof DOMParser !== 'undefined' ? DOMParser : null)();
-      if (!parser) throw new Error('DOMParser nicht verfügbar');
+      const html = await fetchFeedHtml(url, customFetch, { signal: refreshController.signal, timeoutMs });
+      if (typeof DOMParser !== 'function') {
+        throw new Error('DOMParser nicht verfügbar');
+      }
+      emitProgress('parsing');
+      const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
+      const incomingCount = getProductCards(doc).length;
+      if (incomingCount === 0) {
+        refreshState.lastOutcome = 'empty';
+        logActivity('warn', 'feed-refresh', 'Antwort enthielt keine Produktkarten (Login-Wall/Captcha?)');
+        showToast('Aktualisierung fehlgeschlagen (keine Produkte in Antwort)');
+        return;
+      }
+
+      emitProgress('reconciling');
       const { added, updated } = reconcileFeedCards(doc, document);
+      refreshState.lastOutcome = added > 0 || updated > 0 ? 'updated' : 'no-change';
+      logActivity('info', 'feed-refresh', `Abgleich abgeschlossen: +${added} neu, ${updated} aktualisiert (${incomingCount} Karten)`);
 
       if (added > 0 || updated > 0) {
         triggerProcessListings();
@@ -9999,9 +10074,20 @@ const SHADOW_MODAL_STYLES = `
         showToast('Keine neuen Deals gefunden');
       }
     } catch (err) {
-      showToast(`Aktualisierung fehlgeschlagen (${err.message || 'Fehler'})`);
+      if (err?.cancelled) {
+        refreshState.lastOutcome = 'cancelled';
+      } else {
+        refreshState.lastOutcome = err?.timeout ? 'timeout' : 'error';
+        refreshState.lastError = err?.message || 'Fehler';
+        logActivity('warn', 'feed-refresh', `Feed-Aktualisierung fehlgeschlagen: ${refreshState.lastError}`);
+        showToast(`Aktualisierung fehlgeschlagen (${refreshState.lastError})`);
+      }
     } finally {
+      clearInterval(ticker);
       isRefreshing = false;
+      refreshController = null;
+      refreshState.active = false;
+      refreshState.stage = 'idle';
       onEnd?.();
     }
   }
@@ -10012,6 +10098,7 @@ const SHADOW_MODAL_STYLES = `
    * Handles background batch checking, live price history retrieval,
    * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
    */
+
 
 
 
@@ -10087,6 +10174,7 @@ const SHADOW_MODAL_STYLES = `
             continue;
           }
           originCooldownUntil = Date.now() + Math.max(wait, baseDelayMs);
+          logActivity('warn', 'scanner', `429 Cooldown aktiviert (${Math.max(wait, baseDelayMs)}ms)`);
           const e = new Error('429');
           e.transient = true;
           throw e;
@@ -10195,6 +10283,7 @@ const SHADOW_MODAL_STYLES = `
         return { res, data: json };
       }, { retries, shouldCancelFn, signal, baseDelayMs: 1500, timeoutMs: 6000 });
       if (res && !res.ok && (res.status === 401 || res.status === 403)) {
+        logActivity('warn', 'scanner', `HTTP ${res.status} für ${productId}`);
         const e = new Error('unauthorized');
         e.unauthorized = true;
         throw e;
@@ -10539,6 +10628,7 @@ const SHADOW_MODAL_STYLES = `
 
   function cancelBatchDealCheck() {
     Object.assign(scanState, { batchCancelRequested: true });
+    logActivity('info', 'scanner', 'Batch-Prüfung abgebrochen');
     try { batchController?.abort(); } catch {}
   }
 
@@ -15207,13 +15297,30 @@ const SHADOW_MODAL_STYLES = `
    * disappears — syncFloatingCTA dims it via the .tp-empty class instead.
    * Unit-tested in tests/unit/floating-cta.test.js.
    */
-  function ctaStateFor({ unchecked = 0, isScanning = false, isRefreshing = false, completed = 0, total = 0 } = {}) {
+  function ctaStateFor({
+    unchecked = 0,
+    isScanning = false,
+    isRefreshing = false,
+    completed = 0,
+    total = 0,
+    refreshStage = null,
+    refreshElapsedSec = 0,
+  } = {}) {
     if (isScanning) {
       const progress = total > 0 ? ` (${completed}/${total})` : '';
       return { mode: 'scanning', mainLabel: `⏳ Prüfe${progress}`, subLabel: 'Klicken = Abbrechen' };
     }
     if (isRefreshing) {
-      return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
+      if (refreshStage == null && refreshElapsedSec === 0) {
+        return { mode: 'refreshing', mainLabel: '⏳ Suche neue Deals...', subLabel: 'Feed wird aktualisiert' };
+      }
+      const mainLabel = refreshElapsedSec >= 1 ? `⏳ Suche… (${refreshElapsedSec}s)` : '⏳ Suche neue Deals...';
+      const stageLabel = refreshStage === 'parsing'
+        ? 'Verarbeite...'
+        : refreshStage === 'reconciling'
+          ? 'Gleiche ab...'
+          : 'Feed wird aktualisiert';
+      return { mode: 'refreshing', mainLabel, subLabel: `${stageLabel} · Klicken = Abbrechen` };
     }
     if (unchecked > 0) {
       const obj = unchecked === 1 ? 'Tiefstpreis' : 'Tiefstpreise';
@@ -15268,13 +15375,15 @@ const SHADOW_MODAL_STYLES = `
       syncFloatingCTA();
       return;
     }
+    if (isFeedRefreshing()) {
+      cancelFeedRefresh();
+      showToast('Feed-Aktualisierung abgebrochen');
+      syncFloatingCTA();
+      return;
+    }
     const unchecked = lastCounts.uncheckedDeals || 0;
     if (unchecked <= 0) {
-      if (isFeedRefreshing()) {
-        showToast('Feed wird bereits aktualisiert');
-        return;
-      }
-      refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
+      refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
       return;
     }
     const minDisc = realDealMinDiscount();
@@ -15349,7 +15458,7 @@ const SHADOW_MODAL_STYLES = `
     const refreshBtnEl = el.querySelector('#tp-floating-refresh-btn');
     if (refreshBtnEl) {
       refreshBtnEl.onclick = () => {
-        refreshFeed({ onStart: syncFloatingCTA, onEnd: syncFloatingCTA });
+        refreshFeed({ onStart: syncFloatingCTA, onProgress: syncFloatingCTA, onEnd: syncFloatingCTA });
       };
     }
 
@@ -15409,12 +15518,15 @@ const SHADOW_MODAL_STYLES = `
     const state = scanState;
     const unchecked = lastCounts.uncheckedDeals || 0;
     const refreshing = isFeedRefreshing();
+    const refreshState = refreshing ? getFeedRefreshState() : null;
     const { mainLabel, subLabel, mode } = ctaStateFor({
       unchecked,
       isScanning: state.isBatchChecking,
       isRefreshing: refreshing,
       completed: state.progress?.completed || 0,
-      total: state.progress?.total || 0
+      total: state.progress?.total || 0,
+      refreshStage: refreshState?.stage ?? null,
+      refreshElapsedSec: refreshState?.elapsedSec ?? 0,
     });
 
     const countMatch = mainLabel.match(/^🔍\s*(\d+)\s+Tiefstpreis/);
@@ -15442,7 +15554,11 @@ const SHADOW_MODAL_STYLES = `
     const total = state.progress?.total || 0;
     setTextIfChanged(
       el.querySelector('#tp-floating-check-count'),
-      mode === 'scanning' ? (total > 0 ? `⏳${completed}/${total}` : '⏳') : (mode === 'refreshing' ? '⏳' : `🔍 ${unchecked}`)
+      mode === 'scanning'
+        ? (total > 0 ? `⏳${completed}/${total}` : '⏳')
+        : (mode === 'refreshing'
+          ? (refreshState?.elapsedSec >= 1 ? `⏳${refreshState.elapsedSec}s` : '⏳')
+          : `🔍 ${unchecked}`)
     );
     const refreshBtn = el.querySelector('#tp-floating-refresh-btn');
     if (refreshBtn) {
@@ -15500,6 +15616,7 @@ const SHADOW_MODAL_STYLES = `
    * Also paints the native bell trigger with the 3-state auto-fill mode
    * (off / fill-only / auto-submit) plus a cog jumping to its settings.
    */
+
 
 
 
@@ -15850,16 +15967,15 @@ const SHADOW_MODAL_STYLES = `
         im_nimb_tmpl: 'btn',
         lang: 'de'
       });
-      const res = await fetch('/plugins/infomails/NewInfoMailButton', {
+      const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'X-Requested-With': 'XMLHttpRequest'
         },
         body: postBody
-      });
+      }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
       if (res.ok) {
-        const html = await res.text();
         let dialogNode = null;
         let formUrl = null;
         if (typeof DOMParser !== 'undefined') {
@@ -15903,11 +16019,12 @@ const SHADOW_MODAL_STYLES = `
 
           document.body.appendChild(dialogNode);
           if (formUrl) {
-            const formRes = await fetch(`${formUrl}&im_nimf_ch=${dialogHash}&lang=de`, {
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
+            const { res: formRes, body: formHtml } = await fetchWithTimeout(
+              `${formUrl}&im_nimf_ch=${dialogHash}&lang=de`,
+              { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+              { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
+            );
             if (formRes.ok) {
-              const formHtml = await formRes.text();
               const content = dialogNode.querySelector('.AbstractDialog_Content');
               if (content) {
                 if (typeof DOMParser !== 'undefined') {
@@ -16504,33 +16621,38 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       if (mig.hadMode || mig.modeWasActive) showToast(mig.modeWasActive ? '💎 sortiert jetzt nur noch — Filtern entfernt, Ansicht dimmt (👁️ zeigt sie)' : 'Neu: Filtern entfernt Karten, Ansicht dimmt nur (👁️ zeigt sie)');
 
       // Live Session Bridge Telemetry (MCP evaluate_script)
-      const rootEl = document.getElementById('tp-root');
-      if (rootEl) {
-        rootEl.setAttribute('data-tp-diag', JSON.stringify({
-          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-          cards: cards.length,
-          checked: counts.bestpreiseDeals,
-          unchecked: counts.uncheckedDeals,
-          filtered: counts.filteredCount,
-          dimmed: counts.dimmed,
-          isNeueFeed,
-          lastError: null,
-          ts: Date.now()
-        }));
-      }
+      updateDiagAttr({
+        cards: cards.length,
+        checked: counts.bestpreiseDeals,
+        unchecked: counts.uncheckedDeals,
+        filtered: counts.filteredCount,
+        dimmed: counts.dimmed,
+        isNeueFeed,
+        lastError: null,
+      });
       } catch (err) {
         console.error('[Toppreise-Suite] ❌ Error in processListings:', err);
-        const rootEl = document.getElementById('tp-root');
-        if (rootEl) {
-          rootEl.setAttribute('data-tp-diag', JSON.stringify({
-            version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-            lastError: { message: err.message, stack: err.stack, ts: Date.now() },
-            ts: Date.now()
-          }));
-        }
+        logActivity('error', 'app', 'processListings error', err?.message || String(err));
+        updateDiagAttr({ lastError: { message: err.message, stack: err.stack, ts: Date.now() } });
       }
     });
   }
+
+  let lastDiagBase = {};
+  function updateDiagAttr(extra = null) {
+    if (extra) lastDiagBase = { ...lastDiagBase, ...extra };
+    const rootEl = document.getElementById('tp-root');
+    if (!rootEl) return;
+    rootEl.setAttribute('data-tp-diag', JSON.stringify({
+      version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
+      ...lastDiagBase,
+      scan: { active: scanState.isBatchChecking, progress: scanState.progress },
+      refresh: getFeedRefreshState(),
+      recentLog: getActivityLog().slice(-10),
+      ts: Date.now()
+    }));
+  }
+  subscribeActivityLog(() => updateDiagAttr());
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
@@ -16670,6 +16792,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     closeAiPopover();
     uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
     cancelBatchDealCheck();
+    cancelFeedRefresh();
+    logActivity('info', 'app', 'Route transition');
     clearDealerAutoTried();
     checkPageProfileTransition();
     triggerProcessListings();
@@ -16685,20 +16809,16 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       await processProductDetailPage(withDomMutationLock);
     } catch (err) {
       console.error('[Toppreise-Suite] ❌ Error in processProductDetailPage:', err);
-      const rootEl = document.getElementById('tp-root');
-      if (rootEl) {
-        rootEl.setAttribute('data-tp-diag', JSON.stringify({
-          version: typeof GM_info !== 'undefined' ? (GM_info.script?.version || 'dev') : 'dev',
-          pageType: 'detail',
-          lastError: { message: err.message, stack: err.stack, ts: Date.now() },
-          ts: Date.now()
-        }));
-      }
+      logActivity('error', 'app', 'processProductDetailPage error', err?.message || String(err));
+      updateDiagAttr({
+        pageType: 'detail',
+        lastError: { message: err.message, stack: err.stack, ts: Date.now() },
+      });
     }
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.506';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.507';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -139,3 +139,52 @@ def test_feed_refresh_no_new_deals_shows_toast(page: Page):
     # Verify toast
     page.wait_for_function("() => window.ToppreiseSuite.lastToast() === 'Keine neuen Deals gefunden'")
     assert page.locator('.Plugin_Product').count() == initial_count
+
+
+def test_feed_refresh_no_changes_restores_cta_label(page: Page):
+    """After 0-change refresh, CTA restores '🔍 3 Tiefstpreise prüfen' (not stuck on '⏳ Suche neue Deals...')."""
+    page.evaluate("""() => {
+        const origFetch = window.fetch;
+        window.fetch = async (url, opts) => {
+            if (typeof url === 'string' && (url.includes('mock_toppreise.html') || url === location.href)) {
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => document.documentElement.outerHTML
+                };
+            }
+            return origFetch(url, opts);
+        };
+    }""")
+
+    page.click('#tp-floating-refresh-btn')
+    page.wait_for_function("() => window.ToppreiseSuite.lastToast() === 'Keine neuen Deals gefunden'")
+    page.wait_for_selector('#tp-floating-check-cta:not(.tp-refreshing)')
+    assert '3 Tiefstpreise prüfen' in (page.locator('#tp-floating-check-main').text_content() or '')
+    assert (page.locator('#tp-floating-check-sub').text_content() or '') == 'Echte Tiefstpreise verifizieren'
+
+
+def test_feed_refresh_click_to_cancel(page: Page):
+    """Clicking #tp-floating-check-btn while refreshing aborts the in-flight fetch and restores CTA."""
+    page.evaluate("""() => {
+        const origFetch = window.fetch;
+        window.fetch = (url, opts) => {
+            if (typeof url === 'string' && (url.includes('mock_toppreise.html') || url === location.href)) {
+                return new Promise((_resolve, reject) => {
+                    if (opts && opts.signal) {
+                        opts.signal.addEventListener('abort', () => {
+                            reject(new DOMException('Aborted', 'AbortError'));
+                        });
+                    }
+                });
+            }
+            return origFetch(url, opts);
+        };
+    }""")
+
+    page.click('#tp-floating-refresh-btn')
+    page.wait_for_selector('#tp-floating-check-cta.tp-refreshing')
+    page.click('#tp-floating-check-btn')
+    page.wait_for_function("() => window.ToppreiseSuite.lastToast() === 'Feed-Aktualisierung abgebrochen'")
+    page.wait_for_selector('#tp-floating-check-cta:not(.tp-refreshing)')
+    assert '3 Tiefstpreise prüfen' in (page.locator('#tp-floating-check-main').text_content() or '')

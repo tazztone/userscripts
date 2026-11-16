@@ -130,4 +130,11 @@ describe('setHtmlIfChanged / setTextIfChanged round-trip', () => {
     assert.equal(el.innerHTML, idleHtml);
     assert.equal(el._tpLastHtml, idleHtml);
   });
+
+  it('formats elapsed seconds and cancel hint in ctaStateFor when refreshElapsedSec >= 1', () => {
+    const s = ctaStateFor({ unchecked: 5, isRefreshing: true, refreshStage: 'fetching', refreshElapsedSec: 3 });
+    assert.equal(s.mode, 'refreshing');
+    assert.equal(s.mainLabel, '⏳ Suche… (3s)');
+    assert.equal(s.subLabel, 'Feed wird aktualisiert · Klicken = Abbrechen');
+  });
 });

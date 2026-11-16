@@ -187,6 +187,15 @@ export const STYLES_FLOATING_CTA = `
   #tp-floating-refresh-btn.tp-spinning {
     animation: tp-spin 0.9s linear infinite !important;
   }
+  #tp-floating-check-cta.tp-refreshing {
+    animation: none !important;
+    border-color: rgba(2, 132, 199, 0.6) !important;
+  }
+  #tp-floating-check-cta.tp-refreshing #tp-floating-check-btn {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35) !important;
+    color: #ffffff !important;
+  }
   @keyframes tp-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }

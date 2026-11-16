@@ -12,6 +12,7 @@ import {
   parseCategoryIdentsFromText
 } from './category-tree-model.js';
 import { syncCategoryTreeIgnoredState } from './category-tree.js';
+import { fetchWithTimeout } from '../state/net.js';
 
 let ignoredBarObserver = null;
 
@@ -79,9 +80,12 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
   if (!container || typeof fetch !== 'function') return;
 
   try {
-    const resp = await fetch(location.href, { credentials: 'same-origin', cache: 'no-cache' });
+    const { res: resp, body: html } = await fetchWithTimeout(
+      location.href,
+      { credentials: 'same-origin', cache: 'no-cache' },
+      { timeoutMs: 10000, source: 'category-tree', label: 'refresh-feed', readAs: 'text' }
+    );
     if (!resp.ok) return;
-    const html = await resp.text();
     if (typeof DOMParser !== 'undefined') {
       const parser = new DOMParser();
       const parsedDoc = parser.parseFromString(html, 'text/html');
@@ -153,7 +157,7 @@ export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc
 
 async function postCategoryAction(ajaxUrl, body, bar, activeDoc, contextName) {
   try {
-    const resp = await fetch(ajaxUrl, {
+    const { res: resp, body: html } = await fetchWithTimeout(ajaxUrl, {
       method: 'POST',
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
@@ -161,9 +165,8 @@ async function postCategoryAction(ajaxUrl, body, bar, activeDoc, contextName) {
       },
       credentials: 'same-origin',
       body: body.toString()
-    });
+    }, { timeoutMs: 8000, source: 'category-tree', label: contextName || 'action', readAs: 'text' });
     if (resp.ok) {
-      const html = await resp.text();
       const match = html.match(/data-context-hash="([^"]+)"/);
       if (match && match[1] && bar) {
         bar.setAttribute('data-context-hash', match[1]);
