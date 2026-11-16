@@ -14,6 +14,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawn } from 'node:child_process';
 
@@ -92,10 +93,10 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
     devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, `// @downloadURL  ${devStubUrl}\n// ==/UserScript==`);
   }
 
-  if (!devHeader.includes('@connect 127.0.0.1')) {
+  if (!/\/\/\s*@connect\s+127\.0\.0\.1\b/.test(devHeader)) {
     devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, '// @connect      127.0.0.1\n// @connect      localhost\n// ==/UserScript==');
   }
-  if (!devHeader.includes('@grant GM_xmlhttpRequest')) {
+  if (!/\/\/\s*@grant\s+GM_xmlhttpRequest\b/.test(devHeader)) {
     devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, '// @grant        GM_xmlhttpRequest\n// ==/UserScript==');
   }
 
@@ -180,7 +181,7 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
   function executeCode(sourceCode) {
     try {
       // Map stack traces to target script filename via sourceURL
-      const mappedSource = sourceCode + '\n//# sourceURL=' + ${JSON.stringify(targetScriptUrl)};
+      const mappedSource = sourceCode + '\\n//# sourceURL=' + ${JSON.stringify(targetScriptUrl)};
       eval(mappedSource);
     } catch (err) {
       const msg = (err && err.stack) ? err.stack : ((err && err.message) ? err.message : JSON.stringify(err));
@@ -551,6 +552,16 @@ async function runSelfTest() {
     }
     if (!stubRes.body.includes(`@downloadURL  http://127.0.0.1:${testPort}/toppreise/toppreise.dev.user.js`)) {
       throw new Error('Dev stub @downloadURL mismatch');
+    }
+    if ((stubRes.body.match(/@grant\s+GM_xmlhttpRequest\b/g) || []).length !== 1) {
+      throw new Error('Dev stub must include @grant GM_xmlhttpRequest exactly once');
+    }
+    for (const [key, meta] of Object.entries(SCRIPTS)) {
+      const res = await fetchUrl(`/${meta.dir}/${meta.dir}.dev.user.js`);
+      if (res.status !== 200) {
+        throw new Error(`Dev stub route failed for ${key}: status ${res.status}`);
+      }
+      new vm.Script(res.body, { filename: `${meta.dir}.dev.user.js` });
     }
 
     // 4. Setup and version endpoints
