@@ -55,13 +55,14 @@ npm run dev:firefox:tp                 # 1-line: sync daemon + Firefox on target
 npm run dev:chrome:tp                  # 1-line: sync daemon + Chrome on target site
 npm run dev:firefox:tp:install         # one-time: opens Dev Loader stub install tab in Firefox
 npm run dev:chrome:tp:install          # one-time: opens Dev Loader stub install tab in Chrome
+npm run dev:firefox:clean              # reset isolated Firefox Dev Profile
 # Single-script targets: :hf (HuggingFace) or :px (Perplexity)
 ```
 
-1. **One-time stub setup**: Run `npm run dev:firefox:tp:install`, click "Confirm installation" once on `[DEV] Toppreise.ch Suite`. Never needs reinstallation.
-2. **Standard launch**: Run `npm run dev:firefox:tp`. Opens target site directly with remote debugging enabled (port 2828 Marionette + 9222 BiDi).
-3. **Zero-touch reload**: Edit `src/` modules — dev server auto-rebuilds and broadcasts an SSE event on `/events` that reloads connected tabs in <50ms.
-4. **Agent verification via MCP**:
+1. **One-time stub setup**: Run `npm run dev:firefox:tp:install`. Firefox auto-provisions Violentmonkey XPI and routes to `/setup/<script>` for 1-click `[DEV]` stub installation. Never needs manual reinstallation.
+2. **Standard launch & runtime resolution**: Run `npm run dev:firefox:tp`. Detects runtime (Native → Flatpak `org.mozilla.firefox` → Snap) and launches with persistent **Dev Profile**, debug invariants in `user.js`, and `--die-with-parent`. Opens target site directly with remote debugging enabled (port 2828 Marionette + 9222 BiDi). Running instances attach tabs automatically without restart or lock contention. Set `FIREFOX_BIDI_PORT=9223` if 9222 collides with Chrome CDP.
+3. **Zero-touch reload**: Edit `src/` modules — dev server auto-rebuilds and broadcasts an SSE event on `/events` that reloads connected tabs in <50ms (with CSP-safe `/version/<script>` fallback polling).
+4. **Agent verification via MCP** (`firefox-devtools` / `chrome-devtools`):
    - `evaluate_script`: Query `#tp-root` `data-tp-diag` (version, cards, counts, `lastError`) and computed element styles.
    - `take_snapshot`: Get DOM hierarchy and stable UIDs without asking the user.
    - `screenshot_page` / `screenshot_by_uid`: Capture screenshots directly to verify layouts.

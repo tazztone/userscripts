@@ -8,6 +8,10 @@ Vocabulary for the live MCP browser bridge and agentic userscript development lo
 An active, authenticated browser window operated by the developer whose state, tabs, and cookies remain live during development.
 _Avoid_: Headless browser, test fixture browser
 
+**Dev Profile**:
+An isolated, persistent browser profile preconfigured for Session Bridge debugging and Dev Loader iteration without affecting the developer's daily profile.
+_Avoid_: Ephemeral profile, daily profile
+
 **Session Bridge**:
 An MCP server attached to an existing browser process that exposes live page querying, console streams, and navigation controls to the coding agent.
 _Avoid_: Browser automation script, scraper
