@@ -10,6 +10,7 @@ import { getProductCards, getCardProductId, extractCardDiscount, extractCardData
 import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } from '../page/adapter.js';
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
+import { setHtmlIfChanged } from '../ui/badges/dom-helpers.js';
 
 export const activeFetches = new Map();
 
@@ -439,9 +440,12 @@ export async function runProductScanner(options = {}) {
         const badgeEl = item.card.querySelector('.badge-dif, [class*="badge-dif"]');
         if (badgeEl) {
           badgeEl.classList.add('tp-deal-loading');
-          badgeEl.innerHTML = badgeEl.classList.contains('tp-deal-pill')
-            ? '<span>⏳</span><p>Prüfe...</p>'
-            : '<div class="text">Prüfe...</div><p>⏳</p>';
+          setHtmlIfChanged(
+            badgeEl,
+            badgeEl.classList.contains('tp-deal-pill')
+              ? '<span>⏳</span><p>Prüfe...</p>'
+              : '<div class="text">Prüfe...</div><p>⏳</p>'
+          );
         }
       } catch {}
 

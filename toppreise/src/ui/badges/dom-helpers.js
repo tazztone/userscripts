@@ -11,7 +11,10 @@ export function setHtmlIfChanged(el, newHtml) {
 }
 
 export function setTextIfChanged(el, newText) {
-  if (el && el.textContent !== newText) {
+  if (!el) return;
+  const hadHtml = el._tpLastHtml !== undefined;
+  delete el._tpLastHtml;
+  if (hadHtml || el.textContent !== newText) {
     el.textContent = newText;
   }
 }

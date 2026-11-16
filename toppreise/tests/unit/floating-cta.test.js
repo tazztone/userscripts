@@ -111,3 +111,23 @@ describe('Batch completion toast message (pure, no DOM)', () => {
     );
   });
 });
+
+describe('setHtmlIfChanged / setTextIfChanged round-trip', () => {
+  it('clears _tpLastHtml on setTextIfChanged so identical HTML re-renders after text state', async () => {
+    const { setHtmlIfChanged, setTextIfChanged } = await import('../../src/ui/badges/dom-helpers.js');
+    const el = { innerHTML: '', textContent: '' };
+    const idleHtml = '🔍 0 Tiefstpreise <span class="tp-check-cta-sub-inline">prüfen</span>';
+
+    setHtmlIfChanged(el, idleHtml);
+    assert.equal(el.innerHTML, idleHtml);
+    assert.equal(el._tpLastHtml, idleHtml);
+
+    setTextIfChanged(el, '⏳ Suche neue Deals...');
+    assert.equal(el.textContent, '⏳ Suche neue Deals...');
+    assert.equal(el._tpLastHtml, undefined);
+
+    setHtmlIfChanged(el, idleHtml);
+    assert.equal(el.innerHTML, idleHtml);
+    assert.equal(el._tpLastHtml, idleHtml);
+  });
+});

@@ -575,3 +575,23 @@ describe('renderShareButton UX and positioning', () => {
     }
   });
 });
+
+describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
+  it('restores identical HTML after setTextIfChanged overwrote textContent', async () => {
+    const { setHtmlIfChanged, setTextIfChanged } = await import('../../src/ui/badges/dom-helpers.js');
+    const badgeEl = { innerHTML: '', textContent: '' };
+    const verdictHtml = '<span>🏆</span><p>-20%</p>';
+
+    setHtmlIfChanged(badgeEl, verdictHtml);
+    assert.equal(badgeEl.innerHTML, verdictHtml);
+
+    setTextIfChanged(badgeEl, '⏳ Prüfe...');
+    assert.equal(badgeEl.textContent, '⏳ Prüfe...');
+    assert.equal(badgeEl._tpLastHtml, undefined);
+
+    // Even if textContent happened to match newText, hadHtml forces update & clears cache
+    setHtmlIfChanged(badgeEl, verdictHtml);
+    assert.equal(badgeEl.innerHTML, verdictHtml);
+    assert.equal(badgeEl._tpLastHtml, verdictHtml);
+  });
+});

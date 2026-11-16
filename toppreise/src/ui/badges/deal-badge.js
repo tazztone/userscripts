@@ -15,6 +15,7 @@ import { getCachedPriceStats, hasUsablePriceStats, bumpCacheGeneration } from '.
 import { isShippingPriceActive, triggerProcessListings } from '../../page/adapter.js';
 import { markFreshVerified, armFreshDismiss } from '../fresh-dismiss.js';
 import { scanState, isScanningPid } from '../../state/store.js';
+import { setHtmlIfChanged } from './dom-helpers.js';
 
 // Single-product verify flow. Reads price at click time and re-verifies it
 // after fetch so a stale or swapped card never paints another product's stats.
@@ -55,11 +56,12 @@ async function runSingleDealCheck(card, badgeDifEl) {
   const reqCents = priceToCents(reqPrice);
   const isListView = badgeDifEl.classList.contains('tp-deal-pill');
   badgeDifEl.classList.add('tp-deal-loading');
-  if (isListView) {
-    badgeDifEl.innerHTML = `<span>⏳</span><p>Prüfe...</p>`;
-  } else {
-    badgeDifEl.innerHTML = `<div class="text">Prüfe...</div><p>⏳</p>`;
-  }
+  setHtmlIfChanged(
+    badgeDifEl,
+    isListView
+      ? `<span>⏳</span><p>Prüfe...</p>`
+      : `<div class="text">Prüfe...</div><p>⏳</p>`
+  );
   scanState.singleScanningPids.add(reqPid);
   let fetchedStats = null;
   try {
@@ -79,11 +81,12 @@ async function runSingleDealCheck(card, badgeDifEl) {
     triggerProcessListings();
   } else {
     badgeDifEl.classList.remove('tp-deal-alltime-low', 'tp-deal-not-low', 'tp-is-severe-markup');
-    if (isListView) {
-      badgeDifEl.innerHTML = `<span>⚠️</span><p>n/v</p>`;
-    } else {
-      badgeDifEl.innerHTML = `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`;
-    }
+    setHtmlIfChanged(
+      badgeDifEl,
+      isListView
+        ? `<span>⚠️</span><p>n/v</p>`
+        : `<div class="text">Fehler</div><p style="font-size: 13px;">⚠️ n/v</p>`
+    );
     badgeDifEl.title = '⚠️ Preishistorie zurzeit nicht verfügbar (Klicken für erneuten Versuch)';
     setTimeout(() => {
       if (badgeDifEl?.isConnected && !hasUsablePriceStats(getCardStats(reqPid, reqBasis))) {
