@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.507)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.508)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -195,7 +195,7 @@ The userscript dynamically tailors its UI to the current page type:
 
 ## ⚙️ Configuration & Modal Settings
 
-Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Split into Core and Advanced views for legibility:
+Click the floating **gear icon (`⚙️`)** in the bottom-right corner to open the Shadow DOM settings dialog (`#tp-root`). Elevated via native HTML5 `<dialog>` (`showModal()`) to the browser Top Layer, it avoids z-index collisions with host site elements. Hold `⚙️` (600ms) or `Shift+Click` to open the **Dev-Diagnose-Log** (`#tp-diag-dialog`) with live state and redacted network/scanner logs. Split into Core and Advanced views for legibility:
 
 ### Core Settings (Sections 1–5: Display, Web Search, Sorting, Filtering, Price Alarm)
 

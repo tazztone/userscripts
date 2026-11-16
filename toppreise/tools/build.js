@@ -100,6 +100,7 @@ export function buildBundle() {
     'ui/modal.js',
     'ui/modal-share-preview.js',
     'ui/toast.js',
+    'ui/diag-modal.js',
     'ui/calc-preset-data.js',
     'ui/calc-preview.js',
     'ui/toolbar-calc.js',

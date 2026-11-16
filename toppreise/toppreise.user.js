@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.507
+// @version      2.18.508
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -3061,6 +3061,33 @@ const SHADOW_MODAL_STYLES = `
     color: #fff;
     box-shadow: 0 4px 12px rgba(16,185,129,0.3);
   }
+  #tp-diag-dialog {
+    max-width: 680px;
+    width: 94%;
+    max-height: 85vh;
+    border: 1px solid var(--tp-line-soft);
+    border-radius: 12px;
+    background: var(--tp-bg);
+    color: var(--tp-txt);
+    padding: 14px;
+    font-family: inherit;
+  }
+  #tp-diag-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
+  .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; }
+  #tp-diag-snapshot, #tp-diag-log-pre {
+    margin: 0;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--tp-line-soft);
+    background: rgba(15, 23, 42, 0.05);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #tp-diag-log-pre { max-height: 45vh; overflow: auto; }
   #tp-toast-container {
     position: fixed;
     bottom: 50px;
@@ -13288,6 +13315,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function snapshotModalState(dialog) {
     if (!dialog) return null;
     const state = new Map();
@@ -13518,6 +13546,7 @@ const SHADOW_MODAL_STYLES = `
       else els.dialog.removeAttribute('open');
     };
 
+    bindDiagTrigger(els.fabButton, els.shadow);
     els.fabButton.addEventListener('click', openModal);
     els.btnClose.addEventListener('click', closeModal);
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
@@ -14013,6 +14042,174 @@ const SHADOW_MODAL_STYLES = `
       toast.classList.add('fade-out');
       setTimeout(() => toast.remove(), 400);
     }, 2500);
+  }
+
+  // ─── MODULE: src/ui/diag-modal.js ───────────────────────────────────────────
+  /**
+   * Dev Diagnostic Log Modal
+   * Triggered by 600ms long-press or Shift+Click on #tp-settings-fab, or ToppreiseSuite.openDiagLog().
+   * Displays live runtime snapshot and secret-redacted in-memory activity log.
+   */
+
+
+
+
+
+
+
+
+  let suppressNextFabClick = false;
+
+  function openDiagModal(shadow) {
+    if (!shadow) return;
+    let dialog = shadow.getElementById('tp-diag-dialog');
+    let filterWarnOnly = false;
+    let unsub = null;
+
+    const renderSnapshotAndLog = () => {
+      if (!dialog) return;
+      const snapEl = dialog.querySelector('#tp-diag-snapshot');
+      const preEl = dialog.querySelector('#tp-diag-log-pre');
+      const debugToggle = dialog.querySelector('#tp-diag-debug-toggle');
+      if (debugToggle) debugToggle.checked = CONFIG.DEBUG === true;
+
+      const refresh = getFeedRefreshState();
+      const version = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || 'dev';
+      const snapLines = [
+        `v${version} | page=${getPageProfileType()} | DEBUG=${!!CONFIG.DEBUG}`,
+        `scan: active=${scanState.isBatchChecking} (${scanState.progress?.completed || 0}/${scanState.progress?.total || 0}) | activeFetches=${activeFetches.size}`,
+        `refresh: active=${refresh.active} stage=${refresh.stage} last=${refresh.lastOutcome || '-'}${refresh.lastError ? ` err=${refresh.lastError}` : ''}`,
+      ];
+      if (snapEl) snapEl.textContent = snapLines.join('\n');
+
+      const entries = getActivityLog();
+      const filtered = filterWarnOnly
+        ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
+        : entries;
+      if (preEl) {
+        preEl.textContent = filtered.length > 0 ? formatActivityLogText(filtered) : '(keine Einträge)';
+        preEl.scrollTop = preEl.scrollHeight;
+      }
+    };
+
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'tp-diag-dialog';
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      dialog.setAttribute('aria-labelledby', 'tp-diag-title');
+      dialog.innerHTML = `
+        <div class="tp-diag-head">
+          <strong id="tp-diag-title">🛠️ Toppreise Dev-Diagnose-Log</strong>
+          <button type="button" id="tp-diag-close-btn" class="tp-btn tp-btn-secondary">Schliessen</button>
+        </div>
+        <pre id="tp-diag-snapshot"></pre>
+        <div class="tp-diag-toolbar">
+          <label><input type="checkbox" id="tp-diag-warn-filter"> Nur Warn+Err</label>
+          <label><input type="checkbox" id="tp-diag-debug-toggle"> Debug-Konsole</label>
+          <button type="button" id="tp-diag-refresh-btn" class="tp-btn tp-btn-secondary">Aktualisieren</button>
+          <button type="button" id="tp-diag-copy-btn" class="tp-btn tp-btn-secondary">Kopieren</button>
+          <button type="button" id="tp-diag-clear-btn" class="tp-btn tp-btn-secondary">Leeren</button>
+        </div>
+        <pre id="tp-diag-log-pre"></pre>
+      `;
+      shadow.appendChild(dialog);
+
+      dialog.querySelector('#tp-diag-close-btn').addEventListener('click', () => dialog.close());
+      dialog.querySelector('#tp-diag-refresh-btn').addEventListener('click', renderSnapshotAndLog);
+      dialog.querySelector('#tp-diag-clear-btn').addEventListener('click', () => {
+        clearActivityLog();
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', (e) => {
+        filterWarnOnly = !!e.target.checked;
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
+        const next = !!e.target.checked;
+        updateConfig('DEBUG', next);
+        showToast(next ? 'Debug-Konsole AN' : 'Debug-Konsole AUS');
+        renderSnapshotAndLog();
+      });
+      dialog.querySelector('#tp-diag-copy-btn').addEventListener('click', async () => {
+        const txt = `${dialog.querySelector('#tp-diag-snapshot')?.textContent || ''}\n\n${dialog.querySelector('#tp-diag-log-pre')?.textContent || ''}`;
+        try {
+          await navigator.clipboard?.writeText(txt);
+          showToast('Diagnose-Log kopiert');
+        } catch {
+          showToast('Kopieren fehlgeschlagen');
+        }
+      });
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) dialog.close();
+      });
+    }
+
+    renderSnapshotAndLog();
+    unsub = subscribeActivityLog(() => {
+      if (dialog.open) renderSnapshotAndLog();
+    });
+    dialog.addEventListener('close', () => {
+      if (unsub) {
+        unsub();
+        unsub = null;
+      }
+    }, { once: true });
+
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+  }
+
+  function bindDiagTrigger(fabButton, shadow) {
+    if (!fabButton || !shadow) return;
+    fabButton.title = 'Toppreise Suite Einstellungen öffnen (Gedrückt halten / Shift+Klick = Dev-Log)';
+
+    let pressTimer = null;
+    let startX = 0;
+    let startY = 0;
+
+    const clearPress = () => {
+      if (pressTimer !== null) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+    };
+
+    fabButton.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      suppressNextFabClick = false;
+      clearPress();
+      startX = e.clientX;
+      startY = e.clientY;
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        suppressNextFabClick = true;
+        setTimeout(() => { suppressNextFabClick = false; }, 400);
+        openDiagModal(shadow);
+      }, 600);
+    });
+
+    fabButton.addEventListener('pointermove', (e) => {
+      if (pressTimer === null) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
+        clearPress();
+      }
+    });
+
+    fabButton.addEventListener('pointerup', clearPress);
+    fabButton.addEventListener('pointerleave', clearPress);
+    fabButton.addEventListener('pointercancel', clearPress);
+
+    fabButton.addEventListener('click', (e) => {
+      if (suppressNextFabClick || e.shiftKey) {
+        suppressNextFabClick = false;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (e.shiftKey) openDiagModal(shadow);
+      }
+    });
   }
 
   // ─── MODULE: src/ui/calc-preset-data.js ─────────────────────────────────────
@@ -16818,7 +17015,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.507';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.508';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -16853,6 +17050,8 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         memoryCache,
         statsKey,
         showToast,
+        openDiagLog: () => openDiagModal(uiShadowRoot),
+        getActivityLog,
         lastToast: getLastToastMessage
       };
     } else {

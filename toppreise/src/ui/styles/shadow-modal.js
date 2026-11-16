@@ -297,6 +297,33 @@ export const SHADOW_MODAL_STYLES = `
     color: #fff;
     box-shadow: 0 4px 12px rgba(16,185,129,0.3);
   }
+  #tp-diag-dialog {
+    max-width: 680px;
+    width: 94%;
+    max-height: 85vh;
+    border: 1px solid var(--tp-line-soft);
+    border-radius: 12px;
+    background: var(--tp-bg);
+    color: var(--tp-txt);
+    padding: 14px;
+    font-family: inherit;
+  }
+  #tp-diag-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
+  .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; }
+  #tp-diag-snapshot, #tp-diag-log-pre {
+    margin: 0;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--tp-line-soft);
+    background: rgba(15, 23, 42, 0.05);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #tp-diag-log-pre { max-height: 45vh; overflow: auto; }
   #tp-toast-container {
     position: fixed;
     bottom: 50px;

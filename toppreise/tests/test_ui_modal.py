@@ -740,3 +740,46 @@ def test_tavily_enabled_toggle_persists(page: Page):
     page.click('#tp-root >> #tp-btn-close')
 
 
+def test_diag_modal_shift_click_and_controls(page: Page):
+    fab = page.locator('#tp-root >> #tp-settings-fab')
+    fab.click(modifiers=['Shift'])
+    diag = page.locator('#tp-root >> #tp-diag-dialog')
+    diag.wait_for(state='visible')
+    assert page.locator('#tp-root >> #tp-settings-dialog').is_visible() is False
+
+    snap = page.locator('#tp-root >> #tp-diag-snapshot').text_content() or ''
+    assert 'page=' in snap
+
+    # Debug toggle updates CONFIG.DEBUG (conftest.py seeds DEBUG=true)
+    assert page.locator('#tp-root >> #tp-diag-debug-toggle').is_checked() is True
+    assert 'DEBUG=true' in (page.locator('#tp-root >> #tp-diag-snapshot').text_content() or '')
+    page.click('#tp-root >> #tp-diag-debug-toggle')
+    assert page.locator('#tp-root >> #tp-diag-debug-toggle').is_checked() is False
+    assert 'DEBUG=false' in (page.locator('#tp-root >> #tp-diag-snapshot').text_content() or '')
+    page.click('#tp-root >> #tp-diag-debug-toggle')
+    assert page.locator('#tp-root >> #tp-diag-debug-toggle').is_checked() is True
+    assert 'DEBUG=true' in (page.locator('#tp-root >> #tp-diag-snapshot').text_content() or '')
+
+    # Clear clears log
+    page.click('#tp-root >> #tp-diag-clear-btn')
+    assert (page.locator('#tp-root >> #tp-diag-log-pre').text_content() or '') == '(keine Einträge)'
+
+    page.click('#tp-root >> #tp-diag-close-btn')
+    diag.wait_for(state='hidden')
+
+
+def test_diag_modal_long_press(page: Page):
+    fab = page.locator('#tp-root >> #tp-settings-fab')
+    fab.dispatch_event('pointerdown', {'button': 0, 'pointerType': 'mouse', 'clientX': 10, 'clientY': 10})
+    page.wait_for_timeout(650)
+    fab.dispatch_event('pointerup', {'button': 0, 'pointerType': 'mouse', 'clientX': 10, 'clientY': 10})
+    fab.dispatch_event('click', {'button': 0})
+
+    diag = page.locator('#tp-root >> #tp-diag-dialog')
+    diag.wait_for(state='visible')
+    assert page.locator('#tp-root >> #tp-settings-dialog').is_visible() is False
+    page.click('#tp-root >> #tp-diag-close-btn')
+    diag.wait_for(state='hidden')
+
+
+

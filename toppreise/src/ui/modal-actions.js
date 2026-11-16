@@ -13,6 +13,7 @@ import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
 import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-discord.js';
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview, addExtraChannelRow } from './modal-bindings.js';
+import { bindDiagTrigger } from './diag-modal.js';
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed } from './modal-template.js';
 
@@ -246,6 +247,7 @@ export function wireModalActions(els) {
     else els.dialog.removeAttribute('open');
   };
 
+  bindDiagTrigger(els.fabButton, els.shadow);
   els.fabButton.addEventListener('click', openModal);
   els.btnClose.addEventListener('click', closeModal);
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
