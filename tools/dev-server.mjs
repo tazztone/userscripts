@@ -77,11 +77,20 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
   const baseHeader = headerMatch[1];
   const bundleFilename = path.basename(meta.bundleFile);
   const targetScriptUrl = `${hostUrl}/${meta.dir}/${bundleFilename}`;
+  const devStubUrl = `${hostUrl}/${meta.dir}/${meta.dir}.dev.user.js`;
 
-  // Dev header modification: adjust name and version, ensure local connect permissions
+  // Dev header modification: adjust name and version, ensure local connect permissions,
+  // strip upstream @updateURL and point @downloadURL to the local dev stub
   let devHeader = baseHeader
     .replace(/(@name\s+)([^\n]+)/, '$1[DEV] $2')
-    .replace(/(@version\s+)([^\n]+)/, '$1$2.dev');
+    .replace(/(@version\s+)([^\n]+)/, '$1$2.dev')
+    .replace(/\/\/\s*@updateURL[^\n]*\n?/g, '');
+
+  if (/@downloadURL\s+/.test(devHeader)) {
+    devHeader = devHeader.replace(/\/\/\s*@downloadURL[^\n]*/g, `// @downloadURL  ${devStubUrl}`);
+  } else {
+    devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, `// @downloadURL  ${devStubUrl}\n// ==/UserScript==`);
+  }
 
   if (!devHeader.includes('@connect 127.0.0.1')) {
     devHeader = devHeader.replace(/\/\/ ==\/UserScript==/, '// @connect      127.0.0.1\n// @connect      localhost\n// ==/UserScript==');
@@ -101,7 +110,38 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
   'use strict';
   const targetUrl = ${JSON.stringify(targetScriptUrl)} + '?t=' + Date.now();
   const eventsUrl = ${JSON.stringify(`${hostUrl}/events`)};
+  const versionUrl = ${JSON.stringify(`${hostUrl}/version/${scriptKey}`)};
   console.log('[userscript-dev] Dev loader active for ${meta.name}.');
+
+  let initialVersionTs = null;
+  let esErrorCount = 0;
+  let pollInterval = null;
+
+  function startPollingFallback() {
+    if (pollInterval || typeof GM_xmlhttpRequest === 'undefined') return;
+    console.log('[userscript-dev] Starting GM_xmlhttpRequest polling fallback on ' + versionUrl);
+    pollInterval = setInterval(function() {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: versionUrl + '?t=' + Date.now(),
+        nocache: true,
+        headers: { 'Cache-Control': 'no-cache, no-store' },
+        onload: function(res) {
+          if (res.status >= 200 && res.status < 300) {
+            try {
+              const data = JSON.parse(res.responseText);
+              if (initialVersionTs === null) {
+                initialVersionTs = data.ts;
+              } else if (data.ts > initialVersionTs) {
+                console.log('[userscript-dev] Version update detected via polling:', data);
+                window.location.reload();
+              }
+            } catch {}
+          }
+        }
+      });
+    }, 1500);
+  }
 
   // Live SSE auto-reload on source rebuilds
   if (typeof EventSource !== 'undefined') {
@@ -109,14 +149,32 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
       const es = new EventSource(eventsUrl);
       es.addEventListener('reload', function(e) {
         console.log('[userscript-dev] Rebuild event received:', e.data);
-        window.location.reload();
+        if (!e.data) {
+          window.location.reload();
+          return;
+        }
+        try {
+          const payload = JSON.parse(e.data);
+          if (!payload.script || payload.script === ${JSON.stringify(scriptKey)}) {
+            window.location.reload();
+          }
+        } catch {
+          window.location.reload();
+        }
       });
       es.onerror = function() {
-        // Silent native reconnect
+        esErrorCount++;
+        if (esErrorCount >= 3) {
+          try { es.close(); } catch {}
+          startPollingFallback();
+        }
       };
     } catch (err) {
       console.warn('[userscript-dev] EventSource init failed:', err);
+      startPollingFallback();
     }
+  } else {
+    startPollingFallback();
   }
 
   function executeCode(sourceCode) {
@@ -126,7 +184,7 @@ export function generateDevLoaderStub(scriptKey, hostUrl) {
       eval(mappedSource);
     } catch (err) {
       const msg = (err && err.stack) ? err.stack : ((err && err.message) ? err.message : JSON.stringify(err));
-      console.error('\x1b[31m❌ [userscript-dev] Runtime Exception in ${meta.name}:\x1b[0m\n' + msg);
+      console.error('\\x1b[31m❌ [userscript-dev] Runtime Exception in ${meta.name}:\\x1b[0m\\n' + msg);
     }
   }
 
@@ -204,6 +262,7 @@ export function createDevServer(options = {}) {
     .links a { display: inline-block; margin-right: 12px; margin-top: 8px; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: 500; }
     .btn-track { background: #0284c7; color: white; }
     .btn-dev { background: #0f172a; color: white; }
+    .btn-setup { background: #047857; color: white; }
     .meta { font-size: 0.82rem; color: #64748b; margin-top: 8px; }
     .doc-box { background: #f1f5f9; border-left: 4px solid #0284c7; padding: 12px; font-size: 0.88rem; margin-top: 24px; border-radius: 4px; }
     code { font-family: monospace; background: #e2e8f0; padding: 2px 5px; border-radius: 4px; }
@@ -220,12 +279,14 @@ export function createDevServer(options = {}) {
       <div class="title">${meta.name}</div>
       <div class="meta">Bundle: <code>${meta.bundleFile}</code></div>
       <div class="links">
-        <a class="btn-track" href="/${meta.dir}/${filename}">1. Native Track External Edits (${filename})</a>
+        <a class="btn-setup" href="/setup/${key}">1. Guided Setup (/setup/${key})</a>
         <a class="btn-dev" href="/${meta.dir}/${meta.dir}.dev.user.js">2. Dev Loader Stub (${meta.dir}.dev.user.js)</a>
+        <a class="btn-track" href="/${meta.dir}/${filename}">3. Track External Edits (${filename})</a>
       </div>
       <div class="meta">
-        Option 1: In Violentmonkey, open file URL and click "Track external edits".<br>
-        Option 2: Install Dev Loader once; fetches fresh code on every navigation.
+        Option 1: Guided 1-click install page for the dev stub.<br>
+        Option 2: Direct dev loader stub; fetches fresh code on every navigation.<br>
+        Option 3: In Violentmonkey, open file URL and click "Track external edits".
       </div>
     </div>`;
   }).join('')}
@@ -233,7 +294,7 @@ export function createDevServer(options = {}) {
   <div class="doc-box">
     <strong>Agentic Workflow:</strong><br>
     The CLI coding agent edits files in <code>src/</code>. This server auto-rebuilds and serves fresh bundles without cache.<br>
-    Target browser tab reloads via MCP (<code>chrome-devtools-mcp</code> or <code>@mozilla/firefox-devtools-mcp</code>).
+    Target browser tab reloads via MCP (<code>chrome-devtools</code> or <code>firefox-devtools</code>).
   </div>
 </body>
 </html>`;
@@ -255,6 +316,93 @@ export function createDevServer(options = {}) {
       req.on('close', () => {
         sseClients.delete(res);
       });
+      return;
+    }
+
+    // Version polling endpoint for CSP-safe fallback: /version/:script
+    const versionMatch = pathname.match(/^\/version\/([^/]+)$/);
+    if (versionMatch) {
+      const aliasMap = { tp: 'toppreise', hf: 'huggingface', px: 'perplexity' };
+      const rawKey = versionMatch[1];
+      const scriptKey = aliasMap[rawKey] || rawKey;
+      const meta = SCRIPTS[scriptKey];
+      if (!meta) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: `Script '${rawKey}' not found` }));
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+      });
+      res.end(JSON.stringify({ script: scriptKey, ts: lastBuildTimestamps[scriptKey] || Date.now() }));
+      return;
+    }
+
+    // Guided setup landing page: /setup/:script
+    const setupMatch = pathname.match(/^\/setup\/([^/]+)$/);
+    if (setupMatch) {
+      const aliasMap = { tp: 'toppreise', hf: 'huggingface', px: 'perplexity' };
+      const rawKey = setupMatch[1];
+      const scriptKey = aliasMap[rawKey] || rawKey;
+      const meta = SCRIPTS[scriptKey];
+      if (!meta) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(`Script '${rawKey}' not found.`);
+        return;
+      }
+      const devStubUrl = `/${meta.dir}/${meta.dir}.dev.user.js`;
+      const targetSites = {
+        toppreise: 'https://www.toppreise.ch/',
+        huggingface: 'https://huggingface.co/models',
+        perplexity: 'https://www.perplexity.ai/'
+      };
+      const siteUrl = targetSites[scriptKey] || 'https://www.toppreise.ch/';
+      const amoUrl = 'https://addons.mozilla.org/firefox/addon/violentmonkey/';
+
+      const setupHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Setup [DEV] ${meta.name}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; color: #0f172a; background: #f8fafc; }
+    .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); }
+    h1 { font-size: 1.4rem; margin-top: 0; margin-bottom: 8px; }
+    p { font-size: 0.95rem; color: #475569; margin: 8px 0 20px; line-height: 1.5; }
+    .btn { display: inline-block; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.95rem; transition: background 0.15s; }
+    .btn-primary { background: #0284c7; color: white; margin-right: 10px; }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-secondary { background: #e2e8f0; color: #1e293b; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .step-box { background: #f1f5f9; border-radius: 8px; padding: 14px 18px; margin: 20px 0; font-size: 0.9rem; }
+    .step-box ol { margin: 6px 0; padding-left: 20px; }
+    .step-box li { margin-bottom: 6px; }
+    .note { font-size: 0.82rem; color: #64748b; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🚀 Setup [DEV] ${meta.name}</h1>
+    <p>Welcome to the isolated userscript dev session. Follow these simple steps:</p>
+    <div class="step-box">
+      <ol>
+        <li>Ensure Violentmonkey is installed (<a href="${amoUrl}" target="_blank">Install from AMO</a> if missing).</li>
+        <li>Click below to install the live auto-reloading <strong>[DEV] Stub</strong>.</li>
+        <li>Open the target site to start testing!</li>
+      </ol>
+    </div>
+    <div style="margin-top: 24px;">
+      <a class="btn btn-primary" href="${devStubUrl}">1. Install [DEV] Stub</a>
+      <a class="btn btn-secondary" href="${siteUrl}" target="_blank">2. Open Target Site ↗</a>
+    </div>
+    <p class="note">Once installed, any changes you save to <code>src/</code> will rebuild and reload target pages automatically.</p>
+  </div>
+</body>
+</html>`;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.writeHead(200);
+      res.end(setupHtml);
       return;
     }
 
@@ -328,6 +476,29 @@ export function setupWatchers(onRebuild) {
     watchers.push(watcher);
   }
 
+  // Watch single-file scripts: huggingface & perplexity
+  const singleFileScripts = ['huggingface', 'perplexity'];
+  for (const scriptKey of singleFileScripts) {
+    const meta = SCRIPTS[scriptKey];
+    const scriptPath = path.join(REPO_ROOT, meta.bundleFile);
+    const scriptDir = path.dirname(scriptPath);
+    const targetFilename = path.basename(scriptPath);
+    if (fs.existsSync(scriptDir)) {
+      let debounceTimer = null;
+      const watcher = fs.watch(scriptDir, (eventType, filename) => {
+        if (!filename || filename !== targetFilename || filename.endsWith('.tmp') || filename.includes('~')) return;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          lastBuildTimestamps[scriptKey] = Date.now();
+          console.log(`✅ [watcher] ${meta.name} changed: ${meta.bundleFile}`);
+          broadcastReload(scriptKey);
+          if (onRebuild) onRebuild(scriptKey);
+        }, 50);
+      });
+      watchers.push(watcher);
+    }
+  }
+
   return watchers;
 }
 
@@ -372,11 +543,32 @@ async function runSelfTest() {
     if (stubRes.status !== 200 || !stubRes.body.includes('[DEV] Toppreise.ch Suite')) {
       throw new Error(`Dev stub self-test failed (status ${stubRes.status})`);
     }
-    if (!stubRes.body.includes('http://127.0.0.1:8766/toppreise/toppreise.user.js')) {
+    if (!stubRes.body.includes(`http://127.0.0.1:${testPort}/toppreise/toppreise.user.js`)) {
       throw new Error('Dev stub target URL mismatch');
     }
+    if (stubRes.body.includes('@updateURL')) {
+      throw new Error('Dev stub must not contain @updateURL');
+    }
+    if (!stubRes.body.includes(`@downloadURL  http://127.0.0.1:${testPort}/toppreise/toppreise.dev.user.js`)) {
+      throw new Error('Dev stub @downloadURL mismatch');
+    }
 
-    // 4. SSE events endpoint
+    // 4. Setup and version endpoints
+    const setupRes = await fetchUrl('/setup/toppreise');
+    if (setupRes.status !== 200 || !setupRes.body.includes('Setup [DEV] Toppreise.ch Suite')) {
+      throw new Error(`Setup route self-test failed (status ${setupRes.status})`);
+    }
+
+    const versionRes = await fetchUrl('/version/toppreise');
+    if (versionRes.status !== 200) {
+      throw new Error(`Version route self-test failed (status ${versionRes.status})`);
+    }
+    const versionJson = JSON.parse(versionRes.body);
+    if (versionJson.script !== 'toppreise' || typeof versionJson.ts !== 'number') {
+      throw new Error(`Version route payload invalid: ${versionRes.body}`);
+    }
+
+    // 5. SSE events endpoint
     await new Promise((resolve, reject) => {
       const sseReq = http.get(`http://127.0.0.1:${testPort}/events`, (res) => {
         if (res.statusCode !== 200 || res.headers['content-type'] !== 'text/event-stream') {
@@ -389,10 +581,10 @@ async function runSelfTest() {
       sseReq.on('error', reject);
     });
 
-    // 5. Test rebuild execution
+    // 6. Test rebuild execution
     SCRIPTS.toppreise.buildCmd();
 
-    // 6. Test launcher resolution logic
+    // 7. Test launcher resolution logic
     const launcherPath = path.join(REPO_ROOT, 'tools', 'launch-browser.sh');
     if (!fs.existsSync(launcherPath)) {
       throw new Error('launch-browser.sh does not exist');
@@ -409,6 +601,7 @@ function parseCliArgs(args) {
   let browser = null;
   let targetScript = 'toppreise';
   let installRequested = false;
+  let cleanProfileRequested = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -422,6 +615,8 @@ function parseCliArgs(args) {
       port = parseInt(args[++i], 10) || DEFAULT_PORT;
     } else if (arg === '--install') {
       installRequested = true;
+    } else if (arg === '--clean-profile') {
+      cleanProfileRequested = true;
     } else if (!arg.startsWith('-')) {
       const aliasMap = { tp: 'toppreise', hf: 'huggingface', px: 'perplexity' };
       const resolved = aliasMap[arg] || arg;
@@ -431,7 +626,7 @@ function parseCliArgs(args) {
     }
   }
 
-  return { port, browser, targetScript, installRequested };
+  return { port, browser, targetScript, installRequested, cleanProfileRequested };
 }
 
 export { parseCliArgs };
@@ -448,14 +643,18 @@ function main() {
     return;
   }
 
-  const { port, browser, targetScript, installRequested } = parseCliArgs(args);
+  const { port, browser, targetScript, installRequested, cleanProfileRequested } = parseCliArgs(args);
 
   const server = createDevServer({ host: '127.0.0.1', port });
   let browserChild = null;
 
   server.listen(port, '127.0.0.1', () => {
     console.log(`⚡ Userscript Sync Server running at http://127.0.0.1:${port}/`);
-    console.log(`📁 Tracking source changes across toppreise/src/ ...`);
+    if (targetScript === 'toppreise') {
+      console.log(`📁 Tracking source changes across toppreise/src/ ...`);
+    } else {
+      console.log(`📁 Tracking source changes in ${SCRIPTS[targetScript].bundleFile} ...`);
+    }
 
     if (browser) {
       const launcherScript = path.join(REPO_ROOT, 'tools', 'launch-browser.sh');
@@ -464,16 +663,24 @@ function main() {
       if (installRequested) {
         launcherArgs.push('--install');
       }
+      if (cleanProfileRequested) {
+        launcherArgs.push('--clean-profile');
+      }
       browserChild = spawn('bash', launcherArgs, {
         cwd: REPO_ROOT,
-        stdio: 'inherit'
+        stdio: 'inherit',
+        env: { ...process.env, DEV_SERVER_PORT: String(port) }
       });
       browserChild.on('error', (err) => {
         console.error(`❌ Failed to launch browser:`, err.message);
       });
       browserChild.on('exit', (code) => {
         if (code !== 0 && code !== null) {
-          console.log(`ℹ️ Browser process exited with code ${code}`);
+          console.error(`\x1b[31m❌ Browser process exited with code ${code}\x1b[0m`);
+          console.error(`💡 Troubleshooting:`);
+          console.error(`   • Ensure ${browser} is installed and executable.`);
+          console.error(`   • Check port collisions (e.g. Chrome vs Firefox BiDi port 9222).`);
+          console.error(`   • Try launching directly: bash tools/launch-browser.sh ${browser} ${targetScript}`);
         }
       });
     }
