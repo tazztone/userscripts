@@ -66,6 +66,8 @@ export function buildBundle() {
     'state/config.js',
     'state/config-sync.js',
     'state/store.js',
+    'state/activity-log.js',
+    'state/net.js',
     'page/adapter.js',
     'page/cards.js',
     'page/product-offers.js',
