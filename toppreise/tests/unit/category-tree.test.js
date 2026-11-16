@@ -4,6 +4,8 @@ import {
   toFeedUrl,
   indexCategoryData,
   hasIgnoredAncestor,
+  getAncestorsWithIgnored,
+  loadNativeCategoryTree,
   searchCategoryTree,
   getStoredIdents,
   saveStoredIdents,
@@ -1093,5 +1095,162 @@ test('hydrateBranchIdents tracks fetched URLs to avoid duplicate 300KB requests'
   } finally {
     if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
     resetHydratedFeedUrlsForTesting();
+  }
+});
+
+test('getAncestorsWithIgnored collects strict ancestor IDs for ignored nodes', () => {
+  const tree = indexCategoryData([
+    {
+      id: 'c100',
+      parentID: 'root',
+      title: 'Haushalt',
+      url: '/produktsuche/Haushalt-c100',
+      children: [
+        {
+          id: 'c200',
+          parentID: 'c100',
+          title: 'Kuechengeraete',
+          url: '/produktsuche/Haushalt/Kuechengeraete-c200',
+          children: [
+            { id: 'c300', parentID: 'c200', title: 'Dunstabzug', url: '/produktsuche/Haushalt/Kuechengeraete/Dunstabzug-c300' }
+          ]
+        }
+      ]
+    }
+  ]);
+
+  assert.deepEqual([...getAncestorsWithIgnored(tree, new Set())], []);
+  assert.deepEqual([...getAncestorsWithIgnored(tree, new Set(['100']))], []);
+  assert.deepEqual([...getAncestorsWithIgnored(tree, new Set(['200']))], ['c100']);
+  assert.deepEqual([...getAncestorsWithIgnored(tree, new Set(['300']))].sort(), ['c100', 'c200']);
+  assert.deepEqual([...getAncestorsWithIgnored(tree, new Set(['c200', '300']))].sort(), ['c100', 'c200']);
+});
+
+test('syncCategoryTreeIgnoredState sets and clears tp-cat-has-ignored via DOM descendants', () => {
+  const prevDoc = globalThis.document;
+  try {
+    const sidebar = createMockElement('div', { className: 'Plugin_CategoryMainSelectionLeft' });
+    const ul = createMockElement('ul');
+    const parentLi = createMockElement('li', { className: 'tp-cat-node' });
+    parentLi.dataset.catId = 'c200';
+    const parentRow = createMockElement('div', { className: 'tp-cat-row' });
+    const toggle = createMockElement('button', { className: 'tp-cat-toggle' });
+    toggle.title = 'Unterkategorien anzeigen';
+    parentRow.appendChild(toggle);
+    parentLi.appendChild(parentRow);
+
+    const sublist = createMockElement('ul', { className: 'tp-cat-sublist' });
+    const childLi = createMockElement('li', { className: 'tp-cat-node' });
+    childLi.dataset.catId = 'c8';
+    const childRow = createMockElement('div', { className: 'tp-cat-row' });
+    const childSpan = createMockElement('span', { className: 'ignoreCategory f_IgnoredCategories_Hide' });
+    childSpan.setAttribute('data-vcat-id', '8');
+    childSpan.appendChild(createMockElement('i', { className: 'TPIcons-cross' }));
+    childRow.appendChild(childSpan);
+    childLi.appendChild(childRow);
+    sublist.appendChild(childLi);
+    parentLi.appendChild(sublist);
+    ul.appendChild(parentLi);
+    sidebar.appendChild(ul);
+
+    const ignoredBar = createMockElement('div', { className: 'Plugin_IgnoredCategories' });
+    const chip = createMockElement('span', { className: 'ignoredCategory' });
+    chip.setAttribute('data-vcat-id', '8');
+    ignoredBar.appendChild(chip);
+
+    globalThis.document = {
+      querySelectorAll(sel) {
+        if (sel.includes('.Plugin_IgnoredCategories')) return [chip];
+        return [];
+      }
+    };
+
+    syncCategoryTreeIgnoredState(sidebar);
+    assert.ok(parentLi.classList.contains('tp-cat-has-ignored'));
+    assert.equal(toggle.title, 'Enthält ausgeblendete Unterkategorien');
+
+    // Clear ignored chip -> should remove tp-cat-has-ignored and restore title
+    globalThis.document = { querySelectorAll: () => [] };
+    syncCategoryTreeIgnoredState(sidebar);
+    assert.ok(!parentLi.classList.contains('tp-cat-has-ignored'));
+    assert.equal(toggle.title, 'Unterkategorien anzeigen');
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});
+
+test('renderChildList sets tp-cat-has-ignored on sub-branch parent when deeper child is ignored in cached tree', async () => {
+  const prevDoc = globalThis.document;
+  const prevStorage = globalThis.localStorage;
+  try {
+    const lsStore = new Map([
+      ['c_cm_hash_de', 'h1'],
+      ['c_cm_data_de', JSON.stringify([
+        {
+          id: 'c100',
+          parentID: 'root',
+          title: 'Haushalt',
+          url: '/produktsuche/Haushalt-c100',
+          hasChildren: true,
+          children: [
+            {
+              id: 'c200',
+              parentID: 'c100',
+              title: 'Kuechengeraete',
+              url: '/produktsuche/Haushalt/Kuechengeraete-c200',
+              hasChildren: true,
+              children: [
+                { id: 'c300', numericId: '300', parentID: 'c200', title: 'Dunstabzug', url: '/produktsuche/Haushalt/Kuechengeraete/Dunstabzug-c300', hasChildren: false }
+              ]
+            }
+          ]
+        }
+      ])]
+    ]);
+    globalThis.localStorage = {
+      getItem: k => lsStore.get(k) ?? null,
+      setItem: (k, v) => lsStore.set(k, String(v)),
+      removeItem: k => lsStore.delete(k)
+    };
+
+    const chip = createMockElement('span', { className: 'ignoredCategory' });
+    chip.setAttribute('data-vcat-id', '300');
+    const menuEl = createMockElement('div', { className: 'Plugin_CategoryMenu' });
+    menuEl.setAttribute('data-hash', 'h1');
+
+    globalThis.document = {
+      createElement: tag => createMockElement(tag),
+      querySelector: sel => (sel === '.Plugin_CategoryMenu' ? menuEl : null),
+      querySelectorAll: sel => (sel.includes('.Plugin_IgnoredCategories') ? [chip] : [])
+    };
+
+    const tree = await loadNativeCategoryTree(globalThis.document);
+    // Register a synthetic sub-branch -> leaf pair in the active cached tree
+    const subNode = { id: 'c_sub_test', numericId: '9990', parentID: 'root', title: 'SubBranch', url: '/produktsuche/SubBranch-c9990', hasChildren: true };
+    const leafNode = { id: 'c_leaf_test', numericId: '9991', parentID: 'c_sub_test', title: 'Leaf', url: '/produktsuche/SubBranch/Leaf-c9991', hasChildren: false };
+    tree.byId.set('c_sub_test', subNode);
+    tree.byId.set('9990', subNode);
+    tree.byId.set('c_leaf_test', leafNode);
+    tree.byId.set('9991', leafNode);
+    try {
+      chip.setAttribute('data-vcat-id', '9991');
+
+      const parentEl = createMockElement('li', { className: 'tp-cat-node' });
+      renderChildList([subNode], parentEl, '/neue-toppreise', new Set());
+
+      const subBranchLi = parentEl.children[0]?.children[0];
+      assert.ok(subBranchLi);
+      assert.ok(subBranchLi.classList.contains('tp-cat-has-ignored'));
+      const subToggle = subBranchLi.querySelector('.tp-cat-toggle');
+      assert.equal(subToggle.title, 'Enthält ausgeblendete Unterkategorien');
+    } finally {
+      tree.byId.delete('c_sub_test');
+      tree.byId.delete('9990');
+      tree.byId.delete('c_leaf_test');
+      tree.byId.delete('9991');
+    }
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    if (prevStorage === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevStorage;
   }
 });

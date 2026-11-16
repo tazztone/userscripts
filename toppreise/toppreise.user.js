@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.503
+// @version      2.18.504
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -1756,10 +1756,19 @@ const STYLES_CATEGORY_TREE = `
     margin: 0 !important; font-size: 11px !important; color: inherit !important; opacity: 0.55 !important;
     width: 24px !important; height: 24px !important; line-height: 24px !important; text-align: center !important; flex: 0 0 24px !important;
     display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 4px !important;
-    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease !important;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, color 0.15s ease !important;
   }
   .tp-cat-toggle:hover { opacity: 0.95 !important; color: var(--tp-blue-soft, #38bdf8) !important; background: rgba(56, 189, 248, 0.1) !important; }
   .tp-cat-toggle:focus-visible { opacity: 1 !important; outline: 2px solid var(--tp-focus) !important; outline-offset: 1px !important; }
+  li.tp-cat-has-ignored > .tp-cat-row > .tp-cat-toggle {
+    color: var(--tp-warn, #f59e0b) !important;
+    opacity: 0.95 !important;
+  }
+  li.tp-cat-has-ignored > .tp-cat-row > .tp-cat-toggle:hover {
+    opacity: 1 !important;
+    color: var(--tp-warn, #f59e0b) !important;
+    background: rgba(245, 158, 11, 0.14) !important;
+  }
   .tp-cat-spacer { display: inline-block !important; width: 24px !important; height: 24px !important; margin: 0 !important; flex: 0 0 24px !important; }
 
   /* Shared Mute/Restore Controls (Vanilla: hidden until hover, subtle plus when ignored) */
@@ -6787,6 +6796,16 @@ const SHADOW_MODAL_STYLES = `
     return { byId, childrenOf, allNodes };
   }
 
+  function findCategoryNode(tree, rawId) {
+    if (!tree?.byId || !rawId) return null;
+    const clean = String(rawId).trim();
+    if (!clean) return null;
+    return tree.byId.get(clean) ||
+           tree.byId.get(`c${clean}`) ||
+           tree.byId.get(clean.replace(/^c/i, '')) ||
+           null;
+  }
+
   function hasIgnoredAncestor(node, tree, ignoredIds) {
     if (!node || !tree?.byId || !ignoredIds) return false;
     const ignoredSet = (ignoredIds instanceof Set) ? ignoredIds : new Set(ignoredIds);
@@ -6796,10 +6815,7 @@ const SHADOW_MODAL_STYLES = `
     let depth = 0;
     while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 20) {
       depth++;
-      const pid = String(curr.parentID).trim();
-      const parentNode = tree.byId.get(pid) ||
-                         tree.byId.get(`c${pid}`) ||
-                         tree.byId.get(pid.replace(/^c/i, ''));
+      const parentNode = findCategoryNode(tree, curr.parentID);
       if (!parentNode) break;
 
       const parentNumeric = String(parentNode.numericId || parentNode.id.replace(/^c/i, '')).trim();
@@ -6911,6 +6927,30 @@ const SHADOW_MODAL_STYLES = `
   // Memory cache for the indexed category tree
   let treeIndex = null;
   let treeLoadingPromise = null;
+
+  function getCachedCategoryTree() {
+    return treeIndex && treeIndex.byId && treeIndex.byId.size > 0 ? treeIndex : null;
+  }
+
+  function getAncestorsWithIgnored(tree, ignoredIds) {
+    const ancestors = new Set();
+    if (!tree?.byId || tree.byId.size === 0 || !ignoredIds) return ancestors;
+    const ignoredSet = (ignoredIds instanceof Set) ? ignoredIds : new Set(ignoredIds);
+    if (ignoredSet.size === 0) return ancestors;
+
+    for (const rawId of ignoredSet) {
+      let curr = findCategoryNode(tree, rawId);
+      let depth = 0;
+      while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 20) {
+        depth++;
+        const parentNode = findCategoryNode(tree, curr.parentID);
+        if (!parentNode) break;
+        ancestors.add(parentNode.id);
+        curr = parentNode;
+      }
+    }
+    return ancestors;
+  }
 
   async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
     if (treeIndex && treeIndex.byId && treeIndex.byId.size > 0) return treeIndex;
@@ -7481,6 +7521,31 @@ const SHADOW_MODAL_STYLES = `
     });
   }
 
+  function applyHasIgnoredDescendantState(li, toggle, hasIgnored) {
+    if (hasIgnored) {
+      li.classList.add('tp-cat-has-ignored');
+      if (toggle) toggle.title = 'Enthält ausgeblendete Unterkategorien';
+    } else {
+      li.classList.remove('tp-cat-has-ignored');
+      if (toggle) toggle.title = 'Unterkategorien anzeigen';
+    }
+  }
+
+  function hasIgnoredDomDescendant(li) {
+    const sublist = li.querySelector?.(':scope > .tp-cat-sublist');
+    return !!sublist?.querySelector?.('.ignoredCategoryEntry');
+  }
+
+  function syncSidebarAncestorStates(sidebar, tree, ignoredIds) {
+    const ancestors = getAncestorsWithIgnored(tree, ignoredIds);
+    sidebar.querySelectorAll('li.tp-cat-node').forEach(li => {
+      const row = li.querySelector?.(':scope > .tp-cat-row') || li.firstElementChild || li;
+      const toggle = row?.querySelector?.('.tp-cat-toggle');
+      const catId = li.dataset?.catId || '';
+      applyHasIgnoredDescendantState(li, toggle, ancestors.has(catId) || hasIgnoredDomDescendant(li));
+    });
+  }
+
   function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
     if (!sidebar?.querySelectorAll) return;
     const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
@@ -7495,6 +7560,16 @@ const SHADOW_MODAL_STYLES = `
 
       applyIgnoredElementState(li, span, ignoredIds.has(String(vcatId).trim()), row.querySelector?.('.tp-cat-toggle'));
     });
+
+    const cachedTree = getCachedCategoryTree();
+    syncSidebarAncestorStates(sidebar, cachedTree, ignoredIds);
+
+    if (!cachedTree && ignoredIds.size > 0) {
+      loadNativeCategoryTree(doc).then(tree => {
+        if (!tree) return;
+        syncSidebarAncestorStates(sidebar, tree, getIgnoredVcatIds(doc));
+      }).catch(() => {});
+    }
 
     const resultsBox = sidebar.querySelector('.tp-cat-search-results');
     if (resultsBox) {
@@ -7545,6 +7620,7 @@ const SHADOW_MODAL_STYLES = `
     const storedIdents = getStoredIdents();
     const doc = parentEl?.ownerDocument || (typeof document !== 'undefined' ? document : null);
     const ignoredIds = getIgnoredVcatIds(doc);
+    const ancestors = getAncestorsWithIgnored(getCachedCategoryTree(), ignoredIds);
 
     for (const child of children) {
       const li = document.createElement('li');
@@ -7569,6 +7645,7 @@ const SHADOW_MODAL_STYLES = `
         toggle.setAttribute('aria-expanded', 'false');
         toggle.textContent = '▸';
         toggle.title = 'Unterkategorien anzeigen';
+        applyHasIgnoredDescendantState(li, toggle, ancestors.has(child.id));
         bindTreeBranchToggle(toggle, child.id, li, currentPath, expandedBranches, feedUrl);
         row.appendChild(toggle);
       } else {
@@ -16363,7 +16440,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.503';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.504';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

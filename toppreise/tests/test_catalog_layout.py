@@ -2494,22 +2494,47 @@ def test_expandable_category_sidebar_interactions(page: Page):
 
         // Click hide on child category
         if (childHideBtn) childHideBtn.click();
-        await new Promise(r => setTimeout(r, 60));
+        await new Promise(r => setTimeout(r, 200));
 
         const childIgnoredAfter = childLi?.classList.contains('ignoredCategoryEntry');
         const childBtnClassAfter = childLi?.querySelector('.ignoreCategory')?.className || '';
         const childIconClassAfter = childLi?.querySelector('.ignoreCategory i')?.className || '';
         const parentIgnoredWhenChildIgnored = firstLi?.classList.contains('ignoredCategoryEntry');
         const parentLinkLineWhenChildIgnored = window.getComputedStyle(firstLi.querySelector('.tp-cat-row > a')).textDecorationLine;
+        const parentToggleEl = firstLi?.querySelector('.tp-cat-row > .tp-cat-toggle');
+        const parentHasIgnoredExpanded = !!firstLi?.classList.contains('tp-cat-has-ignored');
+        const parentToggleColorExpanded = parentToggleEl ? window.getComputedStyle(parentToggleEl).color : '';
+
+        // Collapse parent while child is ignored: ancestor marker & amber color must persist
+        if (parentToggleEl) parentToggleEl.click();
+        await new Promise(r => setTimeout(r, 200));
+        const parentHasIgnoredCollapsed = !!firstLi?.classList.contains('tp-cat-has-ignored');
+        const parentToggleColorCollapsed = parentToggleEl ? window.getComputedStyle(parentToggleEl).color : '';
+
+        // Re-expand parent to restore child
+        if (parentToggleEl) parentToggleEl.click();
+        await new Promise(r => setTimeout(r, 60));
+        const childLiRestorable = firstLi?.querySelector('.tp-cat-sublist .tp-cat-item');
 
         // Click unhide on child category via its '+' button
-        const childShowBtn = childLi?.querySelector('.f_IgnoredCategories_Show');
+        const childShowBtn = childLiRestorable?.querySelector('.f_IgnoredCategories_Show');
         if (childShowBtn) childShowBtn.click();
-        await new Promise(r => setTimeout(r, 60));
+        await new Promise(r => setTimeout(r, 200));
 
-        const childIgnoredRestored = childLi?.classList.contains('ignoredCategoryEntry');
-        const childBtnClassRestored = childLi?.querySelector('.ignoreCategory')?.className || '';
-        const childIconClassRestored = childLi?.querySelector('.ignoreCategory i')?.className || '';
+        const childIgnoredRestored = childLiRestorable?.classList.contains('ignoredCategoryEntry');
+        const childBtnClassRestored = childLiRestorable?.querySelector('.ignoreCategory')?.className || '';
+        const childIconClassRestored = childLiRestorable?.querySelector('.ignoreCategory i')?.className || '';
+        const parentHasIgnoredRestored = !!firstLi?.classList.contains('tp-cat-has-ignored');
+        const parentToggleColorRestored = parentToggleEl ? window.getComputedStyle(parentToggleEl).color : '';
+
+        // Disabling parent itself (with no disabled child) must NOT set tp-cat-has-ignored
+        const parentHideBtn = firstLi?.querySelector(':scope > .tp-cat-row > .f_IgnoredCategories_Hide');
+        if (parentHideBtn) parentHideBtn.click();
+        await new Promise(r => setTimeout(r, 60));
+        const parentHasIgnoredWhenSelfDisabled = !!firstLi?.classList.contains('tp-cat-has-ignored');
+        const parentShowBtn = firstLi?.querySelector(':scope > .tp-cat-row > .f_IgnoredCategories_Show');
+        if (parentShowBtn) parentShowBtn.click();
+        await new Promise(r => setTimeout(r, 60));
 
         return {
             enhanced: !!enhanced,
@@ -2544,7 +2569,14 @@ def test_expandable_category_sidebar_interactions(page: Page):
             parentLinkLineWhenChildIgnored,
             childIgnoredRestored: !!childIgnoredRestored,
             childBtnClassRestored,
-            childIconClassRestored
+            childIconClassRestored,
+            parentHasIgnoredExpanded,
+            parentToggleColorExpanded,
+            parentHasIgnoredCollapsed,
+            parentToggleColorCollapsed,
+            parentHasIgnoredRestored,
+            parentToggleColorRestored,
+            parentHasIgnoredWhenSelfDisabled
         };
     }""")
 
@@ -2583,8 +2615,13 @@ def test_expandable_category_sidebar_interactions(page: Page):
     assert res['childIgnoredRestored'] is False
     assert 'f_IgnoredCategories_Hide' in res['childBtnClassRestored']
     assert 'TPIcons-cross' in res['childIconClassRestored']
-    assert 'f_IgnoredCategories_Hide' in res['childBtnClassRestored']
-    assert 'TPIcons-cross' in res['childIconClassRestored']
+    assert res['parentHasIgnoredExpanded'] is True
+    assert res['parentToggleColorExpanded'] == 'rgb(245, 158, 11)'
+    assert res['parentHasIgnoredCollapsed'] is True
+    assert res['parentToggleColorCollapsed'] == 'rgb(245, 158, 11)'
+    assert res['parentHasIgnoredRestored'] is False
+    assert res['parentToggleColorRestored'] != 'rgb(245, 158, 11)'
+    assert res['parentHasIgnoredWhenSelfDisabled'] is False
 
 
 

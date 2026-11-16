@@ -145,6 +145,16 @@ export function indexCategoryData(categories) {
   return { byId, childrenOf, allNodes };
 }
 
+function findCategoryNode(tree, rawId) {
+  if (!tree?.byId || !rawId) return null;
+  const clean = String(rawId).trim();
+  if (!clean) return null;
+  return tree.byId.get(clean) ||
+         tree.byId.get(`c${clean}`) ||
+         tree.byId.get(clean.replace(/^c/i, '')) ||
+         null;
+}
+
 export function hasIgnoredAncestor(node, tree, ignoredIds) {
   if (!node || !tree?.byId || !ignoredIds) return false;
   const ignoredSet = (ignoredIds instanceof Set) ? ignoredIds : new Set(ignoredIds);
@@ -154,10 +164,7 @@ export function hasIgnoredAncestor(node, tree, ignoredIds) {
   let depth = 0;
   while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 20) {
     depth++;
-    const pid = String(curr.parentID).trim();
-    const parentNode = tree.byId.get(pid) ||
-                       tree.byId.get(`c${pid}`) ||
-                       tree.byId.get(pid.replace(/^c/i, ''));
+    const parentNode = findCategoryNode(tree, curr.parentID);
     if (!parentNode) break;
 
     const parentNumeric = String(parentNode.numericId || parentNode.id.replace(/^c/i, '')).trim();
@@ -269,6 +276,30 @@ export function getDoc(doc = null) {
 // Memory cache for the indexed category tree
 let treeIndex = null;
 let treeLoadingPromise = null;
+
+export function getCachedCategoryTree() {
+  return treeIndex && treeIndex.byId && treeIndex.byId.size > 0 ? treeIndex : null;
+}
+
+export function getAncestorsWithIgnored(tree, ignoredIds) {
+  const ancestors = new Set();
+  if (!tree?.byId || tree.byId.size === 0 || !ignoredIds) return ancestors;
+  const ignoredSet = (ignoredIds instanceof Set) ? ignoredIds : new Set(ignoredIds);
+  if (ignoredSet.size === 0) return ancestors;
+
+  for (const rawId of ignoredSet) {
+    let curr = findCategoryNode(tree, rawId);
+    let depth = 0;
+    while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth < 20) {
+      depth++;
+      const parentNode = findCategoryNode(tree, curr.parentID);
+      if (!parentNode) break;
+      ancestors.add(parentNode.id);
+      curr = parentNode;
+    }
+  }
+  return ancestors;
+}
 
 export async function loadNativeCategoryTree(doc = (typeof document !== 'undefined' ? document : null)) {
   if (treeIndex && treeIndex.byId && treeIndex.byId.size > 0) return treeIndex;

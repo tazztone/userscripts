@@ -12,7 +12,8 @@ export * from './category-tree-actions.js';
 import {
   getStoredIdents, getExpandedBranches, saveExpandedBranches,
   toFeedUrl, harvestExistingIdents, isCategoryIgnored, getIgnoredVcatIds,
-  getDoc, loadNativeCategoryTree, hydrateBranchIdents, ensureCategoryIdent,
+  getDoc, loadNativeCategoryTree, getCachedCategoryTree, getAncestorsWithIgnored,
+  hydrateBranchIdents, ensureCategoryIdent,
   evictStoredIdent, parseCategoryIdentsFromText, searchCategoryTree
 } from './category-tree-model.js';
 import {
@@ -77,6 +78,31 @@ export function syncSearchResultsIgnoredState(resultsBox, doc = null) {
   });
 }
 
+function applyHasIgnoredDescendantState(li, toggle, hasIgnored) {
+  if (hasIgnored) {
+    li.classList.add('tp-cat-has-ignored');
+    if (toggle) toggle.title = 'Enthält ausgeblendete Unterkategorien';
+  } else {
+    li.classList.remove('tp-cat-has-ignored');
+    if (toggle) toggle.title = 'Unterkategorien anzeigen';
+  }
+}
+
+function hasIgnoredDomDescendant(li) {
+  const sublist = li.querySelector?.(':scope > .tp-cat-sublist');
+  return !!sublist?.querySelector?.('.ignoredCategoryEntry');
+}
+
+function syncSidebarAncestorStates(sidebar, tree, ignoredIds) {
+  const ancestors = getAncestorsWithIgnored(tree, ignoredIds);
+  sidebar.querySelectorAll('li.tp-cat-node').forEach(li => {
+    const row = li.querySelector?.(':scope > .tp-cat-row') || li.firstElementChild || li;
+    const toggle = row?.querySelector?.('.tp-cat-toggle');
+    const catId = li.dataset?.catId || '';
+    applyHasIgnoredDescendantState(li, toggle, ancestors.has(catId) || hasIgnoredDomDescendant(li));
+  });
+}
+
 export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'undefined' ? document?.querySelector?.('.Plugin_CategoryMainSelectionLeft') : null)) {
   if (!sidebar?.querySelectorAll) return;
   const doc = sidebar.ownerDocument || (typeof document !== 'undefined' ? document : null);
@@ -91,6 +117,16 @@ export function syncCategoryTreeIgnoredState(sidebar = (typeof document !== 'und
 
     applyIgnoredElementState(li, span, ignoredIds.has(String(vcatId).trim()), row.querySelector?.('.tp-cat-toggle'));
   });
+
+  const cachedTree = getCachedCategoryTree();
+  syncSidebarAncestorStates(sidebar, cachedTree, ignoredIds);
+
+  if (!cachedTree && ignoredIds.size > 0) {
+    loadNativeCategoryTree(doc).then(tree => {
+      if (!tree) return;
+      syncSidebarAncestorStates(sidebar, tree, getIgnoredVcatIds(doc));
+    }).catch(() => {});
+  }
 
   const resultsBox = sidebar.querySelector('.tp-cat-search-results');
   if (resultsBox) {
@@ -141,6 +177,7 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
   const storedIdents = getStoredIdents();
   const doc = parentEl?.ownerDocument || (typeof document !== 'undefined' ? document : null);
   const ignoredIds = getIgnoredVcatIds(doc);
+  const ancestors = getAncestorsWithIgnored(getCachedCategoryTree(), ignoredIds);
 
   for (const child of children) {
     const li = document.createElement('li');
@@ -165,6 +202,7 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
       toggle.setAttribute('aria-expanded', 'false');
       toggle.textContent = '▸';
       toggle.title = 'Unterkategorien anzeigen';
+      applyHasIgnoredDescendantState(li, toggle, ancestors.has(child.id));
       bindTreeBranchToggle(toggle, child.id, li, currentPath, expandedBranches, feedUrl);
       row.appendChild(toggle);
     } else {

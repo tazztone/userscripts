@@ -82,10 +82,19 @@ export const STYLES_CATEGORY_TREE = `
     margin: 0 !important; font-size: 11px !important; color: inherit !important; opacity: 0.55 !important;
     width: 24px !important; height: 24px !important; line-height: 24px !important; text-align: center !important; flex: 0 0 24px !important;
     display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 4px !important;
-    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease !important;
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, color 0.15s ease !important;
   }
   .tp-cat-toggle:hover { opacity: 0.95 !important; color: var(--tp-blue-soft, #38bdf8) !important; background: rgba(56, 189, 248, 0.1) !important; }
   .tp-cat-toggle:focus-visible { opacity: 1 !important; outline: 2px solid var(--tp-focus) !important; outline-offset: 1px !important; }
+  li.tp-cat-has-ignored > .tp-cat-row > .tp-cat-toggle {
+    color: var(--tp-warn, #f59e0b) !important;
+    opacity: 0.95 !important;
+  }
+  li.tp-cat-has-ignored > .tp-cat-row > .tp-cat-toggle:hover {
+    opacity: 1 !important;
+    color: var(--tp-warn, #f59e0b) !important;
+    background: rgba(245, 158, 11, 0.14) !important;
+  }
   .tp-cat-spacer { display: inline-block !important; width: 24px !important; height: 24px !important; margin: 0 !important; flex: 0 0 24px !important; }
 
   /* Shared Mute/Restore Controls (Vanilla: hidden until hover, subtle plus when ignored) */
