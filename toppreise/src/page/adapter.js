@@ -6,6 +6,7 @@
 
 import { CONFIG } from '../state/config.js';
 import { parsePrice } from '../domain/price.js';
+import { SELECTORS } from './selectors.js';
 
 export function clearCardCache(card) {
   if (!card) return;
@@ -114,13 +115,47 @@ export function getDetailProductId() {
   return null;
 }
 
+const DETAIL_EXCLUDED_PARENTS = `${SELECTORS.cards.excludedParents}, .Plugin_Product, .mixedBrowsingListProduct, .price_information_product_small, .small-box`;
+
+function queryDetailPriceEl(sel) {
+  if (typeof document.querySelectorAll === 'function') {
+    for (const el of document.querySelectorAll(sel)) {
+      if (el.closest?.(DETAIL_EXCLUDED_PARENTS)) continue;
+      if (parsePrice(el.textContent) > 0) return el;
+    }
+    return null;
+  }
+  const el = document.querySelector(sel);
+  if (!el || el.closest?.(DETAIL_EXCLUDED_PARENTS)) return null;
+  return el;
+}
+
 export function getDetailLowestPrice() {
   const shipping = isShippingPriceActive();
-  const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
-  const selectors = shipping ? ['.shippingPrice .Plugin_Price'] : productFirst;
+  const productFirst = [
+    '.f_productHeadPrice .productPrice .Plugin_Price',
+    '.Plugin_ProductDetailsInfo .productPrice .Plugin_Price',
+    '.price_information_product .productPrice .Plugin_Price',
+    '.productPrice .Plugin_Price',
+    '.product_price .Plugin_Price',
+    '.lowestPrice .Plugin_Price',
+    '.priceComparison .Plugin_Price',
+    '.tableDealerPriceList .Plugin_Price',
+    '.Plugin_Price'
+  ];
+  const shippingFirst = [
+    '.f_productHeadPrice .shippingPrice .Plugin_Price',
+    '.Plugin_ProductDetailsInfo .shippingPrice .Plugin_Price',
+    '.price_information_product .shippingPrice .Plugin_Price',
+    '.shippingPrice .Plugin_Price'
+  ];
+  const selectors = shipping ? shippingFirst : productFirst;
   for (const sel of selectors) {
-    const priceEl = document.querySelector(sel);
-    if (priceEl) return { price: parsePrice(priceEl.textContent), basis: shipping ? 'shipping' : 'product' };
+    const priceEl = queryDetailPriceEl(sel);
+    if (priceEl) {
+      const price = parsePrice(priceEl.textContent);
+      if (price > 0) return { price, basis: shipping ? 'shipping' : 'product' };
+    }
   }
   return { price: 0, basis: null };
 }

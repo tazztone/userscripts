@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.508
+// @version      2.18.509
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @match        https://www.toppreise.ch/*
@@ -5859,6 +5859,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   function clearCardCache(card) {
     if (!card) return;
     delete card._tpDealerRows;
@@ -5966,13 +5967,47 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
+  const DETAIL_EXCLUDED_PARENTS = `${SELECTORS.cards.excludedParents}, .Plugin_Product, .mixedBrowsingListProduct, .price_information_product_small, .small-box`;
+
+  function queryDetailPriceEl(sel) {
+    if (typeof document.querySelectorAll === 'function') {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el.closest?.(DETAIL_EXCLUDED_PARENTS)) continue;
+        if (parsePrice(el.textContent) > 0) return el;
+      }
+      return null;
+    }
+    const el = document.querySelector(sel);
+    if (!el || el.closest?.(DETAIL_EXCLUDED_PARENTS)) return null;
+    return el;
+  }
+
   function getDetailLowestPrice() {
     const shipping = isShippingPriceActive();
-    const productFirst = ['.productPrice .Plugin_Price', '.product_price .Plugin_Price', '.lowestPrice .Plugin_Price', '.priceComparison .Plugin_Price', '.tableDealerPriceList .Plugin_Price', '.Plugin_Price'];
-    const selectors = shipping ? ['.shippingPrice .Plugin_Price'] : productFirst;
+    const productFirst = [
+      '.f_productHeadPrice .productPrice .Plugin_Price',
+      '.Plugin_ProductDetailsInfo .productPrice .Plugin_Price',
+      '.price_information_product .productPrice .Plugin_Price',
+      '.productPrice .Plugin_Price',
+      '.product_price .Plugin_Price',
+      '.lowestPrice .Plugin_Price',
+      '.priceComparison .Plugin_Price',
+      '.tableDealerPriceList .Plugin_Price',
+      '.Plugin_Price'
+    ];
+    const shippingFirst = [
+      '.f_productHeadPrice .shippingPrice .Plugin_Price',
+      '.Plugin_ProductDetailsInfo .shippingPrice .Plugin_Price',
+      '.price_information_product .shippingPrice .Plugin_Price',
+      '.shippingPrice .Plugin_Price'
+    ];
+    const selectors = shipping ? shippingFirst : productFirst;
     for (const sel of selectors) {
-      const priceEl = document.querySelector(sel);
-      if (priceEl) return { price: parsePrice(priceEl.textContent), basis: shipping ? 'shipping' : 'product' };
+      const priceEl = queryDetailPriceEl(sel);
+      if (priceEl) {
+        const price = parsePrice(priceEl.textContent);
+        if (price > 0) return { price, basis: shipping ? 'shipping' : 'product' };
+      }
     }
     return { price: 0, basis: null };
   }
@@ -16291,6 +16326,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let detailRun = 0;
 
   const removeDetailDecorations = () => {
@@ -16301,18 +16337,26 @@ const SHADOW_MODAL_STYLES = `
   };
 
   function getDetailHeadings() {
-    const candidates = [
-      ...document.querySelectorAll('.Plugin_ProductDetailsInfo h1'),
-      ...document.querySelectorAll('h1.product-name'),
-      ...document.querySelectorAll('.Plugin_ProductHeading h1'),
-      ...document.querySelectorAll('.productHeading h1'),
-      ...document.querySelectorAll('.product_title h1'),
-      ...document.querySelectorAll('h1.productTitle'),
-      ...document.querySelectorAll('h1')
+    const specific = [
+      '.Plugin_ProductDetailsInfo h1',
+      'h1.product-name',
+      '.Plugin_ProductHeading h1',
+      '.productHeading h1',
+      '.product_title h1',
+      'h1.productTitle'
     ];
     const unique = [];
-    for (const el of candidates) {
-      if (el && !unique.includes(el)) unique.push(el);
+    for (const sel of specific) {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el && !unique.includes(el)) unique.push(el);
+      }
+    }
+    if (unique.length === 0) {
+      for (const el of document.querySelectorAll('h1')) {
+        if (el && !el.closest?.('.fc-dialog-container, .fc-consent-root, header, nav, footer') && !unique.includes(el)) {
+          unique.push(el);
+        }
+      }
     }
     return unique;
   }
@@ -16389,6 +16433,7 @@ const SHADOW_MODAL_STYLES = `
     if (targets.length === 0) {
       const fallbacks = document.querySelectorAll('.shippingText, .priceContainer, .Plugin_PriceInformation, .Plugin_Price');
       for (const fb of fallbacks) {
+        if (fb.closest?.(SELECTORS.cards.excludedParents)) continue;
         if (!targets.includes(fb)) targets.push(fb);
       }
     }
@@ -16466,18 +16511,20 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl }) {
+  function createDetailShareBtn(payload) {
     const shareBtn = document.createElement('button');
     shareBtn.type = 'button';
     shareBtn.className = 'tp-detail-share-btn';
     shareBtn.textContent = '📤';
     shareBtn.title = 'Deal / Preis in Discord teilen';
     shareBtn.setAttribute('aria-label', 'Deal in Discord teilen');
+    shareBtn._tpSharePayload = payload;
 
     shareBtn.addEventListener('click', async e => {
       e.preventDefault();
       e.stopPropagation();
       if (shareBtn.disabled) return;
+      const { pid, currentPrice, priceBasis, stats, title, url, imageUrl } = shareBtn._tpSharePayload || {};
       document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
         b.disabled = true;
         b.classList.add('tp-share-loading');
@@ -16509,6 +16556,8 @@ const SHADOW_MODAL_STYLES = `
       return;
     }
 
+    const payload = { pid, currentPrice, priceBasis, stats, title, url, imageUrl };
+
     const bellSelectors = [
       '.f_priceContainer .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
       '.f_priceContainerFixIE .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
@@ -16539,9 +16588,11 @@ const SHADOW_MODAL_STYLES = `
     if (bellEls.length === 0) {
       let shareBtn = document.getElementById('tp-detail-share-btn');
       if (!shareBtn) {
-        shareBtn = createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+        shareBtn = createDetailShareBtn(payload);
         shareBtn.id = 'tp-detail-share-btn';
         document.body?.appendChild(shareBtn);
+      } else {
+        shareBtn._tpSharePayload = payload;
       }
       shareBtn.classList.toggle('tp-share-done', isShared);
       return;
@@ -16555,13 +16606,15 @@ const SHADOW_MODAL_STYLES = `
       const parent = anchor.parentElement || bellEl.parentElement;
       let shareBtn = parent?.querySelector?.('.tp-detail-share-btn');
       if (!shareBtn) {
-        shareBtn = createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+        shareBtn = createDetailShareBtn(payload);
         if (i === 0 && !document.getElementById('tp-detail-share-btn')) {
           shareBtn.id = 'tp-detail-share-btn';
         }
         if (anchor.after) anchor.after(shareBtn);
         else if (anchor.nextElementSibling) parent.insertBefore(shareBtn, anchor.nextElementSibling);
         else parent.appendChild(shareBtn);
+      } else {
+        shareBtn._tpSharePayload = payload;
       }
       shareBtn.classList.toggle('tp-share-done', isShared);
     }
@@ -17015,7 +17068,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.508';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.509';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

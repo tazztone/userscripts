@@ -180,6 +180,35 @@ describe('Page Adapter Layer', () => {
       });
       delete globalThis.document;
     });
+
+    it('skips header dropdown and carousel prices in favor of the detail product price', () => {
+      const headerPrice = {
+        textContent: '294.90',
+        closest: sel => (sel.includes('.DropDownMenuList') ? {} : null)
+      };
+      const carouselPrice = {
+        textContent: '359.00',
+        closest: sel => (sel.includes('.Plugin_Product') ? {} : null)
+      };
+      const detailPrice = {
+        textContent: '999.00',
+        closest: () => null
+      };
+      globalThis.document = {
+        querySelectorAll: sel => {
+          if (sel === '.shippingPrice .Plugin_Price') return [headerPrice, carouselPrice, detailPrice];
+          if (sel === '.productPrice .Plugin_Price') return [headerPrice, carouselPrice, detailPrice];
+          return [];
+        }
+      };
+      withConfig('USE_SHIPPING_PRICE', true, () => {
+        assert.deepEqual(getDetailLowestPrice(), { price: 999, basis: 'shipping' });
+      });
+      withConfig('USE_SHIPPING_PRICE', false, () => {
+        assert.deepEqual(getDetailLowestPrice(), { price: 999, basis: 'product' });
+      });
+      delete globalThis.document;
+    });
   });
 
   describe('triggerProcessListings', () => {

@@ -5,6 +5,7 @@
  */
 
 import { getDetailProductId, getDetailLowestPrice, isShippingPriceActive } from '../page/adapter.js';
+import { SELECTORS } from '../page/selectors.js';
 import { getCardStats } from '../page/cards.js';
 import { getDisplayDelta, medianHorizonLabel, vortiefDropPct, getLevelPct } from '../domain/deal-score.js';
 import { fetchSingleProductPriceStats } from '../scanner/scanner.js';
@@ -29,18 +30,26 @@ export const removeDetailDecorations = () => {
 };
 
 export function getDetailHeadings() {
-  const candidates = [
-    ...document.querySelectorAll('.Plugin_ProductDetailsInfo h1'),
-    ...document.querySelectorAll('h1.product-name'),
-    ...document.querySelectorAll('.Plugin_ProductHeading h1'),
-    ...document.querySelectorAll('.productHeading h1'),
-    ...document.querySelectorAll('.product_title h1'),
-    ...document.querySelectorAll('h1.productTitle'),
-    ...document.querySelectorAll('h1')
+  const specific = [
+    '.Plugin_ProductDetailsInfo h1',
+    'h1.product-name',
+    '.Plugin_ProductHeading h1',
+    '.productHeading h1',
+    '.product_title h1',
+    'h1.productTitle'
   ];
   const unique = [];
-  for (const el of candidates) {
-    if (el && !unique.includes(el)) unique.push(el);
+  for (const sel of specific) {
+    for (const el of document.querySelectorAll(sel)) {
+      if (el && !unique.includes(el)) unique.push(el);
+    }
+  }
+  if (unique.length === 0) {
+    for (const el of document.querySelectorAll('h1')) {
+      if (el && !el.closest?.('.fc-dialog-container, .fc-consent-root, header, nav, footer') && !unique.includes(el)) {
+        unique.push(el);
+      }
+    }
   }
   return unique;
 }
@@ -117,6 +126,7 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
   if (targets.length === 0) {
     const fallbacks = document.querySelectorAll('.shippingText, .priceContainer, .Plugin_PriceInformation, .Plugin_Price');
     for (const fb of fallbacks) {
+      if (fb.closest?.(SELECTORS.cards.excludedParents)) continue;
       if (!targets.includes(fb)) targets.push(fb);
     }
   }
@@ -194,18 +204,20 @@ export function renderDetailSubline(stats, currentPrice, priceBasis) {
   }
 }
 
-function createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl }) {
+function createDetailShareBtn(payload) {
   const shareBtn = document.createElement('button');
   shareBtn.type = 'button';
   shareBtn.className = 'tp-detail-share-btn';
   shareBtn.textContent = '📤';
   shareBtn.title = 'Deal / Preis in Discord teilen';
   shareBtn.setAttribute('aria-label', 'Deal in Discord teilen');
+  shareBtn._tpSharePayload = payload;
 
   shareBtn.addEventListener('click', async e => {
     e.preventDefault();
     e.stopPropagation();
     if (shareBtn.disabled) return;
+    const { pid, currentPrice, priceBasis, stats, title, url, imageUrl } = shareBtn._tpSharePayload || {};
     document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
       b.disabled = true;
       b.classList.add('tp-share-loading');
@@ -237,6 +249,8 @@ export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, 
     return;
   }
 
+  const payload = { pid, currentPrice, priceBasis, stats, title, url, imageUrl };
+
   const bellSelectors = [
     '.f_priceContainer .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
     '.f_priceContainerFixIE .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
@@ -267,9 +281,11 @@ export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, 
   if (bellEls.length === 0) {
     let shareBtn = document.getElementById('tp-detail-share-btn');
     if (!shareBtn) {
-      shareBtn = createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+      shareBtn = createDetailShareBtn(payload);
       shareBtn.id = 'tp-detail-share-btn';
       document.body?.appendChild(shareBtn);
+    } else {
+      shareBtn._tpSharePayload = payload;
     }
     shareBtn.classList.toggle('tp-share-done', isShared);
     return;
@@ -283,13 +299,15 @@ export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, 
     const parent = anchor.parentElement || bellEl.parentElement;
     let shareBtn = parent?.querySelector?.('.tp-detail-share-btn');
     if (!shareBtn) {
-      shareBtn = createDetailShareBtn({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+      shareBtn = createDetailShareBtn(payload);
       if (i === 0 && !document.getElementById('tp-detail-share-btn')) {
         shareBtn.id = 'tp-detail-share-btn';
       }
       if (anchor.after) anchor.after(shareBtn);
       else if (anchor.nextElementSibling) parent.insertBefore(shareBtn, anchor.nextElementSibling);
       else parent.appendChild(shareBtn);
+    } else {
+      shareBtn._tpSharePayload = payload;
     }
     shareBtn.classList.toggle('tp-share-done', isShared);
   }

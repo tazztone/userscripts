@@ -562,4 +562,37 @@ describe('Product Detail Page Feature Suite', () => {
     assert.equal(spark.dataset.tpSparkSig, firstSig, 'Signature must be stable across calls');
     assert.equal(spark.firstElementChild, initialSvg, 'SVG must not be replaced');
   });
+
+  it('renderDetailShareButton updates stored share payload when re-rendered with a new price', () => {
+    const bell = mockNode('div');
+    bell.className = 'Plugin_NewInfoMailButton';
+    document.body.appendChild(bell);
+
+    renderDetailShareButton({
+      pid: '1148965',
+      currentPrice: 294.90,
+      priceBasis: 'shipping',
+      stats: { tiefstpreis: 294.90 },
+      title: 'MSI Prestige 13 AI',
+      url: 'https://www.toppreise.ch/p1148965',
+      imageUrl: ''
+    });
+
+    const shareBtn = document.getElementById('tp-detail-share-btn');
+    assert.equal(shareBtn._tpSharePayload.currentPrice, 294.90);
+
+    renderDetailShareButton({
+      pid: '1148965',
+      currentPrice: 999.00,
+      priceBasis: 'product',
+      stats: { tiefstpreis: 999.00 },
+      title: 'MSI Prestige 13 AI',
+      url: 'https://www.toppreise.ch/p1148965',
+      imageUrl: ''
+    });
+
+    assert.equal(document.getElementById('tp-detail-share-btn'), shareBtn);
+    assert.equal(shareBtn._tpSharePayload.currentPrice, 999.00);
+    assert.equal(shareBtn._tpSharePayload.priceBasis, 'product');
+  });
 });
