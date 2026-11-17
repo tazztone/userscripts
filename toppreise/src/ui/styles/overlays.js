@@ -618,6 +618,16 @@ export const STYLES_OVERLAYS = `
   .tp-ai-body.tp-ai-error {
     border-left-color: #ef4444 !important;
   }
+  .tp-ai-error-msg {
+    color: #ef4444 !important;
+    font-weight: 600 !important;
+  }
+  .tp-ai-error-help {
+    display: inline-block !important;
+    margin-top: 4px !important;
+    font-size: 12px !important;
+    opacity: 0.85 !important;
+  }
   @media (max-width: 480px) {
     .tp-popout-backdrop { padding: 10px !important; }
     .tp-popout-panel,

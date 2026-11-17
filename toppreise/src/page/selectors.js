@@ -22,6 +22,7 @@ export const SELECTORS = Object.freeze({
     fallbackProduct: '.priceContainer.productPrice .Plugin_Price',
     shippingContainer: '.priceContainer.shippingPrice',
     productContainer: '.priceContainer.productPrice',
+    anyContainer: '.priceContainer',
     chartPrice: '.chartProductPrice .Plugin_Price, .Plugin_Price',
     genericPriceMatch: '.Plugin_Price, [class*="Price"], [class*="price"]',
     genericDiffMatch: '[class*="Differenz"], [class*="differenz"]'
@@ -37,5 +38,18 @@ export const SELECTORS = Object.freeze({
     ]),
     breadcrumbs: '.breadcrumb a:last-of-type, [class*="breadcrumb"] a:last-of-type',
     activeStoreFilters: '.filters .f_remove_filter[data-target-type="df"]'
+  }),
+  alarm: Object.freeze({
+    form: '.Plugin_NewInfoMailForm',
+    triggers: Object.freeze([
+      '.Plugin_NewInfoMailButton a[data-ajax-form-url]',
+      'a.f_showNewInfoMailFormDialog[data-ajax-form-url]',
+      'a[data-ajax-form-url]'
+    ]),
+    lazyDialog: 'template.f_lazyDialog',
+    dialog: '.AbstractDialog_NewInfoMailFormDialog',
+    closeButton: '.AbstractDialog_CloseButton',
+    content: '.AbstractDialog_Content',
+    modal: '.modal'
   })
 });

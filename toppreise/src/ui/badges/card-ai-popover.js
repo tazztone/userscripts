@@ -23,6 +23,21 @@ export function formatVerdictHtml(text) {
     .replace(/(^|\n)[ \t]*[-*][ \t]+/g, '$1• ');
 }
 
+// Error text is transport-owned (today always a fixed string), but it must
+// never be trusted as HTML. Build nodes so future error sources stay inert.
+export function renderAiError(el, msg, doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!el || !doc) return;
+  const warn = doc.createElement('span');
+  warn.className = 'tp-ai-error-msg';
+  warn.textContent = `⚠️ ${msg}`;
+
+  const help = doc.createElement('span');
+  help.className = 'tp-ai-error-help';
+  help.textContent = 'Du kannst stattdessen direkt die Google-Suche öffnen.';
+
+  el.replaceChildren(warn, doc.createElement('br'), help);
+}
+
 let activeAiPopoverCleanup = null;
 
 export function closeAiPopover() {
@@ -99,7 +114,7 @@ export function openAiPopover(options = {}) {
   const renderError = (msg) => {
     clearTimers();
     contentEl.className = 'tp-ai-body tp-ai-error';
-    contentEl.innerHTML = `<span style="color:#ef4444;font-weight:600;">⚠️ ${msg}</span><br><span style="font-size:12px;opacity:0.85;margin-top:4px;display:inline-block;">Du kannst stattdessen direkt die Google-Suche öffnen.</span>`;
+    renderAiError(contentEl, msg);
     copyBtn.disabled = true;
     retryBtn.hidden = false;
   };

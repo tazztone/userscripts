@@ -1,0 +1,38 @@
+<!-- Trimmed capture of the live NewInfoMailForm response (no <form> element;
+     the site uses div.f_form + jQuery). Includes hostile nodes to prove the
+     import path strips scripts, inline handlers and unsafe URL schemes. -->
+<div id="Plugin_NewInfoMailForm_316908422" data-context-hash="123456" data-ajax-url="/plugins/infomails/NewInfoMailForm" class="Plugin_NewInfoMailForm showShippingPrice">
+  <script>window.__tpFormScriptRan = true;</script>
+  <div class="f_form f_checkBeforeSend f_formNotValid row m-0" onsubmit="return false;">
+    <div class="col-12 p-2">
+      <div class="row mb-2">
+        <div class="col-auto">
+          <img id="Plugin_Image_2274784449" class="Plugin_Image" src="//imgsrv.toppreise.ch/img/797571/70-f3dabf" srcset="//imgsrv.toppreise.ch/img/797571/140-f3dabf 2x" alt="RTX 4090" title="RTX 4090">
+        </div>
+        <div class="col">
+          <div class="priceContainer shippingPrice"><span class="currency">CHF </span><div class="Plugin_Price">1000.00</div></div>
+          <div class="priceContainer productPrice"><span class="currency">CHF </span><div class="Plugin_Price">1000.00</div></div>
+        </div>
+      </div>
+      <input type="hidden" name="im_nimf_pid" value="797571" class="f_NewInfoMailForm_ProductId">
+      <input type="hidden" name="im_nimf_cks" value="testcks" class="f_checkSum">
+      <input type="checkbox" name="im_nimf_pa" value="1" id="f_NewInfoMailForm_priceActivatedCheckbox" checked="checked">
+      <input type="text" id="f_NewInfoMailForm_priceFrom" name="im_nimf_pf" value="1000.00" class="f_inputfield inputField px-2">
+      <input type="checkbox" name="im_nimf_aa" value="1" id="f_NewInfoMailForm_availablityActivatedCheckbox">
+      <input type="hidden" name="im_nimf_du" class="f_selectedValue f_NewInfoMailForm_legalUntilDate" value="90">
+      <ul class="f_duration">
+        <li class="selected" data-value="90">3 Monate</li>
+        <li data-value="180">6 Monate</li>
+        <li data-value="365">1 Jahr</li>
+        <li data-value="730">2 Jahre</li>
+      </ul>
+      <input type="checkbox" name="im_nimf_prtrm" id="im_nimf_prtrm">
+      <input type="submit" class="f_submitbtn btn" value="Übernehmen">
+      <a href="javascript:alert(1)" class="f_feedback-leak">leak</a>
+      <template id="tp-hostile-template">
+        <script>window.__tpTemplateScriptRan = true;</script>
+        <img src="x" onerror="window.__tpTemplateOnError = true" alt="">
+      </template>
+    </div>
+  </div>
+</div>

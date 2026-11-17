@@ -55,10 +55,27 @@ export async function fetchFeedHtml(url, customFetch = undefined, { signal = nul
   return body;
 }
 
-function queryLivePriceText(card) {
-  const cleanPlugin = card.querySelector('.Plugin_Price:not([class*="tp-"])');
+function queryLivePriceText(root) {
+  const cleanPlugin = root.querySelector('.Plugin_Price:not([class*="tp-"])');
   if (cleanPlugin) return cleanPlugin.textContent?.trim() || '';
-  return card.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim() || '';
+  return root.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim() || '';
+}
+
+// Resolve both sides with the SAME selector so the copy never compares (or
+// replaces) different subtrees when only one side has a mainInfo wrapper.
+const PRICE_CONTAINER_SELECTORS = [
+  SELECTORS.price.mainInfo,
+  SELECTORS.price.anyContainer
+];
+
+export function resolvePriceContainerPair(inCard, liveCard) {
+  if (!inCard || !liveCard) return [null, null];
+  for (const sel of PRICE_CONTAINER_SELECTORS) {
+    const incoming = inCard.querySelector(sel);
+    const live = liveCard.querySelector(sel);
+    if (incoming && live) return [incoming, live];
+  }
+  return [null, null];
 }
 
 export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
@@ -107,12 +124,15 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
 
     const existing = liveMap.get(pid);
     if (existing) {
-      const inPrice = queryLivePriceText(inCard);
-      const livePrice = queryLivePriceText(existing);
-      if (inPrice && livePrice && inPrice !== livePrice) {
-        const inContainer = inCard.querySelector(SELECTORS.price.mainInfo) || inCard.querySelector('.priceContainer');
-        const liveContainer = existing.querySelector(SELECTORS.price.mainInfo) || existing.querySelector('.priceContainer');
-        if (inContainer && liveContainer) {
+      const [inContainer, liveContainer] = resolvePriceContainerPair(inCard, existing);
+      if (inContainer && liveContainer) {
+        // Compare inside the same subtree that would be copied: a card-level
+        // first `.Plugin_Price` can be a decoy (e.g. a competing reference).
+        const inPrice = queryLivePriceText(inContainer);
+        const livePrice = queryLivePriceText(liveContainer);
+        if (inPrice && livePrice && inPrice !== livePrice) {
+          // TP-owned children (alarm bell, sparkline) are re-created by the
+          // triggerProcessListings pass that follows the merge.
           liveContainer.innerHTML = inContainer.innerHTML;
           clearCardCache(existing);
           updated++;

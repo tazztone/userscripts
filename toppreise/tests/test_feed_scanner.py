@@ -1,4 +1,6 @@
 import re
+from pathlib import Path
+
 from playwright.sync_api import Page, expect
 
 from conftest import seed_verified_deal, mock_pricechart, drop_store_filter, open_filter_popover, open_settings
@@ -204,6 +206,86 @@ def test_card_alarm_bell_rendering_and_interaction(page: Page):
     page.wait_for_selector('#mock-alarm-dialog', state='visible')
     assert page.locator('#mock-alarm-dialog').is_visible()
 
+
+def test_card_alarm_fetches_fallback_dialog_and_sanitizes(page: Page):
+    """Without a native bell/dialog, the card bell fetches button + form,
+    imports them inertly, and fills the target price through the modal pass."""
+    fixtures = Path(__file__).resolve().parent / 'fixtures'
+    button_html = (fixtures / 'mock_new_info_mail_button.html').read_text(encoding='utf-8')
+    form_html = (fixtures / 'mock_new_info_mail_form.html').read_text(encoding='utf-8')
+    initial_bells = page.locator('.Plugin_NewInfoMailButton').count()
+
+    page.evaluate("() => document.querySelector('#mock-alarm-dialog')?.remove()")
+    page.evaluate("""({ buttonHtml, formHtml }) => {
+        window.__alarmRequests = [];
+        const origFetch = window.fetch;
+        window.fetch = async (url, opts) => {
+            const target = String(url);
+            window.__alarmRequests.push(target);
+            if (target.includes('/plugins/infomails/NewInfoMailButton')) {
+                return { ok: true, status: 200, text: async () => buttonHtml };
+            }
+            if (target.includes('/plugins/infomails/NewInfoMailForm')) {
+                return { ok: true, status: 200, text: async () => formHtml };
+            }
+            return origFetch(url, opts);
+        };
+    }""", {'buttonHtml': button_html, 'formHtml': form_html})
+
+    # DOM click: this test targets handler wiring, not pointer geometry.
+    page.evaluate("() => document.querySelector('#card-cheapest .tp-card-alarm-btn').click()")
+
+    dialog = page.locator('.AbstractDialog_NewInfoMailFormDialog:not(#mock-alarm-dialog)')
+    # The shell is an out-of-flow container (zero own box); the fixed modal
+    # child is what becomes visible.
+    dialog.locator('.modal-content').wait_for(state='visible')
+
+    # The modal pass filled the fetched form (60% of CHF 1000.00).
+    page.wait_for_function("() => document.querySelector('#f_NewInfoMailForm_priceFrom')?.value === '600.00'")
+    assert dialog.locator('#f_NewInfoMailForm_priceFrom').input_value() == '600.00'
+    assert dialog.locator('input[name="im_nimf_du"]').input_value() == '730'
+
+    # Form request: expected endpoint, dialog context hash + language.
+    form_requests = [u for u in page.evaluate("() => window.__alarmRequests") if '/NewInfoMailForm' in u]
+    assert form_requests
+    assert all('im_nimf_ch=123456' in u for u in form_requests)
+    assert all('lang=de' in u for u in form_requests)
+    assert all('im_nimf_pid=797571' in u for u in form_requests)
+
+    # No executable or unsafe imported content survived (scripts inside
+    # <template> content included).
+    leaks = page.evaluate("""() => {
+        const dialog = document.querySelector('.AbstractDialog_NewInfoMailFormDialog:not(#mock-alarm-dialog)');
+        const attrs = [...dialog.querySelectorAll('*')].flatMap(el => [...el.attributes]);
+        const templateContent = [...dialog.querySelectorAll('template')]
+            .flatMap(t => [...t.content.querySelectorAll('*')]);
+        const templateAttrs = templateContent.flatMap(el => [...el.attributes]);
+        const unsafe = /^(javascript|vbscript|data):/i;
+        return {
+            scripts: dialog.querySelectorAll('script').length,
+            templateScripts: templateContent.filter(el => el.tagName === 'SCRIPT').length,
+            handlers: attrs.filter(a => a.name.toLowerCase().startsWith('on')).length,
+            templateHandlers: templateAttrs.filter(a => a.name.toLowerCase().startsWith('on')).length,
+            unsafeUrls: attrs.filter(a => unsafe.test(String(a.value).replace(/[\\u0000-\\u001F\\u007F\\s]/g, ''))).length,
+            templateUnsafeUrls: templateAttrs.filter(a => unsafe.test(String(a.value).trim())).length
+        };
+    }""")
+    assert leaks == {
+        'scripts': 0, 'templateScripts': 0,
+        'handlers': 0, 'templateHandlers': 0,
+        'unsafeUrls': 0, 'templateUnsafeUrls': 0
+    }
+    assert page.evaluate("() => window.__tpSanitizeLeak") is None
+    assert page.evaluate("() => window.__tpFormScriptRan") is None
+    assert page.evaluate("() => window.__tpOnError") is None
+    assert page.evaluate("() => window.__tpTemplateScriptRan") is None
+    assert page.evaluate("() => window.__tpTemplateOnError") is None
+
+    # Close button dismisses the materialized dialog, and no synthetic
+    # trigger wrapper was left in the page.
+    page.evaluate("() => document.querySelector('.AbstractDialog_NewInfoMailFormDialog:not(#mock-alarm-dialog) .AbstractDialog_CloseButton').click()")
+    dialog.wait_for(state='detached')
+    assert page.locator('.Plugin_NewInfoMailButton').count() == initial_bells
 
 
 def test_alarm_fill_clamps_corrupt_config(page: Page):

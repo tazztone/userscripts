@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   fetchFeedHtml,
   reconcileFeedCards,
+  resolvePriceContainerPair,
   isFeedRefreshing
 } from '../../src/page/feed-refresh.js';
 
@@ -83,7 +84,7 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
           return [];
         },
         querySelector: (sel) => {
-          if (sel.includes('mainInfo') || sel.includes('priceContainer')) return priceContainer;
+          if (sel.includes('PriceInformation') || sel.includes('price_information_product') || sel.includes('priceContainer')) return priceContainer;
           if (sel.includes('Price') || sel.includes('genericPriceMatch')) return priceSpan;
           if (sel.includes('nestedCards')) return null;
           return null;
@@ -193,6 +194,62 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
       const result = reconcileFeedCards(inDoc, liveDoc);
       assert.deepEqual(result, { added: 0, updated: 1 });
       assert.equal(liveCard._tpPriceInfo, undefined);
+    });
+
+    it('compares inside the subtree it copies, ignoring decoy card-level prices', () => {
+      const decoy = {
+        classList: { contains: () => false },
+        textContent: '999.00',
+        matches: () => false,
+        closest: () => null
+      };
+      const withDecoy = (card) => {
+        const original = card.querySelector;
+        card.querySelector = (sel) => {
+          if (sel === '.Plugin_Price:not([class*="tp-"])') return decoy;
+          return original(sel);
+        };
+        return card;
+      };
+
+      const liveCard = withDecoy(createMockCard('101', '149.00'));
+      const liveContainer = createMockContainer([liveCard]);
+      const liveDoc = createMockDoc(liveContainer, [liveCard]);
+      const inCard = withDecoy(createMockCard('101', '119.00'));
+      const inContainer = createMockContainer([inCard]);
+      const inDoc = createMockDoc(inContainer, [inCard]);
+
+      const result = reconcileFeedCards(inDoc, liveDoc);
+      assert.deepEqual(result, { added: 0, updated: 1 });
+      assert.equal(
+        liveCard.querySelector('.Plugin_PriceInformation, .price_information_product').innerHTML,
+        '<span class="Plugin_Price">119.00</span>'
+      );
+    });
+
+    it('resolves the same selector on both sides instead of mismatched subtrees', () => {
+      const inMain = { kind: 'in-main' };
+      const liveMain = { kind: 'live-main' };
+      const inGeneric = { kind: 'in-generic' };
+      const liveGeneric = { kind: 'live-generic' };
+
+      // One side has mainInfo, the other only the generic container: both
+      // sides must resolve through the generic selector, never mains-vs-generic.
+      const inCard = {
+        querySelector: (sel) => sel.includes('Plugin_PriceInformation') ? inMain : inGeneric
+      };
+      const liveCard = {
+        querySelector: (sel) => sel.includes('Plugin_PriceInformation') ? null : liveGeneric
+      };
+
+      const pair = resolvePriceContainerPair(inCard, liveCard);
+      assert.deepEqual(pair, [inGeneric, liveGeneric]);
+    });
+
+    it('returns nulls when neither selector matches on both sides', () => {
+      const card = { querySelector: () => null };
+      assert.deepEqual(resolvePriceContainerPair(card, card), [null, null]);
+      assert.deepEqual(resolvePriceContainerPair(null, card), [null, null]);
     });
   });
 

@@ -112,10 +112,17 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let handle = null;
+    // Watchdog abort: settling alone would leave the manager request running
+    // after we reported a timeout (a late success could still post a message).
+    const abortHandle = () => {
+      try { handle?.abort?.(); } catch {}
+    };
     const timer = timeoutMs > 0
       ? setTimeout(() => {
           if (settled) return;
           settled = true;
+          abortHandle();
           logActivity('warn', source, `${tag}GM timeout after ${timeoutMs}ms: ${safeUrl}`);
           reject(makeTypedError(`GM timeout after ${timeoutMs}ms`, { timeout: true }));
         }, timeoutMs)
@@ -126,7 +133,7 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
     };
 
     try {
-      gmFn({
+      handle = gmFn({
         ...gmOpts,
         timeout: timeoutMs,
         onload: (res) => {

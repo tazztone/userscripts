@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatVerdictHtml, openAiPopover, closeAiPopover } from '../../src/ui/badges/card-ai-popover.js';
+import { formatVerdictHtml, renderAiError, openAiPopover, closeAiPopover } from '../../src/ui/badges/card-ai-popover.js';
 
 describe('card-ai-popover: formatVerdictHtml', () => {
   it('handles null, undefined and empty input', () => {
@@ -36,6 +36,43 @@ describe('card-ai-popover: formatVerdictHtml', () => {
     const input = '**Fazit:**\n- Top Preis\n- Schneller Versand';
     const formatted = formatVerdictHtml(input);
     assert.equal(formatted, '<strong>Fazit:</strong>\n• Top Preis\n• Schneller Versand');
+  });
+});
+
+describe('card-ai-popover: renderAiError', () => {
+  const makeFakeDoc = () => {
+    const createElement = tag => ({
+      tagName: tag.toUpperCase(),
+      className: '',
+      textContent: '',
+      children: [],
+      appendChild(child) { this.children.push(child); return child; },
+      replaceChildren(...children) { this.children = children; }
+    });
+    return { createElement };
+  };
+
+  it('renders an error message as literal text, never as markup', () => {
+    const doc = makeFakeDoc();
+    const host = doc.createElement('div');
+    const payload = '<img src=x onerror="globalThis.__tpPwned=1">';
+
+    renderAiError(host, payload, doc);
+
+    assert.equal(host.children.length, 3);
+    const [warn, br, help] = host.children;
+    assert.equal(warn.tagName, 'SPAN');
+    assert.equal(warn.className, 'tp-ai-error-msg');
+    assert.equal(warn.textContent, `⚠️ ${payload}`);
+    assert.equal(br.tagName, 'BR');
+    assert.equal(help.className, 'tp-ai-error-help');
+    assert.equal(help.textContent, 'Du kannst stattdessen direkt die Google-Suche öffnen.');
+    assert.equal('innerHTML' in host, false);
+  });
+
+  it('is a no-op without a host or document', () => {
+    assert.doesNotThrow(() => renderAiError(null, 'boom'));
+    assert.doesNotThrow(() => renderAiError({ replaceChildren() { throw new Error('must not run'); } }, 'boom', null));
   });
 });
 
@@ -91,6 +128,61 @@ describe('card-ai-popover: lifecycle and closeAiPopover', () => {
       closeAiPopover();
       assert.equal(created.includes(popover), false);
     } finally {
+      globalThis.document = origDoc;
+    }
+  });
+
+  it('renders async fetch failures through DOM nodes, not the error innerHTML path', async () => {
+    const created = [];
+    const origDoc = globalThis.document;
+    globalThis.document = {
+      body: {
+        appendChild(el) {
+          el.isConnected = true;
+          created.push(el);
+          return el;
+        }
+      },
+      addEventListener() {},
+      removeEventListener() {},
+      createElement(tag) {
+        return {
+          tagName: tag.toUpperCase(),
+          id: '',
+          className: '',
+          style: {},
+          attributes: {},
+          children: [],
+          appendChild(ch) { this.children.push(ch); return ch; },
+          replaceChildren(...children) { this.children = children; },
+          setAttribute(k, v) { this.attributes[k] = v; },
+          getAttribute(k) { return this.attributes[k] ?? null; },
+          addEventListener() {},
+          removeEventListener() {},
+          remove() {
+            const idx = created.indexOf(this);
+            if (idx >= 0) created.splice(idx, 1);
+          }
+        };
+      },
+      getElementById(id) {
+        return created.find(c => c.id === id) || null;
+      }
+    };
+
+    try {
+      const popover = openAiPopover({ title: 'Test Smartphone' });
+      // No API key: fetchTavilySummary rejects on the next microtask.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const content = popover.children[0].children[2];
+      assert.equal(content.className, 'tp-ai-body tp-ai-error');
+      assert.equal(content.children.length, 3);
+      assert.equal(content.children[0].className, 'tp-ai-error-msg');
+      assert.match(content.children[0].textContent, /^⚠️ Tavily API-Key fehlt$/);
+      assert.equal(content.children[1].tagName, 'BR');
+      assert.equal(content.children[2].className, 'tp-ai-error-help');
+    } finally {
+      closeAiPopover();
       globalThis.document = origDoc;
     }
   });

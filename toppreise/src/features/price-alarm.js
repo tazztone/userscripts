@@ -11,6 +11,7 @@ import { CONFIG, setAlarmConfigListener } from '../state/config.js';
 import { openSettingsAt } from '../ui/modal.js';
 import { parsePrice } from '../domain/price.js';
 import { isShippingPriceActive } from '../page/adapter.js';
+import { SELECTORS } from '../page/selectors.js';
 import { showToast } from '../ui/toast.js';
 import { fetchWithTimeout } from '../state/net.js';
 
@@ -43,6 +44,83 @@ export function formatAlarmToast(targetPrice, durationDays) {
   }
   return '🔔 Preisalarm gesetzt';
 }
+const ALARM_FORM_PATH = '/plugins/infomails/NewInfoMailForm';
+
+// Fetched markup is same-origin site HTML, but only the expected form URL is
+// accepted and only inert node content is imported into the live page.
+export function resolveAlarmFormUrl(raw, baseHref, { contextHash, lang } = {}) {
+  if (!raw) return null;
+  let url;
+  let base;
+  try {
+    base = new URL(baseHref);
+    url = new URL(raw, base);
+  } catch {
+    return null;
+  }
+  if (url.origin !== base.origin) return null;
+  if (url.pathname !== ALARM_FORM_PATH) return null;
+  // file: is the Playwright fixture origin; production is https.
+  if (!/^(?:https?|file):$/.test(url.protocol)) return null;
+  if (contextHash != null && contextHash !== '') {
+    url.searchParams.set('im_nimf_ch', String(contextHash));
+  }
+  if (lang) url.searchParams.set('lang', String(lang));
+  return url;
+}
+
+const UNSAFE_IMPORT_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link']);
+const URL_ATTRIBUTES = new Set([
+  'href', 'src', 'srcset', 'action', 'formaction', 'poster',
+  'xlink:href', 'data-ajax-url', 'data-ajax-form-url'
+]);
+const BLOCKED_URL_SCHEME = /^(?:javascript|vbscript|data):/i;
+const stripControlChars = value => String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '');
+
+export function isSafeImportedUrl(value, { srcset = false } = {}) {
+  const cleaned = stripControlChars(value);
+  if (!srcset) return !BLOCKED_URL_SCHEME.test(cleaned.replace(/\s+/g, ''));
+  return cleaned.split(',').every(part => {
+    const candidate = part.trim().split(/\s+/)[0] || '';
+    return !candidate || !BLOCKED_URL_SCHEME.test(candidate);
+  });
+}
+
+export function sanitizeImportedNode(root) {
+  if (!root || root.nodeType !== 1) return root;
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    const tag = node.tagName?.toLowerCase();
+    if (UNSAFE_IMPORT_TAGS.has(tag)) {
+      node.remove();
+      continue;
+    }
+    for (const attr of Array.from(node.attributes || [])) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on') || name === 'srcdoc') {
+        node.removeAttribute(attr.name);
+      } else if (URL_ATTRIBUTES.has(name) && !isSafeImportedUrl(attr.value, { srcset: name === 'srcset' })) {
+        node.removeAttribute(attr.name);
+      }
+    }
+    // querySelectorAll does not enter template content, so walk it explicitly.
+    if (tag === 'template' && node.content) {
+      for (const child of Array.from(node.content.children)) stack.push(child);
+    }
+    for (const child of Array.from(node.children || [])) stack.push(child);
+  }
+  return root;
+}
+
+const findAlarmFormTrigger = root => {
+  for (const sel of SELECTORS.alarm.triggers) {
+    const el = root?.querySelector?.(sel);
+    if (el) return el;
+  }
+  return null;
+};
+
 // Live bell trigger (confirmed 2026-10-11 on search + product pages):
 // `.Plugin_NewInfoMailButton` container, clickable bell is
 // `a.f_showNewInfoMailFormDialog` with a `TPIcons-alarm` icon. Every match
@@ -175,7 +253,7 @@ const ensureAlarmStatus = modal => {
 export function processPriceAlarmModal() {
   refreshAlarmBellDecor();
   if (!CONFIG.ALARM_ENABLED) return;
-  const modalContainer = document.querySelector('.Plugin_NewInfoMailForm');
+  const modalContainer = document.querySelector(SELECTORS.alarm.form);
   if (!modalContainer) return;
   // Attempt machine: a fresh fill only from idle-like states — in-flight
   // (filled/scheduled/submitted) or confirmed attempts never refill, so a
@@ -266,7 +344,7 @@ export function processPriceAlarmModal() {
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
-        } else if (!document.querySelector('.Plugin_NewInfoMailForm')) {
+        } else if (!document.querySelector(SELECTORS.alarm.form)) {
           try { observer.disconnect(); } catch {}
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
@@ -308,10 +386,102 @@ export function processPriceAlarmModal() {
   }
 }
 
+// Materializes a fetched NewInfoMailButton response: dialog shell + form body.
+// Returns false without touching the page when the response is unusable, so
+// the caller can fall back to direct navigation.
+async function openFetchedAlarmDialog(html) {
+  if (typeof DOMParser !== 'function') return false;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const tpl = doc.querySelector(SELECTORS.alarm.lazyDialog);
+  const node = tpl
+    ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild)
+    : doc.querySelector(SELECTORS.alarm.dialog);
+  if (!node) return false;
+
+  const formUrl = findAlarmFormTrigger(doc)?.getAttribute('data-ajax-form-url') || '';
+  const dialogNode = document.importNode(node, true);
+  const dialogId = dialogNode.id;
+  // Preserved native behavior: the dialog's instance hash is sent as im_nimf_ch.
+  const dialogHash = dialogNode.getAttribute('data-instance-hash') || '1';
+  const requestUrl = resolveAlarmFormUrl(formUrl, location.href, {
+    contextHash: dialogHash,
+    lang: 'de'
+  });
+  if (!requestUrl) return false;
+
+  sanitizeImportedNode(dialogNode);
+
+  const dismissDialog = () => {
+    if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
+      try { window.AbstractDialog_hide(dialogId); } catch {}
+    }
+    dialogNode.style.display = 'none';
+    dialogNode.classList.remove('show');
+    dialogNode.remove();
+    document.removeEventListener('keydown', handleKeydown);
+  };
+  const handleKeydown = e => {
+    if (e.key === 'Escape') dismissDialog();
+  };
+  // Escape must be live only once the dialog is visibly mounted: registering
+  // it before the form fetch lets Escape dismiss a node that is still
+  // detached, after which the resolved fetch would show it again unguarded.
+  dialogNode.querySelector(SELECTORS.alarm.closeButton)?.addEventListener('click', e => {
+    e.preventDefault();
+    dismissDialog();
+  });
+  dialogNode.querySelector(SELECTORS.alarm.modal)?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) dismissDialog();
+  });
+
+  let formRes;
+  let formHtml;
+  try {
+    ({ res: formRes, body: formHtml } = await fetchWithTimeout(
+      requestUrl.toString(),
+      { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
+      { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
+    ));
+  } catch (err) {
+    dismissDialog();
+    if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
+    return false;
+  }
+  if (!formRes.ok) {
+    dismissDialog();
+    return false;
+  }
+
+  const formDoc = new DOMParser().parseFromString(formHtml, 'text/html');
+  const nodes = Array.from(formDoc.body.childNodes).map(n => document.importNode(n, true));
+  for (const imported of nodes) {
+    if (imported.nodeType === 1) sanitizeImportedNode(imported);
+  }
+  const content = dialogNode.querySelector(SELECTORS.alarm.content);
+  if (content) content.replaceChildren(...nodes);
+
+  document.body.appendChild(dialogNode);
+  document.addEventListener('keydown', handleKeydown);
+  if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
+    window.AbstractDialog_show(dialogId);
+  } else {
+    dialogNode.style.display = 'block';
+    dialogNode.classList.add('show');
+    // Bootstrap-style modal wrappers stay display:none until shown.
+    const modal = dialogNode.querySelector(SELECTORS.alarm.modal);
+    if (modal) {
+      modal.classList.add('show');
+      modal.style.display = 'block';
+    }
+  }
+  processPriceAlarmModal();
+  return true;
+}
+
 /**
  * Triggers or fetches the native Preisalarm dialog for a given product ID.
  * If a native dialog trigger is in the card or document, it clicks it.
- * Otherwise, fetches the form from Toppreise backend and opens via AbstractDialog_show.
+ * Otherwise, fetches the button + form from Toppreise and opens it locally.
  */
 export async function openPriceAlarmForProduct(pid, card = null) {
   if (!pid) return;
@@ -326,31 +496,15 @@ export async function openPriceAlarmForProduct(pid, card = null) {
   const mockDialog = document.querySelector('#mock-alarm-dialog');
   if (mockDialog) {
     mockDialog.style.display = 'block';
-    delete mockDialog.querySelector?.('.Plugin_NewInfoMailForm')?.dataset?.tpAlarmProcessed;
-    delete mockDialog.querySelector?.('.Plugin_NewInfoMailForm')?.dataset?.tpAlarmState;
+    delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
+    delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
     processPriceAlarmModal();
     return;
   }
 
-  // 3. Native host interaction: check if Toppreise global helper exists
-  if (typeof window !== 'undefined' && typeof window.openInfoMailForm === 'function') {
-    // If there is any trigger button element created or available
-    const tempTrigger = document.createElement('a');
-    tempTrigger.className = 'f_showNewInfoMailFormDialog';
-    tempTrigger.setAttribute('data-ajax-form-url', `/plugins/infomails/NewInfoMailForm?im_nimf_pid=${pid}&im_nimf_cks=`);
-    const wrap = document.createElement('div');
-    wrap.className = 'Plugin_NewInfoMailButton';
-    wrap.appendChild(tempTrigger);
-    document.body.appendChild(wrap);
-    try {
-      window.openInfoMailForm(tempTrigger, false);
-      return;
-    } catch {
-      wrap.remove();
-    }
-  }
-
-  // 4. Fallback: Fetch NewInfoMailButton or NewInfoMailForm HTML and materialize
+  // 3. Fetch NewInfoMailButton + form and materialize them. The native
+  // `openInfoMailForm` helper needs a dialog template inside the clicked
+  // wrapper; a synthetic trigger has none, so it always throws on live.
   try {
     const postBody = new URLSearchParams({
       im_nimb_ch: '1',
@@ -366,85 +520,12 @@ export async function openPriceAlarmForProduct(pid, card = null) {
       },
       body: postBody
     }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
-    if (res.ok) {
-      let dialogNode = null;
-      let formUrl = null;
-      if (typeof DOMParser !== 'undefined') {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        doc.querySelectorAll('script').forEach(s => s.remove());
-        const tpl = doc.querySelector('template.f_lazyDialog');
-        const node = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : doc.querySelector('.AbstractDialog_NewInfoMailFormDialog');
-        if (node) dialogNode = (typeof document !== 'undefined' && document.importNode ? document.importNode(node, true) : node);
-        formUrl = doc.querySelector('a')?.getAttribute('data-ajax-form-url');
-      } else {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        const tpl = tempDiv.querySelector('template.f_lazyDialog');
-        dialogNode = tpl ? (tpl.content ? tpl.content.firstElementChild : tpl.firstElementChild) : tempDiv.querySelector('.AbstractDialog_NewInfoMailFormDialog');
-        formUrl = tempDiv.querySelector('a')?.getAttribute('data-ajax-form-url');
-      }
-      const dialogId = dialogNode?.id;
-      const dialogHash = dialogNode?.getAttribute('data-instance-hash') || '1';
-
-      if (dialogNode) {
-        const dismissDialog = () => {
-          if (typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
-            try { window.AbstractDialog_hide(dialogId); } catch {}
-          }
-          dialogNode.style.display = 'none';
-          dialogNode.classList.remove('show');
-          dialogNode.remove();
-          if (typeof document !== 'undefined') document.removeEventListener('keydown', handleKeydown);
-        };
-        const handleKeydown = e => {
-          if (e.key === 'Escape') dismissDialog();
-        };
-        if (typeof document !== 'undefined') document.addEventListener('keydown', handleKeydown);
-        dialogNode.querySelector('.AbstractDialog_CloseButton')?.addEventListener('click', e => {
-          e.preventDefault();
-          dismissDialog();
-        });
-        dialogNode.querySelector('.modal')?.addEventListener('click', e => {
-          if (e.target === e.currentTarget) dismissDialog();
-        });
-
-        document.body.appendChild(dialogNode);
-        if (formUrl) {
-          const { res: formRes, body: formHtml } = await fetchWithTimeout(
-            `${formUrl}&im_nimf_ch=${dialogHash}&lang=de`,
-            { headers: { 'X-Requested-With': 'XMLHttpRequest' } },
-            { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
-          );
-          if (formRes.ok) {
-            const content = dialogNode.querySelector('.AbstractDialog_Content');
-            if (content) {
-              if (typeof DOMParser !== 'undefined') {
-                const formDoc = new DOMParser().parseFromString(formHtml, 'text/html');
-                formDoc.querySelectorAll('script').forEach(s => s.remove());
-                const nodes = Array.from(formDoc.body.childNodes).map(n => (typeof document !== 'undefined' && document.importNode ? document.importNode(n, true) : n));
-                content.replaceChildren(...nodes);
-              } else {
-                content.innerHTML = formHtml;
-              }
-            }
-          }
-        }
-        if (typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
-          window.AbstractDialog_show(dialogId);
-        } else {
-          dialogNode.style.display = 'block';
-          dialogNode.classList.add('show');
-        }
-        processPriceAlarmModal();
-        return;
-      }
-    }
+    if (res.ok && await openFetchedAlarmDialog(html)) return;
   } catch (err) {
     if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
-    showToast('⚠️ Preisalarm konnte nicht geöffnet werden');
   }
 
-  // 5. Ultimate fallback if AJAX fails: direct URL navigation in new tab
+  // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab
   if (typeof window !== 'undefined') {
     showToast('⚠️ Preisalarm im neuen Tab geöffnet');
     window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
@@ -455,7 +536,7 @@ setAlarmConfigListener(() => {
   // A settings change invalidates pending auto-submits: cancel timers so a
   // stale snapshot can never submit under new settings. Both flags go so
   // the next pass refills under the new settings (never over a focused edit).
-  const live = typeof document !== 'undefined' ? document.querySelector('.Plugin_NewInfoMailForm') : null;
+  const live = typeof document !== 'undefined' ? document.querySelector(SELECTORS.alarm.form) : null;
   if (live) {
     clearAlarmTimers(live);
     delete live.dataset.tpAlarmState;

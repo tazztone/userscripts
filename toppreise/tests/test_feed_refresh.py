@@ -1,6 +1,9 @@
 """Integration tests for In-Place Feed Refresh (check for new deals without F5)."""
 
-from playwright.sync_api import Page
+import re
+from pathlib import Path
+
+from playwright.sync_api import Page, expect
 
 from conftest import mock_pricechart
 
@@ -63,6 +66,42 @@ def test_feed_refresh_adds_new_card_and_updates_cta(page: Page):
     # Toast confirms 1 new deal found
     last_toast = page.evaluate("() => window.ToppreiseSuite.lastToast()")
     assert '1 neuer Deal gefunden' in last_toast
+
+
+def test_feed_refresh_price_change_keeps_card_controls(page: Page):
+    """A price-only refresh updates the headline price and leaves the
+    re-decorated alarm control clickable."""
+    mock_html = (Path(__file__).resolve().parent / 'mock_toppreise.html').read_text(encoding='utf-8')
+    incoming = mock_html.replace(
+        '<div class="priceContainer shippingPrice"><span class="currency">CHF </span><div class="Plugin_Price">1800.00</div></div>',
+        '<div class="priceContainer shippingPrice"><span class="currency">CHF </span><div class="Plugin_Price">777.00</div></div>',
+        1
+    )
+    assert incoming != mock_html
+
+    page.evaluate("""(html) => {
+        const origFetch = window.fetch;
+        window.fetch = async (url, opts) => {
+            if (typeof url === 'string' && (url.includes('mock_toppreise.html') || url === location.href)) {
+                return { ok: true, status: 200, text: async () => html };
+            }
+            return origFetch(url, opts);
+        };
+    }""", incoming)
+
+    assert page.locator('#card-cheapest .tp-card-alarm-btn').count() == 1
+    page.click('#tp-floating-refresh-btn')
+    page.wait_for_function("() => document.querySelector('#card-cheapest .Plugin_Price')?.textContent?.trim() === '777.00'")
+    page.wait_for_function("() => window.ToppreiseSuite.lastToast().includes('aktualisiert')")
+
+    bell = page.locator('#card-cheapest .tp-card-alarm-btn')
+    expect(bell).to_have_count(1)
+    # Decoration was re-applied after the merge, not just the node kept.
+    expect(bell).to_have_attribute('data-tp-alarm-state', re.compile(r'^(?:off|fill|auto)$'))
+    expect(bell).to_have_attribute('title', re.compile('Preisalarm'))
+    page.evaluate("() => document.querySelector('#card-cheapest .tp-card-alarm-btn').click()")
+    page.wait_for_selector('#mock-alarm-dialog', state='visible')
+    assert page.locator('#mock-alarm-dialog').is_visible()
 
 
 def test_empty_cta_click_triggers_feed_refresh(page: Page):

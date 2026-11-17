@@ -122,4 +122,44 @@ describe('net helpers', () => {
       (err) => err.timeout === true
     );
   });
+
+  it('aborts the GM handle when the watchdog fires', async () => {
+    let aborted = false;
+    globalThis.GM_xmlhttpRequest = () => ({
+      abort() { aborted = true; }
+    });
+    await assert.rejects(
+      () => gmRequestWithTimeout({ url: 'https://example.com/gm-abort' }, { timeoutMs: 20 }),
+      (err) => err.timeout === true
+    );
+    assert.equal(aborted, true);
+  });
+
+  it('ignores a late GM response after the watchdog settled', async () => {
+    let lateOnload;
+    globalThis.GM_xmlhttpRequest = (opts) => {
+      lateOnload = opts.onload;
+      return { abort() {} };
+    };
+    await assert.rejects(
+      () => gmRequestWithTimeout({ url: 'https://example.com/gm-late' }, { timeoutMs: 20 }),
+      (err) => err.timeout === true
+    );
+    const entriesAfterTimeout = getActivityLog().length;
+
+    lateOnload({ status: 200 });
+    assert.equal(getActivityLog().length, entriesAfterTimeout);
+  });
+
+  it('does not double-settle when abort triggers onerror synchronously', async () => {
+    globalThis.GM_xmlhttpRequest = (opts) => ({
+      abort() { opts.onerror?.({ error: 'aborted' }); }
+    });
+    await assert.rejects(
+      () => gmRequestWithTimeout({ url: 'https://example.com/gm-sync' }, { timeoutMs: 20 }),
+      (err) => err.timeout === true
+    );
+    const errors = getActivityLog().filter((entry) => entry.message.includes('GM error'));
+    assert.equal(errors.length, 0);
+  });
 });
