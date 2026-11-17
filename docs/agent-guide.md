@@ -62,7 +62,8 @@ npm run dev:firefox:clean              # reset isolated Firefox Dev Profile
 1. **One-time stub setup**: Run `npm run dev:firefox:tp:install`. Firefox auto-provisions Violentmonkey XPI and routes to `/setup/<script>` for 1-click `[DEV]` stub installation. Never needs manual reinstallation.
 2. **Standard launch & runtime resolution**: Run `npm run dev:firefox:tp`. Detects runtime (Native → Flatpak `org.mozilla.firefox` → Snap) and launches with persistent **Dev Profile**, debug invariants in `user.js`, and `--die-with-parent`. Opens target site directly with remote debugging enabled (port 2828 Marionette + 9222 BiDi). Running instances attach tabs automatically without restart or lock contention. Set `FIREFOX_BIDI_PORT=9223` if 9222 collides with Chrome CDP.
 3. **Zero-touch reload**: Edit `src/` modules — dev server auto-rebuilds and broadcasts an SSE event on `/events` that reloads connected tabs in <50ms (with CSP-safe `/version/<script>` fallback polling).
-4. **Agent verification via MCP** (`firefox-devtools` / `chrome-devtools`):
+4. **Agent verification via MCP** (`userscript-bridge_firefox-devtools` / `userscript-bridge_chrome-devtools`):
+   - Always call the `userscript-bridge_` prefixed tools to connect to Marionette port 2828 / BiDi port 9222. Do NOT use unadorned `firefox-devtools` as it lacks `--connect-existing` and spawns a separate browser window.
    - `evaluate_script`: Query `#tp-root` `data-tp-diag` (version, cards, counts, `lastError`) and computed element styles.
    - `take_snapshot`: Get DOM hierarchy and stable UIDs without asking the user.
    - `screenshot_page` / `screenshot_by_uid`: Capture screenshots directly to verify layouts.

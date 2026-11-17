@@ -37,7 +37,7 @@ venv/bin/pytest toppreise/tests/test_ui_modal.py
 
 ## Live Browser & MCP Loop
 
-Active browser sessions connect to the agent via DevTools MCP (`firefox-devtools` / `chrome-devtools`):
+Active browser sessions connect to the agent via DevTools MCP (`userscript-bridge_firefox-devtools` / `userscript-bridge_chrome-devtools`). Always use the `userscript-bridge_` prefix from the workspace plugin; do not invoke unadorned `firefox-devtools` as it lacks `--connect-existing` and spawns a redundant browser window.
 - **Observe live**: Use `evaluate_script` to read `#tp-root` `data-tp-diag` (version, cards, counts, `lastError`) and computed element styles.
 - **Inspect visuals**: Use `take_snapshot` and `screenshot_page` / `screenshot_by_uid` directly. Never ask the user for screenshots or manual DOM checks when MCP is available.
 - **Hands-free reload**: Dev server SSE auto-reloads connected tabs on `src/` file saves in <50ms.
