@@ -294,18 +294,17 @@ export const STYLES_BADGES = `
     color: #64748b !important;
   }
   .tp-card-historical-price {
-    font: 500 8.8px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font: 500 8.5px/1.15 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     letter-spacing: -0.35px !important;
     color: #64748b !important;
     text-align: right !important;
     margin: 0 !important;
     display: flex !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
     justify-content: flex-end !important;
-    gap: 3px !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    gap: 2px !important;
+    overflow: visible !important;
     flex: 1 1 auto !important;
     min-width: 0 !important;
     user-select: none !important;
@@ -327,9 +326,12 @@ export const STYLES_BADGES = `
   .tp-card-historical-price .tp-subline-pill {
     display: inline-flex !important;
     align-items: center !important;
-    padding: 1px 4px !important;
+    padding: 0 4px !important;
     border-radius: 3px !important;
     white-space: nowrap !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
     background: rgba(148, 163, 184, 0.12) !important;
     border: 1px solid rgba(148, 163, 184, 0.25) !important;
     color: inherit !important;
@@ -603,11 +605,11 @@ export const STYLES_BADGES = `
   }
   .tp-card-subline-row {
     position: absolute !important;
-    bottom: 5px !important;
+    bottom: 4px !important;
     left: 40px !important;
     right: 6px !important;
     display: flex !important;
-    align-items: center !important;
+    align-items: flex-end !important;
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
     gap: 4px !important;
