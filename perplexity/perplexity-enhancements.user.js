@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Perplexity Enhancements
 // @namespace    https://github.com/tazztone/userscripts
-// @version      1.1.4
+// @version      1.1.5
 // @description  Keeps a preferred Perplexity model active and safely automates agent approvals and GitHub connector enablement.
 // @author       tazztone
+// @license      MIT
 // @match        https://www.perplexity.ai/*
 // @match        https://perplexity.ai/*
 // @updateURL    https://raw.githubusercontent.com/tazztone/userscripts/main/perplexity/perplexity-enhancements.user.js

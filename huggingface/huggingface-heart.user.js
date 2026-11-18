@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.10
+// @version      2.0.11
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
+// @license      MIT
 // @match        https://huggingface.co/*
 // @updateURL    https://raw.githubusercontent.com/tazztone/userscripts/main/huggingface/huggingface-heart.user.js
 // @downloadURL  https://raw.githubusercontent.com/tazztone/userscripts/main/huggingface/huggingface-heart.user.js

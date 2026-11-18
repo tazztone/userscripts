@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Userscripts collection and developer tooling",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "node tools/dev-server.js",
     "dev:chrome": "node tools/dev-server.js --chrome toppreise",
