@@ -141,17 +141,18 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
     return Promise.resolve(cached.answer);
   }
 
-  // 2. In-flight request deduplication
-  const flightKey = `${trimmedKey}:${normalized}`;
-  if (inFlight.has(flightKey)) {
-    return inFlight.get(flightKey);
-  }
-
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
   const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
   const maxResults = typeof options.maxResults === 'number'
     ? options.maxResults
     : ((typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_MAX_RESULTS : 5) || 5);
+
+  // 2. In-flight request deduplication
+  const flightKey = `${trimmedKey}:${normalized.toLowerCase()}:${searchDepth}:${maxResults}`;
+  const existing = inFlight.get(flightKey);
+  if (existing && existing.timeoutMs >= timeoutMs) {
+    return existing.promise;
+  }
 
   const promise = new Promise((resolve, reject) => {
     const payload = JSON.stringify({
@@ -234,9 +235,11 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
       reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
     }
   }).finally(() => {
-    inFlight.delete(flightKey);
+    if (inFlight.get(flightKey)?.promise === promise) {
+      inFlight.delete(flightKey);
+    }
   });
 
-  inFlight.set(flightKey, promise);
+  inFlight.set(flightKey, { promise, timeoutMs });
   return promise;
 }

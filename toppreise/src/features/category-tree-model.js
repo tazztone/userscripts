@@ -60,9 +60,8 @@ export function toFeedUrl(catalogUrl, currentFeedPath = '') {
   if (!/^\/(?!\/)/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
     return '/neue-toppreise';
   }
-  const prefix = currentFeedPath && /(?:new-best-prices|nouveaux-meilleurs-prix)/i.test(currentFeedPath)
-    ? currentFeedPath.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i)[0]
-    : '/neue-toppreise';
+  const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
+  const prefix = m ? m[0] : '/neue-toppreise';
   return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
 }
 
@@ -82,11 +81,11 @@ export function decodeHtmlEntities(str) {
   return str.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
     if (entity.startsWith('#x') || entity.startsWith('#X')) {
       const code = parseInt(entity.slice(2), 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+      return Number.isFinite(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : match;
     }
     if (entity.startsWith('#')) {
       const code = parseInt(entity.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+      return Number.isFinite(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : match;
     }
     return ENTITY_MAP[entity] ?? match;
   });
@@ -130,10 +129,13 @@ export function indexCategoryData(categories) {
   // Build breadcrumbs for search
   for (const node of allNodes) {
     const parts = [node.title];
+    const visited = new Set([node.id]);
     let curr = node;
-    while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start') {
+    let depth = 0;
+    while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth++ < 32) {
       const p = byId.get(curr.parentID);
-      if (p && p.title) {
+      if (p && p.title && !visited.has(p.id)) {
+        visited.add(p.id);
         parts.unshift(p.title);
         curr = p;
       } else {
@@ -492,7 +494,8 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
 
   const slug = node.url ? (node.url.split('/').pop()?.replace(/-c\d+$/, '') || '') : '';
   if (slug && activeDoc?.querySelectorAll) {
-    const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${slug}/"]`);
+    const safeSlug = slug.replace(/["\\]/g, '\\$&');
+    const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${safeSlug}/"]`);
     if (matchingCard) {
       const pid = matchingCard.getAttribute('data-entity-id') ||
                   (matchingCard.getAttribute('href') || '').match(/-p(\d+)/)?.[1] || '';

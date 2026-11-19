@@ -46,24 +46,28 @@ export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) 
       const newBar = parsed.querySelector('.Plugin_IgnoredCategories');
       const newContainer = parsed.querySelector('.ignoredCategoriesBar');
       if (newBar) {
+        const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+        if (!liveBar) return;
         const chipCount = newBar.querySelectorAll('.ignoredCategory').length;
         newBar.setAttribute('data-ignored-count', String(chipCount));
-        bar.replaceWith(newBar);
+        liveBar.replaceWith(newBar);
         harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || newBar);
         if (typeof syncCategoryTreeIgnoredState === 'function') {
           syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
         }
         observeIgnoredCategoriesBar(activeDoc);
       } else if (newContainer) {
-        const curContainer = bar.querySelector('.ignoredCategoriesBar');
+        const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+        if (!liveBar) return;
+        const curContainer = liveBar.querySelector('.ignoredCategoriesBar');
         if (curContainer) {
           curContainer.replaceWith(newContainer);
         } else {
-          bar.appendChild(newContainer);
+          liveBar.appendChild(newContainer);
         }
-        const chipCount = bar.querySelectorAll('.ignoredCategory').length;
-        bar.setAttribute('data-ignored-count', String(chipCount));
-        harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || bar);
+        const chipCount = liveBar.querySelectorAll('.ignoredCategory').length;
+        liveBar.setAttribute('data-ignored-count', String(chipCount));
+        harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || liveBar);
         if (typeof syncCategoryTreeIgnoredState === 'function') {
           syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
         }
@@ -72,8 +76,12 @@ export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) 
   } catch {}
 }
 
+let feedRefreshSeq = 0;
+
 export async function refreshProductFeed(doc = (typeof document !== 'undefined' ? document : null)) {
   if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+  const seq = ++feedRefreshSeq;
+  const requestedHref = location.href;
   const activeDoc = getDoc(doc);
   const container = activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') ||
                     activeDoc?.querySelector?.('.standardList');
@@ -81,11 +89,11 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
 
   try {
     const { res: resp, body: html } = await fetchWithTimeout(
-      location.href,
+      requestedHref,
       { credentials: 'same-origin', cache: 'no-cache' },
       { timeoutMs: 10000, source: 'category-tree', label: 'refresh-feed', readAs: 'text' }
     );
-    if (!resp.ok) return;
+    if (!resp.ok || seq !== feedRefreshSeq || location.href !== requestedHref) return;
     if (typeof DOMParser !== 'undefined') {
       const parser = new DOMParser();
       const parsedDoc = parser.parseFromString(html, 'text/html');
@@ -138,13 +146,14 @@ export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc
   });
 
   let ok = await postCategoryAction(ajaxUrl, buildBody(ident), bar, activeDoc, `Category ${isRestore ? 'restore' : 'exclusion'}`);
-  if (!ok && !initialIdent) {
+  if (!ok) {
     // Stale cached ident may have been rejected by HMAC. Evict and retry once via fresh discovery.
     evictStoredIdent(vcatId);
     const tree = await loadNativeCategoryTree(activeDoc);
     const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc);
     if (refreshed && refreshed !== ident) {
-      ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), bar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
+      const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+      ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), liveBar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
     }
   }
 

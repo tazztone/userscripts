@@ -1254,3 +1254,12 @@ test('renderChildList sets tp-cat-has-ignored on sub-branch parent when deeper c
     if (prevStorage === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevStorage;
   }
 });
+
+test('indexCategoryData breaks cyclic parentID chains and toFeedUrl handles non-anchored paths', () => {
+  const tree = indexCategoryData([
+    { id: 'c1', parentID: 'c2', title: 'A', url: '/katalog/A-c1' },
+    { id: 'c2', parentID: 'c1', title: 'B', url: '/katalog/B-c2' }
+  ]);
+  assert.ok(tree.byId.get('c1').breadcrumb.includes('A'));
+  assert.equal(toFeedUrl('/katalog/A-c1', '/de/new-best-prices'), '/neue-toppreise/A-c1');
+});

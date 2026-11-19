@@ -110,10 +110,9 @@ export function fetchImageBlob(imageUrl, timeoutMs = 10000) {
           })
           .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
       } else if (typeof fetch !== 'undefined') {
-        fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image' })
-          .then(async res => {
+        fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image', readAs: 'blob' })
+          .then(({ res, body: blob }) => {
             if (res.status >= 200 && res.status < 300) {
-              const blob = await res.blob();
               if (!blob.size) return reject(new Error('Leeres Bild'));
               if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
               if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));

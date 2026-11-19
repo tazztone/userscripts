@@ -230,6 +230,7 @@ export function renderChildList(children, parentEl, currentPath, expandedBranche
       setTimeout(async () => {
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();
+        if (!li.isConnected || !expandedBranches.has(child.id) || li.querySelector(':scope > .tp-cat-sublist')) return;
         const subChildren = tree.childrenOf.get(child.id) || [];
         const toggle = row.querySelector('.tp-cat-toggle');
         if (toggle) {
@@ -312,8 +313,10 @@ export function enhanceCategorySidebar() {
     searchBox.appendChild(resultsBox);
 
     const ulList = sidebar.querySelector('ul');
+    let searchSeq = 0;
 
     const renderSearchResults = async () => {
+      const seq = ++searchSeq;
       const val = input.value.trim();
       clearBtn.style.display = val ? 'block' : 'none';
 
@@ -328,6 +331,7 @@ export function enhanceCategorySidebar() {
       const ignoredIds = getIgnoredVcatIds(doc);
 
       const tree = await loadNativeCategoryTree();
+      if (seq !== searchSeq || input.value.trim() !== val) return;
       const hits = searchCategoryTree(tree, val, 15, ignoredIds);
 
       if (ulList) ulList.style.display = 'none';
@@ -445,6 +449,7 @@ export function enhanceCategorySidebar() {
       setTimeout(async () => {
         if (typeof document === 'undefined') return;
         const tree = await loadNativeCategoryTree();
+        if (!li.isConnected || !expandedBranches.has(catId) || li.querySelector(':scope > .tp-cat-sublist')) return;
         const children = tree.childrenOf.get(catId) || [];
         toggle.setAttribute('aria-expanded', 'true');
         toggle.textContent = '▾';

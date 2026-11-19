@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.514
+// @version      2.18.515
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -7072,9 +7072,8 @@ const SHADOW_MODAL_STYLES = `
     if (!/^\/(?!\/)/.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
       return '/neue-toppreise';
     }
-    const prefix = currentFeedPath && /(?:new-best-prices|nouveaux-meilleurs-prix)/i.test(currentFeedPath)
-      ? currentFeedPath.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i)[0]
-      : '/neue-toppreise';
+    const m = currentFeedPath?.match(/^\/(?:new-best-prices|nouveaux-meilleurs-prix)/i);
+    const prefix = m ? m[0] : '/neue-toppreise';
     return trimmed.replace(/^\/(?:produktsuche|katalog|productsearch|recherche-produits)/i, prefix);
   }
 
@@ -7094,11 +7093,11 @@ const SHADOW_MODAL_STYLES = `
     return str.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
       if (entity.startsWith('#x') || entity.startsWith('#X')) {
         const code = parseInt(entity.slice(2), 16);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+        return Number.isFinite(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : match;
       }
       if (entity.startsWith('#')) {
         const code = parseInt(entity.slice(1), 10);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+        return Number.isFinite(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : match;
       }
       return ENTITY_MAP[entity] ?? match;
     });
@@ -7142,10 +7141,13 @@ const SHADOW_MODAL_STYLES = `
     // Build breadcrumbs for search
     for (const node of allNodes) {
       const parts = [node.title];
+      const visited = new Set([node.id]);
       let curr = node;
-      while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start') {
+      let depth = 0;
+      while (curr && curr.parentID && curr.parentID !== 'root' && curr.parentID !== 'start' && depth++ < 32) {
         const p = byId.get(curr.parentID);
-        if (p && p.title) {
+        if (p && p.title && !visited.has(p.id)) {
+          visited.add(p.id);
           parts.unshift(p.title);
           curr = p;
         } else {
@@ -7504,7 +7506,8 @@ const SHADOW_MODAL_STYLES = `
 
     const slug = node.url ? (node.url.split('/').pop()?.replace(/-c\d+$/, '') || '') : '';
     if (slug && activeDoc?.querySelectorAll) {
-      const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${slug}/"]`);
+      const safeSlug = slug.replace(/["\\]/g, '\\$&');
+      const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${safeSlug}/"]`);
       if (matchingCard) {
         const pid = matchingCard.getAttribute('data-entity-id') ||
                     (matchingCard.getAttribute('href') || '').match(/-p(\d+)/)?.[1] || '';
@@ -7647,24 +7650,28 @@ const SHADOW_MODAL_STYLES = `
         const newBar = parsed.querySelector('.Plugin_IgnoredCategories');
         const newContainer = parsed.querySelector('.ignoredCategoriesBar');
         if (newBar) {
+          const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+          if (!liveBar) return;
           const chipCount = newBar.querySelectorAll('.ignoredCategory').length;
           newBar.setAttribute('data-ignored-count', String(chipCount));
-          bar.replaceWith(newBar);
+          liveBar.replaceWith(newBar);
           harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || newBar);
           if (typeof syncCategoryTreeIgnoredState === 'function') {
             syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
           }
           observeIgnoredCategoriesBar(activeDoc);
         } else if (newContainer) {
-          const curContainer = bar.querySelector('.ignoredCategoriesBar');
+          const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+          if (!liveBar) return;
+          const curContainer = liveBar.querySelector('.ignoredCategoriesBar');
           if (curContainer) {
             curContainer.replaceWith(newContainer);
           } else {
-            bar.appendChild(newContainer);
+            liveBar.appendChild(newContainer);
           }
-          const chipCount = bar.querySelectorAll('.ignoredCategory').length;
-          bar.setAttribute('data-ignored-count', String(chipCount));
-          harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || bar);
+          const chipCount = liveBar.querySelectorAll('.ignoredCategory').length;
+          liveBar.setAttribute('data-ignored-count', String(chipCount));
+          harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || liveBar);
           if (typeof syncCategoryTreeIgnoredState === 'function') {
             syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
           }
@@ -7673,8 +7680,12 @@ const SHADOW_MODAL_STYLES = `
     } catch {}
   }
 
+  let feedRefreshSeq = 0;
+
   async function refreshProductFeed(doc = (typeof document !== 'undefined' ? document : null)) {
     if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+    const seq = ++feedRefreshSeq;
+    const requestedHref = location.href;
     const activeDoc = getDoc(doc);
     const container = activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') ||
                       activeDoc?.querySelector?.('.standardList');
@@ -7682,11 +7693,11 @@ const SHADOW_MODAL_STYLES = `
 
     try {
       const { res: resp, body: html } = await fetchWithTimeout(
-        location.href,
+        requestedHref,
         { credentials: 'same-origin', cache: 'no-cache' },
         { timeoutMs: 10000, source: 'category-tree', label: 'refresh-feed', readAs: 'text' }
       );
-      if (!resp.ok) return;
+      if (!resp.ok || seq !== feedRefreshSeq || location.href !== requestedHref) return;
       if (typeof DOMParser !== 'undefined') {
         const parser = new DOMParser();
         const parsedDoc = parser.parseFromString(html, 'text/html');
@@ -7739,13 +7750,14 @@ const SHADOW_MODAL_STYLES = `
     });
 
     let ok = await postCategoryAction(ajaxUrl, buildBody(ident), bar, activeDoc, `Category ${isRestore ? 'restore' : 'exclusion'}`);
-    if (!ok && !initialIdent) {
+    if (!ok) {
       // Stale cached ident may have been rejected by HMAC. Evict and retry once via fresh discovery.
       evictStoredIdent(vcatId);
       const tree = await loadNativeCategoryTree(activeDoc);
       const refreshed = await ensureCategoryIdent({ numericId: vcatId, vcatId }, tree, currentPath, activeDoc);
       if (refreshed && refreshed !== ident) {
-        ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), bar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
+        const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
+        ok = await postCategoryAction(ajaxUrl, buildBody(refreshed), liveBar, activeDoc, `Category ${isRestore ? 'restore retry' : 'exclusion retry'}`);
       }
     }
 
@@ -8040,6 +8052,7 @@ const SHADOW_MODAL_STYLES = `
         setTimeout(async () => {
           if (typeof document === 'undefined') return;
           const tree = await loadNativeCategoryTree();
+          if (!li.isConnected || !expandedBranches.has(child.id) || li.querySelector(':scope > .tp-cat-sublist')) return;
           const subChildren = tree.childrenOf.get(child.id) || [];
           const toggle = row.querySelector('.tp-cat-toggle');
           if (toggle) {
@@ -8122,8 +8135,10 @@ const SHADOW_MODAL_STYLES = `
       searchBox.appendChild(resultsBox);
 
       const ulList = sidebar.querySelector('ul');
+      let searchSeq = 0;
 
       const renderSearchResults = async () => {
+        const seq = ++searchSeq;
         const val = input.value.trim();
         clearBtn.style.display = val ? 'block' : 'none';
 
@@ -8138,6 +8153,7 @@ const SHADOW_MODAL_STYLES = `
         const ignoredIds = getIgnoredVcatIds(doc);
 
         const tree = await loadNativeCategoryTree();
+        if (seq !== searchSeq || input.value.trim() !== val) return;
         const hits = searchCategoryTree(tree, val, 15, ignoredIds);
 
         if (ulList) ulList.style.display = 'none';
@@ -8255,6 +8271,7 @@ const SHADOW_MODAL_STYLES = `
         setTimeout(async () => {
           if (typeof document === 'undefined') return;
           const tree = await loadNativeCategoryTree();
+          if (!li.isConnected || !expandedBranches.has(catId) || li.querySelector(':scope > .tp-cat-sublist')) return;
           const children = tree.childrenOf.get(catId) || [];
           toggle.setAttribute('aria-expanded', 'true');
           toggle.textContent = '▾';
@@ -9263,17 +9280,18 @@ const SHADOW_MODAL_STYLES = `
       return Promise.resolve(cached.answer);
     }
 
-    // 2. In-flight request deduplication
-    const flightKey = `${trimmedKey}:${normalized}`;
-    if (inFlight.has(flightKey)) {
-      return inFlight.get(flightKey);
-    }
-
     const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
     const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
     const maxResults = typeof options.maxResults === 'number'
       ? options.maxResults
       : ((typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_MAX_RESULTS : 5) || 5);
+
+    // 2. In-flight request deduplication
+    const flightKey = `${trimmedKey}:${normalized.toLowerCase()}:${searchDepth}:${maxResults}`;
+    const existing = inFlight.get(flightKey);
+    if (existing && existing.timeoutMs >= timeoutMs) {
+      return existing.promise;
+    }
 
     const promise = new Promise((resolve, reject) => {
       const payload = JSON.stringify({
@@ -9356,10 +9374,12 @@ const SHADOW_MODAL_STYLES = `
         reject(new Error('Kein HTTP-Transport für Tavily verfügbar'));
       }
     }).finally(() => {
-      inFlight.delete(flightKey);
+      if (inFlight.get(flightKey)?.promise === promise) {
+        inFlight.delete(flightKey);
+      }
     });
 
-    inFlight.set(flightKey, promise);
+    inFlight.set(flightKey, { promise, timeoutMs });
     return promise;
   }
 
@@ -9475,10 +9495,9 @@ const SHADOW_MODAL_STYLES = `
             })
             .catch(err => reject(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler')));
         } else if (typeof fetch !== 'undefined') {
-          fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image' })
-            .then(async res => {
+          fetchWithTimeout(imageUrl.trim(), {}, { timeoutMs, source: 'discord', label: 'image', readAs: 'blob' })
+            .then(({ res, body: blob }) => {
               if (res.status >= 200 && res.status < 300) {
-                const blob = await res.blob();
                 if (!blob.size) return reject(new Error('Leeres Bild'));
                 if (blob.size > 8 * 1024 * 1024) return reject(new Error('Bild zu gross'));
                 if (blob.type && !blob.type.startsWith('image/')) return reject(new Error('Ungültiges Bild'));
@@ -17263,7 +17282,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.514';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.515';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

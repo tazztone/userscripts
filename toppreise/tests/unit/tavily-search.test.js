@@ -245,4 +245,26 @@ describe('tavily-search: fetchTavilySummary', () => {
     assert.equal(b, 'In-Flight Dedupe Success');
     assert.equal(callCount, 1);
   });
+
+  it('does not share shorter-timeout or different-depth in-flight requests', async () => {
+    let callCount = 0;
+    globalThis.fetch = async () => {
+      callCount++;
+      await new Promise(r => setTimeout(r, 15));
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ answer: `Answer ${callCount}` })
+      };
+    };
+
+    const [a, b] = await Promise.all([
+      fetchTavilySummary('tvly-key', 'Isolated Timeout', { timeoutMs: 4000, searchDepth: 'basic' }),
+      fetchTavilySummary('tvly-key', 'Isolated Timeout', { timeoutMs: 60000, searchDepth: 'basic' })
+    ]);
+
+    assert.equal(callCount, 2);
+    assert.ok(a.startsWith('Answer '));
+    assert.ok(b.startsWith('Answer '));
+  });
 });
