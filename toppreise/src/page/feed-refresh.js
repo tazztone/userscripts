@@ -56,8 +56,8 @@ export async function fetchFeedHtml(url, customFetch = undefined, { signal = nul
 }
 
 function queryLivePriceText(root) {
-  const cleanPlugin = root.querySelector('.Plugin_Price:not([class*="tp-"])');
-  if (cleanPlugin) return cleanPlugin.textContent?.trim() || '';
+  const cleanPlugins = Array.from(root.querySelectorAll?.('.Plugin_Price:not([class*="tp-"])') || []);
+  if (cleanPlugins.length > 0) return cleanPlugins.map(el => el.textContent?.trim() || '').join('|');
   return root.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim() || '';
 }
 
@@ -184,20 +184,25 @@ export async function refreshFeed({ onStart, onEnd, onProgress, customFetch, tim
     onProgress?.({ stage: refreshState.stage, elapsedSec: refreshState.elapsedSec });
   };
 
-  const ticker = setInterval(() => {
-    if (!isRefreshing) return;
-    const elapsed = Math.floor((Date.now() - refreshState.startedAt) / 1000);
-    if (elapsed >= 1 && elapsed !== refreshState.elapsedSec) {
-      refreshState.elapsedSec = elapsed;
-      onProgress?.({ stage: refreshState.stage, elapsedSec: elapsed });
-    }
-  }, 1000);
-
-  onStart?.();
-  showToast('🔄 Suche nach neuen Deals...');
-
+  let ticker;
   try {
+    ticker = setInterval(() => {
+      if (!isRefreshing) return;
+      const elapsed = Math.floor((Date.now() - refreshState.startedAt) / 1000);
+      if (elapsed >= 1 && elapsed !== refreshState.elapsedSec) {
+        refreshState.elapsedSec = elapsed;
+        onProgress?.({ stage: refreshState.stage, elapsedSec: elapsed });
+      }
+    }, 1000);
+
+    onStart?.();
+    showToast('🔄 Suche nach neuen Deals...');
+
     const html = await fetchFeedHtml(url, customFetch, { signal: refreshController.signal, timeoutMs });
+    if (typeof location !== 'undefined' && location.href !== url) {
+      refreshState.lastOutcome = 'cancelled';
+      return;
+    }
     if (typeof DOMParser !== 'function') {
       throw new Error('DOMParser nicht verfügbar');
     }

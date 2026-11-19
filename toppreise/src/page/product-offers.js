@@ -40,7 +40,13 @@ export function extractShareData(card) {
   }
   if (!url && typeof document !== 'undefined') {
     const curUrl = document.body?.getAttribute?.('data-current_url') || document.body?.getAttribute?.('data-current-url');
-    if (curUrl && isToppreiseProductUrl(curUrl)) url = curUrl;
+    if (curUrl) {
+      try {
+        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+        const resolved = new URL(curUrl, base).href;
+        if (isToppreiseProductUrl(resolved)) url = resolved;
+      } catch {}
+    }
   }
   if (url && !/^https?:\/\//i.test(url)) {
     try {
@@ -303,16 +309,14 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
   }
 
   if (!directUrl || typeof directUrl !== 'string') return null;
-  const target = directUrl.startsWith('http')
-    ? directUrl
-    : `${(typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch'}${directUrl}`;
-
+  let target;
   try {
+    const base = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+    target = new URL(directUrl, base).href;
     const urlObj = new URL(target);
     const host = urlObj.hostname.toLowerCase();
     const isToppreise = host === 'toppreise.ch' || host.endsWith('.toppreise.ch');
-    const isAmazon = host === 'amazon.de' || host.endsWith('.amazon.de') || host === 'amazon.com' || host.endsWith('.amazon.com');
-    if (!isToppreise && !isAmazon) return null;
+    if (!isToppreise && !isAllowedAmazonUrl(target)) return null;
   } catch {
     return null;
   }
@@ -356,7 +360,8 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
               resolve(asin || null);
             },
             onerror: () => resolve(null),
-            ontimeout: () => resolve(null)
+            ontimeout: () => resolve(null),
+            onabort: () => resolve(null)
           });
         } else if (typeof fetch !== 'undefined') {
           fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' })

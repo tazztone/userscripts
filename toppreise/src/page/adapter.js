@@ -103,7 +103,7 @@ export function getPageProfileLabel(type = getPageProfileType()) {
 }
 
 export function getDetailProductId() {
-  const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
+  const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)(?:[/?#]|$)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)(?:[/?#]|$)/i);
   if (match) return match[1];
   const chartLink = document.querySelector('a[href*="pricechart"], a[href*="p_pc_pid="]');
   if (chartLink) {
@@ -117,16 +117,17 @@ export function getDetailProductId() {
 
 const DETAIL_EXCLUDED_PARENTS = `${SELECTORS.cards.excludedParents}, .Plugin_Product, .mixedBrowsingListProduct, .price_information_product_small, .small-box`;
 
-function queryDetailPriceEl(sel) {
+function queryDetailPriceEl(sel, { skipShipping = false } = {}) {
   if (typeof document.querySelectorAll === 'function') {
     for (const el of document.querySelectorAll(sel)) {
       if (el.closest?.(DETAIL_EXCLUDED_PARENTS)) continue;
+      if (skipShipping && el.closest?.('.shippingPrice')) continue;
       if (parsePrice(el.textContent) > 0) return el;
     }
     return null;
   }
   const el = document.querySelector(sel);
-  if (!el || el.closest?.(DETAIL_EXCLUDED_PARENTS)) return null;
+  if (!el || el.closest?.(DETAIL_EXCLUDED_PARENTS) || (skipShipping && el.closest?.('.shippingPrice'))) return null;
   return el;
 }
 
@@ -151,7 +152,7 @@ export function getDetailLowestPrice() {
   ];
   const selectors = shipping ? shippingFirst : productFirst;
   for (const sel of selectors) {
-    const priceEl = queryDetailPriceEl(sel);
+    const priceEl = queryDetailPriceEl(sel, { skipShipping: !shipping });
     if (priceEl) {
       const price = parsePrice(priceEl.textContent);
       if (price > 0) return { price, basis: shipping ? 'shipping' : 'product' };

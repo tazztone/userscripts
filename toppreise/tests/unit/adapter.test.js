@@ -278,5 +278,21 @@ describe('Page Adapter Layer', () => {
       assert.equal(alarmCalled, 1);
     });
   });
+
+  describe('getDetailProductId anchored regex', () => {
+    it('ignores model tokens like ARCTIC-P12 and extracts trailing -p567890', async () => {
+      const { getDetailProductId } = await import('../../src/page/adapter.js');
+      const prevLoc = globalThis.location;
+      const prevDoc = globalThis.document;
+      try {
+        globalThis.location = { href: 'https://www.toppreise.ch/preisvergleich/Coolers/ARCTIC-P12-p567890?s=1' };
+        globalThis.document = { body: { getAttribute: () => null }, querySelector: () => null };
+        assert.equal(getDetailProductId(), '567890');
+      } finally {
+        if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+        if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      }
+    });
+  });
 });
 

@@ -29,7 +29,7 @@ export function getDistinctProductIds(el) {
   const links = [el.tagName?.toLowerCase() === 'a' ? el : null, ...Array.from(el.querySelectorAll('a[href]'))].filter(Boolean);
   for (const a of links) {
     const href = a.getAttribute('href') || a.href || '';
-    const m = href.match(/-p(\d+)/i);
+    const m = href.match(/-p(\d+)(?:[/?#]|$)/i);
     if (m) ids.add(m[1]);
   }
   return Array.from(ids);
@@ -87,7 +87,7 @@ export function getCardProductId(card) {
   const linkEls = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
   const hrefs = Array.from(new Set(linkEls.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
   for (const href of hrefs) {
-    const match = href.match(/-p(\d+)/i);
+    const match = href.match(/-p(\d+)(?:[/?#]|$)/i);
     if (match && match[1]) {
       if (card.dataset) card.dataset.tpProductId = match[1];
       return match[1];
@@ -429,6 +429,7 @@ export function dealerLoserFor(card, activeStores) {
   const priceData = extractCanonicalPrice(card);
   const useShipping = isShippingPriceActive(card);
   const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
+  if (!(bestPrice > 0)) return false;
   const limit = bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100);
   // Any qualifying selected dealer keeps the card: rows are evaluated in
   // DOM order but the verdict must not depend on it.

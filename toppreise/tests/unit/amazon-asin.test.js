@@ -137,5 +137,16 @@ describe('Amazon ASIN resolution and caching', () => {
       assert.equal(res2, 'B0DEDUPAS1');
       assert.equal(fetchCount, 1);
     });
+
+    it('accepts amazon.fr targets and resolves ASIN', async () => {
+      const s = memStorage();
+      const res = await resolveAmazonAsin(
+        'https://www.amazon.fr/dp/B0FRTEST12',
+        'p601',
+        s,
+        async () => ({ url: 'https://www.amazon.fr/dp/B0FRTEST12' })
+      );
+      assert.equal(res, 'B0FRTEST12');
+    });
   });
 });

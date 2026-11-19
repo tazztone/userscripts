@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.513
+// @version      2.18.514
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -5989,7 +5989,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getDetailProductId() {
-    const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)/i);
+    const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)(?:[/?#]|$)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)(?:[/?#]|$)/i);
     if (match) return match[1];
     const chartLink = document.querySelector('a[href*="pricechart"], a[href*="p_pc_pid="]');
     if (chartLink) {
@@ -6003,16 +6003,17 @@ const SHADOW_MODAL_STYLES = `
 
   const DETAIL_EXCLUDED_PARENTS = `${SELECTORS.cards.excludedParents}, .Plugin_Product, .mixedBrowsingListProduct, .price_information_product_small, .small-box`;
 
-  function queryDetailPriceEl(sel) {
+  function queryDetailPriceEl(sel, { skipShipping = false } = {}) {
     if (typeof document.querySelectorAll === 'function') {
       for (const el of document.querySelectorAll(sel)) {
         if (el.closest?.(DETAIL_EXCLUDED_PARENTS)) continue;
+        if (skipShipping && el.closest?.('.shippingPrice')) continue;
         if (parsePrice(el.textContent) > 0) return el;
       }
       return null;
     }
     const el = document.querySelector(sel);
-    if (!el || el.closest?.(DETAIL_EXCLUDED_PARENTS)) return null;
+    if (!el || el.closest?.(DETAIL_EXCLUDED_PARENTS) || (skipShipping && el.closest?.('.shippingPrice'))) return null;
     return el;
   }
 
@@ -6037,7 +6038,7 @@ const SHADOW_MODAL_STYLES = `
     ];
     const selectors = shipping ? shippingFirst : productFirst;
     for (const sel of selectors) {
-      const priceEl = queryDetailPriceEl(sel);
+      const priceEl = queryDetailPriceEl(sel, { skipShipping: !shipping });
       if (priceEl) {
         const price = parsePrice(priceEl.textContent);
         if (price > 0) return { price, basis: shipping ? 'shipping' : 'product' };
@@ -6120,7 +6121,7 @@ const SHADOW_MODAL_STYLES = `
     const links = [el.tagName?.toLowerCase() === 'a' ? el : null, ...Array.from(el.querySelectorAll('a[href]'))].filter(Boolean);
     for (const a of links) {
       const href = a.getAttribute('href') || a.href || '';
-      const m = href.match(/-p(\d+)/i);
+      const m = href.match(/-p(\d+)(?:[/?#]|$)/i);
       if (m) ids.add(m[1]);
     }
     return Array.from(ids);
@@ -6178,7 +6179,7 @@ const SHADOW_MODAL_STYLES = `
     const linkEls = [card.tagName?.toLowerCase() === 'a' ? card : null, card.closest?.('a[href]'), ...(card.querySelectorAll ? card.querySelectorAll('a[href]') : [])];
     const hrefs = Array.from(new Set(linkEls.filter(el => el && !el.closest('header, nav, footer, .breadcrumb, #tp-suite-filter-bar')).map(el => el.getAttribute('href') || el.href || ''))).filter(Boolean);
     for (const href of hrefs) {
-      const match = href.match(/-p(\d+)/i);
+      const match = href.match(/-p(\d+)(?:[/?#]|$)/i);
       if (match && match[1]) {
         if (card.dataset) card.dataset.tpProductId = match[1];
         return match[1];
@@ -6520,6 +6521,7 @@ const SHADOW_MODAL_STYLES = `
     const priceData = extractCanonicalPrice(card);
     const useShipping = isShippingPriceActive(card);
     const bestPrice = priceData.price > 0 ? priceData.price : (priceData.el ? parsePrice(priceData.el.textContent) : 0);
+    if (!(bestPrice > 0)) return false;
     const limit = bestPrice * (1 + CONFIG.MARGIN_PERCENT / 100);
     // Any qualifying selected dealer keeps the card: rows are evaluated in
     // DOM order but the verdict must not depend on it.
@@ -6657,7 +6659,13 @@ const SHADOW_MODAL_STYLES = `
     }
     if (!url && typeof document !== 'undefined') {
       const curUrl = document.body?.getAttribute?.('data-current_url') || document.body?.getAttribute?.('data-current-url');
-      if (curUrl && isToppreiseProductUrl(curUrl)) url = curUrl;
+      if (curUrl) {
+        try {
+          const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+          const resolved = new URL(curUrl, base).href;
+          if (isToppreiseProductUrl(resolved)) url = resolved;
+        } catch {}
+      }
     }
     if (url && !/^https?:\/\//i.test(url)) {
       try {
@@ -6920,16 +6928,14 @@ const SHADOW_MODAL_STYLES = `
     }
 
     if (!directUrl || typeof directUrl !== 'string') return null;
-    const target = directUrl.startsWith('http')
-      ? directUrl
-      : `${(typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch'}${directUrl}`;
-
+    let target;
     try {
+      const base = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
+      target = new URL(directUrl, base).href;
       const urlObj = new URL(target);
       const host = urlObj.hostname.toLowerCase();
       const isToppreise = host === 'toppreise.ch' || host.endsWith('.toppreise.ch');
-      const isAmazon = host === 'amazon.de' || host.endsWith('.amazon.de') || host === 'amazon.com' || host.endsWith('.amazon.com');
-      if (!isToppreise && !isAmazon) return null;
+      if (!isToppreise && !isAllowedAmazonUrl(target)) return null;
     } catch {
       return null;
     }
@@ -6973,7 +6979,8 @@ const SHADOW_MODAL_STYLES = `
                 resolve(asin || null);
               },
               onerror: () => resolve(null),
-              ontimeout: () => resolve(null)
+              ontimeout: () => resolve(null),
+              onabort: () => resolve(null)
             });
           } else if (typeof fetch !== 'undefined') {
             fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' })
@@ -9657,15 +9664,18 @@ const SHADOW_MODAL_STYLES = `
       if (!c.dataset.tpInitialOrder) {
         c.dataset.tpInitialOrder = String(nextInitialOrder++);
       }
+      const item = getCardSortableUnit(c);
       if (!c.dataset.tpSection) {
-        const sep = c.parentElement?.querySelector?.('.fillUpSeparator');
+        const targetEl = item || c;
+        const sepParent = targetEl.parentElement;
+        const sep = sepParent?.querySelector?.('.fillUpSeparator');
         if (sep) {
           let isAfter = false;
-          if (typeof c.compareDocumentPosition === 'function') {
-            isAfter = !!(sep.compareDocumentPosition(c) & (typeof Node !== 'undefined' ? Node.DOCUMENT_POSITION_FOLLOWING : 4));
-          } else if (Array.isArray(c.parentElement?.children)) {
-            const sIdx = c.parentElement.children.indexOf(sep);
-            const cIdx = c.parentElement.children.indexOf(c);
+          if (typeof targetEl.compareDocumentPosition === 'function') {
+            isAfter = !!(sep.compareDocumentPosition(targetEl) & (typeof Node !== 'undefined' ? Node.DOCUMENT_POSITION_FOLLOWING : 4));
+          } else if (Array.isArray(sepParent?.children)) {
+            const sIdx = sepParent.children.indexOf(sep);
+            const cIdx = sepParent.children.indexOf(targetEl);
             isAfter = sIdx !== -1 && cIdx > sIdx;
           }
           c.dataset.tpSection = isAfter ? '2' : '1';
@@ -9673,7 +9683,6 @@ const SHADOW_MODAL_STYLES = `
           c.dataset.tpSection = '1';
         }
       }
-      const item = getCardSortableUnit(c);
       if (item) {
         if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = c.dataset.tpInitialOrder;
         if (!item.dataset.tpSection) item.dataset.tpSection = c.dataset.tpSection;
@@ -10019,8 +10028,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function queryLivePriceText(root) {
-    const cleanPlugin = root.querySelector('.Plugin_Price:not([class*="tp-"])');
-    if (cleanPlugin) return cleanPlugin.textContent?.trim() || '';
+    const cleanPlugins = Array.from(root.querySelectorAll?.('.Plugin_Price:not([class*="tp-"])') || []);
+    if (cleanPlugins.length > 0) return cleanPlugins.map(el => el.textContent?.trim() || '').join('|');
     return root.querySelector(SELECTORS.price.genericPriceMatch)?.textContent?.trim() || '';
   }
 
@@ -10147,20 +10156,25 @@ const SHADOW_MODAL_STYLES = `
       onProgress?.({ stage: refreshState.stage, elapsedSec: refreshState.elapsedSec });
     };
 
-    const ticker = setInterval(() => {
-      if (!isRefreshing) return;
-      const elapsed = Math.floor((Date.now() - refreshState.startedAt) / 1000);
-      if (elapsed >= 1 && elapsed !== refreshState.elapsedSec) {
-        refreshState.elapsedSec = elapsed;
-        onProgress?.({ stage: refreshState.stage, elapsedSec: elapsed });
-      }
-    }, 1000);
-
-    onStart?.();
-    showToast('🔄 Suche nach neuen Deals...');
-
+    let ticker;
     try {
+      ticker = setInterval(() => {
+        if (!isRefreshing) return;
+        const elapsed = Math.floor((Date.now() - refreshState.startedAt) / 1000);
+        if (elapsed >= 1 && elapsed !== refreshState.elapsedSec) {
+          refreshState.elapsedSec = elapsed;
+          onProgress?.({ stage: refreshState.stage, elapsedSec: elapsed });
+        }
+      }, 1000);
+
+      onStart?.();
+      showToast('🔄 Suche nach neuen Deals...');
+
       const html = await fetchFeedHtml(url, customFetch, { signal: refreshController.signal, timeoutMs });
+      if (typeof location !== 'undefined' && location.href !== url) {
+        refreshState.lastOutcome = 'cancelled';
+        return;
+      }
       if (typeof DOMParser !== 'function') {
         throw new Error('DOMParser nicht verfügbar');
       }
@@ -17249,7 +17263,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.513';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.514';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -60,15 +60,18 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
     if (!c.dataset.tpInitialOrder) {
       c.dataset.tpInitialOrder = String(nextInitialOrder++);
     }
+    const item = getCardSortableUnit(c);
     if (!c.dataset.tpSection) {
-      const sep = c.parentElement?.querySelector?.('.fillUpSeparator');
+      const targetEl = item || c;
+      const sepParent = targetEl.parentElement;
+      const sep = sepParent?.querySelector?.('.fillUpSeparator');
       if (sep) {
         let isAfter = false;
-        if (typeof c.compareDocumentPosition === 'function') {
-          isAfter = !!(sep.compareDocumentPosition(c) & (typeof Node !== 'undefined' ? Node.DOCUMENT_POSITION_FOLLOWING : 4));
-        } else if (Array.isArray(c.parentElement?.children)) {
-          const sIdx = c.parentElement.children.indexOf(sep);
-          const cIdx = c.parentElement.children.indexOf(c);
+        if (typeof targetEl.compareDocumentPosition === 'function') {
+          isAfter = !!(sep.compareDocumentPosition(targetEl) & (typeof Node !== 'undefined' ? Node.DOCUMENT_POSITION_FOLLOWING : 4));
+        } else if (Array.isArray(sepParent?.children)) {
+          const sIdx = sepParent.children.indexOf(sep);
+          const cIdx = sepParent.children.indexOf(targetEl);
           isAfter = sIdx !== -1 && cIdx > sIdx;
         }
         c.dataset.tpSection = isAfter ? '2' : '1';
@@ -76,7 +79,6 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
         c.dataset.tpSection = '1';
       }
     }
-    const item = getCardSortableUnit(c);
     if (item) {
       if (!item.dataset.tpInitialOrder) item.dataset.tpInitialOrder = c.dataset.tpInitialOrder;
       if (!item.dataset.tpSection) item.dataset.tpSection = c.dataset.tpSection;

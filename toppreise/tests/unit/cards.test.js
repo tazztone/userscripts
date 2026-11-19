@@ -761,4 +761,12 @@ describe('Min-Rabatt threshold filter core', () => {
       assert.ok(STYLES_CARDS.includes('.tp-share-btn:focus-visible'));
     });
   });
+
+  it('getCardProductId and getDistinctProductIds ignore model tokens like ARCTIC-P12', async () => {
+    const { getCardProductId, getDistinctProductIds } = await import('../../src/page/cards.js');
+    const link = { tagName: 'A', getAttribute: () => '/preisvergleich/Coolers/ARCTIC-P12-p567890', closest: () => null };
+    const card = { dataset: {}, tagName: 'DIV', closest: () => null, querySelectorAll: () => [link] };
+    assert.equal(getCardProductId(card), '567890');
+    assert.deepEqual(getDistinctProductIds(card), ['567890']);
+  });
 });
