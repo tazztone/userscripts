@@ -782,4 +782,69 @@ def test_diag_modal_long_press(page: Page):
     diag.wait_for(state='hidden')
 
 
+def test_settings_reset_to_default_button(page: Page):
+    open_settings(page)
+
+    btn = page.locator('#tp-root >> #tp-btn-reset-defaults')
+    assert btn.is_visible()
+    assert btn.text_content().strip() == 'Einstellungen auf Standardwerte zurücksetzen'
+
+    # Check button placement: margin-right pushes it to the left in .tp-modal-actions
+    is_left_aligned = page.evaluate("""() => {
+        const el = document.getElementById('tp-root').shadowRoot.getElementById('tp-btn-reset-defaults');
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        const dialogRect = document.getElementById('tp-root').shadowRoot.getElementById('tp-settings-dialog').getBoundingClientRect();
+        return rect.left - dialogRect.left < 50;
+    }""")
+    assert is_left_aligned is True
+
+    # Modify several settings
+    margin_input = page.locator('#tp-root >> #tp-margin-val')
+    margin_input.fill('15')
+
+    discount_input = page.locator('#tp-root >> #tp-real-deal-min-val')
+    discount_input.fill('45')
+
+    hide_ads_toggle = page.locator('#tp-root >> #tp-hide-ads-toggle')
+    initial_hide_ads = hide_ads_toggle.is_checked()
+    page.click('#tp-root >> #tp-hide-ads-toggle + .tp-slider')
+    assert hide_ads_toggle.is_checked() != initial_hide_ads
+
+    # Save changes first
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    # Verify changes were saved
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.MARGIN_PERCENT") == 15
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 45
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.HIDE_ADS") != initial_hide_ads
+
+    # Open settings again and click reset button with dialog confirmation
+    open_settings(page)
+
+    page.on('dialog', lambda dialog: dialog.accept())
+    page.click('#tp-root >> #tp-btn-reset-defaults')
+
+    # Modal should remain open
+    dialog = page.locator('#tp-root >> #tp-settings-dialog')
+    assert dialog.is_visible()
+
+    # Form inputs should reflect defaults
+    assert page.locator('#tp-root >> #tp-margin-val').input_value() == '0'
+    assert page.locator('#tp-root >> #tp-real-deal-min-val').input_value() == '30'
+    assert page.locator('#tp-root >> #tp-hide-ads-toggle').is_checked() is True
+
+    # Persistent CONFIG should be updated to DEFAULTS
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.MARGIN_PERCENT") == 0
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.REAL_DEAL_MIN_DISCOUNT") == 30
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.HIDE_ADS") is True
+
+    # Close modal and verify settings remain defaults
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.MARGIN_PERCENT") == 0
+
+
+
 
