@@ -12,5 +12,5 @@
 - Firefox WebDriver BiDi `--remote-debugging-port` returns `200` on `/` and `404` on `/status`; probe `/json/version` first to distinguish Chrome CDP before probing `/` for an active Firefox session.
 - Firefox deletes sideloaded `.xpi` files at startup unless the filename matches `manifest.json` `browser_specific_settings.gecko.id` (Violentmonkey: `{aecec67f-0d10-4fa7-b7c7-609a2db280cf}`).
 - Watch parent directories rather than individual file inodes with `fs.watch()` so atomic temp-write + rename saves keep triggering reloads.
-- `createMockElement` in `toppreise/tests/unit/category-tree.test.js` omits `classList.toggle(cls, force)` and `tag.class` selector matching (e.g. `li.ignoredCategoryEntry`); use explicit `classList.add`/`remove` and class-only selectors (`.ignoredCategoryEntry`) in `category-tree.js` so unit tests stay compatible.
+- Use shared `createMockNode` in `toppreise/tests/unit/helpers.js` for unit test DOM mocks rather than hand-rolling per-file DOM stubs; it includes full traversal, comma-separated selectors, `classList.toggle`, and child manipulation.
 - `toppreise/tests/test_catalog_layout.py` contains exact duplicate assertion pairs; include surrounding context lines in `edit_file` targets to avoid multi-match duplication.
