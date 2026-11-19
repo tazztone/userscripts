@@ -48,7 +48,7 @@ Requires a userscript manager browser extension:
 - [Violentmonkey](https://violentmonkey.github.io/) (recommended: [Firefox](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) · [Chrome / Brave](https://chromewebstore.google.com/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag))
 - [Tampermonkey](https://www.tampermonkey.net/)
 
-### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.522)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
+### 👉 [**CLICK HERE TO INSTALL USERSCRIPT (v2.18.523)**](https://raw.githubusercontent.com/tazztone/userscripts/main/toppreise/toppreise.user.js)
 
 > [!NOTE]
 > The userscript includes embedded `@updateURL` and `@downloadURL` metadata headers. Your userscript manager will automatically check GitHub in the background and keep your installation up to date.
@@ -147,7 +147,7 @@ Requires a userscript manager browser extension:
 * **Interactive Preview, Custom Comment & Multi-Channel Support:** Verified all-time low cards display a `📤` button on hover. Clicking opens a real-time preview modal with rendered Markdown and chart/product images, an optional comment field (for voucher codes, remarks, or notes with live Markdown update and `Ctrl+Enter` quick dispatch; up to 2000 chars — if the comment would push the deal past Discord's 2000-char limit, it is posted as a follow-up reply in the forum thread or as a second message in standard channels), and individual action buttons for each configured channel (e.g., `#deals`, `#gaming`).
 * **Multiple Webhook Channels:** Configure and name multiple Discord webhooks in settings (confidential, stored locally in `GM_setValue`, never committed or exported).
 * **High-DPI Chart & Product Image Upload:** Rasterizes the price history chart to PNG and attaches it alongside the product image (used as thread preview in Discord forum channels), automatically appending the Amazon Keepa history chart for Amazon deals.
-* **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{comment}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
+* **Customizable Template Engine (*Baukasten*):** Tailor your Discord message layout with tokens (`{title}`, `{price}`, `{dealer}`, `{offers}`, `{prevlow}`, `{median}`, `{ai}`, `{rating}`, `{comment}`, `{link}`), layout presets (*Kompakt*, *Ausführlich*, *Minimal*), live Markdown preview, and independent link embed suppression toggles.
 
 ---
 

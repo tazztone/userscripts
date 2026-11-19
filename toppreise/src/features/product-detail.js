@@ -219,7 +219,7 @@ function createDetailShareBtn(payload) {
     e.preventDefault();
     e.stopPropagation();
     if (shareBtn.disabled) return;
-    const { pid, currentPrice, priceBasis, stats, title, url, imageUrl } = shareBtn._tpSharePayload || {};
+    const { pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating } = shareBtn._tpSharePayload || {};
     document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
       b.disabled = true;
       b.classList.add('tp-share-loading');
@@ -232,6 +232,7 @@ function createDetailShareBtn(payload) {
       title,
       url,
       imageUrl,
+      nativeRating,
       isDetailPage: true,
       onDone: stillFresh => {
         document.querySelectorAll('.tp-detail-share-btn').forEach(b => {

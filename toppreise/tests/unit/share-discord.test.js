@@ -1215,8 +1215,9 @@ describe('validateLayoutRecipe', () => {
   it('dedupes unknown tokens', () => {
     assert.equal(validateLayoutRecipe('## {title}\n{foo} {foo} {bar}'), 'Unbekannte Tokens: {foo}, {bar}');
   });
-  it('accepts the default layout', () => {
+  it('accepts the default layout and rating token', () => {
     assert.equal(validateLayoutRecipe(DEFAULT_LAYOUT), null);
+    assert.equal(validateLayoutRecipe('## {title}\n{rating}\n# {price}'), null);
   });
 });
 
@@ -1296,5 +1297,45 @@ describe('commentOverflows', () => {
   it('returns false when deal itself is over 2000 chars without comment', () => {
     const hugeTitle = 'X'.repeat(2050);
     assert.equal(commentOverflows({ ...baseFields, title: hugeTitle, commentText: 'Kurz' }), false);
+  });
+});
+
+describe('{rating} layout token rendering', () => {
+  it('renders rating emoji and label for known levels 0 to 4', () => {
+    const levels = [
+      { level: 0, emoji: '🟢', label: 'Sehr niedriger Preis' },
+      { level: 1, emoji: '🟢', label: 'Niedriger Preis' },
+      { level: 2, emoji: '⚪', label: 'Normaler Preis' },
+      { level: 3, emoji: '🟠', label: 'Hoher Preis' },
+      { level: 4, emoji: '🔴', label: 'Sehr hoher Preis' }
+    ];
+
+    for (const { level, emoji, label } of levels) {
+      const rendered = renderLayout({
+        title: 'AirPods Pro',
+        priceText: 'CHF 199.00',
+        ratingLevel: level,
+        ratingText: label
+      }, '## {title}\n{rating}\n# {price}');
+      assert.ok(rendered.includes(`${emoji} ${label}`));
+    }
+  });
+
+  it('collapses cleanly when rating is missing or empty', () => {
+    const rendered = renderLayout({
+      title: 'AirPods Pro',
+      priceText: 'CHF 199.00',
+      ratingText: ''
+    }, '## {title}\n{rating}\n# {price}');
+    assert.equal(rendered, '## AirPods Pro\n# 💰 CHF 199.00');
+  });
+
+  it('uses fallback emoji for out-of-range rating levels', () => {
+    const rendered = renderLayout({
+      title: 'AirPods Pro',
+      ratingLevel: 99,
+      ratingText: 'Spezialpreis'
+    }, '{rating}');
+    assert.equal(rendered, '📊 Spezialpreis');
   });
 });

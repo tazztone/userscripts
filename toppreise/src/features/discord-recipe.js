@@ -9,7 +9,7 @@ import { getDisplayDelta, getLevelPct, medianHorizonLabel } from '../domain/deal
 // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
 // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
 export const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}';
-export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'comment', 'link']);
+export const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'comment', 'rating', 'link']);
 
 export function validateLayoutRecipe(recipe) {
   const value = String(recipe ?? '');
@@ -85,6 +85,11 @@ function tokenText(name, ctx) {
       const hasPrefix = /^([^\p{L}\p{N}\s]|>|-)/u.test(text);
       return hasPrefix ? text : `💬 ${text}`;
     }
+    case 'rating': {
+      if (!ctx.ratingText) return '';
+      const emoji = ['🟢', '🟢', '⚪', '🟠', '🔴'][ctx.ratingLevel] ?? '📊';
+      return `${emoji} ${ctx.ratingText}`;
+    }
     case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
     default: return '';
   }
@@ -119,6 +124,8 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
     medianText: (fields || {}).medianText || '',
     medianPct: (fields || {}).medianPct || 0,
     aiText: (fields || {}).aiText || '',
+    ratingText: (fields || {}).ratingText || '',
+    ratingLevel: (fields || {}).ratingLevel ?? null,
     commentText: String((fields || {}).commentText || '').trim(),
     suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
     forceLink: (fields || {}).forceLink === true,

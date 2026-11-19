@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.522
+// @version      2.18.523
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -9093,7 +9093,7 @@ const SHADOW_MODAL_STYLES = `
   // Baukasten-Layout: je Zeile ein Baustein, Grösse via # / ## / -# am
   // Zeilenanfang. · blendet leere Nachbarn aus, +{offers} rendert kompakt +N (leer bei 0). {link} nur bei aktivem Embed.
   const DEFAULT_LAYOUT = '## {title}\n# {price}\n# {dealer} +{offers}\n{prevlow}\n{median}\n{ai}\n{comment}\n{link}';
-  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'comment', 'link']);
+  const LAYOUT_TOKENS = new Set(['title', 'price', 'dealer', 'offers', 'spark', 'prevlow', 'median', 'ai', 'comment', 'rating', 'link']);
 
   function validateLayoutRecipe(recipe) {
     const value = String(recipe ?? '');
@@ -9169,6 +9169,11 @@ const SHADOW_MODAL_STYLES = `
         const hasPrefix = /^([^\p{L}\p{N}\s]|>|-)/u.test(text);
         return hasPrefix ? text : `💬 ${text}`;
       }
+      case 'rating': {
+        if (!ctx.ratingText) return '';
+        const emoji = ['🟢', '🟢', '⚪', '🟠', '🔴'][ctx.ratingLevel] ?? '📊';
+        return `${emoji} ${ctx.ratingText}`;
+      }
       case 'link': return (ctx.link && (!ctx.suppressProductEmbed || ctx.forceLink)) ? ctx.link : '';
       default: return '';
     }
@@ -9203,6 +9208,8 @@ const SHADOW_MODAL_STYLES = `
       medianText: (fields || {}).medianText || '',
       medianPct: (fields || {}).medianPct || 0,
       aiText: (fields || {}).aiText || '',
+      ratingText: (fields || {}).ratingText || '',
+      ratingLevel: (fields || {}).ratingLevel ?? null,
       commentText: String((fields || {}).commentText || '').trim(),
       suppressProductEmbed: (fields || {}).suppressProductEmbed === true,
       forceLink: (fields || {}).forceLink === true,
@@ -11623,6 +11630,7 @@ const SHADOW_MODAL_STYLES = `
     dealer: overrideDealer = '',
     dealerUrl: overrideDealerUrl = '',
     offerCount: overrideOfferCount = 0,
+    nativeRating = null,
     onDone = null,
     isDetailPage = false
   } = {}) {
@@ -11698,6 +11706,8 @@ const SHADOW_MODAL_STYLES = `
       title, url, priceText,
       dealer, dealerUrl, offerCount: offers,
       aiText: '',
+      ratingText: nativeRating?.label || '',
+      ratingLevel: nativeRating?.level ?? null,
       ...resolveShareFields(cardPrice, stats),
       suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
       suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
@@ -12882,11 +12892,12 @@ const SHADOW_MODAL_STYLES = `
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{prevlow}">Bisher {prevlow}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{median}">Ø-Preis {median}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{ai}">KI-Fazit {ai}</button>
+              <button type="button" class="tp-btn tp-btn-secondary" data-token="{rating}">Bewertung {rating}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{comment}">Kommentar {comment}</button>
               <button type="button" class="tp-btn tp-btn-secondary" data-token="{link}">Link {link}</button>
             </div>
             <textarea id="tp-discord-layout-input" class="tp-field-dark" rows="7" style="font-family:monospace" spellcheck="false"></textarea>
-            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {comment} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
+            <span class="tp-switch-desc tp-field-hint">Je Zeile ein Baustein. Tokens: {title} {price} {dealer} {offers} {prevlow} {median} {ai} {rating} {comment} {link}. Grösse via # / ## / -# am Zeilenanfang. · / + blenden leere Nachbarn aus. Preischarts werden als Bild angehängt.</span>
             <pre id="tp-discord-layout-preview"></pre>
             <span id="tp-discord-layout-count" class="tp-switch-desc"></span>
             <span id="tp-discord-layout-error" class="tp-switch-desc"></span>
@@ -16927,7 +16938,7 @@ const SHADOW_MODAL_STYLES = `
       e.preventDefault();
       e.stopPropagation();
       if (shareBtn.disabled) return;
-      const { pid, currentPrice, priceBasis, stats, title, url, imageUrl } = shareBtn._tpSharePayload || {};
+      const { pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating } = shareBtn._tpSharePayload || {};
       document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
         b.disabled = true;
         b.classList.add('tp-share-loading');
@@ -16940,6 +16951,7 @@ const SHADOW_MODAL_STYLES = `
         title,
         url,
         imageUrl,
+        nativeRating,
         isDetailPage: true,
         onDone: stillFresh => {
           document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
@@ -17476,7 +17488,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.522';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.523';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

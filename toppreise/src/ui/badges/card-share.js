@@ -100,6 +100,7 @@ export async function triggerDiscordShare({
   dealer: overrideDealer = '',
   dealerUrl: overrideDealerUrl = '',
   offerCount: overrideOfferCount = 0,
+  nativeRating = null,
   onDone = null,
   isDetailPage = false
 } = {}) {
@@ -175,6 +176,8 @@ export async function triggerDiscordShare({
     title, url, priceText,
     dealer, dealerUrl, offerCount: offers,
     aiText: '',
+    ratingText: nativeRating?.label || '',
+    ratingLevel: nativeRating?.level ?? null,
     ...resolveShareFields(cardPrice, stats),
     suppressDealerEmbed: CONFIG.DISCORD_SUPPRESS_DEALER_EMBED !== false,
     suppressProductEmbed: CONFIG.DISCORD_SUPPRESS_PRODUCT_EMBED !== false
