@@ -22,6 +22,12 @@ import sys
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
+from pathlib import Path
+
+local_browsers = Path(__file__).resolve().parents[2] / '.playwright-browsers'
+if local_browsers.is_dir():
+    os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', str(local_browsers))
+
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
@@ -115,7 +121,8 @@ SEED_JS = """([entries, config]) => {
   for (const [pid, stats] of Object.entries(entries)) {
     stats.time = Date.now();
     localStorage.setItem('tp_hist_v1_' + pid, JSON.stringify(stats));
-    if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(pid, stats);
+    const key = window.ToppreiseSuite.statsKey ? window.ToppreiseSuite.statsKey(pid) : ('tp_hist_v1_' + pid);
+    if (window.ToppreiseSuite?.memoryCache) window.ToppreiseSuite.memoryCache.set(key, stats);
   }
   Object.assign(window.ToppreiseSuite.CONFIG, config);
   window.ToppreiseSuite.processListings();
@@ -765,7 +772,7 @@ def setup_sparkline_modal(page, pids):
             if (titleEl) titleEl.textContent = 'ANKER soundcore AeroClip';
         }
 
-        window.ToppreiseSuite.CONFIG.ENABLE_SPARKLINES = true;
+        window.ToppreiseSuite.CONFIG.SPARKLINES_ENABLED = true;
         window.ToppreiseSuite.CONFIG.KEEPA_CHART_ENABLED = true;
         window.ToppreiseSuite.processListings();
     }""", [pid0, stats, p0])
@@ -795,7 +802,7 @@ def setup_sparkline_modal(page, pids):
          {"bx": 32}),
         ("#tp-keepa-section button:has-text('365T')",
          "Zeitraum-Wahl (90T / 180T / 365T / Alle für Keepa-Verlauf)",
-         {"bx": 180, "by": 350}),
+         {"bx": 240, "by": 380}),
         ("#tp-keepa-section button:has-text('Bild kopieren')",
          "Keepa-Bild kopieren (1-Klick Amazon Chart in Zwischenablage)",
          {"bx": 385, "by": 400}),
@@ -849,7 +856,7 @@ def setup_search_cards(page, pids):
     block_pids = block.evaluate(r"""el => {
         const out = [], seen = new Set();
         for (const a of el.querySelectorAll('a[href]')) {
-            const m = (a.getAttribute('href') || '').match(/-p(\d+)/i);
+            const m = (a.getAttribute('href') || '').match(/-p(\d+)(?:[/?#]|$)/i);
             if (m && !seen.has(m[1])) { seen.add(m[1]); out.push(m[1]); }
         }
         return out.slice(0, 4);
@@ -1034,7 +1041,7 @@ SCENES = {
         "config": {
             "BESTPREISE_MODE_ACTIVE": True,
             "BESTPREISE_WEIGHT_RECORD": 0.50,
-            "HEATMAP_ACTIVE": True,
+            "HEATMAP_ENABLED": True,
             "REVIEW_SEARCH_ENABLED": True,
         },
         "viewport": {"width": 1440, "height": 900},
@@ -1046,7 +1053,7 @@ SCENES = {
         "config": {
             "BESTPREISE_MODE_ACTIVE": True,
             "BESTPREISE_WEIGHT_RECORD": 0.50,
-            "ENABLE_SPARKLINES": True,
+            "SPARKLINES_ENABLED": True,
             "KEEPA_CHART_ENABLED": True,
         },
         "viewport": {"width": 1440, "height": 1000},

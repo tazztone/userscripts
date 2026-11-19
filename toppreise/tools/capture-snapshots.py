@@ -16,10 +16,17 @@ import sys
 import urllib.parse
 from datetime import datetime, timezone
 
+from pathlib import Path
+
+local_browsers = Path(__file__).resolve().parents[2] / '.playwright-browsers'
+if local_browsers.is_dir():
+    os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', str(local_browsers))
+
 from playwright.sync_api import sync_playwright
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SNAP_DIR = os.path.join(BASE_DIR, "snapshots")
+FEED_URL = "https://www.toppreise.ch/neue-toppreise"
 READY = {"feed": ".badge-dif", "search": ".Plugin_ProductCollItem"}
 
 COOKIE_RE = r"akzeptieren|einverstanden|zustimmen|accept"
@@ -84,7 +91,7 @@ SANITIZE_JS = """(urlmap) => {
   const pids = [];
   const seen = new Set();
   for (const a of document.querySelectorAll('a[href]')) {
-    const m = (a.getAttribute('href') || '').match(/-p(\\d+)/i);
+    const m = (a.getAttribute('href') || '').match(/-p(\\d+)(?:[/?#]|$)/i);
     if (m && !seen.has(m[1])) { seen.add(m[1]); pids.push(m[1]); }
     if (pids.length >= 8) break;
   }

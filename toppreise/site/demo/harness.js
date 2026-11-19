@@ -228,7 +228,7 @@
     document.addEventListener('click', (e) => {
       // Don't intercept clicks inside suite root or on suite card controls
       if (e.target.closest('#tp-root')) return;
-      if (e.target.closest('.tp-sparkline-container, .tp-share-btn, .tp-dealer-name, .tp-review-link')) return;
+      if (e.target.closest('.tp-sparkline-container, .tp-share-btn, .tp-dealer-name, .tp-review-search-btn, .tp-review-link')) return;
 
       const a = e.target.closest('a');
       if (!a) return;
@@ -260,7 +260,7 @@
       // Discover all product IDs present in the feed snapshot
       const pidSet = new Set(PIDS);
       document.querySelectorAll('a[href*="-p"]').forEach((a) => {
-        const m = (a.getAttribute('href') || '').match(/-p(\d+)/);
+        const m = (a.getAttribute('href') || '').match(/-p(\d+)(?:[/?#]|$)/i);
         if (m) pidSet.add(m[1]);
       });
 
@@ -302,8 +302,8 @@
 
     if (preset === 'all') {
       if (window.ToppreiseSuite?.CONFIG) {
-        window.ToppreiseSuite.CONFIG.BESTPREISE_ONLY = false;
-        window.ToppreiseSuite.CONFIG.ENABLE_HEATMAP = true;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = false;
+        window.ToppreiseSuite.CONFIG.HEATMAP_ENABLED = true;
       } else if (bestpreiseBtn?.classList.contains('tp-tool-active')) {
         bestpreiseBtn.click();
       }
@@ -311,8 +311,8 @@
       showDemoToast('Preset: Alle Angebote');
     } else if (preset === 'verified') {
       if (window.ToppreiseSuite?.CONFIG) {
-        window.ToppreiseSuite.CONFIG.BESTPREISE_ONLY = true;
-        window.ToppreiseSuite.CONFIG.ENABLE_HEATMAP = true;
+        window.ToppreiseSuite.CONFIG.BESTPREISE_MODE_ACTIVE = true;
+        window.ToppreiseSuite.CONFIG.HEATMAP_ENABLED = true;
       } else if (bestpreiseBtn && !bestpreiseBtn.classList.contains('tp-tool-active')) {
         bestpreiseBtn.click();
       }
@@ -320,7 +320,7 @@
       showDemoToast('Preset: Nur verifizierte Deals (Score ≥ 70)');
     } else if (preset === 'heatmap') {
       if (window.ToppreiseSuite?.CONFIG) {
-        window.ToppreiseSuite.CONFIG.ENABLE_HEATMAP = !window.ToppreiseSuite.CONFIG.ENABLE_HEATMAP;
+        window.ToppreiseSuite.CONFIG.HEATMAP_ENABLED = !window.ToppreiseSuite.CONFIG.HEATMAP_ENABLED;
       } else if (heatBtn) {
         heatBtn.click();
       }
@@ -336,8 +336,8 @@
       window.parent.postMessage({
         type: 'TP_DEMO_STATE',
         active: isSuiteActive,
-        bestpreiseOnly: window.ToppreiseSuite?.CONFIG?.BESTPREISE_ONLY || false,
-        heatmapActive: window.ToppreiseSuite?.CONFIG?.ENABLE_HEATMAP ?? true,
+        bestpreiseOnly: window.ToppreiseSuite?.CONFIG?.BESTPREISE_MODE_ACTIVE || false,
+        heatmapActive: window.ToppreiseSuite?.CONFIG?.HEATMAP_ENABLED ?? true,
       }, '*');
     } catch {}
   }

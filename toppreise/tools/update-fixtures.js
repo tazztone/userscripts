@@ -133,12 +133,12 @@ function auditHtmlSelectors(html, targetKey) {
   const results = [];
 
   for (const selector of target.requiredSelectors) {
-    // Check selector components
-    const classes = selector.match(/\.[a-zA-Z0-9_-]+/g) || [];
+    // Split selector on ',' into alternatives; require EVERY .className in at least one alternative
+    const alternatives = selector.split(',').map((s) => s.trim()).filter(Boolean);
     let matched = false;
-    for (const cls of classes) {
-      const clsName = cls.slice(1);
-      if (html.includes(clsName)) {
+    for (const alt of alternatives) {
+      const classes = alt.match(/\.[a-zA-Z0-9_-]+/g) || [];
+      if (classes.length > 0 && classes.every((cls) => html.includes(cls.slice(1)))) {
         matched = true;
         break;
       }

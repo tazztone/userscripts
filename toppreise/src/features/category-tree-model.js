@@ -498,7 +498,7 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
     const matchingCard = activeDoc.querySelector(`.Plugin_Product[href*="/${safeSlug}/"]`);
     if (matchingCard) {
       const pid = matchingCard.getAttribute('data-entity-id') ||
-                  (matchingCard.getAttribute('href') || '').match(/-p(\d+)/)?.[1] || '';
+                  (matchingCard.getAttribute('href') || '').match(/-p(\d+)(?:[/?#]|$)/i)?.[1] || '';
       if (pid) {
         await fetchMenuIdents(pid);
         const updatedStored = getStoredIdents();
