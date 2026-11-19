@@ -132,8 +132,8 @@ export const STYLES_FLOATING_CTA = `
     width: 44px !important;
     height: 28px !important;
     padding: 0 4px !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.14) !important;
     border-radius: 999px !important;
     font-family: inherit !important;
     font-size: 11px !important;
@@ -145,13 +145,13 @@ export const STYLES_FLOATING_CTA = `
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
   }
   #tp-floating-threshold-input:hover {
-    background: rgba(255, 255, 255, 0.14) !important;
+    background: rgba(15, 23, 42, 0.08) !important;
     color: var(--tp-txt) !important;
   }
   #tp-floating-threshold-input:focus {
-    background: rgba(255, 255, 255, 0.2) !important;
-    border-color: #10b981 !important;
-    color: #fff !important;
+    background: rgba(15, 23, 42, 0.08) !important;
+    border-color: var(--tp-acc) !important;
+    color: var(--tp-txt) !important;
   }
   #tp-floating-refresh-btn,
   #tp-floating-cta-collapse {

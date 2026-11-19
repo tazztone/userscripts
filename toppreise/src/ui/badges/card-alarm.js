@@ -27,10 +27,11 @@ export function renderAlarmBell(ctx) {
     bell.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
-      openPriceAlarmForProduct(pid, card);
+      openPriceAlarmForProduct(bell.dataset.tpPid || pid, card);
     });
     group.appendChild(bell);
   }
+  bell.dataset.tpPid = pid;
   if (group) {
     const targetAnchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl) ||
                          card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small') ||

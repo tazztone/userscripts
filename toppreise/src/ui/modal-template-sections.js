@@ -127,7 +127,7 @@ export function renderDataSection() {
         <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
           <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>
           <div class="tp-range-container tp-purple">
-            <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
+            <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="5" value="365">
             <input type="number" id="tp-bestpreise-horizon-val" min="0" max="3650" step="1" value="365">
           </div>
           <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.</span>

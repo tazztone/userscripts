@@ -17,7 +17,6 @@ let suppressNextFabClick = false;
 export function openDiagModal(shadow) {
   if (!shadow) return;
   let dialog = shadow.getElementById('tp-diag-dialog');
-  let filterWarnOnly = false;
   let unsub = null;
 
   const renderSnapshotAndLog = () => {
@@ -37,7 +36,8 @@ export function openDiagModal(shadow) {
     if (snapEl) snapEl.textContent = snapLines.join('\n');
 
     const entries = getActivityLog();
-    const filtered = filterWarnOnly
+    const warnOnly = !!dialog.querySelector('#tp-diag-warn-filter')?.checked;
+    const filtered = warnOnly
       ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
       : entries;
     if (preEl) {
@@ -75,8 +75,7 @@ export function openDiagModal(shadow) {
       clearActivityLog();
       renderSnapshotAndLog();
     });
-    dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', (e) => {
-      filterWarnOnly = !!e.target.checked;
+    dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', () => {
       renderSnapshotAndLog();
     });
     dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
@@ -100,14 +99,18 @@ export function openDiagModal(shadow) {
   }
 
   renderSnapshotAndLog();
+  dialog._tpUnsub?.();
   unsub = subscribeActivityLog(() => {
     if (dialog.open) renderSnapshotAndLog();
   });
-  dialog.addEventListener('close', () => {
+  dialog._tpUnsub = () => {
     if (unsub) {
       unsub();
       unsub = null;
     }
+  };
+  dialog.addEventListener('close', () => {
+    dialog._tpUnsub?.();
   }, { once: true });
 
   if (!dialog.open) {

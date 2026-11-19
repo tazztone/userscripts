@@ -151,8 +151,13 @@ export function wireModalActions(els) {
       dead.forEach(k => localStorage.removeItem(k));
     } catch (e) {}
     try {
-      const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
-      if (hook && typeof GM_deleteValue !== 'undefined') GM_deleteValue(discordForumFlagKey(hook));
+      const hooks = new Set([
+        (CONFIG.DISCORD_WEBHOOK_URL || '').trim(),
+        ...(CONFIG.DISCORD_CHANNELS || []).map(c => (c?.url || '').trim())
+      ].filter(Boolean));
+      if (typeof GM_deleteValue !== 'undefined') {
+        for (const hook of hooks) GM_deleteValue(discordForumFlagKey(hook));
+      }
     } catch (e) {}
     _setValue('PAGE_PROFILES', null);
     updateConfigs({ ...DEFAULTS });
@@ -283,13 +288,15 @@ export function wireModalActions(els) {
     if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
     updates.ALARM_ENABLED = els.alarmEnabledToggle.checked;
-    updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(els.alarmTargetVal.value) || 60) / 100));
+    const rawAlarmTarget = parseInt(els.alarmTargetVal.value, 10);
+    updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (isNaN(rawAlarmTarget) ? 60 : rawAlarmTarget) / 100));
 
     const checkedDur = els.shadow.querySelector('input[name="tp-alarm-duration"]:checked');
     if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
     updates.ALARM_AUTO_SUBMIT = els.alarmAutoSubmitToggle.checked;
-    updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(els.heatmapIntensityVal.value) || 100) / 100);
+    const rawHeat = parseInt(els.heatmapIntensityVal.value, 10);
+    updates.HEATMAP_INTENSITY = clampIntensity01((isNaN(rawHeat) ? 100 : rawHeat) / 100);
 
     if (els.bestpreiseModeToggle) updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
     if (els.bestpreiseWeightVal) {

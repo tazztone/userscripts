@@ -92,9 +92,10 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
     const y1 = height - margin.bottom;
     points = buildPoints(x0, x1, y0, y1);
 
-    // Y price grid: min / mid / max.
+    // Y price grid: min / mid / max (single line when flat).
     const mid = (min + max) / 2;
-    for (const v of [min, mid, max]) {
+    const yValues = min === max ? [min] : [min, mid, max];
+    for (const v of yValues) {
       const y = y1 - ((v - min) / range) * (y1 - y0);
       svg.appendChild(line(x0, y, x1, y, 0.8));
       svg.appendChild(label(2, y + 3, `CHF ${fmtPrice(v)}`, 'start'));
@@ -296,9 +297,11 @@ export async function copyKeepaChartToClipboard(imgEl, titleText, asin, fallback
   } catch (err) {
     console.debug('[Toppreise-Suite] Keepa-Copy-Fehler', err);
     if (fallbackUrl && typeof navigator?.clipboard?.writeText === 'function') {
-      await navigator.clipboard.writeText(fallbackUrl);
-      showToast('📋 Bild-Link kopiert');
-      return true;
+      try {
+        await navigator.clipboard.writeText(fallbackUrl);
+        showToast('📋 Bild-Link kopiert');
+        return true;
+      } catch {}
     }
   } finally {
     if (objectUrl) {

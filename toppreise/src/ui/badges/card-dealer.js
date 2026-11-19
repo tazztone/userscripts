@@ -77,10 +77,11 @@ export function renderDealerName(ctx, filters) {
   // DEALER_AUTOFETCH denselben Loader ohne Klick (1×/Pageload, max. 3 parallel).
   // Der Name verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw.
   // Zeilenlink), Fallback ist die Produktseite — immer neuer Tab.
-  const dealerEl = card.querySelector('.tp-dealer-name');
+  const dealerEl = card.querySelector('.tp-card-dealer-row .tp-dealer-name');
   if (!hasUsablePriceStats(stats) || !pid) {
     dealerEl?.remove();
     card.querySelector('.tp-card-dealer-row')?.remove();
+    card.querySelector('.tp-action-dealer')?.remove();
   } else {
     const useShipping = isShippingPriceActive(card);
     const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
@@ -161,11 +162,12 @@ export function renderDealerName(ctx, filters) {
         setTitleIfChanged(link, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
       } else if (hasUrl && !dealerCache.has(dKey)) {
         let actionBtn = actionEl.querySelector('button.tp-dealer-btn');
-        if (!actionBtn) {
+        if (!actionBtn || actionBtn.dataset.tpDealerPid !== dKey) {
           actionEl.innerHTML = '';
           actionBtn = document.createElement('button');
           actionBtn.type = 'button';
           actionBtn.className = 'tp-dealer-name tp-dealer-btn';
+          actionBtn.dataset.tpDealerPid = dKey;
           actionBtn.textContent = '🏬';
           actionBtn.setAttribute('aria-label', 'Händler laden');
           actionBtn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';

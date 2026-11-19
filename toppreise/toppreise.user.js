@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.516
+// @version      2.18.517
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2638,8 +2638,8 @@ const STYLES_FLOATING_CTA = `
     width: 44px !important;
     height: 28px !important;
     padding: 0 4px !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    background: rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid rgba(15, 23, 42, 0.14) !important;
     border-radius: 999px !important;
     font-family: inherit !important;
     font-size: 11px !important;
@@ -2651,13 +2651,13 @@ const STYLES_FLOATING_CTA = `
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
   }
   #tp-floating-threshold-input:hover {
-    background: rgba(255, 255, 255, 0.14) !important;
+    background: rgba(15, 23, 42, 0.08) !important;
     color: var(--tp-txt) !important;
   }
   #tp-floating-threshold-input:focus {
-    background: rgba(255, 255, 255, 0.2) !important;
-    border-color: #10b981 !important;
-    color: #fff !important;
+    background: rgba(15, 23, 42, 0.08) !important;
+    border-color: var(--tp-acc) !important;
+    color: var(--tp-txt) !important;
   }
   #tp-floating-refresh-btn,
   #tp-floating-cta-collapse {
@@ -8442,7 +8442,12 @@ const SHADOW_MODAL_STYLES = `
     backdrop.appendChild(panel);
 
     let closed = false;
+    let backdropMousedown = false;
     const onKey = e => {
+      if (backdrop.isConnected === false) {
+        close();
+        return;
+      }
       if (e.key === 'Escape') {
         e.stopPropagation();
         e.stopImmediatePropagation?.();
@@ -8480,8 +8485,12 @@ const SHADOW_MODAL_STYLES = `
     }
 
     closeBtn.addEventListener('click', close);
+    backdrop.addEventListener('mousedown', e => {
+      backdropMousedown = e.target === backdrop;
+    });
     backdrop.addEventListener('click', e => {
-      if (e.target === backdrop) close();
+      if (e.target === backdrop && backdropMousedown) close();
+      backdropMousedown = false;
     });
 
     function mount() {
@@ -8588,9 +8597,10 @@ const SHADOW_MODAL_STYLES = `
       const y1 = height - margin.bottom;
       points = buildPoints(x0, x1, y0, y1);
 
-      // Y price grid: min / mid / max.
+      // Y price grid: min / mid / max (single line when flat).
       const mid = (min + max) / 2;
-      for (const v of [min, mid, max]) {
+      const yValues = min === max ? [min] : [min, mid, max];
+      for (const v of yValues) {
         const y = y1 - ((v - min) / range) * (y1 - y0);
         svg.appendChild(line(x0, y, x1, y, 0.8));
         svg.appendChild(label(2, y + 3, `CHF ${fmtPrice(v)}`, 'start'));
@@ -8792,9 +8802,11 @@ const SHADOW_MODAL_STYLES = `
     } catch (err) {
       console.debug('[Toppreise-Suite] Keepa-Copy-Fehler', err);
       if (fallbackUrl && typeof navigator?.clipboard?.writeText === 'function') {
-        await navigator.clipboard.writeText(fallbackUrl);
-        showToast('📋 Bild-Link kopiert');
-        return true;
+        try {
+          await navigator.clipboard.writeText(fallbackUrl);
+          showToast('📋 Bild-Link kopiert');
+          return true;
+        } catch {}
       }
     } finally {
       if (objectUrl) {
@@ -12075,10 +12087,11 @@ const SHADOW_MODAL_STYLES = `
     // DEALER_AUTOFETCH denselben Loader ohne Klick (1×/Pageload, max. 3 parallel).
     // Der Name verlinkt direkt aufs Händlerangebot (/ext_de aus dem Fetch bzw.
     // Zeilenlink), Fallback ist die Produktseite — immer neuer Tab.
-    const dealerEl = card.querySelector('.tp-dealer-name');
+    const dealerEl = card.querySelector('.tp-card-dealer-row .tp-dealer-name');
     if (!hasUsablePriceStats(stats) || !pid) {
       dealerEl?.remove();
       card.querySelector('.tp-card-dealer-row')?.remove();
+      card.querySelector('.tp-action-dealer')?.remove();
     } else {
       const useShipping = isShippingPriceActive(card);
       const dKey = `${pid}:${useShipping ? 's' : 'p'}`;
@@ -12159,11 +12172,12 @@ const SHADOW_MODAL_STYLES = `
           setTitleIfChanged(link, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
         } else if (hasUrl && !dealerCache.has(dKey)) {
           let actionBtn = actionEl.querySelector('button.tp-dealer-btn');
-          if (!actionBtn) {
+          if (!actionBtn || actionBtn.dataset.tpDealerPid !== dKey) {
             actionEl.innerHTML = '';
             actionBtn = document.createElement('button');
             actionBtn.type = 'button';
             actionBtn.className = 'tp-dealer-name tp-dealer-btn';
+            actionBtn.dataset.tpDealerPid = dKey;
             actionBtn.textContent = '🏬';
             actionBtn.setAttribute('aria-label', 'Händler laden');
             actionBtn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';
@@ -12275,10 +12289,11 @@ const SHADOW_MODAL_STYLES = `
       bell.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        openPriceAlarmForProduct(pid, card);
+        openPriceAlarmForProduct(bell.dataset.tpPid || pid, card);
       });
       group.appendChild(bell);
     }
+    bell.dataset.tpPid = pid;
     if (group) {
       const targetAnchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl) ||
                            card.querySelector('.Plugin_PriceInformation, .price_information_product, .price_information_product_small') ||
@@ -12351,6 +12366,7 @@ const SHADOW_MODAL_STYLES = `
       const lastTs = baseSeries.length ? +baseSeries[baseSeries.length - 1][0] || 0 : 0;
       const sig = [baseSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
       const useShipping = isShippingPriceActive(card);
+      sparkContainer._tpPopoutCtx = { pid, useShipping };
       const cachedDealer = getCachedDealer(pid, useShipping);
       const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
       const isAmazon = /amazon/i.test(dealerName) && CONFIG.KEEPA_CHART_ENABLED !== false;
@@ -12367,13 +12383,14 @@ const SHADOW_MODAL_STYLES = `
           if (sparkContainer.dataset.tpPopoutLoading) return;
           sparkContainer.dataset.tpPopoutLoading = 'true';
           try {
+            const ctx = sparkContainer._tpPopoutCtx || { pid, useShipping };
             const shareData = extractShareData(card);
             const title = shareData?.title || '';
-            const dealerInfo = await ensureDealerInfo(card, pid, useShipping);
-            const currentCached = getCachedDealer(pid, useShipping);
-            const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, useShipping) || '';
-            const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
-            openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+            const dealerInfo = await ensureDealerInfo(card, ctx.pid, ctx.useShipping);
+            const currentCached = getCachedDealer(ctx.pid, ctx.useShipping);
+            const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, ctx.useShipping) || '';
+            const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, ctx.useShipping) : '');
+            openSparklinePopout(sparkContainer._tpSeries, { title, pid: ctx.pid, directUrl, dealer: currentDealer });
           } finally {
             delete sparkContainer.dataset.tpPopoutLoading;
           }
@@ -12529,7 +12546,7 @@ const SHADOW_MODAL_STYLES = `
     // Filtern removes cards: empty state whenever all cards are removed.
     if (cards.length > 0 && totalHidden >= cards.length) {
       // Static notice: skip rebuild + listener re-bind when nothing changed
-      const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${realDealMinDiscount()}`;
+      const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${realDealMinDiscount()}:${CONFIG.BESTPREISE_HIDE_UNCHECKED}:${CONFIG.HIDE_UNCHECKED_MODE}:${counts.uncheckedHidden || 0}`;
       if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
       if (!emptyNotice) {
         emptyNotice = document.createElement('div');
@@ -12780,7 +12797,7 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-settings-group" id="tp-bestpreise-horizon-group">
             <label title="Zeitraum für den Ø-Preis-Vergleich">Median-Berechnungszeitraum (Ø-Preis)</label>
             <div class="tp-range-container tp-purple">
-              <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="30" value="365">
+              <input type="range" id="tp-bestpreise-horizon-range" min="30" max="760" step="5" value="365">
               <input type="number" id="tp-bestpreise-horizon-val" min="0" max="3650" step="1" value="365">
             </div>
             <span class="tp-switch-desc tp-field-hint" id="tp-bestpreise-horizon-desc">Ø-Vergleich: 1J (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.</span>
@@ -13614,8 +13631,13 @@ const SHADOW_MODAL_STYLES = `
         dead.forEach(k => localStorage.removeItem(k));
       } catch (e) {}
       try {
-        const hook = (CONFIG.DISCORD_WEBHOOK_URL || '').trim();
-        if (hook && typeof GM_deleteValue !== 'undefined') GM_deleteValue(discordForumFlagKey(hook));
+        const hooks = new Set([
+          (CONFIG.DISCORD_WEBHOOK_URL || '').trim(),
+          ...(CONFIG.DISCORD_CHANNELS || []).map(c => (c?.url || '').trim())
+        ].filter(Boolean));
+        if (typeof GM_deleteValue !== 'undefined') {
+          for (const hook of hooks) GM_deleteValue(discordForumFlagKey(hook));
+        }
       } catch (e) {}
       _setValue('PAGE_PROFILES', null);
       updateConfigs({ ...DEFAULTS });
@@ -13746,13 +13768,15 @@ const SHADOW_MODAL_STYLES = `
       if (checkedSort) updates.SORT_BY_OFFERS = checkedSort.value;
 
       updates.ALARM_ENABLED = els.alarmEnabledToggle.checked;
-      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (parseInt(els.alarmTargetVal.value) || 60) / 100));
+      const rawAlarmTarget = parseInt(els.alarmTargetVal.value, 10);
+      updates.ALARM_TARGET_PERCENT = Math.max(0.05, Math.min(0.99, (isNaN(rawAlarmTarget) ? 60 : rawAlarmTarget) / 100));
 
       const checkedDur = els.shadow.querySelector('input[name="tp-alarm-duration"]:checked');
       if (checkedDur) updates.ALARM_DURATION_DAYS = String(parseInt(checkedDur.value, 10) || 730);
 
       updates.ALARM_AUTO_SUBMIT = els.alarmAutoSubmitToggle.checked;
-      updates.HEATMAP_INTENSITY = clampIntensity01((parseInt(els.heatmapIntensityVal.value) || 100) / 100);
+      const rawHeat = parseInt(els.heatmapIntensityVal.value, 10);
+      updates.HEATMAP_INTENSITY = clampIntensity01((isNaN(rawHeat) ? 100 : rawHeat) / 100);
 
       if (els.bestpreiseModeToggle) updates.BESTPREISE_MODE_ACTIVE = els.bestpreiseModeToggle.checked;
       if (els.bestpreiseWeightVal) {
@@ -14227,7 +14251,6 @@ const SHADOW_MODAL_STYLES = `
   function openDiagModal(shadow) {
     if (!shadow) return;
     let dialog = shadow.getElementById('tp-diag-dialog');
-    let filterWarnOnly = false;
     let unsub = null;
 
     const renderSnapshotAndLog = () => {
@@ -14247,7 +14270,8 @@ const SHADOW_MODAL_STYLES = `
       if (snapEl) snapEl.textContent = snapLines.join('\n');
 
       const entries = getActivityLog();
-      const filtered = filterWarnOnly
+      const warnOnly = !!dialog.querySelector('#tp-diag-warn-filter')?.checked;
+      const filtered = warnOnly
         ? entries.filter((e) => e.level === 'warn' || e.level === 'error')
         : entries;
       if (preEl) {
@@ -14285,8 +14309,7 @@ const SHADOW_MODAL_STYLES = `
         clearActivityLog();
         renderSnapshotAndLog();
       });
-      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', (e) => {
-        filterWarnOnly = !!e.target.checked;
+      dialog.querySelector('#tp-diag-warn-filter').addEventListener('change', () => {
         renderSnapshotAndLog();
       });
       dialog.querySelector('#tp-diag-debug-toggle').addEventListener('change', (e) => {
@@ -14310,14 +14333,18 @@ const SHADOW_MODAL_STYLES = `
     }
 
     renderSnapshotAndLog();
+    dialog._tpUnsub?.();
     unsub = subscribeActivityLog(() => {
       if (dialog.open) renderSnapshotAndLog();
     });
-    dialog.addEventListener('close', () => {
+    dialog._tpUnsub = () => {
       if (unsub) {
         unsub();
         unsub = null;
       }
+    };
+    dialog.addEventListener('close', () => {
+      dialog._tpUnsub?.();
     }, { once: true });
 
     if (!dialog.open) {
@@ -14625,7 +14652,9 @@ const SHADOW_MODAL_STYLES = `
     if (sel) {
       sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
         + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
-      sel.value = (PRESETS[prevVal] || (typeof prevVal === 'string' && prevVal.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === prevVal))) ? prevVal : activePresetId;
+      const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === v)));
+      if (!isValidSel(activePresetId)) activePresetId = 's26';
+      sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
     }
     const selVal = sel ? sel.value : activePresetId;
     const now = Date.now();
@@ -14841,7 +14870,7 @@ const SHADOW_MODAL_STYLES = `
       labelText: 'Ø-Zeitraum',
       labelId: '#tp-bar-horizon-label',
       rangeId: '#tp-bar-horizon-range',
-      min: 30, max: 760, step: 30, value: horizonStoredToUi(cur),
+      min: 30, max: 760, step: 5, value: horizonStoredToUi(cur),
       rangeTitle: horizonText(cur, 'title'),
       sliderConfig: {
         read: readHorizon,
@@ -15126,6 +15155,9 @@ const SHADOW_MODAL_STYLES = `
       const resetBtn = bar.querySelector('#tp-filter-reset');
       if (resetBtn) {
         resetBtn.onclick = () => {
+          clearTimeout(negDeb);
+          clearTimeout(priceDeb);
+          clearTimeout(savingsDeb);
           updateConfigs({
             FILTER_NEG_MODE: 'dim',
             FILTER_MIN_MODE: 'dim',
@@ -17294,7 +17326,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.516';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.517';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

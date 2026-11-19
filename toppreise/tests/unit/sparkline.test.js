@@ -249,5 +249,13 @@ describe('Interactive SVG Sparkline Component', () => {
     const lines = svg.children.filter(c => c.tagName === 'line');
     assert.ok(lines.filter(l => l.getAttribute('opacity') === '0.6').length >= 1);
   });
+
+  it('axes:true deduplicates Y-axis labels when min === max', () => {
+    const timeSeries = [[1700000000, 100], [1700086400, 100]];
+    const svg = renderSparkline(timeSeries, 360, 100, { axes: true });
+    assert.ok(svg);
+    const yLabels = svg.children.filter(c => c.tagName === 'text' && c.textContent.startsWith('CHF '));
+    assert.equal(yLabels.length, 1);
+  });
 });
 

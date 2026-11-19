@@ -86,12 +86,12 @@ describe('renderEmptyState signature skip', () => {
 
   it('skips rebuild when signature matches', () => {
     const { cards, counts } = setup();
-    const notice = { dataset: { tpEmptySig: '2:2:0:30' } };
+    const notice = { dataset: { tpEmptySig: '2:2:0:30:false:dim:0' } };
     const created = [];
     fakeDoc(notice, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 0);
-    assert.equal(notice.dataset.tpEmptySig, '2:2:0:30');
+    assert.equal(notice.dataset.tpEmptySig, '2:2:0:30:false:dim:0');
   });
 
   it('builds notice and stamps signature on first render', () => {
@@ -100,7 +100,7 @@ describe('renderEmptyState signature skip', () => {
     fakeDoc(null, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 1);
-    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30');
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30:false:dim:0');
   });
 
   it('builds notice whenever all cards are removed (no display-mode gate)', () => {
@@ -109,7 +109,7 @@ describe('renderEmptyState signature skip', () => {
     fakeDoc(null, created);
     renderEmptyState(cards, counts);
     assert.equal(created.length, 1);
-    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30');
+    assert.equal(created[0].dataset.tpEmptySig, '2:2:0:30:false:dim:0');
   });
 });
 
@@ -331,7 +331,7 @@ describe('Verdict badges F-03 & F-04', () => {
     let removed = false;
     const dealerEl = { remove: () => { removed = true; } };
     const card = {
-      querySelector: sel => (sel === '.tp-dealer-name' ? dealerEl : (sel.includes('tp-deal-new-record') ? {} : null)),
+      querySelector: sel => (sel === '.tp-card-dealer-row .tp-dealer-name' || sel === '.tp-dealer-name' ? dealerEl : (sel.includes('tp-deal-new-record') ? {} : null)),
       classList: { toggle: (cls, on) => { if (cls === 'tp-deal-fresh') freshToggled = on; } }
     };
     let freshToggled = null;

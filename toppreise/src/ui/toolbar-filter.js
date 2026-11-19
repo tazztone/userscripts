@@ -94,6 +94,9 @@ export function wireFilterPopover(bar) {
     const resetBtn = bar.querySelector('#tp-filter-reset');
     if (resetBtn) {
       resetBtn.onclick = () => {
+        clearTimeout(negDeb);
+        clearTimeout(priceDeb);
+        clearTimeout(savingsDeb);
         updateConfigs({
           FILTER_NEG_MODE: 'dim',
           FILTER_MIN_MODE: 'dim',

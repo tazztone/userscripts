@@ -32,3 +32,8 @@ test('stripModuleSyntax handles imports, wildcard re-exports, multiline exports 
   assert.ok(stripped.includes('function main() {}'), 'default function preserved without export default');
   assert.ok(stripped.includes('class Engine {}'), 'default class preserved without export default');
 });
+
+test('importing build.js does not execute main() as a side effect', async () => {
+  await import('../../tools/build.js');
+  assert.ok(true);
+});

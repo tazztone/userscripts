@@ -49,6 +49,7 @@ export function renderSparklineRow(ctx) {
     const lastTs = baseSeries.length ? +baseSeries[baseSeries.length - 1][0] || 0 : 0;
     const sig = [baseSeries.length, priceToCents(cardPrice), priceToCents(stats.medianPrice ?? 0), stats.time || 0, lastTs].join(':');
     const useShipping = isShippingPriceActive(card);
+    sparkContainer._tpPopoutCtx = { pid, useShipping };
     const cachedDealer = getCachedDealer(pid, useShipping);
     const dealerName = cachedDealer?.dealer || extractDealer(card, useShipping) || '';
     const isAmazon = /amazon/i.test(dealerName) && CONFIG.KEEPA_CHART_ENABLED !== false;
@@ -65,13 +66,14 @@ export function renderSparklineRow(ctx) {
         if (sparkContainer.dataset.tpPopoutLoading) return;
         sparkContainer.dataset.tpPopoutLoading = 'true';
         try {
+          const ctx = sparkContainer._tpPopoutCtx || { pid, useShipping };
           const shareData = extractShareData(card);
           const title = shareData?.title || '';
-          const dealerInfo = await ensureDealerInfo(card, pid, useShipping);
-          const currentCached = getCachedDealer(pid, useShipping);
-          const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, useShipping) || '';
-          const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, useShipping) : '');
-          openSparklinePopout(sparkContainer._tpSeries, { title, pid, directUrl, dealer: currentDealer });
+          const dealerInfo = await ensureDealerInfo(card, ctx.pid, ctx.useShipping);
+          const currentCached = getCachedDealer(ctx.pid, ctx.useShipping);
+          const currentDealer = dealerInfo?.dealer || currentCached?.dealer || extractDealer(card, ctx.useShipping) || '';
+          const directUrl = dealerInfo?.url || currentCached?.url || (currentDealer ? extractDealerUrl(card, ctx.useShipping) : '');
+          openSparklinePopout(sparkContainer._tpSeries, { title, pid: ctx.pid, directUrl, dealer: currentDealer });
         } finally {
           delete sparkContainer.dataset.tpPopoutLoading;
         }
@@ -227,7 +229,7 @@ export function renderEmptyState(cards, counts) {
   // Filtern removes cards: empty state whenever all cards are removed.
   if (cards.length > 0 && totalHidden >= cards.length) {
     // Static notice: skip rebuild + listener re-bind when nothing changed
-    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${realDealMinDiscount()}`;
+    const emptySig = `${cards.length}:${totalHidden}:${counts.uncheckedDeals || 0}:${realDealMinDiscount()}:${CONFIG.BESTPREISE_HIDE_UNCHECKED}:${CONFIG.HIDE_UNCHECKED_MODE}:${counts.uncheckedHidden || 0}`;
     if (emptyNotice?.dataset.tpEmptySig === emptySig) return;
     if (!emptyNotice) {
       emptyNotice = document.createElement('div');

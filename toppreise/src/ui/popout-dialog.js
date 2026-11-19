@@ -52,7 +52,12 @@ export function createPopoutDialog({ id, label, title = '', panelClass = '', clo
   backdrop.appendChild(panel);
 
   let closed = false;
+  let backdropMousedown = false;
   const onKey = e => {
+    if (backdrop.isConnected === false) {
+      close();
+      return;
+    }
     if (e.key === 'Escape') {
       e.stopPropagation();
       e.stopImmediatePropagation?.();
@@ -90,8 +95,12 @@ export function createPopoutDialog({ id, label, title = '', panelClass = '', clo
   }
 
   closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('mousedown', e => {
+    backdropMousedown = e.target === backdrop;
+  });
   backdrop.addEventListener('click', e => {
-    if (e.target === backdrop) close();
+    if (e.target === backdrop && backdropMousedown) close();
+    backdropMousedown = false;
   });
 
   function mount() {

@@ -115,7 +115,7 @@ function buildHorizonWrapper() {
     labelText: 'Ø-Zeitraum',
     labelId: '#tp-bar-horizon-label',
     rangeId: '#tp-bar-horizon-range',
-    min: 30, max: 760, step: 30, value: horizonStoredToUi(cur),
+    min: 30, max: 760, step: 5, value: horizonStoredToUi(cur),
     rangeTitle: horizonText(cur, 'title'),
     sliderConfig: {
       read: readHorizon,

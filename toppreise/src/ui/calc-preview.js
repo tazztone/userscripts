@@ -220,7 +220,9 @@ export function refreshCalcPreview() {
   if (sel) {
     sel.innerHTML = `<optgroup label="Beispiel-Historien">${Object.values(PRESETS).map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</optgroup>`
       + (pageOpts.length ? `<optgroup label="Geprüfte Produkte auf dieser Seite">${pageOpts.map(o => `<option value="page:${esc(o.pid)}">${o.label}</option>`).join('')}</optgroup>` : '');
-    sel.value = (PRESETS[prevVal] || (typeof prevVal === 'string' && prevVal.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === prevVal))) ? prevVal : activePresetId;
+    const isValidSel = v => !!(PRESETS[v] || (typeof v === 'string' && v.startsWith('page:') && pageOpts.some(o => `page:${o.pid}` === v)));
+    if (!isValidSel(activePresetId)) activePresetId = 's26';
+    sel.value = isValidSel(prevVal) ? prevVal : activePresetId;
   }
   const selVal = sel ? sel.value : activePresetId;
   const now = Date.now();
