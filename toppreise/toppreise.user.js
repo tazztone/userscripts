@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.521
+// @version      2.18.522
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3402,14 +3402,12 @@ const SHADOW_MODAL_STYLES = `
     rating: Object.freeze({
       container: '.Plugin_PriceRating',
       widget: '.priceRating',
-      main: '.priceRatingMain',
-      bars: '.priceRatingBars',
       label: '.priceRatingLabel',
-      details: '.priceRatingDetails',
       ranges: '.priceRatingRanges li',
+      rangeName: '.priceRatingRangeName',
+      rangePrices: '.priceRatingRangePrices',
       facts: '.priceRatingFacts',
-      highlight: '.priceRatingHighlight',
-      help: '.priceRatingHelp'
+      highlight: '.priceRatingHighlight'
     })
   });
 
@@ -6086,19 +6084,22 @@ const SHADOW_MODAL_STYLES = `
            (!!document.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle') && !!getDetailProductId());
   }
 
+  function extractPeriod(text) {
+    const match = text.match(/\(([^)]+)\)/);
+    return match ? match[1].trim() : null;
+  }
+
   /**
    * Extracts native Toppreise price rating widget data (Plugin_PriceRating) when present on detail page.
    */
   function extractNativePriceRating(root = (typeof document !== 'undefined' ? document : null)) {
     if (!root?.querySelector) return null;
-    const ratingEl = root.querySelector(`${SELECTORS.rating.container} ${SELECTORS.rating.widget}, ${SELECTORS.rating.widget}`);
+    const ratingEl = root.querySelector(`${SELECTORS.rating.container} ${SELECTORS.rating.widget}`);
     if (!ratingEl) return null;
 
     const rawLevel = ratingEl.getAttribute('data-rating-level');
     const level = rawLevel != null && !Number.isNaN(Number(rawLevel)) ? Number(rawLevel) : null;
-    const ariaLabel = ratingEl.getAttribute('aria-label') || '';
-    const labelEl = ratingEl.querySelector('.priceRatingLabel, .priceRatingRangeName');
-    const label = labelEl?.textContent?.trim() || ariaLabel;
+    const label = ratingEl.querySelector(SELECTORS.rating.label)?.textContent?.trim() || ratingEl.getAttribute('aria-label') || '';
 
     let usualPrice = null;
     let usualPeriod = null;
@@ -6114,12 +6115,10 @@ const SHADOW_MODAL_STYLES = `
         const ddText = dds[i]?.textContent?.trim() || '';
         if (/üblicher preis/i.test(dtText)) {
           usualPrice = parsePrice(ddText);
-          const match = dtText.match(/\(([^)]+)\)/);
-          usualPeriod = match ? match[1].trim() : null;
+          usualPeriod = extractPeriod(dtText);
         } else if (/tiefster preis/i.test(dtText)) {
           lowestPriceRecent = parsePrice(ddText);
-          const match = dtText.match(/\(([^)]+)\)/);
-          lowestPeriod = match ? match[1].trim() : null;
+          lowestPeriod = extractPeriod(dtText);
         }
       }
     }
@@ -6127,15 +6126,12 @@ const SHADOW_MODAL_STYLES = `
     const highlightEl = ratingEl.querySelector(SELECTORS.rating.highlight);
     const highlight = highlightEl?.textContent?.trim() || null;
 
-    const helpEl = ratingEl.querySelector(SELECTORS.rating.help);
-    const help = helpEl?.textContent?.trim() || null;
-
     const rangeLis = ratingEl.querySelectorAll(SELECTORS.rating.ranges);
     const ranges = [];
     for (let i = 0; i < rangeLis.length; i++) {
       const li = rangeLis[i];
-      const nameEl = li.querySelector('.priceRatingRangeName');
-      const pricesEl = li.querySelector('.priceRatingRangePrices');
+      const nameEl = li.querySelector(SELECTORS.rating.rangeName);
+      const pricesEl = li.querySelector(SELECTORS.rating.rangePrices);
       const levelMatch = li.className.match(/priceRatingLevel(\d+)/);
       const rLevel = levelMatch ? Number(levelMatch[1]) : i;
       const isCurrent = li.classList.contains('current') || (level !== null && rLevel === level);
@@ -6150,13 +6146,11 @@ const SHADOW_MODAL_STYLES = `
     return {
       level,
       label,
-      ariaLabel,
       usualPrice,
       usualPeriod,
       lowestPriceRecent,
       lowestPeriod,
       highlight,
-      help,
       ranges
     };
   }
@@ -17178,15 +17172,7 @@ const SHADOW_MODAL_STYLES = `
           currentPrice,
           priceBasis,
           isAllTimeLow,
-          nativeRating: nativeRating ? {
-            level: nativeRating.level,
-            label: nativeRating.label,
-            usualPrice: nativeRating.usualPrice,
-            usualPeriod: nativeRating.usualPeriod,
-            lowestPriceRecent: nativeRating.lowestPriceRecent,
-            lowestPeriod: nativeRating.lowestPeriod,
-            highlight: nativeRating.highlight
-          } : null,
+          nativeRating: nativeRating ? (({ ranges, ...rest }) => rest)(nativeRating) : null,
           ts: Date.now()
         }));
       }
@@ -17490,7 +17476,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.521';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.522';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -17513,6 +17499,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         analyzePriceTimeSeries,
         parsePrice,
         isShippingPriceActive,
+        extractNativePriceRating,
         // Live view on CONFIG (test harness mutates flags through it), with the
         // secrets masked: page JS reads '' and cannot overwrite secrets.
         CONFIG: new Proxy(CONFIG, {

@@ -171,19 +171,22 @@ export function isProductDetailPage() {
          (!!document.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle') && !!getDetailProductId());
 }
 
+function extractPeriod(text) {
+  const match = text.match(/\(([^)]+)\)/);
+  return match ? match[1].trim() : null;
+}
+
 /**
  * Extracts native Toppreise price rating widget data (Plugin_PriceRating) when present on detail page.
  */
 export function extractNativePriceRating(root = (typeof document !== 'undefined' ? document : null)) {
   if (!root?.querySelector) return null;
-  const ratingEl = root.querySelector(`${SELECTORS.rating.container} ${SELECTORS.rating.widget}, ${SELECTORS.rating.widget}`);
+  const ratingEl = root.querySelector(`${SELECTORS.rating.container} ${SELECTORS.rating.widget}`);
   if (!ratingEl) return null;
 
   const rawLevel = ratingEl.getAttribute('data-rating-level');
   const level = rawLevel != null && !Number.isNaN(Number(rawLevel)) ? Number(rawLevel) : null;
-  const ariaLabel = ratingEl.getAttribute('aria-label') || '';
-  const labelEl = ratingEl.querySelector('.priceRatingLabel, .priceRatingRangeName');
-  const label = labelEl?.textContent?.trim() || ariaLabel;
+  const label = ratingEl.querySelector(SELECTORS.rating.label)?.textContent?.trim() || ratingEl.getAttribute('aria-label') || '';
 
   let usualPrice = null;
   let usualPeriod = null;
@@ -199,12 +202,10 @@ export function extractNativePriceRating(root = (typeof document !== 'undefined'
       const ddText = dds[i]?.textContent?.trim() || '';
       if (/üblicher preis/i.test(dtText)) {
         usualPrice = parsePrice(ddText);
-        const match = dtText.match(/\(([^)]+)\)/);
-        usualPeriod = match ? match[1].trim() : null;
+        usualPeriod = extractPeriod(dtText);
       } else if (/tiefster preis/i.test(dtText)) {
         lowestPriceRecent = parsePrice(ddText);
-        const match = dtText.match(/\(([^)]+)\)/);
-        lowestPeriod = match ? match[1].trim() : null;
+        lowestPeriod = extractPeriod(dtText);
       }
     }
   }
@@ -212,15 +213,12 @@ export function extractNativePriceRating(root = (typeof document !== 'undefined'
   const highlightEl = ratingEl.querySelector(SELECTORS.rating.highlight);
   const highlight = highlightEl?.textContent?.trim() || null;
 
-  const helpEl = ratingEl.querySelector(SELECTORS.rating.help);
-  const help = helpEl?.textContent?.trim() || null;
-
   const rangeLis = ratingEl.querySelectorAll(SELECTORS.rating.ranges);
   const ranges = [];
   for (let i = 0; i < rangeLis.length; i++) {
     const li = rangeLis[i];
-    const nameEl = li.querySelector('.priceRatingRangeName');
-    const pricesEl = li.querySelector('.priceRatingRangePrices');
+    const nameEl = li.querySelector(SELECTORS.rating.rangeName);
+    const pricesEl = li.querySelector(SELECTORS.rating.rangePrices);
     const levelMatch = li.className.match(/priceRatingLevel(\d+)/);
     const rLevel = levelMatch ? Number(levelMatch[1]) : i;
     const isCurrent = li.classList.contains('current') || (level !== null && rLevel === level);
@@ -235,13 +233,11 @@ export function extractNativePriceRating(root = (typeof document !== 'undefined'
   return {
     level,
     label,
-    ariaLabel,
     usualPrice,
     usualPeriod,
     lowestPriceRecent,
     lowestPeriod,
     highlight,
-    help,
     ranges
   };
 }

@@ -24,7 +24,8 @@ import {
   isProductDetailPage,
   clearCardCache,
   triggerProcessListings,
-  getPageProfileType
+  getPageProfileType,
+  extractNativePriceRating
 } from './page/adapter.js';
 import { applySorting } from './page/sort.js';
 import {
@@ -67,7 +68,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.521
+// @version      2.18.522
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -389,7 +390,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.521';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.522';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
@@ -412,6 +413,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
         analyzePriceTimeSeries,
         parsePrice,
         isShippingPriceActive,
+        extractNativePriceRating,
         // Live view on CONFIG (test harness mutates flags through it), with the
         // secrets masked: page JS reads '' and cannot overwrite secrets.
         CONFIG: new Proxy(CONFIG, {

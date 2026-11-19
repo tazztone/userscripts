@@ -464,15 +464,7 @@ export async function processProductDetailPage(domLock = fn => fn()) {
         currentPrice,
         priceBasis,
         isAllTimeLow,
-        nativeRating: nativeRating ? {
-          level: nativeRating.level,
-          label: nativeRating.label,
-          usualPrice: nativeRating.usualPrice,
-          usualPeriod: nativeRating.usualPeriod,
-          lowestPriceRecent: nativeRating.lowestPriceRecent,
-          lowestPeriod: nativeRating.lowestPeriod,
-          highlight: nativeRating.highlight
-        } : null,
+        nativeRating: nativeRating ? (({ ranges, ...rest }) => rest)(nativeRating) : null,
         ts: Date.now()
       }));
     }

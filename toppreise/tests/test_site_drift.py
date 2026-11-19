@@ -108,6 +108,16 @@ def test_live_product_detail_structure_and_selectors(browser, userscript_content
     assert rating.locator('.priceRatingBars').count() >= 1, "Expected priceRatingBars inside price rating widget"
     assert rating.locator('.priceRatingFacts').count() >= 1, "Expected priceRatingFacts inside price rating widget"
 
+    # Verify userscript extraction of native price rating in real DOM
+    extracted = page.evaluate("() => window.ToppreiseSuite?.extractNativePriceRating?.()")
+    assert extracted is not None, "Expected extractNativePriceRating() to return parsed rating"
+    assert extracted['level'] == int(rating_level)
+    assert extracted['label'] is not None and len(extracted['label']) > 0
+    assert extracted['usualPrice'] is not None and extracted['usualPrice'] > 0
+    assert extracted['lowestPriceRecent'] is not None and extracted['lowestPriceRecent'] > 0
+    assert len(extracted['ranges']) >= 2
+    assert any(r['current'] for r in extracted['ranges'])
+
     page.close()
 
 

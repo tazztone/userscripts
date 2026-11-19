@@ -304,34 +304,6 @@ describe('Page Adapter Layer', () => {
     });
 
     it('extracts rating level, labels, facts, ranges, and highlight', () => {
-      const ratingHtml = `
-        <div class="Plugin_PriceRating">
-          <div class="priceRating" data-rating-level="0" aria-label="Sehr niedriger Preis">
-            <span class="priceRatingMain priceRatingLevel0">
-              <span class="priceRatingLabel">Sehr niedriger Preis</span>
-            </span>
-            <div class="priceRatingDetails">
-              <ul class="priceRatingRanges">
-                <li class="priceRatingLevel0 current">
-                  <span class="priceRatingRangeName">Sehr niedriger Preis</span>
-                  <span class="priceRatingRangePrices">≤ 142.85</span>
-                </li>
-                <li class="priceRatingLevel1">
-                  <span class="priceRatingRangeName">Niedriger Preis</span>
-                  <span class="priceRatingRangePrices">142.86 – 149.48</span>
-                </li>
-              </ul>
-              <dl class="priceRatingFacts">
-                <dt>Üblicher Preis (3 Monate)</dt><dd>CHF 158.73</dd>
-                <dt>Tiefster Preis (3 Monate)</dt><dd>CHF 91.68</dd>
-              </dl>
-              <p class="priceRatingHighlight">Jetzt tiefster Preis seit 12 Monaten</p>
-              <p class="priceRatingHelp">Wir vergleichen den aktuellen Bestpreis...</p>
-            </div>
-          </div>
-        </div>
-      `;
-
       // Simple mock document with querySelector/querySelectorAll
       const makeEl = (tag, attrs = {}, text = '', children = []) => {
         const el = {
@@ -395,9 +367,8 @@ describe('Page Adapter Layer', () => {
 
       const ulRanges = makeEl('ul', { class: 'priceRatingRanges' }, '', [li0, li1]);
       const highlight = makeEl('p', { class: 'priceRatingHighlight' }, 'Jetzt tiefster Preis seit 12 Monaten');
-      const help = makeEl('p', { class: 'priceRatingHelp' }, 'Wir vergleichen den aktuellen Bestpreis...');
 
-      const details = makeEl('div', { class: 'priceRatingDetails' }, '', [ulRanges, factsDl, highlight, help]);
+      const details = makeEl('div', { class: 'priceRatingDetails' }, '', [ulRanges, factsDl, highlight]);
       const label = makeEl('span', { class: 'priceRatingLabel' }, 'Sehr niedriger Preis');
       const main = makeEl('span', { class: 'priceRatingMain priceRatingLevel0' }, '', [label]);
 
@@ -409,25 +380,39 @@ describe('Page Adapter Layer', () => {
 
       const container = makeEl('div', { class: 'Plugin_PriceRating' }, '', [widget]);
       const mockDoc = {
-        querySelector: sel => sel.includes('priceRating') ? widget : null
+        querySelector: sel => sel.includes('Plugin_PriceRating') ? widget : null
       };
 
       const result = extractNativePriceRating(mockDoc);
       assert.ok(result, 'Result should not be null');
       assert.equal(result.level, 0);
       assert.equal(result.label, 'Sehr niedriger Preis');
-      assert.equal(result.ariaLabel, 'Sehr niedriger Preis');
       assert.equal(result.usualPrice, 2499);
       assert.equal(result.usualPeriod, '3 Monate');
       assert.equal(result.lowestPriceRecent, 1589);
       assert.equal(result.lowestPeriod, '12 Monate');
       assert.equal(result.highlight, 'Jetzt tiefster Preis seit 12 Monaten');
-      assert.ok(result.help.includes('Wir vergleichen'));
       assert.equal(result.ranges.length, 2);
       assert.equal(result.ranges[0].current, true);
       assert.equal(result.ranges[0].priceRangeText, '≤ 142.85');
       assert.equal(result.ranges[1].current, false);
       assert.equal(result.ranges[1].priceRangeText, '142.86 – 149.48');
+    });
+
+    it('falls back to aria-label when priceRatingLabel element is missing', () => {
+      const widget = {
+        className: 'priceRating',
+        getAttribute: k => k === 'data-rating-level' ? '2' : (k === 'aria-label' ? 'Normaler Preis' : null),
+        querySelector: sel => null,
+        querySelectorAll: sel => []
+      };
+      const mockDoc = {
+        querySelector: sel => widget
+      };
+      const result = extractNativePriceRating(mockDoc);
+      assert.ok(result);
+      assert.equal(result.level, 2);
+      assert.equal(result.label, 'Normaler Preis');
     });
   });
 });

@@ -55,13 +55,11 @@ export const SELECTORS = Object.freeze({
   rating: Object.freeze({
     container: '.Plugin_PriceRating',
     widget: '.priceRating',
-    main: '.priceRatingMain',
-    bars: '.priceRatingBars',
     label: '.priceRatingLabel',
-    details: '.priceRatingDetails',
     ranges: '.priceRatingRanges li',
+    rangeName: '.priceRatingRangeName',
+    rangePrices: '.priceRatingRangePrices',
     facts: '.priceRatingFacts',
-    highlight: '.priceRatingHighlight',
-    help: '.priceRatingHelp'
+    highlight: '.priceRatingHighlight'
   })
 });
