@@ -448,4 +448,15 @@ describe('Gewichtete Differenz Domain Module', () => {
       });
     });
   });
+
+  it('returns dMedian === 0 when cardPrice >= stats.medianPrice even if realDiscountVsMedian is stale', () => {
+    const score = computeDealScore({
+      tiefstpreis: 100,
+      medianPrice: 100,
+      realDiscountVsMedian: 25,
+      previousLow: 110,
+      hasEnoughHistory: true,
+    }, 100, 0.5);
+    assert.equal(score.dMedian, 0);
+  });
 });

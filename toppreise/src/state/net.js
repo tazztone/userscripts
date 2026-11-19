@@ -160,6 +160,12 @@ export function gmRequestWithTimeout(gmOpts = {}, opts = {}) {
           logActivity('warn', source, `${tag}GM timeout after ${timeoutMs}ms: ${safeUrl}`);
           reject(makeTypedError(`GM timeout after ${timeoutMs}ms`, { timeout: true }));
         },
+        onabort() {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(makeTypedError('GM_xmlhttpRequest aborted', { cancelled: true }));
+        },
       });
     } catch (err) {
       if (!settled) {

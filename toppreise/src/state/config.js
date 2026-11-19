@@ -101,8 +101,6 @@ export const CONFIG = Object.fromEntries(
     let val;
     if (k.endsWith('_MODE') && k !== 'REVIEW_SEARCH_AI_MODE') {
       val = _modeValue(k);
-    } else if (k === 'FILTER_NEG_ENABLED' || k === 'FILTER_MIN_ENABLED') {
-      val = _getValue(k, _getValue('FILTERS_ENABLED', defaultVal));
     } else if (k === 'DISCORD_SUPPRESS_DEALER_EMBED' || k === 'DISCORD_SUPPRESS_PRODUCT_EMBED') {
       val = _getValue(k, legacySuppressEmbeds ?? defaultVal);
     } else if (k === 'DISCORD_LAYOUT') {
@@ -257,6 +255,9 @@ export function updateConfig(key, val, options = {}) {
       }
     } else {
       initPageProfiles();
+      if (!options.skipUiSync) {
+        for (const k of PAGE_SCOPED_KEYS) syncUiControl(k, CONFIG[k]);
+      }
     }
   }
   if (key === 'DIM_OPACITY' || key === 'HIDE_ADS') {

@@ -264,9 +264,11 @@ export function countCachedPriceStats(storage = null) {
 
 export function clearPriceStatsCache(storage = null, onlyPrefixes = null) {
   const prefixes = Array.isArray(onlyPrefixes) && onlyPrefixes.length > 0 ? onlyPrefixes : CACHE_PREFIXES;
-  cacheGeneration++;
+  if (prefixes.includes(STATS_CACHE_PREFIX)) {
+    cacheGeneration++;
+    memoryCache.clear();
+  }
   storage = resolveStorage(storage);
-  memoryCache.clear();
   let count = 0;
   try {
     if (storage) {

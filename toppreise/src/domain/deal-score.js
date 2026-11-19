@@ -49,7 +49,7 @@ export function computeDealScore(stats, cardPrice, opts = {}) {
   // exotic hand-built stats fall through to the mean (or 0 = unscorable).
   const dMedian = (stats.medianPrice && stats.medianPrice > cardPrice)
     ? pctDrop(stats.medianPrice, cardPrice)
-    : (stats.realDiscountVsMedian || 0);
+    : 0;
 
   const prevLow = liveRec.previousLow;
   const dRecord = (isNewRecord && prevLow && prevLow > cardPrice)

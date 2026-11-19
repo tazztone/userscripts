@@ -11,7 +11,8 @@ import { getPageProfileType, getPageProfileLabel } from '../page/adapter.js';
 
 export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
   // 1. Sync Settings Modal (Shadow DOM) if open/exists
-  const shadow = shadowRoot ?? opts?.shadowRoot ?? uiShadowRoot ?? (typeof document !== 'undefined' ? document.getElementById('tp-root')?.shadowRoot : null);
+  const doc = typeof document !== 'undefined' ? document : null;
+  const shadow = shadowRoot ?? opts?.shadowRoot ?? uiShadowRoot ?? doc?.getElementById('tp-root')?.shadowRoot ?? null;
   if (shadow) {
     try {
       switch (key) {
@@ -59,9 +60,9 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           }
           // Toolbar slider mirrors the modal control (skip while dragging).
           if (typeof document !== 'undefined') {
-            const barRange = document.getElementById('tp-bar-weight-range');
-            if (barRange && document.activeElement !== barRange) barRange.value = pct;
-            const barLabel = document.getElementById('tp-bar-weight-label');
+            const barRange = doc?.getElementById('tp-bar-weight-range');
+            if (barRange && doc?.activeElement !== barRange) barRange.value = pct;
+            const barLabel = doc?.getElementById('tp-bar-weight-label');
             if (barLabel) {
               barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
               barLabel.title = weightText(val, 'title');
@@ -247,7 +248,7 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         }
         case 'ALARM_AUTO_SUBMIT': {
           const toggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
-          if (toggle) toggle.checked = val !== false;
+          if (toggle) toggle.checked = val === true;
           if (!opts.silent) notifyAlarmConfig();
           break;
         }
@@ -259,14 +260,14 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
 
   // 2. Sync Inline Filter Bar if present
   if (typeof document !== 'undefined' || opts?.bar) {
-    const bar = opts?.bar ?? document.getElementById('tp-suite-filter-bar') ?? document.getElementById('tp-inline-filter-bar');
+    const bar = opts?.bar ?? (typeof document !== 'undefined' ? (document.getElementById('tp-suite-filter-bar') ?? document.getElementById('tp-inline-filter-bar')) : null);
     if (bar) {
       try {
         switch (key) {
           case 'NEGATIVE_TERMS': {
             const input = bar.querySelector('#tp-inline-negative-input');
             const clearBtn = bar.querySelector('#tp-clear-neg-btn');
-            if (input && document.activeElement !== input && input.value !== val) {
+            if (input && (typeof document === 'undefined' || document.activeElement !== input) && input.value !== val) {
               input.value = val || '';
             }
             if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
@@ -320,7 +321,7 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           case 'OUTLIER_DEVIATION_BAND': {
             const pct = Math.min(50, Math.max(1, Math.round((val ?? 0.5) * 100)));
             const bandRange = bar.querySelector('#tp-bar-outlier-band-range');
-            if (bandRange && document.activeElement !== bandRange) bandRange.value = pct;
+            if (bandRange && doc?.activeElement !== bandRange) bandRange.value = pct;
             const bandLabel = bar.querySelector('#tp-bar-outlier-band-label');
             if (bandLabel) bandLabel.textContent = `±${pct} %`;
             break;
@@ -328,7 +329,7 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           case 'OUTLIER_MAX_GLITCH_HOURS': {
             const hrs = Math.min(168, Math.max(24, parseInt(val ?? 48, 10) || 48));
             const hoursRange = bar.querySelector('#tp-bar-outlier-hours-range');
-            if (hoursRange && document.activeElement !== hoursRange) hoursRange.value = hrs;
+            if (hoursRange && doc?.activeElement !== hoursRange) hoursRange.value = hrs;
             const hoursLabel = bar.querySelector('#tp-bar-outlier-hours-label');
             if (hoursLabel) hoursLabel.textContent = `${hrs} h`;
             break;
@@ -377,17 +378,17 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           }
           case 'FILTER_PRICE_MIN': {
             const el = bar.querySelector('#tp-price-min-input');
-            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+            if (el && doc?.activeElement !== el) el.value = val > 0 ? val : '';
             break;
           }
           case 'FILTER_PRICE_MAX': {
             const el = bar.querySelector('#tp-price-max-input');
-            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+            if (el && doc?.activeElement !== el) el.value = val > 0 ? val : '';
             break;
           }
           case 'FILTER_SAVINGS_MIN': {
             const el = bar.querySelector('#tp-savings-min-input');
-            if (el && document.activeElement !== el) el.value = val > 0 ? val : '';
+            if (el && doc?.activeElement !== el) el.value = val > 0 ? val : '';
             break;
           }
           case 'MIN_OFFERS': {
@@ -402,8 +403,8 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
             // Threshold lives in the floating CTA text input.
-            const floatingThreshInput = document.getElementById('tp-floating-threshold-input');
-            if (floatingThreshInput && document.activeElement !== floatingThreshInput) {
+            const floatingThreshInput = doc?.getElementById('tp-floating-threshold-input');
+            if (floatingThreshInput && doc?.activeElement !== floatingThreshInput) {
               floatingThreshInput.value = `≥${val}%`;
             }
             break;

@@ -132,4 +132,10 @@ describe('Page Profiles Engine', () => {
     const profiles = _getValue('PAGE_PROFILES', null);
     assert.equal(profiles.neue.MIN_OFFERS, 9, 'PAGE_PROFILES should not be updated while disabled');
   });
+
+  it('includes BESTPREISE_HIDE_UNCHECKED and BESTPREISE_INCLUDE_VORTIEF in PAGE_SCOPED_KEYS', async () => {
+    const { PAGE_SCOPED_KEYS } = await import('../../src/state/config-store.js');
+    assert.equal(PAGE_SCOPED_KEYS.has('BESTPREISE_HIDE_UNCHECKED'), true);
+    assert.equal(PAGE_SCOPED_KEYS.has('BESTPREISE_INCLUDE_VORTIEF'), true);
+  });
 });

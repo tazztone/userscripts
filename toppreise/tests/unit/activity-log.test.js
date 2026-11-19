@@ -162,4 +162,15 @@ describe('net helpers', () => {
     const errors = getActivityLog().filter((entry) => entry.message.includes('GM error'));
     assert.equal(errors.length, 0);
   });
+
+  it('gmRequestWithTimeout rejects with cancelled:true on onabort', async () => {
+    globalThis.GM_xmlhttpRequest = (opts) => {
+      setTimeout(() => opts.onabort(), 10);
+      return { abort() {} };
+    };
+    await assert.rejects(
+      () => gmRequestWithTimeout({ url: 'https://example.com/abort', method: 'GET' }, { timeoutMs: 1000 }),
+      (err) => err?.cancelled === true
+    );
+  });
 });
