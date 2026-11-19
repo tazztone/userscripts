@@ -254,6 +254,30 @@ export function wireModalActions(els) {
 
   bindDiagTrigger(els.fabButton, els.shadow);
   els.fabButton.addEventListener('click', openModal);
+  els.btnResetDefaults?.addEventListener('click', () => {
+    if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+    _setValue('PAGE_PROFILES', null);
+    const updates = {};
+    for (const [k, v] of Object.entries(DEFAULTS)) {
+      if (SECRET_KEYS.has(k)) continue;
+      updates[k] = v;
+    }
+    updateConfigs(updates, { skipRender: true });
+    if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
+      cancelBatchDealCheck();
+      getProductCards().forEach(clearCardCache);
+    }
+    if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    }
+    updateBodyClasses();
+    triggerProcessListings();
+    syncFieldsFromConfig(els);
+    initialSnapshot = snapshotModalState(els.dialog);
+    showToast('Einstellungen auf Standard zurückgesetzt');
+  });
   els.btnClose.addEventListener('click', closeModal);
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the els.shadow keydown handler — reset the preview anyway.

@@ -32,6 +32,7 @@ export function ensureSkeleton() {
         <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
         <div id="tp-settings-sections"></div>
         <div class="tp-modal-actions">
+          <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-reset-defaults" title="Setzt alle Einstellungen auf die Standardwerte zurück">Einstellungen auf Standardwerte zurücksetzen</button>
           <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-close">Abbrechen</button>
           <button type="button" class="tp-btn tp-btn-primary" id="tp-btn-save">Speichern</button>
         </div>

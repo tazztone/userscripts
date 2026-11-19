@@ -280,6 +280,9 @@ export const SHADOW_MODAL_STYLES = `
     padding-top: 16px;
     border-top: 1px solid rgba(15,23,42,0.08);
   }
+  #tp-btn-reset-defaults {
+    margin-right: auto;
+  }
   .tp-btn {
     padding: 8px 16px;
     min-height: 32px;

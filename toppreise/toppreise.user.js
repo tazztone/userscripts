@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.523
+// @version      2.18.524
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3061,6 +3061,9 @@ const SHADOW_MODAL_STYLES = `
     margin-top: 20px;
     padding-top: 16px;
     border-top: 1px solid rgba(15,23,42,0.08);
+  }
+  #tp-btn-reset-defaults {
+    margin-right: auto;
   }
   .tp-btn {
     padding: 8px 16px;
@@ -12805,6 +12808,7 @@ const SHADOW_MODAL_STYLES = `
           <h3 id="tp-settings-title">Toppreise Suite Einstellungen</h3>
           <div id="tp-settings-sections"></div>
           <div class="tp-modal-actions">
+            <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-reset-defaults" title="Setzt alle Einstellungen auf die Standardwerte zurück">Einstellungen auf Standardwerte zurücksetzen</button>
             <button type="button" class="tp-btn tp-btn-secondary" id="tp-btn-close">Abbrechen</button>
             <button type="button" class="tp-btn tp-btn-primary" id="tp-btn-save">Speichern</button>
           </div>
@@ -13345,6 +13349,7 @@ const SHADOW_MODAL_STYLES = `
   function collectModalElements(shadow) {
     const dialog = shadow.getElementById('tp-settings-dialog');
     const fabButton = shadow.getElementById('tp-settings-fab');
+    const btnResetDefaults = shadow.getElementById('tp-btn-reset-defaults');
     const btnClose = shadow.getElementById('tp-btn-close');
     const btnSave = shadow.getElementById('tp-btn-save');
 
@@ -13422,7 +13427,7 @@ const SHADOW_MODAL_STYLES = `
     const exportBtn = shadow.getElementById('tp-export-config-btn');
     const importBtn = shadow.getElementById('tp-import-config-btn');
     const importFile = shadow.getElementById('tp-import-config-file');
-    return { shadow, dialog, fabButton, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
+    return { shadow, dialog, fabButton, btnResetDefaults, btnClose, btnSave, marginRange, marginVal, filterRememberPerPageTypeToggle, profileActiveBadge, opacityRange, opacityVal, hideAdsToggle, shippingToggle, sortNone, sortDesc, sortAsc, sortDiscount, alarmEnabledToggle, alarmTargetRange, alarmTargetVal, alarmAutoSubmitToggle, heatmapIntensityRange, heatmapIntensityVal, bestpreiseModeToggle, bestpreiseWeightRange, bestpreiseWeightVal, bestpreiseWeightDesc, bestpreiseMinPointsRange, bestpreiseMinPointsVal, bestpreiseHorizonRange, bestpreiseHorizonVal, bestpreiseHorizonDesc, cacheTtlSelect, cacheNegTtlSelect, cacheMemoryRange, cacheMemoryVal, cacheDiskRange, cacheDiskVal, cacheStatsLabel, cacheClearBtn, dataResetBtn, realDealMinRange, realDealMinVal, sparklinesToggle, keepaChartToggle, reviewSearchToggle, reviewKeywordInput, reviewKeywordReset, reviewKeywordPreview, reviewKeywordPreviewNoPrice, reviewKeywordPreviewNoPriceRow, reviewAiModeToggle, tavilyEnabledToggle, tavilyApiKeyInput, tavilyApiKeyReveal, tavilyApiKeyEditor, tavilyApiKeyStatus, tavilySearchDepth, tavilyMaxResults, dealerAutofetchToggle, discordPrimaryName, discordChannelsList, discordExtraChannels, discordAddChannelBtn, discordWebhookInput, discordWebhookReveal, discordWebhookEditor, discordWebhookStatus, discordDealerEmbedToggle, discordProductEmbedToggle, discordForumTitleToggle, discordLayoutInput, discordLayoutPreview, discordLayoutCount, discordLayoutError, discordLayoutReset, exportBtn, importBtn, importFile, layoutTimer: 0 };
   }
 
   // Built lazily (was setupUI-local): kompakt reads DEFAULT_LAYOUT, which
@@ -13882,6 +13887,30 @@ const SHADOW_MODAL_STYLES = `
 
     bindDiagTrigger(els.fabButton, els.shadow);
     els.fabButton.addEventListener('click', openModal);
+    els.btnResetDefaults?.addEventListener('click', () => {
+      if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
+      const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      _setValue('PAGE_PROFILES', null);
+      const updates = {};
+      for (const [k, v] of Object.entries(DEFAULTS)) {
+        if (SECRET_KEYS.has(k)) continue;
+        updates[k] = v;
+      }
+      updateConfigs(updates, { skipRender: true });
+      if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
+        cancelBatchDealCheck();
+        getProductCards().forEach(clearCardCache);
+      }
+      if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      }
+      updateBodyClasses();
+      triggerProcessListings();
+      syncFieldsFromConfig(els);
+      initialSnapshot = snapshotModalState(els.dialog);
+      showToast('Einstellungen auf Standard zurückgesetzt');
+    });
     els.btnClose.addEventListener('click', closeModal);
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the els.shadow keydown handler — reset the preview anyway.
@@ -17488,7 +17517,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.523';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.524';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
