@@ -4,7 +4,7 @@
  * and mini sparkline with interactive modal.
  */
 
-import { getDetailProductId, getDetailLowestPrice, isShippingPriceActive } from '../page/adapter.js';
+import { getDetailProductId, getDetailLowestPrice, isShippingPriceActive, extractNativePriceRating } from '../page/adapter.js';
 import { SELECTORS } from '../page/selectors.js';
 import { getCardStats } from '../page/cards.js';
 import { getDisplayDelta, medianHorizonLabel, vortiefDropPct, getLevelPct } from '../domain/deal-score.js';
@@ -245,13 +245,13 @@ function createDetailShareBtn(payload) {
   return shareBtn;
 }
 
-export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl }) {
+export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating = null }) {
   if (!(currentPrice > 0)) {
     document.querySelectorAll('#tp-detail-share-btn, .tp-detail-share-btn').forEach(el => el.remove());
     return;
   }
 
-  const payload = { pid, currentPrice, priceBasis, stats, title, url, imageUrl };
+  const payload = { pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating };
 
   const bellSelectors = [
     '.f_priceContainer .Plugin_NewInfoMailButton:not([data-templ="txt"]) a',
@@ -428,6 +428,8 @@ export async function processProductDetailPage(domLock = fn => fn()) {
   }
 
   domLock(() => {
+    const nativeRating = extractNativePriceRating(document);
+
     if (stats && stats.tiefstpreis > 0) {
       if (typeof stats.isShippingPrice === 'boolean' && stats.isShippingPrice !== (priceBasis === 'shipping')) {
         removeDetailDecorations();
@@ -438,7 +440,7 @@ export async function processProductDetailPage(domLock = fn => fn()) {
       renderDetailSubline(stats, currentPrice, priceBasis);
 
       // Render Discord Share Button next to price alarm bell
-      renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl });
+      renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating });
 
       // Render Mini Sparkline below chart thumbnail
       renderDetailSparkline(pid, title, currentPrice, stats);
@@ -462,6 +464,15 @@ export async function processProductDetailPage(domLock = fn => fn()) {
         currentPrice,
         priceBasis,
         isAllTimeLow,
+        nativeRating: nativeRating ? {
+          level: nativeRating.level,
+          label: nativeRating.label,
+          usualPrice: nativeRating.usualPrice,
+          usualPeriod: nativeRating.usualPeriod,
+          lowestPriceRecent: nativeRating.lowestPriceRecent,
+          lowestPeriod: nativeRating.lowestPeriod,
+          highlight: nativeRating.highlight
+        } : null,
         ts: Date.now()
       }));
     }

@@ -51,5 +51,17 @@ export const SELECTORS = Object.freeze({
     closeButton: '.AbstractDialog_CloseButton',
     content: '.AbstractDialog_Content',
     modal: '.modal'
+  }),
+  rating: Object.freeze({
+    container: '.Plugin_PriceRating',
+    widget: '.priceRating',
+    main: '.priceRatingMain',
+    bars: '.priceRatingBars',
+    label: '.priceRatingLabel',
+    details: '.priceRatingDetails',
+    ranges: '.priceRatingRanges li',
+    facts: '.priceRatingFacts',
+    highlight: '.priceRatingHighlight',
+    help: '.priceRatingHelp'
   })
 });

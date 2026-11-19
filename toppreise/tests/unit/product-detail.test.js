@@ -619,4 +619,61 @@ describe('Product Detail Page Feature Suite', () => {
     renderDetailSparkline('222', 'Product B', 200, { timeSeries: [[1000, 220], [2000, 200]] });
     assert.equal(spark._tpPid, '222');
   });
+
+  it('records nativeRating telemetry on #tp-root in data-tp-diag during processProductDetailPage', async () => {
+    const rootEl = document.createElement('div');
+    rootEl.id = 'tp-root';
+    document.body.appendChild(rootEl);
+
+    const h1 = mockNode('h1');
+    h1.className = 'product-name m-0';
+    h1.textContent = 'AirPods Pro';
+    document.body.appendChild(h1);
+
+    const priceBox = mockNode('div');
+    priceBox.className = 'f_priceContainer';
+    const priceInfo = mockNode('div');
+    priceInfo.className = 'Plugin_PriceInformation price_information_product';
+    const priceEl = mockNode('div');
+    priceEl.className = 'Plugin_Price';
+    priceEl.textContent = '1000';
+    priceInfo.appendChild(priceEl);
+    priceBox.appendChild(priceInfo);
+    document.body.appendChild(priceBox);
+
+    const ratingWidget = mockNode('div');
+    ratingWidget.className = 'Plugin_PriceRating';
+    const priceRating = mockNode('div');
+    priceRating.className = 'priceRating';
+    priceRating.setAttribute('data-rating-level', '2');
+    priceRating.setAttribute('aria-label', 'Normaler Preis');
+    const label = mockNode('span');
+    label.className = 'priceRatingLabel';
+    label.textContent = 'Normaler Preis';
+    priceRating.appendChild(label);
+    ratingWidget.appendChild(priceRating);
+    document.body.appendChild(ratingWidget);
+
+    const stats = {
+      tiefstpreis: 1000,
+      previousLow: 1200,
+      medianPrice: 1300,
+      horizonDays: 365,
+      timeSeries: [[1000, 1200], [2000, 1000]],
+      isShippingPrice: false,
+      time: Date.now()
+    };
+    setCachedPriceStats('867323', stats, false, null, false);
+
+    await processProductDetailPage();
+
+    const diagStr = rootEl.getAttribute('data-tp-diag');
+    assert.ok(diagStr, 'data-tp-diag should be set');
+    const diag = JSON.parse(diagStr);
+    assert.equal(diag.pageType, 'detail');
+    assert.equal(diag.pid, '867323');
+    assert.ok(diag.nativeRating, 'nativeRating should be populated');
+    assert.equal(diag.nativeRating.level, 2);
+    assert.equal(diag.nativeRating.label, 'Normaler Preis');
+  });
 });

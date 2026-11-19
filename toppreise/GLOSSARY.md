@@ -19,6 +19,10 @@ _Avoid_: Real Deal, Bestpreis (als Synonym für den verifizierten Tiefstpreis)
 **Toppreis**:
 Das aktuell günstigste Angebot einer Produktseite (Toppreise-native Anzeige) — keine historische Aussage und kein Tiefstpreis.
 
+**Preisbewertung (nativ)**:
+Die native Toppreise-Einstufung auf Produktseiten (`.Plugin_PriceRating`, `.priceRating`) in 5 Stufen (Sehr niedriger Preis, Niedriger Preis, Normaler Preis, Hoher Preis, Sehr hoher Preis). Basiert auf dem „üblichen Preis" der letzten 3 Monate (ausreisserbereinigt) bzw. 12 Monate bei unverändertem Preis (>30 Tage). Koexistiert mit der suite-eigenen Tiefstpreis-Subline (historisches Allzeit-Tief, Vor-Tief und rollierender Median).
+_Avoid_: Suite-Score, Badge-Bewertung
+
 **Händler**:
 Der Shop des aktuell günstigsten Angebots eines geprüften Deals (erste Händlerzeile der Karte bzw. der Produktseite).
 _Avoid_: Store (in UI-Texten), Verkäufer

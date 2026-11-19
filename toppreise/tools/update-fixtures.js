@@ -42,7 +42,11 @@ const TARGETS = {
   product: {
     name: 'live_product_detail.html',
     url: 'https://www.toppreise.ch/preisvergleich/Kopfhoerer/APPLE-AirPods-Pro-3-mit-MagSafe-Ladecase-MFHP4ZM-A-p818734?selsort=rd',
-    requiredSelectors: ['.Plugin_PriceInformation, .priceContainer', '.product-name, h1, .Plugin_ProductHeading']
+    requiredSelectors: [
+      '.Plugin_PriceInformation, .priceContainer',
+      '.product-name, h1, .Plugin_ProductHeading',
+      '.Plugin_PriceRating, .priceRating'
+    ]
   }
 };
 

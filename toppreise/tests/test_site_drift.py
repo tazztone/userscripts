@@ -86,7 +86,7 @@ def test_live_category_browsing_structure_and_selectors(browser, userscript_cont
 
 
 def test_live_product_detail_structure_and_selectors(browser, userscript_content):
-    """Verifies that the live product comparison detail page contains expected price and title containers."""
+    """Verifies that the live product comparison detail page contains expected price, title, and native price rating containers."""
     assert os.path.exists(LIVE_PRODUCT_PATH), "live_product_detail.html snapshot must exist"
 
     page = _init_live_page(browser, userscript_content, LIVE_PRODUCT_PATH)
@@ -99,6 +99,14 @@ def test_live_product_detail_structure_and_selectors(browser, userscript_content
     title = page.locator('.product-name, h1, .Plugin_ProductHeading').first
     assert title.count() >= 1, "Expected product title container on product detail page"
     assert len(title.inner_text().strip()) > 0
+
+    # Native price rating container (Plugin_PriceRating)
+    rating = page.locator('.Plugin_PriceRating .priceRating, .priceRating').first
+    assert rating.count() >= 1, "Expected native price rating widget on live product detail page"
+    rating_level = rating.get_attribute('data-rating-level')
+    assert rating_level is not None, "Expected data-rating-level attribute on price rating widget"
+    assert rating.locator('.priceRatingBars').count() >= 1, "Expected priceRatingBars inside price rating widget"
+    assert rating.locator('.priceRatingFacts').count() >= 1, "Expected priceRatingFacts inside price rating widget"
 
     page.close()
 
