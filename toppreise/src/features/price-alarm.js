@@ -88,6 +88,7 @@ export function isSafeImportedUrl(value, { srcset = false } = {}) {
 
 export function sanitizeImportedNode(root) {
   if (!root || root.nodeType !== 1) return root;
+  if (UNSAFE_IMPORT_TAGS.has(root.tagName?.toLowerCase())) return null;
   const stack = [root];
   while (stack.length) {
     const node = stack.pop();
@@ -331,11 +332,13 @@ export function processPriceAlarmModal() {
     };
     try {
       const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
+      let submitTimer;
       // Observe BEFORE submit: close only on a success signal — button/form
       // detachment alone never closes.
       observer = new MutationObserver(() => {
         if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
           try { observer.disconnect(); } catch {}
+          clearTimeout(submitTimer);
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
@@ -346,6 +349,7 @@ export function processPriceAlarmModal() {
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
         } else if (!document.querySelector(SELECTORS.alarm.form)) {
           try { observer.disconnect(); } catch {}
+          clearTimeout(submitTimer);
           clearTimeout(fallbackTimer);
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
@@ -355,10 +359,12 @@ export function processPriceAlarmModal() {
       reqModal._tpAlarmObserver = observer;
       fallbackTimer = setTimeout(() => {
         try { observer.disconnect(); } catch {}
+        clearTimeout(submitTimer);
         reqModal._tpAlarmObserver = null;
         flagUnconfirmed();
       }, CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000);
-      const submitTimer = setTimeout(() => {
+      submitTimer = setTimeout(() => {
+        if (reqModal.dataset.tpAlarmState !== 'scheduled') return;
         // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
         if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
         if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();
@@ -453,13 +459,19 @@ async function openFetchedAlarmDialog(html) {
   }
 
   const formDoc = new DOMParser().parseFromString(formHtml, 'text/html');
-  const nodes = Array.from(formDoc.body.childNodes).map(n => document.importNode(n, true));
-  for (const imported of nodes) {
-    if (imported.nodeType === 1) sanitizeImportedNode(imported);
-  }
+  const nodes = Array.from(formDoc.body.childNodes)
+    .map(n => document.importNode(n, true))
+    .map(imported => (imported.nodeType === 1 ? sanitizeImportedNode(imported) : imported))
+    .filter(Boolean);
   const content = dialogNode.querySelector(SELECTORS.alarm.content);
   if (content) content.replaceChildren(...nodes);
 
+  if (dialogId) {
+    if (typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
+      try { window.AbstractDialog_hide(dialogId); } catch {}
+    }
+    document.getElementById(dialogId)?.remove();
+  }
   document.body.appendChild(dialogNode);
   document.addEventListener('keydown', handleKeydown);
   if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {

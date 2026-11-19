@@ -77,17 +77,19 @@ export function renderDetailReviewButton(headingEl, title, currentPrice, stats, 
       e.stopPropagation();
       if (CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
         e.preventDefault();
+        const payload = btn._tpReviewPayload || { title, priceText, pid };
         openAiPopover({
-          title,
-          priceText,
+          title: payload.title,
+          priceText: payload.priceText,
           googleUrl: btn.href,
           card: headingEl,
-          pid
+          pid: payload.pid
         });
       }
     });
     headingEl.appendChild(btn);
   }
+  btn._tpReviewPayload = { title, priceText, pid };
   btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
   const tipText = hasTavily
     ? `KI-Fazit & Google-Suche: ${fullQuery}`
@@ -341,6 +343,7 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
   const series = withLivePrice(baseSeries, currentPrice);
   sparkContainer._tpSeries = series;
   sparkContainer._tpTitle = title;
+  sparkContainer._tpPid = pid;
 
   const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
   const lastPriceCents = priceToCents(currentPrice);
@@ -362,7 +365,7 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
     const openPopout = () => {
       openSparklinePopout(sparkContainer._tpSeries, {
         title: sparkContainer._tpTitle || title,
-        pid,
+        pid: sparkContainer._tpPid ?? pid,
         directUrl: (typeof location !== 'undefined' ? location.href : '')
       });
     };
@@ -414,8 +417,9 @@ export async function processProductDetailPage(domLock = fn => fn()) {
   let stats = getCardStats(pid, priceBasis);
   if (!stats) {
     await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
-    if (run !== detailRun || pid !== getDetailProductId()) {
-      if (pid !== getDetailProductId()) domLock(removeDetailDecorations);
+    if (run !== detailRun) return;
+    if (pid !== getDetailProductId()) {
+      domLock(removeDetailDecorations);
       return;
     }
     const fresh = getDetailLowestPrice();

@@ -594,4 +594,13 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
     assert.equal(badgeEl.innerHTML, verdictHtml);
     assert.equal(badgeEl._tpLastHtml, verdictHtml);
   });
+
+  it('getLayoutPresets returns DEFAULT_LAYOUT in ESM without ReferenceError', async () => {
+    const { getLayoutPresets } = await import('../../src/ui/modal-bindings.js');
+    const { DEFAULT_LAYOUT } = await import('../../src/features/discord-recipe.js');
+    const presets = getLayoutPresets();
+    assert.equal(presets.kompakt, DEFAULT_LAYOUT);
+    assert.ok(typeof presets.ausfuehrlich === 'string');
+    assert.ok(typeof presets.minimal === 'string');
+  });
 });

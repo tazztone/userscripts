@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.512
+// @version      2.18.513
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -11406,7 +11406,7 @@ const SHADOW_MODAL_STYLES = `
           return;
         } catch (imgErr) {
           if (isForumThreadError(imgErr)) {
-            if (!withThread) throw imgErr;
+            if (withThread === forum) throw imgErr;
           } else if (!isAttachmentRejection(imgErr)) {
             throw imgErr;
           }
@@ -11422,7 +11422,7 @@ const SHADOW_MODAL_STYLES = `
         if (withThread !== forum) _setValue(flagKey, withThread);
         break;
       } catch (err) {
-        if (!isForumThreadError(err) || withThread) throw err;
+        if (!isForumThreadError(err) || withThread !== forum) throw err;
       }
     }
   }
@@ -11534,13 +11534,18 @@ const SHADOW_MODAL_STYLES = `
 
     const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
 
+    let cancelled = false;
     const onCancel = () => {
+      cancelled = true;
       shareInFlight.delete(shareKey);
       onDone?.(false);
     };
 
     const onSend = async (targetChannel, controller, { comment } = {}) => {
-      if (!readyPayload) return;
+      if (!readyPayload) {
+        controller.setError('Vorschau noch nicht bereit');
+        return;
+      }
       const finalComment = comment ?? userComment;
       const finalFields = { ...currentFields, commentText: finalComment };
       const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
@@ -11581,6 +11586,10 @@ const SHADOW_MODAL_STYLES = `
       onCommentChange,
       initialContent
     });
+    if (!preview) {
+      onCancel();
+      return false;
+    }
 
     // Background asset preparation runs in parallel with preview display
     (async () => {
@@ -11598,6 +11607,7 @@ const SHADOW_MODAL_STYLES = `
         }
         if ((!dealer || !dealerUrl || !offers) && url) {
           const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
+          if (cancelled) return;
           if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
           if (info) {
             dealer = dealer || info.dealer;
@@ -11624,10 +11634,13 @@ const SHADOW_MODAL_STYLES = `
         }
         const series = fullSeries(stats) || stats?.timeSeries || [];
         const png = await renderSparklinePng(withLivePrice(series, cardPrice), 360, 100, title).catch(() => null);
+        if (cancelled) return;
         if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
         const keepaBlob = keepaDl ? await keepaDl : null;
+        if (cancelled) return;
         if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
         const aiText = aiPromise ? (await aiPromise) : '';
+        if (cancelled) return;
         if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
         currentFields = {
           ...currentFields,
@@ -11639,6 +11652,7 @@ const SHADOW_MODAL_STYLES = `
         const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
         const threadName = buildThreadName(title);
         const productBlob = (png && productDl) ? await productDl : null;
+        if (cancelled) return;
         if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
         const productOpt = {
           ...(productBlob ? { productImageBlob: productBlob } : null),
@@ -11661,7 +11675,7 @@ const SHADOW_MODAL_STYLES = `
           keepaBlob
         });
       } catch (err) {
-        preview?.setError('Vorbereitung fehlgeschlagen');
+        if (!cancelled) preview?.setError('Vorbereitung fehlgeschlagen');
       }
     })();
 
@@ -13348,6 +13362,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function updateWeightDesc(els, val) {
+    if (!Number.isFinite(val)) return;
     if (els.bestpreiseWeightDesc) {
       els.bestpreiseWeightDesc.textContent = weightText(val / 100, 'desc');
     }
@@ -15998,6 +16013,7 @@ const SHADOW_MODAL_STYLES = `
 
   function sanitizeImportedNode(root) {
     if (!root || root.nodeType !== 1) return root;
+    if (UNSAFE_IMPORT_TAGS.has(root.tagName?.toLowerCase())) return null;
     const stack = [root];
     while (stack.length) {
       const node = stack.pop();
@@ -16241,11 +16257,13 @@ const SHADOW_MODAL_STYLES = `
       };
       try {
         const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
+        let submitTimer;
         // Observe BEFORE submit: close only on a success signal — button/form
         // detachment alone never closes.
         observer = new MutationObserver(() => {
           if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
             try { observer.disconnect(); } catch {}
+            clearTimeout(submitTimer);
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
@@ -16256,6 +16274,7 @@ const SHADOW_MODAL_STYLES = `
             else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
           } else if (!document.querySelector(SELECTORS.alarm.form)) {
             try { observer.disconnect(); } catch {}
+            clearTimeout(submitTimer);
             clearTimeout(fallbackTimer);
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'cancelled';
@@ -16265,10 +16284,12 @@ const SHADOW_MODAL_STYLES = `
         reqModal._tpAlarmObserver = observer;
         fallbackTimer = setTimeout(() => {
           try { observer.disconnect(); } catch {}
+          clearTimeout(submitTimer);
           reqModal._tpAlarmObserver = null;
           flagUnconfirmed();
         }, CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000);
-        const submitTimer = setTimeout(() => {
+        submitTimer = setTimeout(() => {
+          if (reqModal.dataset.tpAlarmState !== 'scheduled') return;
           // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
           if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
           if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();
@@ -16363,13 +16384,19 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const formDoc = new DOMParser().parseFromString(formHtml, 'text/html');
-    const nodes = Array.from(formDoc.body.childNodes).map(n => document.importNode(n, true));
-    for (const imported of nodes) {
-      if (imported.nodeType === 1) sanitizeImportedNode(imported);
-    }
+    const nodes = Array.from(formDoc.body.childNodes)
+      .map(n => document.importNode(n, true))
+      .map(imported => (imported.nodeType === 1 ? sanitizeImportedNode(imported) : imported))
+      .filter(Boolean);
     const content = dialogNode.querySelector(SELECTORS.alarm.content);
     if (content) content.replaceChildren(...nodes);
 
+    if (dialogId) {
+      if (typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
+        try { window.AbstractDialog_hide(dialogId); } catch {}
+      }
+      document.getElementById(dialogId)?.remove();
+    }
     document.body.appendChild(dialogNode);
     document.addEventListener('keydown', handleKeydown);
     if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
@@ -16534,17 +16561,19 @@ const SHADOW_MODAL_STYLES = `
         e.stopPropagation();
         if (CONFIG.TAVILY_ENABLED && CONFIG.TAVILY_API_KEY && CONFIG.TAVILY_API_KEY.trim()) {
           e.preventDefault();
+          const payload = btn._tpReviewPayload || { title, priceText, pid };
           openAiPopover({
-            title,
-            priceText,
+            title: payload.title,
+            priceText: payload.priceText,
             googleUrl: btn.href,
             card: headingEl,
-            pid
+            pid: payload.pid
           });
         }
       });
       headingEl.appendChild(btn);
     }
+    btn._tpReviewPayload = { title, priceText, pid };
     btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
     const tipText = hasTavily
       ? `KI-Fazit & Google-Suche: ${fullQuery}`
@@ -16798,6 +16827,7 @@ const SHADOW_MODAL_STYLES = `
     const series = withLivePrice(baseSeries, currentPrice);
     sparkContainer._tpSeries = series;
     sparkContainer._tpTitle = title;
+    sparkContainer._tpPid = pid;
 
     const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
     const lastPriceCents = priceToCents(currentPrice);
@@ -16819,7 +16849,7 @@ const SHADOW_MODAL_STYLES = `
       const openPopout = () => {
         openSparklinePopout(sparkContainer._tpSeries, {
           title: sparkContainer._tpTitle || title,
-          pid,
+          pid: sparkContainer._tpPid ?? pid,
           directUrl: (typeof location !== 'undefined' ? location.href : '')
         });
       };
@@ -16871,8 +16901,9 @@ const SHADOW_MODAL_STYLES = `
     let stats = getCardStats(pid, priceBasis);
     if (!stats) {
       await fetchSingleProductPriceStats(pid, 1, false, null, currentPrice, null, priceBasis);
-      if (run !== detailRun || pid !== getDetailProductId()) {
-        if (pid !== getDetailProductId()) domLock(removeDetailDecorations);
+      if (run !== detailRun) return;
+      if (pid !== getDetailProductId()) {
+        domLock(removeDetailDecorations);
         return;
       }
       const fresh = getDetailLowestPrice();
@@ -17218,7 +17249,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.512';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.513';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

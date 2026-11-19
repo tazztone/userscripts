@@ -132,4 +132,22 @@ describe('Price alarm fallback URL hardening', () => {
     assert.equal(isSafeImportedUrl('javascript:alert(1) 1x, //imgsrv/x 2x', { srcset: true }), false);
     assert.equal(isSafeImportedUrl('//imgsrv/x 2x, javascript:alert(1) 1x', { srcset: true }), false);
   });
+
+  it('returns null from sanitizeImportedNode for top-level unsafe elements', async () => {
+    const { sanitizeImportedNode } = await import('../../src/features/price-alarm.js');
+    for (const tag of ['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'BASE', 'META', 'LINK']) {
+      const node = { nodeType: 1, tagName: tag, attributes: [], remove() {} };
+      assert.equal(sanitizeImportedNode(node), null);
+    }
+    const safeNode = {
+      nodeType: 1,
+      tagName: 'DIV',
+      attributes: [{ name: 'onclick', value: 'alert(1)' }],
+      children: [],
+      removeAttribute(name) { this.attributes = this.attributes.filter(a => a.name !== name); }
+    };
+    const res = sanitizeImportedNode(safeNode);
+    assert.equal(res, safeNode);
+    assert.equal(safeNode.attributes.length, 0);
+  });
 });

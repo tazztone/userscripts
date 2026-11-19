@@ -57,7 +57,7 @@ async function sendDealToChannel(channel, payload, stillFresh) {
         return;
       } catch (imgErr) {
         if (isForumThreadError(imgErr)) {
-          if (!withThread) throw imgErr;
+          if (withThread === forum) throw imgErr;
         } else if (!isAttachmentRejection(imgErr)) {
           throw imgErr;
         }
@@ -73,7 +73,7 @@ async function sendDealToChannel(channel, payload, stillFresh) {
       if (withThread !== forum) _setValue(flagKey, withThread);
       break;
     } catch (err) {
-      if (!isForumThreadError(err) || withThread) throw err;
+      if (!isForumThreadError(err) || withThread !== forum) throw err;
     }
   }
 }
@@ -185,13 +185,18 @@ export async function triggerDiscordShare({
 
   const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
 
+  let cancelled = false;
   const onCancel = () => {
+    cancelled = true;
     shareInFlight.delete(shareKey);
     onDone?.(false);
   };
 
   const onSend = async (targetChannel, controller, { comment } = {}) => {
-    if (!readyPayload) return;
+    if (!readyPayload) {
+      controller.setError('Vorschau noch nicht bereit');
+      return;
+    }
     const finalComment = comment ?? userComment;
     const finalFields = { ...currentFields, commentText: finalComment };
     const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
@@ -232,6 +237,10 @@ export async function triggerDiscordShare({
     onCommentChange,
     initialContent
   });
+  if (!preview) {
+    onCancel();
+    return false;
+  }
 
   // Background asset preparation runs in parallel with preview display
   (async () => {
@@ -249,6 +258,7 @@ export async function triggerDiscordShare({
       }
       if ((!dealer || !dealerUrl || !offers) && url) {
         const info = await fetchProductInfo(url, undefined, useShipping).catch(() => null);
+        if (cancelled) return;
         if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
         if (info) {
           dealer = dealer || info.dealer;
@@ -275,10 +285,13 @@ export async function triggerDiscordShare({
       }
       const series = fullSeries(stats) || stats?.timeSeries || [];
       const png = await renderSparklinePng(withLivePrice(series, cardPrice), 360, 100, title).catch(() => null);
+      if (cancelled) return;
       if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
       const keepaBlob = keepaDl ? await keepaDl : null;
+      if (cancelled) return;
       if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
       const aiText = aiPromise ? (await aiPromise) : '';
+      if (cancelled) return;
       if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
       currentFields = {
         ...currentFields,
@@ -290,6 +303,7 @@ export async function triggerDiscordShare({
       const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
       const threadName = buildThreadName(title);
       const productBlob = (png && productDl) ? await productDl : null;
+      if (cancelled) return;
       if (!stillFresh()) { abortStale(); preview?.close(); onCancel(); return; }
       const productOpt = {
         ...(productBlob ? { productImageBlob: productBlob } : null),
@@ -312,7 +326,7 @@ export async function triggerDiscordShare({
         keepaBlob
       });
     } catch (err) {
-      preview?.setError('Vorbereitung fehlgeschlagen');
+      if (!cancelled) preview?.setError('Vorbereitung fehlgeschlagen');
     }
   })();
 

@@ -4,7 +4,7 @@
  */
 
 import { CONFIG, syncUiControl, weightText, horizonText, horizonUiToStored, horizonStoredToUi, clampMinPoints, minPointsToIndex, minPointsFromIndex, MIN_POINTS_STEPS } from '../state/config.js';
-import { renderLayout, validateLayoutRecipe, getLayoutRecipeNotice, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
+import { DEFAULT_LAYOUT, renderLayout, validateLayoutRecipe, getLayoutRecipeNotice, renderDiscordMarkdownPreview, layoutOverLimitSuffix } from '../features/discord-recipe.js';
 import { isDiscordWebhookUrl } from '../features/share-discord.js';
 import { countCachedPriceStats } from '../scanner/cache.js';
 import { expandKeywordWithPrice, formatSearchQuery } from '../features/tavily-search.js';
@@ -240,6 +240,7 @@ export function bindDual(rangeEl, numEl, onInput = null) {
 }
 
 export function updateWeightDesc(els, val) {
+  if (!Number.isFinite(val)) return;
   if (els.bestpreiseWeightDesc) {
     els.bestpreiseWeightDesc.textContent = weightText(val / 100, 'desc');
   }

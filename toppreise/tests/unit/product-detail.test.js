@@ -595,4 +595,28 @@ describe('Product Detail Page Feature Suite', () => {
     assert.equal(shareBtn._tpSharePayload.currentPrice, 999.00);
     assert.equal(shareBtn._tpSharePayload.priceBasis, 'product');
   });
+
+  it('renderDetailReviewButton and renderDetailSparkline update stored closures on re-render', () => {
+    const heading = mockNode('h1');
+    document.body.appendChild(heading);
+
+    renderDetailReviewButton(heading, 'Product A', 100, null, '111');
+    const btn = heading.querySelector('.tp-detail-review-btn');
+    assert.ok(btn);
+    assert.deepEqual(btn._tpReviewPayload, { title: 'Product A', priceText: 'CHF 100.00', pid: '111' });
+
+    renderDetailReviewButton(heading, 'Product B', 200, null, '222');
+    assert.deepEqual(btn._tpReviewPayload, { title: 'Product B', priceText: 'CHF 200.00', pid: '222' });
+
+    const chart = mockNode('div');
+    chart.className = 'chartProductPrice';
+    document.body.appendChild(chart);
+
+    renderDetailSparkline('111', 'Product A', 100, { timeSeries: [[1000, 120], [2000, 100]] });
+    const spark = document.getElementById('tp-detail-sparkline');
+    assert.equal(spark._tpPid, '111');
+
+    renderDetailSparkline('222', 'Product B', 200, { timeSeries: [[1000, 220], [2000, 200]] });
+    assert.equal(spark._tpPid, '222');
+  });
 });
