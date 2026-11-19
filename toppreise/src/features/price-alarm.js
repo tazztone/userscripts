@@ -359,12 +359,12 @@ export function processPriceAlarmModal() {
       reqModal._tpAlarmObserver = observer;
       fallbackTimer = setTimeout(() => {
         try { observer.disconnect(); } catch {}
-        clearTimeout(submitTimer);
         reqModal._tpAlarmObserver = null;
         flagUnconfirmed();
       }, CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000);
       submitTimer = setTimeout(() => {
-        if (reqModal.dataset.tpAlarmState !== 'scheduled') return;
+        const state = reqModal.dataset.tpAlarmState;
+        if (state === 'cancelled' || state === 'confirmed' || state === 'submitted') return;
         // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
         if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
         if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();

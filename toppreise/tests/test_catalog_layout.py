@@ -1639,8 +1639,8 @@ def test_horizon_select_in_filter_bar(page: Page):
     horizon_range = page.locator('#tp-bar-horizon-range')
     assert horizon_range.get_attribute('min') == '30'
     assert horizon_range.get_attribute('max') == '760'
-    assert horizon_range.get_attribute('step') == '30'
-    assert horizon_range.input_value() == '360'  # 365 off-grid: snaps visually, stored stays 365
+    assert horizon_range.get_attribute('step') == '5'
+    assert horizon_range.input_value() == '365'  # 365 is exact on step=5
     assert page.locator('#tp-bar-horizon-label').inner_text() == '1J'
     assert '(Ø: 1J)' in (page.locator('#card-cheapest .tp-card-historical-price.tp-is-record-low').text_content() or '')
 
@@ -1738,13 +1738,15 @@ def test_merged_blend_subline_rendering(page: Page):
     row = card.locator('.tp-card-subline-row')
     assert row.count() == 1
     assert row.evaluate('el => el.parentElement === el.closest(".Plugin_Product")')
-    assert subline.evaluate('el => el.getBoundingClientRect().height <= 22')
-    # Mock feed column is only ~270px (narrow fallback: ellipsis, no wrap)
-    assert subline.evaluate('el => getComputedStyle(el).textOverflow === "ellipsis"')
+    assert subline.evaluate('el => getComputedStyle(el).flexDirection === "column"')
+    pills = subline.locator('.tp-subline-pill')
+    assert pills.count() == 2
+    assert pills.first.evaluate('el => getComputedStyle(el).textOverflow === "ellipsis"')
     # Normal-width desktop card (user screenshot ~560px): full text fits
     card.evaluate('el => { el.style.flex = "0 0 auto"; el.style.maxWidth = "none"; el.style.width = "600px"; }')
-    page.wait_for_function("el => el.scrollWidth <= el.clientWidth + 1", arg=subline.element_handle())
-    assert subline.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+    page.wait_for_function("el => el.scrollWidth <= el.clientWidth + 1", arg=pills.last.element_handle())
+    assert pills.first.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
+    assert pills.last.evaluate('el => el.scrollWidth <= el.clientWidth + 1')
 
 
 def test_vortief_fallback_visible_with_edge_heat_in_mode(page: Page):
@@ -2981,8 +2983,8 @@ def test_calc_preview_live_in_calc_popover(page: Page):
     page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('11%')")
     page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('230 aktiv (min. 5 ✓)')")
     page.select_option('#tp-preview-preset-select', 'r5')
-    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('28%')")
-    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('2556')")
+    page.wait_for_function("() => document.getElementById('tp-preview-blend')?.textContent?.includes('29%')")
+    page.wait_for_function("() => document.getElementById('tp-preview-status')?.textContent?.includes('2648')")
     page.evaluate("""() => {
         const r = document.querySelector('#tp-bar-outlier-band-range');
         r.value = '40';

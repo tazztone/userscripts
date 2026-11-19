@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.517
+// @version      2.18.518
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -402,6 +402,11 @@ const STYLES_CARDS = `
       left: -4px !important;
       right: -4px !important;
     }
+  }
+  .Plugin_ProductCollectionRelProductsList .Plugin_Product {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 0 !important;
   }
 `;
 
@@ -16361,12 +16366,12 @@ const SHADOW_MODAL_STYLES = `
         reqModal._tpAlarmObserver = observer;
         fallbackTimer = setTimeout(() => {
           try { observer.disconnect(); } catch {}
-          clearTimeout(submitTimer);
           reqModal._tpAlarmObserver = null;
           flagUnconfirmed();
         }, CONFIG.ALARM_FALLBACK_TIMEOUT_MS || 5000);
         submitTimer = setTimeout(() => {
-          if (reqModal.dataset.tpAlarmState !== 'scheduled') return;
+          const state = reqModal.dataset.tpAlarmState;
+          if (state === 'cancelled' || state === 'confirmed' || state === 'submitted') return;
           // Pre-submit revalidation: basis/route/config/price may have changed mid-wait.
           if (reqModal.dataset.tpAlarmAttempt !== reqAttempt) return cancelAttempt();
           if (!reqModal.isConnected || !CONFIG.ALARM_ENABLED || CONFIG.ALARM_AUTO_SUBMIT !== true) return cancelAttempt();
@@ -17326,7 +17331,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.517';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.518';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

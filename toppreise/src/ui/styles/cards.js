@@ -331,4 +331,9 @@ export const STYLES_CARDS = `
       right: -4px !important;
     }
   }
+  .Plugin_ProductCollectionRelProductsList .Plugin_Product {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 0 !important;
+  }
 `;
