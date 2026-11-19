@@ -12,6 +12,7 @@ import {
   fetchImageBlob,
 } from '../../src/features/share-discord.js';
 import {
+  commentOverflows,
   formatDealMessage,
   forumRecipeFor,
   renderLayout,
@@ -60,6 +61,7 @@ describe('isDiscordWebhookUrl', () => {
   });
 });
 
+
 describe('withLivePrice', () => {
   it('appends the live card price as the final point', () => {
     const ts = [[1700000000, 25.90], [1700100000, 40.00]];
@@ -91,6 +93,7 @@ describe('withLivePrice', () => {
     assert.equal(out.length, 2);
   });
 });
+
 
 describe('formatDealMessage', () => {
   it('sizes hierarchy: ## title link, # price, -# dealer, fused history, bare link last', () => {
@@ -160,6 +163,7 @@ describe('formatDealMessage', () => {
   });
 });
 
+
 describe('resolveShareFields', () => {
   // PHILIPS case from the deals channel: 271.38 vs Bisher 387.00 / Ø 403.00.
   const stats = { tiefstpreis: 271.38, previousLow: 387.00, isNewAllTimeLow: true, medianPrice: 403.00, horizonDays: 365 };
@@ -227,6 +231,7 @@ describe('resolveShareFields', () => {
     });
   });
 });
+
 
 describe('extractShareData / extractDealer', () => {
   const stubCard = () => {
@@ -334,6 +339,7 @@ describe('extractShareData / extractDealer', () => {
   });
 });
 
+
 describe('fetchProductInfo', () => {
   afterEach(() => {
     delete globalThis.fetch;
@@ -430,6 +436,7 @@ describe('fetchProductInfo', () => {
     assert.deepEqual(await fetchProductInfo(PRODUCT_URL, 50, true), { dealer: '', offers: 2, dealerUrl: '', totalOffers: 0 });
   });
 });
+
 describe('parseProductOffers / pickCheapestOffer', () => {
   const block = ({ dealer, product, shipping, href }) => ({
     querySelector: sel => {
@@ -509,6 +516,7 @@ describe('parseProductOffers / pickCheapestOffer', () => {
   });
 });
 
+
 describe('parseJsonLdOffer', () => {
   const product = offers => ({ '@context': 'https://schema.org', '@type': 'Product', name: 'x', offers });
 
@@ -558,6 +566,7 @@ describe('parseJsonLdOffer', () => {
     ])), { dealer: '', offers: 0, totalOffers: 0 });
   });
 });
+
 
 describe('fetchProductInfo JSON-LD fallback', () => {
   afterEach(() => {
@@ -614,12 +623,14 @@ describe('fetchProductInfo JSON-LD fallback', () => {
   });
 });
 
+
 describe('renderSparklinePng', () => {
   it('returns null without DOM', async () => {
     assert.equal(await renderSparklinePng([[1, 100], [2, 50]]), null);
     assert.equal(await renderSparklinePng(null), null);
   });
 });
+
 
 describe('postDealToDiscord', () => {
   afterEach(() => {
@@ -641,7 +652,7 @@ describe('postDealToDiscord', () => {
       return { ok: true, status: 204 };
     };
     await postDealToDiscord(HOOK, '🔥 deal');
-    assert.equal(seen.url, HOOK);
+    assert.equal(seen.url, `${HOOK}?wait=true`);
     assert.equal(seen.opts.method, 'POST');
     assert.deepEqual(JSON.parse(seen.opts.body), { content: '🔥 deal', allowed_mentions: { parse: [] } });
   });
@@ -732,6 +743,7 @@ describe('postDealToDiscord', () => {
   });
 });
 
+
 describe('postDealImageToDiscord', () => {
   afterEach(() => {
     delete globalThis.GM_xmlhttpRequest;
@@ -761,7 +773,7 @@ describe('postDealImageToDiscord', () => {
     };
     await postDealImageToDiscord(HOOK, '🔥 deal', new Blob(['png'], { type: 'image/png' }));
     assert.equal(seen.method, 'POST');
-    assert.equal(seen.url, HOOK);
+    assert.equal(seen.url, `${HOOK}?wait=true`);
     assert.ok(seen.data instanceof FormData);
     assert.deepEqual(JSON.parse(seen.data.get('payload_json')), { content: '🔥 deal', allowed_mentions: { parse: [] } });
     assert.ok(seen.data.get('file') instanceof Blob);
@@ -777,7 +789,7 @@ describe('postDealImageToDiscord', () => {
     } finally {
       if (realFetch === undefined) delete globalThis.fetch; else globalThis.fetch = realFetch;
     }
-    assert.equal(seen.url, HOOK);
+    assert.equal(seen.url, `${HOOK}?wait=true`);
     assert.equal(seen.opts.method, 'POST');
     assert.ok(seen.opts.body instanceof FormData);
   });
@@ -889,6 +901,7 @@ describe('postDealImageToDiscord', () => {
   });
 });
 
+
 describe('fetchImageBlob', () => {
   afterEach(() => {
     delete globalThis.GM_xmlhttpRequest;
@@ -959,6 +972,7 @@ describe('fetchImageBlob', () => {
   });
 });
 
+
 describe('buildKeepaUrl', () => {
   it('constructs standard Keepa chart URL with default params', () => {
     assert.equal(
@@ -980,6 +994,7 @@ describe('buildKeepaUrl', () => {
   });
 });
 
+
 describe('buildThreadName', () => {
   it('collapses whitespace and trims', () => {
     assert.equal(buildThreadName('  Logitech   MX  Master  '), 'Logitech MX Master');
@@ -993,6 +1008,7 @@ describe('buildThreadName', () => {
   });
 });
 
+
 describe('isForumThreadError', () => {
   it('true only for Discord 400/405', () => {
     assert.equal(isForumThreadError(new Error('Discord 400')), true);
@@ -1005,6 +1021,7 @@ describe('isForumThreadError', () => {
   });
 });
 
+
 describe('discordForumFlagKey', () => {
   it('deterministic, trimmed, URL-scoped, token-free', () => {
     const a = discordForumFlagKey(HOOK);
@@ -1014,6 +1031,7 @@ describe('discordForumFlagKey', () => {
     assert.equal(a.includes('abcDEF123'), false);
   });
 });
+
 
 describe('thread_name post paths', () => {
   afterEach(() => {
@@ -1046,6 +1064,7 @@ describe('thread_name post paths', () => {
     assert.equal(calls, 1);
   });
 });
+
 
 describe('layout recipe', () => {
   const base = {
@@ -1148,6 +1167,7 @@ describe('layout recipe', () => {
     for (const line of DEFAULT_LAYOUT.split('\n').slice(1)) assert.match(line, /^[^ \t]/);
   });
 });
+
 describe('forum body', () => {
   const base = {
     title: 'HyperX Pulsefire Fuse',
@@ -1186,6 +1206,7 @@ describe('forum body', () => {
   });
 });
 
+
 describe('validateLayoutRecipe', () => {
   it('rejects blank recipes', () => {
     assert.equal(validateLayoutRecipe(''), 'Layout ist leer');
@@ -1198,6 +1219,7 @@ describe('validateLayoutRecipe', () => {
     assert.equal(validateLayoutRecipe(DEFAULT_LAYOUT), null);
   });
 });
+
 
 describe('getLayoutRecipeNotice', () => {
   it('returns deprecation notice when {spark} is in recipe', () => {
@@ -1212,6 +1234,7 @@ describe('getLayoutRecipeNotice', () => {
     assert.equal(getLayoutRecipeNotice(null), null);
   });
 });
+
 
 describe('renderDiscordMarkdownPreview', () => {
   it('escapes hostile titles', () => {
@@ -1238,6 +1261,7 @@ describe('renderDiscordMarkdownPreview', () => {
   });
 });
 
+
 describe('layoutOverLimitSuffix', () => {
   it('returns empty below the limit', () => {
     assert.equal(layoutOverLimitSuffix(100, DEFAULT_LAYOUT), '');
@@ -1247,5 +1271,30 @@ describe('layoutOverLimitSuffix', () => {
   });
   it('names hard truncation without {title}', () => {
     assert.equal(layoutOverLimitSuffix(2001, '# {price}\n{link}'), ' — über Limit, wird hart auf 2000 gekürzt');
+  });
+});
+
+
+describe('commentOverflows', () => {
+  const baseFields = {
+    title: 'Sony WH-1000XM5',
+    url: 'https://www.toppreise.ch/preisvergleich/Kopfhoerer/Sony-WH-1000XM5-p12345',
+    priceText: 'CHF 249.00',
+    dealer: 'Digitec',
+    dealerUrl: 'https://www.digitec.ch/de/s1/product/123'
+  };
+
+  it('returns false for short comments', () => {
+    assert.equal(commentOverflows({ ...baseFields, commentText: 'Guter Deal!' }), false);
+  });
+
+  it('returns true when comment pushes message over 2000 chars', () => {
+    const longComment = 'A'.repeat(1950);
+    assert.equal(commentOverflows({ ...baseFields, commentText: longComment }), true);
+  });
+
+  it('returns false when deal itself is over 2000 chars without comment', () => {
+    const hugeTitle = 'X'.repeat(2050);
+    assert.equal(commentOverflows({ ...baseFields, title: hugeTitle, commentText: 'Kurz' }), false);
   });
 });

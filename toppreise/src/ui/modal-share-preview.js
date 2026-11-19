@@ -54,9 +54,12 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
         <div class="tp-share-comment-wrap">
           <div class="tp-share-comment-header">
             <label for="tp-share-comment-input" class="tp-share-preview-label">Kommentar (optional):</label>
-            <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 1000</span>
+            <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 2000</span>
           </div>
-          <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="1000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+          <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="2000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+          <div id="tp-share-comment-overflow" class="tp-share-comment-overflow" style="display: none;">
+            ⤵️ Wird als Antwort im Thread gesendet
+          </div>
         </div>
         <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
       </div>
@@ -82,6 +85,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   const cancelBtn = dialog.querySelector('.tp-share-cancel-btn');
   const commentInput = dialog.querySelector('#tp-share-comment-input');
   const commentCount = dialog.querySelector('#tp-share-comment-count');
+  const commentOverflow = dialog.querySelector('#tp-share-comment-overflow');
 
   const createdUrls = [];
   let isSending = false;
@@ -113,7 +117,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
 
   const updateCount = () => {
     if (commentCount && commentInput) {
-      commentCount.textContent = `${commentInput.value.length} / 1000`;
+      commentCount.textContent = `${commentInput.value.length} / 2000`;
     }
   };
 
@@ -242,6 +246,12 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
           btn.textContent = '⏳ Senden…';
         }
       });
+    },
+
+    setCommentOverflow(isOverflow) {
+      if (commentOverflow) {
+        commentOverflow.style.display = isOverflow ? 'block' : 'none';
+      }
     },
 
     close

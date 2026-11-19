@@ -2220,7 +2220,7 @@ def test_discord_share_preview_modal_comment_field(page: Page):
 
     preview_message = page.locator('#tp-root >> #tp-share-preview-message')
     expect(preview_message).to_contain_text('Gutscheincode: SALE20 (-20 CHF)')
-    expect(page.locator('#tp-root >> #tp-share-comment-count')).to_contain_text('31 / 1000')
+    expect(page.locator('#tp-root >> #tp-share-comment-count')).to_contain_text('31 / 2000')
 
     page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
 
@@ -2230,6 +2230,55 @@ def test_discord_share_preview_modal_comment_field(page: Page):
 
     assert len(discord_posts) >= 1
     assert b'Gutscheincode: SALE20 (-20 CHF)' in discord_posts[0]
+
+
+def test_discord_share_comment_overflow_sends_followup(page: Page):
+    """Long comment (>2000 total chars) strips comment from main post, shows overflow indicator, and sends follow-up."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    open_settings(page)
+    page.fill('#tp-root >> #tp-discord-primary-name', 'Deals')
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/999/overflow-deal')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    discord_posts = []
+    page.route('**/discord.com/**', lambda route: (
+        discord_posts.append(route.request.post_data_buffer),
+        route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, body='{"id":"msg-1","channel_id":"chan-1"}')
+    ))
+
+    page.click('#card-cheapest > .tp-share-btn', force=True)
+
+    modal = page.locator('#tp-root >> #tp-modal-share-preview')
+    expect(modal).to_be_visible()
+
+    long_comment = 'A' * 1950
+    comment_input = page.locator('#tp-root >> #tp-share-comment-input')
+    comment_input.fill(long_comment)
+
+    overflow_el = page.locator('#tp-root >> #tp-share-comment-overflow')
+    expect(overflow_el).to_be_visible()
+
+    preview_message = page.locator('#tp-root >> #tp-share-preview-message')
+    expect(preview_message).not_to_contain_text('AAAA')
+
+    page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
+    page.locator('#tp-root >> .tp-share-channel-btn').first.click()
+    expect(modal).to_be_hidden()
+
+    assert len(discord_posts) == 2
+    main_body = discord_posts[0].decode('utf-8', errors='replace')
+    followup_body = discord_posts[1].decode('utf-8', errors='replace')
+    assert 'AAAA' not in main_body
+    assert long_comment in followup_body
 
 
 

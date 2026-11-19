@@ -138,6 +138,13 @@ export function forumRecipeFor(recipe = DEFAULT_LAYOUT) {
   return /\{link\}/.test(stripped) ? stripped : `${stripped.replace(/\s+$/, '')}\n{link}`;
 }
 
+export function commentOverflows(fields = {}, recipe = DEFAULT_LAYOUT) {
+  const withComment = renderLayout(fields, recipe);
+  if (withComment.length <= 2000) return false;
+  const without = renderLayout({ ...fields, commentText: '' }, recipe);
+  return without.length <= 2000 && !!String(fields?.commentText || '').trim();
+}
+
 export function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
   const full = renderLayout(fields, recipe);
   if (full.length <= 2000) return full;

@@ -153,6 +153,11 @@ const discordError = (status, body, headers) =>
   Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
     { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 
+const withWaitQuery = url => `${url.trim()}${url.includes('?') ? '&' : '?'}wait=true`;
+const parseDiscordJson = res => {
+  try { return JSON.parse(res?.responseText || '{}'); } catch { return {}; }
+};
+
 function gmPost({ url, data, headers, timeoutMs }) {
   return gmRequestWithTimeout({
     method: 'POST',
@@ -162,7 +167,7 @@ function gmPost({ url, data, headers, timeoutMs }) {
   }, { timeoutMs, source: 'discord', label: 'post' })
     .then(
       (res) => {
-        if (res.status >= 200 && res.status < 300) return;
+        if (res.status >= 200 && res.status < 300) return res;
         throw discordError(res.status, res?.responseText, res?.responseHeaders);
       },
       (err) => {
@@ -201,13 +206,13 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
       } else {
         form.append('file', pngBlob, 'preisverlauf.png');
       }
-      const url = webhookUrl.trim();
+      const url = withWaitQuery(webhookUrl);
       if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
+        gmPost({ url, data: form, timeoutMs: 20000 }).then(res => resolve(parseDiscordJson(res)), reject);
       } else if (typeof fetch !== 'undefined') {
         fetchWithTimeout(url, { method: 'POST', body: form }, { timeoutMs: 20000, source: 'discord', label: 'multipart' })
           .then(async res => {
-            if (res.ok) return resolve();
+            if (res.ok) return resolve(typeof res.json === 'function' ? await res.json().catch(() => ({})) : {});
             reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
           })
           .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
@@ -221,13 +226,34 @@ export function postDealImageToDiscord(webhookUrl, content, pngBlob, options = {
 export function postDealToDiscord(webhookUrl, content, options = {}) {
   return new Promise((resolve, reject) => {
     if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
-    const url = webhookUrl.trim();
+    const url = withWaitQuery(webhookUrl);
     const body = { content, allowed_mentions: { parse: [] } };
     if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
     if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
     const payload = JSON.stringify(body);
     if (typeof GM_xmlhttpRequest !== 'undefined') {
-      gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
+      gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(res => resolve(parseDiscordJson(res)), reject);
+    } else if (typeof fetch !== 'undefined') {
+      fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
+        .then(async res => {
+          if (res.ok) return resolve(typeof res.json === 'function' ? await res.json().catch(() => ({})) : {});
+          reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
+        })
+        .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
+    } else {
+      reject(new Error('Kein HTTP-Transport verfügbar'));
+    }
+  });
+}
+
+export function postFollowUp(webhookUrl, threadId, text) {
+  return new Promise((resolve, reject) => {
+    if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
+    const base = webhookUrl.trim();
+    const url = threadId ? `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}` : base;
+    const payload = JSON.stringify({ content: text, allowed_mentions: { parse: [] } });
+    if (typeof GM_xmlhttpRequest !== 'undefined') {
+      gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(() => resolve(), reject);
     } else if (typeof fetch !== 'undefined') {
       fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
         .then(async res => {

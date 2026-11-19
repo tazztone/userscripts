@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.519
+// @version      2.18.520
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -9141,6 +9141,13 @@ const SHADOW_MODAL_STYLES = `
     return /\{link\}/.test(stripped) ? stripped : `${stripped.replace(/\s+$/, '')}\n{link}`;
   }
 
+  function commentOverflows(fields = {}, recipe = DEFAULT_LAYOUT) {
+    const withComment = renderLayout(fields, recipe);
+    if (withComment.length <= 2000) return false;
+    const without = renderLayout({ ...fields, commentText: '' }, recipe);
+    return without.length <= 2000 && !!String(fields?.commentText || '').trim();
+  }
+
   function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
     const full = renderLayout(fields, recipe);
     if (full.length <= 2000) return full;
@@ -9567,6 +9574,11 @@ const SHADOW_MODAL_STYLES = `
     Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
       { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 
+  const withWaitQuery = url => `${url.trim()}${url.includes('?') ? '&' : '?'}wait=true`;
+  const parseDiscordJson = res => {
+    try { return JSON.parse(res?.responseText || '{}'); } catch { return {}; }
+  };
+
   function gmPost({ url, data, headers, timeoutMs }) {
     return gmRequestWithTimeout({
       method: 'POST',
@@ -9576,7 +9588,7 @@ const SHADOW_MODAL_STYLES = `
     }, { timeoutMs, source: 'discord', label: 'post' })
       .then(
         (res) => {
-          if (res.status >= 200 && res.status < 300) return;
+          if (res.status >= 200 && res.status < 300) return res;
           throw discordError(res.status, res?.responseText, res?.responseHeaders);
         },
         (err) => {
@@ -9615,13 +9627,13 @@ const SHADOW_MODAL_STYLES = `
         } else {
           form.append('file', pngBlob, 'preisverlauf.png');
         }
-        const url = webhookUrl.trim();
+        const url = withWaitQuery(webhookUrl);
         if (typeof GM_xmlhttpRequest !== 'undefined') {
-          gmPost({ url, data: form, timeoutMs: 20000 }).then(resolve, reject);
+          gmPost({ url, data: form, timeoutMs: 20000 }).then(res => resolve(parseDiscordJson(res)), reject);
         } else if (typeof fetch !== 'undefined') {
           fetchWithTimeout(url, { method: 'POST', body: form }, { timeoutMs: 20000, source: 'discord', label: 'multipart' })
             .then(async res => {
-              if (res.ok) return resolve();
+              if (res.ok) return resolve(typeof res.json === 'function' ? await res.json().catch(() => ({})) : {});
               reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
             })
             .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
@@ -9635,13 +9647,34 @@ const SHADOW_MODAL_STYLES = `
   function postDealToDiscord(webhookUrl, content, options = {}) {
     return new Promise((resolve, reject) => {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
-      const url = webhookUrl.trim();
+      const url = withWaitQuery(webhookUrl);
       const body = { content, allowed_mentions: { parse: [] } };
       if (typeof options.productImageUrl === 'string' && options.productImageUrl) body.embeds = [{ image: { url: options.productImageUrl } }];
       if (typeof options.threadName === 'string' && options.threadName) body.thread_name = options.threadName;
       const payload = JSON.stringify(body);
       if (typeof GM_xmlhttpRequest !== 'undefined') {
-        gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(resolve, reject);
+        gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(res => resolve(parseDiscordJson(res)), reject);
+      } else if (typeof fetch !== 'undefined') {
+        fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
+          .then(async res => {
+            if (res.ok) return resolve(typeof res.json === 'function' ? await res.json().catch(() => ({})) : {});
+            reject(discordError(res.status, await res.text().catch(() => ''), res.headers));
+          })
+          .catch(err => reject(Object.assign(new Error(err?.timeout ? 'Timeout' : 'Netzwerkfehler'), { status: 0, retryAfterMs: 0 })));
+      } else {
+        reject(new Error('Kein HTTP-Transport verfügbar'));
+      }
+    });
+  }
+
+  function postFollowUp(webhookUrl, threadId, text) {
+    return new Promise((resolve, reject) => {
+      if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
+      const base = webhookUrl.trim();
+      const url = threadId ? `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}` : base;
+      const payload = JSON.stringify({ content: text, allowed_mentions: { parse: [] } });
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(() => resolve(), reject);
       } else if (typeof fetch !== 'undefined') {
         fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }, { timeoutMs: 15000, source: 'discord', label: 'post' })
           .then(async res => {
@@ -11464,8 +11497,7 @@ const SHADOW_MODAL_STYLES = `
       if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
       if (png) {
         try {
-          await postImage(withThread);
-          return;
+          return await postImage(withThread);
         } catch (imgErr) {
           if (isForumThreadError(imgErr)) {
             if (withThread === forum) throw imgErr;
@@ -11475,18 +11507,19 @@ const SHADOW_MODAL_STYLES = `
         }
       }
       if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
-      await postText(withThread);
+      return await postText(withThread);
     };
 
     for (const withThread of (forum ? [true, false] : [false, true])) {
       try {
-        await tryRound(withThread);
+        const result = await tryRound(withThread);
         if (withThread !== forum) _setValue(flagKey, withThread);
-        break;
+        return { threadId: withThread ? (result?.channel_id || result?.id || null) : null };
       } catch (err) {
         if (!isForumThreadError(err) || withThread !== forum) throw err;
       }
     }
+    return { threadId: null };
   }
 
   // Share dedupe surviving button re-renders: duplicate clicks for the same
@@ -11591,7 +11624,12 @@ const SHADOW_MODAL_STYLES = `
 
     const onCommentChange = commentText => {
       userComment = commentText;
-      return formatDealMessage({ ...currentFields, commentText }, CONFIG.DISCORD_LAYOUT);
+      const fields = { ...currentFields, commentText };
+      const overflow = commentOverflows(fields, CONFIG.DISCORD_LAYOUT);
+      preview?.setCommentOverflow?.(overflow);
+      return overflow
+        ? formatDealMessage({ ...currentFields, commentText: '' }, CONFIG.DISCORD_LAYOUT)
+        : formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
     };
 
     const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
@@ -11610,19 +11648,28 @@ const SHADOW_MODAL_STYLES = `
       }
       const finalComment = comment ?? userComment;
       const finalFields = { ...currentFields, commentText: finalComment };
-      const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
-      const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...finalFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+      const overflow = commentOverflows(finalFields, CONFIG.DISCORD_LAYOUT);
+      const contentFields = overflow ? { ...finalFields, commentText: '' } : finalFields;
+      const content = formatDealMessage(contentFields, CONFIG.DISCORD_LAYOUT);
+      const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...contentFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
       const payloadToSend = {
         ...readyPayload,
         content,
-        forumContent
+        forumContent,
+        overflowComment: overflow ? finalComment : ''
       };
       try {
-        await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
+        const sendRes = await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
+        let followUpFailed = false;
+        if (payloadToSend.overflowComment) {
+          // Deal already posted: never surface as send error (retry would duplicate the deal).
+          await postFollowUp(targetChannel.url.trim(), sendRes?.threadId || null, `💬 ${payloadToSend.overflowComment}`.slice(0, 2000))
+            .catch(() => { followUpFailed = true; });
+        }
         controller.close();
         shareInFlight.delete(shareKey);
         if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
-        showToast(`📤 Deal in #${targetChannel.name} geteilt`);
+        showToast(followUpFailed ? `⚠️ Deal in #${targetChannel.name} geteilt, Kommentar-Antwort fehlgeschlagen` : `📤 Deal in #${targetChannel.name} geteilt`);
         onDone?.(stillFresh());
       } catch (err) {
         if (err?.stale) {
@@ -11710,8 +11757,12 @@ const SHADOW_MODAL_STYLES = `
           aiText
         };
         const activeComment = preview?.getComment?.() ?? userComment;
-        const content = formatDealMessage({ ...currentFields, commentText: activeComment }, CONFIG.DISCORD_LAYOUT);
-        const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+        const activeFields = { ...currentFields, commentText: activeComment };
+        const overflow = commentOverflows(activeFields, CONFIG.DISCORD_LAYOUT);
+        preview?.setCommentOverflow?.(overflow);
+        const previewFields = overflow ? { ...activeFields, commentText: '' } : activeFields;
+        const content = formatDealMessage(previewFields, CONFIG.DISCORD_LAYOUT);
+        const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...previewFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
         const threadName = buildThreadName(title);
         const productBlob = (png && productDl) ? await productDl : null;
         if (cancelled) return;
@@ -13988,9 +14039,12 @@ const SHADOW_MODAL_STYLES = `
           <div class="tp-share-comment-wrap">
             <div class="tp-share-comment-header">
               <label for="tp-share-comment-input" class="tp-share-preview-label">Kommentar (optional):</label>
-              <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 1000</span>
+              <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 2000</span>
             </div>
-            <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="1000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+            <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="2000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+            <div id="tp-share-comment-overflow" class="tp-share-comment-overflow" style="display: none;">
+              ⤵️ Wird als Antwort im Thread gesendet
+            </div>
           </div>
           <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
         </div>
@@ -14016,6 +14070,7 @@ const SHADOW_MODAL_STYLES = `
     const cancelBtn = dialog.querySelector('.tp-share-cancel-btn');
     const commentInput = dialog.querySelector('#tp-share-comment-input');
     const commentCount = dialog.querySelector('#tp-share-comment-count');
+    const commentOverflow = dialog.querySelector('#tp-share-comment-overflow');
 
     const createdUrls = [];
     let isSending = false;
@@ -14047,7 +14102,7 @@ const SHADOW_MODAL_STYLES = `
 
     const updateCount = () => {
       if (commentCount && commentInput) {
-        commentCount.textContent = `${commentInput.value.length} / 1000`;
+        commentCount.textContent = `${commentInput.value.length} / 2000`;
       }
     };
 
@@ -14176,6 +14231,12 @@ const SHADOW_MODAL_STYLES = `
             btn.textContent = '⏳ Senden…';
           }
         });
+      },
+
+      setCommentOverflow(isOverflow) {
+        if (commentOverflow) {
+          commentOverflow.style.display = isOverflow ? 'block' : 'none';
+        }
       },
 
       close
@@ -17331,7 +17392,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.519';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.520';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

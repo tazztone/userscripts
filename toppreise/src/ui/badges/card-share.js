@@ -18,6 +18,7 @@ import {
   renderSparklinePng,
   postDealImageToDiscord,
   postDealToDiscord,
+  postFollowUp,
   buildThreadName,
   isForumThreadError,
   isAttachmentRejection,
@@ -25,6 +26,7 @@ import {
   fetchImageBlob
 } from '../../features/share-discord.js';
 import {
+  commentOverflows,
   formatDealMessage,
   forumRecipeFor,
   resolveShareFields
@@ -53,8 +55,7 @@ async function sendDealToChannel(channel, payload, stillFresh) {
     if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
     if (png) {
       try {
-        await postImage(withThread);
-        return;
+        return await postImage(withThread);
       } catch (imgErr) {
         if (isForumThreadError(imgErr)) {
           if (withThread === forum) throw imgErr;
@@ -64,18 +65,19 @@ async function sendDealToChannel(channel, payload, stillFresh) {
       }
     }
     if (!stillFresh()) throw Object.assign(new Error('stale-before-post'), { stale: true });
-    await postText(withThread);
+    return await postText(withThread);
   };
 
   for (const withThread of (forum ? [true, false] : [false, true])) {
     try {
-      await tryRound(withThread);
+      const result = await tryRound(withThread);
       if (withThread !== forum) _setValue(flagKey, withThread);
-      break;
+      return { threadId: withThread ? (result?.channel_id || result?.id || null) : null };
     } catch (err) {
       if (!isForumThreadError(err) || withThread !== forum) throw err;
     }
   }
+  return { threadId: null };
 }
 
 // Share dedupe surviving button re-renders: duplicate clicks for the same
@@ -180,7 +182,12 @@ export async function triggerDiscordShare({
 
   const onCommentChange = commentText => {
     userComment = commentText;
-    return formatDealMessage({ ...currentFields, commentText }, CONFIG.DISCORD_LAYOUT);
+    const fields = { ...currentFields, commentText };
+    const overflow = commentOverflows(fields, CONFIG.DISCORD_LAYOUT);
+    preview?.setCommentOverflow?.(overflow);
+    return overflow
+      ? formatDealMessage({ ...currentFields, commentText: '' }, CONFIG.DISCORD_LAYOUT)
+      : formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
   };
 
   const initialContent = formatDealMessage(currentFields, CONFIG.DISCORD_LAYOUT);
@@ -199,19 +206,28 @@ export async function triggerDiscordShare({
     }
     const finalComment = comment ?? userComment;
     const finalFields = { ...currentFields, commentText: finalComment };
-    const content = formatDealMessage(finalFields, CONFIG.DISCORD_LAYOUT);
-    const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...finalFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+    const overflow = commentOverflows(finalFields, CONFIG.DISCORD_LAYOUT);
+    const contentFields = overflow ? { ...finalFields, commentText: '' } : finalFields;
+    const content = formatDealMessage(contentFields, CONFIG.DISCORD_LAYOUT);
+    const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...contentFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
     const payloadToSend = {
       ...readyPayload,
       content,
-      forumContent
+      forumContent,
+      overflowComment: overflow ? finalComment : ''
     };
     try {
-      await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
+      const sendRes = await sendDealToChannel(targetChannel, payloadToSend, stillFresh);
+      let followUpFailed = false;
+      if (payloadToSend.overflowComment) {
+        // Deal already posted: never surface as send error (retry would duplicate the deal).
+        await postFollowUp(targetChannel.url.trim(), sendRes?.threadId || null, `💬 ${payloadToSend.overflowComment}`.slice(0, 2000))
+          .catch(() => { followUpFailed = true; });
+      }
       controller.close();
       shareInFlight.delete(shareKey);
       if (snap.pid && snap.priceCents > 0) setSharedDeal(snap.pid, snap.priceCents);
-      showToast(`📤 Deal in #${targetChannel.name} geteilt`);
+      showToast(followUpFailed ? `⚠️ Deal in #${targetChannel.name} geteilt, Kommentar-Antwort fehlgeschlagen` : `📤 Deal in #${targetChannel.name} geteilt`);
       onDone?.(stillFresh());
     } catch (err) {
       if (err?.stale) {
@@ -299,8 +315,12 @@ export async function triggerDiscordShare({
         aiText
       };
       const activeComment = preview?.getComment?.() ?? userComment;
-      const content = formatDealMessage({ ...currentFields, commentText: activeComment }, CONFIG.DISCORD_LAYOUT);
-      const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...currentFields, commentText: activeComment, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
+      const activeFields = { ...currentFields, commentText: activeComment };
+      const overflow = commentOverflows(activeFields, CONFIG.DISCORD_LAYOUT);
+      preview?.setCommentOverflow?.(overflow);
+      const previewFields = overflow ? { ...activeFields, commentText: '' } : activeFields;
+      const content = formatDealMessage(previewFields, CONFIG.DISCORD_LAYOUT);
+      const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...previewFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
       const threadName = buildThreadName(title);
       const productBlob = (png && productDl) ? await productDl : null;
       if (cancelled) return;
