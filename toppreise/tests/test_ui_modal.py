@@ -846,5 +846,54 @@ def test_settings_reset_to_default_button(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.MARGIN_PERCENT") == 0
 
 
+def test_group_level_reset_buttons(page: Page):
+    open_settings(page)
+
+    # Verify reset buttons exist for all 8 groups
+    reset_buttons = page.locator('#tp-root >> .tp-btn-group-reset')
+    assert reset_buttons.count() == 8
+
+    # Modify settings in 'weights' group (BESTPREISE_WEIGHT_RECORD) and 'display' group (DIM_OPACITY)
+    weight_input = page.locator('#tp-root >> #tp-bestpreise-weight-val')
+    weight_input.fill('80')
+
+    opacity_input = page.locator('#tp-root >> #tp-opacity-val')
+    opacity_input.fill('60')
+
+    # Save changes first
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    # Verify changes were persisted
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD") == 0.8
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.DIM_OPACITY") == 0.6
+
+    # Reopen settings
+    open_settings(page)
+
+    # Accept confirmation dialog when clicking weights reset
+    page.on('dialog', lambda dialog: dialog.accept())
+    page.click('#tp-root >> .tp-btn-group-reset[data-reset-group="weights"]')
+
+    # Modal remains open
+    dialog = page.locator('#tp-root >> #tp-settings-dialog')
+    assert dialog.is_visible()
+
+    # Weights input should revert to default 50%, while opacity stays at 60%
+    assert page.locator('#tp-root >> #tp-bestpreise-weight-val').input_value() == '50'
+    assert page.locator('#tp-root >> #tp-opacity-val').input_value() == '60'
+
+    # Persistent CONFIG: weights reverted, display intact
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD") == 0.5
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.DIM_OPACITY") == 0.6
+
+    # Close modal and verify persistence
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.BESTPREISE_WEIGHT_RECORD") == 0.5
+    assert page.evaluate("() => window.ToppreiseSuite.CONFIG.DIM_OPACITY") == 0.6
+
+
+
 
 

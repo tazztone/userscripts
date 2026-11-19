@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey } from '../../src/state/config.js';
 import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
@@ -414,6 +414,36 @@ describe('FILTER_CYCLE deal discount mapping', () => {
         assert.deepEqual(schema.default, DEFAULTS[key], `mismatched default for ${key}`);
       }
     }
+  });
+
+  describe('RESET_GROUPS schema & invariants', () => {
+    it('defines exactly the 8 expected functional groups', () => {
+      const expected = ['display', 'review', 'deals', 'filter', 'alarm', 'discord', 'weights', 'cache'];
+      assert.deepEqual(Object.keys(RESET_GROUPS), expected);
+    });
+
+    it('ensures every group has a non-empty label and non-empty keys array', () => {
+      for (const [groupId, group] of Object.entries(RESET_GROUPS)) {
+        assert.ok(typeof group.label === 'string' && group.label.trim().length > 0, `${groupId} missing label`);
+        assert.ok(Array.isArray(group.keys) && group.keys.length > 0, `${groupId} missing keys array`);
+      }
+    });
+
+    it('ensures every key in every group belongs to DEFAULTS', () => {
+      for (const [groupId, group] of Object.entries(RESET_GROUPS)) {
+        for (const key of group.keys) {
+          assert.ok(key in DEFAULTS, `Key ${key} in group ${groupId} is not present in DEFAULTS`);
+        }
+      }
+    });
+
+    it('ensures no secret key is ever included in any reset group', () => {
+      for (const [groupId, group] of Object.entries(RESET_GROUPS)) {
+        for (const key of group.keys) {
+          assert.ok(!SECRET_KEYS.has(key), `Secret key ${key} must not be present in reset group ${groupId}`);
+        }
+      }
+    });
   });
 });
 
