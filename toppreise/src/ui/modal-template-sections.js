@@ -10,6 +10,10 @@ export function renderDiscordSection() {
       <section id="tp-section-discord" class="tp-section-card tp-section-discord">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-discord-body">
+        <div class="tp-group-head-row">
+          <span>Nachrichten- & Embed-Optionen</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="discord" title="Discord-Optionen auf Standard zurücksetzen" aria-label="Discord-Optionen auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group">
           <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle & Webhooks (Deals-Share)</label>
           <div id="tp-discord-channels-list" class="tp-discord-channels-list">
@@ -109,6 +113,10 @@ export function renderDataSection() {
             <span class="tp-slider"></span>
           </label>
         </div>
+        <div class="tp-group-head-row">
+          <span>Berechnungsparameter & Analyse</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="weights" title="Berechnungsparameter auf Standard zurücksetzen" aria-label="Berechnungsparameter auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group" id="tp-bestpreise-weight-group">
           <label><span class="tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtete Differenz</span>: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
           <div class="tp-range-container tp-purple">
@@ -167,6 +175,10 @@ export function renderDataSection() {
             <input type="checkbox" id="tp-keepa-chart-toggle">
             <span class="tp-slider"></span>
           </label>
+        </div>
+        <div class="tp-group-head-row">
+          <span>Cache & Speicher-Limits</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="cache" title="Cache-Einstellungen auf Standard zurücksetzen" aria-label="Cache-Einstellungen auf Standard zurücksetzen">↺</button>
         </div>
         <div class="tp-settings-group tp-cache-row">
           <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>

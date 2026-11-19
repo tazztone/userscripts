@@ -15,6 +15,10 @@ export function ensureModalSection(shadow) {
       <section id="tp-section-display" class="tp-section-card tp-section-display">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-display-body" data-collapse="tp-section-display"><span class="tp-section-title">🖥️ Ansicht</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-display-body">
+        <div class="tp-group-head-row">
+          <span>Anzeige & Dimmung</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="display" title="Ansicht auf Standard zurücksetzen" aria-label="Ansicht auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group" id="tp-dim-opacity-group">
           <label title="Deckkraft gedimmter Karten (Filter-Modus Dimmen)">Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
           <div class="tp-range-container">
@@ -44,6 +48,10 @@ export function ensureModalSection(shadow) {
       <section id="tp-section-review" class="tp-section-card tp-section-review">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-review-body">
+        <div class="tp-group-head-row">
+          <span>Web- & KI-Suche</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="review" title="Web-Suche auf Standard zurücksetzen" aria-label="Web-Suche auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
@@ -131,6 +139,10 @@ export function ensureModalSection(shadow) {
       <section id="tp-section-deals" class="tp-section-card tp-section-deals">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-deals-body" data-collapse="tp-section-deals"><span class="tp-section-title">💎 Sortieren</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-deals-body">
+        <div class="tp-group-head-row">
+          <span>Sortierung & Deals</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="deals" title="Sortieren auf Standard zurücksetzen" aria-label="Sortieren auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label><span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span></label>
@@ -158,6 +170,10 @@ export function ensureModalSection(shadow) {
       <section id="tp-section-filter" class="tp-section-card tp-section-filter">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-filter-body">
+        <div class="tp-group-head-row">
+          <span>Filter & Profile</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="filter" title="Filter auf Standard zurücksetzen" aria-label="Filter auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Merkt sich Filter, Heatmap und Sortierung getrennt für Neue Toppreise vs. Suche & Katalog.">Einstellungen pro Seitentyp merken</label>
@@ -186,6 +202,10 @@ export function ensureModalSection(shadow) {
       <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
 <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-alarm-body" data-collapse="tp-section-alarm"><span class="tp-section-title">🔔 Preisalarm</span><span class="tp-chevron" aria-hidden="true"></span></button>
 <div class="tp-section-body" id="tp-section-alarm-body">
+        <div class="tp-group-head-row">
+          <span>Preisalarm Parameter</span>
+          <button type="button" class="tp-btn-group-reset" data-reset-group="alarm" title="Preisalarm auf Standard zurücksetzen" aria-label="Preisalarm auf Standard zurücksetzen">↺</button>
+        </div>
         <div class="tp-settings-group tp-switch-container">
           <div class="tp-switch-label">
             <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>

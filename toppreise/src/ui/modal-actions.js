@@ -4,7 +4,7 @@
  */
 
 import { showToast } from './toast.js';
-import { CONFIG, DEFAULTS, SECRET_KEYS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _setValue } from '../state/config.js';
+import { CONFIG, DEFAULTS, SECRET_KEYS, PAGE_SCOPED_KEYS, RESET_GROUPS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _getValue, _setValue } from '../state/config.js';
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
@@ -277,6 +277,58 @@ export function wireModalActions(els) {
     syncFieldsFromConfig(els);
     initialSnapshot = snapshotModalState(els.dialog);
     showToast('Einstellungen auf Standard zurückgesetzt');
+  });
+
+  els.shadow?.addEventListener('click', e => {
+    const btn = e.target.closest('.tp-btn-group-reset');
+    if (!btn) return;
+    e.stopPropagation();
+
+    const groupId = btn.dataset.resetGroup;
+    const group = RESET_GROUPS[groupId];
+    if (!group) return;
+
+    if (!window.confirm(`${group.label} auf Standardwerte zurücksetzen?`)) return;
+
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+
+    // Selectively reset page profiles for this group's keys without wiping other scopes
+    const profiles = _getValue('PAGE_PROFILES', null);
+    if (profiles && typeof profiles === 'object') {
+      for (const prof of Object.values(profiles)) {
+        if (prof && typeof prof === 'object') {
+          for (const k of group.keys) {
+            if (PAGE_SCOPED_KEYS.has(k)) prof[k] = DEFAULTS[k];
+          }
+        }
+      }
+      _setValue('PAGE_PROFILES', profiles);
+    }
+
+    const updates = {};
+    for (const k of group.keys) {
+      if (k in DEFAULTS && !SECRET_KEYS.has(k)) {
+        updates[k] = DEFAULTS[k];
+      }
+    }
+    updateConfigs(updates, { skipRender: true });
+
+    if (group.keys.includes('USE_SHIPPING_PRICE') && CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
+      cancelBatchDealCheck();
+      getProductCards().forEach(clearCardCache);
+    }
+    if (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
+      recomputeCachedMedians(DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    }
+    if (group.keys.includes('DIM_OPACITY') || group.keys.includes('HIDE_ADS')) {
+      updateBodyClasses();
+    }
+
+    triggerProcessListings();
+    syncFieldsFromConfig(els);
+    initialSnapshot = snapshotModalState(els.dialog);
+    showToast(`${group.label} auf Standard zurückgesetzt`);
   });
   els.btnClose.addEventListener('click', closeModal);
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both

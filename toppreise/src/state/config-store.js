@@ -105,6 +105,54 @@ export const PAGE_SCOPED_KEYS = Object.freeze(new Set([
   'SORT_BY_OFFERS'
 ]));
 
+// Functional groups for granular settings reset in modal sections.
+// Every key must map to DEFAULTS; secrets (SECRET_KEYS) are strictly excluded.
+export const RESET_GROUPS = Object.freeze({
+  display: {
+    label: 'Ansicht',
+    keys: ['DIM_OPACITY', 'HEATMAP_INTENSITY', 'HEATMAP_ENABLED', 'HIDE_ADS']
+  },
+  review: {
+    label: 'Web-Suche',
+    keys: ['REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS']
+  },
+  deals: {
+    label: 'Sortieren',
+    keys: ['BESTPREISE_MODE_ACTIVE', 'SORT_BY_OFFERS', 'BESTPREISE_HIDE_UNCHECKED', 'BESTPREISE_INCLUDE_VORTIEF']
+  },
+  filter: {
+    label: 'Filter',
+    keys: [
+      'FILTER_REMEMBER_PER_PAGE_TYPE', 'MARGIN_PERCENT',
+      'FILTERS_ENABLED', 'FILTER_NEG_ENABLED', 'FILTER_MIN_ENABLED', 'FILTER_DEAL_DISCOUNT_ENABLED',
+      'FILTER_PRICE_ENABLED', 'FILTER_PRICE_MIN', 'FILTER_PRICE_MAX', 'FILTER_SAVINGS_ENABLED', 'FILTER_SAVINGS_MIN',
+      'FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'FILTER_PRICE_MODE', 'FILTER_SAVINGS_MODE',
+      'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE',
+      'NEGATIVE_TERMS', 'MIN_OFFERS', 'MIN_DEAL_DISCOUNT'
+    ]
+  },
+  alarm: {
+    label: 'Preisalarm',
+    keys: ['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']
+  },
+  discord: {
+    label: 'Discord-Optionen',
+    keys: ['DISCORD_SUPPRESS_DEALER_EMBED', 'DISCORD_SUPPRESS_PRODUCT_EMBED', 'DISCORD_FORUM_TITLE', 'DISCORD_LAYOUT']
+  },
+  weights: {
+    label: 'Berechnungsparameter & Analyse',
+    keys: [
+      'BESTPREISE_WEIGHT_RECORD', 'BESTPREISE_MIN_POINTS', 'BESTPREISE_MEDIAN_HORIZON_DAYS',
+      'REAL_DEAL_MIN_DISCOUNT', 'USE_SHIPPING_PRICE', 'ENABLE_SPARKLINES', 'KEEPA_CHART_ENABLED',
+      'OUTLIER_REJECTION_ENABLED', 'OUTLIER_DEVIATION_BAND', 'OUTLIER_MAX_GLITCH_HOURS'
+    ]
+  },
+  cache: {
+    label: 'Cache & Limits',
+    keys: ['CACHE_MEMORY_LIMIT', 'CACHE_DISK_LIMIT', 'REAL_DEAL_CACHE_HOURS', 'NEGATIVE_CACHE_HOURS', 'DEALER_AUTOFETCH']
+  }
+});
+
 // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
 // domain backup survives script reinstalls; reads prefer GM, fall back to
 // the backup (reinstall recovery), then def. Corrupt JSON never throws.

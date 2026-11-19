@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.524
+// @version      2.18.525
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2914,6 +2914,42 @@ const SHADOW_MODAL_STYLES = `
     padding-bottom: 5px;
     border-bottom: 1px solid var(--tp-line-soft);
   }
+  .tp-group-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: var(--tp-fs-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--tp-mut);
+  }
+  .tp-btn-group-reset {
+    background: var(--tp-bg-sub);
+    border: 1px solid var(--tp-line-soft);
+    color: var(--tp-mut);
+    border-radius: var(--tp-r-sm);
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.15s ease;
+  }
+  .tp-btn-group-reset:hover {
+    background: rgba(15, 23, 42, 0.10);
+    color: var(--tp-txt);
+    border-color: var(--tp-line);
+  }
+  .tp-btn-group-reset:focus-visible {
+    outline: 2px solid var(--tp-focus);
+    outline-offset: 1px;
+  }
   .tp-search-preview-box {
     margin-top: 8px;
     padding: 8px 12px;
@@ -3332,6 +3368,7 @@ const SHADOW_MODAL_STYLES = `
     #tp-settings-fab { width: 42px; height: 42px; }
     #tp-toast-container { bottom: 56px; }
     .tp-btn, .tp-share-channel-btn { min-height: 36px; touch-action: manipulation; }
+    .tp-btn-group-reset { min-width: 32px; min-height: 32px; font-size: 15px; }
     .tp-section-header { min-height: 38px; }
     .tp-share-preview-close, .tp-discord-remove-channel-btn { min-width: 36px; min-height: 36px; }
     .tp-range-container input[type="range"] { min-height: 34px; }
@@ -4654,6 +4691,54 @@ const SHADOW_MODAL_STYLES = `
     'BESTPREISE_INCLUDE_VORTIEF',
     'SORT_BY_OFFERS'
   ]));
+
+  // Functional groups for granular settings reset in modal sections.
+  // Every key must map to DEFAULTS; secrets (SECRET_KEYS) are strictly excluded.
+  const RESET_GROUPS = Object.freeze({
+    display: {
+      label: 'Ansicht',
+      keys: ['DIM_OPACITY', 'HEATMAP_INTENSITY', 'HEATMAP_ENABLED', 'HIDE_ADS']
+    },
+    review: {
+      label: 'Web-Suche',
+      keys: ['REVIEW_SEARCH_ENABLED', 'REVIEW_SEARCH_KEYWORD', 'REVIEW_SEARCH_AI_MODE', 'TAVILY_ENABLED', 'TAVILY_SEARCH_DEPTH', 'TAVILY_MAX_RESULTS']
+    },
+    deals: {
+      label: 'Sortieren',
+      keys: ['BESTPREISE_MODE_ACTIVE', 'SORT_BY_OFFERS', 'BESTPREISE_HIDE_UNCHECKED', 'BESTPREISE_INCLUDE_VORTIEF']
+    },
+    filter: {
+      label: 'Filter',
+      keys: [
+        'FILTER_REMEMBER_PER_PAGE_TYPE', 'MARGIN_PERCENT',
+        'FILTERS_ENABLED', 'FILTER_NEG_ENABLED', 'FILTER_MIN_ENABLED', 'FILTER_DEAL_DISCOUNT_ENABLED',
+        'FILTER_PRICE_ENABLED', 'FILTER_PRICE_MIN', 'FILTER_PRICE_MAX', 'FILTER_SAVINGS_ENABLED', 'FILTER_SAVINGS_MIN',
+        'FILTER_NEG_MODE', 'FILTER_MIN_MODE', 'FILTER_DEAL_DISCOUNT_MODE', 'FILTER_PRICE_MODE', 'FILTER_SAVINGS_MODE',
+        'HIDE_UNCHECKED_MODE', 'VORTIEF_MODE', 'DEALER_MODE',
+        'NEGATIVE_TERMS', 'MIN_OFFERS', 'MIN_DEAL_DISCOUNT'
+      ]
+    },
+    alarm: {
+      label: 'Preisalarm',
+      keys: ['ALARM_ENABLED', 'ALARM_TARGET_PERCENT', 'ALARM_DURATION_DAYS', 'ALARM_AUTO_SUBMIT']
+    },
+    discord: {
+      label: 'Discord-Optionen',
+      keys: ['DISCORD_SUPPRESS_DEALER_EMBED', 'DISCORD_SUPPRESS_PRODUCT_EMBED', 'DISCORD_FORUM_TITLE', 'DISCORD_LAYOUT']
+    },
+    weights: {
+      label: 'Berechnungsparameter & Analyse',
+      keys: [
+        'BESTPREISE_WEIGHT_RECORD', 'BESTPREISE_MIN_POINTS', 'BESTPREISE_MEDIAN_HORIZON_DAYS',
+        'REAL_DEAL_MIN_DISCOUNT', 'USE_SHIPPING_PRICE', 'ENABLE_SPARKLINES', 'KEEPA_CHART_ENABLED',
+        'OUTLIER_REJECTION_ENABLED', 'OUTLIER_DEVIATION_BAND', 'OUTLIER_MAX_GLITCH_HOURS'
+      ]
+    },
+    cache: {
+      label: 'Cache & Limits',
+      keys: ['CACHE_MEMORY_LIMIT', 'CACHE_DISK_LIMIT', 'REAL_DEAL_CACHE_HOURS', 'NEGATIVE_CACHE_HOURS', 'DEALER_AUTOFETCH']
+    }
+  });
 
   // Compact GM_getValue + localStorage mirror. Writes go to both layers so a
   // domain backup survives script reinstalls; reads prefer GM, fall back to
@@ -12831,6 +12916,10 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-discord" class="tp-section-card tp-section-discord">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-discord-body" data-collapse="tp-section-discord"><span class="tp-section-title">💬 Discord Share</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-discord-body">
+          <div class="tp-group-head-row">
+            <span>Nachrichten- & Embed-Optionen</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="discord" title="Discord-Optionen auf Standard zurücksetzen" aria-label="Discord-Optionen auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group">
             <label title="Webhooks deiner Discord-Kanäle (Kanal-Einstellungen → Integrationen → Webhook). Nur lokal gespeichert, nie exportiert.">📤 Discord Kanäle & Webhooks (Deals-Share)</label>
             <div id="tp-discord-channels-list" class="tp-discord-channels-list">
@@ -12930,6 +13019,10 @@ const SHADOW_MODAL_STYLES = `
               <span class="tp-slider"></span>
             </label>
           </div>
+          <div class="tp-group-head-row">
+            <span>Berechnungsparameter & Analyse</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="weights" title="Berechnungsparameter auf Standard zurücksetzen" aria-label="Berechnungsparameter auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group" id="tp-bestpreise-weight-group">
             <label><span class="tp-glossary-term" title="Kombiniert Rekord-Tiefstpreis und Durchschnittsrabatt im gewählten Mix für Badge, Farbe und Platzierung.">Gewichtete Differenz</span>: Sortierung + Farb-Emphase (Rekord vs Ø)</label>
             <div class="tp-range-container tp-purple">
@@ -12988,6 +13081,10 @@ const SHADOW_MODAL_STYLES = `
               <input type="checkbox" id="tp-keepa-chart-toggle">
               <span class="tp-slider"></span>
             </label>
+          </div>
+          <div class="tp-group-head-row">
+            <span>Cache & Speicher-Limits</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="cache" title="Cache-Einstellungen auf Standard zurücksetzen" aria-label="Cache-Einstellungen auf Standard zurücksetzen">↺</button>
           </div>
           <div class="tp-settings-group tp-cache-row">
             <div id="tp-cache-stats-label">Lokaler Cache: 0 Einträge</div>
@@ -13062,6 +13159,10 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-display" class="tp-section-card tp-section-display">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-display-body" data-collapse="tp-section-display"><span class="tp-section-title">🖥️ Ansicht</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-display-body">
+          <div class="tp-group-head-row">
+            <span>Anzeige & Dimmung</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="display" title="Ansicht auf Standard zurücksetzen" aria-label="Ansicht auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group" id="tp-dim-opacity-group">
             <label title="Deckkraft gedimmter Karten (Filter-Modus Dimmen)">Deckkraft / Dimmung (Gedimmt & Gefiltert)</label>
             <div class="tp-range-container">
@@ -13091,6 +13192,10 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-review" class="tp-section-card tp-section-review">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-review-body" data-collapse="tp-section-review"><span class="tp-section-title">🌐 Web-Suche</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-review-body">
+          <div class="tp-group-head-row">
+            <span>Web- & KI-Suche</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="review" title="Web-Suche auf Standard zurücksetzen" aria-label="Web-Suche auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Hängt ans Ende jedes Produktnamens ein 🌐-Icon für die Web-Suche.">Web-Suche (🌐) anzeigen</label>
@@ -13178,6 +13283,10 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-deals" class="tp-section-card tp-section-deals">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-deals-body" data-collapse="tp-section-deals"><span class="tp-section-title">💎 Sortieren</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-deals-body">
+          <div class="tp-group-head-row">
+            <span>Sortierung & Deals</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="deals" title="Sortieren auf Standard zurücksetzen" aria-label="Sortieren auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label><span class="tp-glossary-term" title="Sortiert Angebote nach echter Tiefstpreis-Qualität (Gewichtete Differenz). Entfernt keine Angebote.">Tiefstpreis-Sortierung</span></label>
@@ -13205,6 +13314,10 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-filter" class="tp-section-card tp-section-filter">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-filter-body" data-collapse="tp-section-filter"><span class="tp-section-title">🧹 Filtern</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-filter-body">
+          <div class="tp-group-head-row">
+            <span>Filter & Profile</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="filter" title="Filter auf Standard zurücksetzen" aria-label="Filter auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Merkt sich Filter, Heatmap und Sortierung getrennt für Neue Toppreise vs. Suche & Katalog.">Einstellungen pro Seitentyp merken</label>
@@ -13233,6 +13346,10 @@ const SHADOW_MODAL_STYLES = `
         <section id="tp-section-alarm" class="tp-section-card tp-section-alarm">
   <button type="button" class="tp-section-header" aria-expanded="true" aria-controls="tp-section-alarm-body" data-collapse="tp-section-alarm"><span class="tp-section-title">🔔 Preisalarm</span><span class="tp-chevron" aria-hidden="true"></span></button>
   <div class="tp-section-body" id="tp-section-alarm-body">
+          <div class="tp-group-head-row">
+            <span>Preisalarm Parameter</span>
+            <button type="button" class="tp-btn-group-reset" data-reset-group="alarm" title="Preisalarm auf Standard zurücksetzen" aria-label="Preisalarm auf Standard zurücksetzen">↺</button>
+          </div>
           <div class="tp-settings-group tp-switch-container">
             <div class="tp-switch-label">
               <label title="Füllt beim Klick auf die Glocke das Preisalarm-Formular automatisch aus.">Preisalarm auto-fill</label>
@@ -13910,6 +14027,58 @@ const SHADOW_MODAL_STYLES = `
       syncFieldsFromConfig(els);
       initialSnapshot = snapshotModalState(els.dialog);
       showToast('Einstellungen auf Standard zurückgesetzt');
+    });
+
+    els.shadow?.addEventListener('click', e => {
+      const btn = e.target.closest('.tp-btn-group-reset');
+      if (!btn) return;
+      e.stopPropagation();
+
+      const groupId = btn.dataset.resetGroup;
+      const group = RESET_GROUPS[groupId];
+      if (!group) return;
+
+      if (!window.confirm(`${group.label} auf Standardwerte zurücksetzen?`)) return;
+
+      const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+      const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+
+      // Selectively reset page profiles for this group's keys without wiping other scopes
+      const profiles = _getValue('PAGE_PROFILES', null);
+      if (profiles && typeof profiles === 'object') {
+        for (const prof of Object.values(profiles)) {
+          if (prof && typeof prof === 'object') {
+            for (const k of group.keys) {
+              if (PAGE_SCOPED_KEYS.has(k)) prof[k] = DEFAULTS[k];
+            }
+          }
+        }
+        _setValue('PAGE_PROFILES', profiles);
+      }
+
+      const updates = {};
+      for (const k of group.keys) {
+        if (k in DEFAULTS && !SECRET_KEYS.has(k)) {
+          updates[k] = DEFAULTS[k];
+        }
+      }
+      updateConfigs(updates, { skipRender: true });
+
+      if (group.keys.includes('USE_SHIPPING_PRICE') && CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
+        cancelBatchDealCheck();
+        getProductCards().forEach(clearCardCache);
+      }
+      if (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
+        recomputeCachedMedians(DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      }
+      if (group.keys.includes('DIM_OPACITY') || group.keys.includes('HIDE_ADS')) {
+        updateBodyClasses();
+      }
+
+      triggerProcessListings();
+      syncFieldsFromConfig(els);
+      initialSnapshot = snapshotModalState(els.dialog);
+      showToast(`${group.label} auf Standard zurückgesetzt`);
     });
     els.btnClose.addEventListener('click', closeModal);
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
@@ -17517,7 +17686,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.524';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.525';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

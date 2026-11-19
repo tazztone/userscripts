@@ -132,6 +132,42 @@ export const SHADOW_MODAL_STYLES = `
     padding-bottom: 5px;
     border-bottom: 1px solid var(--tp-line-soft);
   }
+  .tp-group-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: var(--tp-fs-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--tp-mut);
+  }
+  .tp-btn-group-reset {
+    background: var(--tp-bg-sub);
+    border: 1px solid var(--tp-line-soft);
+    color: var(--tp-mut);
+    border-radius: var(--tp-r-sm);
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.15s ease;
+  }
+  .tp-btn-group-reset:hover {
+    background: rgba(15, 23, 42, 0.10);
+    color: var(--tp-txt);
+    border-color: var(--tp-line);
+  }
+  .tp-btn-group-reset:focus-visible {
+    outline: 2px solid var(--tp-focus);
+    outline-offset: 1px;
+  }
   .tp-search-preview-box {
     margin-top: 8px;
     padding: 8px 12px;
@@ -550,6 +586,7 @@ export const SHADOW_MODAL_STYLES = `
     #tp-settings-fab { width: 42px; height: 42px; }
     #tp-toast-container { bottom: 56px; }
     .tp-btn, .tp-share-channel-btn { min-height: 36px; touch-action: manipulation; }
+    .tp-btn-group-reset { min-width: 32px; min-height: 32px; font-size: 15px; }
     .tp-section-header { min-height: 38px; }
     .tp-share-preview-close, .tp-discord-remove-channel-btn { min-width: 36px; min-height: 36px; }
     .tp-range-container input[type="range"] { min-height: 34px; }
