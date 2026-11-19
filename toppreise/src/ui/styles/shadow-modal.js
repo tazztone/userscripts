@@ -51,6 +51,7 @@ export const SHADOW_MODAL_STYLES = `
     outline-offset: 2px;
   }
   #tp-settings-fab svg { width: 22px; height: 22px; }
+  dialog:not([open]) { display: none; }
   dialog#tp-settings-dialog {
     box-sizing: border-box;
     width: 92%;
@@ -65,7 +66,11 @@ export const SHADOW_MODAL_STYLES = `
     color: var(--tp-txt);
     padding: 24px;
     margin: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
+  dialog#tp-settings-dialog:not([open]) { display: none; }
   dialog#tp-settings-dialog::backdrop { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   dialog#tp-settings-dialog h3 {
     margin: 0 0 18px;
@@ -74,13 +79,17 @@ export const SHADOW_MODAL_STYLES = `
     background: linear-gradient(to right, var(--tp-acc-txt), var(--tp-acc-deep));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    flex-shrink: 0;
   }
   #tp-settings-sections {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 55vh;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
   }
   .tp-settings-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
   .tp-settings-group label { font-size: 13px; font-weight: 600; color: var(--tp-mut); }
@@ -228,6 +237,7 @@ export const SHADOW_MODAL_STYLES = `
   .tp-cache-row #tp-cache-stats-label { font-size: var(--tp-fs-md); opacity: 0.85; }
   .tp-cache-row #tp-cache-clear-btn { padding: 5px 12px; min-height: 28px; font-size: var(--tp-fs-md); }
   .tp-segmented-control {
+    position: relative;
     display: flex;
     background: rgba(255,255,255,0.7);
     border-radius: var(--tp-r-md);
@@ -315,6 +325,7 @@ export const SHADOW_MODAL_STYLES = `
     margin-top: 20px;
     padding-top: 16px;
     border-top: 1px solid rgba(15,23,42,0.08);
+    flex-shrink: 0;
   }
   #tp-btn-reset-defaults {
     margin-right: auto;
@@ -337,6 +348,7 @@ export const SHADOW_MODAL_STYLES = `
     box-shadow: 0 4px 12px rgba(16,185,129,0.3);
   }
   #tp-diag-dialog {
+    box-sizing: border-box;
     max-width: 680px;
     width: 94%;
     max-height: 85vh;
@@ -346,10 +358,15 @@ export const SHADOW_MODAL_STYLES = `
     color: var(--tp-txt);
     padding: 14px;
     font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
+  #tp-diag-dialog:not([open]) { display: none; }
   #tp-diag-dialog::backdrop { background: rgba(15, 23, 42, 0.55); }
-  .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; }
+  .tp-diag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-shrink: 0; }
+  .tp-diag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; font-size: 12px; flex-shrink: 0; }
+  #tp-diag-snapshot { flex-shrink: 0; }
   #tp-diag-snapshot, #tp-diag-log-pre {
     margin: 0;
     padding: 10px;
@@ -362,7 +379,7 @@ export const SHADOW_MODAL_STYLES = `
     white-space: pre-wrap;
     word-break: break-word;
   }
-  #tp-diag-log-pre { max-height: 45vh; overflow: auto; }
+  #tp-diag-log-pre { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   #tp-toast-container {
     position: fixed;
     bottom: 50px;
@@ -414,7 +431,9 @@ export const SHADOW_MODAL_STYLES = `
     display: flex;
     flex-direction: column;
     gap: 12px;
+    overflow: hidden;
   }
+  dialog#tp-modal-share-preview:not([open]) { display: none; }
   dialog#tp-modal-share-preview::backdrop {
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(8px);
@@ -425,6 +444,7 @@ export const SHADOW_MODAL_STYLES = `
     justify-content: space-between;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
   }
   .tp-share-preview-title {
     margin: 0;
@@ -451,8 +471,10 @@ export const SHADOW_MODAL_STYLES = `
   .tp-share-preview-close:hover { color: var(--tp-txt); }
   .tp-share-preview-close:focus-visible { outline: 2px solid var(--tp-focus); outline-offset: 2px; }
   .tp-share-preview-body {
-    max-height: 52vh;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -549,6 +571,7 @@ export const SHADOW_MODAL_STYLES = `
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    flex-shrink: 0;
     padding-top: 10px;
     border-top: 1px solid var(--tp-line-soft);
   }

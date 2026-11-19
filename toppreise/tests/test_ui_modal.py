@@ -894,6 +894,124 @@ def test_group_level_reset_buttons(page: Page):
     assert page.evaluate("() => window.ToppreiseSuite.CONFIG.DIM_OPACITY") == 0.6
 
 
+def test_settings_dialog_has_no_double_scrollbars(page: Page):
+    """Regression test: #tp-settings-dialog must never establish an outer vertical scrollbar.
+
+    Only #tp-settings-sections scrolls. Header and actions remain pinned, and scrolling
+    deep sections leaves dialog.scrollTop at 0.
+    """
+    open_settings(page)
+
+    dialog = page.locator('#tp-root >> #tp-settings-dialog')
+    assert dialog.is_visible()
+
+    # Expand all sections to maximize content height
+    page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        root.querySelectorAll('#tp-settings-sections section.tp-collapsed').forEach(s => {
+            s.classList.remove('tp-collapsed');
+        });
+    }""")
+
+    # Verify at standard viewport (1280x720)
+    metrics_720 = page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        const dlg = root.getElementById('tp-settings-dialog');
+        const sec = root.getElementById('tp-settings-sections');
+        const dlgStyle = window.getComputedStyle(dlg);
+        const secStyle = window.getComputedStyle(sec);
+        return {
+            dlgClientHeight: dlg.clientHeight,
+            dlgScrollHeight: dlg.scrollHeight,
+            dlgOverflowY: dlgStyle.overflowY,
+            secClientHeight: sec.clientHeight,
+            secScrollHeight: sec.scrollHeight,
+            secOverflowY: secStyle.overflowY,
+            secOverscroll: secStyle.overscrollBehaviorY || secStyle.overscrollBehavior
+        };
+    }""")
+
+    # Outer dialog must have no vertical overflow or scrollbar
+    assert metrics_720['dlgOverflowY'] == 'hidden'
+    assert metrics_720['dlgScrollHeight'] <= metrics_720['dlgClientHeight'] + 1
+
+    # Inner sections must be the scroll container
+    assert metrics_720['secOverflowY'] == 'auto'
+    assert 'contain' in metrics_720['secOverscroll']
+    assert metrics_720['secScrollHeight'] > metrics_720['secClientHeight']
+
+    # Test constrained viewport (1280x500)
+    page.set_viewport_size({"width": 1280, "height": 500})
+    page.wait_for_timeout(100)
+
+    metrics_500 = page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        const dlg = root.getElementById('tp-settings-dialog');
+        const sec = root.getElementById('tp-settings-sections');
+        return {
+            dlgClientHeight: dlg.clientHeight,
+            dlgScrollHeight: dlg.scrollHeight,
+            secClientHeight: sec.clientHeight,
+            secScrollHeight: sec.scrollHeight
+        };
+    }""")
+    assert metrics_500['dlgScrollHeight'] <= metrics_500['dlgClientHeight'] + 1
+    assert metrics_500['secScrollHeight'] > metrics_500['secClientHeight']
+
+    # Scroll sections container to the very bottom
+    page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        const sec = root.getElementById('tp-settings-sections');
+        sec.scrollTop = sec.scrollHeight;
+    }""")
+
+    scroll_state = page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        const dlg = root.getElementById('tp-settings-dialog');
+        const sec = root.getElementById('tp-settings-sections');
+        const title = root.querySelector('#tp-settings-dialog h3');
+        const titleRect = title.getBoundingClientRect();
+        const dlgRect = dlg.getBoundingClientRect();
+        return {
+            dlgScrollTop: dlg.scrollTop,
+            secScrollTop: sec.scrollTop,
+            titleTop: titleRect.top,
+            dlgTop: dlgRect.top
+        };
+    }""")
+
+    # Outer dialog did not scroll
+    assert scroll_state['dlgScrollTop'] == 0
+    assert scroll_state['secScrollTop'] > 0
+    # Header title remains pinned inside dialog top padding
+    assert scroll_state['titleTop'] >= scroll_state['dlgTop']
+
+    # Deep section navigation via openSettingsAt scrolls inner container without moving dialog
+    page.evaluate("""() => {
+        window.ToppreiseSuite.openSettingsAt('tp-section-data');
+    }""")
+
+    nav_state = page.evaluate("""() => {
+        const root = document.getElementById('tp-root').shadowRoot;
+        const dlg = root.getElementById('tp-settings-dialog');
+        const title = root.querySelector('#tp-settings-dialog h3');
+        const titleRect = title.getBoundingClientRect();
+        const dlgRect = dlg.getBoundingClientRect();
+        return {
+            dlgScrollTop: dlg.scrollTop,
+            titleTop: titleRect.top,
+            dlgTop: dlgRect.top
+        };
+    }""")
+    assert nav_state['dlgScrollTop'] == 0
+    assert nav_state['titleTop'] >= nav_state['dlgTop']
+
+    # Close modal
+    page.click('#tp-root >> #tp-btn-close')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+
+
 
 
 
