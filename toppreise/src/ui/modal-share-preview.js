@@ -14,13 +14,25 @@ const escapeHtml = s => String(s ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+let activeSharePreviewCancel = null;
+
+export function closeSharePreviewModal() {
+  if (activeSharePreviewCancel) {
+    const fn = activeSharePreviewCancel;
+    activeSharePreviewCancel = null;
+    fn();
+  } else {
+    uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
+  }
+}
+
 export function openSharePreviewModal({ channels = [], onSend, onCancel, onCommentChange, initialContent = '' }) {
   ensureSkeleton();
   const shadow = uiShadowRoot;
   if (!shadow) return null;
 
   // Clean up any stale preview dialog
-  shadow.getElementById('tp-modal-share-preview')?.remove();
+  closeSharePreviewModal();
 
   const dialog = document.createElement('dialog');
   dialog.id = 'tp-modal-share-preview';
@@ -103,14 +115,18 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
     if (typeof dialog.close === 'function') {
       try { dialog.close(); } catch {}
     }
+    if (activeSharePreviewCancel === handleCancel) activeSharePreviewCancel = null;
     dialog.remove();
   };
 
+  let cancelledOrClosed = false;
   const handleCancel = () => {
-    if (isSending) return;
+    if (isSending || cancelledOrClosed) return;
+    cancelledOrClosed = true;
     close();
     onCancel?.();
   };
+  activeSharePreviewCancel = handleCancel;
 
   closeBtn?.addEventListener('click', handleCancel);
   cancelBtn?.addEventListener('click', handleCancel);

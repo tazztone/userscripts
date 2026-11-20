@@ -257,5 +257,14 @@ describe('Interactive SVG Sparkline Component', () => {
     const yLabels = svg.children.filter(c => c.tagName === 'text' && c.textContent.startsWith('CHF '));
     assert.equal(yLabels.length, 1);
   });
+
+  it('filters out Infinity prices instead of producing NaN coordinates', () => {
+    const timeSeries = [[1700000000, 100], [1700040000, Infinity], [1700086400, 120]];
+    const svg = renderSparkline(timeSeries, 360, 100);
+    assert.ok(svg);
+    const polyline = svg.children.find(c => c.tagName === 'polyline');
+    assert.ok(polyline);
+    assert.equal(polyline.getAttribute('points').includes('NaN'), false);
+  });
 });
 

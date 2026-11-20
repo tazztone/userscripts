@@ -603,4 +603,41 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
     assert.ok(typeof presets.ausfuehrlich === 'string');
     assert.ok(typeof presets.minimal === 'string');
   });
+
+  it('card-dealer replaces <a> with <span> when hasUrl transitions true -> false', async () => {
+    const { renderDealerName } = await import('../../src/ui/badges/card-dealer.js');
+    const { dealerCache } = await import('../../src/ui/badges/deal-badge.js');
+    dealerCache.set('p-dealer-url:p', { dealer: 'Digitec', url: '' });
+    dealerCache.set('p-dealer-url:s', { dealer: 'Digitec', url: '' });
+    const linkEl = { tagName: 'A', className: 'tp-dealer-name', getAttribute: () => 'https://example.com', href: 'https://example.com', textContent: '', title: '' };
+    const actionEl = {
+      innerHTML: '',
+      querySelector: (sel) => (sel === '.tp-dealer-name' ? linkEl : null),
+      appendChild: (n) => { actionEl._appended = n; },
+    };
+    const mailBtn = { insertAdjacentElement: () => {} };
+    const card = {
+      querySelector: (sel) => {
+        if (sel === '.tp-action-dealer') return actionEl;
+        if (sel === '.Plugin_NewInfoMailButton') return mailBtn;
+        if (sel.includes('.row.action')) return { querySelector: () => mailBtn };
+        return null;
+      },
+      querySelectorAll: () => [],
+      appendChild: () => {},
+    };
+    const prevDoc = globalThis.document;
+    globalThis.document = {
+      createElement: (tag) => ({ tagName: tag.toUpperCase(), className: '', textContent: '', title: '', style: {}, dataset: {}, replaceChildren: () => {} }),
+    };
+    try {
+      renderDealerName({ card, pid: 'p-dealer-url', cardPriceEl: null, stats: { tiefstpreis: 100 } }, {});
+      assert.ok(actionEl._appended);
+      assert.equal(actionEl._appended.tagName, 'SPAN');
+    } finally {
+      dealerCache.delete('p-dealer-url:p');
+      dealerCache.delete('p-dealer-url:s');
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });

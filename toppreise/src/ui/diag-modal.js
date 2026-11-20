@@ -120,7 +120,8 @@ export function openDiagModal(shadow) {
 }
 
 export function bindDiagTrigger(fabButton, shadow) {
-  if (!fabButton || !shadow) return;
+  if (!fabButton || !shadow || fabButton.dataset?.tpDiagBound) return;
+  if (fabButton.dataset) fabButton.dataset.tpDiagBound = '1';
   fabButton.title = 'Toppreise Suite Einstellungen öffnen (Gedrückt halten / Shift+Klick = Dev-Log)';
 
   let pressTimer = null;

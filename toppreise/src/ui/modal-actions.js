@@ -258,6 +258,9 @@ export function wireModalActions(els) {
     if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
     const prevShipping = CONFIG.USE_SHIPPING_PRICE;
     const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+    const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
+    const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
+    const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
     _setValue('PAGE_PROFILES', null);
     const updates = {};
     for (const [k, v] of Object.entries(DEFAULTS)) {
@@ -269,7 +272,12 @@ export function wireModalActions(els) {
       cancelBatchDealCheck();
       getProductCards().forEach(clearCardCache);
     }
-    if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
+    if (
+      CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon ||
+      CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn ||
+      CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand ||
+      CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours
+    ) {
       recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
     }
     updateBodyClasses();
@@ -292,6 +300,9 @@ export function wireModalActions(els) {
 
     const prevShipping = CONFIG.USE_SHIPPING_PRICE;
     const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+    const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
+    const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
+    const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
 
     // Selectively reset page profiles for this group's keys without wiping other scopes
     const profiles = _getValue('PAGE_PROFILES', null);
@@ -318,8 +329,13 @@ export function wireModalActions(els) {
       cancelBatchDealCheck();
       getProductCards().forEach(clearCardCache);
     }
-    if (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
-      recomputeCachedMedians(DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS);
+    if (
+      (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) ||
+      (group.keys.includes('OUTLIER_REJECTION_ENABLED') && CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn) ||
+      (group.keys.includes('OUTLIER_DEVIATION_BAND') && CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand) ||
+      (group.keys.includes('OUTLIER_MAX_GLITCH_HOURS') && CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours)
+    ) {
+      recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
     }
     if (group.keys.includes('DIM_OPACITY') || group.keys.includes('HIDE_ADS')) {
       updateBodyClasses();

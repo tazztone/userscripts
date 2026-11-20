@@ -15,7 +15,7 @@ export function renderSparkline(timeSeries, width, height, opts = {}) {
   if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
   const axes = opts && opts.axes === true;
   const topPad = (opts && typeof opts.topPad === 'number') ? opts.topPad : 0;
-  const valid = timeSeries.filter(p => Array.isArray(p) && +p[1] > 0);
+  const valid = timeSeries.filter(p => Array.isArray(p) && Number.isFinite(+p[1]) && +p[1] > 0);
   if (valid.length < 2) return null;
   const prices = valid.map(p => +p[1]);
 
@@ -338,12 +338,16 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
   copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
   copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
 
+  let popoutClosed = false;
   const { panel, mount, close } = createPopoutDialog({
     id: 'tp-sparkline-popout',
     label: 'Preisverlauf',
     title: productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf',
     actions: [copyTpBtn],
-    onClose: () => { activePopoutCleanup = null; }
+    onClose: () => {
+      popoutClosed = true;
+      activePopoutCleanup = null;
+    }
   });
   activePopoutCleanup = close;
   panel.appendChild(svg);
@@ -416,6 +420,7 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
 
     // Resolve ASIN and display Keepa image
     resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
+      if (popoutClosed) return;
       if (!asin) {
         if (keepaBody.replaceChildren) {
           keepaBody.replaceChildren();
@@ -476,11 +481,12 @@ export function openSparklinePopout(timeSeries, chartCtx = null) {
       linksRow.appendChild(keepaLink);
       linksRow.appendChild(amzLink);
 
-      keepaBody.replaceChildren();
+      if (keepaBody.replaceChildren) keepaBody.replaceChildren();
       keepaBody.appendChild(img);
       keepaBody.appendChild(linksRow);
     }).catch(() => {
-      keepaBody.replaceChildren();
+      if (popoutClosed) return;
+      if (keepaBody.replaceChildren) keepaBody.replaceChildren();
       const errNotice = document.createElement('div');
       errNotice.className = 'tp-keepa-status';
       errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';

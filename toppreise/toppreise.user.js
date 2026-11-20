@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.529
+// @version      2.18.530
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -8786,7 +8786,7 @@ const SHADOW_MODAL_STYLES = `
     if (!timeSeries || !Array.isArray(timeSeries) || timeSeries.length < 2) return null;
     const axes = opts && opts.axes === true;
     const topPad = (opts && typeof opts.topPad === 'number') ? opts.topPad : 0;
-    const valid = timeSeries.filter(p => Array.isArray(p) && +p[1] > 0);
+    const valid = timeSeries.filter(p => Array.isArray(p) && Number.isFinite(+p[1]) && +p[1] > 0);
     if (valid.length < 2) return null;
     const prices = valid.map(p => +p[1]);
 
@@ -9109,12 +9109,16 @@ const SHADOW_MODAL_STYLES = `
     copyTpBtn.setAttribute('title', 'Toppreise-Diagramm in Zwischenablage kopieren');
     copyTpBtn.addEventListener('click', () => copySvgToClipboard(svg, 560, 220));
 
+    let popoutClosed = false;
     const { panel, mount, close } = createPopoutDialog({
       id: 'tp-sparkline-popout',
       label: 'Preisverlauf',
       title: productTitle ? `📈 Preisverlauf: ${productTitle}` : '📈 Preisverlauf',
       actions: [copyTpBtn],
-      onClose: () => { activePopoutCleanup = null; }
+      onClose: () => {
+        popoutClosed = true;
+        activePopoutCleanup = null;
+      }
     });
     activePopoutCleanup = close;
     panel.appendChild(svg);
@@ -9187,6 +9191,7 @@ const SHADOW_MODAL_STYLES = `
 
       // Resolve ASIN and display Keepa image
       resolveAmazonAsin(chartCtx.directUrl, chartCtx.pid).then(asin => {
+        if (popoutClosed) return;
         if (!asin) {
           if (keepaBody.replaceChildren) {
             keepaBody.replaceChildren();
@@ -9247,11 +9252,12 @@ const SHADOW_MODAL_STYLES = `
         linksRow.appendChild(keepaLink);
         linksRow.appendChild(amzLink);
 
-        keepaBody.replaceChildren();
+        if (keepaBody.replaceChildren) keepaBody.replaceChildren();
         keepaBody.appendChild(img);
         keepaBody.appendChild(linksRow);
       }).catch(() => {
-        keepaBody.replaceChildren();
+        if (popoutClosed) return;
+        if (keepaBody.replaceChildren) keepaBody.replaceChildren();
         const errNotice = document.createElement('div');
         errNotice.className = 'tp-keepa-status';
         errNotice.textContent = 'Amazon Keepa-Verlauf konnte nicht geladen werden.';
@@ -12559,8 +12565,8 @@ const SHADOW_MODAL_STYLES = `
           actionMailBtn.insertAdjacentElement('beforebegin', actionEl);
         }
         if (dealer) {
-          let link = actionEl.querySelector('a.tp-dealer-name');
-          if (!link) {
+          let link = actionEl.querySelector('.tp-dealer-name');
+          if (!link || (link.tagName === 'A') !== hasUrl) {
             actionEl.innerHTML = '';
             link = document.createElement(hasUrl ? 'a' : 'span');
             link.className = 'tp-dealer-name';
@@ -14174,6 +14180,9 @@ const SHADOW_MODAL_STYLES = `
       if (!window.confirm('Wirklich alle Einstellungen auf die Standardwerte zurücksetzen?')) return;
       const prevShipping = CONFIG.USE_SHIPPING_PRICE;
       const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
+      const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
+      const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
       _setValue('PAGE_PROFILES', null);
       const updates = {};
       for (const [k, v] of Object.entries(DEFAULTS)) {
@@ -14185,7 +14194,12 @@ const SHADOW_MODAL_STYLES = `
         cancelBatchDealCheck();
         getProductCards().forEach(clearCardCache);
       }
-      if (CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
+      if (
+        CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon ||
+        CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn ||
+        CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand ||
+        CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours
+      ) {
         recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
       }
       updateBodyClasses();
@@ -14208,6 +14222,9 @@ const SHADOW_MODAL_STYLES = `
 
       const prevShipping = CONFIG.USE_SHIPPING_PRICE;
       const prevHorizon = CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS;
+      const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
+      const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
+      const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
 
       // Selectively reset page profiles for this group's keys without wiping other scopes
       const profiles = _getValue('PAGE_PROFILES', null);
@@ -14234,8 +14251,13 @@ const SHADOW_MODAL_STYLES = `
         cancelBatchDealCheck();
         getProductCards().forEach(clearCardCache);
       }
-      if (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) {
-        recomputeCachedMedians(DEFAULTS.BESTPREISE_MEDIAN_HORIZON_DAYS);
+      if (
+        (group.keys.includes('BESTPREISE_MEDIAN_HORIZON_DAYS') && CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS !== prevHorizon) ||
+        (group.keys.includes('OUTLIER_REJECTION_ENABLED') && CONFIG.OUTLIER_REJECTION_ENABLED !== prevOutlierOn) ||
+        (group.keys.includes('OUTLIER_DEVIATION_BAND') && CONFIG.OUTLIER_DEVIATION_BAND !== prevOutlierBand) ||
+        (group.keys.includes('OUTLIER_MAX_GLITCH_HOURS') && CONFIG.OUTLIER_MAX_GLITCH_HOURS !== prevOutlierHours)
+      ) {
+        recomputeCachedMedians(CONFIG.BESTPREISE_MEDIAN_HORIZON_DAYS);
       }
       if (group.keys.includes('DIM_OPACITY') || group.keys.includes('HIDE_ADS')) {
         updateBodyClasses();
@@ -14434,6 +14456,8 @@ const SHADOW_MODAL_STYLES = `
     const { shadow } = ensureSkeleton();
     ensureModalSection(shadow);
     const els = collectModalElements(shadow);
+    if (els.dialog?.dataset?.tpModalBound) return;
+    if (els.dialog?.dataset) els.dialog.dataset.tpModalBound = '1';
     initCollapse(shadow);
     bindControlPairs(els);
     wireModalActions(els);
@@ -14455,13 +14479,25 @@ const SHADOW_MODAL_STYLES = `
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+  let activeSharePreviewCancel = null;
+
+  function closeSharePreviewModal() {
+    if (activeSharePreviewCancel) {
+      const fn = activeSharePreviewCancel;
+      activeSharePreviewCancel = null;
+      fn();
+    } else {
+      uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
+    }
+  }
+
   function openSharePreviewModal({ channels = [], onSend, onCancel, onCommentChange, initialContent = '' }) {
     ensureSkeleton();
     const shadow = uiShadowRoot;
     if (!shadow) return null;
 
     // Clean up any stale preview dialog
-    shadow.getElementById('tp-modal-share-preview')?.remove();
+    closeSharePreviewModal();
 
     const dialog = document.createElement('dialog');
     dialog.id = 'tp-modal-share-preview';
@@ -14544,14 +14580,18 @@ const SHADOW_MODAL_STYLES = `
       if (typeof dialog.close === 'function') {
         try { dialog.close(); } catch {}
       }
+      if (activeSharePreviewCancel === handleCancel) activeSharePreviewCancel = null;
       dialog.remove();
     };
 
+    let cancelledOrClosed = false;
     const handleCancel = () => {
-      if (isSending) return;
+      if (isSending || cancelledOrClosed) return;
+      cancelledOrClosed = true;
       close();
       onCancel?.();
     };
+    activeSharePreviewCancel = handleCancel;
 
     closeBtn?.addEventListener('click', handleCancel);
     cancelBtn?.addEventListener('click', handleCancel);
@@ -14876,7 +14916,8 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function bindDiagTrigger(fabButton, shadow) {
-    if (!fabButton || !shadow) return;
+    if (!fabButton || !shadow || fabButton.dataset?.tpDiagBound) return;
+    if (fabButton.dataset) fabButton.dataset.tpDiagBound = '1';
     fabButton.title = 'Toppreise Suite Einstellungen öffnen (Gedrückt halten / Shift+Klick = Dev-Log)';
 
     let pressTimer = null;
@@ -17832,7 +17873,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   function handleRouteTransition() {
     closeSparklinePopout();
     closeAiPopover();
-    uiShadowRoot?.getElementById('tp-modal-share-preview')?.remove();
+    closeSharePreviewModal();
     cancelBatchDealCheck();
     cancelFeedRefresh();
     logActivity('info', 'app', 'Route transition');
@@ -17860,7 +17901,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.529';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.530';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

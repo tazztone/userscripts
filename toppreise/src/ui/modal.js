@@ -12,6 +12,8 @@ export function setupUI() {
   const { shadow } = ensureSkeleton();
   ensureModalSection(shadow);
   const els = collectModalElements(shadow);
+  if (els.dialog?.dataset?.tpModalBound) return;
+  if (els.dialog?.dataset) els.dialog.dataset.tpModalBound = '1';
   initCollapse(shadow);
   bindControlPairs(els);
   wireModalActions(els);

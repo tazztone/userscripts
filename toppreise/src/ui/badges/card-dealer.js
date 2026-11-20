@@ -148,8 +148,8 @@ export function renderDealerName(ctx, filters) {
         actionMailBtn.insertAdjacentElement('beforebegin', actionEl);
       }
       if (dealer) {
-        let link = actionEl.querySelector('a.tp-dealer-name');
-        if (!link) {
+        let link = actionEl.querySelector('.tp-dealer-name');
+        if (!link || (link.tagName === 'A') !== hasUrl) {
           actionEl.innerHTML = '';
           link = document.createElement(hasUrl ? 'a' : 'span');
           link.className = 'tp-dealer-name';
