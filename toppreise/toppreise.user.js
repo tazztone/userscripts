@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.527
+// @version      2.18.528
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -18,6 +18,9 @@
 // @connect      toppreise.ch
 // @connect      amazon.de
 // @connect      amazon.com
+// @connect      amazon.fr
+// @connect      amazon.it
+// @connect      amazon.co.uk
 // @connect      graph.keepa.com
 // @connect      graph2.keepa.com
 // @connect      keepa.com
@@ -6172,8 +6175,12 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function getDetailProductId() {
-    const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)(?:[/?#]|$)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)(?:[/?#]|$)/i);
+    const currentUrl = typeof document !== 'undefined'
+      ? (document.body?.getAttribute('data-current_url') || document.body?.getAttribute('data-current-url') || '')
+      : '';
+    const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)(?:[/?#]|$)/i)) || currentUrl.match(/-p(\d+)(?:[/?#]|$)/i);
     if (match) return match[1];
+    if (typeof document === 'undefined') return null;
     const chartLink = document.querySelector('a[href*="pricechart"], a[href*="p_pc_pid="]');
     if (chartLink) {
       const m = chartLink.href.match(/p_pc_pid=(\d+)/i);
@@ -6232,8 +6239,9 @@ const SHADOW_MODAL_STYLES = `
 
   function isProductDetailPage() {
     if (typeof document === 'undefined') return false;
+    const currentUrl = document.body?.getAttribute('data-current_url') || document.body?.getAttribute('data-current-url') || '';
     return (typeof location !== 'undefined' && /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href)) ||
-           /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(document.body?.getAttribute('data-current_url') || '') ||
+           /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(currentUrl) ||
            document.body?.classList.contains('Page_Product') ||
            document.body?.classList.contains('Page_DetailProduct') ||
            !!document.querySelector('.Page_DetailProduct, #Page_DetailProduct, .product_detail_page, .Page_Product') ||
@@ -6254,7 +6262,7 @@ const SHADOW_MODAL_STYLES = `
     if (!ratingEl) return null;
 
     const rawLevel = ratingEl.getAttribute('data-rating-level');
-    const level = rawLevel != null && !Number.isNaN(Number(rawLevel)) ? Number(rawLevel) : null;
+    const level = rawLevel != null && String(rawLevel).trim() !== '' && !Number.isNaN(Number(rawLevel)) ? Number(rawLevel) : null;
     const label = ratingEl.querySelector(SELECTORS.rating.label)?.textContent?.trim() || ratingEl.getAttribute('aria-label') || '';
 
     let usualPrice = null;
@@ -6815,7 +6823,7 @@ const SHADOW_MODAL_STYLES = `
         if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
         if (typeof card.checkVisibility === 'function') {
           if (!card.checkVisibility()) return true;
-        } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+        } else if (card.offsetParent === null && typeof window !== 'undefined' && window.getComputedStyle?.(card)?.display === 'none') {
           return true;
         }
       }
@@ -6859,7 +6867,6 @@ const SHADOW_MODAL_STYLES = `
     const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
     f.isNeg = f.isNeg || recomp.isNeg;
     f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
-    f.isBelowMinDiscount = f.isBelowMinDiscount || recomp.isBelowMinDiscount;
     if (!causeHit(f)) return legacyChecks();
     return true;
   }
@@ -6928,11 +6935,18 @@ const SHADOW_MODAL_STYLES = `
       } catch { /* relativ lassen */ }
     }
     const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
-    let imageUrl = imgEl?.currentSrc || imgEl?.src
-      || imgEl?.getAttribute?.('data-src') || imgEl?.getAttribute?.('data-original') || '';
+    const candidates = [
+      imgEl?.currentSrc,
+      imgEl?.src,
+      imgEl?.getAttribute?.('data-src'),
+      imgEl?.getAttribute?.('data-original'),
+    ];
+    let imageUrl = candidates.find(u => u && !/^\s*data:/i.test(u)) || '';
     if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
-      if (/^\s*data:/i.test(imageUrl)) imageUrl = '';
-      else try { imageUrl = new URL(imageUrl, location.href).href; } catch { imageUrl = ''; }
+      try {
+        const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+        imageUrl = new URL(imageUrl, base).href;
+      } catch { imageUrl = ''; }
     }
     if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
     if (url && !isToppreiseProductUrl(url)) url = '';
@@ -6989,8 +7003,9 @@ const SHADOW_MODAL_STYLES = `
         if (agg) {
           // Nested offer objects beat a bare count: recurse into them so the
           // dealer comes from real rows, not an ID list.
-          if (Array.isArray(agg.offers) && agg.offers.length) {
-            const nested = parseJsonLdOffer({ '@type': 'Product', offers: agg.offers });
+          const nestedOffers = Array.isArray(agg.offers) ? agg.offers : (agg.offers ? [agg.offers] : []);
+          if (nestedOffers.length) {
+            const nested = parseJsonLdOffer({ '@type': 'Product', offers: nestedOffers });
             if (nested.dealer || nested.offers) {
               if (!nested.totalOffers) { const t = Number(agg.offerCount); if (Number.isFinite(t) && t > 0) nested.totalOffers = Math.round(t); }
               return nested;
@@ -6998,7 +7013,10 @@ const SHADOW_MODAL_STYLES = `
           }
           // Count-only: no loaded rows (offers 0), but a real total.
           const n = +agg.offerCount;
-          return { dealer: '', offers: 0, totalOffers: Number.isFinite(n) && n > 0 ? Math.round(n) : 0 };
+          if (Number.isFinite(n) && n > 0) {
+            return { dealer: '', offers: 0, totalOffers: Math.round(n) };
+          }
+          continue;
         }
         let best = null;
         for (const o of list) {
@@ -7172,7 +7190,7 @@ const SHADOW_MODAL_STYLES = `
       }
     }
 
-    const inlineAsin = parseAmazonAsin(directUrl);
+    const inlineAsin = isAllowedAmazonUrl(directUrl) ? parseAmazonAsin(directUrl) : null;
     if (inlineAsin) {
       if (productId) {
         lruSet(memoryAsinCache, productId, inlineAsin, 500);
@@ -9952,7 +9970,7 @@ const SHADOW_MODAL_STYLES = `
     const collItem = card.closest('.Plugin_ProductCollItem');
     if (collItem) return collItem;
     const parent = card.parentElement;
-    const docBody = typeof document !== 'undefined' ? document.body : null;
+    const docBody = card.ownerDocument?.body || (typeof document !== 'undefined' ? document.body : null);
     if (parent && parent !== docBody && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
       if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
         return parent;
@@ -10117,36 +10135,48 @@ const SHADOW_MODAL_STYLES = `
         });
 
         // Maintain DOM slot positions within each section
-        const currentChildren = Array.from(primaryRow.children);
-        const sepIndex = currentChildren.indexOf(fillUpSeparator);
-
-        const syncSectionDom = (entries, startIndex, endIndex) => {
-          const targetItems = entries.map(e => e.item).filter(Boolean);
+        const reconcileSectionSlots = (sliceChildren, targetItems, sectionEndAnchor) => {
           const targetSet = new Set(targetItems);
-          const currentSlice = currentChildren.slice(startIndex, endIndex);
-          const cardIndices = currentSlice.map((c, i) => targetSet.has(c) ? startIndex + i : -1).filter(i => i !== -1);
-          let domMatches = cardIndices.length === targetItems.length;
-          if (domMatches) {
-            for (let i = 0; i < targetItems.length; i++) {
-              if (primaryRow.children[cardIndices[i]] !== targetItems[i]) {
-                domMatches = false;
-                break;
-              }
+          const desired = [];
+          let cardCursor = 0;
+          for (const c of sliceChildren) {
+            if (targetSet.has(c)) {
+              if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+            } else {
+              desired.push(c);
             }
           }
-          if (!domMatches) {
-            targetItems.forEach((item, idx) => {
-              const targetPos = cardIndices[idx];
-              if (targetPos !== undefined && primaryRow.children[targetPos] !== item) {
-                primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
-              }
-            });
+          while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+
+          if (sliceChildren.length === desired.length && sliceChildren.every((c, i) => c === desired[i])) return;
+
+          let anchor = sectionEndAnchor;
+          for (let i = desired.length - 1; i >= 0; i--) {
+            const node = desired[i];
+            if (!node) continue;
+            if (!targetSet.has(node)) {
+              anchor = node;
+              continue;
+            }
+            const children = primaryRow.children;
+            const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
+            const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
+            if (nextEl !== anchor) {
+              primaryRow.insertBefore(node, anchor);
+            }
+            anchor = node;
           }
         };
 
+        let currentChildren = Array.from(primaryRow.children);
+        let sepIndex = currentChildren.indexOf(fillUpSeparator);
         if (sepIndex !== -1) {
-          syncSectionDom(section1Entries, 0, sepIndex);
-          syncSectionDom(section2Entries, sepIndex + 1, currentChildren.length);
+          reconcileSectionSlots(currentChildren.slice(0, sepIndex), section1Entries.map(e => e.item).filter(Boolean), fillUpSeparator);
+          currentChildren = Array.from(primaryRow.children);
+          sepIndex = currentChildren.indexOf(fillUpSeparator);
+          if (sepIndex !== -1) {
+            reconcileSectionSlots(currentChildren.slice(sepIndex + 1), section2Entries.map(e => e.item).filter(Boolean), null);
+          }
         }
       } else {
         // Move sortable items into primaryRow and apply CSS flex order
@@ -10168,23 +10198,34 @@ const SHADOW_MODAL_STYLES = `
         const currentChildren = Array.from(primaryRow.children);
         const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
         const targetSet = new Set(targetItems);
-        const cardIndices = currentChildren.map((c, i) => targetSet.has(c) ? i : -1).filter(i => i !== -1);
-        let domOrderMatches = cardIndices.length === targetItems.length;
-        if (domOrderMatches) {
-          for (let i = 0; i < targetItems.length; i++) {
-            if (currentChildren[cardIndices[i]] !== targetItems[i]) {
-              domOrderMatches = false;
-              break;
-            }
+        const desired = [];
+        let cardCursor = 0;
+        for (const c of currentChildren) {
+          if (targetSet.has(c)) {
+            if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+          } else {
+            desired.push(c);
           }
         }
-        if (!domOrderMatches) {
-          targetItems.forEach((item, idx) => {
-            const targetPos = cardIndices[idx];
-            if (primaryRow.children[targetPos] !== item) {
-              primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
+        while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+
+        if (currentChildren.length !== desired.length || !currentChildren.every((c, i) => c === desired[i])) {
+          let anchor = null;
+          for (let i = desired.length - 1; i >= 0; i--) {
+            const node = desired[i];
+            if (!node) continue;
+            if (!targetSet.has(node)) {
+              anchor = node;
+              continue;
             }
-          });
+            const children = primaryRow.children;
+            const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
+            const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
+            if (nextEl !== anchor) {
+              primaryRow.insertBefore(node, anchor);
+            }
+            anchor = node;
+          }
         }
       }
 
@@ -10431,6 +10472,17 @@ const SHADOW_MODAL_STYLES = `
             // TP-owned children (alarm bell, sparkline) are re-created by the
             // triggerProcessListings pass that follows the merge.
             liveContainer.innerHTML = inContainer.innerHTML;
+            const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
+            const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
+            if (inBadge && liveBadge) {
+              liveBadge.innerHTML = inBadge.innerHTML;
+              if (liveBadge.dataset) {
+                delete liveBadge.dataset.tpPainted;
+                delete liveBadge.dataset.tpOriginalDiscount;
+                delete liveBadge.dataset.tpOriginalPid;
+                delete liveBadge.dataset.tpPaintedText;
+              }
+            }
             clearCardCache(existing);
             updated++;
           }
@@ -10446,6 +10498,7 @@ const SHADOW_MODAL_STYLES = `
         } else {
           container.appendChild(adopted);
         }
+        liveMap.set(pid, adopted);
         added++;
       }
     }
@@ -17638,7 +17691,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
       if (hit) {
-        if ((m.type === 'attributes' || m.type === 'characterData') && isOwnedNode(targetEl)) continue;
+        if (isOwnedNode(targetEl)) continue;
         // All-changes-owned skips only pure self-paint: a mixed record (own
         // badge plus a genuine host replacement) still invalidates, or the
         // host update is lost with the badge.
@@ -17649,21 +17702,17 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
         continue;
       }
 
-      for (let i = 0; i < m.addedNodes.length; i++) {
-        if (checkNode(m.addedNodes[i])) { structural = true; break; }
+      if (!structural) {
+        for (let i = 0; i < m.addedNodes.length; i++) {
+          if (checkNode(m.addedNodes[i])) { structural = true; break; }
+        }
+        if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
+          if (checkNode(m.removedNodes[i])) { structural = true; break; }
+        }
+        if (!structural && targetEl && (m.type === 'childList' || m.type === 'characterData' || m.type === 'attributes')) {
+          if (!isOwnedNode(targetEl) && (targetEl.matches?.(NON_CARD_SEL) || targetEl.closest?.(NON_CARD_SEL))) structural = true;
+        }
       }
-      if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
-        if (checkNode(m.removedNodes[i])) { structural = true; break; }
-      }
-      // Attribute/characterData records carry no added/removed nodes: match
-      // the target itself so detail-price text swaps, alarm controls,
-      // active-filter changes and route-attribute swaps schedule a pass.
-      // childList targets cover textContent writes and price-element
-      // replacement where the container itself is the mutation target.
-      if (!structural && targetEl && (m.type === 'childList' || m.type === 'characterData' || m.type === 'attributes')) {
-        if (!isOwnedNode(targetEl) && (targetEl.matches?.(NON_CARD_SEL) || targetEl.closest?.(NON_CARD_SEL))) structural = true;
-      }
-      if (dirtyCard && structural) break;
     }
 
     if (!dirtyCard && !structural) return;
@@ -17687,7 +17736,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
     if (cur === lastPriceBasis) return;
     lastPriceBasis = cur;
     cancelBatchDealCheck();
-    getProductCards().forEach(clearCardCache);
+    document.querySelectorAll(SELECTORS.cards.standard).forEach(clearCardCache);
     triggerProcessListings();
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
@@ -17762,7 +17811,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.527';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.528';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

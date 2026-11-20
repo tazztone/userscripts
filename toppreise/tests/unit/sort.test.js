@@ -342,4 +342,23 @@ describe('applySorting fallback-tief order', () => {
     assert.equal(cardB2.style.order, undefined);
     assert.deepEqual(row.children, [cardA1, cardA2, separator, cardB1, cardB2]);
   });
+
+  it('preserves interleaved non-card siblings without moving them during sort', () => {
+    const row = makeRow();
+    const cardA = makeCard(row, 0);
+    const ad = { classList: { contains: () => false }, parentElement: row, style: { order: '' }, dataset: {} };
+    const cardB = makeCard(row, 1);
+    row.children = [cardA, ad, cardB];
+
+    const data = [
+      { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+      { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 10, dMedian: 10, dRecord: 10 } }
+    ];
+
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false, data)));
+
+    assert.deepEqual(row.children, [cardB, ad, cardA]);
+  });
 });

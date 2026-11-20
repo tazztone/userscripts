@@ -55,11 +55,18 @@ export function extractShareData(card) {
     } catch { /* relativ lassen */ }
   }
   const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
-  let imageUrl = imgEl?.currentSrc || imgEl?.src
-    || imgEl?.getAttribute?.('data-src') || imgEl?.getAttribute?.('data-original') || '';
+  const candidates = [
+    imgEl?.currentSrc,
+    imgEl?.src,
+    imgEl?.getAttribute?.('data-src'),
+    imgEl?.getAttribute?.('data-original'),
+  ];
+  let imageUrl = candidates.find(u => u && !/^\s*data:/i.test(u)) || '';
   if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
-    if (/^\s*data:/i.test(imageUrl)) imageUrl = '';
-    else try { imageUrl = new URL(imageUrl, location.href).href; } catch { imageUrl = ''; }
+    try {
+      const base = (typeof location !== 'undefined' && /^https?:/i.test(location.href)) ? location.href : 'https://www.toppreise.ch/';
+      imageUrl = new URL(imageUrl, base).href;
+    } catch { imageUrl = ''; }
   }
   if (!/^https?:\/\//i.test(imageUrl)) imageUrl = '';
   if (url && !isToppreiseProductUrl(url)) url = '';
@@ -116,8 +123,9 @@ export function parseJsonLdOffer(json) {
       if (agg) {
         // Nested offer objects beat a bare count: recurse into them so the
         // dealer comes from real rows, not an ID list.
-        if (Array.isArray(agg.offers) && agg.offers.length) {
-          const nested = parseJsonLdOffer({ '@type': 'Product', offers: agg.offers });
+        const nestedOffers = Array.isArray(agg.offers) ? agg.offers : (agg.offers ? [agg.offers] : []);
+        if (nestedOffers.length) {
+          const nested = parseJsonLdOffer({ '@type': 'Product', offers: nestedOffers });
           if (nested.dealer || nested.offers) {
             if (!nested.totalOffers) { const t = Number(agg.offerCount); if (Number.isFinite(t) && t > 0) nested.totalOffers = Math.round(t); }
             return nested;
@@ -125,7 +133,10 @@ export function parseJsonLdOffer(json) {
         }
         // Count-only: no loaded rows (offers 0), but a real total.
         const n = +agg.offerCount;
-        return { dealer: '', offers: 0, totalOffers: Number.isFinite(n) && n > 0 ? Math.round(n) : 0 };
+        if (Number.isFinite(n) && n > 0) {
+          return { dealer: '', offers: 0, totalOffers: Math.round(n) };
+        }
+        continue;
       }
       let best = null;
       for (const o of list) {
@@ -299,7 +310,7 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
     }
   }
 
-  const inlineAsin = parseAmazonAsin(directUrl);
+  const inlineAsin = isAllowedAmazonUrl(directUrl) ? parseAmazonAsin(directUrl) : null;
   if (inlineAsin) {
     if (productId) {
       lruSet(memoryAsinCache, productId, inlineAsin, 500);

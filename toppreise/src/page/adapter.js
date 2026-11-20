@@ -103,8 +103,12 @@ export function getPageProfileLabel(type = getPageProfileType()) {
 }
 
 export function getDetailProductId() {
-  const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)(?:[/?#]|$)/i)) || (document.body?.getAttribute('data-current_url') || '').match(/-p(\d+)(?:[/?#]|$)/i);
+  const currentUrl = typeof document !== 'undefined'
+    ? (document.body?.getAttribute('data-current_url') || document.body?.getAttribute('data-current-url') || '')
+    : '';
+  const match = (typeof location !== 'undefined' && location.href.match(/-p(\d+)(?:[/?#]|$)/i)) || currentUrl.match(/-p(\d+)(?:[/?#]|$)/i);
   if (match) return match[1];
+  if (typeof document === 'undefined') return null;
   const chartLink = document.querySelector('a[href*="pricechart"], a[href*="p_pc_pid="]');
   if (chartLink) {
     const m = chartLink.href.match(/p_pc_pid=(\d+)/i);
@@ -163,8 +167,9 @@ export function getDetailLowestPrice() {
 
 export function isProductDetailPage() {
   if (typeof document === 'undefined') return false;
+  const currentUrl = document.body?.getAttribute('data-current_url') || document.body?.getAttribute('data-current-url') || '';
   return (typeof location !== 'undefined' && /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(location.href)) ||
-         /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(document.body?.getAttribute('data-current_url') || '') ||
+         /\/preisvergleich\/[^/]+\/[^/]+-p(\d+)/i.test(currentUrl) ||
          document.body?.classList.contains('Page_Product') ||
          document.body?.classList.contains('Page_DetailProduct') ||
          !!document.querySelector('.Page_DetailProduct, #Page_DetailProduct, .product_detail_page, .Page_Product') ||
@@ -185,7 +190,7 @@ export function extractNativePriceRating(root = (typeof document !== 'undefined'
   if (!ratingEl) return null;
 
   const rawLevel = ratingEl.getAttribute('data-rating-level');
-  const level = rawLevel != null && !Number.isNaN(Number(rawLevel)) ? Number(rawLevel) : null;
+  const level = rawLevel != null && String(rawLevel).trim() !== '' && !Number.isNaN(Number(rawLevel)) ? Number(rawLevel) : null;
   const label = ratingEl.querySelector(SELECTORS.rating.label)?.textContent?.trim() || ratingEl.getAttribute('aria-label') || '';
 
   let usualPrice = null;

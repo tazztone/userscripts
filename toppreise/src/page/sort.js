@@ -23,7 +23,7 @@ export function getCardSortableUnit(card) {
   const collItem = card.closest('.Plugin_ProductCollItem');
   if (collItem) return collItem;
   const parent = card.parentElement;
-  const docBody = typeof document !== 'undefined' ? document.body : null;
+  const docBody = card.ownerDocument?.body || (typeof document !== 'undefined' ? document.body : null);
   if (parent && parent !== docBody && parent.id !== 'product-list' && parent.id !== 'main-content' && !parent.classList?.contains('main-content-col') && !parent.classList?.contains('product-grid') && !parent.classList?.contains('row')) {
     if (Array.from(parent.classList || []).some(c => c.startsWith('col-') || c === 'cell')) {
       return parent;
@@ -188,36 +188,48 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       });
 
       // Maintain DOM slot positions within each section
-      const currentChildren = Array.from(primaryRow.children);
-      const sepIndex = currentChildren.indexOf(fillUpSeparator);
-
-      const syncSectionDom = (entries, startIndex, endIndex) => {
-        const targetItems = entries.map(e => e.item).filter(Boolean);
+      const reconcileSectionSlots = (sliceChildren, targetItems, sectionEndAnchor) => {
         const targetSet = new Set(targetItems);
-        const currentSlice = currentChildren.slice(startIndex, endIndex);
-        const cardIndices = currentSlice.map((c, i) => targetSet.has(c) ? startIndex + i : -1).filter(i => i !== -1);
-        let domMatches = cardIndices.length === targetItems.length;
-        if (domMatches) {
-          for (let i = 0; i < targetItems.length; i++) {
-            if (primaryRow.children[cardIndices[i]] !== targetItems[i]) {
-              domMatches = false;
-              break;
-            }
+        const desired = [];
+        let cardCursor = 0;
+        for (const c of sliceChildren) {
+          if (targetSet.has(c)) {
+            if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+          } else {
+            desired.push(c);
           }
         }
-        if (!domMatches) {
-          targetItems.forEach((item, idx) => {
-            const targetPos = cardIndices[idx];
-            if (targetPos !== undefined && primaryRow.children[targetPos] !== item) {
-              primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
-            }
-          });
+        while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+
+        if (sliceChildren.length === desired.length && sliceChildren.every((c, i) => c === desired[i])) return;
+
+        let anchor = sectionEndAnchor;
+        for (let i = desired.length - 1; i >= 0; i--) {
+          const node = desired[i];
+          if (!node) continue;
+          if (!targetSet.has(node)) {
+            anchor = node;
+            continue;
+          }
+          const children = primaryRow.children;
+          const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
+          const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
+          if (nextEl !== anchor) {
+            primaryRow.insertBefore(node, anchor);
+          }
+          anchor = node;
         }
       };
 
+      let currentChildren = Array.from(primaryRow.children);
+      let sepIndex = currentChildren.indexOf(fillUpSeparator);
       if (sepIndex !== -1) {
-        syncSectionDom(section1Entries, 0, sepIndex);
-        syncSectionDom(section2Entries, sepIndex + 1, currentChildren.length);
+        reconcileSectionSlots(currentChildren.slice(0, sepIndex), section1Entries.map(e => e.item).filter(Boolean), fillUpSeparator);
+        currentChildren = Array.from(primaryRow.children);
+        sepIndex = currentChildren.indexOf(fillUpSeparator);
+        if (sepIndex !== -1) {
+          reconcileSectionSlots(currentChildren.slice(sepIndex + 1), section2Entries.map(e => e.item).filter(Boolean), null);
+        }
       }
     } else {
       // Move sortable items into primaryRow and apply CSS flex order
@@ -239,23 +251,34 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
       const currentChildren = Array.from(primaryRow.children);
       const targetItems = sortedEntries.map(e => e.item).filter(Boolean);
       const targetSet = new Set(targetItems);
-      const cardIndices = currentChildren.map((c, i) => targetSet.has(c) ? i : -1).filter(i => i !== -1);
-      let domOrderMatches = cardIndices.length === targetItems.length;
-      if (domOrderMatches) {
-        for (let i = 0; i < targetItems.length; i++) {
-          if (currentChildren[cardIndices[i]] !== targetItems[i]) {
-            domOrderMatches = false;
-            break;
-          }
+      const desired = [];
+      let cardCursor = 0;
+      for (const c of currentChildren) {
+        if (targetSet.has(c)) {
+          if (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+        } else {
+          desired.push(c);
         }
       }
-      if (!domOrderMatches) {
-        targetItems.forEach((item, idx) => {
-          const targetPos = cardIndices[idx];
-          if (primaryRow.children[targetPos] !== item) {
-            primaryRow.insertBefore(item, primaryRow.children[targetPos] || null);
+      while (cardCursor < targetItems.length) desired.push(targetItems[cardCursor++]);
+
+      if (currentChildren.length !== desired.length || !currentChildren.every((c, i) => c === desired[i])) {
+        let anchor = null;
+        for (let i = desired.length - 1; i >= 0; i--) {
+          const node = desired[i];
+          if (!node) continue;
+          if (!targetSet.has(node)) {
+            anchor = node;
+            continue;
           }
-        });
+          const children = primaryRow.children;
+          const idx = children.indexOf ? children.indexOf(node) : Array.prototype.indexOf.call(children, node);
+          const nextEl = idx !== -1 ? (children[idx + 1] || null) : undefined;
+          if (nextEl !== anchor) {
+            primaryRow.insertBefore(node, anchor);
+          }
+          anchor = node;
+        }
       }
     }
 

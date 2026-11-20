@@ -469,7 +469,7 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
       if (card.hidden || card.classList?.contains('d-none') || card.closest?.('.d-none')) return true;
       if (typeof card.checkVisibility === 'function') {
         if (!card.checkVisibility()) return true;
-      } else if (card.offsetParent === null && window.getComputedStyle?.(card)?.display === 'none') {
+      } else if (card.offsetParent === null && typeof window !== 'undefined' && window.getComputedStyle?.(card)?.display === 'none') {
         return true;
       }
     }
@@ -513,7 +513,6 @@ export function isCardFilteredOut(card, filters = null, opts = null) {
   const recomp = applyCardFilters({ card, offerCount }, termsList, CONFIG.MIN_OFFERS, pageHasOffers);
   f.isNeg = f.isNeg || recomp.isNeg;
   f.isLowOffers = f.isLowOffers || recomp.isLowOffers;
-  f.isBelowMinDiscount = f.isBelowMinDiscount || recomp.isBelowMinDiscount;
   if (!causeHit(f)) return legacyChecks();
   return true;
 }

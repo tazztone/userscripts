@@ -769,4 +769,23 @@ describe('Min-Rabatt threshold filter core', () => {
     assert.equal(getCardProductId(card), '567890');
     assert.deepEqual(getDistinctProductIds(card), ['567890']);
   });
+
+  it('isCardFilteredOut works when window is undefined and filters is omitted', () => {
+    const prevWin = globalThis.window;
+    delete globalThis.window;
+    try {
+      const card = {
+        hidden: false,
+        offsetParent: null,
+        classList: { contains: () => false },
+        closest: () => null,
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        textContent: 'Test Product'
+      };
+      assert.equal(isCardFilteredOut(card, null, { pageHasOffers: false }), false);
+    } finally {
+      if (prevWin !== undefined) globalThis.window = prevWin;
+    }
+  });
 });

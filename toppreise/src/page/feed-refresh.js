@@ -134,6 +134,17 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
           // TP-owned children (alarm bell, sparkline) are re-created by the
           // triggerProcessListings pass that follows the merge.
           liveContainer.innerHTML = inContainer.innerHTML;
+          const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
+          const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
+          if (inBadge && liveBadge) {
+            liveBadge.innerHTML = inBadge.innerHTML;
+            if (liveBadge.dataset) {
+              delete liveBadge.dataset.tpPainted;
+              delete liveBadge.dataset.tpOriginalDiscount;
+              delete liveBadge.dataset.tpOriginalPid;
+              delete liveBadge.dataset.tpPaintedText;
+            }
+          }
           clearCardCache(existing);
           updated++;
         }
@@ -149,6 +160,7 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
       } else {
         container.appendChild(adopted);
       }
+      liveMap.set(pid, adopted);
       added++;
     }
   }

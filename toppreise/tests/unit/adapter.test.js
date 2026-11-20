@@ -367,6 +367,43 @@ describe('Page Adapter Layer', () => {
       assert.equal(result.level, 2);
       assert.equal(result.label, 'Normaler Preis');
     });
+
+    it('rejects empty or whitespace data-rating-level instead of coercing to 0', () => {
+      const widget = {
+        className: 'priceRating',
+        getAttribute: k => k === 'data-rating-level' ? '   ' : null,
+        querySelector: () => null,
+        querySelectorAll: () => []
+      };
+      const result = extractNativePriceRating({ querySelector: () => widget });
+      assert.ok(result);
+      assert.equal(result.level, null);
+    });
+  });
+
+  it('getDetailProductId and isProductDetailPage support data-current-url and guard undefined document', async () => {
+    const { getDetailProductId, isProductDetailPage } = await import('../../src/page/adapter.js');
+    const prevLoc = globalThis.location;
+    const prevDoc = globalThis.document;
+    try {
+      delete globalThis.location;
+      delete globalThis.document;
+      assert.equal(getDetailProductId(), null);
+      assert.equal(isProductDetailPage(), false);
+
+      globalThis.document = {
+        body: {
+          classList: { contains: () => false },
+          getAttribute: k => k === 'data-current-url' ? '/preisvergleich/Cat/Prod-p987654' : null
+        },
+        querySelector: () => null
+      };
+      assert.equal(getDetailProductId(), '987654');
+      assert.equal(isProductDetailPage(), true);
+    } finally {
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
   });
 });
 

@@ -68,7 +68,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.527
+// @version      2.18.528
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -85,6 +85,9 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
 // @connect      toppreise.ch
 // @connect      amazon.de
 // @connect      amazon.com
+// @connect      amazon.fr
+// @connect      amazon.it
+// @connect      amazon.co.uk
 // @connect      graph.keepa.com
 // @connect      graph2.keepa.com
 // @connect      keepa.com
@@ -266,7 +269,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
       // invalidate the card memo so re-render rebuilds instead of repainting stale data.
       const hit = cardOf(targetEl);
       if (hit) {
-        if ((m.type === 'attributes' || m.type === 'characterData') && isOwnedNode(targetEl)) continue;
+        if (isOwnedNode(targetEl)) continue;
         // All-changes-owned skips only pure self-paint: a mixed record (own
         // badge plus a genuine host replacement) still invalidates, or the
         // host update is lost with the badge.
@@ -277,21 +280,17 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
         continue;
       }
 
-      for (let i = 0; i < m.addedNodes.length; i++) {
-        if (checkNode(m.addedNodes[i])) { structural = true; break; }
+      if (!structural) {
+        for (let i = 0; i < m.addedNodes.length; i++) {
+          if (checkNode(m.addedNodes[i])) { structural = true; break; }
+        }
+        if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
+          if (checkNode(m.removedNodes[i])) { structural = true; break; }
+        }
+        if (!structural && targetEl && (m.type === 'childList' || m.type === 'characterData' || m.type === 'attributes')) {
+          if (!isOwnedNode(targetEl) && (targetEl.matches?.(NON_CARD_SEL) || targetEl.closest?.(NON_CARD_SEL))) structural = true;
+        }
       }
-      if (!structural) for (let i = 0; i < m.removedNodes.length; i++) {
-        if (checkNode(m.removedNodes[i])) { structural = true; break; }
-      }
-      // Attribute/characterData records carry no added/removed nodes: match
-      // the target itself so detail-price text swaps, alarm controls,
-      // active-filter changes and route-attribute swaps schedule a pass.
-      // childList targets cover textContent writes and price-element
-      // replacement where the container itself is the mutation target.
-      if (!structural && targetEl && (m.type === 'childList' || m.type === 'characterData' || m.type === 'attributes')) {
-        if (!isOwnedNode(targetEl) && (targetEl.matches?.(NON_CARD_SEL) || targetEl.closest?.(NON_CARD_SEL))) structural = true;
-      }
-      if (dirtyCard && structural) break;
     }
 
     if (!dirtyCard && !structural) return;
@@ -315,7 +314,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
     if (cur === lastPriceBasis) return;
     lastPriceBasis = cur;
     cancelBatchDealCheck();
-    getProductCards().forEach(clearCardCache);
+    document.querySelectorAll(SELECTORS.cards.standard).forEach(clearCardCache);
     triggerProcessListings();
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
@@ -390,7 +389,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.527';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.528';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
