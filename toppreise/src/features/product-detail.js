@@ -12,7 +12,7 @@ import { fetchSingleProductPriceStats } from '../scanner/scanner.js';
 import { pctDrop, pctRise, priceToCents, recordRefForPrice } from '../domain/price.js';
 import { withLivePrice } from './share-discord.js';
 import { CONFIG, sanitizeReviewKeyword } from '../state/config.js';
-import { formatSearchQuery } from './tavily-search.js';
+import { formatSearchQuery, formatReviewTooltip } from './tavily-search.js';
 import { openAiPopover } from '../ui/badges/card-ai-popover.js';
 import { openSparklinePopout, renderSparkline } from '../ui/sparkline.js';
 import { extractShareData } from '../page/product-offers.js';
@@ -91,11 +91,9 @@ export function renderDetailReviewButton(headingEl, title, currentPrice, stats, 
   }
   btn._tpReviewPayload = { title, priceText, pid };
   btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-  const tipText = hasTavily
-    ? `KI-Fazit & Google-Suche: ${fullQuery}`
-    : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
-  setTitleIfChanged(btn, tipText);
-  btn.setAttribute('aria-label', tipText);
+  const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+  setTitleIfChanged(btn, tipTitle);
+  btn.setAttribute('aria-label', ariaLabel);
 }
 
 export function renderDetailSubline(stats, currentPrice, priceBasis) {

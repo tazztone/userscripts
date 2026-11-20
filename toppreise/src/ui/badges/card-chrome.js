@@ -10,7 +10,7 @@ import { basisMatchesFor, FILTER_CAUSE_DEFS } from '../../page/cards.js';
 import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen, fullSeries } from '../../scanner/cache.js';
 import { priceToCents } from '../../domain/price.js';
 import { withLivePrice } from '../../features/share-discord.js';
-import { extractShareData, extractDealer, extractDealerUrl } from '../../page/product-offers.js';
+import { extractShareData, extractDealer, extractDealerUrl, findCardTitleElement } from '../../page/product-offers.js';
 import { showToast } from '../toast.js';
 import { renderSparkline, openSparklinePopout } from '../sparkline.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
@@ -21,7 +21,7 @@ import { renderHeat, renderFilterVerdict } from './deal-badge.js';
 import { renderBadgeVerdict } from './deal-verdict.js';
 import { renderShareButton } from './card-share.js';
 import { openAiPopover } from './card-ai-popover.js';
-import { expandKeywordWithPrice, formatSearchQuery } from '../../features/tavily-search.js';
+import { expandKeywordWithPrice, formatSearchQuery, formatReviewTooltip } from '../../features/tavily-search.js';
 import { ensureDealerInfo, renderDealerName } from './card-dealer.js';
 import { renderAlarmBell } from './card-alarm.js';
 
@@ -191,12 +191,10 @@ export function renderReviewButton(ctx) {
     }
     reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
     reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-    const tipText = hasTavily
-      ? `KI-Fazit & Google-Suche: ${fullQuery}`
-      : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
-    setTitleIfChanged(reviewBtn, tipText);
-    reviewBtn.setAttribute('aria-label', tipText);
-    const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
+    const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+    setTitleIfChanged(reviewBtn, tipTitle);
+    reviewBtn.setAttribute('aria-label', ariaLabel);
+    const titleEl = findCardTitleElement(card);
     if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
     else if (titleEl && titleEl.tagName === 'A') {
       // The variant deal pill owns the slot directly after the title

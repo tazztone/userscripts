@@ -257,3 +257,62 @@ def test_tavily_parameters_settings_lifecycle(page: Page):
     assert page.locator('#tp-root >> #tp-tavily-max-results').input_value() == '8'
     page.click('#tp-root >> #tp-btn-close')
 
+
+
+def test_review_button_placement_and_title_across_all_layouts(page):
+    """Regression: .image 'Top Deal' link must not hijack title or review button placement."""
+
+    result = page.evaluate("""() => {
+        const container = document.createElement('div');
+        container.id = 'tp-layout-regression';
+        container.innerHTML = `
+          <div class="Plugin_Product mixedBrowsingList" data-pid="910001">
+            <a href="/preisvergleich/Test/Sony-WH-1000XM5-p910001" class="col-auto image"><span>Top Deal</span><img src="/img.png"></a>
+            <div class="product-name"><div class="row"><a class="bold" href="/preisvergleich/Test/Sony-WH-1000XM5-p910001">Sony WH-1000XM5 Wireless Noise Cancelling Headphones</a><div class="stars">★★★★★</div></div></div>
+            <div class="productPrice"><span class="Plugin_Price">CHF 249.00</span></div>
+          </div>
+          <div class="Plugin_Product medium-box mixedBrowsingBox" data-pid="910002">
+            <a href="/preisvergleich/Test/Apple-AirPods-Pro-2-p910002" class="col-auto image"><span>Top Deal</span><img src="/img.png"></a>
+            <div class="product-name">Apple AirPods Pro 2</div>
+            <div class="productPrice"><span class="Plugin_Price">CHF 199.00</span></div>
+          </div>
+          <div class="Plugin_Product mixedBrowsingExpert" data-pid="910003">
+            <a href="/preisvergleich/Test/Logitech-MX-Master-3S-p910003" class="col-auto image"><span>Top Deal</span><img src="/img.png"></a>
+            <div class="product-name"><a class="bold" href="/preisvergleich/Test/Logitech-MX-Master-3S-p910003">Logitech MX Master 3S</a></div>
+            <div class="productPrice"><span class="Plugin_Price">CHF 89.00</span></div>
+          </div>
+        `;
+        document.body.appendChild(container);
+        window.ToppreiseSuite?.processListings?.();
+
+        const cards = Array.from(container.querySelectorAll('.Plugin_Product'));
+        return cards.map(card => {
+            const btn = card.querySelector('.tp-review-search-btn');
+            const imgLink = card.querySelector('a.image');
+            const prodName = card.querySelector('.product-name');
+            return {
+                pid: card.getAttribute('data-pid'),
+                hasBtn: !!btn,
+                inProdName: !!(btn && prodName && prodName.contains(btn)),
+                afterImgLink: !!(btn && imgLink && imgLink.nextElementSibling === btn),
+                href: btn ? btn.getAttribute('href') : '',
+                title: btn ? btn.getAttribute('title') : '',
+                ariaLabel: btn ? btn.getAttribute('aria-label') : '',
+            };
+        });
+    }""")
+
+    assert len(result) == 3
+    expected_names = {
+        '910001': 'Sony',
+        '910002': 'Apple',
+        '910003': 'Logitech',
+    }
+    for row in result:
+        assert row['hasBtn'] is True, f"Missing review button for {row['pid']}"
+        assert row['inProdName'] is True, f"Review button not inside .product-name for {row['pid']}"
+        assert row['afterImgLink'] is False, f"Review button placed after .image for {row['pid']}"
+        assert 'Top%20Deal' not in row['href'] and 'Top Deal' not in row['title']
+        assert expected_names[row['pid']] in row['href']
+        assert len(row['title']) <= 120
+        assert expected_names[row['pid']] in row['ariaLabel']

@@ -248,7 +248,7 @@ describe('extractShareData / extractDealer', () => {
 
   it('reads title, absolutizes relative links, tolerates missing nodes', () => {
     const card = stubCard();
-    card.__set('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])', { textContent: '  Beamer  ' });
+    card.__set('.product-name a:not([class*="tp-"])', { textContent: '  Beamer  ' });
     card.__set('a[href*="/preisvergleich/"]', { getAttribute: () => '/preisvergleich/Beamer/x-p9' });
     globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
     const { title, url } = extractShareData(card);
@@ -260,8 +260,8 @@ describe('extractShareData / extractDealer', () => {
 
   it('prioritizes H1 headings over generic links and ignores PriceSwitch links', () => {
     const card = stubCard();
-    card.__set('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1', { textContent: '  CHERRY Stream Ultimate  ' });
-    card.__set('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])', {
+    card.__set('.Plugin_ProductHeading h1', { textContent: '  CHERRY Stream Ultimate  ' });
+    card.__set('.product-name a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])', {
       getAttribute: () => '/preisvergleich/Tastaturen/CHERRY-Stream-Ultimate-p1183561'
     });
     const { title, url } = extractShareData(card);
@@ -271,7 +271,7 @@ describe('extractShareData / extractDealer', () => {
 
   it('picks the card product image, empty when absent', () => {
     const card = stubCard();
-    card.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: 'https://img/u.jpg' });
+    card.__set('.product-image img', { src: 'https://img/u.jpg' });
     assert.equal(extractShareData(card).imageUrl, 'https://img/u.jpg');
     assert.equal(extractShareData(stubCard()).imageUrl, '');
   });
@@ -280,17 +280,38 @@ describe('extractShareData / extractDealer', () => {
     globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
     try {
       const lazy = stubCard();
-      lazy.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: '', getAttribute: n => n === 'data-src' ? 'https://img/lazy.jpg' : null });
+      lazy.__set('.product-image img', { src: '', getAttribute: n => n === 'data-src' ? 'https://img/lazy.jpg' : null });
       assert.equal(extractShareData(lazy).imageUrl, 'https://img/lazy.jpg');
       const rel = stubCard();
-      rel.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: '/images/u.jpg' });
+      rel.__set('.product-image img', { src: '/images/u.jpg' });
       assert.equal(extractShareData(rel).imageUrl, 'https://www.toppreise.ch/images/u.jpg');
       const inline = stubCard();
-      inline.__set('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img', { src: 'data:image/gif;base64,R0lGOD' });
+      inline.__set('.product-image img', { src: 'data:image/gif;base64,R0lGOD' });
       assert.equal(extractShareData(inline).imageUrl, '');
     } finally {
       delete globalThis.location;
     }
+  });
+
+  it('ignores .image "Top Deal" link before .product-name a in mixedBrowsingList cards', () => {
+    const card = {
+      tagName: 'DIV',
+      querySelector: sel => {
+        if (sel === '.product-name a:not([class*="tp-"])') return { textContent: '  Sony WH-1000XM5  ' };
+        if (sel === '.product-name a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])') {
+          return { getAttribute: () => '/preisvergleich/Kopfhoerer/Sony-WH-1000XM5-p700001' };
+        }
+        if (sel === '.image img') return { src: 'https://www.toppreise.ch/img/sony.jpg' };
+        if (sel.includes('a[href*="/preisvergleich/"]')) {
+          return { textContent: 'Top Deal', getAttribute: () => '/preisvergleich/Kopfhoerer/Sony-WH-1000XM5-p700001' };
+        }
+        return null;
+      },
+    };
+    const res = extractShareData(card);
+    assert.equal(res.title, 'Sony WH-1000XM5');
+    assert.equal(res.url, 'https://www.toppreise.ch/preisvergleich/Kopfhoerer/Sony-WH-1000XM5-p700001');
+    assert.equal(res.imageUrl, 'https://www.toppreise.ch/img/sony.jpg');
   });
 
   it('reads the cheapest dealer row title, empty when absent', () => {

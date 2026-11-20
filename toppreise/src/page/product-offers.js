@@ -16,23 +16,61 @@ const isToppreiseProductUrl = u => {
   } catch { return false; }
 };
 
+const TITLE_SELECTORS = [
+  '.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1',
+  '.product-name a:not([class*="tp-"])', '.product-name',
+  '.productDetails a:not([class*="tp-"])', '.productDetails',
+  'a.bold:not([class*="tp-"])', '.bold:not([class*="tp-"])',
+  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
+  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
+];
+
+const LINK_SELECTORS = [
+  '.product-name a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
+  '.productDetails a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
+  'a.bold[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
+  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
+  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
+  'a[href*="/preisvergleich/"]',
+];
+
+const IMG_SELECTORS = [
+  '.product-image img',
+  '.productImage img',
+  '.image_container img',
+  '.image img',
+  '.Plugin_Product img',
+  'img',
+];
+
+export function queryFirst(root, selectors) {
+  if (!root?.querySelector) return null;
+  for (const sel of selectors) {
+    const el = root.querySelector(sel);
+    if (el) return el;
+  }
+  return null;
+}
+
+export function findCardTitleElement(card) {
+  if (!card?.querySelector) return null;
+  if (card.tagName?.toLowerCase() === 'h1') return card;
+  return queryFirst(card, TITLE_SELECTORS);
+}
+
 // Titel + Produktlink aus der Karte oder Produktseite ziehen (tolerant, Layout-wechsel-sicher).
 export function extractShareData(card) {
   if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
-  let titleEl = (card.tagName?.toLowerCase() === 'h1' ? card : null)
-    || card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1')
-    || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
-    || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-  // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
-  // sonst frisst er sich bei jedem Re-Render in Titel, Query und Share-Text.
+  const titleEl = findCardTitleElement(card);
+  // Review-Button / Badges (Schritt 9) hängen im Titel-Element: für Titelzwecke ausblenden,
+  // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
   let title = '';
   if (titleEl) {
     const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
-    clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
+    clone?.querySelectorAll?.('.tp-review-search-btn, [class*="tp-"]')?.forEach(el => el.remove());
     title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
   }
-  const linkEl = card.querySelector('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
-    || card.querySelector('a[href*="/preisvergleich/"]')
+  const linkEl = queryFirst(card, LINK_SELECTORS)
     || (card.tagName?.toLowerCase() === 'a' ? card : null);
   let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
   if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
@@ -54,7 +92,7 @@ export function extractShareData(card) {
       url = new URL(url, base).href;
     } catch { /* relativ lassen */ }
   }
-  const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
+  const imgEl = queryFirst(card, IMG_SELECTORS);
   const candidates = [
     imgEl?.currentSrc,
     imgEl?.src,

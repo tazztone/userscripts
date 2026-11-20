@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.531
+// @version      2.18.532
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -605,6 +605,8 @@ const STYLES_BADGES = `
   .tp-review-search-btn {
     display: inline-flex !important;
     align-items: center !important;
+    align-self: center !important;
+    flex: 0 0 auto !important;
     justify-content: center !important;
     padding: 2px 4px !important;
     vertical-align: middle !important;
@@ -6896,23 +6898,61 @@ const SHADOW_MODAL_STYLES = `
     } catch { return false; }
   };
 
+  const TITLE_SELECTORS = [
+    '.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1',
+    '.product-name a:not([class*="tp-"])', '.product-name',
+    '.productDetails a:not([class*="tp-"])', '.productDetails',
+    'a.bold:not([class*="tp-"])', '.bold:not([class*="tp-"])',
+    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
+    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
+  ];
+
+  const LINK_SELECTORS = [
+    '.product-name a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
+    '.productDetails a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
+    'a.bold[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
+    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
+    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
+    'a[href*="/preisvergleich/"]',
+  ];
+
+  const IMG_SELECTORS = [
+    '.product-image img',
+    '.productImage img',
+    '.image_container img',
+    '.image img',
+    '.Plugin_Product img',
+    'img',
+  ];
+
+  function queryFirst(root, selectors) {
+    if (!root?.querySelector) return null;
+    for (const sel of selectors) {
+      const el = root.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function findCardTitleElement(card) {
+    if (!card?.querySelector) return null;
+    if (card.tagName?.toLowerCase() === 'h1') return card;
+    return queryFirst(card, TITLE_SELECTORS);
+  }
+
   // Titel + Produktlink aus der Karte oder Produktseite ziehen (tolerant, Layout-wechsel-sicher).
   function extractShareData(card) {
     if (!card?.querySelector) return { title: '', url: '', imageUrl: '' };
-    let titleEl = (card.tagName?.toLowerCase() === 'h1' ? card : null)
-      || card.querySelector('.Plugin_ProductHeading h1, .productHeading h1, .product_title h1, h1.productTitle, h1')
-      || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
-      || card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
-    // Review-Button (Schritt 9) hängt im Titel-Element: für Titelzwecke ausblenden,
-    // sonst frisst er sich bei jedem Re-Render in Titel, Query und Share-Text.
+    const titleEl = findCardTitleElement(card);
+    // Review-Button / Badges (Schritt 9) hängen im Titel-Element: für Titelzwecke ausblenden,
+    // sonst fressen sie sich bei jedem Re-Render in Titel, Query und Share-Text.
     let title = '';
     if (titleEl) {
       const clone = typeof titleEl.cloneNode === 'function' ? titleEl.cloneNode(true) : null;
-      clone?.querySelectorAll?.('.tp-review-search-btn')?.forEach(el => el.remove());
+      clone?.querySelectorAll?.('.tp-review-search-btn, [class*="tp-"]')?.forEach(el => el.remove());
       title = (clone?.textContent ?? titleEl.textContent)?.trim() || titleEl.getAttribute?.('title') || '';
     }
-    const linkEl = card.querySelector('a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="])')
-      || card.querySelector('a[href*="/preisvergleich/"]')
+    const linkEl = queryFirst(card, LINK_SELECTORS)
       || (card.tagName?.toLowerCase() === 'a' ? card : null);
     let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
     if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
@@ -6934,7 +6974,7 @@ const SHADOW_MODAL_STYLES = `
         url = new URL(url, base).href;
       } catch { /* relativ lassen */ }
     }
-    const imgEl = card.querySelector('.product-image img, .productImage img, .image_container img, .Plugin_Product img, img');
+    const imgEl = queryFirst(card, IMG_SELECTORS);
     const candidates = [
       imgEl?.currentSrc,
       imgEl?.src,
@@ -9703,6 +9743,17 @@ const SHADOW_MODAL_STYLES = `
 
     inFlight.set(flightKey, { promise, timeoutMs });
     return promise;
+  }
+
+  function formatReviewTooltip(fullQuery, { hasTavily = false, aiMode = false, maxQueryLen = 90 } = {}) {
+    const q = normalizeTavilyQuery(fullQuery);
+    const prefix = hasTavily ? 'KI-Fazit & Google-Suche: ' : 'Google-Suche: ';
+    const suffix = !hasTavily && aiMode ? ' (KI-Modus)' : '';
+    const shortQ = q.length > maxQueryLen ? `${q.slice(0, Math.max(1, maxQueryLen - 1)).trimEnd()}…` : q;
+    return {
+      title: `${prefix}${shortQ}${suffix}`,
+      ariaLabel: `${prefix}${q}${suffix}`,
+    };
   }
 
   // ─── MODULE: src/features/share-discord.js ──────────────────────────────────
@@ -12908,12 +12959,10 @@ const SHADOW_MODAL_STYLES = `
       }
       reviewBtn._tpAiCtx = { title: reviewName, priceText, card, pid: ctx.pid };
       reviewBtn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-      const tipText = hasTavily
-        ? `KI-Fazit & Google-Suche: ${fullQuery}`
-        : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
-      setTitleIfChanged(reviewBtn, tipText);
-      reviewBtn.setAttribute('aria-label', tipText);
-      const titleEl = card.querySelector('.product-name a, .product-name, .productDetails a, .productDetails, a.bold, .bold, a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])');
+      const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+      setTitleIfChanged(reviewBtn, tipTitle);
+      reviewBtn.setAttribute('aria-label', ariaLabel);
+      const titleEl = findCardTitleElement(card);
       if (titleEl && titleEl.tagName !== 'A' && reviewBtn.parentElement !== titleEl) titleEl.appendChild(reviewBtn);
       else if (titleEl && titleEl.tagName === 'A') {
         // The variant deal pill owns the slot directly after the title
@@ -17203,11 +17252,9 @@ const SHADOW_MODAL_STYLES = `
     }
     btn._tpReviewPayload = { title, priceText, pid };
     btn.href = 'https://www.google.com/search?q=' + encodeURIComponent(fullQuery) + (aiMode ? '&udm=50' : '');
-    const tipText = hasTavily
-      ? `KI-Fazit & Google-Suche: ${fullQuery}`
-      : `Google-Suche: ${fullQuery}${aiMode ? ' (KI-Modus)' : ''}`;
-    setTitleIfChanged(btn, tipText);
-    btn.setAttribute('aria-label', tipText);
+    const { title: tipTitle, ariaLabel } = formatReviewTooltip(fullQuery, { hasTavily, aiMode });
+    setTitleIfChanged(btn, tipTitle);
+    btn.setAttribute('aria-label', ariaLabel);
   }
 
   function renderDetailSubline(stats, currentPrice, priceBasis) {
@@ -17888,7 +17935,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.531';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.532';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -190,6 +190,8 @@ export const STYLES_BADGES = `
   .tp-review-search-btn {
     display: inline-flex !important;
     align-items: center !important;
+    align-self: center !important;
+    flex: 0 0 auto !important;
     justify-content: center !important;
     padding: 2px 4px !important;
     vertical-align: middle !important;

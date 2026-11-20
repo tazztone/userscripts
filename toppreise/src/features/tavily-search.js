@@ -247,3 +247,14 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
   inFlight.set(flightKey, { promise, timeoutMs });
   return promise;
 }
+
+export function formatReviewTooltip(fullQuery, { hasTavily = false, aiMode = false, maxQueryLen = 90 } = {}) {
+  const q = normalizeTavilyQuery(fullQuery);
+  const prefix = hasTavily ? 'KI-Fazit & Google-Suche: ' : 'Google-Suche: ';
+  const suffix = !hasTavily && aiMode ? ' (KI-Modus)' : '';
+  const shortQ = q.length > maxQueryLen ? `${q.slice(0, Math.max(1, maxQueryLen - 1)).trimEnd()}…` : q;
+  return {
+    title: `${prefix}${shortQ}${suffix}`,
+    ariaLabel: `${prefix}${q}${suffix}`,
+  };
+}
