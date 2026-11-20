@@ -132,7 +132,12 @@ export function renderDealerName(ctx, filters) {
       }
     };
 
-    const actionRow = card.querySelector('.row.action, .action');
+    const isOverlayOrCompactView = !!(
+      card.classList?.contains('mixedBrowsingBox') ||
+      card.classList?.contains('mixedBrowsingExpert') ||
+      card.closest?.('.standardList.box, .standardList.expert')
+    );
+    const actionRow = isOverlayOrCompactView ? null : card.querySelector('.row.action, .action');
     const actionMailBtn = actionRow?.querySelector('.Plugin_NewInfoMailButton')?.closest?.('.col-auto') || actionRow?.querySelector('.Plugin_NewInfoMailButton');
     let actionEl = card.querySelector('.tp-action-dealer');
 

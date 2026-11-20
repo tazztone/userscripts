@@ -336,4 +336,24 @@ export const STYLES_CARDS = `
     padding-bottom: 4px !important;
     min-height: 0 !important;
   }
+  .tp-action-dealer .tp-dealer-name,
+  .tp-card-dealer-row > .tp-dealer-name {
+    max-width: 100% !important;
+  }
+  :is(.mixedBrowsingBox, .mixedBrowsingExpert) a.product-name.bold:has(+ .tp-review-search-btn) {
+    display: inline !important;
+    min-height: 0 !important;
+  }
+  .mixedBrowsingBox .col:has(> a.bold.product-name) {
+    min-height: 5em;
+  }
+  .Plugin_Product .product-name > .row {
+    align-items: center !important;
+  }
+  .Plugin_Product .product-name > .row > a.bold.col-12.col-xxl-auto:has(+ .tp-review-search-btn) {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    max-width: calc(100% - 34px) !important;
+    min-width: 0 !important;
+  }
 `;

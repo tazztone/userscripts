@@ -640,4 +640,35 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });
+
+  it('card-dealer skips .tp-action-dealer on mixedBrowsingBox and mixedBrowsingExpert and removes stale node', async () => {
+    const { renderDealerName } = await import('../../src/ui/badges/card-dealer.js');
+    const { dealerCache } = await import('../../src/ui/badges/deal-badge.js');
+    dealerCache.set('p-box:p', { dealer: 'Digitec', url: 'https://example.com' });
+    const prevDoc = globalThis.document;
+    globalThis.document = {
+      createElement: (tag) => ({
+        tagName: tag.toUpperCase(), className: '', textContent: '', title: '',
+        style: {}, dataset: {}, addEventListener: () => {}, replaceChildren: () => {},
+      }),
+    };
+    try {
+      for (const layoutCls of ['mixedBrowsingBox', 'mixedBrowsingExpert']) {
+        let removed = false;
+        const staleActionEl = { remove: () => { removed = true; } };
+        const card = {
+          classList: { contains: (cls) => cls === layoutCls },
+          closest: () => null,
+          querySelector: (sel) => (sel === '.tp-action-dealer' ? staleActionEl : null),
+          querySelectorAll: () => [],
+          appendChild: () => {},
+        };
+        renderDealerName({ card, pid: 'p-box', cardPriceEl: null, stats: { tiefstpreis: 100 } }, {});
+        assert.equal(removed, true, `expected stale .tp-action-dealer removed for ${layoutCls}`);
+      }
+    } finally {
+      dealerCache.delete('p-box:p');
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });

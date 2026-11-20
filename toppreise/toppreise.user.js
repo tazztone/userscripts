@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.532
+// @version      2.18.533
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -410,6 +410,26 @@ const STYLES_CARDS = `
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     min-height: 0 !important;
+  }
+  .tp-action-dealer .tp-dealer-name,
+  .tp-card-dealer-row > .tp-dealer-name {
+    max-width: 100% !important;
+  }
+  :is(.mixedBrowsingBox, .mixedBrowsingExpert) a.product-name.bold:has(+ .tp-review-search-btn) {
+    display: inline !important;
+    min-height: 0 !important;
+  }
+  .mixedBrowsingBox .col:has(> a.bold.product-name) {
+    min-height: 5em;
+  }
+  .Plugin_Product .product-name > .row {
+    align-items: center !important;
+  }
+  .Plugin_Product .product-name > .row > a.bold.col-12.col-xxl-auto:has(+ .tp-review-search-btn) {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    max-width: calc(100% - 34px) !important;
+    min-width: 0 !important;
   }
 `;
 
@@ -12593,7 +12613,12 @@ const SHADOW_MODAL_STYLES = `
         }
       };
 
-      const actionRow = card.querySelector('.row.action, .action');
+      const isOverlayOrCompactView = !!(
+        card.classList?.contains('mixedBrowsingBox') ||
+        card.classList?.contains('mixedBrowsingExpert') ||
+        card.closest?.('.standardList.box, .standardList.expert')
+      );
+      const actionRow = isOverlayOrCompactView ? null : card.querySelector('.row.action, .action');
       const actionMailBtn = actionRow?.querySelector('.Plugin_NewInfoMailButton')?.closest?.('.col-auto') || actionRow?.querySelector('.Plugin_NewInfoMailButton');
       let actionEl = card.querySelector('.tp-action-dealer');
 
@@ -17935,7 +17960,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.532';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.533';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
