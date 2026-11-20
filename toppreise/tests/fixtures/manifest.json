@@ -1,0 +1,47 @@
+{
+  "captured_at": "2026-11-20T13:22:52.903Z",
+  "targets": {
+    "neue": {
+      "file": "live_neue_toppreise.html",
+      "url": "https://www.toppreise.ch/neue-toppreise",
+      "viewMode": null,
+      "cardCount": 96
+    },
+    "category": {
+      "file": "live_category_browsing.html",
+      "url": "https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer-Headsets/Over-On-Ear-Kopfhoerer-c3308",
+      "viewMode": null,
+      "cardCount": 48
+    },
+    "categoryBox": {
+      "file": "live_category_box.html",
+      "url": "https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer-Headsets/Over-On-Ear-Kopfhoerer-c3308",
+      "viewMode": "box",
+      "cardCount": 24
+    },
+    "categoryExpert": {
+      "file": "live_category_expert.html",
+      "url": "https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer-Headsets/Over-On-Ear-Kopfhoerer-c3308",
+      "viewMode": "expe",
+      "cardCount": 48
+    },
+    "product": {
+      "file": "live_product_detail.html",
+      "url": "https://www.toppreise.ch/preisvergleich/Kopfhoerer/APPLE-AirPods-Pro-3-mit-MagSafe-Ladecase-MFHP4ZM-A-p818734?selsort=rd",
+      "viewMode": null,
+      "cardCount": 49
+    }
+  },
+  "assets": {
+    "standard.css": {
+      "href": "https://www.toppreise.ch/files-34232123-/standard.css",
+      "sha256": "b4254aa131fcfd43ac4259c9af7f850bd8687a84a1a78f7859debb1313586aab",
+      "bytes": 857633
+    },
+    "page_product.css": {
+      "href": "https://www.toppreise.ch/files-34232123-/page_product.css",
+      "sha256": "01971b0ce9d53cda203701ee118b40fe167a8425f3c2ba3596b0db53af3a2cf3",
+      "bytes": 9158
+    }
+  }
+}

@@ -9,6 +9,7 @@
  */
 
 import { execFileSync } from 'child_process';
+import { createHash } from 'crypto';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -18,8 +19,13 @@ const REPO_ROOT = join(__dirname, '..', '..');
 const TOPPREISE_DIR = join(REPO_ROOT, 'toppreise');
 const TESTS_DIR = join(TOPPREISE_DIR, 'tests');
 const FIXTURES_DIR = join(TESTS_DIR, 'fixtures');
+const ASSETS_DIR = join(FIXTURES_DIR, 'assets');
+const MANIFEST_PATH = join(FIXTURES_DIR, 'manifest.json');
 const MOCK_HTML_PATH = join(TESTS_DIR, 'mock_toppreise.html');
 const TEST_CARDS_PATH = join(FIXTURES_DIR, 'mock_test_cards.html');
+const CAPTURE_VIEW_SCRIPT = join(__dirname, 'capture-view-fixtures.py');
+const VENV_PYTHON = join(REPO_ROOT, 'venv', 'bin', 'python');
+const LAZY_LOAD_SVG_DATA_URI = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22/%3E';
 
 const TARGETS = {
   neue: {
@@ -37,7 +43,40 @@ const TARGETS = {
   category: {
     name: 'live_category_browsing.html',
     url: 'https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer-Headsets/Over-On-Ear-Kopfhoerer-c3308',
-    requiredSelectors: ['.Plugin_Product, .Plugin_ProductCollItem', '.product-name', '.Plugin_PriceInformation']
+    requiredSelectors: [
+      '.standardList.list',
+      '.Plugin_ListView',
+      '.Plugin_Product, .Plugin_ProductCollItem',
+      '.product-name',
+      '.Plugin_PriceInformation',
+      '.action'
+    ]
+  },
+  categoryBox: {
+    name: 'live_category_box.html',
+    url: 'https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer-Headsets/Over-On-Ear-Kopfhoerer-c3308',
+    viewMode: 'box',
+    requiredSelectors: [
+      '.standardList.box',
+      '.Plugin_ListView',
+      '.Plugin_Product, .Plugin_ProductCollItem',
+      '.product-name',
+      '.Plugin_PriceInformation',
+      '.action'
+    ]
+  },
+  categoryExpert: {
+    name: 'live_category_expert.html',
+    url: 'https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer-Headsets/Over-On-Ear-Kopfhoerer-c3308',
+    viewMode: 'expe',
+    requiredSelectors: [
+      '.standardList.expert',
+      '.Plugin_ListView',
+      '.Plugin_Product, .Plugin_ProductCollItem',
+      '.product-name',
+      '.Plugin_PriceInformation',
+      '.action'
+    ]
   },
   product: {
     name: 'live_product_detail.html',
@@ -75,6 +114,95 @@ function fetchUrl(url) {
 }
 
 /**
+ * Resolve relative or protocol-relative asset URLs against Toppreise origin
+ */
+function resolveToppreiseUrl(href) {
+  if (!href) return null;
+  if (href.startsWith('http://') || href.startsWith('https://')) return href;
+  if (href.startsWith('//')) return `https:${href}`;
+  if (href.startsWith('/')) return `https://www.toppreise.ch${href}`;
+  return `https://www.toppreise.ch/${href}`;
+}
+
+/**
+ * Extract active non-print CSS stylesheet hrefs (standard.css / page_product.css)
+ */
+function extractStylesheetHrefs(html) {
+  const hrefs = {};
+  const linkRe = /<link\b[^>]*>/gi;
+  let match;
+  while ((match = linkRe.exec(html)) !== null) {
+    const tag = match[0];
+    if (!/\brel=["'][^"']*stylesheet[^"']*["']/i.test(tag)) continue;
+    if (/\bmedia=["']print["']/i.test(tag)) continue;
+    const hrefMatch = tag.match(/\bhref=["']([^"']+)["']/i);
+    if (!hrefMatch) continue;
+    const href = hrefMatch[1];
+    if (/\/standard\.css(?:\?|$)/i.test(href) && !hrefs['standard.css']) {
+      hrefs['standard.css'] = resolveToppreiseUrl(href);
+    } else if (/\/page_product\.css(?:\?|$)/i.test(href) && !hrefs['page_product.css']) {
+      hrefs['page_product.css'] = resolveToppreiseUrl(href);
+    }
+  }
+  return hrefs;
+}
+
+/**
+ * Sanitize fetched CSS for offline Playwright rendering
+ */
+function sanitizeCss(css) {
+  return css
+    .replace(/@import\s+url\([^)]*\)\s*;?/gi, '')
+    .replace(/url\(["']?https?:\/\/fonts\.(?:googleapis|gstatic)\.com[^)"']*["']?\)/gi, 'url("")');
+}
+
+/**
+ * Extract Plugin_ListView data-idf from category HTML
+ */
+function extractListViewIdf(html) {
+  const idfMatch = html.match(/Plugin_ListView[^>]*\bdata-idf=["']([^"']+)["']/i) ||
+    html.match(/\bdata-idf=["']([^"']+)["'][^>]*Plugin_ListView/i);
+  return idfMatch ? idfMatch[1] : null;
+}
+
+/**
+ * Check if HTML contains the expected category view layout class
+ */
+function hasViewLayout(html, viewMode) {
+  const layoutClass = viewMode === 'box' ? 'box' : 'expert';
+  const hasContainer = new RegExp(`class=["'][^"']*\\bstandardList\\b[^"']*\\b${layoutClass}\\b`, 'i').test(html);
+  const hasCard = /Plugin_Product|Plugin_ProductCollItem/.test(html);
+  return hasContainer && hasCard;
+}
+
+/**
+ * Capture category view via query param first, falling back to Playwright helper
+ */
+function fetchCategoryView(target, baseCategoryHtml) {
+  const idf = baseCategoryHtml ? extractListViewIdf(baseCategoryHtml) : null;
+  if (idf) {
+    const sep = target.url.includes('?') ? '&' : '?';
+    const paramUrl = `${target.url}${sep}${encodeURIComponent(idf)}_view=${encodeURIComponent(target.viewMode)}`;
+    try {
+      const html = fetchUrl(paramUrl);
+      if (hasViewLayout(html, target.viewMode)) {
+        return html;
+      }
+      console.log(`  • Query param ${idf}_view=${target.viewMode} did not switch layout; falling back to Playwright...`);
+    } catch (err) {
+      console.log(`  • Query param fetch failed (${err.message}); falling back to Playwright...`);
+    }
+  } else {
+    console.log('  • Could not find Plugin_ListView data-idf; falling back to Playwright...');
+  }
+
+  return execFileSync(VENV_PYTHON, [CAPTURE_VIEW_SCRIPT, target.url, target.viewMode], {
+    encoding: 'utf-8',
+    maxBuffer: 20 * 1024 * 1024
+  });
+}
+
+/**
  * Sanitize live HTML for offline browser testing safety
  */
 function sanitizeLiveHtml(html) {
@@ -96,10 +224,23 @@ function sanitizeLiveHtml(html) {
   // 3. Remove cookie / consent banners & modals
   sanitized = sanitized.replace(/<div\b[^>]*\b(?:fc-consent-root|fc-dialog|cookie-banner|consentModal)[^>]*>[\s\S]*?<\/div>/gi, '');
 
-  // 4. Rewrite relative asset URLs to absolute Toppreise origin
+  // 4. Remove print stylesheets and rewrite standard.css / page_product.css to local assets/
+  sanitized = sanitized.replace(/<link\b[^>]*\bmedia=["']print["'][^>]*>/gi, '');
+  sanitized = sanitized.replace(
+    /(<link\b[^>]*\bhref=["'])[^"']*\/(standard\.css|page_product\.css)(?:\?[^"']*)?(["'][^>]*>)/gi,
+    '$1assets/$2$3'
+  );
+
+  // 5. Replace lazy-load.svg placeholders with inline 1x1 SVG so thumbnails keep dimensions offline
+  sanitized = sanitized.replace(
+    /(\bsrc=["'])(?:https?:\/\/www\.toppreise\.ch)?\/files-[^"']*\/lazy-load\.svg(?:\?[^"']*)?(["'])/gi,
+    `$1${LAZY_LOAD_SVG_DATA_URI}$2`
+  );
+
+  // 6. Rewrite remaining relative asset URLs to absolute Toppreise origin
   sanitized = sanitized.replace(/(href|src)=["']\/(files-[^"']+)["']/gi, '$1="https://www.toppreise.ch/$2"');
 
-  // 5. Clean up duplicate empty lines
+  // 7. Clean up duplicate empty lines
   sanitized = sanitized.replace(/\n\s*\n\s*\n/g, '\n\n');
 
   return sanitized;
@@ -552,6 +693,53 @@ function buildMockToppreiseHtml(liveNeueHtml, cardsPartialHtml, existingMockHtml
 }
 
 /**
+ * Count product cards in HTML for manifest reporting
+ */
+function countProductCards(html) {
+  const matches = html.match(/class=["'][^"']*\bPlugin_Product\b[^"']*["']/g);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Check manifest.json staleness (> 30 days) and local CSS assets
+ */
+function checkLocalAssetsAndManifest() {
+  let ok = true;
+  for (const cssFile of ['standard.css', 'page_product.css']) {
+    const cssPath = join(ASSETS_DIR, cssFile);
+    if (!existsSync(cssPath)) {
+      console.error(`  ✖ Missing vendored CSS: ${cssPath}`);
+      ok = false;
+    } else {
+      const css = readFileSync(cssPath, 'utf-8');
+      if (cssFile === 'standard.css' && (!css.includes('.standardList') || !css.includes('.Plugin_Product'))) {
+        console.error(`  ✖ ${cssFile} missing expected selectors (.standardList / .Plugin_Product)`);
+        ok = false;
+      } else {
+        console.log(`  ✔ CSS asset OK: ${cssFile} (${(css.length / 1024).toFixed(1)} KB)`);
+      }
+    }
+  }
+
+  if (existsSync(MANIFEST_PATH)) {
+    try {
+      const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
+      const ageDays = (Date.now() - Date.parse(manifest.captured_at)) / (1000 * 60 * 60 * 24);
+      if (Number.isFinite(ageDays) && ageDays > 30) {
+        console.warn(`  ⚠ manifest.json is ${ageDays.toFixed(1)} days old (> 30 days). Consider running npm run fixtures:update.`);
+      } else {
+        console.log(`  ✔ manifest.json age: ${ageDays.toFixed(1)} days`);
+      }
+    } catch (err) {
+      console.warn(`  ⚠ Could not parse manifest.json: ${err.message}`);
+    }
+  } else {
+    console.warn('  ⚠ manifest.json not found yet (run npm run fixtures:update).');
+  }
+  return ok;
+}
+
+/**
  * Main execution routine
  */
 async function main() {
@@ -563,12 +751,17 @@ async function main() {
   if (!existsSync(FIXTURES_DIR)) {
     mkdirSync(FIXTURES_DIR, { recursive: true });
   }
+  if (!existsSync(ASSETS_DIR)) {
+    mkdirSync(ASSETS_DIR, { recursive: true });
+  }
 
   console.log(`[Toppreise Fixture Engine] Running in ${isCheck ? 'AUDIT (--check)' : 'UPDATE'} mode...`);
 
   const targetsToRun = selectedTarget ? [selectedTarget] : Object.keys(TARGETS);
   let hasFailure = false;
   const fetchedHtmls = {};
+  const cssHrefs = {};
+  const manifestTargets = {};
 
   for (const key of targetsToRun) {
     const target = TARGETS[key];
@@ -577,10 +770,13 @@ async function main() {
       process.exit(1);
     }
 
-    console.log(`\nFetching ${key} (${target.url})...`);
+    console.log(`\nFetching ${key} (${target.url}${target.viewMode ? ` [${target.viewMode}]` : ''})...`);
     try {
-      const rawHtml = fetchUrl(target.url);
+      const rawHtml = target.viewMode
+        ? fetchCategoryView(target, fetchedHtmls.category)
+        : fetchUrl(target.url);
       fetchedHtmls[key] = rawHtml;
+      Object.assign(cssHrefs, extractStylesheetHrefs(rawHtml));
 
       console.log(`  • Fetched: ${(rawHtml.length / 1024).toFixed(1)} KB`);
 
@@ -594,6 +790,13 @@ async function main() {
         }
       }
 
+      manifestTargets[key] = {
+        file: target.name,
+        url: target.url,
+        viewMode: target.viewMode || null,
+        cardCount: countProductCards(rawHtml)
+      };
+
       if (!isCheck) {
         const sanitized = sanitizeLiveHtml(rawHtml);
         const fixturePath = join(FIXTURES_DIR, target.name);
@@ -604,6 +807,33 @@ async function main() {
       console.error(`  ✖ Failed to process ${key}: ${err.message}`);
       hasFailure = true;
     }
+  }
+
+  if (!isCheck) {
+    const manifestAssets = {};
+    for (const [cssName, cssUrl] of Object.entries(cssHrefs)) {
+      try {
+        console.log(`\nFetching CSS ${cssName} (${cssUrl})...`);
+        const rawCss = fetchUrl(cssUrl);
+        const cleanCss = sanitizeCss(rawCss);
+        const cssPath = join(ASSETS_DIR, cssName);
+        writeFileSync(cssPath, cleanCss, 'utf-8');
+        const sha256 = createHash('sha256').update(cleanCss).digest('hex');
+        manifestAssets[cssName] = { href: cssUrl, sha256, bytes: Buffer.byteLength(cleanCss, 'utf-8') };
+        console.log(`  💾 Saved assets/${cssName} (${(cleanCss.length / 1024).toFixed(1)} KB, sha256:${sha256.slice(0, 12)})`);
+      } catch (err) {
+        console.error(`  ✖ Failed to fetch CSS ${cssName}: ${err.message}`);
+        hasFailure = true;
+      }
+    }
+
+    const manifest = {
+      captured_at: new Date().toISOString(),
+      targets: manifestTargets,
+      assets: manifestAssets
+    };
+    writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+    console.log(`\n  💾 Wrote manifest.json`);
   }
 
   // If updating and 'neue' was processed, rebuild mock_toppreise.html
@@ -619,11 +849,15 @@ async function main() {
   }
 
   if (isCheck) {
+    console.log('\nChecking local CSS assets & manifest...');
+    if (!checkLocalAssetsAndManifest()) {
+      hasFailure = true;
+    }
     if (hasFailure) {
-      console.error('\n[Check Gate] FAILED: Live site selector drift detected.');
+      console.error('\n[Check Gate] FAILED: Live site selector drift or missing assets detected.');
       process.exit(1);
     } else {
-      console.log('\n[Check Gate] PASSED: All live site selectors match.');
+      console.log('\n[Check Gate] PASSED: All live site selectors and assets match.');
       process.exit(0);
     }
   }
