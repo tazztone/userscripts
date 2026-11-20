@@ -2278,7 +2278,103 @@ def test_discord_share_comment_overflow_sends_followup(page: Page):
     main_body = discord_posts[0].decode('utf-8', errors='replace')
     followup_body = discord_posts[1].decode('utf-8', errors='replace')
     assert 'AAAA' not in main_body
-    assert long_comment in followup_body
+    assert 'AAAA' in followup_body
+
+
+def test_discord_share_comment_links_masked_and_cleaned(page: Page):
+    """Comment with [1] (url?srsltid=...) and bare url?offertype=retail&utm_medium=... renders masked links and posts cleaned links without duplicate 💬."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    open_settings(page)
+    page.fill('#tp-root >> #tp-discord-primary-name', 'Deals')
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/999/links-deal')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    discord_posts = []
+    page.route('**/discord.com/**', lambda route: (
+        discord_posts.append(route.request.post_data_buffer),
+        route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, body='{"id":"msg-1","channel_id":"chan-1"}')
+    ))
+
+    page.click('#card-cheapest > .tp-share-btn', force=True)
+    modal = page.locator('#tp-root >> #tp-modal-share-preview')
+    expect(modal).to_be_visible()
+
+    comment = '💬 Siehe [1] (https://www.conforama.ch/de/p/1?srsltid=abc) und https://www.galaxus.ch/de/p/2?offertype=retail&utm_medium=organic'
+    page.locator('#tp-root >> #tp-share-comment-input').fill(comment)
+
+    preview_message = page.locator('#tp-root >> #tp-share-preview-message')
+    expect(preview_message).to_contain_text('Siehe 1')
+    expect(preview_message).to_contain_text('galaxus.ch')
+
+    page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
+    page.locator('#tp-root >> .tp-share-channel-btn').first.click()
+    expect(modal).to_be_hidden()
+
+    assert len(discord_posts) == 1
+    body = discord_posts[0].decode('utf-8', errors='replace')
+    assert '[1](<https://www.conforama.ch/de/p/1>)' in body
+    assert '[galaxus.ch](<https://www.galaxus.ch/de/p/2?offertype=retail>)' in body
+    assert '💬 💬' not in body
+
+
+def test_discord_share_long_comment_multi_reply_split(page: Page):
+    """Long >2000-char comment with citations is not truncated, updates reply preview/counter, and sends sequential follow-ups."""
+    import time as _time
+    _now = int(_time.time() * 1000)
+    _day = 86400 * 1000
+    _series = [[_now - (9 - i) * _day, 1800] for i in range(10)]
+    seed_verified_deal(page, '797571', {'tiefstpreis': 1800, 'hoechstpreis': 2400,
+                                        'medianPrice': 1800, 'timeSeries': _series})
+    page.wait_for_selector('#card-cheapest > .tp-share-btn')
+
+    open_settings(page)
+    page.fill('#tp-root >> #tp-discord-primary-name', 'Deals')
+    page.click('#tp-root >> #tp-discord-webhook-reveal')
+    page.fill('#tp-root >> #tp-discord-webhook-input', 'https://discord.com/api/webhooks/999/multi-reply')
+    page.click('#tp-root >> #tp-btn-save')
+    page.wait_for_selector('#tp-root >> #tp-settings-dialog', state='hidden')
+
+    discord_posts = []
+    page.route('**/discord.com/**', lambda route: (
+        discord_posts.append(route.request.post_data_buffer),
+        route.fulfill(status=200, headers={'access-control-allow-origin': '*'}, body='{"id":"msg-1","channel_id":"chan-1"}')
+    ))
+
+    page.click('#card-cheapest > .tp-share-btn', force=True)
+    modal = page.locator('#tp-root >> #tp-modal-share-preview')
+    expect(modal).to_be_visible()
+
+    para1 = 'Erster Absatz. ' + 'A' * 1400 + ' [1] (https://www.conforama.ch/de/p/1?srsltid=xyz)'
+    para2 = 'Zweiter Absatz. ' + 'B' * 1400 + ' [2] (https://www.galaxus.ch/de/p/2?utm_source=ai)'
+    long_comment = para1 + '\n\n' + para2
+    comment_input = page.locator('#tp-root >> #tp-share-comment-input')
+    comment_input.fill(long_comment)
+    assert len(comment_input.input_value()) == len(long_comment)
+
+    expect(page.locator('#tp-root >> #tp-share-comment-count')).to_contain_text('2 Antworten')
+    expect(page.locator('#tp-root >> #tp-share-comment-overflow')).to_contain_text('2 Antworten')
+    reply_preview = page.locator('#tp-root >> #tp-share-reply-preview')
+    expect(reply_preview).to_be_visible()
+    expect(reply_preview).to_contain_text('Erster Absatz.')
+
+    page.wait_for_function("() => !document.getElementById('tp-root').shadowRoot.querySelector('.tp-share-channel-btn').disabled")
+    page.locator('#tp-root >> .tp-share-channel-btn').first.click()
+    expect(modal).to_be_hidden()
+
+    assert len(discord_posts) == 3
+    followup1 = discord_posts[1].decode('utf-8', errors='replace')
+    followup2 = discord_posts[2].decode('utf-8', errors='replace')
+    assert '[1](<https://www.conforama.ch/de/p/1>)' in followup1
+    assert '[2](<https://www.galaxus.ch/de/p/2>)' in followup2
 
 
 

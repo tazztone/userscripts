@@ -551,6 +551,13 @@ export const SHADOW_MODAL_STYLES = `
     border-color: #5865f2;
     box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
   }
+  .tp-share-reply-preview-wrap {
+    margin-top: 6px;
+  }
+  #tp-share-reply-preview {
+    max-height: 150px;
+    overflow-y: auto;
+  }
   .tp-share-preview-images {
     display: flex;
     gap: 8px;

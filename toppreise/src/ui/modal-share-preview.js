@@ -68,9 +68,13 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
             <label for="tp-share-comment-input" class="tp-share-preview-label">Kommentar (optional):</label>
             <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 2000</span>
           </div>
-          <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="2000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+          <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
           <div id="tp-share-comment-overflow" class="tp-share-comment-overflow" style="display: none;">
             ⤵️ Wird als Antwort im Thread gesendet
+          </div>
+          <div id="tp-share-reply-preview-wrap" class="tp-share-reply-preview-wrap" style="display: none;">
+            <div class="tp-share-preview-label">Antwort-Vorschau:</div>
+            <div id="tp-share-reply-preview" class="tp-share-preview-message"></div>
           </div>
         </div>
         <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
@@ -98,9 +102,13 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
   const commentInput = dialog.querySelector('#tp-share-comment-input');
   const commentCount = dialog.querySelector('#tp-share-comment-count');
   const commentOverflow = dialog.querySelector('#tp-share-comment-overflow');
+  const replyPreviewWrap = dialog.querySelector('#tp-share-reply-preview-wrap');
+  const replyPreviewEl = dialog.querySelector('#tp-share-reply-preview');
 
   const createdUrls = [];
   let isSending = false;
+  let lastReplyCount = 1;
+  let lastOverflow = false;
 
   const cleanup = () => {
     while (createdUrls.length > 0) {
@@ -133,12 +141,17 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
 
   const updateCount = () => {
     if (commentCount && commentInput) {
-      commentCount.textContent = `${commentInput.value.length} / 2000`;
+      const len = commentInput.value.length;
+      if (len > 2000 || (lastOverflow && lastReplyCount > 1)) {
+        const label = lastReplyCount === 1 ? 'Antwort' : 'Antworten';
+        commentCount.textContent = `${len} Zeichen · ${lastReplyCount} ${label}`;
+      } else {
+        commentCount.textContent = `${len} / 2000`;
+      }
     }
   };
 
   commentInput?.addEventListener('input', () => {
-    updateCount();
     const currentVal = commentInput.value;
     if (onCommentChange && messageEl) {
       const updated = onCommentChange(currentVal);
@@ -146,6 +159,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
         messageEl.innerHTML = renderDiscordMarkdownPreview(updated);
       }
     }
+    updateCount();
   });
 
   commentInput?.addEventListener('keydown', e => {
@@ -264,10 +278,21 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
       });
     },
 
-    setCommentOverflow(isOverflow) {
+    setCommentOverflow(isOverflow, { replyPreview = '', replyCount = 1 } = {}) {
+      lastOverflow = Boolean(isOverflow);
+      lastReplyCount = Math.max(1, Number(replyCount) || 1);
       if (commentOverflow) {
         commentOverflow.style.display = isOverflow ? 'block' : 'none';
+        commentOverflow.textContent = lastReplyCount > 1
+          ? `⤵️ Wird in ${lastReplyCount} Antworten im Thread gesendet`
+          : '⤵️ Wird als Antwort im Thread gesendet';
       }
+      if (replyPreviewWrap && replyPreviewEl) {
+        const showReply = Boolean(isOverflow && replyPreview);
+        replyPreviewWrap.style.display = showReply ? 'block' : 'none';
+        replyPreviewEl.innerHTML = showReply ? renderDiscordMarkdownPreview(replyPreview) : '';
+      }
+      updateCount();
     },
 
     close

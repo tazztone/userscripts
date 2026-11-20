@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.536
+// @version      2.18.537
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3357,6 +3357,13 @@ const SHADOW_MODAL_STYLES = `
     outline: none;
     border-color: #5865f2;
     box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+  }
+  .tp-share-reply-preview-wrap {
+    margin-top: 6px;
+  }
+  #tp-share-reply-preview {
+    max-height: 150px;
+    overflow-y: auto;
   }
   .tp-share-preview-images {
     display: flex;
@@ -12027,6 +12034,13 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  function buildCommentOverflowState(fields, commentText, recipe) {
+    const overflow = commentOverflows(fields, recipe);
+    if (!overflow) return { overflow: false, replyPreview: '', replyCount: 1 };
+    const replyPreview = formatCommentPrefix(commentText);
+    const replyCount = Math.max(1, splitDiscordChunks(replyPreview, 2000).length);
+    return { overflow, replyPreview, replyCount };
+  }
 
   async function sendDealToChannel(channel, payload, stillFresh) {
     const hook = channel.url.trim();
@@ -12172,8 +12186,8 @@ const SHADOW_MODAL_STYLES = `
     const onCommentChange = commentText => {
       userComment = commentText;
       const fields = { ...currentFields, commentText };
-      const overflow = commentOverflows(fields, CONFIG.DISCORD_LAYOUT);
-      preview?.setCommentOverflow?.(overflow);
+      const { overflow, replyPreview, replyCount } = buildCommentOverflowState(fields, commentText, CONFIG.DISCORD_LAYOUT);
+      preview?.setCommentOverflow?.(overflow, { replyPreview, replyCount });
       return overflow
         ? formatDealMessage({ ...currentFields, commentText: '' }, CONFIG.DISCORD_LAYOUT)
         : formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
@@ -12210,8 +12224,14 @@ const SHADOW_MODAL_STYLES = `
         let followUpFailed = false;
         if (payloadToSend.overflowComment) {
           // Deal already posted: never surface as send error (retry would duplicate the deal).
-          await postFollowUp(targetChannel.url.trim(), sendRes?.threadId || null, `💬 ${payloadToSend.overflowComment}`.slice(0, 2000))
-            .catch(() => { followUpFailed = true; });
+          const replyChunks = splitDiscordChunks(formatCommentPrefix(payloadToSend.overflowComment), 2000);
+          try {
+            for (const chunk of replyChunks) {
+              await postFollowUp(targetChannel.url.trim(), sendRes?.threadId || null, chunk);
+            }
+          } catch {
+            followUpFailed = true;
+          }
         }
         controller.close();
         shareInFlight.delete(shareKey);
@@ -12305,8 +12325,8 @@ const SHADOW_MODAL_STYLES = `
         };
         const activeComment = preview?.getComment?.() ?? userComment;
         const activeFields = { ...currentFields, commentText: activeComment };
-        const overflow = commentOverflows(activeFields, CONFIG.DISCORD_LAYOUT);
-        preview?.setCommentOverflow?.(overflow);
+        const { overflow, replyPreview, replyCount } = buildCommentOverflowState(activeFields, activeComment, CONFIG.DISCORD_LAYOUT);
+        preview?.setCommentOverflow?.(overflow, { replyPreview, replyCount });
         const previewFields = overflow ? { ...activeFields, commentText: '' } : activeFields;
         const content = formatDealMessage(previewFields, CONFIG.DISCORD_LAYOUT);
         const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...previewFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
@@ -14732,9 +14752,13 @@ const SHADOW_MODAL_STYLES = `
               <label for="tp-share-comment-input" class="tp-share-preview-label">Kommentar (optional):</label>
               <span id="tp-share-comment-count" class="tp-share-comment-count">0 / 2000</span>
             </div>
-            <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" maxlength="2000" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
+            <textarea id="tp-share-comment-input" class="tp-share-comment-input" rows="2" placeholder="Kommentar schreiben oder einfügen… (z.B. Gutscheincode, Details)"></textarea>
             <div id="tp-share-comment-overflow" class="tp-share-comment-overflow" style="display: none;">
               ⤵️ Wird als Antwort im Thread gesendet
+            </div>
+            <div id="tp-share-reply-preview-wrap" class="tp-share-reply-preview-wrap" style="display: none;">
+              <div class="tp-share-preview-label">Antwort-Vorschau:</div>
+              <div id="tp-share-reply-preview" class="tp-share-preview-message"></div>
             </div>
           </div>
           <div class="tp-share-preview-images" id="tp-share-preview-images"></div>
@@ -14762,9 +14786,13 @@ const SHADOW_MODAL_STYLES = `
     const commentInput = dialog.querySelector('#tp-share-comment-input');
     const commentCount = dialog.querySelector('#tp-share-comment-count');
     const commentOverflow = dialog.querySelector('#tp-share-comment-overflow');
+    const replyPreviewWrap = dialog.querySelector('#tp-share-reply-preview-wrap');
+    const replyPreviewEl = dialog.querySelector('#tp-share-reply-preview');
 
     const createdUrls = [];
     let isSending = false;
+    let lastReplyCount = 1;
+    let lastOverflow = false;
 
     const cleanup = () => {
       while (createdUrls.length > 0) {
@@ -14797,12 +14825,17 @@ const SHADOW_MODAL_STYLES = `
 
     const updateCount = () => {
       if (commentCount && commentInput) {
-        commentCount.textContent = `${commentInput.value.length} / 2000`;
+        const len = commentInput.value.length;
+        if (len > 2000 || (lastOverflow && lastReplyCount > 1)) {
+          const label = lastReplyCount === 1 ? 'Antwort' : 'Antworten';
+          commentCount.textContent = `${len} Zeichen · ${lastReplyCount} ${label}`;
+        } else {
+          commentCount.textContent = `${len} / 2000`;
+        }
       }
     };
 
     commentInput?.addEventListener('input', () => {
-      updateCount();
       const currentVal = commentInput.value;
       if (onCommentChange && messageEl) {
         const updated = onCommentChange(currentVal);
@@ -14810,6 +14843,7 @@ const SHADOW_MODAL_STYLES = `
           messageEl.innerHTML = renderDiscordMarkdownPreview(updated);
         }
       }
+      updateCount();
     });
 
     commentInput?.addEventListener('keydown', e => {
@@ -14928,10 +14962,21 @@ const SHADOW_MODAL_STYLES = `
         });
       },
 
-      setCommentOverflow(isOverflow) {
+      setCommentOverflow(isOverflow, { replyPreview = '', replyCount = 1 } = {}) {
+        lastOverflow = Boolean(isOverflow);
+        lastReplyCount = Math.max(1, Number(replyCount) || 1);
         if (commentOverflow) {
           commentOverflow.style.display = isOverflow ? 'block' : 'none';
+          commentOverflow.textContent = lastReplyCount > 1
+            ? `⤵️ Wird in ${lastReplyCount} Antworten im Thread gesendet`
+            : '⤵️ Wird als Antwort im Thread gesendet';
         }
+        if (replyPreviewWrap && replyPreviewEl) {
+          const showReply = Boolean(isOverflow && replyPreview);
+          replyPreviewWrap.style.display = showReply ? 'block' : 'none';
+          replyPreviewEl.innerHTML = showReply ? renderDiscordMarkdownPreview(replyPreview) : '';
+        }
+        updateCount();
       },
 
       close
@@ -18092,7 +18137,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.536';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.537';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -27,10 +27,20 @@ import {
 } from '../../features/share-discord.js';
 import {
   commentOverflows,
+  formatCommentPrefix,
   formatDealMessage,
   forumRecipeFor,
-  resolveShareFields
+  resolveShareFields,
+  splitDiscordChunks
 } from '../../features/discord-recipe.js';
+
+function buildCommentOverflowState(fields, commentText, recipe) {
+  const overflow = commentOverflows(fields, recipe);
+  if (!overflow) return { overflow: false, replyPreview: '', replyCount: 1 };
+  const replyPreview = formatCommentPrefix(commentText);
+  const replyCount = Math.max(1, splitDiscordChunks(replyPreview, 2000).length);
+  return { overflow, replyPreview, replyCount };
+}
 import {
   extractShareData,
   extractDealer,
@@ -186,8 +196,8 @@ export async function triggerDiscordShare({
   const onCommentChange = commentText => {
     userComment = commentText;
     const fields = { ...currentFields, commentText };
-    const overflow = commentOverflows(fields, CONFIG.DISCORD_LAYOUT);
-    preview?.setCommentOverflow?.(overflow);
+    const { overflow, replyPreview, replyCount } = buildCommentOverflowState(fields, commentText, CONFIG.DISCORD_LAYOUT);
+    preview?.setCommentOverflow?.(overflow, { replyPreview, replyCount });
     return overflow
       ? formatDealMessage({ ...currentFields, commentText: '' }, CONFIG.DISCORD_LAYOUT)
       : formatDealMessage(fields, CONFIG.DISCORD_LAYOUT);
@@ -224,8 +234,14 @@ export async function triggerDiscordShare({
       let followUpFailed = false;
       if (payloadToSend.overflowComment) {
         // Deal already posted: never surface as send error (retry would duplicate the deal).
-        await postFollowUp(targetChannel.url.trim(), sendRes?.threadId || null, `💬 ${payloadToSend.overflowComment}`.slice(0, 2000))
-          .catch(() => { followUpFailed = true; });
+        const replyChunks = splitDiscordChunks(formatCommentPrefix(payloadToSend.overflowComment), 2000);
+        try {
+          for (const chunk of replyChunks) {
+            await postFollowUp(targetChannel.url.trim(), sendRes?.threadId || null, chunk);
+          }
+        } catch {
+          followUpFailed = true;
+        }
       }
       controller.close();
       shareInFlight.delete(shareKey);
@@ -319,8 +335,8 @@ export async function triggerDiscordShare({
       };
       const activeComment = preview?.getComment?.() ?? userComment;
       const activeFields = { ...currentFields, commentText: activeComment };
-      const overflow = commentOverflows(activeFields, CONFIG.DISCORD_LAYOUT);
-      preview?.setCommentOverflow?.(overflow);
+      const { overflow, replyPreview, replyCount } = buildCommentOverflowState(activeFields, activeComment, CONFIG.DISCORD_LAYOUT);
+      preview?.setCommentOverflow?.(overflow, { replyPreview, replyCount });
       const previewFields = overflow ? { ...activeFields, commentText: '' } : activeFields;
       const content = formatDealMessage(previewFields, CONFIG.DISCORD_LAYOUT);
       const forumContent = CONFIG.DISCORD_FORUM_TITLE ? content : formatDealMessage({ ...previewFields, forceLink: true }, forumRecipeFor(CONFIG.DISCORD_LAYOUT));
