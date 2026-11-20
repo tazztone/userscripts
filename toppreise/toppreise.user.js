@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.526
+// @version      2.18.527
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3725,9 +3725,9 @@ const SHADOW_MODAL_STYLES = `
       sorted0 = [];
     }
     const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
-    if (!points || points.length < 3) {
-      return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0, rawMin };
-     }
+    if (!Array.isArray(points) || points.length < 3) {
+      return { cleanPoints: Array.isArray(points) ? points : [], filteredOutliers: [], rawMedian: 0, rawMin };
+    }
 
     const sorted = sorted0;
     const prices = sorted.map(p => p[1]).sort((a, b) => a - b);
@@ -4205,11 +4205,13 @@ const SHADOW_MODAL_STYLES = `
   function lruSet(map, key, val, cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
     map.delete(key);
     map.set(key, val);
-    while (map.size > cap) map.delete(map.keys().next().value);
+    const limit = Math.max(0, Number.isFinite(cap) ? cap : MAX_MEMORY_CACHE_ITEMS);
+    while (map.size > limit && map.size > 0) map.delete(map.keys().next().value);
   }
 
   function trimMemoryCache(cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
-    while (memoryCache.size > cap) {
+    const limit = Math.max(0, Number.isFinite(cap) ? cap : MAX_MEMORY_CACHE_ITEMS);
+    while (memoryCache.size > limit && memoryCache.size > 0) {
       memoryCache.delete(memoryCache.keys().next().value);
     }
   }
@@ -4396,14 +4398,27 @@ const SHADOW_MODAL_STYLES = `
     // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
     // only) must not regress a full analysis — the badge would keep its old %
     // while the heat goes neutral. Unavailable-markers keep current semantics.
-    if (!isUnavailable && stats && !stats.medianPrice && memoryCache.has(key)) {
-      const prev = memoryCache.get(key);
-      if (prev && !prev.unavailable && prev.medianPrice) return;
+    if (!isUnavailable && stats && !stats.medianPrice) {
+      if (memoryCache.has(key)) {
+        const prev = memoryCache.get(key);
+        if (prev && !prev.unavailable && prev.medianPrice) return;
+      } else if (storage) {
+        try {
+          const raw = storage.getItem(key);
+          if (raw) {
+            const prev = JSON.parse(raw);
+            if (prev && !prev.unavailable && prev.medianPrice && isCacheEntryFresh(prev)) {
+              return;
+            }
+          }
+        } catch {}
+      }
     }
     const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
+    const { time: _t, medianSig: _m, ...rest } = stats || {};
     const payload = isUnavailable
       ? { time: Date.now(), unavailable: true, isShippingPrice: s }
-      : { time: Date.now(), medianSig: currentMedianSig(), ...stats };
+      : { time: Date.now(), medianSig: currentMedianSig(), ...rest };
 
     lruSet(memoryCache, key, payload);
 
@@ -5081,7 +5096,10 @@ const SHADOW_MODAL_STYLES = `
       if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
     }
   }
-  const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
+  const clampIntensity01 = v => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0.2, Math.min(1.0, n)) : 1.0;
+  };
 
   // One-time migration: single DISCORD_SUPPRESS_EMBEDS key split into dealer +
   // product keys. Stored old value seeds both new keys once; stale key unread.
@@ -5177,7 +5195,7 @@ const SHADOW_MODAL_STYLES = `
     activeProfileType = profileType;
     let profiles = _getValue('PAGE_PROFILES', null);
 
-    if (!profiles || typeof profiles !== 'object') {
+    if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) {
       const initialSeed = {};
       for (const k of PAGE_SCOPED_KEYS) {
         if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
@@ -5195,11 +5213,11 @@ const SHADOW_MODAL_STYLES = `
     for (const k of PAGE_SCOPED_KEYS) {
       if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
     }
-    if (!profiles.neue || typeof profiles.neue !== 'object') {
+    if (!profiles.neue || typeof profiles.neue !== 'object' || Array.isArray(profiles.neue)) {
       profiles.neue = { ...initialSeed };
       modified = true;
     }
-    if (!profiles.search || typeof profiles.search !== 'object') {
+    if (!profiles.search || typeof profiles.search !== 'object' || Array.isArray(profiles.search)) {
       profiles.search = { ...initialSeed };
       modified = true;
     }
@@ -5226,8 +5244,13 @@ const SHADOW_MODAL_STYLES = `
 
     if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
       const profileType = getActiveProfileType();
-      const profiles = _getValue('PAGE_PROFILES', null) || { neue: {}, search: {} };
-      if (!profiles[profileType]) profiles[profileType] = {};
+      const rawProfiles = _getValue('PAGE_PROFILES', null);
+      const profiles = (rawProfiles && typeof rawProfiles === 'object' && !Array.isArray(rawProfiles))
+        ? rawProfiles
+        : { neue: {}, search: {} };
+      if (!profiles[profileType] || typeof profiles[profileType] !== 'object' || Array.isArray(profiles[profileType])) {
+        profiles[profileType] = {};
+      }
       profiles[profileType][key] = clean;
       _setValue('PAGE_PROFILES', profiles);
     }
@@ -5377,16 +5400,6 @@ const SHADOW_MODAL_STYLES = `
             if (descEl) {
               descEl.textContent = weightText(val, 'desc');
             }
-            // Toolbar slider mirrors the modal control (skip while dragging).
-            if (typeof document !== 'undefined') {
-              const barRange = doc?.getElementById('tp-bar-weight-range');
-              if (barRange && doc?.activeElement !== barRange) barRange.value = pct;
-              const barLabel = doc?.getElementById('tp-bar-weight-label');
-              if (barLabel) {
-                barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
-                barLabel.title = weightText(val, 'title');
-              }
-            }
             break;
           }
           case 'BESTPREISE_MIN_POINTS': {
@@ -5401,18 +5414,6 @@ const SHADOW_MODAL_STYLES = `
             if (horizonVal) horizonVal.value = stored;
             const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
             if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
-            // Toolbar range mirrors the modal control (skip while interacting).
-            if (typeof document !== 'undefined') {
-              const barRange = document.getElementById('tp-bar-horizon-range');
-              if (barRange && document.activeElement !== barRange) {
-                barRange.value = horizonStoredToUi(stored);
-                const barLabel = document.getElementById('tp-bar-horizon-label');
-                if (barLabel) {
-                  barLabel.textContent = horizonText(stored);
-                  barLabel.title = horizonText(stored, 'title');
-                }
-              }
-            }
             break;
           }
           case 'REAL_DEAL_MIN_DISCOUNT': {
@@ -5547,7 +5548,6 @@ const SHADOW_MODAL_STYLES = `
           case 'ALARM_ENABLED': {
             const toggle = shadow.getElementById('tp-alarm-enabled-toggle');
             if (toggle) toggle.checked = val !== false;
-            if (!opts.silent) notifyAlarmConfig();
             break;
           }
           case 'ALARM_TARGET_PERCENT': {
@@ -5556,25 +5556,56 @@ const SHADOW_MODAL_STYLES = `
             const num = shadow.getElementById('tp-alarm-target-val');
             if (range) range.value = pct;
             if (num) num.value = pct;
-            if (!opts.silent) notifyAlarmConfig();
             break;
           }
           case 'ALARM_DURATION_DAYS': {
             const radio = shadow.querySelector(`input[name="tp-alarm-duration"][value="${val}"]`);
             if (radio) radio.checked = true;
-            if (!opts.silent) notifyAlarmConfig();
             break;
           }
           case 'ALARM_AUTO_SUBMIT': {
             const toggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
             if (toggle) toggle.checked = val === true;
-            if (!opts.silent) notifyAlarmConfig();
             break;
           }
         }
       } catch (err) {
         console.warn('[Toppreise-Suite] syncUiControl error', err);
       }
+    }
+
+    // Toolbar & alarm-listener sync runs even when Shadow DOM is not yet mounted.
+    try {
+      if (key === 'BESTPREISE_WEIGHT_RECORD' && doc) {
+        const pct = Math.round((val ?? 0.5) * 100);
+        const barRange = doc.getElementById('tp-bar-weight-range');
+        if (barRange && doc.activeElement !== barRange) barRange.value = pct;
+        const barLabel = doc.getElementById('tp-bar-weight-label');
+        if (barLabel) {
+          barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
+          barLabel.title = weightText(val, 'title');
+        }
+      } else if (key === 'BESTPREISE_MIN_POINTS' && !shadow) {
+        paintMinPoints(val, null);
+      } else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS' && doc) {
+        const stored = val ?? 365;
+        const barRange = doc.getElementById('tp-bar-horizon-range');
+        if (barRange && doc.activeElement !== barRange) {
+          barRange.value = horizonStoredToUi(stored);
+        }
+        const barLabel = doc.getElementById('tp-bar-horizon-label');
+        if (barLabel) {
+          barLabel.textContent = horizonText(stored);
+          barLabel.title = horizonText(stored, 'title');
+        }
+      } else if (
+        (key === 'ALARM_ENABLED' || key === 'ALARM_TARGET_PERCENT' || key === 'ALARM_DURATION_DAYS' || key === 'ALARM_AUTO_SUBMIT')
+        && !opts.silent
+      ) {
+        notifyAlarmConfig();
+      }
+    } catch (err) {
+      console.warn('[Toppreise-Suite] syncUiControl toolbar/alarm error', err);
     }
 
     // 2. Sync Inline Filter Bar if present
@@ -5789,6 +5820,15 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  function serializeDetail(detail) {
+    if (typeof detail === 'string') return detail;
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return String(detail);
+    }
+  }
+
   function logActivity(level, source, message, detail = null) {
     const entry = {
       seq: ++activitySeq,
@@ -5796,7 +5836,7 @@ const SHADOW_MODAL_STYLES = `
       level: String(level || 'info'),
       source: String(source || 'app'),
       message: redactSecrets(message),
-      detail: detail == null ? null : redactSecrets(typeof detail === 'string' ? detail : JSON.stringify(detail)),
+      detail: detail == null ? null : redactSecrets(serializeDetail(detail)),
     };
 
     activityBuffer.push(entry);
@@ -5876,6 +5916,7 @@ const SHADOW_MODAL_STYLES = `
 
     const onExternalAbort = () => {
       externalAborted = true;
+      if (timer !== null) clearTimeout(timer);
       controller.abort(signal?.reason);
     };
 
@@ -5922,11 +5963,15 @@ const SHADOW_MODAL_STYLES = `
       return res;
     } catch (err) {
       const elapsed = Date.now() - startedAt;
+      if (externalAborted) {
+        logActivity('info', source, `${tag}aborted (${elapsed}ms): ${safeUrl}`);
+        throw makeTypedError('Request aborted', { cancelled: true, cause: err });
+      }
       if (timedOut) {
         logActivity('warn', source, `${tag}timeout after ${timeoutMs}ms: ${safeUrl}`);
         throw makeTypedError(`Timeout after ${timeoutMs}ms`, { timeout: true, cause: err });
       }
-      if (externalAborted || err?.name === 'AbortError') {
+      if (err?.name === 'AbortError') {
         logActivity('info', source, `${tag}aborted (${elapsed}ms): ${safeUrl}`);
         throw makeTypedError('Request aborted', { cancelled: true, cause: err });
       }
@@ -10659,10 +10704,10 @@ const SHADOW_MODAL_STYLES = `
     const pickSeries = data => {
       const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
       if (Array.isArray(data)) {
+        if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
+          return { series: data[1], isShipping: true };
+        }
         if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-          if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-            return { series: data[1], isShipping: true };
-          }
           return { series: data[0], isShipping: false }; // Series 0: Produktpreis
         }
         if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
@@ -10736,7 +10781,7 @@ const SHADOW_MODAL_STYLES = `
       const onAbort = () => cancel();
       // Event-driven abort via AbortSignal; fallback to polled timer only
       // when legacy shouldCancelFn was supplied without an AbortSignal.
-      const timer = (!signal && shouldCancelFn) ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
+      const timer = shouldCancelFn ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
       signal?.addEventListener('abort', onAbort, { once: true });
       promise.then(
         v => { if (!done) { done = true; cleanup(); resolve(v); } },
@@ -10935,12 +10980,14 @@ const SHADOW_MODAL_STYLES = `
     let completed = 0;
     const newlyVerified = [];
     let nextIdx = 0;
+    const pidInFlightCount = new Map();
 
     async function worker() {
       while (!isCancelled(signal, shouldCancelFn)) {
         const idx = nextIdx++;
         if (idx >= targets.length) break;
         const item = targets[idx];
+        pidInFlightCount.set(item.pid, (pidInFlightCount.get(item.pid) || 0) + 1);
         scanState.batchScanningPids.add(item.pid);
         scanState.currentlyScanningPid = item.pid;
         try {
@@ -10971,7 +11018,13 @@ const SHADOW_MODAL_STYLES = `
             else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
           }
         } finally {
-          scanState.batchScanningPids.delete(item.pid);
+          const remaining = (pidInFlightCount.get(item.pid) || 1) - 1;
+          if (remaining <= 0) {
+            pidInFlightCount.delete(item.pid);
+            scanState.batchScanningPids.delete(item.pid);
+          } else {
+            pidInFlightCount.set(item.pid, remaining);
+          }
           if (scanState.currentlyScanningPid === item.pid) {
             scanState.currentlyScanningPid = scanState.batchScanningPids.values().next().value ?? null;
           }
@@ -17709,7 +17762,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.526';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.527';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

@@ -282,4 +282,29 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     assert.equal(stats, null);
     assert.equal(getCachedPriceStats(pid), null);
   });
+
+  it('pickSeries selects data[1] when shippingActive is true and data[0] is empty', async () => {
+    const pid = 'test-pid-empty-s0-valid-s1';
+    const now = Date.now();
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: async () => [[], [[now - 86400000, 120], [now, 100]]],
+    });
+    const stats = await fetchSingleProductPriceStats(pid, 0, true, null, 100, null, 'shipping');
+    assert.ok(stats);
+    assert.equal(stats.tiefstpreis, 100);
+    assert.equal(stats.isShippingPrice, true);
+  });
+
+  it('fetchSingleProductPriceStats cancels when shouldCancelFn returns true even if signal is provided', async () => {
+    const pid = 'test-pid-combined-cancel';
+    const ac = new AbortController();
+    let cancel = false;
+    globalThis.fetch = () => new Promise(() => {});
+    setTimeout(() => { cancel = true; }, 20);
+    const stats = await fetchSingleProductPriceStats(pid, 0, true, () => cancel, null, ac.signal);
+    assert.equal(stats, null);
+  });
 });

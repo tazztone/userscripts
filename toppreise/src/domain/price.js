@@ -249,9 +249,9 @@ export function sanitizeTimeSeries(points, band = CONFIG.OUTLIER_DEVIATION_BAND,
     sorted0 = [];
   }
   const rawMin = sorted0.length ? Math.min(...sorted0.map(p => p[1])) : 0;
-  if (!points || points.length < 3) {
-    return { cleanPoints: points || [], filteredOutliers: [], rawMedian: 0, rawMin };
-   }
+  if (!Array.isArray(points) || points.length < 3) {
+    return { cleanPoints: Array.isArray(points) ? points : [], filteredOutliers: [], rawMedian: 0, rawMin };
+  }
 
   const sorted = sorted0;
   const prices = sorted.map(p => p[1]).sort((a, b) => a - b);

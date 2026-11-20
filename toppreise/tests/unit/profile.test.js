@@ -138,4 +138,33 @@ describe('Page Profiles Engine', () => {
     assert.equal(PAGE_SCOPED_KEYS.has('BESTPREISE_HIDE_UNCHECKED'), true);
     assert.equal(PAGE_SCOPED_KEYS.has('BESTPREISE_INCLUDE_VORTIEF'), true);
   });
+
+  it('recovers from corrupt primitive or array PAGE_PROFILES in initPageProfiles and saveConfigKey', () => {
+    CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE = true;
+    _setValue('PAGE_PROFILES', 'corrupt-string');
+    initPageProfiles('neue');
+    const repaired = _getValue('PAGE_PROFILES', null);
+    assert.equal(typeof repaired, 'object');
+    assert.equal(Array.isArray(repaired), false);
+    assert.equal(typeof repaired.neue, 'object');
+
+    _setValue('PAGE_PROFILES', ['corrupt-array']);
+    updateConfig('MIN_OFFERS', 7, { skipRender: true });
+    const afterSave = _getValue('PAGE_PROFILES', null);
+    assert.equal(Array.isArray(afterSave), false);
+    assert.equal(afterSave.neue.MIN_OFFERS, 7);
+  });
+
+  it('isScanningPid reflects batchScanningPids and currentlyScanningPid', async () => {
+    const { scanState, isScanningPid } = await import('../../src/state/store.js');
+    scanState.currentlyScanningPid = null;
+    scanState.batchScanningPids.clear();
+    assert.equal(isScanningPid('p1'), false);
+    scanState.batchScanningPids.add('p1');
+    assert.equal(isScanningPid('p1'), true);
+    scanState.batchScanningPids.clear();
+    scanState.currentlyScanningPid = 'p2';
+    assert.equal(isScanningPid('p2'), true);
+    scanState.currentlyScanningPid = null;
+  });
 });

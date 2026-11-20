@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzePriceTimeSeries, recordRefForPrice } from '../../src/domain/price.js';
-import { computeDealScore, getDisplayDelta, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel } from '../../src/domain/deal-score.js';
+import { computeDealScore, getDisplayDelta, getLevelPct, getHeatInput, isSignificantRecord, medianHorizonLabel, vortiefDropPct } from '../../src/domain/deal-score.js';
 import { DAY, withConfig, withConfigs } from './helpers.js';
 
 describe('Gewichtete Differenz Domain Module', () => {
@@ -456,7 +456,23 @@ describe('Gewichtete Differenz Domain Module', () => {
       realDiscountVsMedian: 25,
       previousLow: 110,
       hasEnoughHistory: true,
-    }, 100, 0.5);
+    }, 100, { weightRecord: 0.5 });
     assert.equal(score.dMedian, 0);
+  });
+
+  it('computes vortiefDropPct for valid and invalid inputs', () => {
+    assert.equal(vortiefDropPct(80, { tiefstpreis: 80, previousLow: 100, isNewRecord: true }), 20);
+    assert.equal(vortiefDropPct(100, { tiefstpreis: 100, previousLow: 100, isNewRecord: true }), 0);
+    assert.equal(vortiefDropPct(80, { tiefstpreis: 80, previousLow: 0, isNewRecord: true }), 0);
+    assert.equal(vortiefDropPct(80, null), 0);
+    assert.equal(vortiefDropPct(NaN, { tiefstpreis: 80, previousLow: 100, isNewRecord: true }), 0);
+  });
+
+  it('handles null/invalid stats and boundary prices in computeDealScore', () => {
+    assert.equal(computeDealScore(null, 100), null);
+    assert.equal(computeDealScore({}, 0), null);
+    assert.equal(computeDealScore({}, -10), null);
+    assert.equal(computeDealScore({ unavailable: true, tiefstpreis: 100 }, 80), null);
+    assert.equal(computeDealScore({ tiefstpreis: 100 }, NaN), null);
   });
 });

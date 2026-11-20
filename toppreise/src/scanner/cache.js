@@ -25,11 +25,13 @@ export const MAX_MEMORY_CACHE_ITEMS = 500;
 export function lruSet(map, key, val, cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
   map.delete(key);
   map.set(key, val);
-  while (map.size > cap) map.delete(map.keys().next().value);
+  const limit = Math.max(0, Number.isFinite(cap) ? cap : MAX_MEMORY_CACHE_ITEMS);
+  while (map.size > limit && map.size > 0) map.delete(map.keys().next().value);
 }
 
 export function trimMemoryCache(cap = (CONFIG?.CACHE_MEMORY_LIMIT ?? MAX_MEMORY_CACHE_ITEMS)) {
-  while (memoryCache.size > cap) {
+  const limit = Math.max(0, Number.isFinite(cap) ? cap : MAX_MEMORY_CACHE_ITEMS);
+  while (memoryCache.size > limit && memoryCache.size > 0) {
     memoryCache.delete(memoryCache.keys().next().value);
   }
 }
@@ -216,14 +218,27 @@ export function setCachedPriceStats(productId, stats, isUnavailable = false, sto
   // fallback stats. A refresh that lands on the HTML fallback (tiefstpreis
   // only) must not regress a full analysis — the badge would keep its old %
   // while the heat goes neutral. Unavailable-markers keep current semantics.
-  if (!isUnavailable && stats && !stats.medianPrice && memoryCache.has(key)) {
-    const prev = memoryCache.get(key);
-    if (prev && !prev.unavailable && prev.medianPrice) return;
+  if (!isUnavailable && stats && !stats.medianPrice) {
+    if (memoryCache.has(key)) {
+      const prev = memoryCache.get(key);
+      if (prev && !prev.unavailable && prev.medianPrice) return;
+    } else if (storage) {
+      try {
+        const raw = storage.getItem(key);
+        if (raw) {
+          const prev = JSON.parse(raw);
+          if (prev && !prev.unavailable && prev.medianPrice && isCacheEntryFresh(prev)) {
+            return;
+          }
+        }
+      } catch {}
+    }
   }
   const s = typeof useShippingOverride === 'boolean' ? useShippingOverride : isShippingPriceActive();
+  const { time: _t, medianSig: _m, ...rest } = stats || {};
   const payload = isUnavailable
     ? { time: Date.now(), unavailable: true, isShippingPrice: s }
-    : { time: Date.now(), medianSig: currentMedianSig(), ...stats };
+    : { time: Date.now(), medianSig: currentMedianSig(), ...rest };
 
   lruSet(memoryCache, key, payload);
 

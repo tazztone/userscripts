@@ -823,4 +823,32 @@ describe('Price Domain Module', () => {
       });
     });
   });
+
+  describe('pctDrop, pctRise & sanitizeTimeSeries edge cases', () => {
+    it('computes pctDrop and pctRise safely', async () => {
+      const { pctDrop, pctRise } = await import('../../src/domain/price.js');
+      assert.equal(pctDrop(100, 80), 20);
+      assert.equal(pctDrop(100, 100), 0);
+      assert.equal(pctRise(100, 120), 20);
+      assert.equal(pctRise(100, 100), 0);
+    });
+
+    it('sanitizeTimeSeries handles invalid args and analyzePriceTimeSeries parses object points', async () => {
+      const { sanitizeTimeSeries } = await import('../../src/domain/price.js');
+      assert.deepEqual(sanitizeTimeSeries(null).cleanPoints, []);
+      assert.deepEqual(sanitizeTimeSeries('bad').cleanPoints, []);
+      const glitchRes = sanitizeTimeSeries([[1000, 100], [2000, 10], [3000, 100]], -1, -5);
+      assert.equal(glitchRes.cleanPoints.length, 2);
+      assert.equal(glitchRes.filteredOutliers.length, 1);
+
+      const objRes = analyzePriceTimeSeries([
+        { timestamp: 1000, price: 100 },
+        { timestamp: 2000, price: -5 },
+        { timestamp: 3000, price: 80 }
+      ]);
+      assert.ok(objRes);
+      assert.equal(objRes.dataPointCount, 2);
+      assert.equal(objRes.tiefstpreis, 80);
+    });
+  });
 });

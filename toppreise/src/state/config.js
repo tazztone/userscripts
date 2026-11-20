@@ -46,7 +46,10 @@ export function paintMinPoints(raw = CONFIG.BESTPREISE_MIN_POINTS, shadowRoot) {
     if (barLabel) barLabel.textContent = `📊 ${num} Pkt`;
   }
 }
-export const clampIntensity01 = v => Math.max(0.2, Math.min(1.0, v));
+export const clampIntensity01 = v => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0.2, Math.min(1.0, n)) : 1.0;
+};
 
 // One-time migration: single DISCORD_SUPPRESS_EMBEDS key split into dealer +
 // product keys. Stored old value seeds both new keys once; stale key unread.
@@ -142,7 +145,7 @@ export function initPageProfiles(forceType = null) {
   activeProfileType = profileType;
   let profiles = _getValue('PAGE_PROFILES', null);
 
-  if (!profiles || typeof profiles !== 'object') {
+  if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) {
     const initialSeed = {};
     for (const k of PAGE_SCOPED_KEYS) {
       if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
@@ -160,11 +163,11 @@ export function initPageProfiles(forceType = null) {
   for (const k of PAGE_SCOPED_KEYS) {
     if (CONFIG[k] !== undefined) initialSeed[k] = CONFIG[k];
   }
-  if (!profiles.neue || typeof profiles.neue !== 'object') {
+  if (!profiles.neue || typeof profiles.neue !== 'object' || Array.isArray(profiles.neue)) {
     profiles.neue = { ...initialSeed };
     modified = true;
   }
-  if (!profiles.search || typeof profiles.search !== 'object') {
+  if (!profiles.search || typeof profiles.search !== 'object' || Array.isArray(profiles.search)) {
     profiles.search = { ...initialSeed };
     modified = true;
   }
@@ -191,8 +194,13 @@ export const saveConfigKey = (key, val) => {
 
   if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE && PAGE_SCOPED_KEYS.has(key)) {
     const profileType = getActiveProfileType();
-    const profiles = _getValue('PAGE_PROFILES', null) || { neue: {}, search: {} };
-    if (!profiles[profileType]) profiles[profileType] = {};
+    const rawProfiles = _getValue('PAGE_PROFILES', null);
+    const profiles = (rawProfiles && typeof rawProfiles === 'object' && !Array.isArray(rawProfiles))
+      ? rawProfiles
+      : { neue: {}, search: {} };
+    if (!profiles[profileType] || typeof profiles[profileType] !== 'object' || Array.isArray(profiles[profileType])) {
+      profiles[profileType] = {};
+    }
     profiles[profileType][key] = clean;
     _setValue('PAGE_PROFILES', profiles);
   }

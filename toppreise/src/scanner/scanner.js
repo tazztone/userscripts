@@ -155,10 +155,10 @@ async function fetchPriceTimeSeries(productId, retries = 1, shouldCancelFn = nul
   const pickSeries = data => {
     const shippingActive = typeof useShipping === 'boolean' ? useShipping : isShippingPriceActive();
     if (Array.isArray(data)) {
+      if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
+        return { series: data[1], isShipping: true };
+      }
       if (Array.isArray(data[0]) && data[0].length > 0 && Array.isArray(data[0][0])) {
-        if (shippingActive && data.length > 1 && Array.isArray(data[1]) && data[1].length > 0 && Array.isArray(data[1][0])) {
-          return { series: data[1], isShipping: true };
-        }
         return { series: data[0], isShipping: false }; // Series 0: Produktpreis
       }
       if (Array.isArray(data[0]) && typeof data[0][0] === 'number') {
@@ -232,7 +232,7 @@ function raceSharedRaw(promise, signal, shouldCancelFn) {
     const onAbort = () => cancel();
     // Event-driven abort via AbortSignal; fallback to polled timer only
     // when legacy shouldCancelFn was supplied without an AbortSignal.
-    const timer = (!signal && shouldCancelFn) ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
+    const timer = shouldCancelFn ? setInterval(() => { if (!done && shouldCancelFn()) cancel(); }, 50) : null;
     signal?.addEventListener('abort', onAbort, { once: true });
     promise.then(
       v => { if (!done) { done = true; cleanup(); resolve(v); } },
@@ -431,12 +431,14 @@ export async function runProductScanner(options = {}) {
   let completed = 0;
   const newlyVerified = [];
   let nextIdx = 0;
+  const pidInFlightCount = new Map();
 
   async function worker() {
     while (!isCancelled(signal, shouldCancelFn)) {
       const idx = nextIdx++;
       if (idx >= targets.length) break;
       const item = targets[idx];
+      pidInFlightCount.set(item.pid, (pidInFlightCount.get(item.pid) || 0) + 1);
       scanState.batchScanningPids.add(item.pid);
       scanState.currentlyScanningPid = item.pid;
       try {
@@ -467,7 +469,13 @@ export async function runProductScanner(options = {}) {
           else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
         }
       } finally {
-        scanState.batchScanningPids.delete(item.pid);
+        const remaining = (pidInFlightCount.get(item.pid) || 1) - 1;
+        if (remaining <= 0) {
+          pidInFlightCount.delete(item.pid);
+          scanState.batchScanningPids.delete(item.pid);
+        } else {
+          pidInFlightCount.set(item.pid, remaining);
+        }
         if (scanState.currentlyScanningPid === item.pid) {
           scanState.currentlyScanningPid = scanState.batchScanningPids.values().next().value ?? null;
         }

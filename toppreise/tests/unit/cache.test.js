@@ -605,5 +605,31 @@ describe('Bounded Cache Module', () => {
         else delete globalThis.window;
       }
     });
+
+    it('lruSet and trimMemoryCache handle negative cap without infinite loop', async () => {
+      const { lruSet, trimMemoryCache } = await import('../../src/scanner/cache.js');
+      const m = new Map();
+      lruSet(m, 'a', 1, -5);
+      assert.equal(m.size, 0);
+      trimMemoryCache(-1);
+    });
+
+    it('setCachedPriceStats does not overwrite fresh time/medianSig with stale stats fields', () => {
+      const s = memStorage();
+      const staleTime = Date.now() - 100000;
+      setCachedPriceStats('fresh-ts', { tiefstpreis: 100, medianPrice: 120, time: staleTime, medianSig: 'stale' }, false, s);
+      const got = getCachedPriceStats('fresh-ts', false, s);
+      assert.ok(got.time > staleTime);
+      assert.notEqual(got.medianSig, 'stale');
+    });
+
+    it('setCachedPriceStats does not overwrite a richer disk entry when memory cache is cold', () => {
+      const s = memStorage();
+      setCachedPriceStats('disk-rich', { tiefstpreis: 100, medianPrice: 150, timeSeries: [[Date.now(), 100]] }, false, s);
+      memoryCache.clear();
+      setCachedPriceStats('disk-rich', { tiefstpreis: 95 }, false, s);
+      const got = getCachedPriceStats('disk-rich', false, s);
+      assert.equal(got.medianPrice, 150);
+    });
   });
 });

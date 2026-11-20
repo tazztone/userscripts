@@ -26,6 +26,15 @@ function notifyActivityListeners(entry) {
   }
 }
 
+function serializeDetail(detail) {
+  if (typeof detail === 'string') return detail;
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return String(detail);
+  }
+}
+
 export function logActivity(level, source, message, detail = null) {
   const entry = {
     seq: ++activitySeq,
@@ -33,7 +42,7 @@ export function logActivity(level, source, message, detail = null) {
     level: String(level || 'info'),
     source: String(source || 'app'),
     message: redactSecrets(message),
-    detail: detail == null ? null : redactSecrets(typeof detail === 'string' ? detail : JSON.stringify(detail)),
+    detail: detail == null ? null : redactSecrets(serializeDetail(detail)),
   };
 
   activityBuffer.push(entry);

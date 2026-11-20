@@ -445,5 +445,34 @@ describe('FILTER_CYCLE deal discount mapping', () => {
       }
     });
   });
+
+  describe('clampIntensity01 & syncUiControl without shadow', () => {
+    it('clampIntensity01 returns 1.0 for NaN/non-finite inputs', async () => {
+      const { clampIntensity01 } = await import('../../src/state/config.js');
+      assert.equal(clampIntensity01(NaN), 1.0);
+      assert.equal(clampIntensity01('abc'), 1.0);
+      assert.equal(clampIntensity01(Infinity), 1.0);
+      assert.equal(clampIntensity01(0.1), 0.2);
+      assert.equal(clampIntensity01(2.5), 1.0);
+      assert.equal(clampIntensity01('0.6'), 0.6);
+    });
+
+    it('syncUiControl updates toolbar horizon label even when shadow is null and barRange is focused', () => {
+      const barRange = { value: '0' };
+      const barLabel = { textContent: '', title: '' };
+      const prevDoc = globalThis.document;
+      globalThis.document = {
+        activeElement: barRange,
+        getElementById: (id) => (id === 'tp-bar-horizon-range' ? barRange : id === 'tp-bar-horizon-label' ? barLabel : null),
+      };
+      try {
+        syncUiControl('BESTPREISE_MEDIAN_HORIZON_DAYS', 90, {}, null);
+        assert.equal(barRange.value, '0'); // skipped while focused
+        assert.notEqual(barLabel.textContent, ''); // label still updates while dragging
+      } finally {
+        globalThis.document = prevDoc;
+      }
+    });
+  });
 });
 

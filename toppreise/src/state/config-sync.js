@@ -58,16 +58,6 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (descEl) {
             descEl.textContent = weightText(val, 'desc');
           }
-          // Toolbar slider mirrors the modal control (skip while dragging).
-          if (typeof document !== 'undefined') {
-            const barRange = doc?.getElementById('tp-bar-weight-range');
-            if (barRange && doc?.activeElement !== barRange) barRange.value = pct;
-            const barLabel = doc?.getElementById('tp-bar-weight-label');
-            if (barLabel) {
-              barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
-              barLabel.title = weightText(val, 'title');
-            }
-          }
           break;
         }
         case 'BESTPREISE_MIN_POINTS': {
@@ -82,18 +72,6 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           if (horizonVal) horizonVal.value = stored;
           const horizonDesc = shadow.getElementById('tp-bestpreise-horizon-desc');
           if (horizonDesc) horizonDesc.textContent = `Ø-Vergleich: ${horizonText(stored)} (0 = gesamte Historie / Lifetime, Vorgabe: 1J). Bestimmt den Vergleichszeitraum für den durchschnittlichen Marktpreis.`;
-          // Toolbar range mirrors the modal control (skip while interacting).
-          if (typeof document !== 'undefined') {
-            const barRange = document.getElementById('tp-bar-horizon-range');
-            if (barRange && document.activeElement !== barRange) {
-              barRange.value = horizonStoredToUi(stored);
-              const barLabel = document.getElementById('tp-bar-horizon-label');
-              if (barLabel) {
-                barLabel.textContent = horizonText(stored);
-                barLabel.title = horizonText(stored, 'title');
-              }
-            }
-          }
           break;
         }
         case 'REAL_DEAL_MIN_DISCOUNT': {
@@ -228,7 +206,6 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
         case 'ALARM_ENABLED': {
           const toggle = shadow.getElementById('tp-alarm-enabled-toggle');
           if (toggle) toggle.checked = val !== false;
-          if (!opts.silent) notifyAlarmConfig();
           break;
         }
         case 'ALARM_TARGET_PERCENT': {
@@ -237,25 +214,56 @@ export function syncUiControl(key, val, opts = {}, shadowRoot = null) {
           const num = shadow.getElementById('tp-alarm-target-val');
           if (range) range.value = pct;
           if (num) num.value = pct;
-          if (!opts.silent) notifyAlarmConfig();
           break;
         }
         case 'ALARM_DURATION_DAYS': {
           const radio = shadow.querySelector(`input[name="tp-alarm-duration"][value="${val}"]`);
           if (radio) radio.checked = true;
-          if (!opts.silent) notifyAlarmConfig();
           break;
         }
         case 'ALARM_AUTO_SUBMIT': {
           const toggle = shadow.getElementById('tp-alarm-autosubmit-toggle');
           if (toggle) toggle.checked = val === true;
-          if (!opts.silent) notifyAlarmConfig();
           break;
         }
       }
     } catch (err) {
       console.warn('[Toppreise-Suite] syncUiControl error', err);
     }
+  }
+
+  // Toolbar & alarm-listener sync runs even when Shadow DOM is not yet mounted.
+  try {
+    if (key === 'BESTPREISE_WEIGHT_RECORD' && doc) {
+      const pct = Math.round((val ?? 0.5) * 100);
+      const barRange = doc.getElementById('tp-bar-weight-range');
+      if (barRange && doc.activeElement !== barRange) barRange.value = pct;
+      const barLabel = doc.getElementById('tp-bar-weight-label');
+      if (barLabel) {
+        barLabel.textContent = `⚖️ ${weightText(val, 'short')}`;
+        barLabel.title = weightText(val, 'title');
+      }
+    } else if (key === 'BESTPREISE_MIN_POINTS' && !shadow) {
+      paintMinPoints(val, null);
+    } else if (key === 'BESTPREISE_MEDIAN_HORIZON_DAYS' && doc) {
+      const stored = val ?? 365;
+      const barRange = doc.getElementById('tp-bar-horizon-range');
+      if (barRange && doc.activeElement !== barRange) {
+        barRange.value = horizonStoredToUi(stored);
+      }
+      const barLabel = doc.getElementById('tp-bar-horizon-label');
+      if (barLabel) {
+        barLabel.textContent = horizonText(stored);
+        barLabel.title = horizonText(stored, 'title');
+      }
+    } else if (
+      (key === 'ALARM_ENABLED' || key === 'ALARM_TARGET_PERCENT' || key === 'ALARM_DURATION_DAYS' || key === 'ALARM_AUTO_SUBMIT')
+      && !opts.silent
+    ) {
+      notifyAlarmConfig();
+    }
+  } catch (err) {
+    console.warn('[Toppreise-Suite] syncUiControl toolbar/alarm error', err);
   }
 
   // 2. Sync Inline Filter Bar if present

@@ -173,4 +173,27 @@ describe('net helpers', () => {
       (err) => err?.cancelled === true
     );
   });
+
+  it('logActivity safely serializes circular objects and BigInt detail without throwing', () => {
+    const circ = { a: 1 };
+    circ.self = circ;
+    assert.doesNotThrow(() => logActivity('info', 'test', 'circular', circ));
+    assert.doesNotThrow(() => logActivity('info', 'test', 'bigint', { id: 123n }));
+  });
+
+  it('fetchWithTimeout reports cancelled:true when external signal aborts before timeout', async () => {
+    const ac = new AbortController();
+    globalThis.fetch = (_url, opts) => new Promise((_resolve, reject) => {
+      opts.signal.addEventListener('abort', () => {
+        const err = new Error('aborted');
+        err.name = 'AbortError';
+        reject(err);
+      });
+    });
+    setTimeout(() => ac.abort(), 5);
+    await assert.rejects(
+      () => fetchWithTimeout('https://example.com/race', {}, { signal: ac.signal, timeoutMs: 500 }),
+      (err) => err?.cancelled === true && !err?.timeout
+    );
+  });
 });

@@ -32,6 +32,7 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
 
   const onExternalAbort = () => {
     externalAborted = true;
+    if (timer !== null) clearTimeout(timer);
     controller.abort(signal?.reason);
   };
 
@@ -78,11 +79,15 @@ export async function fetchWithTimeout(url, fetchOpts = {}, opts = {}) {
     return res;
   } catch (err) {
     const elapsed = Date.now() - startedAt;
+    if (externalAborted) {
+      logActivity('info', source, `${tag}aborted (${elapsed}ms): ${safeUrl}`);
+      throw makeTypedError('Request aborted', { cancelled: true, cause: err });
+    }
     if (timedOut) {
       logActivity('warn', source, `${tag}timeout after ${timeoutMs}ms: ${safeUrl}`);
       throw makeTypedError(`Timeout after ${timeoutMs}ms`, { timeout: true, cause: err });
     }
-    if (externalAborted || err?.name === 'AbortError') {
+    if (err?.name === 'AbortError') {
       logActivity('info', source, `${tag}aborted (${elapsed}ms): ${safeUrl}`);
       throw makeTypedError('Request aborted', { cancelled: true, cause: err });
     }
