@@ -70,6 +70,142 @@ export function escapeDiscordMarkdown(s) {
   return String(s ?? '').replace(/\\/g, '\\\\').replace(/[`*_~|>]/g, '\\$&');
 }
 
+const TRACKING_PARAMS = new Set([
+  'srsltid', 'fbclid', 'gclid', 'gbraid', 'wbraid',
+  'mc_cid', 'mc_eid', 'yclid', 'igshid', '_hsenc', '_hsmi',
+]);
+
+const escapeUrlParens = u => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
+
+export function cleanCommentUrl(rawUrl) {
+  const raw = String(rawUrl || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    for (const key of [...url.searchParams.keys()]) {
+      if (TRACKING_PARAMS.has(key.toLowerCase()) || /^utm_/i.test(key)) {
+        url.searchParams.delete(key);
+      }
+    }
+    return escapeUrlParens(url.toString());
+  } catch {
+    return escapeUrlParens(raw);
+  }
+}
+
+function domainLabelFor(urlStr) {
+  try {
+    return new URL(urlStr).hostname.replace(/^www\./i, '') || 'link';
+  } catch {
+    return 'link';
+  }
+}
+
+function splitTrailingUrlPunct(raw) {
+  let url = raw;
+  let trailing = '';
+  while (url.length > 0) {
+    const last = url[url.length - 1];
+    if (/[.,;:!?]/.test(last)) {
+      trailing = last + trailing;
+      url = url.slice(0, -1);
+    } else if (last === ')') {
+      const opens = (url.match(/\(/g) || []).length;
+      const closes = (url.match(/\)/g) || []).length;
+      if (closes > opens) {
+        trailing = last + trailing;
+        url = url.slice(0, -1);
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  return { url, trailing };
+}
+
+export function formatCommentLinks(text) {
+  const str = String(text ?? '');
+  if (!str) return '';
+  const pattern = /\[([^\]]*)\]\s*\(\s*<?(https?:\/\/(?:[^\s()<>]+|\([^\s()<>]*\))+)>?\s*\)|<?(https?:\/\/[^\s<>]+)>?/g;
+  return str.replace(pattern, (match, label, mdUrl, bareUrl) => {
+    if (mdUrl !== undefined) {
+      const cleaned = cleanCommentUrl(mdUrl);
+      const cleanLabel = String(label || '').trim() || domainLabelFor(cleaned);
+      return `[${cleanLabel}](<${cleaned}>)`;
+    }
+    const isWrapped = match.startsWith('<') && match.endsWith('>');
+    const { url, trailing } = isWrapped ? { url: bareUrl, trailing: '' } : splitTrailingUrlPunct(bareUrl);
+    const cleaned = cleanCommentUrl(url);
+    return `[${domainLabelFor(cleaned)}](<${cleaned}>)${trailing}`;
+  });
+}
+
+export function formatCommentPrefix(text) {
+  const trimmed = String(text ?? '').trim();
+  if (!trimmed) return '';
+  const formatted = formatCommentLinks(trimmed);
+  const hasPrefix = /^([^\p{L}\p{N}\s]|>|-)/u.test(formatted);
+  return hasPrefix ? formatted : `💬 ${formatted}`;
+}
+
+export function splitDiscordChunks(text, maxLen = 2000) {
+  const str = String(text ?? '');
+  if (!str) return [];
+  if (str.length <= maxLen) return [str];
+
+  const linkSpans = [];
+  const linkRe = /\[[^\]]*\]\(<https?:\/\/[^>\s]+>\)/g;
+  let m;
+  while ((m = linkRe.exec(str)) !== null) {
+    linkSpans.push({ start: m.index, end: m.index + m[0].length });
+  }
+  const insideLink = idx => linkSpans.some(s => s.start < idx && idx < s.end);
+
+  const chunks = [];
+  let pos = 0;
+  while (pos < str.length) {
+    if (str.length - pos <= maxLen) {
+      chunks.push(str.slice(pos));
+      break;
+    }
+    let end = pos + maxLen;
+    const prevCode = str.charCodeAt(end - 1);
+    if (prevCode >= 0xD800 && prevCode <= 0xDBFF) end--;
+
+    const spanning = linkSpans.find(s => s.start < end && end < s.end);
+    if (spanning && spanning.start > pos) {
+      end = spanning.start;
+    }
+
+    let cut = -1;
+    const slice = str.slice(pos, end);
+    const paraIdx = slice.lastIndexOf('\n\n');
+    if (paraIdx > 0) {
+      cut = pos + paraIdx;
+    } else {
+      const lineIdx = slice.lastIndexOf('\n');
+      if (lineIdx > 0) {
+        cut = pos + lineIdx;
+      } else {
+        let spaceIdx = slice.lastIndexOf(' ');
+        while (spaceIdx > 0 && insideLink(pos + spaceIdx)) {
+          spaceIdx = slice.lastIndexOf(' ', spaceIdx - 1);
+        }
+        if (spaceIdx > 0) cut = pos + spaceIdx;
+      }
+    }
+
+    if (cut <= pos) cut = end;
+    const chunk = str.slice(pos, cut).trimEnd();
+    if (chunk) chunks.push(chunk);
+    pos = cut;
+    while (pos < str.length && (str[pos] === ' ' || str[pos] === '\n')) pos++;
+  }
+  return chunks;
+}
+
 function tokenText(name, ctx) {
   switch (name) {
     case 'title': return ctx.link ? `[${ctx.cleanTitle}](${ctx.titleTarget})` : ctx.cleanTitle;
@@ -79,12 +215,8 @@ function tokenText(name, ctx) {
     case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
     case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
     case 'ai': return ctx.aiText ? ctx.aiText.split('\n').map((l, i) => (i === 0 ? `> 💡 ${l}` : `> ${l}`)).join('\n') : '';
-    case 'comment': {
-      if (!ctx.commentText) return '';
-      const text = ctx.commentText.trim();
-      const hasPrefix = /^([^\p{L}\p{N}\s]|>|-)/u.test(text);
-      return hasPrefix ? text : `💬 ${text}`;
-    }
+    case 'comment':
+      return formatCommentPrefix(ctx.commentText);
     case 'rating': {
       if (!ctx.ratingText) return '';
       const emoji = ['🟢', '🟢', '⚪', '🟠', '🔴'][ctx.ratingLevel] ?? '📊';

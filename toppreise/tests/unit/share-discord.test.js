@@ -23,6 +23,10 @@ import {
   DEFAULT_LAYOUT,
   resolveShareFields,
   escapeDiscordMarkdown,
+  cleanCommentUrl,
+  formatCommentLinks,
+  formatCommentPrefix,
+  splitDiscordChunks,
 } from '../../src/features/discord-recipe.js';
 import {
   extractShareData,
@@ -1376,5 +1380,102 @@ describe('{rating} layout token rendering', () => {
     // Ensure no lone high surrogate at the end
     const lastCode = out.charCodeAt(out.length - 1);
     assert.equal(lastCode >= 0xD800 && lastCode <= 0xDBFF, false);
+  });
+});
+
+describe('cleanCommentUrl', () => {
+  it('strips known tracking params and utm_* while keeping functional params', () => {
+    const out = cleanCommentUrl('https://www.galaxus.ch/de/p/123?offertype=retail&srsltid=abc&utm_campaign=x&fbclid=y&offerid=42');
+    assert.equal(out, 'https://www.galaxus.ch/de/p/123?offertype=retail&offerid=42');
+  });
+
+  it('percent-encodes parentheses in URLs', () => {
+    const out = cleanCommentUrl('https://en.wikipedia.org/wiki/Foo_(bar)');
+    assert.equal(out, 'https://en.wikipedia.org/wiki/Foo_%28bar%29');
+  });
+});
+
+describe('formatCommentLinks', () => {
+  it('removes space between ] and ( and suppresses embeds', () => {
+    const input = 'Siehe [1] (https://www.conforama.ch/de/p/1?srsltid=abc123)';
+    assert.equal(formatCommentLinks(input), 'Siehe [1](<https://www.conforama.ch/de/p/1>)');
+  });
+
+  it('cleans existing markdown links without double-matching', () => {
+    const input = '[Galaxus](https://www.galaxus.ch/p?offertype=retail&utm_campaign=x)';
+    assert.equal(formatCommentLinks(input), '[Galaxus](<https://www.galaxus.ch/p?offertype=retail>)');
+  });
+
+  it('converts bare URLs to domain links and preserves trailing punctuation outside', () => {
+    const input = 'Preis bei (https://www.galaxus.ch/p). Oder https://www.fust.ch/a, gut!';
+    assert.equal(
+      formatCommentLinks(input),
+      'Preis bei ([galaxus.ch](<https://www.galaxus.ch/p>)). Oder [fust.ch](<https://www.fust.ch/a>), gut!'
+    );
+  });
+
+  it('handles Wikipedia-style balanced parentheses in markdown and bare URLs', () => {
+    assert.equal(
+      formatCommentLinks('[Wiki] (https://en.wikipedia.org/wiki/Foo_(bar))'),
+      '[Wiki](<https://en.wikipedia.org/wiki/Foo_%28bar%29>)'
+    );
+    assert.equal(
+      formatCommentLinks('https://en.wikipedia.org/wiki/Foo_(bar)'),
+      '[en.wikipedia.org](<https://en.wikipedia.org/wiki/Foo_%28bar%29>)'
+    );
+  });
+});
+
+describe('formatCommentPrefix', () => {
+  it('prepends 💬 for plain text and avoids duplicate prefix for emoji/symbol/>/-', () => {
+    assert.equal(formatCommentPrefix('Guter Deal'), '💬 Guter Deal');
+    assert.equal(formatCommentPrefix('💬 Schon da'), '💬 Schon da');
+    assert.equal(formatCommentPrefix('🔥 Heiss'), '🔥 Heiss');
+    assert.equal(formatCommentPrefix('> Zitat'), '> Zitat');
+    assert.equal(formatCommentPrefix('- Punkt'), '- Punkt');
+  });
+
+  it('keeps borderline comment inline in commentOverflows when tracking strip brings it under 2000', () => {
+    const tracking = '?srsltid=' + 'a'.repeat(400);
+    const commentText = 'Test ' + 'x'.repeat(1650) + ` [1] (https://www.galaxus.ch/p${tracking})`;
+    const fields = {
+      title: 'Sony WH-1000XM5',
+      url: 'https://www.toppreise.ch/p1',
+      priceText: 'CHF 200',
+      commentText,
+    };
+    assert.equal(commentOverflows(fields), false);
+  });
+});
+
+describe('splitDiscordChunks', () => {
+  it('returns single chunk when within maxLen', () => {
+    assert.deepEqual(splitDiscordChunks('Kurz', 2000), ['Kurz']);
+  });
+
+  it('prefers paragraph, then line, then space boundaries', () => {
+    const text = 'A'.repeat(15) + '\n\n' + 'B'.repeat(15) + '\n' + 'C'.repeat(10) + ' ' + 'D'.repeat(10);
+    const chunks = splitDiscordChunks(text, 25);
+    assert.ok(chunks.every(c => c.length <= 25));
+    assert.equal(chunks[0], 'A'.repeat(15));
+    assert.equal(chunks[1], 'B'.repeat(15));
+    assert.equal(chunks[2], 'C'.repeat(10) + ' ' + 'D'.repeat(10));
+  });
+
+  it('never splits inside a [label](<url>) link', () => {
+    const link = '[Galaxus](<https://www.galaxus.ch/de/s1/product/very-long-product-name-123456>)';
+    const text = 'Intro text here ' + link + ' trailing';
+    const chunks = splitDiscordChunks(text, 85);
+    assert.ok(chunks.some(c => c.includes(link)));
+  });
+
+  it('respects UTF-16 surrogate boundaries', () => {
+    const text = '🔥'.repeat(15);
+    const chunks = splitDiscordChunks(text, 11);
+    assert.ok(chunks.every(c => c.length <= 11));
+    for (const c of chunks) {
+      const last = c.charCodeAt(c.length - 1);
+      assert.equal(last >= 0xD800 && last <= 0xDBFF, false);
+    }
   });
 });
