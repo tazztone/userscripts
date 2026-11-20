@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.528
+// @version      2.18.529
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -7509,7 +7509,7 @@ const SHADOW_MODAL_STYLES = `
         changed = true;
       }
     }
-    if (changed) saveStoredIdents(map);
+    if (changed && !targetMap) saveStoredIdents(map);
     return map;
   }
 
@@ -7599,17 +7599,17 @@ const SHADOW_MODAL_STYLES = `
         const hash = menuEl?.getAttribute('data-hash') || '';
 
         // Check native Toppreise localStorage cache
-        const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
-        const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
-        if (cachedDataRaw && (!hash || !cachedHash || cachedHash === hash)) {
-          try {
+        try {
+          const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
+          const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
+          if (cachedDataRaw && (!hash || !cachedHash || cachedHash === hash)) {
             const parsed = JSON.parse(cachedDataRaw);
             if (Array.isArray(parsed) && parsed.length > 0) {
               treeIndex = indexCategoryData(parsed);
               return treeIndex;
             }
-          } catch {}
-        }
+          }
+        } catch {}
 
         // Fetch from native endpoint if element exists
         if (menuEl && typeof fetch === 'function') {
@@ -7696,9 +7696,10 @@ const SHADOW_MODAL_STYLES = `
     if (item.ident) return item.ident;
 
     const activeDoc = getDoc(doc);
+    const safeVcatId = String(vcatId).replace(/["\\]/g, '\\$&');
     // Live DOM takes precedence over stored localStorage cache (avoid stale tokens from older sessions)
     // Exclude suite-created buttons (.tp-cat-action-btn) to prevent reading our own stale attributes
-    const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${vcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
+    const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${safeVcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
     if (domToken) {
       const stored = getStoredIdents();
       stored[vcatId] = domToken;
@@ -7955,7 +7956,7 @@ const SHADOW_MODAL_STYLES = `
   let feedRefreshSeq = 0;
 
   async function refreshProductFeed(doc = (typeof document !== 'undefined' ? document : null)) {
-    if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+    if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return;
     const seq = ++feedRefreshSeq;
     const requestedHref = location.href;
     const activeDoc = getDoc(doc);
@@ -7975,8 +7976,11 @@ const SHADOW_MODAL_STYLES = `
         const parsedDoc = parser.parseFromString(html, 'text/html');
         const newContainer = parsedDoc.querySelector('.Plugin_TopPriceReductionProductListFull') ||
                              parsedDoc.querySelector('.standardList');
-        if (newContainer && container) {
-          container.innerHTML = newContainer.innerHTML;
+        const targetContainer = (container && container.isConnected !== false)
+          ? container
+          : (activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') || activeDoc?.querySelector?.('.standardList'));
+        if (newContainer && targetContainer) {
+          targetContainer.innerHTML = newContainer.innerHTML;
           triggerProcessListings();
         }
       }
@@ -7986,7 +7990,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   async function executeServerCategoryToggle(vcatId, initialIdent = '', doc = null, isRestore = false) {
-    if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
+    if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
     const activeDoc = getDoc(doc);
     const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -7999,8 +8003,9 @@ const SHADOW_MODAL_STYLES = `
     if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
     const currentPath = typeof location !== 'undefined' ? location.pathname : '';
+    const safeVcatId = String(vcatId).replace(/["\\]/g, '\\$&');
     let ident = initialIdent ||
-                (isRestore ? activeDoc?.querySelector?.(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`)?.getAttribute?.('data-ident') : '') ||
+                (isRestore ? activeDoc?.querySelector?.(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${safeVcatId}"]`)?.getAttribute?.('data-ident') : '') ||
                 getStoredIdents()[vcatId] || '';
 
     if (!ident) {
@@ -8078,7 +8083,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   async function executeServerCategoryReset(doc = (typeof document !== 'undefined' ? document : null)) {
-    if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
+    if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
     const activeDoc = getDoc(doc);
     const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -8148,7 +8153,7 @@ const SHADOW_MODAL_STYLES = `
 
   function createIgnoreCategoryBtn(vcatId, isIgnored, ident = '') {
     const span = document.createElement('span');
-    span.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
+    span.className = `ignoreCategory tp-cat-action-btn ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
     span.setAttribute('data-vcat-id', vcatId);
     if (ident) span.setAttribute('data-ident', ident);
     span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
@@ -8578,7 +8583,7 @@ const SHADOW_MODAL_STYLES = `
     if (typeof document !== 'undefined' && document.body?.addEventListener) {
       if (boundBody !== document.body) {
         boundBody = document.body;
-        const isLiveSite = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
+        const isLiveSite = typeof location !== 'undefined' && /(?:^|\.)toppreise\.ch$/i.test(location.hostname || '');
 
         document.body.addEventListener('click', async e => {
           const toggleBtn = e.target?.closest?.('.f_IgnoredCategories_Hide, .f_IgnoredCategories_Show');
@@ -8598,6 +8603,7 @@ const SHADOW_MODAL_STYLES = `
             const ident = toggleBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
             const rowEl = toggleBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || toggleBtn;
 
+            if (rowEl.classList?.contains?.('tp-cat-loading')) return;
             if (isLiveSite && isSubOrSearch) {
               rowEl.classList?.add?.('tp-cat-loading');
               try {
@@ -9336,7 +9342,7 @@ const SHADOW_MODAL_STYLES = `
       case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
       case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
       case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
-      case 'ai': return ctx.aiText ? `> 💡 ${ctx.aiText}` : '';
+      case 'ai': return ctx.aiText ? ctx.aiText.split('\n').map((l, i) => (i === 0 ? `> 💡 ${l}` : `> ${l}`)).join('\n') : '';
       case 'comment': {
         if (!ctx.commentText) return '';
         const text = ctx.commentText.trim();
@@ -9390,7 +9396,7 @@ const SHADOW_MODAL_STYLES = `
     };
     const out = [];
     for (const rawLine of recipe.split('\n')) {
-      const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ').replace(/\s\+(?!\d)\s*$/g, '');
+      const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ');
       if (line.replace(/^[#> \s-]+/, '').trim() === '') continue;
       out.push(line);
     }
@@ -9411,12 +9417,22 @@ const SHADOW_MODAL_STYLES = `
   }
 
   function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
+    const safeSlice = (str, max) => {
+      if (str.length <= max) return str;
+      const code = str.charCodeAt(max - 1);
+      return (code >= 0xD800 && code <= 0xDBFF) ? str.slice(0, max - 1) : str.slice(0, max);
+    };
     const full = renderLayout(fields, recipe);
     if (full.length <= 2000) return full;
     const cleanTitle = cleanTitleOf((fields || {}).title);
     const over = full.length - 2000;
-    const shrunk = cleanTitle.slice(0, Math.max(20, cleanTitle.length - over));
-    return renderLayout({ ...(fields || {}), title: shrunk }, recipe).slice(0, 2000);
+    let shrunk = safeSlice(cleanTitle, Math.max(20, cleanTitle.length - over));
+    let rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
+    if (rendered.length > 2000) {
+      shrunk = safeSlice(shrunk, Math.max(20, shrunk.length - (rendered.length - 2000)));
+      rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
+    }
+    return safeSlice(rendered, 2000);
   }
 
   // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis
@@ -9441,6 +9457,7 @@ const SHADOW_MODAL_STYLES = `
    * Fast 1-credit basic web search with synthesized verdict (include_answer: true).
    * 48h persistent cache to conserve the 1,000 monthly free tier credits.
    */
+
 
 
 
@@ -9529,7 +9546,7 @@ const SHADOW_MODAL_STYLES = `
     if (!kw.includes('{preis}')) return kw;
 
     if (priceText) {
-      return kw.replace(/\{preis\}/g, priceText).replace(/\s+/g, ' ').trim();
+      return kw.replace(/\{preis\}/g, () => priceText).replace(/\s+/g, ' ').trim();
     }
 
     // Gracefully drop sentence or clause asking about {preis} when no price is available
@@ -9547,7 +9564,7 @@ const SHADOW_MODAL_STYLES = `
     const cleanTitle = String(productTitle || '').replace(/\s+/g, ' ').trim();
     let kw = expandKeywordWithPrice(keyword, priceText);
     if (/\{produkt\}|\[produkt\]/i.test(kw)) {
-      return kw.replace(/\{produkt\}|\[produkt\]/gi, cleanTitle).replace(/\s+/g, ' ').trim();
+      return kw.replace(/\{produkt\}|\[produkt\]/gi, () => cleanTitle).replace(/\s+/g, ' ').trim();
     }
     return `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
   }
@@ -9572,17 +9589,20 @@ const SHADOW_MODAL_STYLES = `
       return Promise.reject(new Error('Suchanfrage ist leer'));
     }
 
-    // 1. Check persistent/memory cache
-    const cached = getCachedTavily(normalized);
-    if (cached?.answer) {
-      return Promise.resolve(cached.answer);
-    }
-
     const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
     const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
     const maxResults = typeof options.maxResults === 'number'
       ? options.maxResults
       : ((typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_MAX_RESULTS : 5) || 5);
+    const cacheQueryKey = (searchDepth === 'basic' && maxResults === 5)
+      ? normalized
+      : `${normalized}::${searchDepth}::${maxResults}`;
+
+    // 1. Check persistent/memory cache
+    const cached = getCachedTavily(cacheQueryKey);
+    if (cached?.answer) {
+      return Promise.resolve(cached.answer);
+    }
 
     // 2. In-flight request deduplication
     const flightKey = `${trimmedKey}:${normalized.toLowerCase()}:${searchDepth}:${maxResults}`;
@@ -9605,11 +9625,11 @@ const SHADOW_MODAL_STYLES = `
           const data = JSON.parse(rawText || '{}');
           const answer = (data.answer || '').trim();
           if (answer) {
-            setCachedTavily(normalized, answer);
+            setCachedTavily(cacheQueryKey, answer);
             resolve(answer);
           } else if (Array.isArray(data.results) && data.results.length > 0 && data.results[0].content) {
             const fallbackSnippet = data.results[0].content.trim();
-            setCachedTavily(normalized, fallbackSnippet);
+            setCachedTavily(cacheQueryKey, fallbackSnippet);
             resolve(fallbackSnippet);
           } else {
             reject(new Error('Kein Fazit erhalten'));
@@ -9836,7 +9856,15 @@ const SHADOW_MODAL_STYLES = `
     Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
       { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 
-  const withWaitQuery = url => `${url.trim()}${url.includes('?') ? '&' : '?'}wait=true`;
+  const withWaitQuery = url => {
+    try {
+      const u = new URL(url.trim());
+      u.searchParams.set('wait', 'true');
+      return u.toString();
+    } catch {
+      return `${url.trim()}${url.includes('?') ? '&' : '?'}wait=true`;
+    }
+  };
   const parseDiscordJson = res => {
     try { return JSON.parse(res?.responseText || '{}'); } catch { return {}; }
   };
@@ -9933,7 +9961,16 @@ const SHADOW_MODAL_STYLES = `
     return new Promise((resolve, reject) => {
       if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
       const base = webhookUrl.trim();
-      const url = threadId ? `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}` : base;
+      let url = base;
+      if (threadId) {
+        try {
+          const u = new URL(base);
+          u.searchParams.set('thread_id', String(threadId));
+          url = u.toString();
+        } catch {
+          url = `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}`;
+        }
+      }
       const payload = JSON.stringify({ content: text, allowed_mentions: { parse: [] } });
       if (typeof GM_xmlhttpRequest !== 'undefined') {
         gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(() => resolve(), reject);
@@ -16747,7 +16784,7 @@ const SHADOW_MODAL_STYLES = `
     // (filled/scheduled/submitted) or confirmed attempts never refill, so a
     // replaced modal can never paint another attempt's status.
     const alarmState = modalContainer.dataset.tpAlarmState;
-    if (alarmState === 'filled' || alarmState === 'scheduled' || alarmState === 'submitted' || alarmState === 'confirmed') return;
+    if (alarmState) return;
     clearAlarmTimers(modalContainer);
 
     const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
@@ -16823,7 +16860,10 @@ const SHADOW_MODAL_STYLES = `
         // Observe BEFORE submit: close only on a success signal — button/form
         // detachment alone never closes.
         observer = new MutationObserver(() => {
-          if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
+          if (
+            reqModal.dataset.tpAlarmState === 'submitted'
+            && reqModal.querySelector('.success:not(button),.confirmation:not(button),[class*="success" i]:not(button),[class*="confirm" i]:not(button)')
+          ) {
             try { observer.disconnect(); } catch {}
             clearTimeout(submitTimer);
             clearTimeout(fallbackTimer);
@@ -16834,7 +16874,7 @@ const SHADOW_MODAL_STYLES = `
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
             else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
-          } else if (!document.querySelector(SELECTORS.alarm.form)) {
+          } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
             try { observer.disconnect(); } catch {}
             clearTimeout(submitTimer);
             clearTimeout(fallbackTimer);
@@ -16936,12 +16976,10 @@ const SHADOW_MODAL_STYLES = `
         { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
       ));
     } catch (err) {
-      dismissDialog();
       if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
       return false;
     }
     if (!formRes.ok) {
-      dismissDialog();
       return false;
     }
 
@@ -17270,24 +17308,35 @@ const SHADOW_MODAL_STYLES = `
         b.disabled = true;
         b.classList.add('tp-share-loading');
       });
-      await triggerDiscordShare({
-        pid,
-        cardPrice: currentPrice,
-        priceBasis,
-        stats,
-        title,
-        url,
-        imageUrl,
-        nativeRating,
-        isDetailPage: true,
-        onDone: stillFresh => {
+      let doneCalled = false;
+      try {
+        await triggerDiscordShare({
+          pid,
+          cardPrice: currentPrice,
+          priceBasis,
+          stats,
+          title,
+          url,
+          imageUrl,
+          nativeRating,
+          isDetailPage: true,
+          onDone: stillFresh => {
+            doneCalled = true;
+            document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
+              b.disabled = false;
+              b.classList.remove('tp-share-loading');
+              if (stillFresh) b.classList.add('tp-share-done');
+            });
+          }
+        });
+      } finally {
+        if (!doneCalled) {
           document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
             b.disabled = false;
             b.classList.remove('tp-share-loading');
-            if (stillFresh) b.classList.add('tp-share-done');
           });
         }
-      });
+      }
     });
     return shareBtn;
   }
@@ -17811,7 +17860,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.528';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.529';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

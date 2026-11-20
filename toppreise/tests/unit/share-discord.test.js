@@ -1338,4 +1338,22 @@ describe('{rating} layout token rendering', () => {
     }, '{rating}');
     assert.equal(rendered, '📊 Spezialpreis');
   });
+
+  it('formats multi-line {ai} with > on every line and preserves trailing + in title', () => {
+    const aiOut = renderLayout({ title: 'Test', aiText: 'Line 1\nLine 2' }, '{ai}');
+    assert.equal(aiOut, '> 💡 Line 1\n> Line 2');
+
+    const plusTitle = renderLayout({ title: 'Galaxy S24 +' }, '## {title}');
+    assert.equal(plusTitle, '## Galaxy S24 +');
+  });
+
+  it('formatDealMessage truncates without splitting UTF-16 surrogate pairs', async () => {
+    const { formatDealMessage } = await import('../../src/features/discord-recipe.js');
+    const longTitle = '🔥'.repeat(1100);
+    const out = formatDealMessage({ title: longTitle, priceText: 'CHF 10' });
+    assert.ok(out.length <= 2000);
+    // Ensure no lone high surrogate at the end
+    const lastCode = out.charCodeAt(out.length - 1);
+    assert.equal(lastCode >= 0xD800 && lastCode <= 0xDBFF, false);
+  });
 });

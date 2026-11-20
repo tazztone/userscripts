@@ -150,4 +150,26 @@ describe('Price alarm fallback URL hardening', () => {
     assert.equal(res, safeNode);
     assert.equal(safeNode.attributes.length, 0);
   });
+
+  it('processPriceAlarmModal ignores unconfirmed and cancelled states without re-entering', async () => {
+    const { processPriceAlarmModal } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    try {
+      for (const state of ['unconfirmed', 'cancelled']) {
+        let queried = false;
+        const modal = {
+          dataset: { tpAlarmState: state },
+          querySelector: () => { queried = true; return null; },
+        };
+        globalThis.document = {
+          querySelector: () => modal,
+          querySelectorAll: () => [],
+        };
+        processPriceAlarmModal();
+        assert.equal(queried, false, `state ${state} must not re-enter`);
+      }
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });

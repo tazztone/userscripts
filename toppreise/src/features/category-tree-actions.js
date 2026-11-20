@@ -79,7 +79,7 @@ export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) 
 let feedRefreshSeq = 0;
 
 export async function refreshProductFeed(doc = (typeof document !== 'undefined' ? document : null)) {
-  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return;
+  if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return;
   const seq = ++feedRefreshSeq;
   const requestedHref = location.href;
   const activeDoc = getDoc(doc);
@@ -99,8 +99,11 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
       const parsedDoc = parser.parseFromString(html, 'text/html');
       const newContainer = parsedDoc.querySelector('.Plugin_TopPriceReductionProductListFull') ||
                            parsedDoc.querySelector('.standardList');
-      if (newContainer && container) {
-        container.innerHTML = newContainer.innerHTML;
+      const targetContainer = (container && container.isConnected !== false)
+        ? container
+        : (activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') || activeDoc?.querySelector?.('.standardList'));
+      if (newContainer && targetContainer) {
+        targetContainer.innerHTML = newContainer.innerHTML;
         triggerProcessListings();
       }
     }
@@ -110,7 +113,7 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
 }
 
 export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc = null, isRestore = false) {
-  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
+  if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
   const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -123,8 +126,9 @@ export async function executeServerCategoryToggle(vcatId, initialIdent = '', doc
   if (typeof fetch !== 'function' || !ajaxUrl) return false;
 
   const currentPath = typeof location !== 'undefined' ? location.pathname : '';
+  const safeVcatId = String(vcatId).replace(/["\\]/g, '\\$&');
   let ident = initialIdent ||
-              (isRestore ? activeDoc?.querySelector?.(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${vcatId}"]`)?.getAttribute?.('data-ident') : '') ||
+              (isRestore ? activeDoc?.querySelector?.(`.Plugin_IgnoredCategories .ignoredCategory[data-vcat-id="${safeVcatId}"]`)?.getAttribute?.('data-ident') : '') ||
               getStoredIdents()[vcatId] || '';
 
   if (!ident) {
@@ -202,7 +206,7 @@ export function executeServerCategoryRestore(vcatId, initialIdent = '', doc = (t
 }
 
 export async function executeServerCategoryReset(doc = (typeof document !== 'undefined' ? document : null)) {
-  if (typeof location === 'undefined' || !/toppreise\.ch$/i.test(location.hostname || '')) return true;
+  if (typeof location === 'undefined' || !/(?:^|\.)toppreise\.ch$/i.test(location.hostname || '')) return true;
 
   const activeDoc = getDoc(doc);
   const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');

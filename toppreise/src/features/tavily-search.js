@@ -5,6 +5,7 @@
  */
 
 import { lruSet } from '../scanner/cache.js';
+import { CONFIG } from '../state/config.js';
 import { fetchWithTimeout, gmRequestWithTimeout } from '../state/net.js';
 
 export const TAVILY_API_ENDPOINT = 'https://api.tavily.com/search';
@@ -92,7 +93,7 @@ export function expandKeywordWithPrice(keyword, priceText = '') {
   if (!kw.includes('{preis}')) return kw;
 
   if (priceText) {
-    return kw.replace(/\{preis\}/g, priceText).replace(/\s+/g, ' ').trim();
+    return kw.replace(/\{preis\}/g, () => priceText).replace(/\s+/g, ' ').trim();
   }
 
   // Gracefully drop sentence or clause asking about {preis} when no price is available
@@ -110,7 +111,7 @@ export function formatSearchQuery(productTitle, keyword, priceText = '') {
   const cleanTitle = String(productTitle || '').replace(/\s+/g, ' ').trim();
   let kw = expandKeywordWithPrice(keyword, priceText);
   if (/\{produkt\}|\[produkt\]/i.test(kw)) {
-    return kw.replace(/\{produkt\}|\[produkt\]/gi, cleanTitle).replace(/\s+/g, ' ').trim();
+    return kw.replace(/\{produkt\}|\[produkt\]/gi, () => cleanTitle).replace(/\s+/g, ' ').trim();
   }
   return `${cleanTitle} ${kw}`.replace(/\s+/g, ' ').trim();
 }
@@ -135,17 +136,20 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
     return Promise.reject(new Error('Suchanfrage ist leer'));
   }
 
-  // 1. Check persistent/memory cache
-  const cached = getCachedTavily(normalized);
-  if (cached?.answer) {
-    return Promise.resolve(cached.answer);
-  }
-
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 60000;
   const searchDepth = options.searchDepth || (typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_SEARCH_DEPTH : 'basic') || 'basic';
   const maxResults = typeof options.maxResults === 'number'
     ? options.maxResults
     : ((typeof CONFIG !== 'undefined' ? CONFIG.TAVILY_MAX_RESULTS : 5) || 5);
+  const cacheQueryKey = (searchDepth === 'basic' && maxResults === 5)
+    ? normalized
+    : `${normalized}::${searchDepth}::${maxResults}`;
+
+  // 1. Check persistent/memory cache
+  const cached = getCachedTavily(cacheQueryKey);
+  if (cached?.answer) {
+    return Promise.resolve(cached.answer);
+  }
 
   // 2. In-flight request deduplication
   const flightKey = `${trimmedKey}:${normalized.toLowerCase()}:${searchDepth}:${maxResults}`;
@@ -168,11 +172,11 @@ export function fetchTavilySummary(apiKey, query, options = {}) {
         const data = JSON.parse(rawText || '{}');
         const answer = (data.answer || '').trim();
         if (answer) {
-          setCachedTavily(normalized, answer);
+          setCachedTavily(cacheQueryKey, answer);
           resolve(answer);
         } else if (Array.isArray(data.results) && data.results.length > 0 && data.results[0].content) {
           const fallbackSnippet = data.results[0].content.trim();
-          setCachedTavily(normalized, fallbackSnippet);
+          setCachedTavily(cacheQueryKey, fallbackSnippet);
           resolve(fallbackSnippet);
         } else {
           reject(new Error('Kein Fazit erhalten'));

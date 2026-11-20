@@ -153,7 +153,15 @@ const discordError = (status, body, headers) =>
   Object.assign(new Error(status ? `Discord ${status}` : 'Netzwerkfehler'),
     { status: status ?? 0, body: discordBodyExcerpt(body), retryAfterMs: discordRetryAfterMs(headers) });
 
-const withWaitQuery = url => `${url.trim()}${url.includes('?') ? '&' : '?'}wait=true`;
+const withWaitQuery = url => {
+  try {
+    const u = new URL(url.trim());
+    u.searchParams.set('wait', 'true');
+    return u.toString();
+  } catch {
+    return `${url.trim()}${url.includes('?') ? '&' : '?'}wait=true`;
+  }
+};
 const parseDiscordJson = res => {
   try { return JSON.parse(res?.responseText || '{}'); } catch { return {}; }
 };
@@ -250,7 +258,16 @@ export function postFollowUp(webhookUrl, threadId, text) {
   return new Promise((resolve, reject) => {
     if (!isDiscordWebhookUrl(webhookUrl)) return reject(new Error('Ungültige Webhook-URL'));
     const base = webhookUrl.trim();
-    const url = threadId ? `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}` : base;
+    let url = base;
+    if (threadId) {
+      try {
+        const u = new URL(base);
+        u.searchParams.set('thread_id', String(threadId));
+        url = u.toString();
+      } catch {
+        url = `${base}${base.includes('?') ? '&' : '?'}thread_id=${encodeURIComponent(threadId)}`;
+      }
+    }
     const payload = JSON.stringify({ content: text, allowed_mentions: { parse: [] } });
     if (typeof GM_xmlhttpRequest !== 'undefined') {
       gmPost({ url, data: payload, headers: { 'Content-Type': 'application/json' }, timeoutMs: 15000 }).then(() => resolve(), reject);

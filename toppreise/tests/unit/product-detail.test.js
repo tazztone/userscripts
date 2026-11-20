@@ -542,4 +542,31 @@ describe('Product Detail Page Feature Suite', () => {
     assert.equal(diag.nativeRating.level, 2);
     assert.equal(diag.nativeRating.label, 'Normaler Preis');
   });
+
+  it('renderDetailShareButton re-enables button if triggerDiscordShare returns/rejects without calling onDone', async () => {
+    const bell = mockNode('div');
+    bell.className = 'Plugin_NewInfoMailButton';
+    document.body.appendChild(bell);
+
+    renderDetailShareButton({
+      pid: '1148966',
+      currentPrice: 199.00,
+      priceBasis: 'product',
+      stats: { tiefstpreis: 199.00 },
+      title: 'Test Product',
+      url: 'https://www.toppreise.ch/p1148966',
+      imageUrl: ''
+    });
+
+    const shareBtn = document.getElementById('tp-detail-share-btn');
+    assert.ok(shareBtn);
+    const clickHandler = shareBtn._listeners?.click?.[0];
+    if (clickHandler) {
+      try {
+        await clickHandler({ preventDefault() {}, stopPropagation() {} });
+      } catch {}
+    }
+    assert.equal(shareBtn.disabled, false);
+    assert.equal(shareBtn.classList.contains('tp-share-loading'), false);
+  });
 });

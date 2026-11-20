@@ -78,7 +78,7 @@ function tokenText(name, ctx) {
     case 'offers': return ctx.offerCount ? `🛒 ${ctx.offerCount} Angebote` : '';
     case 'prevlow': return ctx.prevLowText ? `📉 ${boldNumbers(withPct(ctx.prevLowText, ctx.prevLowPct))}` : '';
     case 'median': return ctx.medianText ? `📈 ${boldNumbers(withPct(ctx.medianText, ctx.medianPct))}` : '';
-    case 'ai': return ctx.aiText ? `> 💡 ${ctx.aiText}` : '';
+    case 'ai': return ctx.aiText ? ctx.aiText.split('\n').map((l, i) => (i === 0 ? `> 💡 ${l}` : `> ${l}`)).join('\n') : '';
     case 'comment': {
       if (!ctx.commentText) return '';
       const text = ctx.commentText.trim();
@@ -132,7 +132,7 @@ export function renderLayout(fields = {}, recipe = DEFAULT_LAYOUT) {
   };
   const out = [];
   for (const rawLine of recipe.split('\n')) {
-    const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ').replace(/\s\+(?!\d)\s*$/g, '');
+    const line = rawLine.replace(/\s*\+\{offers\}/g, ctx.offerCount ? ` +${ctx.offerCount}` : '').replace(/\{([a-z]+)\}/g, (m, name) => LAYOUT_TOKENS.has(name) ? tokenText(name, ctx) : '').replace(/\s*·\s*·\s*/g, ' · ').replace(/^([#-]+)\s*·\s*/g, '$1 ').replace(/^\s*·\s*|\s*·\s*$/g, '').replace(/^([#-]+)\s+/g, '$1 ');
     if (line.replace(/^[#> \s-]+/, '').trim() === '') continue;
     out.push(line);
   }
@@ -153,12 +153,22 @@ export function commentOverflows(fields = {}, recipe = DEFAULT_LAYOUT) {
 }
 
 export function formatDealMessage(fields = {}, recipe = DEFAULT_LAYOUT) {
+  const safeSlice = (str, max) => {
+    if (str.length <= max) return str;
+    const code = str.charCodeAt(max - 1);
+    return (code >= 0xD800 && code <= 0xDBFF) ? str.slice(0, max - 1) : str.slice(0, max);
+  };
   const full = renderLayout(fields, recipe);
   if (full.length <= 2000) return full;
   const cleanTitle = cleanTitleOf((fields || {}).title);
   const over = full.length - 2000;
-  const shrunk = cleanTitle.slice(0, Math.max(20, cleanTitle.length - over));
-  return renderLayout({ ...(fields || {}), title: shrunk }, recipe).slice(0, 2000);
+  let shrunk = safeSlice(cleanTitle, Math.max(20, cleanTitle.length - over));
+  let rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
+  if (rendered.length > 2000) {
+    shrunk = safeSlice(shrunk, Math.max(20, shrunk.length - (rendered.length - 2000)));
+    rendered = renderLayout({ ...(fields || {}), title: shrunk }, recipe);
+  }
+  return safeSlice(rendered, 2000);
 }
 
 // Reine Abbildung Kartenpreis + Stats → Discord-Referenzzeilen (Bisher / Ø-Preis

@@ -117,7 +117,19 @@ export function createMockNode(tag = 'div', attrs = {}, text = '', children = []
         el.parentElement = null;
       }
     },
-    addEventListener: () => {},
+    _listeners: {},
+    shadowRoot: null,
+    attachShadow() {
+      if (!el.shadowRoot) el.shadowRoot = createMockNode('shadow');
+      return el.shadowRoot;
+    },
+    getElementById: id => el.querySelector(`#${id}`),
+    addEventListener(type, fn) {
+      (el._listeners[type] ||= []).push(fn);
+    },
+    removeEventListener(type, fn) {
+      if (el._listeners[type]) el._listeners[type] = el._listeners[type].filter(f => f !== fn);
+    },
     querySelector: sel => {
       const pool = [...el.children];
       for (let i = 0; i < pool.length; i++) pool.push(...pool[i].children);

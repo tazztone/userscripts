@@ -224,24 +224,35 @@ function createDetailShareBtn(payload) {
       b.disabled = true;
       b.classList.add('tp-share-loading');
     });
-    await triggerDiscordShare({
-      pid,
-      cardPrice: currentPrice,
-      priceBasis,
-      stats,
-      title,
-      url,
-      imageUrl,
-      nativeRating,
-      isDetailPage: true,
-      onDone: stillFresh => {
+    let doneCalled = false;
+    try {
+      await triggerDiscordShare({
+        pid,
+        cardPrice: currentPrice,
+        priceBasis,
+        stats,
+        title,
+        url,
+        imageUrl,
+        nativeRating,
+        isDetailPage: true,
+        onDone: stillFresh => {
+          doneCalled = true;
+          document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
+            b.disabled = false;
+            b.classList.remove('tp-share-loading');
+            if (stillFresh) b.classList.add('tp-share-done');
+          });
+        }
+      });
+    } finally {
+      if (!doneCalled) {
         document.querySelectorAll('.tp-detail-share-btn').forEach(b => {
           b.disabled = false;
           b.classList.remove('tp-share-loading');
-          if (stillFresh) b.classList.add('tp-share-done');
         });
       }
-    });
+    }
   });
   return shareBtn;
 }

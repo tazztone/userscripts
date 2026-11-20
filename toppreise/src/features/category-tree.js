@@ -54,7 +54,7 @@ function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
 
 export function createIgnoreCategoryBtn(vcatId, isIgnored, ident = '') {
   const span = document.createElement('span');
-  span.className = `ignoreCategory ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
+  span.className = `ignoreCategory tp-cat-action-btn ${isIgnored ? 'f_IgnoredCategories_Show' : 'f_IgnoredCategories_Hide'}`;
   span.setAttribute('data-vcat-id', vcatId);
   if (ident) span.setAttribute('data-ident', ident);
   span.setAttribute('title', isIgnored ? 'Kategorie einblenden' : 'Kategorie ausblenden');
@@ -484,7 +484,7 @@ export function enhanceCategorySidebar() {
   if (typeof document !== 'undefined' && document.body?.addEventListener) {
     if (boundBody !== document.body) {
       boundBody = document.body;
-      const isLiveSite = typeof location !== 'undefined' && /toppreise\.ch$/i.test(location.hostname || '');
+      const isLiveSite = typeof location !== 'undefined' && /(?:^|\.)toppreise\.ch$/i.test(location.hostname || '');
 
       document.body.addEventListener('click', async e => {
         const toggleBtn = e.target?.closest?.('.f_IgnoredCategories_Hide, .f_IgnoredCategories_Show');
@@ -504,6 +504,7 @@ export function enhanceCategorySidebar() {
           const ident = toggleBtn.getAttribute?.('data-ident') || getStoredIdents()[cleanVcatId] || '';
           const rowEl = toggleBtn.closest?.('.tp-cat-row, .tp-cat-result-item') || toggleBtn;
 
+          if (rowEl.classList?.contains?.('tp-cat-loading')) return;
           if (isLiveSite && isSubOrSearch) {
             rowEl.classList?.add?.('tp-cat-loading');
             try {

@@ -267,4 +267,23 @@ describe('tavily-search: fetchTavilySummary', () => {
     assert.ok(a.startsWith('Answer '));
     assert.ok(b.startsWith('Answer '));
   });
+
+  it('formatSearchQuery preserves $ patterns in title and priceText', async () => {
+    const { formatSearchQuery } = await import('../../src/features/tavily-search.js');
+    const out = formatSearchQuery('Phone $$ $& $1', 'Preis {preis} für {produkt}', 'CHF $100');
+    assert.ok(out.includes('Phone $$ $& $1'));
+    assert.ok(out.includes('CHF $100'));
+  });
+
+  it('fetchTavilySummary isolates cache across searchDepth and maxResults', async () => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return { ok: true, status: 200, text: async () => JSON.stringify({ answer: `Depth ${calls}` }) };
+    };
+    const r1 = await fetchTavilySummary('tvly-key', 'Cache Depth Isolation', { searchDepth: 'basic', maxResults: 5 });
+    const r2 = await fetchTavilySummary('tvly-key', 'Cache Depth Isolation', { searchDepth: 'advanced', maxResults: 10 });
+    assert.equal(calls, 2);
+    assert.notEqual(r1, r2);
+  });
 });

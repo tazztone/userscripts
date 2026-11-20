@@ -225,7 +225,7 @@ export function parseCategoryIdentsFromText(text, targetMap = null) {
       changed = true;
     }
   }
-  if (changed) saveStoredIdents(map);
+  if (changed && !targetMap) saveStoredIdents(map);
   return map;
 }
 
@@ -315,17 +315,17 @@ export async function loadNativeCategoryTree(doc = (typeof document !== 'undefin
       const hash = menuEl?.getAttribute('data-hash') || '';
 
       // Check native Toppreise localStorage cache
-      const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
-      const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
-      if (cachedDataRaw && (!hash || !cachedHash || cachedHash === hash)) {
-        try {
+      try {
+        const cachedHash = localStorage.getItem(`c_cm_hash_${lang}`);
+        const cachedDataRaw = localStorage.getItem(`c_cm_data_${lang}`);
+        if (cachedDataRaw && (!hash || !cachedHash || cachedHash === hash)) {
           const parsed = JSON.parse(cachedDataRaw);
           if (Array.isArray(parsed) && parsed.length > 0) {
             treeIndex = indexCategoryData(parsed);
             return treeIndex;
           }
-        } catch {}
-      }
+        }
+      } catch {}
 
       // Fetch from native endpoint if element exists
       if (menuEl && typeof fetch === 'function') {
@@ -412,9 +412,10 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
   if (item.ident) return item.ident;
 
   const activeDoc = getDoc(doc);
+  const safeVcatId = String(vcatId).replace(/["\\]/g, '\\$&');
   // Live DOM takes precedence over stored localStorage cache (avoid stale tokens from older sessions)
   // Exclude suite-created buttons (.tp-cat-action-btn) to prevent reading our own stale attributes
-  const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${vcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
+  const domToken = activeDoc?.querySelector?.(`[data-vcat-id="${safeVcatId}"][data-ident]:not(.tp-cat-action-btn)`)?.getAttribute?.('data-ident');
   if (domToken) {
     const stored = getStoredIdents();
     stored[vcatId] = domToken;

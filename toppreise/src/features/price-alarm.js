@@ -260,7 +260,7 @@ export function processPriceAlarmModal() {
   // (filled/scheduled/submitted) or confirmed attempts never refill, so a
   // replaced modal can never paint another attempt's status.
   const alarmState = modalContainer.dataset.tpAlarmState;
-  if (alarmState === 'filled' || alarmState === 'scheduled' || alarmState === 'submitted' || alarmState === 'confirmed') return;
+  if (alarmState) return;
   clearAlarmTimers(modalContainer);
 
   const shippingFirst = modalContainer.querySelector('.shippingPrice .Plugin_Price');
@@ -336,7 +336,10 @@ export function processPriceAlarmModal() {
       // Observe BEFORE submit: close only on a success signal — button/form
       // detachment alone never closes.
       observer = new MutationObserver(() => {
-        if (reqModal.querySelector('.success,.confirmation,[class*="success" i],[class*="confirm" i]')) {
+        if (
+          reqModal.dataset.tpAlarmState === 'submitted'
+          && reqModal.querySelector('.success:not(button),.confirmation:not(button),[class*="success" i]:not(button),[class*="confirm" i]:not(button)')
+        ) {
           try { observer.disconnect(); } catch {}
           clearTimeout(submitTimer);
           clearTimeout(fallbackTimer);
@@ -347,7 +350,7 @@ export function processPriceAlarmModal() {
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
-        } else if (!document.querySelector(SELECTORS.alarm.form)) {
+        } else if (!reqModal.isConnected || !document.querySelector(SELECTORS.alarm.form)) {
           try { observer.disconnect(); } catch {}
           clearTimeout(submitTimer);
           clearTimeout(fallbackTimer);
@@ -449,12 +452,10 @@ async function openFetchedAlarmDialog(html) {
       { timeoutMs: 8000, source: 'price-alarm', label: 'form', readAs: 'text' }
     ));
   } catch (err) {
-    dismissDialog();
     if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm-Formular laden fehlgeschlagen', err);
     return false;
   }
   if (!formRes.ok) {
-    dismissDialog();
     return false;
   }
 

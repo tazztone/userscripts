@@ -1263,3 +1263,21 @@ test('indexCategoryData breaks cyclic parentID chains and toFeedUrl handles non-
   assert.ok(tree.byId.get('c1').breadcrumb.includes('A'));
   assert.equal(toFeedUrl('/katalog/A-c1', '/de/new-best-prices'), '/neue-toppreise/A-c1');
 });
+
+test('parseCategoryIdentsFromText with targetMap does not overwrite global localStorage', async () => {
+  const { parseCategoryIdentsFromText } = await import('../../src/features/category-tree-model.js');
+  const prevStorage = globalThis.localStorage;
+  let setCalls = 0;
+  globalThis.localStorage = {
+    getItem: () => null,
+    setItem: () => { setCalls++; },
+  };
+  try {
+    const customMap = {};
+    parseCategoryIdentsFromText('<span data-vcat-id="42" data-ident="abc123"></span>', customMap);
+    assert.equal(customMap['42'], 'abc123');
+    assert.equal(setCalls, 0);
+  } finally {
+    if (prevStorage === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevStorage;
+  }
+});
