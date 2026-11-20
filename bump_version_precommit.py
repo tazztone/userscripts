@@ -16,7 +16,7 @@ def process_script(script_relpath):
         return
 
     # Skip reference, template, site demo bundles, or example scripts
-    parts = set(script_relpath.split(os.sep))
+    parts = set(script_relpath.replace('\\', '/').split('/'))
     if {'references', 'example', 'demo', 'site'}.intersection(parts):
         return
 
@@ -51,7 +51,8 @@ def process_script(script_relpath):
         new_readme = re.sub(
             r'\(v\d+\.\d+\.\d+\)',
             f'(v{extracted_version})',
-            readme_content
+            readme_content,
+            count=1
         )
         if new_readme != readme_content:
             with open(readme_path, 'w', encoding='utf-8') as f:
@@ -73,6 +74,7 @@ def process_script(script_relpath):
             build_tool = os.path.join(script_dir, 'tools', 'build.js')
             if os.path.exists(build_tool):
                 subprocess.run(['node', 'tools/build.js'], cwd=script_dir, check=True)
+                subprocess.run(['node', 'tools/build.js', '--check'], cwd=script_dir, check=True)
                 subprocess.run(['git', 'add', script_abspath], check=True)
 
     # Sync package.json if it exists
@@ -170,8 +172,12 @@ def main():
         if path.endswith('.user.js')
     ]
 
-    for script_path in staged_userscripts:
-        process_script(script_path)
+    try:
+        for script_path in staged_userscripts:
+            process_script(script_path)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ [pre-commit] Version bump failed (exit code {e.returncode})")
+        return 1
 
     return 0
 

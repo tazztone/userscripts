@@ -37,3 +37,21 @@ test('importing build.js does not execute main() as a side effect', async () => 
   await import('../../tools/build.js');
   assert.ok(true);
 });
+
+test('stripModuleSyntax handles semicolon-less ASI imports and preserves template literals', () => {
+  const input = [
+    "import { a } from './x.js'",
+    "import './side.js'",
+    'function codegen() {',
+    '  return `',
+    '    import something from "pkg";',
+    '    export const keep = 1;',
+    '  `;',
+    '}',
+  ].join('\n');
+  const stripped = stripModuleSyntax(input);
+  assert.ok(!stripped.includes("from './x.js'"));
+  assert.ok(!stripped.includes("import './side.js'"));
+  assert.ok(stripped.includes('import something from "pkg";'));
+  assert.ok(stripped.includes('export const keep = 1;'));
+});

@@ -22,8 +22,11 @@ const DEMO_BUNDLE_FILE = path.join(TOPPREISE_DIR, 'site', 'demo', 'toppreise.use
 
 function stripModuleSyntax(code) {
   return code
-    // Remove top-level import statements (single or multiline)
-    .replace(/^import\s+[^;]+;\s*$/gm, '')
+    // Remove single-line import statements (with or without trailing semicolon)
+    .replace(/^import\s+[^\n;]+from\s+['"][^'"]+['"];?\s*$/gm, '')
+    .replace(/^import\s+['"][^'"]+['"];?\s*$/gm, '')
+    // Remove multiline import statements
+    .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
     // Remove export default class/function name
     .replace(/^export\s+default\s+(async\s+)?(function|class)\s+/gm, '$1$2 ')
     // Remove export default expression / identifier / object
@@ -226,7 +229,9 @@ function main() {
     fs.writeFileSync(tmpFile, bundle, 'utf-8');
     fs.renameSync(tmpFile, OUTPUT_FILE);
     if (fs.existsSync(path.dirname(DEMO_BUNDLE_FILE))) {
-      fs.writeFileSync(DEMO_BUNDLE_FILE, bundle, 'utf-8');
+      const demoTmp = `${DEMO_BUNDLE_FILE}.tmp.${process.pid}.${Date.now()}`;
+      fs.writeFileSync(demoTmp, bundle, 'utf-8');
+      fs.renameSync(demoTmp, DEMO_BUNDLE_FILE);
     }
   } catch (err) {
     try { fs.unlinkSync(tmpFile); } catch {}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.530
+// @version      2.18.531
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -7889,8 +7889,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
-
   let ignoredBarObserver = null;
 
   function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
@@ -10002,8 +10000,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
-
   // Original placement (no synthetic ids on host parents): item → {parent, placeholder}.
   // The placeholder comment marks the exact pre-sort position; restore inserts
   // before it when still connected, else appends, then re-sorts by tpInitialOrder.
@@ -11817,9 +11813,6 @@ const SHADOW_MODAL_STYLES = `
    * Discord 1-Click share button, click-time freshness validation, payload construction,
    * image/forum transport orchestration, and feedback toasts.
    */
-
-
-
 
 
 
@@ -16234,12 +16227,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-
-
-
-
-
-
   const FLOATING_CTA_ID = 'tp-floating-check-cta';
   const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
 
@@ -17901,7 +17888,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.530';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.531';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

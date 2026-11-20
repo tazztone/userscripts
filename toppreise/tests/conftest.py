@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +23,26 @@ sys.path.insert(0, BASE_DIR)
 
 
 import subprocess
+
+
+@pytest.fixture(scope='session')
+def browser(browser):
+    orig_new_page = browser.new_page
+    orig_new_context = browser.new_context
+
+    def _new_page(*args, **kwargs):
+        p = orig_new_page(*args, **kwargs)
+        p.route(re.compile(r'^https?://'), lambda route: route.abort())
+        return p
+
+    def _new_context(*args, **kwargs):
+        ctx = orig_new_context(*args, **kwargs)
+        ctx.route(re.compile(r'^https?://'), lambda route: route.abort())
+        return ctx
+
+    browser.new_page = _new_page
+    browser.new_context = _new_context
+    return browser
 
 
 @pytest.fixture(scope='session')

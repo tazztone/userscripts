@@ -239,7 +239,14 @@ export function createDevServer(options = {}) {
 
     const hostHeader = req.headers.host || `${host}:${port}`;
     const hostUrl = `http://${hostHeader}`;
-    const urlObj = new URL(req.url, hostUrl);
+    let urlObj;
+    try {
+      urlObj = new URL(req.url, hostUrl);
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Bad Request');
+      return;
+    }
     const pathname = urlObj.pathname;
 
     // Zero-cache headers
@@ -433,14 +440,19 @@ export function createDevServer(options = {}) {
       const relPath = path.join(scriptDir, filename);
       const fullPath = path.join(REPO_ROOT, relPath);
 
-      if (fs.existsSync(fullPath)) {
-        const content = fs.readFileSync(fullPath, 'utf-8');
-        res.writeHead(200, {
-          'Content-Type': 'application/javascript; charset=utf-8',
-          'ETag': `file-${fs.statSync(fullPath).mtimeMs}`
-        });
-        res.end(content);
-        return;
+      if (fullPath.startsWith(REPO_ROOT + path.sep)) {
+        try {
+          const stat = fs.statSync(fullPath);
+          if (stat.isFile()) {
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            res.writeHead(200, {
+              'Content-Type': 'application/javascript; charset=utf-8',
+              'ETag': `file-${stat.mtimeMs}`
+            });
+            res.end(content);
+            return;
+          }
+        } catch {}
       }
     }
 
@@ -474,6 +486,7 @@ export function setupWatchers(onRebuild) {
         }
       }, 50);
     });
+    watcher.on('error', err => console.error('❌ [watcher] Error:', err.message));
     watchers.push(watcher);
   }
 
@@ -496,7 +509,8 @@ export function setupWatchers(onRebuild) {
           if (onRebuild) onRebuild(scriptKey);
         }, 50);
       });
-      watchers.push(watcher);
+      watcher.on('error', err => console.error('❌ [watcher] Error:', err.message));
+    watchers.push(watcher);
     }
   }
 
@@ -659,6 +673,10 @@ function main() {
   const server = createDevServer({ host: '127.0.0.1', port });
   let browserChild = null;
 
+  server.on('error', err => {
+    console.error('❌ Server error:', err.message);
+    process.exit(1);
+  });
   server.listen(port, '127.0.0.1', () => {
     console.log(`⚡ Userscript Sync Server running at http://127.0.0.1:${port}/`);
     if (targetScript === 'toppreise') {

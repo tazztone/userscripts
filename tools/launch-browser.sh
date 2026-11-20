@@ -82,6 +82,10 @@ case "$TARGET" in
     PORT="9222"
 
     if [ "$CLEAN_PROFILE_REQUESTED" = "1" ]; then
+      if curl -s -f --max-time 1 "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
+        echo "❌ Cannot clean profile while an active Chrome session is running. Please close Chrome first." >&2
+        exit 1
+      fi
       echo "🧹 Cleaning Chrome profile directory $PROFILE_DIR..."
       rm -rf "$PROFILE_DIR"
     fi
@@ -106,8 +110,12 @@ case "$TARGET" in
       echo "✅ Active Chrome session detected on debug port ${PORT}."
       echo "🔗 Attaching tabs via CDP HTTP API..."
       for u in "${URLS[@]}"; do
-        curl -s -X PUT "http://127.0.0.1:${PORT}/json/new?${u}" >/dev/null 2>&1 || true
-        echo "   • Opened: $u"
+        ENC_U="$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$u" 2>/dev/null || printf '%s' "$u")"
+        if curl -s -f -X PUT "http://127.0.0.1:${PORT}/json/new?${ENC_U}" >/dev/null 2>&1; then
+          echo "   • Opened: $u"
+        else
+          echo "   ⚠️ Failed to open tab via CDP: $u" >&2
+        fi
       done
       exit 0
     fi
