@@ -39,6 +39,7 @@ Local `.playwright-browsers` is auto-discovered by `conftest.py`. Fixture: `page
 ## Patterns
 
 - DOM queries through `page/selectors.js`; `domain/` stays pure and Node-tested.
+- Use `queryFirst(root, selectors)` (`toppreise/src/page/product-offers.js`) for prioritized fallback queries; comma-separated `querySelector('a, b')` returns the first DOM-order match (e.g. `.image` link before `.product-name`).
 - `fetch()` URLs carry an origin fallback so `file://` mocks resolve:
   ```javascript
   const baseUrl = (location.origin && location.origin.startsWith('http')) ? location.origin : 'https://www.toppreise.ch';
