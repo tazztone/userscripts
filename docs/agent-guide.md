@@ -7,8 +7,8 @@ Procedural detail behind `AGENTS.md`. Two branches: test runs → §Testing; cod
 ```bash
 node toppreise/tools/build.js          # rebuild bundle after src/ edits, before test/commit
 node toppreise/tools/build.js --check  # drift gate, run pre/post src/ edit
-npm run fixtures:check                 # live DOM drift gate, audits live Toppreise selectors without modifying files
-npm run fixtures:update                # refresh live snapshots and synthesize modern mock_toppreise.html
+npm run fixtures:check                 # live DOM drift gate, audits live Toppreise selectors + vendored CSS without modifying files
+npm run fixtures:update                # refresh live snapshots (neue, list, box, expert, detail) + assets/*.css + mock_toppreise.html
 ```
 
 Commits run `bump_version_precommit.py` (rebuild, `--check`, unit tests, `@version` patch-bump); a failing gate aborts. When deleting files, clear the gate: `rg '<deleted-name>' bump_version_precommit.py <script>/tools/ AGENTS.md`. `git status` first; stage only intended files.
@@ -26,6 +26,7 @@ node --test toppreise/tests/unit/*.test.js  # fast layer (<100ms); single file: 
 node --test --test-name-pattern="<name>" toppreise/tests/unit/<f>.test.js  # one case
 venv/bin/pytest toppreise/tests/test_ui_modal.py
 venv/bin/pytest toppreise/tests/test_site_drift.py  # verify userscript selectors against offline live snapshots
+venv/bin/pytest toppreise/tests/test_layout_matrix.py toppreise/tests/test_site_drift.py  # real-CSS geometry + contract matrix across all 5 layouts
 venv/bin/pytest  # all (auto-parallelized across 4 workers)
 venv/bin/pytest toppreise/tests/test_catalog_layout.py::test_name  # one case
 node --test huggingface/tests/test_logic.js  # HF gate

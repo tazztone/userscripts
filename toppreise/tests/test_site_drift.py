@@ -251,16 +251,33 @@ def test_live_neue_toppreise_category_sidebar_folding_and_spacers(browser, users
     page.close()
 
 
+def test_live_category_box_and_expert_structure(browser):
+    """Verifies offline live_category_box.html and live_category_expert.html retain expected layout selectors."""
+    for fname, layout_sel in [
+        ("live_category_box.html", ".standardList.box .Plugin_Product"),
+        ("live_category_expert.html", ".standardList.expert .Plugin_Product"),
+    ]:
+        fpath = os.path.join(FIXTURES_DIR, fname)
+        assert os.path.exists(fpath), f"{fname} snapshot must exist"
+        page = browser.new_page()
+        page.goto(f"file://{fpath}")
+        assert page.locator(layout_sel).count() > 0, f"Expected {layout_sel} in {fname}"
+        page.close()
+
+
 def test_live_product_detail_layout_no_wrap(browser, userscript_content):
     """Verifies that product detail decorations do not cause desktop column wrapping or rail inflation."""
     assert os.path.exists(LIVE_PRODUCT_PATH), "live_product_detail.html snapshot must exist"
-    css_path = os.path.join(os.path.dirname(os.path.dirname(FIXTURES_DIR)), 'site', 'demo', 'assets', '719228c24331.css')
-    assert os.path.exists(css_path), "719228c24331.css snapshot must exist"
+    std_css = os.path.join(FIXTURES_DIR, 'assets', 'standard.css')
+    prod_css = os.path.join(FIXTURES_DIR, 'assets', 'page_product.css')
+    assert os.path.exists(std_css), "fixtures/assets/standard.css must exist"
+    assert os.path.exists(prod_css), "fixtures/assets/page_product.css must exist"
 
     for vw in [1280, 1366, 1440, 1600, 1673, 1920]:
         page = browser.new_page(viewport={"width": vw, "height": 1000})
         page.goto(f"file://{LIVE_PRODUCT_PATH}")
-        page.add_style_tag(path=css_path)
+        page.add_style_tag(path=std_css)
+        page.add_style_tag(path=prod_css)
 
         page.evaluate("""() => {
             localStorage.setItem('tp_suite_v2_DEBUG', 'true');
