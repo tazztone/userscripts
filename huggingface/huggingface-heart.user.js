@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hugging Face Inline Liking, Unliked Model Highlighter, Date & Negative Filter
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.0.11
+// @version      2.0.12
 // @description  Like or unlike model cards inline, highlight unliked models, and filter models by date range slider and negative text keywords.
 // @author       tazztone
 // @license      MIT
@@ -841,7 +841,7 @@ const SHADOW_WIDGET_STYLES = `
     const markedContainer = card.querySelector('[title*="like" i], [aria-label*="like" i], [class*="heart" i], [class*="like" i]');
     if (markedContainer) {
       const markedSvgs = markedContainer.tagName?.toLowerCase() === 'svg'
-        ? markedContainer
+        ? [markedContainer]
         : markedContainer.querySelectorAll('svg');
       const markedSvg = Array.from(markedSvgs).find(isHeartSvg);
       if (markedSvg) return markedSvg;
@@ -968,9 +968,10 @@ const SHADOW_WIDGET_STYLES = `
       const regexMatch = token.match(/^\/(.+)\/([gimsuy]*)$/);
       if (regexMatch) {
         try {
+          const cleanFlags = (regexMatch[2] || 'i').replace(/[gy]/g, '') || 'i';
           matchers.push({
             type: 'regex',
-            value: new RegExp(regexMatch[1], regexMatch[2] || 'i'),
+            value: new RegExp(regexMatch[1], cleanFlags),
             raw: token
           });
         } catch (e) {
@@ -1221,12 +1222,15 @@ const SHADOW_WIDGET_STYLES = `
     if (!heartSvg) return;
 
     const container = getHeartContainer(heartSvg);
-    if (!container || container.dataset.hfInlineBound === modelId) return;
+    if (!container) return;
 
     container.dataset.hfInlineBound = modelId;
     container.classList.add('hf-inline-like-btn');
     container.style.cursor = 'pointer';
     updateInlineAccessibility(container, modelId, isModelLiked(card, modelId));
+
+    if (container._hfInlineListenersBound) return;
+    container._hfInlineListenersBound = true;
 
     container.addEventListener('mousedown', event => event.stopPropagation(), true);
     container.addEventListener('mouseup', event => event.stopPropagation(), true);
@@ -1234,14 +1238,16 @@ const SHADOW_WIDGET_STYLES = `
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation?.();
-      toggleInlineLike(card, modelId, container);
+      const currentModelId = container.dataset.hfInlineBound || modelId;
+      toggleInlineLike(card, currentModelId, container);
     }, true);
     container.addEventListener('keydown', event => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation?.();
-      toggleInlineLike(card, modelId, container);
+      const currentModelId = container.dataset.hfInlineBound || modelId;
+      toggleInlineLike(card, currentModelId, container);
     }, true);
   }
 
@@ -2045,7 +2051,8 @@ const SHADOW_WIDGET_STYLES = `
     });
 
     sliderMax?.addEventListener('input', (e) => {
-      const val = parseInt(e.target.value, 10);
+      const rawVal = parseInt(e.target.value, 10);
+      const val = rawVal >= 365 ? 3650 : Math.max(CONFIG.DATE_MIN_DAYS, rawVal);
       saveConfig('DATE_MAX_DAYS', val);
       saveConfig('DATE_PRESET', 'custom');
       syncWidgetUI();
@@ -2055,6 +2062,11 @@ const SHADOW_WIDGET_STYLES = `
     minInput?.addEventListener('change', (e) => {
       const val = Math.max(0, parseInt(e.target.value, 10) || 0);
       saveConfig('DATE_MIN_DAYS', val);
+      if (val > CONFIG.DATE_MAX_DAYS) {
+        saveConfig('DATE_MAX_DAYS', val);
+        if (maxInput) maxInput.value = val;
+        if (sliderMax) sliderMax.value = Math.min(val, 365);
+      }
       saveConfig('DATE_PRESET', 'custom');
       syncWidgetUI();
       processModelCards();
@@ -2092,13 +2104,21 @@ const SHADOW_WIDGET_STYLES = `
 
     glowToggle?.addEventListener('change', (e) => {
       saveConfig('BORDER_UNLIKED_GLOW', e.target.checked);
-      injectStyles();
+      if (typeof window !== 'undefined' && window.__HF_HEART_TEST_HOOK__) {
+    window.__HF_HEART_EXPORTS__ = { parseNegativeFilter, isCardExcludedByText, findHeartSvg, isHeartSvg };
+  }
+
+  injectStyles();
       processModelCards();
     });
 
     colorInput?.addEventListener('change', (e) => {
       saveConfig('BORDER_UNLIKED_COLOR', e.target.value);
-      injectStyles();
+      if (typeof window !== 'undefined' && window.__HF_HEART_TEST_HOOK__) {
+    window.__HF_HEART_EXPORTS__ = { parseNegativeFilter, isCardExcludedByText, findHeartSvg, isHeartSvg };
+  }
+
+  injectStyles();
     });
   }
 
@@ -2167,20 +2187,27 @@ const SHADOW_WIDGET_STYLES = `
 
     // Update summary chips
     if (summaryChips) {
-      const chips = [];
+      const chipEls = [];
+      const mkChip = (text, title) => {
+        const span = document.createElement('span');
+        span.className = 'hf-df-chip';
+        span.title = title;
+        span.textContent = text;
+        return span;
+      };
       if (isLikedOnlyActive) {
-        chips.push(`<span class="hf-df-chip" title="Filter: Unliked models only">💚 Unliked</span>`);
+        chipEls.push(mkChip('💚 Unliked', 'Filter: Unliked models only'));
       }
       if (isTextActive) {
         const raw = CONFIG.FILTER_EXCLUDE_TERMS.trim();
         const display = raw.length > 14 ? raw.slice(0, 12) + '…' : raw;
-        chips.push(`<span class="hf-df-chip" title="Excluded: ${raw}">🚫 ${display}</span>`);
+        chipEls.push(mkChip(`🚫 ${display}`, `Excluded: ${raw}`));
       }
       if (isDateActive) {
         const label = CONFIG.DATE_PRESET !== 'custom' ? CONFIG.DATE_PRESET : `≤${CONFIG.DATE_MAX_DAYS}d`;
-        chips.push(`<span class="hf-df-chip" title="Date range: ${label}">📅 ${label}</span>`);
+        chipEls.push(mkChip(`📅 ${label}`, `Date range: ${label}`));
       }
-      summaryChips.innerHTML = chips.join('');
+      summaryChips.replaceChildren(...chipEls);
     }
 
     if (unlikedToggle) unlikedToggle.checked = isLikedOnlyActive;
@@ -2269,6 +2296,10 @@ const SHADOW_WIDGET_STYLES = `
         substatus.textContent = details.length > 0 ? details.join(' • ') : '';
       }
     }
+  }
+
+  if (typeof window !== 'undefined' && window.__HF_HEART_TEST_HOOK__) {
+    window.__HF_HEART_EXPORTS__ = { parseNegativeFilter, isCardExcludedByText, findHeartSvg, isHeartSvg };
   }
 
   injectStyles();

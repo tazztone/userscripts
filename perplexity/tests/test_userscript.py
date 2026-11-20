@@ -131,3 +131,25 @@ def test_settings_click_targets_geometry(settings_page: Page):
     assert boxes['saveBtn']['h'] >= 36
     assert boxes['closeBtn']['h'] >= 36
 
+
+def test_suggestion_pill_with_octicon_still_clicked(browser, userscript_content):
+    page = browser.new_page()
+    try:
+        page.goto(MOCK_HTML)
+        page.evaluate("""() => {
+            const pill = document.querySelector('#suggestion-pill');
+            if (pill) {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                p.setAttribute('d', 'M12 2C6.477 2 2 6.477 2 12c0 4.419 2.865 8.166 6.839 9.489');
+                svg.appendChild(p);
+                pill.appendChild(svg);
+            }
+        }""")
+        page.evaluate(userscript_content)
+        page.wait_for_selector('#active-connectors button[aria-haspopup="menu"]', timeout=3000)
+        assert page.locator('#active-connectors button').inner_text() == 'GitHub'
+    finally:
+        page.close()
+
+

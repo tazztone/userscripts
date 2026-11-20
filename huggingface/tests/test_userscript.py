@@ -623,6 +623,16 @@ def test_interactive_click_target_geometry(page: Page):
     assert boxes['switchEl'] is not None and boxes['switchEl']['w'] >= 32 and boxes['switchEl']['h'] >= 20
 
 
+def test_summary_chips_escape_html_in_exclude_terms(page: Page):
+    page.fill('#hf-date-filter-root >> #hf-exclude-input', '<img src=x onerror=alert(1)>')
+    page.wait_for_function("document.querySelector('#hf-date-filter-root').shadowRoot.querySelectorAll('.hf-df-chip').length >= 1")
+    chip = page.locator('#hf-date-filter-root >> .hf-df-chip').first
+    assert chip.count() == 1
+    assert '<img' in chip.inner_text()
+    assert page.locator('#hf-date-filter-root >> .hf-df-chip img').count() == 0
+
+
+
 
 
 

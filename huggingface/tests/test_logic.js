@@ -1,98 +1,103 @@
-const fs = require('fs');
-const path = require('path');
-const assert = require('assert');
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
-// Read userscript source
-const scriptPath = path.join(__dirname, '..', 'huggingface-heart.user.js');
-const scriptSource = fs.readFileSync(scriptPath, 'utf8');
+const scriptPath = path.resolve(__dirname, '../huggingface-heart.user.js');
+const scriptCode = fs.readFileSync(scriptPath, 'utf8');
 
-// Basic syntax check
-assert(scriptSource.includes('FILTER_EXCLUDE_ENABLED'), 'Missing FILTER_EXCLUDE_ENABLED');
-assert(scriptSource.includes('FILTER_EXCLUDE_TERMS'), 'Missing FILTER_EXCLUDE_TERMS');
-assert(scriptSource.includes('FILTER_UNLIKED_ONLY'), 'Missing FILTER_UNLIKED_ONLY');
-assert(scriptSource.includes('hf-liked-filtered-out'), 'Missing hf-liked-filtered-out CSS/class');
-assert(scriptSource.includes('scanNextUnlikedPages'), 'Missing scanNextUnlikedPages');
-assert(scriptSource.includes('getCurrentPageIndex'), 'Missing getCurrentPageIndex');
-assert(scriptSource.includes('getPageUrlForIndex'), 'Missing getPageUrlForIndex');
-assert(scriptSource.includes('updatePaginationLinks'), 'Missing updatePaginationLinks');
-assert(scriptSource.includes('hf-scan-btn'), 'Missing hf-scan-btn');
-assert(scriptSource.includes('hf-empty-scan-btn'), 'Missing hf-empty-scan-btn');
-assert(scriptSource.includes('parseNegativeFilter'), 'Missing parseNegativeFilter');
-assert(scriptSource.includes('isCardExcludedByText'), 'Missing isCardExcludedByText');
-assert(scriptSource.includes('thru p.'), 'Missing thru p. scan status indicator');
-assert(scriptSource.includes('Stopped at p.'), 'Missing Stopped at p. scan status indicator');
-assert(scriptSource.includes('hf-bottom-scan-bar'), 'Missing hf-bottom-scan-bar element ID');
-assert(scriptSource.includes('setupBottomScanBar'), 'Missing setupBottomScanBar function');
-assert(scriptSource.includes('hf-bottom-scan-btn'), 'Missing hf-bottom-scan-btn element ID');
-assert(scriptSource.includes('KeyS'), 'Missing Alt+S keyboard shortcut');
-assert(scriptSource.includes('429'), 'Missing 429 rate limit check');
-assert(scriptSource.includes('End of catalog'), 'Missing End of catalog detection');
-assert(scriptSource.includes("targetEl.id === 'hf-df-empty-notice'"), 'observeCards must filter hf-df-empty-notice to prevent infinite observer loop');
-assert(scriptSource.includes('hf-empty-notice-text'), 'Empty notice must update text element in-place to avoid button teardown');
-assert(!scriptSource.includes('(${pagesScanned}p)'), 'Scan status must not use ambiguous batch count (${pagesScanned}p)');
-
-// Execute parser logic in isolation
-function parseNegativeFilter(termsStr) {
-  if (!termsStr || typeof termsStr !== 'string') return [];
-  const rawTokens = termsStr.split(/[,\n]+/);
-  const matchers = [];
-
-  for (const raw of rawTokens) {
-    const token = raw.trim();
-    if (!token) continue;
-
-    const regexMatch = token.match(/^\/(.+)\/([a-z]*)$/i);
-    if (regexMatch) {
-      try {
-        const pattern = regexMatch[1];
-        const flags = regexMatch[2] || 'i';
-        matchers.push({ type: 'regex', regex: new RegExp(pattern, flags), raw: token });
-        continue;
-      } catch (e) {}
-    }
-
-    matchers.push({ type: 'string', text: token.toLowerCase(), raw: token });
-  }
-
-  return matchers;
+function loadHfExports() {
+  const noop = () => {};
+  const makeEl = (tag = 'div') => ({
+    tagName: tag.toUpperCase(),
+    className: '',
+    dataset: {},
+    style: {},
+    children: [],
+    classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
+    setAttribute: noop,
+    getAttribute: () => null,
+    appendChild: noop,
+    replaceChildren: noop,
+    addEventListener: noop,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  });
+  const ctx = {
+    console,
+    setTimeout,
+    clearTimeout,
+    setInterval: () => 0,
+    clearInterval: noop,
+    URL,
+    RegExp,
+    Array,
+    Object,
+    Set,
+    Map,
+    Math,
+    Date,
+    JSON,
+    Promise,
+    GM_getValue: (_k, d) => d,
+    GM_setValue: noop,
+    GM_registerMenuCommand: noop,
+    GM_addStyle: noop,
+    localStorage: { getItem: () => null, setItem: noop },
+    location: { href: 'https://huggingface.co/models', pathname: '/models', search: '' },
+    MutationObserver: class { observe() {} disconnect() {} },
+    document: {
+      head: makeEl('head'),
+      body: makeEl('body'),
+      documentElement: makeEl('html'),
+      readyState: 'complete',
+      createElement: makeEl,
+      getElementById: () => null,
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      addEventListener: noop,
+    },
+    window: {
+      __HF_HEART_TEST_HOOK__: true,
+      location: { href: 'https://huggingface.co/models', pathname: '/models', search: '' },
+      addEventListener: noop,
+    },
+  };
+  ctx.globalThis = ctx;
+  ctx.self = ctx;
+  vm.runInNewContext(scriptCode, ctx, { filename: scriptPath });
+  return ctx.window.__HF_HEART_EXPORTS__;
 }
 
-function isCardExcludedByText(cardTitle, modelId, matchers) {
-  if (!matchers || matchers.length === 0) return false;
-  const idText = (modelId || '').toLowerCase();
-  const titleText = (cardTitle || '').trim().toLowerCase();
+const { parseNegativeFilter, isCardExcludedByText, findHeartSvg } = loadHfExports();
 
-  for (const m of matchers) {
-    if (m.type === 'regex') {
-      if (m.regex.test(modelId || '') || m.regex.test(cardTitle || '')) {
-        return true;
-      }
-    } else if (m.type === 'string') {
-      if (idText.includes(m.text) || titleText.includes(m.text)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+describe('huggingface-heart.user.js real logic', () => {
+  it('parseNegativeFilter strips /g and /y flags so regexes are stateless across cards', () => {
+    const matchers = parseNegativeFilter('/gguf/gi; lora');
+    assert.equal(matchers.length, 2);
+    assert.equal(matchers[0].type, 'regex');
+    assert.equal(matchers[0].value.global, false);
+    assert.equal(matchers[0].value.sticky, false);
+    // Repeatedly test against multiple cards
+    assert.equal(isCardExcludedByText({ textContent: 'Model GGUF' }, 'org/model', matchers), true);
+    assert.equal(isCardExcludedByText({ textContent: 'Model GGUF' }, 'org/model', matchers), true);
+    assert.equal(isCardExcludedByText({ textContent: 'Model LoRA' }, 'org/model', matchers), true);
+    assert.equal(isCardExcludedByText({ textContent: 'Model FP16' }, 'org/model', matchers), false);
+  });
 
-// 1. Single term test
-let m1 = parseNegativeFilter('gguf');
-assert.strictEqual(m1.length, 1);
-assert.strictEqual(isCardExcludedByText('Llama-3-8B-GGUF', 'meta-llama/Llama-3-8B-GGUF', m1), true);
-assert.strictEqual(isCardExcludedByText('Llama-3-8B', 'meta-llama/Llama-3-8B', m1), false);
-
-// 2. Multi-term comma separated test with extra spaces
-let m2 = parseNegativeFilter(' gguf , fp8,   /q[48]_k/i ');
-assert.strictEqual(m2.length, 3);
-assert.strictEqual(isCardExcludedByText('Flux.1-schnell', 'black-forest-labs/FLUX.1-schnell-FP8', m2), true);
-assert.strictEqual(isCardExcludedByText('Model-Q4_K_M', 'user/model-q4_k_m', m2), true);
-assert.strictEqual(isCardExcludedByText('Standard Model', 'user/standard-model', m2), false);
-
-// 3. Invalid regex safety test (does not throw and falls back to literal substring)
-let m3 = parseNegativeFilter('/[invalid-regex/');
-assert.strictEqual(m3.length, 1);
-assert.strictEqual(m3[0].type, 'string');
-assert.strictEqual(m3[0].text, '/[invalid-regex/');
-
-console.log('All Node.js unit assertions passed successfully!');
+  it('findHeartSvg handles markedContainer that is itself an <svg>', () => {
+    const svgEl = {
+      tagName: 'svg',
+      getAttribute: (k) => (k === 'viewBox' ? '0 0 24 24' : null),
+      querySelector: () => ({ getAttribute: () => 'M22.5 4c-2 0-4 2-4 4' }),
+      querySelectorAll: () => [{ getAttribute: () => 'M22.5 4c-2 0-4 2-4 4' }],
+      closest: () => null,
+    };
+    const card = {
+      querySelector: () => svgEl,
+      querySelectorAll: () => [],
+    };
+    assert.equal(findHeartSvg(card), svgEl);
+  });
+});

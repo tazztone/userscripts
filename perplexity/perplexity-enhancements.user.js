@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Perplexity Enhancements
 // @namespace    https://github.com/tazztone/userscripts
-// @version      1.1.5
+// @version      1.1.6
 // @description  Keeps a preferred Perplexity model active and safely automates agent approvals and GitHub connector enablement.
 // @author       tazztone
 // @license      MIT
@@ -280,7 +280,9 @@ const SHADOW_STYLES = `
   function findModelButton() {
     const textarea = document.querySelector('textarea[placeholder*="Ask" i], textarea[placeholder*="anything" i], textarea');
     const promptBox = textarea && (textarea.closest('form') || textarea.parentElement?.closest('div'));
-    const candidates = promptBox ? [...promptBox.querySelectorAll('button')] : [...document.querySelectorAll('button')];
+    const candidates = promptBox
+      ? [...promptBox.querySelectorAll('button')]
+      : [...document.querySelectorAll('button[aria-haspopup]')];
     const keywords = ['model', 'best', 'sonar', 'gpt-', 'gemini', 'claude'];
 
     return candidates.find(btn => {
@@ -290,8 +292,8 @@ const SHADOW_STYLES = `
       if (text.includes('github') || text.includes('attach') || text.includes('focus') || text.includes('search') || label.includes('voice') || label.includes('dictate')) return false;
       const rect = btn.getBoundingClientRect();
       if (Math.abs(rect.width - rect.height) < 4 && rect.width < 50) return false;
-      const hasMenu = ['menu', 'listbox', 'dialog'].includes(btn.getAttribute('aria-haspopup')) || btn.hasAttribute('aria-expanded');
-      const hasChevron = Boolean(btn.querySelector('svg')) || /[⌵▼]/.test(text);
+      const hasMenu = ['menu', 'listbox', 'dialog', 'true'].includes(btn.getAttribute('aria-haspopup')) || btn.hasAttribute('aria-expanded');
+      const hasChevron = promptBox ? (Boolean(btn.querySelector('svg')) || /[⌵▼]/.test(text)) : false;
       return hasMenu || hasChevron || keywords.some(keyword => text.includes(keyword));
     });
   }
@@ -319,11 +321,12 @@ const SHADOW_STYLES = `
   function findThinkingRow() {
     const trigger = findModelButton();
     const candidates = [...document.querySelectorAll('[role="menuitem"], [role="option"], [role="menuitemcheckbox"], button, .dropdown-item, div')];
-    return candidates.find(el => {
+    const matches = candidates.filter(el => {
       if (!isVisible(el) || el.closest('#px-root') || el === trigger || trigger?.contains(el)) return false;
       const text = normalize(el.textContent);
       return text.includes('thinking') && !/(claude|gpt|sonar|gemini)/.test(text) && el.querySelector('button[role="switch"], input[type="checkbox"], [aria-checked]');
     });
+    return matches.find(el => !matches.some(other => other !== el && el.contains(other))) || null;
   }
 
   function switchState(row) {
@@ -354,18 +357,28 @@ const SHADOW_STYLES = `
 
   let modelInteraction = false;
   let modelCooldownUntil = 0;
+  let modelLockRetries = 0;
+  const MAX_MODEL_LOCK_RETRIES = 3;
 
   function runModelLock() {
-    if (!CONFIG.MODEL_LOCK_ENABLED) { removeModelIndicators(); return; }
+    if (!CONFIG.MODEL_LOCK_ENABLED) { removeModelIndicators(); modelLockRetries = 0; return; }
     if (modelInteraction || Date.now() < modelCooldownUntil) return;
     const button = findModelButton();
     if (!button) return;
-    if (isTargetStateActive(button)) { updateModelIndicator(true, 'active'); return; }
+    if (isTargetStateActive(button)) {
+      modelLockRetries = 0;
+      updateModelIndicator(true, 'active');
+      return;
+    }
     updateModelIndicator(false, 'syncing');
 
     const modelItem = findDropdownModelItem();
     const thinkingRow = findThinkingRow();
     if (!modelItem && !thinkingRow) {
+      if (++modelLockRetries > MAX_MODEL_LOCK_RETRIES) {
+        modelCooldownUntil = Date.now() + 10000;
+        return;
+      }
       modelInteraction = true;
       dispatchClickEvents(button);
       setTimeout(() => { modelInteraction = false; runModelLock(); }, 250);
@@ -376,6 +389,11 @@ const SHADOW_STYLES = `
     let changed = false;
     if (thinkingRow) changed = ensureSwitchState(thinkingRow, CONFIG.ENABLE_THINKING) || changed;
     if (modelItem) { dispatchClickEvents(modelItem); changed = true; }
+    if (++modelLockRetries > MAX_MODEL_LOCK_RETRIES) {
+      modelCooldownUntil = Date.now() + 10000;
+      modelInteraction = false;
+      return;
+    }
     modelCooldownUntil = Date.now() + CONFIG.MODEL_COOLDOWN_MS;
     setTimeout(() => { modelCooldownUntil = 0; modelInteraction = false; runModelLock(); }, changed ? CONFIG.MODEL_COOLDOWN_MS + 50 : 250);
   }
@@ -408,8 +426,9 @@ const SHADOW_STYLES = `
     let remaining = delay;
     let paused = false;
     let timer;
+    const listenerAc = new AbortController();
     const update = () => { progress.style.transform = `scaleX(${Math.max(0, remaining / delay)})`; };
-    const cleanup = () => { clearInterval(timer); activeTimers.delete(button); removeApprovalDecoration(button); };
+    const cleanup = () => { clearInterval(timer); listenerAc.abort(); activeTimers.delete(button); removeApprovalDecoration(button); };
     const pause = () => { paused = true; button.classList.add('px-paused'); };
     const resume = () => { paused = false; button.classList.remove('px-paused'); };
     const tick = () => {
@@ -428,23 +447,31 @@ const SHADOW_STYLES = `
       }
     };
     timer = setInterval(tick, 100);
-    activeTimers.set(button, timer);
-    button.addEventListener('mouseenter', pause, { passive: true });
-    button.addEventListener('mouseover', pause, { passive: true });
-    button.addEventListener('pointerenter', pause, { passive: true });
-    button.addEventListener('mouseleave', resume, { passive: true });
-    button.addEventListener('pointerleave', resume, { passive: true });
+    activeTimers.set(button, { timer, cleanup });
+    button.addEventListener('mouseenter', pause, { passive: true, signal: listenerAc.signal });
+    button.addEventListener('mouseover', pause, { passive: true, signal: listenerAc.signal });
+    button.addEventListener('pointerenter', pause, { passive: true, signal: listenerAc.signal });
+    button.addEventListener('mouseleave', resume, { passive: true, signal: listenerAc.signal });
+    button.addEventListener('pointerleave', resume, { passive: true, signal: listenerAc.signal });
   }
 
   function cancelApprovalTimers() {
-    activeTimers.forEach((timer, button) => { clearInterval(timer); removeApprovalDecoration(button); });
+    activeTimers.forEach((entry, button) => {
+      if (entry?.cleanup) entry.cleanup();
+      else {
+        clearInterval(entry);
+        removeApprovalDecoration(button);
+      }
+    });
     activeTimers.clear();
   }
 
   // --- GitHub connector ---
   function isGithubEnabled() {
     const active = [...document.querySelectorAll('button[aria-haspopup="menu"], button[aria-expanded], [data-testid="message-input-active-connectors"] img[alt*="GitHub" i]')];
-    return active.some(el => normalize(el.textContent || el.getAttribute('alt')).includes('github')) || Boolean(document.querySelector('svg path[d*="M12 2C6.477 2 2 6.477 2 12c0 4.419 2.865 8.166 6.839 9.489"]'));
+    const activeContainer = document.querySelector('[data-testid="message-input-active-connectors"], [class*="active-connectors" i]');
+    return active.some(el => normalize(el.textContent || el.getAttribute('alt')).includes('github'))
+      || Boolean(activeContainer?.querySelector('svg path[d*="M12 2C6.477 2 2 6.477 2 12c0 4.419 2.865 8.166 6.839 9.489"]'));
   }
 
   function tryClickSuggestionPill() {
