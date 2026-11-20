@@ -4002,9 +4002,46 @@ def test_category_tree_toolbar_popovers_and_settings_target_geometry(page: Page,
         context.close()
 
 
-
-
-
-
-
+def test_auto_list_feature_dismissal_on_search_page(page: Page):
+    """Auto-added .f_listFeatureRemove[data-features='-1383'] triggers .f_list_feature_toggle change while preserving data-page and .product-features."""
+    page.evaluate("""() => {
+        document.body.setAttribute('data-current_url', '/produktsuche/Monitore-c194?sfh=rngff1383x13');
+        const host = document.createElement('div');
+        host.id = 'tp-test-lf-host';
+        host.innerHTML = `
+            <div class="Plugin_SortSelection listFeatureMenu">
+                <input type="hidden" class="f_list_features" value="">
+                <input type="hidden" class="f_list_feature_toggle" value="">
+            </div>
+            <div class="f_Plugin_Filter_Pagination_123" data-page="4"></div>
+            <div class="listFeaturesBox">
+                <a class="f_listFeatureRemove" data-features="-1383">max. Wiederholfrequenz 240 Hz</a>
+            </div>
+            <div class="product-features">27", 2560x1440, 240Hz</div>
+        `;
+        document.body.appendChild(host);
+        window.__tpLfChangeCount = 0;
+        window.__tpLfLastVal = null;
+        const toggle = host.querySelector('input.f_list_feature_toggle');
+        const pager = host.querySelector('.f_Plugin_Filter_Pagination_123');
+        toggle.addEventListener('change', () => {
+            window.__tpLfChangeCount++;
+            window.__tpLfLastVal = toggle.value;
+            pager.setAttribute('data-page', '0');
+        });
+        window.ToppreiseSuite.processListings();
+    }""")
+    res = page.evaluate("""() => {
+        const host = document.getElementById('tp-test-lf-host');
+        return {
+            changeCount: window.__tpLfChangeCount,
+            lastVal: window.__tpLfLastVal,
+            pageAttr: host.querySelector('.f_Plugin_Filter_Pagination_123').getAttribute('data-page'),
+            specsText: host.querySelector('.product-features').textContent
+        };
+    }""")
+    assert res['changeCount'] == 1
+    assert res['lastVal'] == '-1383'
+    assert res['pageAttr'] == '4'
+    assert '240Hz' in res['specsText']
 

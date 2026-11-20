@@ -61,5 +61,12 @@ export const SELECTORS = Object.freeze({
     rangePrices: '.priceRatingRangePrices',
     facts: '.priceRatingFacts',
     highlight: '.priceRatingHighlight'
+  }),
+  listFeatures: Object.freeze({
+    menu: '.Plugin_SortSelection.listFeatureMenu',
+    stateInput: 'input.f_list_features',
+    toggleInput: 'input.f_list_feature_toggle',
+    removeBtn: '.listFeaturesBox .f_listFeatureRemove[data-features]',
+    paginationPrefix: '.f_Plugin_Filter_Pagination_'
   })
 });

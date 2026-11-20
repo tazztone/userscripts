@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.533
+// @version      2.18.534
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3496,6 +3496,13 @@ const SHADOW_MODAL_STYLES = `
       rangePrices: '.priceRatingRangePrices',
       facts: '.priceRatingFacts',
       highlight: '.priceRatingHighlight'
+    }),
+    listFeatures: Object.freeze({
+      menu: '.Plugin_SortSelection.listFeatureMenu',
+      stateInput: 'input.f_list_features',
+      toggleInput: 'input.f_list_feature_toggle',
+      removeBtn: '.listFeaturesBox .f_listFeatureRemove[data-features]',
+      paginationPrefix: '.f_Plugin_Filter_Pagination_'
     })
   });
 
@@ -6372,6 +6379,104 @@ const SHADOW_MODAL_STYLES = `
     if (tpRenderPending) return;
     tpRenderPending = true;
     setTimeout(() => { tpRenderPending = false; triggerProcessListings(); }, 50);
+  }
+
+  const manualOverrideIds = new Set();
+  const attemptedLfStates = new Set();
+
+  function extractAutoListFeatureDismissals(currentLf = '', candidateValues = [], overrides = null) {
+    const tokens = String(currentLf || '')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    const existing = new Set(tokens);
+    const additions = [];
+    for (const raw of candidateValues || []) {
+      for (const part of String(raw || '').split(',')) {
+        const token = part.trim();
+        if (!/^-\d+$/.test(token)) continue;
+        const posId = token.slice(1);
+        if (overrides?.has(posId)) continue;
+        if (existing.has(token)) continue;
+        existing.add(token);
+        additions.push(token);
+      }
+    }
+    return additions.length > 0 ? [...tokens, ...additions].join(',') : null;
+  }
+
+  function suppressAutoListFeatures(doc = typeof document !== 'undefined' ? document : null) {
+    if (!doc || !isSearchPage()) return false;
+    const menu = doc.querySelector?.(SELECTORS.listFeatures.menu);
+    const toggleInput = menu?.querySelector?.(SELECTORS.listFeatures.toggleInput);
+    if (!menu || !toggleInput) return false;
+
+    if (doc.readyState === 'loading') {
+      if (!menu._tpLfDomReadyBound) {
+        menu._tpLfDomReadyBound = true;
+        doc.addEventListener?.('DOMContentLoaded', () => suppressAutoListFeatures(doc), { once: true });
+      }
+      return false;
+    }
+
+    if (!menu._tpLfManualBound) {
+      menu._tpLfManualBound = true;
+      const recordManualIds = raw => {
+        const str = String(raw || '').trim();
+        if (!str) return;
+        const pipeIdx = str.indexOf('|');
+        const prefix = pipeIdx >= 0 ? str.slice(0, pipeIdx) : '';
+        const rest = pipeIdx >= 0 ? str.slice(pipeIdx + 1) : str;
+        const prefixMatch = prefix.match(/^(?:md|ma)(\d+)$/);
+        if (prefixMatch) manualOverrideIds.add(prefixMatch[1]);
+        for (const part of rest.split(',')) {
+          const token = part.trim();
+          if (/^\d+$/.test(token)) manualOverrideIds.add(token);
+        }
+      };
+      menu.addEventListener?.('change', e => {
+        if (toggleInput._tpLfDispatching) return;
+        recordManualIds(e?.target?.value ?? e?.target?.getAttribute?.('data-features'));
+      });
+      menu.addEventListener?.('click', e => {
+        if (toggleInput._tpLfDispatching) return;
+        const item = e?.target?.closest?.('li[data-value]');
+        if (item) recordManualIds(item.getAttribute?.('data-value'));
+      });
+    }
+
+    const stateInput = menu.querySelector?.(SELECTORS.listFeatures.stateInput);
+    const currentLf = String(stateInput?.value ?? toggleInput.value ?? '').trim();
+    const removeBtns = doc.querySelectorAll?.(SELECTORS.listFeatures.removeBtn) || [];
+    const candidates = Array.from(removeBtns, el => el.getAttribute?.('data-features') || '');
+    const nextLf = extractAutoListFeatureDismissals(currentLf, candidates, manualOverrideIds);
+    if (!nextLf) return false;
+
+    const loc = typeof location !== 'undefined' ? `${location.pathname || ''}${location.search || ''}` : '';
+    const stateKey = `${loc}|${currentLf}|${nextLf}`;
+    if (attemptedLfStates.has(stateKey)) return false;
+    attemptedLfStates.add(stateKey);
+
+    const paginators = doc.querySelectorAll?.(`[class*="${SELECTORS.listFeatures.paginationPrefix.slice(1)}"]`) || [];
+    const savedPages = [];
+    for (const el of paginators) {
+      const page = el.getAttribute?.('data-page');
+      if (page && page !== '0') savedPages.push([el, page]);
+    }
+
+    toggleInput.value = nextLf;
+    toggleInput._tpLfDispatching = true;
+    try {
+      const Evt = typeof Event === 'function' ? Event : class { constructor(t, o) { this.type = t; this.bubbles = !!o?.bubbles; } };
+      toggleInput.dispatchEvent?.(new Evt('change', { bubbles: true }));
+    } finally {
+      toggleInput._tpLfDispatching = false;
+    }
+
+    for (const [el, page] of savedPages) {
+      el.setAttribute?.('data-page', page);
+    }
+    return true;
   }
 
   // ─── MODULE: src/page/cards.js ──────────────────────────────────────────────
@@ -17704,6 +17809,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   function processListings() {
     const dismissChrome = () => { const staleBar = document.getElementById('tp-suite-filter-bar'); if (staleBar) staleBar.remove(); hideFloatingCTA(); };
     if (isProductDetailPage()) { dismissChrome(); return; }
+    suppressAutoListFeatures();
     withDomMutationLock(() => {
       try {
         const cards = getProductCards();
@@ -17960,7 +18066,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.533';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.534';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {
