@@ -14,6 +14,9 @@ import { isShippingPriceActive } from '../page/adapter.js';
 import { SELECTORS } from '../page/selectors.js';
 import { showToast } from '../ui/toast.js';
 import { fetchWithTimeout } from '../state/net.js';
+import { sanitizeImportedNode, isSafeImportedUrl } from '../page/sanitize.js';
+
+export { sanitizeImportedNode, isSafeImportedUrl };
 
 const ALARM_DURATIONS = ['90', '180', '365', '730'];
 const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
@@ -67,51 +70,6 @@ export function resolveAlarmFormUrl(raw, baseHref, { contextHash, lang } = {}) {
   }
   if (lang) url.searchParams.set('lang', String(lang));
   return url;
-}
-
-const UNSAFE_IMPORT_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link']);
-const URL_ATTRIBUTES = new Set([
-  'href', 'src', 'srcset', 'action', 'formaction', 'poster',
-  'xlink:href', 'data-ajax-url', 'data-ajax-form-url'
-]);
-const BLOCKED_URL_SCHEME = /^(?:javascript|vbscript|data):/i;
-const stripControlChars = value => String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '');
-
-export function isSafeImportedUrl(value, { srcset = false } = {}) {
-  const cleaned = stripControlChars(value);
-  if (!srcset) return !BLOCKED_URL_SCHEME.test(cleaned.replace(/\s+/g, ''));
-  return cleaned.split(',').every(part => {
-    const candidate = part.trim().split(/\s+/)[0] || '';
-    return !candidate || !BLOCKED_URL_SCHEME.test(candidate);
-  });
-}
-
-export function sanitizeImportedNode(root) {
-  if (!root || root.nodeType !== 1) return root;
-  if (UNSAFE_IMPORT_TAGS.has(root.tagName?.toLowerCase())) return null;
-  const stack = [root];
-  while (stack.length) {
-    const node = stack.pop();
-    const tag = node.tagName?.toLowerCase();
-    if (UNSAFE_IMPORT_TAGS.has(tag)) {
-      node.remove();
-      continue;
-    }
-    for (const attr of Array.from(node.attributes || [])) {
-      const name = attr.name.toLowerCase();
-      if (name.startsWith('on') || name === 'srcdoc') {
-        node.removeAttribute(attr.name);
-      } else if (URL_ATTRIBUTES.has(name) && !isSafeImportedUrl(attr.value, { srcset: name === 'srcset' })) {
-        node.removeAttribute(attr.name);
-      }
-    }
-    // querySelectorAll does not enter template content, so walk it explicitly.
-    if (tag === 'template' && node.content) {
-      for (const child of Array.from(node.content.children)) stack.push(child);
-    }
-    for (const child of Array.from(node.children || [])) stack.push(child);
-  }
-  return root;
 }
 
 const findAlarmFormTrigger = root => {
@@ -331,7 +289,7 @@ export function processPriceAlarmModal() {
       showToast(unconfirmedMsg);
     };
     try {
-      const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
+      const dialogRoot = modalContainer.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
       let submitTimer;
       // Observe BEFORE submit: close only on a success signal — button/form
       // detachment alone never closes.
@@ -346,7 +304,7 @@ export function processPriceAlarmModal() {
           reqModal._tpAlarmObserver = null;
           if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
           showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
-          const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
+          const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                            document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
           if (closeBtn) closeBtn.click();
           else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
@@ -395,6 +353,16 @@ export function processPriceAlarmModal() {
   }
 }
 
+const activeAlarmDismissers = new Set();
+const inFlightAlarmPids = new Set();
+
+export function closeFetchedAlarmDialogs() {
+  for (const dismiss of Array.from(activeAlarmDismissers)) {
+    try { dismiss(); } catch {}
+  }
+  activeAlarmDismissers.clear();
+}
+
 // Materializes a fetched NewInfoMailButton response: dialog shell + form body.
 // Returns false without touching the page when the response is unusable, so
 // the caller can fall back to direct navigation.
@@ -421,6 +389,7 @@ async function openFetchedAlarmDialog(html) {
   sanitizeImportedNode(dialogNode);
 
   const dismissDialog = () => {
+    activeAlarmDismissers.delete(dismissDialog);
     if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
       try { window.AbstractDialog_hide(dialogId); } catch {}
     }
@@ -430,6 +399,11 @@ async function openFetchedAlarmDialog(html) {
     document.removeEventListener('keydown', handleKeydown);
   };
   const handleKeydown = e => {
+    if (!dialogNode.isConnected) {
+      document.removeEventListener('keydown', handleKeydown);
+      activeAlarmDismissers.delete(dismissDialog);
+      return;
+    }
     if (e.key === 'Escape') dismissDialog();
   };
   // Escape must be live only once the dialog is visibly mounted: registering
@@ -474,6 +448,7 @@ async function openFetchedAlarmDialog(html) {
     document.getElementById(dialogId)?.remove();
   }
   document.body.appendChild(dialogNode);
+  activeAlarmDismissers.add(dismissDialog);
   document.addEventListener('keydown', handleKeydown);
   if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
     window.AbstractDialog_show(dialogId);
@@ -498,50 +473,57 @@ async function openFetchedAlarmDialog(html) {
  */
 export async function openPriceAlarmForProduct(pid, card = null) {
   if (!pid) return;
-  // 1. Check if card or nearby DOM already has a native bell anchor
-  const localBell = card?.querySelector?.('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog, a[href*="NewInfoMail"]');
-  if (localBell) {
-    localBell.click();
-    return;
-  }
-
-  // 2. If test mock dialog exists, display it directly
-  const mockDialog = document.querySelector('#mock-alarm-dialog');
-  if (mockDialog) {
-    mockDialog.style.display = 'block';
-    delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
-    delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
-    processPriceAlarmModal();
-    return;
-  }
-
-  // 3. Fetch NewInfoMailButton + form and materialize them. The native
-  // `openInfoMailForm` helper needs a dialog template inside the clicked
-  // wrapper; a synthetic trigger has none, so it always throws on live.
+  const pidKey = String(pid);
+  if (inFlightAlarmPids.has(pidKey)) return;
+  inFlightAlarmPids.add(pidKey);
   try {
-    const postBody = new URLSearchParams({
-      im_nimb_ch: '1',
-      im_nimb_pid: String(pid),
-      im_nimb_tmpl: 'btn',
-      lang: 'de'
-    });
-    const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: postBody
-    }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
-    if (res.ok && await openFetchedAlarmDialog(html)) return;
-  } catch (err) {
-    if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
-  }
+    // 1. Check if card or nearby DOM already has a native bell anchor
+    const localBell = card?.querySelector?.('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog, a[href*="NewInfoMail"]');
+    if (localBell) {
+      localBell.click();
+      return;
+    }
 
-  // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab
-  if (typeof window !== 'undefined') {
-    showToast('⚠️ Preisalarm im neuen Tab geöffnet');
-    window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
+    // 2. If test mock dialog exists, display it directly
+    const mockDialog = document.querySelector('#mock-alarm-dialog');
+    if (mockDialog) {
+      mockDialog.style.display = 'block';
+      delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
+      delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
+      processPriceAlarmModal();
+      return;
+    }
+
+    // 3. Fetch NewInfoMailButton + form and materialize them. The native
+    // `openInfoMailForm` helper needs a dialog template inside the clicked
+    // wrapper; a synthetic trigger has none, so it always throws on live.
+    try {
+      const postBody = new URLSearchParams({
+        im_nimb_ch: '1',
+        im_nimb_pid: pidKey,
+        im_nimb_tmpl: 'btn',
+        lang: 'de'
+      });
+      const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: postBody
+      }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
+      if (res.ok && await openFetchedAlarmDialog(html)) return;
+    } catch (err) {
+      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
+    }
+
+    // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab
+    if (typeof window !== 'undefined') {
+      showToast('⚠️ Preisalarm im neuen Tab geöffnet');
+      window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
+    }
+  } finally {
+    inFlightAlarmPids.delete(pidKey);
   }
 }
 

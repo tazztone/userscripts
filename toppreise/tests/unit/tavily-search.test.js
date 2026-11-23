@@ -9,6 +9,7 @@ import {
   getCachedTavily,
   setCachedTavily,
   clearTavilyCache,
+  pruneTavilyCache,
   buildTavilyQuery,
   expandKeywordWithPrice,
   formatSearchQuery,
@@ -120,6 +121,61 @@ describe('tavily-search: cache layer', () => {
     clearTavilyCache();
     assert.equal(getCachedTavily('Product A'), null);
     assert.equal(getCachedTavily('Product B'), null);
+  });
+
+  it('pruneTavilyCache removes malformed/expired entries and evicts oldest beyond maxEntries', () => {
+    const m = new Map();
+    const store = {
+      getItem: k => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => { m.set(k, String(v)); },
+      removeItem: k => { m.delete(k); },
+      key: i => [...m.keys()][i] ?? null,
+      get length() { return m.size; },
+    };
+    const now = Date.now();
+    store.setItem(`${TAVILY_CACHE_KEY_PREFIX}malformed`, '{bad json');
+    store.setItem(`${TAVILY_CACHE_KEY_PREFIX}expired`, JSON.stringify({ answer: 'old', timestamp: now - TAVILY_CACHE_TTL_MS - 1000 }));
+    store.setItem(`${TAVILY_CACHE_KEY_PREFIX}oldest`, JSON.stringify({ answer: '1', timestamp: now - 3000 }));
+    store.setItem(`${TAVILY_CACHE_KEY_PREFIX}middle`, JSON.stringify({ answer: '2', timestamp: now - 2000 }));
+    store.setItem(`${TAVILY_CACHE_KEY_PREFIX}newest`, JSON.stringify({ answer: '3', timestamp: now - 1000 }));
+    store.setItem('unrelated_key', 'keep-me');
+
+    const removed = pruneTavilyCache(2, store);
+    assert.equal(removed, 3);
+    assert.equal(store.getItem(`${TAVILY_CACHE_KEY_PREFIX}malformed`), null);
+    assert.equal(store.getItem(`${TAVILY_CACHE_KEY_PREFIX}expired`), null);
+    assert.equal(store.getItem(`${TAVILY_CACHE_KEY_PREFIX}oldest`), null);
+    assert.ok(store.getItem(`${TAVILY_CACHE_KEY_PREFIX}middle`));
+    assert.ok(store.getItem(`${TAVILY_CACHE_KEY_PREFIX}newest`));
+    assert.equal(store.getItem('unrelated_key'), 'keep-me');
+  });
+
+  it('setCachedTavily retries with pruneTavilyCache(50) on QuotaExceededError', () => {
+    const m = new Map();
+    const now = Date.now();
+    for (let i = 0; i < 60; i++) {
+      m.set(`${TAVILY_CACHE_KEY_PREFIX}old_${i}`, JSON.stringify({ answer: `a${i}`, timestamp: now - (60 - i) * 1000 }));
+    }
+    let quotaThrown = false;
+    const store = {
+      getItem: k => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => {
+        if (!quotaThrown) {
+          quotaThrown = true;
+          const e = new Error('quota');
+          e.name = 'QuotaExceededError';
+          throw e;
+        }
+        m.set(k, String(v));
+      },
+      removeItem: k => { m.delete(k); },
+      key: i => [...m.keys()][i] ?? null,
+      get length() { return m.size; },
+    };
+    setCachedTavily('New Query', 'New Answer', store);
+    assert.equal(quotaThrown, true);
+    assert.ok(store.getItem(`${TAVILY_CACHE_KEY_PREFIX}new query`));
+    assert.equal(m.size, 51);
   });
 });
 

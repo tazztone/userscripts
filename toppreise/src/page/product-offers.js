@@ -6,7 +6,7 @@
 import { SELECTORS } from './selectors.js';
 import { parsePrice } from '../domain/price.js';
 import { getCachedAsin, setCachedAsin, lruSet } from '../scanner/cache.js';
-import { fetchWithTimeout, getOriginCooldownUntil, setOriginCooldownUntil, parseRetryAfterMs, backoffMs } from '../state/net.js';
+import { fetchWithTimeout, gmRequestWithTimeout, getOriginCooldownUntil, setOriginCooldownUntil, parseRetryAfterMs, backoffMs } from '../state/net.js';
 
 const PRODUCT_PATH_RE = /^\/(?:preisvergleich|price-comparison|comparateur-de-prix)\//;
 const isToppreiseProductUrl = u => {
@@ -355,8 +355,11 @@ export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShippin
 // Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.
 export function isAllowedAmazonUrl(url) {
   if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return false;
   try {
-    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
     const host = parsed.hostname.toLowerCase();
     return host === 'amazon.de' || host.endsWith('.amazon.de') ||
            host === 'amazon.com' || host.endsWith('.amazon.com') ||
@@ -441,45 +444,34 @@ export async function resolveAmazonAsin(directUrl, productId = null, storage = n
       }
     }
 
-    return new Promise(resolve => {
-      try {
-        if (typeof GM_xmlhttpRequest !== 'undefined') {
-          GM_xmlhttpRequest({
-            method: 'HEAD',
-            url: target,
-            headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
-            timeout: 6000,
-            onload: res => {
-              const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
-              const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
-              if (asin && productId) {
-                lruSet(memoryAsinCache, productId, asin, 500);
-                setCachedAsin(productId, asin, storage);
-              }
-              resolve(asin || null);
-            },
-            onerror: () => resolve(null),
-            ontimeout: () => resolve(null),
-            onabort: () => resolve(null)
-          });
-        } else if (typeof fetch !== 'undefined') {
-          fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' })
-            .then(res => {
-              const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
-              if (asin && productId) {
-                lruSet(memoryAsinCache, productId, asin, 500);
-                setCachedAsin(productId, asin, storage);
-              }
-              resolve(asin || null);
-            })
-            .catch(() => resolve(null));
-        } else {
-          resolve(null);
+    try {
+      if (typeof GM_xmlhttpRequest !== 'undefined') {
+        const res = await gmRequestWithTimeout({
+          method: 'HEAD',
+          url: target,
+          headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
+        }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+        const loc = res?.finalUrl || res?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
+        const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
+        if (asin && productId) {
+          lruSet(memoryAsinCache, productId, asin, 500);
+          setCachedAsin(productId, asin, storage);
         }
-      } catch {
-        resolve(null);
+        return asin || null;
       }
-    });
+      if (typeof fetch !== 'undefined') {
+        const { res } = await fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+        const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
+        if (asin && productId) {
+          lruSet(memoryAsinCache, productId, asin, 500);
+          setCachedAsin(productId, asin, storage);
+        }
+        return asin || null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
   })();
 
   inFlightAsin.set(inFlightKey, resolvePromise);

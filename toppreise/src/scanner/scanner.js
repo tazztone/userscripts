@@ -74,9 +74,11 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
       }
       if (res.status >= 500) {
         if (attempt < retries) {
+          logActivity('warn', 'scanner', `HTTP ${res.status} — Retry (${attempt + 1}/${retries})`);
           await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
           continue;
         }
+        logActivity('warn', 'scanner', `HTTP ${res.status} nach ${retries + 1} Versuchen`);
         const e = new Error(`HTTP ${res.status}`);
         e.transient = true;
         throw e;
@@ -96,9 +98,11 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
         // This attempt's own timer fired: retry like any transient instead
         // of exiting on the first attempt.
         if (attempt < retries) {
+          logActivity('warn', 'scanner', `Timeout (${timeoutMs}ms) — Retry (${attempt + 1}/${retries})`);
           await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
           continue;
         }
+        logActivity('warn', 'scanner', `Timeout nach ${timeoutMs}ms (${retries + 1} Versuche)`);
         const e = new Error('timeout');
         e.timeout = true;
         throw e;
@@ -106,6 +110,7 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
       // Backstop for aborts neither parent nor timer explains (e.g. a fetch
       // implementation aborting without the controller flag).
       if (err?.name === 'AbortError') {
+        logActivity('warn', 'scanner', `AbortError/Timeout (${err?.message || 'aborted'})`);
         const e = new Error('timeout');
         e.timeout = true;
         throw e;
@@ -116,9 +121,11 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
         throw e;
       }
       if (attempt < retries) {
+        logActivity('warn', 'scanner', `Netzwerkfehler — Retry (${attempt + 1}/${retries})`, err?.message || '');
         await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
         continue;
       }
+      logActivity('warn', 'scanner', `Netzwerkfehler nach ${retries + 1} Versuchen`, err?.message || '');
       const e = new Error('network');
       e.transient = true;
       e.cause = err;

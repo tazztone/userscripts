@@ -49,7 +49,12 @@ describe('product-offers module', () => {
 
   it('isAllowedAmazonUrl and resolveAmazonAsin gate inline ASINs on allowed Amazon hosts', async () => {
     assert.equal(isAllowedAmazonUrl('https://www.amazon.de/dp/B08N5WRWNW'), true);
+    assert.equal(isAllowedAmazonUrl('http://amazon.de/dp/B08N5WRWNW'), true);
     assert.equal(isAllowedAmazonUrl('https://evil.example.com/dp/B08N5WRWNW'), false);
+    assert.equal(isAllowedAmazonUrl('javascript:alert(1)'), false);
+    assert.equal(isAllowedAmazonUrl('ftp://amazon.de/dp/B08N5WRWNW'), false);
+    assert.equal(isAllowedAmazonUrl('data:text/html,<script>1</script>'), false);
+    assert.equal(isAllowedAmazonUrl('amazon.de/dp/B08N5WRWNW'), false);
     const blocked = await resolveAmazonAsin('p-blocked', 'https://evil.example.com/dp/B08N5WRWNW');
     assert.equal(blocked, null);
   });

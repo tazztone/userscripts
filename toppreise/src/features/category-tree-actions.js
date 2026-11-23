@@ -5,6 +5,7 @@
  */
 
 import { triggerProcessListings } from '../page/adapter.js';
+import { sanitizeImportedNode } from '../page/sanitize.js';
 import { showToast } from '../ui/toast.js';
 import {
   getStoredIdents, harvestExistingIdents, getDoc,
@@ -48,10 +49,13 @@ export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) 
       if (newBar) {
         const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
         if (!liveBar) return;
-        const chipCount = newBar.querySelectorAll('.ignoredCategory').length;
-        newBar.setAttribute('data-ignored-count', String(chipCount));
-        liveBar.replaceWith(newBar);
-        harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || newBar);
+        const importedBar = activeDoc?.importNode ? activeDoc.importNode(newBar, true) : newBar;
+        const cleanBar = sanitizeImportedNode(importedBar);
+        if (!cleanBar) return;
+        const chipCount = cleanBar.querySelectorAll('.ignoredCategory').length;
+        cleanBar.setAttribute('data-ignored-count', String(chipCount));
+        liveBar.replaceWith(cleanBar);
+        harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || cleanBar);
         if (typeof syncCategoryTreeIgnoredState === 'function') {
           syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
         }
@@ -59,11 +63,14 @@ export function updateIgnoredCategoriesBarWithServerHtml(html, bar, doc = null) 
       } else if (newContainer) {
         const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
         if (!liveBar) return;
+        const importedContainer = activeDoc?.importNode ? activeDoc.importNode(newContainer, true) : newContainer;
+        const cleanContainer = sanitizeImportedNode(importedContainer);
+        if (!cleanContainer) return;
         const curContainer = liveBar.querySelector('.ignoredCategoriesBar');
         if (curContainer) {
-          curContainer.replaceWith(newContainer);
+          curContainer.replaceWith(cleanContainer);
         } else {
-          liveBar.appendChild(newContainer);
+          liveBar.appendChild(cleanContainer);
         }
         const chipCount = liveBar.querySelectorAll('.ignoredCategory').length;
         liveBar.setAttribute('data-ignored-count', String(chipCount));
@@ -103,7 +110,16 @@ export async function refreshProductFeed(doc = (typeof document !== 'undefined' 
         ? container
         : (activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') || activeDoc?.querySelector?.('.standardList'));
       if (newContainer && targetContainer) {
-        targetContainer.innerHTML = newContainer.innerHTML;
+        if (typeof targetContainer.replaceChildren === 'function') {
+          const nodes = Array.from(newContainer.childNodes || [])
+            .map(n => (activeDoc?.importNode ? activeDoc.importNode(n, true) : n))
+            .map(n => (n.nodeType === 1 ? sanitizeImportedNode(n) : n))
+            .filter(Boolean);
+          targetContainer.replaceChildren(...nodes);
+        } else {
+          sanitizeImportedNode(newContainer);
+          targetContainer.innerHTML = newContainer.innerHTML;
+        }
         triggerProcessListings();
       }
     }

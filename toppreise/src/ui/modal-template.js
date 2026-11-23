@@ -281,6 +281,16 @@ export function writeCollapsed(ids) {
     try { if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_' + COLLAPSE_KEY, clean); } catch {}
     try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + COLLAPSE_KEY, JSON.stringify(clean)); } catch {}
   };
+export function clearCollapsedState() {
+  try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue('tp_suite_v2_' + COLLAPSE_KEY); } catch {}
+  try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue(COLLAPSE_KEY); } catch {}
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('tp_suite_v2_' + COLLAPSE_KEY);
+      localStorage.removeItem(COLLAPSE_KEY);
+    }
+  } catch {}
+}
 export function applyCollapsed(shadow) {
     for (const id of readCollapsed()) {
       const card = shadow.getElementById(id);

@@ -8,6 +8,8 @@ import { CONFIG, DEFAULTS, SECRET_KEYS, PAGE_SCOPED_KEYS, RESET_GROUPS, saveConf
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
+import { clearMemoryAsinCache } from '../page/product-offers.js';
+import { clearTavilyCache } from '../features/tavily-search.js';
 import { getProductCards } from '../page/cards.js';
 import { cancelBatchDealCheck } from '../scanner/scanner.js';
 import { DEFAULT_LAYOUT, validateLayoutRecipe } from '../features/discord-recipe.js';
@@ -15,7 +17,7 @@ import { discordForumFlagKey, isDiscordWebhookUrl } from '../features/share-disc
 import { syncFieldsFromConfig, scheduleLayoutPreview, getLayoutPresets, updateKeywordPreview, addExtraChannelRow } from './modal-bindings.js';
 import { bindDiagTrigger } from './diag-modal.js';
 import { ensureSkeleton } from './shell.js';
-import { writeCollapsed } from './modal-template.js';
+import { writeCollapsed, clearCollapsedState } from './modal-template.js';
 
 export function snapshotModalState(dialog) {
   if (!dialog) return null;
@@ -48,6 +50,8 @@ export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
     const removed = clearPriceStatsCache();
     clearDealerMemory();
+    clearMemoryAsinCache();
+    clearTavilyCache();
     const diskLimit = (els.cacheDiskVal && parseInt(els.cacheDiskVal.value, 10)) || CONFIG.CACHE_DISK_LIMIT || 300;
     if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
     triggerProcessListings();
@@ -141,7 +145,13 @@ export function wireModalActions(els) {
     if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
     const removed = clearPriceStatsCache();
     clearDealerMemory();
+    clearMemoryAsinCache();
+    clearTavilyCache();
+    clearCollapsedState();
     getProductCards().forEach(clearCardCache);
+    try { localStorage.removeItem('tp_vcat_ident_v1'); } catch (e) {}
+    try { sessionStorage.removeItem('tp_cat_expanded_branches'); } catch (e) {}
+    try { localStorage.removeItem('tp_cat_expanded_branches'); } catch (e) {}
     try {
       const dead = [];
       for (let i = 0; i < localStorage.length; i++) {

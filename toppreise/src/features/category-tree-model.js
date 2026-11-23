@@ -439,21 +439,6 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
   const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
   if (!node) return '';
 
-  const timeoutSignal = (ms = 4000) => {
-    try {
-      if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
-        return AbortSignal.timeout(ms);
-      }
-    } catch {}
-    try {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), ms);
-      return controller.signal;
-    } catch {
-      return undefined;
-    }
-  };
-
   const fetchMenuIdents = async (pid) => {
     if (!pid || typeof fetch !== 'function') return false;
     const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -473,7 +458,7 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
     });
 
     try {
-      const resp = await fetch(ajaxUrl, {
+      const { res: resp, body: text } = await fetchWithTimeout(ajaxUrl, {
         method: 'POST',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
@@ -481,11 +466,9 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
           'Accept': '*/*'
         },
         credentials: 'same-origin',
-        body: body.toString(),
-        signal: timeoutSignal(4000)
-      });
+        body: body.toString()
+      }, { timeoutMs: 4000, source: 'category-tree', label: 'menu-idents', readAs: 'text' });
       if (resp.ok) {
-        const text = await resp.text();
         const updatedStored = parseCategoryIdentsFromText(text);
         return !!updatedStored[vcatId];
       }
@@ -563,15 +546,13 @@ export async function ensureCategoryIdent(item, tree = null, currentPath = '', d
     if (!targetUrl || typeof fetch !== 'function') continue;
     try {
       const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
-      const resp = await fetch(fullUrl, {
+      const { res: resp, body: text } = await fetchWithTimeout(fullUrl, {
         credentials: 'same-origin',
         headers: {
           'Accept': 'text/html, */*'
-        },
-        signal: timeoutSignal(4000)
-      });
+        }
+      }, { timeoutMs: 4000, source: 'category-tree', label: 'ident-page', readAs: 'text' });
       if (resp.ok) {
-        const text = await resp.text();
         const updatedStored = parseCategoryIdentsFromText(text);
         if (updatedStored[vcatId]) {
           item.ident = updatedStored[vcatId];

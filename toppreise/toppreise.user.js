@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.540
+// @version      2.18.541
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3471,6 +3471,57 @@ const SHADOW_MODAL_STYLES = `
       highlight: '.priceRatingHighlight'
     })
   });
+
+  // ─── MODULE: src/page/sanitize.js ───────────────────────────────────────────
+  /**
+   * DOM & URL Sanitization for Imported HTML Fragments
+   * Strips unsafe tags (including <style>), inline event handlers, and dangerous URL schemes.
+   */
+
+  const UNSAFE_IMPORT_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link', 'style']);
+  const URL_ATTRIBUTES = new Set([
+    'href', 'src', 'srcset', 'action', 'formaction', 'poster',
+    'xlink:href', 'data-ajax-url', 'data-ajax-form-url'
+  ]);
+  const BLOCKED_URL_SCHEME = /^(?:javascript|vbscript|data):/i;
+  const stripControlChars = value => String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '');
+
+  function isSafeImportedUrl(value, { srcset = false } = {}) {
+    const cleaned = stripControlChars(value);
+    if (!srcset) return !BLOCKED_URL_SCHEME.test(cleaned.replace(/\s+/g, ''));
+    return cleaned.split(',').every(part => {
+      const candidate = part.trim().split(/\s+/)[0] || '';
+      return !candidate || !BLOCKED_URL_SCHEME.test(candidate);
+    });
+  }
+
+  function sanitizeImportedNode(root) {
+    if (!root || root.nodeType !== 1) return root;
+    if (UNSAFE_IMPORT_TAGS.has(root.tagName?.toLowerCase())) return null;
+    const stack = [root];
+    while (stack.length) {
+      const node = stack.pop();
+      const tag = node.tagName?.toLowerCase();
+      if (UNSAFE_IMPORT_TAGS.has(tag)) {
+        node.remove();
+        continue;
+      }
+      for (const attr of Array.from(node.attributes || [])) {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on') || name === 'srcdoc') {
+          node.removeAttribute(attr.name);
+        } else if (URL_ATTRIBUTES.has(name) && !isSafeImportedUrl(attr.value, { srcset: name === 'srcset' })) {
+          node.removeAttribute(attr.name);
+        }
+      }
+      // querySelectorAll does not enter template content, so walk it explicitly.
+      if (tag === 'template' && node.content) {
+        for (const child of Array.from(node.content.children)) stack.push(child);
+      }
+      for (const child of Array.from(node.children || [])) stack.push(child);
+    }
+    return root;
+  }
 
   // ─── MODULE: src/domain/price.js ────────────────────────────────────────────
   /**
@@ -7301,8 +7352,11 @@ const SHADOW_MODAL_STYLES = `
   // Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.
   function isAllowedAmazonUrl(url) {
     if (!url || typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) return false;
     try {
-      const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
       const host = parsed.hostname.toLowerCase();
       return host === 'amazon.de' || host.endsWith('.amazon.de') ||
              host === 'amazon.com' || host.endsWith('.amazon.com') ||
@@ -7387,45 +7441,34 @@ const SHADOW_MODAL_STYLES = `
         }
       }
 
-      return new Promise(resolve => {
-        try {
-          if (typeof GM_xmlhttpRequest !== 'undefined') {
-            GM_xmlhttpRequest({
-              method: 'HEAD',
-              url: target,
-              headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
-              timeout: 6000,
-              onload: res => {
-                const loc = res.finalUrl || res.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
-                const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
-                if (asin && productId) {
-                  lruSet(memoryAsinCache, productId, asin, 500);
-                  setCachedAsin(productId, asin, storage);
-                }
-                resolve(asin || null);
-              },
-              onerror: () => resolve(null),
-              ontimeout: () => resolve(null),
-              onabort: () => resolve(null)
-            });
-          } else if (typeof fetch !== 'undefined') {
-            fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' })
-              .then(res => {
-                const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
-                if (asin && productId) {
-                  lruSet(memoryAsinCache, productId, asin, 500);
-                  setCachedAsin(productId, asin, storage);
-                }
-                resolve(asin || null);
-              })
-              .catch(() => resolve(null));
-          } else {
-            resolve(null);
+      try {
+        if (typeof GM_xmlhttpRequest !== 'undefined') {
+          const res = await gmRequestWithTimeout({
+            method: 'HEAD',
+            url: target,
+            headers: { 'Referer': (typeof location !== 'undefined' && location.href) ? location.href : 'https://www.toppreise.ch/' },
+          }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+          const loc = res?.finalUrl || res?.responseHeaders?.match(/(?:^|\r?\n)location:\s*([^\r\n]+)/i)?.[1] || '';
+          const asin = isAllowedAmazonUrl(loc) ? parseAmazonAsin(loc) : null;
+          if (asin && productId) {
+            lruSet(memoryAsinCache, productId, asin, 500);
+            setCachedAsin(productId, asin, storage);
           }
-        } catch {
-          resolve(null);
+          return asin || null;
         }
-      });
+        if (typeof fetch !== 'undefined') {
+          const { res } = await fetchWithTimeout(target, { method: 'HEAD', redirect: 'follow' }, { timeoutMs: 6000, source: 'asin', label: 'HEAD' });
+          const asin = isAllowedAmazonUrl(res.url) ? parseAmazonAsin(res.url) : null;
+          if (asin && productId) {
+            lruSet(memoryAsinCache, productId, asin, 500);
+            setCachedAsin(productId, asin, storage);
+          }
+          return asin || null;
+        }
+      } catch {
+        return null;
+      }
+      return null;
     })();
 
     inFlightAsin.set(inFlightKey, resolvePromise);
@@ -7877,21 +7920,6 @@ const SHADOW_MODAL_STYLES = `
     const node = tree.byId.get(catId) || tree.byId.get(vcatId) || tree.byId.get(`c${vcatId}`);
     if (!node) return '';
 
-    const timeoutSignal = (ms = 4000) => {
-      try {
-        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
-          return AbortSignal.timeout(ms);
-        }
-      } catch {}
-      try {
-        const controller = new AbortController();
-        setTimeout(() => controller.abort(), ms);
-        return controller.signal;
-      } catch {
-        return undefined;
-      }
-    };
-
     const fetchMenuIdents = async (pid) => {
       if (!pid || typeof fetch !== 'function') return false;
       const bar = activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
@@ -7911,7 +7939,7 @@ const SHADOW_MODAL_STYLES = `
       });
 
       try {
-        const resp = await fetch(ajaxUrl, {
+        const { res: resp, body: text } = await fetchWithTimeout(ajaxUrl, {
           method: 'POST',
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
@@ -7919,11 +7947,9 @@ const SHADOW_MODAL_STYLES = `
             'Accept': '*/*'
           },
           credentials: 'same-origin',
-          body: body.toString(),
-          signal: timeoutSignal(4000)
-        });
+          body: body.toString()
+        }, { timeoutMs: 4000, source: 'category-tree', label: 'menu-idents', readAs: 'text' });
         if (resp.ok) {
-          const text = await resp.text();
           const updatedStored = parseCategoryIdentsFromText(text);
           return !!updatedStored[vcatId];
         }
@@ -8001,15 +8027,13 @@ const SHADOW_MODAL_STYLES = `
       if (!targetUrl || typeof fetch !== 'function') continue;
       try {
         const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${origin}${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
-        const resp = await fetch(fullUrl, {
+        const { res: resp, body: text } = await fetchWithTimeout(fullUrl, {
           credentials: 'same-origin',
           headers: {
             'Accept': 'text/html, */*'
-          },
-          signal: timeoutSignal(4000)
-        });
+          }
+        }, { timeoutMs: 4000, source: 'category-tree', label: 'ident-page', readAs: 'text' });
         if (resp.ok) {
-          const text = await resp.text();
           const updatedStored = parseCategoryIdentsFromText(text);
           if (updatedStored[vcatId]) {
             item.ident = updatedStored[vcatId];
@@ -8039,6 +8063,7 @@ const SHADOW_MODAL_STYLES = `
    * Handles server POST endpoints for category exclusion, restoration,
    * reset, AJAX bar updates, and bar MutationObserver wiring.
    */
+
 
 
 
@@ -8077,10 +8102,13 @@ const SHADOW_MODAL_STYLES = `
         if (newBar) {
           const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
           if (!liveBar) return;
-          const chipCount = newBar.querySelectorAll('.ignoredCategory').length;
-          newBar.setAttribute('data-ignored-count', String(chipCount));
-          liveBar.replaceWith(newBar);
-          harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || newBar);
+          const importedBar = activeDoc?.importNode ? activeDoc.importNode(newBar, true) : newBar;
+          const cleanBar = sanitizeImportedNode(importedBar);
+          if (!cleanBar) return;
+          const chipCount = cleanBar.querySelectorAll('.ignoredCategory').length;
+          cleanBar.setAttribute('data-ignored-count', String(chipCount));
+          liveBar.replaceWith(cleanBar);
+          harvestExistingIdents(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft') || cleanBar);
           if (typeof syncCategoryTreeIgnoredState === 'function') {
             syncCategoryTreeIgnoredState(activeDoc?.querySelector?.('.Plugin_CategoryMainSelectionLeft'));
           }
@@ -8088,11 +8116,14 @@ const SHADOW_MODAL_STYLES = `
         } else if (newContainer) {
           const liveBar = bar?.isConnected ? bar : activeDoc?.querySelector?.('.Plugin_IgnoredCategories');
           if (!liveBar) return;
+          const importedContainer = activeDoc?.importNode ? activeDoc.importNode(newContainer, true) : newContainer;
+          const cleanContainer = sanitizeImportedNode(importedContainer);
+          if (!cleanContainer) return;
           const curContainer = liveBar.querySelector('.ignoredCategoriesBar');
           if (curContainer) {
-            curContainer.replaceWith(newContainer);
+            curContainer.replaceWith(cleanContainer);
           } else {
-            liveBar.appendChild(newContainer);
+            liveBar.appendChild(cleanContainer);
           }
           const chipCount = liveBar.querySelectorAll('.ignoredCategory').length;
           liveBar.setAttribute('data-ignored-count', String(chipCount));
@@ -8132,7 +8163,16 @@ const SHADOW_MODAL_STYLES = `
           ? container
           : (activeDoc?.querySelector?.('.Plugin_TopPriceReductionProductListFull') || activeDoc?.querySelector?.('.standardList'));
         if (newContainer && targetContainer) {
-          targetContainer.innerHTML = newContainer.innerHTML;
+          if (typeof targetContainer.replaceChildren === 'function') {
+            const nodes = Array.from(newContainer.childNodes || [])
+              .map(n => (activeDoc?.importNode ? activeDoc.importNode(n, true) : n))
+              .map(n => (n.nodeType === 1 ? sanitizeImportedNode(n) : n))
+              .filter(Boolean);
+            targetContainer.replaceChildren(...nodes);
+          } else {
+            sanitizeImportedNode(newContainer);
+            targetContainer.innerHTML = newContainer.innerHTML;
+          }
           triggerProcessListings();
         }
       }
@@ -9795,18 +9835,75 @@ const SHADOW_MODAL_STYLES = `
     return null;
   }
 
-  function setCachedTavily(query, answer) {
+  function pruneTavilyCache(maxEntries = 100, storage = null) {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (!store) return 0;
+
+    let removed = 0;
+    try {
+      const now = Date.now();
+      const valid = [];
+      const keys = [];
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && k.startsWith(TAVILY_CACHE_KEY_PREFIX)) {
+          keys.push(k);
+        }
+      }
+      for (const k of keys) {
+        try {
+          const raw = store.getItem(k);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (
+            !parsed ||
+            typeof parsed.answer !== 'string' ||
+            !Number.isFinite(parsed.timestamp) ||
+            (now - parsed.timestamp >= TAVILY_CACHE_TTL_MS)
+          ) {
+            store.removeItem(k);
+            removed++;
+          } else {
+            valid.push({ key: k, timestamp: parsed.timestamp });
+          }
+        } catch {
+          store.removeItem(k);
+          removed++;
+        }
+      }
+      if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
+        valid.sort((a, b) => a.timestamp - b.timestamp);
+        const excess = valid.length - maxEntries;
+        for (let i = 0; i < excess; i++) {
+          store.removeItem(valid[i].key);
+          removed++;
+        }
+      }
+    } catch {
+      /* ignore storage access error */
+    }
+    return removed;
+  }
+
+  function setCachedTavily(query, answer, storage = null) {
     const key = tavilyCacheKey(query);
     if (!key || typeof answer !== 'string') return;
 
     const entry = { answer: answer.trim(), timestamp: Date.now() };
     lruSet(memCache, key, entry, 200);
 
-    if (typeof localStorage !== 'undefined') {
+    const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+    if (store) {
+      const payload = JSON.stringify(entry);
       try {
-        localStorage.setItem(TAVILY_CACHE_KEY_PREFIX + key, JSON.stringify(entry));
+        store.setItem(TAVILY_CACHE_KEY_PREFIX + key, payload);
+        pruneTavilyCache(100, store);
       } catch {
-        /* ignore storage full or quota errors */
+        pruneTavilyCache(50, store);
+        try {
+          store.setItem(TAVILY_CACHE_KEY_PREFIX + key, payload);
+        } catch {
+          /* ignore storage full or quota errors */
+        }
       }
     }
   }
@@ -10696,6 +10793,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   let isRefreshing = false;
   let refreshController = null;
   const refreshState = {
@@ -10817,10 +10915,12 @@ const SHADOW_MODAL_STYLES = `
             // TP-owned children (alarm bell, sparkline) are re-created by the
             // triggerProcessListings pass that follows the merge.
             liveContainer.innerHTML = inContainer.innerHTML;
+            sanitizeImportedNode(liveContainer);
             const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
             const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
             if (inBadge && liveBadge) {
               liveBadge.innerHTML = inBadge.innerHTML;
+              sanitizeImportedNode(liveBadge);
               delete liveBadge._tpLastHtml;
               if (liveBadge.dataset) {
                 delete liveBadge.dataset.tpPainted;
@@ -10837,6 +10937,7 @@ const SHADOW_MODAL_STYLES = `
         const inUnit = getCardSortableUnit(inCard);
         if (!inUnit) continue;
         const adopted = targetDoc.importNode(inUnit, true);
+        if (sanitizeImportedNode(adopted) === null) continue;
         adopted.classList.add('tp-fresh-arrival');
 
         if (originalAnchor && originalAnchor.parentElement === container) {
@@ -11021,9 +11122,11 @@ const SHADOW_MODAL_STYLES = `
         }
         if (res.status >= 500) {
           if (attempt < retries) {
+            logActivity('warn', 'scanner', `HTTP ${res.status} — Retry (${attempt + 1}/${retries})`);
             await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
             continue;
           }
+          logActivity('warn', 'scanner', `HTTP ${res.status} nach ${retries + 1} Versuchen`);
           const e = new Error(`HTTP ${res.status}`);
           e.transient = true;
           throw e;
@@ -11043,9 +11146,11 @@ const SHADOW_MODAL_STYLES = `
           // This attempt's own timer fired: retry like any transient instead
           // of exiting on the first attempt.
           if (attempt < retries) {
+            logActivity('warn', 'scanner', `Timeout (${timeoutMs}ms) — Retry (${attempt + 1}/${retries})`);
             await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
             continue;
           }
+          logActivity('warn', 'scanner', `Timeout nach ${timeoutMs}ms (${retries + 1} Versuche)`);
           const e = new Error('timeout');
           e.timeout = true;
           throw e;
@@ -11053,6 +11158,7 @@ const SHADOW_MODAL_STYLES = `
         // Backstop for aborts neither parent nor timer explains (e.g. a fetch
         // implementation aborting without the controller flag).
         if (err?.name === 'AbortError') {
+          logActivity('warn', 'scanner', `AbortError/Timeout (${err?.message || 'aborted'})`);
           const e = new Error('timeout');
           e.timeout = true;
           throw e;
@@ -11063,9 +11169,11 @@ const SHADOW_MODAL_STYLES = `
           throw e;
         }
         if (attempt < retries) {
+          logActivity('warn', 'scanner', `Netzwerkfehler — Retry (${attempt + 1}/${retries})`, err?.message || '');
           await interruptibleSleep(backoffMs(attempt, baseDelayMs), shouldCancelFn, signal);
           continue;
         }
+        logActivity('warn', 'scanner', `Netzwerkfehler nach ${retries + 1} Versuchen`, err?.message || '');
         const e = new Error('network');
         e.transient = true;
         e.cause = err;
@@ -13933,6 +14041,16 @@ const SHADOW_MODAL_STYLES = `
       try { if (typeof GM_setValue !== 'undefined') GM_setValue('tp_suite_v2_' + COLLAPSE_KEY, clean); } catch {}
       try { if (typeof localStorage !== 'undefined') localStorage.setItem('tp_suite_v2_' + COLLAPSE_KEY, JSON.stringify(clean)); } catch {}
     };
+  function clearCollapsedState() {
+    try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue('tp_suite_v2_' + COLLAPSE_KEY); } catch {}
+    try { if (typeof GM_deleteValue !== 'undefined') GM_deleteValue(COLLAPSE_KEY); } catch {}
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('tp_suite_v2_' + COLLAPSE_KEY);
+        localStorage.removeItem(COLLAPSE_KEY);
+      }
+    } catch {}
+  }
   function applyCollapsed(shadow) {
       for (const id of readCollapsed()) {
         const card = shadow.getElementById(id);
@@ -14275,6 +14393,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   function snapshotModalState(dialog) {
     if (!dialog) return null;
     const state = new Map();
@@ -14306,6 +14426,8 @@ const SHADOW_MODAL_STYLES = `
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
       clearDealerMemory();
+      clearMemoryAsinCache();
+      clearTavilyCache();
       const diskLimit = (els.cacheDiskVal && parseInt(els.cacheDiskVal.value, 10)) || CONFIG.CACHE_DISK_LIMIT || 300;
       if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${diskLimit} Einträge`;
       triggerProcessListings();
@@ -14399,7 +14521,13 @@ const SHADOW_MODAL_STYLES = `
       if (!window.confirm('Wirklich ALLE Suite-Daten löschen? Preis-/Händler-Cache und sämtliche Einstellungen (inkl. Discord-Webhook) werden auf Standard zurückgesetzt.')) return;
       const removed = clearPriceStatsCache();
       clearDealerMemory();
+      clearMemoryAsinCache();
+      clearTavilyCache();
+      clearCollapsedState();
       getProductCards().forEach(clearCardCache);
+      try { localStorage.removeItem('tp_vcat_ident_v1'); } catch (e) {}
+      try { sessionStorage.removeItem('tp_cat_expanded_branches'); } catch (e) {}
+      try { localStorage.removeItem('tp_cat_expanded_branches'); } catch (e) {}
       try {
         const dead = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -16933,6 +17061,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
+
   const ALARM_DURATIONS = ['90', '180', '365', '730'];
   const DURATION_LABELS = { 90: '3 Monate', 180: '6 Monate', 365: '1 Jahr', 730: '2 Jahre' };
   const clampAlarmTarget = v =>
@@ -16985,51 +17115,6 @@ const SHADOW_MODAL_STYLES = `
     }
     if (lang) url.searchParams.set('lang', String(lang));
     return url;
-  }
-
-  const UNSAFE_IMPORT_TAGS = new Set(['script', 'iframe', 'object', 'embed', 'base', 'meta', 'link']);
-  const URL_ATTRIBUTES = new Set([
-    'href', 'src', 'srcset', 'action', 'formaction', 'poster',
-    'xlink:href', 'data-ajax-url', 'data-ajax-form-url'
-  ]);
-  const BLOCKED_URL_SCHEME = /^(?:javascript|vbscript|data):/i;
-  const stripControlChars = value => String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '');
-
-  function isSafeImportedUrl(value, { srcset = false } = {}) {
-    const cleaned = stripControlChars(value);
-    if (!srcset) return !BLOCKED_URL_SCHEME.test(cleaned.replace(/\s+/g, ''));
-    return cleaned.split(',').every(part => {
-      const candidate = part.trim().split(/\s+/)[0] || '';
-      return !candidate || !BLOCKED_URL_SCHEME.test(candidate);
-    });
-  }
-
-  function sanitizeImportedNode(root) {
-    if (!root || root.nodeType !== 1) return root;
-    if (UNSAFE_IMPORT_TAGS.has(root.tagName?.toLowerCase())) return null;
-    const stack = [root];
-    while (stack.length) {
-      const node = stack.pop();
-      const tag = node.tagName?.toLowerCase();
-      if (UNSAFE_IMPORT_TAGS.has(tag)) {
-        node.remove();
-        continue;
-      }
-      for (const attr of Array.from(node.attributes || [])) {
-        const name = attr.name.toLowerCase();
-        if (name.startsWith('on') || name === 'srcdoc') {
-          node.removeAttribute(attr.name);
-        } else if (URL_ATTRIBUTES.has(name) && !isSafeImportedUrl(attr.value, { srcset: name === 'srcset' })) {
-          node.removeAttribute(attr.name);
-        }
-      }
-      // querySelectorAll does not enter template content, so walk it explicitly.
-      if (tag === 'template' && node.content) {
-        for (const child of Array.from(node.content.children)) stack.push(child);
-      }
-      for (const child of Array.from(node.children || [])) stack.push(child);
-    }
-    return root;
   }
 
   const findAlarmFormTrigger = root => {
@@ -17249,7 +17334,7 @@ const SHADOW_MODAL_STYLES = `
         showToast(unconfirmedMsg);
       };
       try {
-        const dialogRoot = modalContainer.closest('.AbstractDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
+        const dialogRoot = modalContainer.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog') || document.querySelector('#tmpAbstractDialogContainer') || document.body;
         let submitTimer;
         // Observe BEFORE submit: close only on a success signal — button/form
         // detachment alone never closes.
@@ -17264,7 +17349,7 @@ const SHADOW_MODAL_STYLES = `
             reqModal._tpAlarmObserver = null;
             if (reqModal.dataset.tpAlarmAttempt === reqAttempt) reqModal.dataset.tpAlarmState = 'confirmed';
             showToast(formatAlarmToast(reqSnap.target, reqSnap.duration));
-            const closeBtn = reqModal.closest('.AbstractDialog')?.querySelector('.AbstractDialog_CloseButton') ||
+            const closeBtn = reqModal.closest('.AbstractDialog, .AbstractDialog_NewInfoMailFormDialog')?.querySelector('.AbstractDialog_CloseButton') ||
                              document.querySelector('#tmpAbstractDialogContainer .AbstractDialog_CloseButton');
             if (closeBtn) closeBtn.click();
             else if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Preisalarm: kein Close-Button gefunden');
@@ -17313,6 +17398,16 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
+  const activeAlarmDismissers = new Set();
+  const inFlightAlarmPids = new Set();
+
+  function closeFetchedAlarmDialogs() {
+    for (const dismiss of Array.from(activeAlarmDismissers)) {
+      try { dismiss(); } catch {}
+    }
+    activeAlarmDismissers.clear();
+  }
+
   // Materializes a fetched NewInfoMailButton response: dialog shell + form body.
   // Returns false without touching the page when the response is unusable, so
   // the caller can fall back to direct navigation.
@@ -17339,6 +17434,7 @@ const SHADOW_MODAL_STYLES = `
     sanitizeImportedNode(dialogNode);
 
     const dismissDialog = () => {
+      activeAlarmDismissers.delete(dismissDialog);
       if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_hide === 'function') {
         try { window.AbstractDialog_hide(dialogId); } catch {}
       }
@@ -17348,6 +17444,11 @@ const SHADOW_MODAL_STYLES = `
       document.removeEventListener('keydown', handleKeydown);
     };
     const handleKeydown = e => {
+      if (!dialogNode.isConnected) {
+        document.removeEventListener('keydown', handleKeydown);
+        activeAlarmDismissers.delete(dismissDialog);
+        return;
+      }
       if (e.key === 'Escape') dismissDialog();
     };
     // Escape must be live only once the dialog is visibly mounted: registering
@@ -17392,6 +17493,7 @@ const SHADOW_MODAL_STYLES = `
       document.getElementById(dialogId)?.remove();
     }
     document.body.appendChild(dialogNode);
+    activeAlarmDismissers.add(dismissDialog);
     document.addEventListener('keydown', handleKeydown);
     if (dialogId && typeof window !== 'undefined' && typeof window.AbstractDialog_show === 'function') {
       window.AbstractDialog_show(dialogId);
@@ -17416,50 +17518,57 @@ const SHADOW_MODAL_STYLES = `
    */
   async function openPriceAlarmForProduct(pid, card = null) {
     if (!pid) return;
-    // 1. Check if card or nearby DOM already has a native bell anchor
-    const localBell = card?.querySelector?.('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog, a[href*="NewInfoMail"]');
-    if (localBell) {
-      localBell.click();
-      return;
-    }
-
-    // 2. If test mock dialog exists, display it directly
-    const mockDialog = document.querySelector('#mock-alarm-dialog');
-    if (mockDialog) {
-      mockDialog.style.display = 'block';
-      delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
-      delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
-      processPriceAlarmModal();
-      return;
-    }
-
-    // 3. Fetch NewInfoMailButton + form and materialize them. The native
-    // `openInfoMailForm` helper needs a dialog template inside the clicked
-    // wrapper; a synthetic trigger has none, so it always throws on live.
+    const pidKey = String(pid);
+    if (inFlightAlarmPids.has(pidKey)) return;
+    inFlightAlarmPids.add(pidKey);
     try {
-      const postBody = new URLSearchParams({
-        im_nimb_ch: '1',
-        im_nimb_pid: String(pid),
-        im_nimb_tmpl: 'btn',
-        lang: 'de'
-      });
-      const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: postBody
-      }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
-      if (res.ok && await openFetchedAlarmDialog(html)) return;
-    } catch (err) {
-      if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
-    }
+      // 1. Check if card or nearby DOM already has a native bell anchor
+      const localBell = card?.querySelector?.('.Plugin_NewInfoMailButton a.f_showNewInfoMailFormDialog, a[href*="NewInfoMail"]');
+      if (localBell) {
+        localBell.click();
+        return;
+      }
 
-    // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab
-    if (typeof window !== 'undefined') {
-      showToast('⚠️ Preisalarm im neuen Tab geöffnet');
-      window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
+      // 2. If test mock dialog exists, display it directly
+      const mockDialog = document.querySelector('#mock-alarm-dialog');
+      if (mockDialog) {
+        mockDialog.style.display = 'block';
+        delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmProcessed;
+        delete mockDialog.querySelector?.(SELECTORS.alarm.form)?.dataset?.tpAlarmState;
+        processPriceAlarmModal();
+        return;
+      }
+
+      // 3. Fetch NewInfoMailButton + form and materialize them. The native
+      // `openInfoMailForm` helper needs a dialog template inside the clicked
+      // wrapper; a synthetic trigger has none, so it always throws on live.
+      try {
+        const postBody = new URLSearchParams({
+          im_nimb_ch: '1',
+          im_nimb_pid: pidKey,
+          im_nimb_tmpl: 'btn',
+          lang: 'de'
+        });
+        const { res, body: html } = await fetchWithTimeout('/plugins/infomails/NewInfoMailButton', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: postBody
+        }, { timeoutMs: 8000, source: 'price-alarm', label: 'open', readAs: 'text' });
+        if (res.ok && await openFetchedAlarmDialog(html)) return;
+      } catch (err) {
+        if (CONFIG.DEBUG) console.warn('[Toppreise-Suite] Failed to open price alarm modal', err);
+      }
+
+      // 4. Ultimate fallback if AJAX fails: direct URL navigation in new tab
+      if (typeof window !== 'undefined') {
+        showToast('⚠️ Preisalarm im neuen Tab geöffnet');
+        window.open(`/neue-infomail?im_nimf_pid=${pid}`, '_blank', 'noopener');
+      }
+    } finally {
+      inFlightAlarmPids.delete(pidKey);
     }
   }
 
@@ -18266,7 +18375,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.540';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.541';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

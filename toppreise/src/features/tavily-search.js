@@ -52,18 +52,75 @@ export function getCachedTavily(query) {
   return null;
 }
 
-export function setCachedTavily(query, answer) {
+export function pruneTavilyCache(maxEntries = 100, storage = null) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return 0;
+
+  let removed = 0;
+  try {
+    const now = Date.now();
+    const valid = [];
+    const keys = [];
+    for (let i = 0; i < store.length; i++) {
+      const k = store.key(i);
+      if (k && k.startsWith(TAVILY_CACHE_KEY_PREFIX)) {
+        keys.push(k);
+      }
+    }
+    for (const k of keys) {
+      try {
+        const raw = store.getItem(k);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (
+          !parsed ||
+          typeof parsed.answer !== 'string' ||
+          !Number.isFinite(parsed.timestamp) ||
+          (now - parsed.timestamp >= TAVILY_CACHE_TTL_MS)
+        ) {
+          store.removeItem(k);
+          removed++;
+        } else {
+          valid.push({ key: k, timestamp: parsed.timestamp });
+        }
+      } catch {
+        store.removeItem(k);
+        removed++;
+      }
+    }
+    if (Number.isFinite(maxEntries) && maxEntries >= 0 && valid.length > maxEntries) {
+      valid.sort((a, b) => a.timestamp - b.timestamp);
+      const excess = valid.length - maxEntries;
+      for (let i = 0; i < excess; i++) {
+        store.removeItem(valid[i].key);
+        removed++;
+      }
+    }
+  } catch {
+    /* ignore storage access error */
+  }
+  return removed;
+}
+
+export function setCachedTavily(query, answer, storage = null) {
   const key = tavilyCacheKey(query);
   if (!key || typeof answer !== 'string') return;
 
   const entry = { answer: answer.trim(), timestamp: Date.now() };
   lruSet(memCache, key, entry, 200);
 
-  if (typeof localStorage !== 'undefined') {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (store) {
+    const payload = JSON.stringify(entry);
     try {
-      localStorage.setItem(TAVILY_CACHE_KEY_PREFIX + key, JSON.stringify(entry));
+      store.setItem(TAVILY_CACHE_KEY_PREFIX + key, payload);
+      pruneTavilyCache(100, store);
     } catch {
-      /* ignore storage full or quota errors */
+      pruneTavilyCache(50, store);
+      try {
+        store.setItem(TAVILY_CACHE_KEY_PREFIX + key, payload);
+      } catch {
+        /* ignore storage full or quota errors */
+      }
     }
   }
 }

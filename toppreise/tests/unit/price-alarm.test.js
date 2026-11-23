@@ -7,6 +7,8 @@ import {
   resolveAlarmFormUrl,
   isSafeImportedUrl
 } from '../../src/features/price-alarm.js';
+import { CONFIG } from '../../src/state/config.js';
+import { SELECTORS } from '../../src/page/selectors.js';
 
 describe('Price Alarm logic & toast formatting', () => {
   it('formats toast with price and duration', () => {
@@ -133,9 +135,9 @@ describe('Price alarm fallback URL hardening', () => {
     assert.equal(isSafeImportedUrl('//imgsrv/x 2x, javascript:alert(1) 1x', { srcset: true }), false);
   });
 
-  it('returns null from sanitizeImportedNode for top-level unsafe elements', async () => {
+  it('returns null from sanitizeImportedNode for top-level unsafe elements including STYLE', async () => {
     const { sanitizeImportedNode } = await import('../../src/features/price-alarm.js');
-    for (const tag of ['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'BASE', 'META', 'LINK']) {
+    for (const tag of ['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'BASE', 'META', 'LINK', 'STYLE']) {
       const node = { nodeType: 1, tagName: tag, attributes: [], remove() {} };
       assert.equal(sanitizeImportedNode(node), null);
     }
@@ -149,6 +151,107 @@ describe('Price alarm fallback URL hardening', () => {
     const res = sanitizeImportedNode(safeNode);
     assert.equal(res, safeNode);
     assert.equal(safeNode.attributes.length, 0);
+  });
+
+  it('openPriceAlarmForProduct deduplicates concurrent calls for the same pid', async () => {
+    const { openPriceAlarmForProduct } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevFetch = globalThis.fetch;
+    const prevWin = globalThis.window;
+    let fetchCalls = 0;
+    let resolveFetch;
+    globalThis.document = {
+      body: null,
+      getElementById: () => ({ shadowRoot: { getElementById: () => null } }),
+      querySelector: () => null,
+      querySelectorAll: () => [],
+    };
+    globalThis.window = { open: () => {} };
+    globalThis.fetch = () => {
+      fetchCalls++;
+      return new Promise(r => { resolveFetch = r; });
+    };
+    try {
+      const p1 = openPriceAlarmForProduct('999111');
+      const p2 = openPriceAlarmForProduct('999111');
+      resolveFetch({ ok: false, status: 500, text: async () => '' });
+      await Promise.all([p1, p2]);
+      assert.equal(fetchCalls, 1);
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevFetch === undefined) delete globalThis.fetch; else globalThis.fetch = prevFetch;
+      if (prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
+    }
+  });
+
+  it('processPriceAlarmModal finds close button inside .AbstractDialog_NewInfoMailFormDialog', async () => {
+    const { processPriceAlarmModal } = await import('../../src/features/price-alarm.js');
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevObserver = globalThis.MutationObserver;
+    const prevConfigAlarm = CONFIG.ALARM_ENABLED;
+    const prevAuto = CONFIG.ALARM_AUTO_SUBMIT;
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    CONFIG.ALARM_ENABLED = true;
+    CONFIG.ALARM_AUTO_SUBMIT = true;
+    CONFIG.USE_SHIPPING_PRICE = false;
+    globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise' };
+    let observerCb = null;
+    globalThis.MutationObserver = class {
+      constructor(cb) { observerCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+    let closeClicked = false;
+    const closeBtn = { click() { closeClicked = true; } };
+    const dialogWrapper = {
+      querySelector: (sel) => (sel === '.AbstractDialog_CloseButton' ? closeBtn : null),
+    };
+    const priceEl = { isConnected: true, textContent: 'CHF 100.00' };
+    const priceInput = { value: '', dispatchEvent() {} };
+    const durationHidden = { value: '', dispatchEvent() {} };
+    const submitBtn = { click() {} };
+    const modal = {
+      isConnected: true,
+      dataset: {},
+      closest: (sel) => (sel.includes('.AbstractDialog_NewInfoMailFormDialog') ? dialogWrapper : null),
+      querySelector: (sel) => {
+        if (sel === '.productPrice .Plugin_Price') return priceEl;
+        if (sel === 'input#f_NewInfoMailForm_priceFrom') return priceInput;
+        if (sel === 'input[name="im_nimf_du"]') return durationHidden;
+        if (sel === 'input.f_submitbtn') return submitBtn;
+        if (sel.includes('.success')) return modal.dataset.tpAlarmState === 'submitted' ? {} : null;
+        return null;
+      },
+    };
+    globalThis.document = {
+      activeElement: null,
+      body: dialogWrapper,
+      getElementById: () => ({ shadowRoot: { getElementById: () => null } }),
+      querySelector: (sel) => (sel === SELECTORS.alarm.form ? modal : null),
+      querySelectorAll: () => [],
+    };
+    try {
+      processPriceAlarmModal();
+      assert.equal(modal.dataset.tpAlarmState, 'scheduled');
+      await new Promise(r => setTimeout(r, 350));
+      assert.equal(modal.dataset.tpAlarmState, 'submitted');
+      observerCb();
+      assert.equal(closeClicked, true);
+    } finally {
+      CONFIG.ALARM_ENABLED = prevConfigAlarm;
+      CONFIG.ALARM_AUTO_SUBMIT = prevAuto;
+      CONFIG.USE_SHIPPING_PRICE = prevShipping;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+      if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+      if (prevObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevObserver;
+    }
+  });
+
+  it('closeFetchedAlarmDialogs dismisses active fetched dialogs and removes keydown listener', async () => {
+    const { closeFetchedAlarmDialogs } = await import('../../src/features/price-alarm.js');
+    assert.equal(typeof closeFetchedAlarmDialogs, 'function');
+    closeFetchedAlarmDialogs();
   });
 
   it('processPriceAlarmModal ignores unconfirmed and cancelled states without re-entering', async () => {

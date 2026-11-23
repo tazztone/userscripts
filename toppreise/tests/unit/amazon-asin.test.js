@@ -148,5 +148,28 @@ describe('Amazon ASIN resolution and caching', () => {
       );
       assert.equal(res, 'B0FRTEST12');
     });
+
+    it('resolves ASIN via gmRequestWithTimeout when GM_xmlhttpRequest is available', async () => {
+      const s = memStorage();
+      const prevGM = globalThis.GM_xmlhttpRequest;
+      let gmCalled = false;
+      globalThis.GM_xmlhttpRequest = (opts) => {
+        gmCalled = true;
+        opts.onload({
+          status: 200,
+          finalUrl: 'https://www.amazon.de/dp/B0GMREQ123',
+          responseHeaders: '',
+        });
+        return { abort() {} };
+      };
+      try {
+        const res = await resolveAmazonAsin('/ext_de?pid=700', 'p700', s);
+        assert.equal(gmCalled, true);
+        assert.equal(res, 'B0GMREQ123');
+        assert.equal(getCachedAsin('p700', s), 'B0GMREQ123');
+      } finally {
+        if (prevGM === undefined) delete globalThis.GM_xmlhttpRequest; else globalThis.GM_xmlhttpRequest = prevGM;
+      }
+    });
   });
 });

@@ -60,6 +60,7 @@ export function buildBundle() {
   // Relpaths in load-bearing bundle order.
   const MODULES = [
     'page/selectors.js',
+    'page/sanitize.js',
     'domain/price.js',
     'domain/deal-score.js',
     'scanner/cache.js',

@@ -8,6 +8,7 @@ import { getProductCards, getCardProductId } from './cards.js';
 import { getCardSortableUnit } from './sort.js';
 import { clearCardCache, triggerProcessListings } from './adapter.js';
 import { SELECTORS } from './selectors.js';
+import { sanitizeImportedNode } from './sanitize.js';
 import { showToast } from '../ui/toast.js';
 import { scanState } from '../state/store.js';
 import { fetchWithTimeout } from '../state/net.js';
@@ -134,10 +135,12 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
           // TP-owned children (alarm bell, sparkline) are re-created by the
           // triggerProcessListings pass that follows the merge.
           liveContainer.innerHTML = inContainer.innerHTML;
+          sanitizeImportedNode(liveContainer);
           const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
           const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
           if (inBadge && liveBadge) {
             liveBadge.innerHTML = inBadge.innerHTML;
+            sanitizeImportedNode(liveBadge);
             delete liveBadge._tpLastHtml;
             if (liveBadge.dataset) {
               delete liveBadge.dataset.tpPainted;
@@ -154,6 +157,7 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
       const inUnit = getCardSortableUnit(inCard);
       if (!inUnit) continue;
       const adopted = targetDoc.importNode(inUnit, true);
+      if (sanitizeImportedNode(adopted) === null) continue;
       adopted.classList.add('tp-fresh-arrival');
 
       if (originalAnchor && originalAnchor.parentElement === container) {

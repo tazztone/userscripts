@@ -631,5 +631,26 @@ describe('Bounded Cache Module', () => {
       const got = getCachedPriceStats('disk-rich', false, s);
       assert.equal(got.medianPrice, 150);
     });
+
+    it('clearCollapsedState deletes current and legacy collapse keys', async () => {
+      const { clearCollapsedState, COLLAPSE_KEY } = await import('../../src/ui/modal-template.js');
+      const prevLS = globalThis.localStorage;
+      const prevDel = globalThis.GM_deleteValue;
+      const ls = memStorage();
+      ls.setItem('tp_suite_v2_' + COLLAPSE_KEY, '["tp-section-display"]');
+      ls.setItem(COLLAPSE_KEY, '["tp-section-filter"]');
+      const deletedGm = [];
+      globalThis.localStorage = ls;
+      globalThis.GM_deleteValue = (k) => { deletedGm.push(k); };
+      try {
+        clearCollapsedState();
+        assert.equal(ls.getItem('tp_suite_v2_' + COLLAPSE_KEY), null);
+        assert.equal(ls.getItem(COLLAPSE_KEY), null);
+        assert.ok(deletedGm.includes('tp_suite_v2_' + COLLAPSE_KEY));
+      } finally {
+        if (prevLS === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevLS;
+        if (prevDel === undefined) delete globalThis.GM_deleteValue; else globalThis.GM_deleteValue = prevDel;
+      }
+    });
   });
 });
