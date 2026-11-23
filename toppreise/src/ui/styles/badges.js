@@ -449,37 +449,6 @@ export const STYLES_BADGES = `
     opacity: 1 !important;
     text-decoration: underline !important;
   }
-  .tp-action-dealer {
-    display: flex !important;
-    align-items: center !important;
-  }
-  .tp-action-dealer button.tp-dealer-btn {
-    background: none !important;
-    border: none !important;
-    cursor: pointer !important;
-    font-size: 16px !important;
-    line-height: 1 !important;
-    padding: 2px 5px !important;
-    opacity: 0.75 !important;
-    transition: opacity 0.15s ease !important;
-  }
-  .tp-action-dealer button.tp-dealer-btn:hover {
-    opacity: 1 !important;
-  }
-  .tp-action-dealer button.tp-dealer-btn:disabled {
-    cursor: wait !important;
-    opacity: 0.4 !important;
-  }
-  .tp-action-dealer a.tp-dealer-name {
-    font: 500 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: inherit !important;
-    text-decoration: none !important;
-    opacity: 0.85 !important;
-  }
-  .tp-action-dealer a.tp-dealer-name:hover {
-    opacity: 1 !important;
-    text-decoration: underline !important;
-  }
   button.tp-dealer-name.tp-dealer-btn,
   .tp-card-dealer-row > button.tp-dealer-name.tp-dealer-btn,
   .priceContainer:has(> .tp-dealer-name) > button.tp-dealer-name.tp-dealer-btn,

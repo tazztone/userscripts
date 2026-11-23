@@ -115,11 +115,11 @@ AUDIT_MATRIX_JS = """({ layout, state, vw, nativeOverflow }) => {
     }
 
     // 2. Layout placement & exclusions
-    const inBoxOrExpert = card.classList.contains('mixedBrowsingBox') ||
-      card.classList.contains('mixedBrowsingExpert') ||
-      !!card.closest('.standardList.box, .standardList.expert');
-    if (inBoxOrExpert && card.querySelector('.tp-action-dealer')) {
-      defects.push({ type: 'action_dealer_in_overlay', card: i });
+    if (card.querySelector('.tp-action-dealer')) {
+      defects.push({ type: 'action_dealer_present', card: i });
+    }
+    if (card.querySelectorAll('.tp-dealer-name').length > 1) {
+      defects.push({ type: 'duplicate_dealer_name', card: i });
     }
     if (card.querySelectorAll('.tp-alarm-cog').length > 1) {
       defects.push({ type: 'duplicate_alarm_cog', card: i });

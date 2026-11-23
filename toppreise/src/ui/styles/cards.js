@@ -243,8 +243,7 @@ export const STYLES_CARDS = `
     .tp-alarm-cog,
     .tp-detail-sparkline,
     .tp-detail-share-btn,
-    .badge-dif.tp-deal-pill,
-    .tp-action-dealer button.tp-dealer-btn {
+    .badge-dif.tp-deal-pill {
       position: relative !important;
       touch-action: manipulation !important;
     }
@@ -299,8 +298,7 @@ export const STYLES_CARDS = `
       inset: -8px !important;
     }
     .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after,
-    .tp-action-dealer button.tp-dealer-btn::after {
+    button.tp-dealer-name.tp-dealer-btn::after {
       content: "" !important;
       position: absolute !important;
       inset: -10px !important;
@@ -336,7 +334,6 @@ export const STYLES_CARDS = `
     padding-bottom: 4px !important;
     min-height: 0 !important;
   }
-  .tp-action-dealer .tp-dealer-name,
   .tp-card-dealer-row > .tp-dealer-name {
     max-width: 100% !important;
   }

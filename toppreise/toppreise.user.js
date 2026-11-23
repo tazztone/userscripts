@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.537
+// @version      2.18.538
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -318,8 +318,7 @@ const STYLES_CARDS = `
     .tp-alarm-cog,
     .tp-detail-sparkline,
     .tp-detail-share-btn,
-    .badge-dif.tp-deal-pill,
-    .tp-action-dealer button.tp-dealer-btn {
+    .badge-dif.tp-deal-pill {
       position: relative !important;
       touch-action: manipulation !important;
     }
@@ -374,8 +373,7 @@ const STYLES_CARDS = `
       inset: -8px !important;
     }
     .tp-review-search-btn::after,
-    button.tp-dealer-name.tp-dealer-btn::after,
-    .tp-action-dealer button.tp-dealer-btn::after {
+    button.tp-dealer-name.tp-dealer-btn::after {
       content: "" !important;
       position: absolute !important;
       inset: -10px !important;
@@ -411,7 +409,6 @@ const STYLES_CARDS = `
     padding-bottom: 4px !important;
     min-height: 0 !important;
   }
-  .tp-action-dealer .tp-dealer-name,
   .tp-card-dealer-row > .tp-dealer-name {
     max-width: 100% !important;
   }
@@ -881,37 +878,6 @@ const STYLES_BADGES = `
     margin-right: 0 !important;
   }
   a.tp-dealer-name:hover {
-    opacity: 1 !important;
-    text-decoration: underline !important;
-  }
-  .tp-action-dealer {
-    display: flex !important;
-    align-items: center !important;
-  }
-  .tp-action-dealer button.tp-dealer-btn {
-    background: none !important;
-    border: none !important;
-    cursor: pointer !important;
-    font-size: 16px !important;
-    line-height: 1 !important;
-    padding: 2px 5px !important;
-    opacity: 0.75 !important;
-    transition: opacity 0.15s ease !important;
-  }
-  .tp-action-dealer button.tp-dealer-btn:hover {
-    opacity: 1 !important;
-  }
-  .tp-action-dealer button.tp-dealer-btn:disabled {
-    cursor: wait !important;
-    opacity: 0.4 !important;
-  }
-  .tp-action-dealer a.tp-dealer-name {
-    font: 500 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    color: inherit !important;
-    text-decoration: none !important;
-    opacity: 0.85 !important;
-  }
-  .tp-action-dealer a.tp-dealer-name:hover {
     opacity: 1 !important;
     text-decoration: underline !important;
   }
@@ -5921,6 +5887,28 @@ const SHADOW_MODAL_STYLES = `
    */
 
 
+  let originCooldownUntil = 0;
+  function getOriginCooldownUntil() { return originCooldownUntil; }
+  function setOriginCooldownUntil(untilMs) {
+    if (Number.isFinite(untilMs) && untilMs > originCooldownUntil) {
+      originCooldownUntil = untilMs;
+    }
+  }
+  function resetOriginCooldown() { originCooldownUntil = 0; }
+
+  const backoffMs = (attempt, baseDelayMs = 400) =>
+    Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
+
+  const parseRetryAfterMs = (header, baseDelayMs = 400, attempt = 0) => {
+    if (header != null && String(header).trim() !== '') {
+      const secs = Number(String(header).trim());
+      if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+      const at = Date.parse(String(header).trim());
+      if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+    }
+    return backoffMs(attempt, baseDelayMs);
+  };
+
   function makeTypedError(message, props = {}) {
     const err = new Error(message);
     Object.assign(err, props);
@@ -6143,7 +6131,6 @@ const SHADOW_MODAL_STYLES = `
         const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
         const prdContainer = prd.closest ? prd.closest('.productPrice') : null;
         if (shpContainer) {
-          if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
           if (shpContainer.style?.display === 'none' || shpContainer.classList?.contains('d-none')) {
             card._tpUseShipping = false;
             return false;
@@ -6153,6 +6140,14 @@ const SHADOW_MODAL_STYLES = `
               card._tpUseShipping = false;
               return false;
             }
+            if (shpContainer.isConnected && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+              try {
+                if (window.getComputedStyle(shpContainer).display === 'none') {
+                  card._tpUseShipping = false;
+                  return false;
+                }
+              } catch { /* ignore */ }
+            }
           } else if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
             try {
               if (window.getComputedStyle(shpContainer).display === 'none') {
@@ -6161,6 +6156,7 @@ const SHADOW_MODAL_STYLES = `
               }
             } catch { /* ignore */ }
           }
+          if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
         }
       }
       card._tpUseShipping = true;
@@ -6917,30 +6913,33 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  const PRODUCT_PATH_RE = /^\/(?:preisvergleich|price-comparison|comparateur-de-prix)\//;
   const isToppreiseProductUrl = u => {
     try {
       const parsed = new URL(u);
       if (parsed.hostname !== 'toppreise.ch' && parsed.hostname !== 'www.toppreise.ch') return false;
-      return parsed.pathname.startsWith('/preisvergleich/');
+      return PRODUCT_PATH_RE.test(parsed.pathname);
     } catch { return false; }
   };
+
+  const PATH_LINK_PREFIXES = ['/preisvergleich/', '/price-comparison/', '/comparateur-de-prix/'];
 
   const TITLE_SELECTORS = [
     '.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1',
     '.product-name a:not([class*="tp-"])', '.product-name',
     '.productDetails a:not([class*="tp-"])', '.productDetails',
     'a.bold:not([class*="tp-"])', '.bold:not([class*="tp-"])',
-    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
-    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
+    ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)`),
+    ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)`),
   ];
 
   const LINK_SELECTORS = [
-    '.product-name a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
-    '.productDetails a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
-    'a.bold[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
-    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
-    'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
-    'a[href*="/preisvergleich/"]',
+    ...PATH_LINK_PREFIXES.map(p => `.product-name a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"])`),
+    ...PATH_LINK_PREFIXES.map(p => `.productDetails a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"])`),
+    ...PATH_LINK_PREFIXES.map(p => `a.bold[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"])`),
+    ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)`),
+    ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)`),
+    ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]`),
   ];
 
   const IMG_SELECTORS = [
@@ -6981,7 +6980,7 @@ const SHADOW_MODAL_STYLES = `
     }
     const linkEl = queryFirst(card, LINK_SELECTORS)
       || (card.tagName?.toLowerCase() === 'a' ? card : null);
-    let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
+    let url = linkEl?.getAttribute?.('href') || linkEl?.href || card.getAttribute?.('data-link') || card.dataset?.link || '';
     if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
       url = location.href;
     }
@@ -7133,11 +7132,24 @@ const SHADOW_MODAL_STYLES = `
     const blocks = Array.from(doc?.querySelectorAll?.('.Plugin_Offer') || []);
     return blocks.map(block => {
       const logo = block.querySelector?.('.Plugin_ShopLogo img[alt], .Plugin_ShopLogo img[title]');
-      const dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
+      let dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
+      if (!dealer) {
+        const shopLink = block.querySelector?.('.Plugin_ShopLogo a[title]');
+        const shopBox = block.querySelector?.('.Plugin_ShopLogo');
+        const shopsA = block.querySelector?.('a[href*="/shops/"]');
+        const ratingTip = block.querySelector?.('.AbstractTooltip_ShopRatingDetailsTooltip[title]');
+        dealer = shopLink?.getAttribute?.('title')
+          || shopBox?.getAttribute?.('title')
+          || shopsA?.getAttribute?.('title')
+          || shopsA?.textContent
+          || shopBox?.textContent
+          || ratingTip?.getAttribute?.('title')?.replace(/^Shopbewertungen\s+f(?:ü|ue)r\s+/i, '')
+          || '';
+      }
       const product = parsePrice(block.querySelector?.(SELECTORS.price.fallbackProduct)?.textContent);
       const shipping = parsePrice(block.querySelector?.(SELECTORS.price.fallbackShipping)?.textContent);
-      const link = block.querySelector?.('a[href*="ext_de"]');
-      const url = link?.getAttribute?.('href') || link?.href || '';
+      const link = block.querySelector?.('a[href*="/ext_"], a[href*="ext_de"]');
+      const url = link?.getAttribute?.('href') || link?.href || block.getAttribute?.('data-link') || '';
       return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0, url: url || '' };
     }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
   }
@@ -7158,57 +7170,91 @@ const SHADOW_MODAL_STYLES = `
   // same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke (inkl.
   // /ext_de-Direktlink zum günstigsten Angebot) → JSON-LD (nur Count). Händler
   // immer auf Karten-Preisbasis (Versand/Produkt).
-  async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
+  async function fetchProductInfoDetailed(productUrl, timeoutMs = 10000, useShipping = false) {
     // offers = loaded page-1 rows; totalOffers = JSON-LD AggregateOffer count
     // when present (0 otherwise). Callers keep reading `offers` — no migration.
     const out = { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 };
-    try {
-      if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
-      if (!/^https?:\/\//i.test(productUrl || '')) return out;
-      if (!isToppreiseProductUrl(productUrl)) return out;
-      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
-      let res;
-      let html;
+    if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return { info: out, transient: false };
+    if (!/^https?:\/\//i.test(productUrl || '')) return { info: out, transient: false };
+    if (!isToppreiseProductUrl(productUrl)) return { info: out, transient: false };
+    if (Date.now() < getOriginCooldownUntil()) return { info: out, transient: true };
+
+    const maxRetries = 1;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const attemptStart = Date.now();
       try {
-        res = await fetch(productUrl, { signal: ctrl?.signal });
-        if (!res.ok) return out;
-        html = await res.text();
-      } finally {
-        clearTimeout(timer);
-      }
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
-      // blocks — both through basis-strict cheapest (row order may follow
-      // foreign sort cookies). Basis-strict: no parseable price on the card
-      // basis means unknown dealer — never the opposite-basis name.
-      const dealerRows = parseDealerRows(doc);
-      const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
-      if (offers.length) {
-        out.offers = offers.length;
-        out.totalOffers = jsonLdOfferTotal(doc);
-        const best = pickCheapestOffer(offers, useShipping);
-        out.dealer = best ? best.dealer : '';
-        if (best?.url) {
-          try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
-        }
-        return out;
-      }
-      const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
-      for (const s of scripts) {
-        try {
-          const found = parseJsonLdOffer(JSON.parse(s.textContent));
-          if (found.dealer || found.offers || found.totalOffers) {
-            // Count-only unter Versandbasis: unbekannter Versandpreis kann nie
-            // einen Delivered-Preis-Sieger küren — nur die Anzahl übernehmen.
-            if (useShipping) return { dealer: '', offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
-            return { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
+        const { res, body: html } = await fetchWithTimeout(
+          productUrl,
+          {},
+          { timeoutMs, source: 'dealer', label: 'product', readAs: 'text' }
+        );
+        const canRetry = attempt < maxRetries && (Date.now() - attemptStart) < 1000;
+        if (!res?.ok) {
+          if (res?.status === 429) {
+            const wait = parseRetryAfterMs(res.headers?.get?.('Retry-After'), 400, attempt);
+            if (canRetry && wait <= 2500) {
+              await new Promise(r => setTimeout(r, wait));
+              continue;
+            }
+            setOriginCooldownUntil(Date.now() + Math.max(wait, 400));
+            return { info: out, transient: true };
           }
-        } catch { /* Block einzeln ignorieren */ }
+          if (res?.status >= 500) {
+            if (canRetry) {
+              await new Promise(r => setTimeout(r, backoffMs(attempt, 400)));
+              continue;
+            }
+            return { info: out, transient: true };
+          }
+          return { info: out, transient: false };
+        }
+        const doc = new DOMParser().parseFromString(html || '', 'text/html');
+        // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
+        // blocks — both through basis-strict cheapest (row order may follow
+        // foreign sort cookies). Basis-strict: no parseable price on the card
+        // basis means unknown dealer — never the opposite-basis name.
+        const dealerRows = parseDealerRows(doc);
+        const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
+        if (offers.length) {
+          out.offers = offers.length;
+          out.totalOffers = jsonLdOfferTotal(doc);
+          const best = pickCheapestOffer(offers, useShipping);
+          out.dealer = best ? best.dealer : '';
+          if (best?.url) {
+            try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
+          }
+          return { info: out, transient: false };
+        }
+        const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+        for (const s of scripts) {
+          try {
+            const found = parseJsonLdOffer(JSON.parse(s.textContent));
+            if (found.dealer || found.offers || found.totalOffers) {
+              // Count-only unter Versandbasis: unbekannter Versandpreis kann nie
+              // einen Delivered-Preis-Sieger küren — nur die Anzahl übernehmen.
+              if (useShipping) {
+                return { info: { dealer: '', offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 }, transient: false };
+              }
+              return { info: { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 }, transient: false };
+            }
+          } catch { /* Block einzeln ignorieren */ }
+        }
+        console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: (html || '').length, rowCount: offers.length, jsonLdBlocks: scripts.length });
+        return { info: out, transient: false };
+      } catch (err) {
+        if (err?.cancelled) return { info: out, transient: false };
+        if (attempt < maxRetries && (Date.now() - attemptStart) < 1000) {
+          await new Promise(r => setTimeout(r, backoffMs(attempt, 400)));
+          continue;
+        }
+        return { info: out, transient: true };
       }
-      console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: offers.length, jsonLdBlocks: scripts.length });
-    } catch { /* Händler unbekannt: Zeile entfällt */ }
-    return out;
+    }
+    return { info: out, transient: false };
+  }
+
+  async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
+    return (await fetchProductInfoDetailed(productUrl, timeoutMs, useShipping)).info;
   }
 
   // Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.
@@ -10864,13 +10910,11 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const activeFetches = new Map();
 
   // Single-flight abort for the running batch scan. Next run replaces it.
   let batchController = null;
-  // Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
-  let originCooldownUntil = 0;
-  function resetOriginCooldown() { originCooldownUntil = 0; }
 
   async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
     const step = 100;
@@ -10883,19 +10927,6 @@ const SHADOW_MODAL_STYLES = `
       elapsed += wait;
     }
   }
-
-  const backoffMs = (attempt, baseDelayMs = 400) =>
-    Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
-
-  const parseRetryAfterMs = (header, baseDelayMs, attempt) => {
-    if (header != null && String(header).trim() !== '') {
-      const secs = Number(String(header).trim());
-      if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
-      const at = Date.parse(String(header).trim());
-      if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
-    }
-    return backoffMs(attempt, baseDelayMs);
-  };
 
   const isCancelled = (signal, shouldCancelFn) => signal?.aborted || shouldCancelFn?.();
 
@@ -10912,7 +10943,7 @@ const SHADOW_MODAL_STYLES = `
         e.cancelled = true;
         throw e;
       }
-      if (Date.now() < originCooldownUntil) {
+      if (Date.now() < getOriginCooldownUntil()) {
         const e = new Error('cooldown');
         e.cooldown = true;
         throw e;
@@ -10930,7 +10961,7 @@ const SHADOW_MODAL_STYLES = `
             await interruptibleSleep(wait, shouldCancelFn, signal);
             continue;
           }
-          originCooldownUntil = Date.now() + Math.max(wait, baseDelayMs);
+          setOriginCooldownUntil(Date.now() + Math.max(wait, baseDelayMs));
           logActivity('warn', 'scanner', `429 Cooldown aktiviert (${Math.max(wait, baseDelayMs)}ms)`);
           const e = new Error('429');
           e.transient = true;
@@ -11526,23 +11557,29 @@ const SHADOW_MODAL_STYLES = `
   const dealerCache = new Map();
   const dealerPending = new Set();
   const dealerHydrated = new Set();
-  // Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
-  // ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
-  const dealerAutoTried = new Set();
+  // Auto-Fetch (DEALER_AUTOFETCH): pro pid:Modus und Pageload — bei transienten
+  // Fehlern (429/5xx/Timeout) 1× verzögert erneut versuchen, sonst stoppen.
+  const dealerAutoTries = new Map();
   function boundedSetAdd(set, key, limit = 500) {
     set.add(key);
     while (set.size > limit) {
       set.delete(set.values().next().value);
     }
   }
+  function boundedMapSet(map, key, val, limit = 500) {
+    map.set(key, val);
+    while (map.size > limit) {
+      map.delete(map.keys().next().value);
+    }
+  }
   function clearDealerMemory() {
     dealerCache.clear();
     dealerHydrated.clear();
-    dealerAutoTried.clear();
+    dealerAutoTries.clear();
     bumpCacheGeneration();
   }
   function clearDealerAutoTried() {
-    dealerAutoTried.clear();
+    dealerAutoTries.clear();
   }
   async function runSingleDealCheck(card, badgeDifEl) {
     if (badgeDifEl.classList.contains('tp-deal-loading')) return;
@@ -12643,6 +12680,7 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+
   const dealerPromises = new Map();
 
   async function ensureDealerInfo(card, pid, useShipping) {
@@ -12680,13 +12718,24 @@ const SHADOW_MODAL_STYLES = `
 
     const promise = (async () => {
       try {
-        const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
+        const { info, transient } = await fetchProductInfoDetailed(productUrl, undefined, reqShipping).catch(() => ({ info: null, transient: true }));
         if (reqGen !== currentCacheGen()) return null;
         if (info?.dealer) {
           const entry = { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0, totalOffers: info.totalOffers || 0 };
           lruSet(dealerCache, reqKey, entry);
           setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0, info.totalOffers || 0);
           return entry;
+        }
+        const tryState = dealerAutoTries.get(reqKey);
+        if (tryState) {
+          if (transient && tryState.count < 2) {
+            const cooldownLeft = Math.max(0, getOriginCooldownUntil() - Date.now());
+            const delay = Math.max(1500, cooldownLeft + 250);
+            tryState.nextTryAt = Date.now() + delay;
+            setTimeout(() => scheduleProcessListings(), delay);
+          } else {
+            tryState.exhausted = true;
+          }
         }
         return null;
       } finally {
@@ -12765,65 +12814,20 @@ const SHADOW_MODAL_STYLES = `
         }
       };
 
-      const isOverlayOrCompactView = !!(
-        card.classList?.contains('mixedBrowsingBox') ||
-        card.classList?.contains('mixedBrowsingExpert') ||
-        card.closest?.('.standardList.box, .standardList.expert')
-      );
-      const actionRow = isOverlayOrCompactView ? null : card.querySelector('.row.action, .action');
-      const actionMailBtn = actionRow?.querySelector('.Plugin_NewInfoMailButton')?.closest?.('.col-auto') || actionRow?.querySelector('.Plugin_NewInfoMailButton');
-      let actionEl = card.querySelector('.tp-action-dealer');
+      card.querySelector('.tp-action-dealer')?.remove();
 
       const loadDealer = async () => {
         card.querySelectorAll('.tp-dealer-btn').forEach(b => { b.disabled = true; });
-        await ensureDealerInfo(card, pid, useShipping);
-      };
-
-      if (actionRow && actionMailBtn) {
-        if (!actionEl) {
-          actionEl = document.createElement('div');
-          actionEl.className = 'col-auto tp-action-dealer';
-          actionMailBtn.insertAdjacentElement('beforebegin', actionEl);
-        }
-        if (dealer) {
-          let link = actionEl.querySelector('.tp-dealer-name');
-          if (!link || (link.tagName === 'A') !== hasUrl) {
-            actionEl.innerHTML = '';
-            link = document.createElement(hasUrl ? 'a' : 'span');
-            link.className = 'tp-dealer-name';
-            if (hasUrl) { link.href = targetUrl; link.target = '_blank'; link.rel = 'noopener'; link.addEventListener('click', e => e.stopPropagation()); }
-            actionEl.appendChild(link);
-          } else if (hasUrl && link.getAttribute('href') !== targetUrl) {
-            link.href = targetUrl;
-          }
-          setTextIfChanged(link, `🏬 ${dealer}`);
-          setTitleIfChanged(link, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
-        } else if (hasUrl && !dealerCache.has(dKey)) {
-          let actionBtn = actionEl.querySelector('button.tp-dealer-btn');
-          if (!actionBtn || actionBtn.dataset.tpDealerPid !== dKey) {
-            actionEl.innerHTML = '';
-            actionBtn = document.createElement('button');
-            actionBtn.type = 'button';
-            actionBtn.className = 'tp-dealer-name tp-dealer-btn';
-            actionBtn.dataset.tpDealerPid = dKey;
-            actionBtn.textContent = '🏬';
-            actionBtn.setAttribute('aria-label', 'Händler laden');
-            actionBtn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';
-            actionBtn.addEventListener('click', e => {
-              e.preventDefault();
-              e.stopPropagation();
-              loadDealer();
+        try {
+          return await ensureDealerInfo(card, pid, useShipping);
+        } finally {
+          if (!dealerPending.has(dKey)) {
+            card.querySelectorAll('.tp-dealer-btn').forEach(b => {
+              if (b.dataset.tpDealerPid === dKey) b.disabled = false;
             });
-            actionEl.appendChild(actionBtn);
-          } else if (!dealerPending.has(dKey) && actionBtn.disabled) {
-            actionBtn.disabled = false;
           }
-        } else {
-          actionEl.remove();
         }
-      } else {
-        actionEl?.remove();
-      }
+      };
 
       if (dealer) {
         let el = dealerEl?.dataset.tpDealerPid === dKey ? dealerEl : null;
@@ -12876,8 +12880,10 @@ const SHADOW_MODAL_STYLES = `
           ? (heatInfo?.pct ?? ctx.dealData?.weightedDiff ?? 0)
           : 0;
         const meetsDealThreshold = effectivePct >= realDealMinDiscount();
-        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
-          boundedSetAdd(dealerAutoTried, dKey, 500);
+        const tryState = dealerAutoTries.get(dKey);
+        const canAutoTry = !tryState || (!tryState.exhausted && tryState.count < 2 && Date.now() >= (tryState.nextTryAt || 0));
+        if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
+          boundedMapSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
           btn.disabled = true;
           loadDealer();
         }
@@ -17980,7 +17986,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
-  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-action-dealer,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
+  const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
   const isOwnedNode = n => n?.nodeType === 1 && !!n.closest?.(TP_OWNED_SEL);
   const cardOf = n => {
@@ -18137,7 +18143,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.537';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.538';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

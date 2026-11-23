@@ -12,14 +12,13 @@ import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
 import { setHtmlIfChanged } from '../ui/badges/dom-helpers.js';
 import { logActivity } from '../state/activity-log.js';
+import { getOriginCooldownUntil, setOriginCooldownUntil, resetOriginCooldown, parseRetryAfterMs, backoffMs } from '../state/net.js';
 
 export const activeFetches = new Map();
+export { resetOriginCooldown };
 
 // Single-flight abort for the running batch scan. Next run replaces it.
 let batchController = null;
-// Shared across JSON + HTML paths (same origin): set on 429 exhaustion.
-let originCooldownUntil = 0;
-export function resetOriginCooldown() { originCooldownUntil = 0; }
 
 async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
   const step = 100;
@@ -32,19 +31,6 @@ async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
     elapsed += wait;
   }
 }
-
-const backoffMs = (attempt, baseDelayMs = 400) =>
-  Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
-
-const parseRetryAfterMs = (header, baseDelayMs, attempt) => {
-  if (header != null && String(header).trim() !== '') {
-    const secs = Number(String(header).trim());
-    if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
-    const at = Date.parse(String(header).trim());
-    if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
-  }
-  return backoffMs(attempt, baseDelayMs);
-};
 
 const isCancelled = (signal, shouldCancelFn) => signal?.aborted || shouldCancelFn?.();
 
@@ -61,7 +47,7 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
       e.cancelled = true;
       throw e;
     }
-    if (Date.now() < originCooldownUntil) {
+    if (Date.now() < getOriginCooldownUntil()) {
       const e = new Error('cooldown');
       e.cooldown = true;
       throw e;
@@ -79,7 +65,7 @@ export async function requestWithRetry(makeRequest, { retries = 1, shouldCancelF
           await interruptibleSleep(wait, shouldCancelFn, signal);
           continue;
         }
-        originCooldownUntil = Date.now() + Math.max(wait, baseDelayMs);
+        setOriginCooldownUntil(Date.now() + Math.max(wait, baseDelayMs));
         logActivity('warn', 'scanner', `429 Cooldown aktiviert (${Math.max(wait, baseDelayMs)}ms)`);
         const e = new Error('429');
         e.transient = true;

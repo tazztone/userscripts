@@ -609,18 +609,15 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
     const { dealerCache } = await import('../../src/ui/badges/deal-badge.js');
     dealerCache.set('p-dealer-url:p', { dealer: 'Digitec', url: '' });
     dealerCache.set('p-dealer-url:s', { dealer: 'Digitec', url: '' });
-    const linkEl = { tagName: 'A', className: 'tp-dealer-name', getAttribute: () => 'https://example.com', href: 'https://example.com', textContent: '', title: '' };
-    const actionEl = {
-      innerHTML: '',
-      querySelector: (sel) => (sel === '.tp-dealer-name' ? linkEl : null),
-      appendChild: (n) => { actionEl._appended = n; },
+    const linkEl = { tagName: 'A', className: 'tp-dealer-name', dataset: { tpDealerPid: 'p-dealer-url:p' }, getAttribute: () => 'https://example.com', href: 'https://example.com', textContent: '', title: '', remove: () => {} };
+    const dealerRow = {
+      className: 'tp-card-dealer-row',
+      replaceChildren: (n) => { dealerRow._replaced = n; },
     };
-    const mailBtn = { insertAdjacentElement: () => {} };
     const card = {
       querySelector: (sel) => {
-        if (sel === '.tp-action-dealer') return actionEl;
-        if (sel === '.Plugin_NewInfoMailButton') return mailBtn;
-        if (sel.includes('.row.action')) return { querySelector: () => mailBtn };
+        if (sel === '.tp-card-dealer-row .tp-dealer-name') return linkEl;
+        if (sel === '.tp-card-dealer-row') return dealerRow;
         return null;
       },
       querySelectorAll: () => [],
@@ -628,12 +625,12 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
     };
     const prevDoc = globalThis.document;
     globalThis.document = {
-      createElement: (tag) => ({ tagName: tag.toUpperCase(), className: '', textContent: '', title: '', style: {}, dataset: {}, replaceChildren: () => {} }),
+      createElement: (tag) => ({ tagName: tag.toUpperCase(), className: '', textContent: '', title: '', style: {}, dataset: {}, addEventListener: () => {}, replaceChildren: () => {} }),
     };
     try {
       renderDealerName({ card, pid: 'p-dealer-url', cardPriceEl: null, stats: { tiefstpreis: 100 } }, {});
-      assert.ok(actionEl._appended);
-      assert.equal(actionEl._appended.tagName, 'SPAN');
+      assert.ok(dealerRow._replaced);
+      assert.equal(dealerRow._replaced.tagName, 'SPAN');
     } finally {
       dealerCache.delete('p-dealer-url:p');
       dealerCache.delete('p-dealer-url:s');
@@ -641,7 +638,7 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
     }
   });
 
-  it('card-dealer skips .tp-action-dealer on mixedBrowsingBox and mixedBrowsingExpert and removes stale node', async () => {
+  it('card-dealer removes stale .tp-action-dealer across list, box, and expert layouts', async () => {
     const { renderDealerName } = await import('../../src/ui/badges/card-dealer.js');
     const { dealerCache } = await import('../../src/ui/badges/deal-badge.js');
     dealerCache.set('p-box:p', { dealer: 'Digitec', url: 'https://example.com' });
@@ -653,7 +650,7 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
       }),
     };
     try {
-      for (const layoutCls of ['mixedBrowsingBox', 'mixedBrowsingExpert']) {
+      for (const layoutCls of ['mixedBrowsingList', 'mixedBrowsingBox', 'mixedBrowsingExpert']) {
         let removed = false;
         const staleActionEl = { remove: () => { removed = true; } };
         const card = {
@@ -668,6 +665,124 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
       }
     } finally {
       dealerCache.delete('p-box:p');
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
+
+  it('card-dealer re-enables .tp-dealer-btn when ensureDealerInfo returns early on missing URL', async () => {
+    const { renderDealerName } = await import('../../src/ui/badges/card-dealer.js');
+    const prevDoc = globalThis.document;
+    const btnListeners = {};
+    let currentUrl = 'https://www.toppreise.ch/preisvergleich/Cat/Prod-p-miss';
+    const createdBtn = {
+      tagName: 'BUTTON',
+      type: 'button',
+      className: '',
+      textContent: '',
+      title: '',
+      disabled: false,
+      style: {},
+      dataset: {},
+      setAttribute: () => {},
+      addEventListener: (ev, fn) => { btnListeners[ev] = fn; },
+    };
+    const dealerRow = {
+      className: 'tp-card-dealer-row',
+      replaceChildren: () => {},
+    };
+    globalThis.document = {
+      createElement: (tag) => (tag === 'button' ? createdBtn : dealerRow),
+    };
+    const card = {
+      querySelector: (sel) => {
+        if (sel === '.tp-card-dealer-row') return dealerRow;
+        if (sel.includes('a[href*="/preisvergleich/"]') && currentUrl) {
+          return { getAttribute: () => currentUrl, href: currentUrl };
+        }
+        return null;
+      },
+      querySelectorAll: (sel) => (sel === '.tp-dealer-btn' ? [createdBtn] : []),
+      appendChild: () => {},
+    };
+    try {
+      renderDealerName({ card, pid: 'p-miss', cardPriceEl: null, stats: { tiefstpreis: 100 } }, {});
+      assert.equal(typeof btnListeners.click, 'function');
+      currentUrl = ''; // simulate DOM link disappearing before click completes
+      await btnListeners.click({ preventDefault: () => {}, stopPropagation: () => {} });
+      assert.equal(createdBtn.disabled, false);
+    } finally {
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
+
+  it('DEALER_AUTOFETCH schedules 1 delayed retry on transient 503 and stops after 200 empty', async () => {
+    const { renderDealerName } = await import('../../src/ui/badges/card-dealer.js');
+    const { dealerAutoTries, clearDealerAutoTried } = await import('../../src/ui/badges/deal-badge.js');
+    const { CONFIG } = await import('../../src/state/config.js');
+    const prevAuto = CONFIG.DEALER_AUTOFETCH;
+    const prevMin = CONFIG.REAL_DEAL_MIN_DISCOUNT;
+    const prevFetch = globalThis.fetch;
+    const prevParser = globalThis.DOMParser;
+    const prevDoc = globalThis.document;
+    clearDealerAutoTried();
+    CONFIG.DEALER_AUTOFETCH = true;
+    CONFIG.REAL_DEAL_MIN_DISCOUNT = 0;
+
+    let fetchCount = 0;
+    let mode = '503';
+    globalThis.fetch = async () => {
+      fetchCount++;
+      if (mode === '503') return { ok: false, status: 503, text: async () => '' };
+      return { ok: true, status: 200, text: async () => '<html></html>' };
+    };
+    globalThis.DOMParser = class {
+      parseFromString() { return { querySelectorAll: () => [] }; }
+    };
+    const btn = {
+      tagName: 'BUTTON', type: 'button', className: '', textContent: '', title: '',
+      disabled: false, style: {}, dataset: {}, setAttribute: () => {}, addEventListener: () => {},
+    };
+    const dealerRow = { className: 'tp-card-dealer-row', replaceChildren: () => {} };
+    globalThis.document = {
+      body: { getAttribute: () => null, classList: { contains: () => false } },
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      createElement: (tag) => (tag === 'button' ? btn : dealerRow),
+    };
+    const makeCard = (pid) => ({
+      querySelector: (sel) => {
+        if (sel === '.tp-card-dealer-row') return dealerRow;
+        if (sel === 'a[href*="/preisvergleich/"]') {
+          return { getAttribute: () => `https://www.toppreise.ch/preisvergleich/Cat/Prod-${pid}`, href: `https://www.toppreise.ch/preisvergleich/Cat/Prod-${pid}` };
+        }
+        return null;
+      },
+      querySelectorAll: (sel) => (sel === '.tp-dealer-btn' ? [btn] : []),
+      appendChild: () => {},
+    });
+
+    try {
+      // Transient 503: 1st auto-try fails (with 1 internal retry = 2 fetches), nextTryAt set > now
+      renderDealerName({ card: makeCard('p-trans'), pid: 'p-trans', cardPriceEl: null, stats: { tiefstpreis: 100 }, heatInfo: { pct: 20 } }, {});
+      await new Promise(r => setTimeout(r, 750));
+      assert.equal(fetchCount, 2);
+      const stTrans = dealerAutoTries.get('p-trans:s') || dealerAutoTries.get('p-trans:p');
+      assert.ok(stTrans && stTrans.count === 1 && stTrans.nextTryAt > Date.now() && !stTrans.exhausted);
+
+      // 200 empty: marks exhausted immediately (no delayed retry)
+      fetchCount = 0;
+      mode = '200';
+      renderDealerName({ card: makeCard('p-empty'), pid: 'p-empty', cardPriceEl: null, stats: { tiefstpreis: 100 }, heatInfo: { pct: 20 } }, {});
+      await new Promise(r => setTimeout(r, 50));
+      assert.equal(fetchCount, 1);
+      const stEmpty = dealerAutoTries.get('p-empty:s') || dealerAutoTries.get('p-empty:p');
+      assert.ok(stEmpty && stEmpty.exhausted === true);
+    } finally {
+      clearDealerAutoTried();
+      CONFIG.DEALER_AUTOFETCH = prevAuto;
+      CONFIG.REAL_DEAL_MIN_DISCOUNT = prevMin;
+      globalThis.fetch = prevFetch;
+      if (prevParser === undefined) delete globalThis.DOMParser; else globalThis.DOMParser = prevParser;
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });

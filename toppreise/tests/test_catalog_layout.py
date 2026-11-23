@@ -3469,8 +3469,8 @@ def test_listenansicht_shipping_text_within_card_bounds(page: Page):
 
 
 def test_listenansicht_dealer_check_in_action_row(page: Page):
-    """In Listenansicht cards with an action row, a dealer check button (🏬) is
-    injected into the action row to the left of the Preisalarm bell."""
+    """In Listenansicht cards, a single dealer check button (🏬) is rendered
+    in .tp-card-dealer-row above the price with zero .tp-action-dealer."""
     page.evaluate("""() => {
         document.body.className = 'color_bg Page_Browsing';
         document.body.setAttribute('data-current_url', 'https://www.toppreise.ch/produktsuche/HiFi-Audio/Kopfhoerer/Kopfhoerer-c3308');
@@ -3493,17 +3493,19 @@ def test_listenansicht_dealer_check_in_action_row(page: Page):
         'isShippingPrice': True,
         'timeSeries': [[1700000000000, 250], [1700086400000, 170.19]]
     }, clear=False)
-    action_dealer = page.locator('#Plugin_Product_492326 .tp-action-dealer')
-    assert action_dealer.count() == 1
-    assert action_dealer.locator('.tp-dealer-btn').count() == 1
-    assert action_dealer.locator('.tp-dealer-btn').text_content() == '🏬'
-    # Verify it is positioned before Plugin_NewInfoMailButton in the action row
-    is_before_bell = page.evaluate("""() => {
-        const dealer = document.querySelector('#Plugin_Product_492326 .tp-action-dealer');
-        const bell = document.querySelector('#Plugin_Product_492326 .Plugin_NewInfoMailButton').closest('.col-auto');
-        return dealer.nextElementSibling === bell;
+    assert page.locator('#Plugin_Product_492326 .tp-action-dealer').count() == 0
+    dealer_row = page.locator('#Plugin_Product_492326 .tp-card-dealer-row')
+    assert dealer_row.count() == 1
+    assert dealer_row.locator('.tp-dealer-btn').count() == 1
+    assert dealer_row.locator('.tp-dealer-btn').text_content() == '🏬'
+    assert page.locator('#Plugin_Product_492326 .tp-dealer-name').count() == 1
+    # Verify .tp-card-dealer-row is positioned directly above the price container
+    is_above_price = page.evaluate("""() => {
+        const row = document.querySelector('#Plugin_Product_492326 .tp-card-dealer-row');
+        const next = row?.nextElementSibling;
+        return !!next && (next.classList.contains('priceContainer') || next.classList.contains('Plugin_PriceInformation') || next.classList.contains('price_information_product'));
     }""")
-    assert is_before_bell is True
+    assert is_above_price is True
 
 
 def test_card_subline_sparkline_hidden_on_narrow_viewport(page: Page):

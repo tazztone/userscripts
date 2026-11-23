@@ -42,7 +42,6 @@ export function isShippingPriceActive(card = null) {
       const shpContainer = shp.closest ? shp.closest('.shippingPrice') : null;
       const prdContainer = prd.closest ? prd.closest('.productPrice') : null;
       if (shpContainer) {
-        if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
         if (shpContainer.style?.display === 'none' || shpContainer.classList?.contains('d-none')) {
           card._tpUseShipping = false;
           return false;
@@ -52,6 +51,14 @@ export function isShippingPriceActive(card = null) {
             card._tpUseShipping = false;
             return false;
           }
+          if (shpContainer.isConnected && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+            try {
+              if (window.getComputedStyle(shpContainer).display === 'none') {
+                card._tpUseShipping = false;
+                return false;
+              }
+            } catch { /* ignore */ }
+          }
         } else if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
           try {
             if (window.getComputedStyle(shpContainer).display === 'none') {
@@ -60,6 +67,7 @@ export function isShippingPriceActive(card = null) {
             }
           } catch { /* ignore */ }
         }
+        if (card.classList?.contains('tp-filtered') && card.offsetParent === null) return true;
       }
     }
     card._tpUseShipping = true;

@@ -6,32 +6,35 @@
 import { SELECTORS } from './selectors.js';
 import { parsePrice } from '../domain/price.js';
 import { getCachedAsin, setCachedAsin, lruSet } from '../scanner/cache.js';
-import { fetchWithTimeout } from '../state/net.js';
+import { fetchWithTimeout, getOriginCooldownUntil, setOriginCooldownUntil, parseRetryAfterMs, backoffMs } from '../state/net.js';
 
+const PRODUCT_PATH_RE = /^\/(?:preisvergleich|price-comparison|comparateur-de-prix)\//;
 const isToppreiseProductUrl = u => {
   try {
     const parsed = new URL(u);
     if (parsed.hostname !== 'toppreise.ch' && parsed.hostname !== 'www.toppreise.ch') return false;
-    return parsed.pathname.startsWith('/preisvergleich/');
+    return PRODUCT_PATH_RE.test(parsed.pathname);
   } catch { return false; }
 };
+
+const PATH_LINK_PREFIXES = ['/preisvergleich/', '/price-comparison/', '/comparateur-de-prix/'];
 
 const TITLE_SELECTORS = [
   '.Plugin_ProductHeading h1', '.productHeading h1', '.product_title h1', 'h1.productTitle', 'h1',
   '.product-name a:not([class*="tp-"])', '.product-name',
   '.productDetails a:not([class*="tp-"])', '.productDetails',
   'a.bold:not([class*="tp-"])', '.bold:not([class*="tp-"])',
-  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
-  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
+  ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)`),
+  ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)`),
 ];
 
 const LINK_SELECTORS = [
-  '.product-name a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
-  '.productDetails a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
-  'a.bold[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"])',
-  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)',
-  'a[href*="/preisvergleich/"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)',
-  'a[href*="/preisvergleich/"]',
+  ...PATH_LINK_PREFIXES.map(p => `.product-name a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"])`),
+  ...PATH_LINK_PREFIXES.map(p => `.productDetails a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"])`),
+  ...PATH_LINK_PREFIXES.map(p => `a.bold[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"])`),
+  ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.f_shippingPrice):not(.f_productPrice):not(.f_title):not(.title):not([href*="gpsv="]):not(.image)`),
+  ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]:not([title="Preisalarm"]):not([href*="infomail"]):not(.image)`),
+  ...PATH_LINK_PREFIXES.map(p => `a[href*="${p}"]`),
 ];
 
 const IMG_SELECTORS = [
@@ -72,7 +75,7 @@ export function extractShareData(card) {
   }
   const linkEl = queryFirst(card, LINK_SELECTORS)
     || (card.tagName?.toLowerCase() === 'a' ? card : null);
-  let url = linkEl?.getAttribute?.('href') || linkEl?.href || '';
+  let url = linkEl?.getAttribute?.('href') || linkEl?.href || card.getAttribute?.('data-link') || card.dataset?.link || '';
   if (!url && typeof location !== 'undefined' && isToppreiseProductUrl(location.href)) {
     url = location.href;
   }
@@ -224,11 +227,24 @@ export function parseProductOffers(doc) {
   const blocks = Array.from(doc?.querySelectorAll?.('.Plugin_Offer') || []);
   return blocks.map(block => {
     const logo = block.querySelector?.('.Plugin_ShopLogo img[alt], .Plugin_ShopLogo img[title]');
-    const dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
+    let dealer = logo?.getAttribute?.('alt') || logo?.getAttribute?.('title') || '';
+    if (!dealer) {
+      const shopLink = block.querySelector?.('.Plugin_ShopLogo a[title]');
+      const shopBox = block.querySelector?.('.Plugin_ShopLogo');
+      const shopsA = block.querySelector?.('a[href*="/shops/"]');
+      const ratingTip = block.querySelector?.('.AbstractTooltip_ShopRatingDetailsTooltip[title]');
+      dealer = shopLink?.getAttribute?.('title')
+        || shopBox?.getAttribute?.('title')
+        || shopsA?.getAttribute?.('title')
+        || shopsA?.textContent
+        || shopBox?.textContent
+        || ratingTip?.getAttribute?.('title')?.replace(/^Shopbewertungen\s+f(?:ü|ue)r\s+/i, '')
+        || '';
+    }
     const product = parsePrice(block.querySelector?.(SELECTORS.price.fallbackProduct)?.textContent);
     const shipping = parsePrice(block.querySelector?.(SELECTORS.price.fallbackShipping)?.textContent);
-    const link = block.querySelector?.('a[href*="ext_de"]');
-    const url = link?.getAttribute?.('href') || link?.href || '';
+    const link = block.querySelector?.('a[href*="/ext_"], a[href*="ext_de"]');
+    const url = link?.getAttribute?.('href') || link?.href || block.getAttribute?.('data-link') || '';
     return { dealer: dealer.replace(/\s+/g, ' ').trim(), product: product || 0, shipping: shipping || 0, url: url || '' };
   }).filter(o => o.dealer || o.product > 0 || o.shipping > 0);
 }
@@ -249,57 +265,91 @@ export function pickCheapestOffer(offers, useShipping = false) {
 // same-origin, kein CORS-Problem). Katalog-Zeilen → .Plugin_Offer-Blöcke (inkl.
 // /ext_de-Direktlink zum günstigsten Angebot) → JSON-LD (nur Count). Händler
 // immer auf Karten-Preisbasis (Versand/Produkt).
-export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
+export async function fetchProductInfoDetailed(productUrl, timeoutMs = 10000, useShipping = false) {
   // offers = loaded page-1 rows; totalOffers = JSON-LD AggregateOffer count
   // when present (0 otherwise). Callers keep reading `offers` — no migration.
   const out = { dealer: '', offers: 0, dealerUrl: '', totalOffers: 0 };
-  try {
-    if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return out;
-    if (!/^https?:\/\//i.test(productUrl || '')) return out;
-    if (!isToppreiseProductUrl(productUrl)) return out;
-    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
-    let res;
-    let html;
+  if (typeof fetch === 'undefined' || typeof DOMParser === 'undefined') return { info: out, transient: false };
+  if (!/^https?:\/\//i.test(productUrl || '')) return { info: out, transient: false };
+  if (!isToppreiseProductUrl(productUrl)) return { info: out, transient: false };
+  if (Date.now() < getOriginCooldownUntil()) return { info: out, transient: true };
+
+  const maxRetries = 1;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const attemptStart = Date.now();
     try {
-      res = await fetch(productUrl, { signal: ctrl?.signal });
-      if (!res.ok) return out;
-      html = await res.text();
-    } finally {
-      clearTimeout(timer);
-    }
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
-    // blocks — both through basis-strict cheapest (row order may follow
-    // foreign sort cookies). Basis-strict: no parseable price on the card
-    // basis means unknown dealer — never the opposite-basis name.
-    const dealerRows = parseDealerRows(doc);
-    const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
-    if (offers.length) {
-      out.offers = offers.length;
-      out.totalOffers = jsonLdOfferTotal(doc);
-      const best = pickCheapestOffer(offers, useShipping);
-      out.dealer = best ? best.dealer : '';
-      if (best?.url) {
-        try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
-      }
-      return out;
-    }
-    const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
-    for (const s of scripts) {
-      try {
-        const found = parseJsonLdOffer(JSON.parse(s.textContent));
-        if (found.dealer || found.offers || found.totalOffers) {
-          // Count-only unter Versandbasis: unbekannter Versandpreis kann nie
-          // einen Delivered-Preis-Sieger küren — nur die Anzahl übernehmen.
-          if (useShipping) return { dealer: '', offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
-          return { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 };
+      const { res, body: html } = await fetchWithTimeout(
+        productUrl,
+        {},
+        { timeoutMs, source: 'dealer', label: 'product', readAs: 'text' }
+      );
+      const canRetry = attempt < maxRetries && (Date.now() - attemptStart) < 1000;
+      if (!res?.ok) {
+        if (res?.status === 429) {
+          const wait = parseRetryAfterMs(res.headers?.get?.('Retry-After'), 400, attempt);
+          if (canRetry && wait <= 2500) {
+            await new Promise(r => setTimeout(r, wait));
+            continue;
+          }
+          setOriginCooldownUntil(Date.now() + Math.max(wait, 400));
+          return { info: out, transient: true };
         }
-      } catch { /* Block einzeln ignorieren */ }
+        if (res?.status >= 500) {
+          if (canRetry) {
+            await new Promise(r => setTimeout(r, backoffMs(attempt, 400)));
+            continue;
+          }
+          return { info: out, transient: true };
+        }
+        return { info: out, transient: false };
+      }
+      const doc = new DOMParser().parseFromString(html || '', 'text/html');
+      // Single dealer policy: dealer rows first (feed shape), then .Plugin_Offer
+      // blocks — both through basis-strict cheapest (row order may follow
+      // foreign sort cookies). Basis-strict: no parseable price on the card
+      // basis means unknown dealer — never the opposite-basis name.
+      const dealerRows = parseDealerRows(doc);
+      const offers = dealerRows.length ? dealerRows : parseProductOffers(doc);
+      if (offers.length) {
+        out.offers = offers.length;
+        out.totalOffers = jsonLdOfferTotal(doc);
+        const best = pickCheapestOffer(offers, useShipping);
+        out.dealer = best ? best.dealer : '';
+        if (best?.url) {
+          try { out.dealerUrl = new URL(best.url, productUrl).href; } catch { out.dealerUrl = best.url; }
+        }
+        return { info: out, transient: false };
+      }
+      const scripts = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+      for (const s of scripts) {
+        try {
+          const found = parseJsonLdOffer(JSON.parse(s.textContent));
+          if (found.dealer || found.offers || found.totalOffers) {
+            // Count-only unter Versandbasis: unbekannter Versandpreis kann nie
+            // einen Delivered-Preis-Sieger küren — nur die Anzahl übernehmen.
+            if (useShipping) {
+              return { info: { dealer: '', offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 }, transient: false };
+            }
+            return { info: { dealer: found.dealer, offers: found.offers, dealerUrl: '', totalOffers: found.totalOffers || 0 }, transient: false };
+          }
+        } catch { /* Block einzeln ignorieren */ }
+      }
+      console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: (html || '').length, rowCount: offers.length, jsonLdBlocks: scripts.length });
+      return { info: out, transient: false };
+    } catch (err) {
+      if (err?.cancelled) return { info: out, transient: false };
+      if (attempt < maxRetries && (Date.now() - attemptStart) < 1000) {
+        await new Promise(r => setTimeout(r, backoffMs(attempt, 400)));
+        continue;
+      }
+      return { info: out, transient: true };
     }
-    console.debug('[Toppreise-Suite] Händler-Fallback leer', { htmlBytes: html.length, rowCount: offers.length, jsonLdBlocks: scripts.length });
-  } catch { /* Händler unbekannt: Zeile entfällt */ }
-  return out;
+  }
+  return { info: out, transient: false };
+}
+
+export async function fetchProductInfo(productUrl, timeoutMs = 10000, useShipping = false) {
+  return (await fetchProductInfoDetailed(productUrl, timeoutMs, useShipping)).info;
 }
 
 // Amazon ASIN parser: captures from standard /dp/, /gp/product/, or query parameters.

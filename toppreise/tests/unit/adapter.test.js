@@ -89,6 +89,28 @@ describe('Page Adapter Layer', () => {
         globalThis.window = origWindow;
       }
     });
+
+    it('detects hidden shipping container via getComputedStyle even on hidden .tp-filtered cards', () => {
+      const origWindow = globalThis.window;
+      globalThis.window = {
+        getComputedStyle: () => ({ display: 'none' })
+      };
+      try {
+        const card = {
+          classList: { contains: (c) => c === 'tp-filtered' },
+          offsetParent: null,
+          _tpPriceInfo: {
+            mainShipping: { closest: () => ({ offsetParent: null, isConnected: true, style: {} }) },
+            mainProduct: { closest: () => ({ offsetParent: null, isConnected: true, style: {} }) }
+          }
+        };
+        withConfig('USE_SHIPPING_PRICE', true, () => {
+          assert.equal(isShippingPriceActive(card), false);
+        });
+      } finally {
+        globalThis.window = origWindow;
+      }
+    });
   });
 
   describe('Page detection & URL patterns', () => {

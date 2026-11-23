@@ -29,23 +29,29 @@ import { setHtmlIfChanged } from './dom-helpers.js';
 export const dealerCache = new Map();
 export const dealerPending = new Set();
 export const dealerHydrated = new Set();
-// Auto-Fetch (DEALER_AUTOFETCH): einmal pro pid:Modus und Pageload feuern —
-// ohne den Guard würde jeder Render nach einem Fehlschlag neu fetchen.
-export const dealerAutoTried = new Set();
+// Auto-Fetch (DEALER_AUTOFETCH): pro pid:Modus und Pageload — bei transienten
+// Fehlern (429/5xx/Timeout) 1× verzögert erneut versuchen, sonst stoppen.
+export const dealerAutoTries = new Map();
 export function boundedSetAdd(set, key, limit = 500) {
   set.add(key);
   while (set.size > limit) {
     set.delete(set.values().next().value);
   }
 }
+export function boundedMapSet(map, key, val, limit = 500) {
+  map.set(key, val);
+  while (map.size > limit) {
+    map.delete(map.keys().next().value);
+  }
+}
 export function clearDealerMemory() {
   dealerCache.clear();
   dealerHydrated.clear();
-  dealerAutoTried.clear();
+  dealerAutoTries.clear();
   bumpCacheGeneration();
 }
 export function clearDealerAutoTried() {
-  dealerAutoTried.clear();
+  dealerAutoTries.clear();
 }
 async function runSingleDealCheck(card, badgeDifEl) {
   if (badgeDifEl.classList.contains('tp-deal-loading')) return;

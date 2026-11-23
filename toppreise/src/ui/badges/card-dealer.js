@@ -4,11 +4,12 @@
  */
 
 import { CONFIG, realDealMinDiscount } from '../../state/config.js';
+import { getOriginCooldownUntil } from '../../state/net.js';
 import { getCachedDealer, setCachedDealer, lruSet, hasUsablePriceStats, currentCacheGen } from '../../scanner/cache.js';
-import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfo } from '../../page/product-offers.js';
+import { extractShareData, extractDealer, extractDealerUrl, fetchProductInfoDetailed } from '../../page/product-offers.js';
 import { isShippingPriceActive, scheduleProcessListings } from '../../page/adapter.js';
 import { setTextIfChanged, setTitleIfChanged } from './dom-helpers.js';
-import { dealerCache, dealerPending, dealerHydrated, dealerAutoTried, boundedSetAdd } from './deal-badge.js';
+import { dealerCache, dealerPending, dealerHydrated, dealerAutoTries, boundedSetAdd, boundedMapSet } from './deal-badge.js';
 
 const dealerPromises = new Map();
 
@@ -47,13 +48,24 @@ export async function ensureDealerInfo(card, pid, useShipping) {
 
   const promise = (async () => {
     try {
-      const info = await fetchProductInfo(productUrl, undefined, reqShipping).catch(() => null);
+      const { info, transient } = await fetchProductInfoDetailed(productUrl, undefined, reqShipping).catch(() => ({ info: null, transient: true }));
       if (reqGen !== currentCacheGen()) return null;
       if (info?.dealer) {
         const entry = { dealer: info.dealer, url: info.dealerUrl || '', offers: info.offers || 0, totalOffers: info.totalOffers || 0 };
         lruSet(dealerCache, reqKey, entry);
         setCachedDealer(pid, reqShipping, info.dealer, info.dealerUrl || '', undefined, info.offers || 0, info.totalOffers || 0);
         return entry;
+      }
+      const tryState = dealerAutoTries.get(reqKey);
+      if (tryState) {
+        if (transient && tryState.count < 2) {
+          const cooldownLeft = Math.max(0, getOriginCooldownUntil() - Date.now());
+          const delay = Math.max(1500, cooldownLeft + 250);
+          tryState.nextTryAt = Date.now() + delay;
+          setTimeout(() => scheduleProcessListings(), delay);
+        } else {
+          tryState.exhausted = true;
+        }
       }
       return null;
     } finally {
@@ -132,65 +144,20 @@ export function renderDealerName(ctx, filters) {
       }
     };
 
-    const isOverlayOrCompactView = !!(
-      card.classList?.contains('mixedBrowsingBox') ||
-      card.classList?.contains('mixedBrowsingExpert') ||
-      card.closest?.('.standardList.box, .standardList.expert')
-    );
-    const actionRow = isOverlayOrCompactView ? null : card.querySelector('.row.action, .action');
-    const actionMailBtn = actionRow?.querySelector('.Plugin_NewInfoMailButton')?.closest?.('.col-auto') || actionRow?.querySelector('.Plugin_NewInfoMailButton');
-    let actionEl = card.querySelector('.tp-action-dealer');
+    card.querySelector('.tp-action-dealer')?.remove();
 
     const loadDealer = async () => {
       card.querySelectorAll('.tp-dealer-btn').forEach(b => { b.disabled = true; });
-      await ensureDealerInfo(card, pid, useShipping);
-    };
-
-    if (actionRow && actionMailBtn) {
-      if (!actionEl) {
-        actionEl = document.createElement('div');
-        actionEl.className = 'col-auto tp-action-dealer';
-        actionMailBtn.insertAdjacentElement('beforebegin', actionEl);
-      }
-      if (dealer) {
-        let link = actionEl.querySelector('.tp-dealer-name');
-        if (!link || (link.tagName === 'A') !== hasUrl) {
-          actionEl.innerHTML = '';
-          link = document.createElement(hasUrl ? 'a' : 'span');
-          link.className = 'tp-dealer-name';
-          if (hasUrl) { link.href = targetUrl; link.target = '_blank'; link.rel = 'noopener'; link.addEventListener('click', e => e.stopPropagation()); }
-          actionEl.appendChild(link);
-        } else if (hasUrl && link.getAttribute('href') !== targetUrl) {
-          link.href = targetUrl;
-        }
-        setTextIfChanged(link, `🏬 ${dealer}`);
-        setTitleIfChanged(link, directUrl && hasUrl ? `Günstigster Händler: ${dealer} — direkt zum Angebot` : `Günstigster Händler: ${dealer}`);
-      } else if (hasUrl && !dealerCache.has(dKey)) {
-        let actionBtn = actionEl.querySelector('button.tp-dealer-btn');
-        if (!actionBtn || actionBtn.dataset.tpDealerPid !== dKey) {
-          actionEl.innerHTML = '';
-          actionBtn = document.createElement('button');
-          actionBtn.type = 'button';
-          actionBtn.className = 'tp-dealer-name tp-dealer-btn';
-          actionBtn.dataset.tpDealerPid = dKey;
-          actionBtn.textContent = '🏬';
-          actionBtn.setAttribute('aria-label', 'Händler laden');
-          actionBtn.title = 'Günstigsten Händler laden (eine Abfrage je Produkt)';
-          actionBtn.addEventListener('click', e => {
-            e.preventDefault();
-            e.stopPropagation();
-            loadDealer();
+      try {
+        return await ensureDealerInfo(card, pid, useShipping);
+      } finally {
+        if (!dealerPending.has(dKey)) {
+          card.querySelectorAll('.tp-dealer-btn').forEach(b => {
+            if (b.dataset.tpDealerPid === dKey) b.disabled = false;
           });
-          actionEl.appendChild(actionBtn);
-        } else if (!dealerPending.has(dKey) && actionBtn.disabled) {
-          actionBtn.disabled = false;
         }
-      } else {
-        actionEl.remove();
       }
-    } else {
-      actionEl?.remove();
-    }
+    };
 
     if (dealer) {
       let el = dealerEl?.dataset.tpDealerPid === dKey ? dealerEl : null;
@@ -243,8 +210,10 @@ export function renderDealerName(ctx, filters) {
         ? (heatInfo?.pct ?? ctx.dealData?.weightedDiff ?? 0)
         : 0;
       const meetsDealThreshold = effectivePct >= realDealMinDiscount();
-      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && !dealerAutoTried.has(dKey) && !dealerPending.has(dKey) && dealerPending.size < 3) {
-        boundedSetAdd(dealerAutoTried, dKey, 500);
+      const tryState = dealerAutoTries.get(dKey);
+      const canAutoTry = !tryState || (!tryState.exhausted && tryState.count < 2 && Date.now() >= (tryState.nextTryAt || 0));
+      if (!filters?.isFiltered && CONFIG.DEALER_AUTOFETCH === true && meetsDealThreshold && canAutoTry && !dealerPending.has(dKey) && dealerPending.size < 3) {
+        boundedMapSet(dealerAutoTries, dKey, { count: (tryState?.count || 0) + 1, nextTryAt: 0, exhausted: false }, 500);
         btn.disabled = true;
         loadDealer();
       }

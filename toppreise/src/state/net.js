@@ -5,6 +5,28 @@
 
 import { logActivity, redactSecrets } from './activity-log.js';
 
+let originCooldownUntil = 0;
+export function getOriginCooldownUntil() { return originCooldownUntil; }
+export function setOriginCooldownUntil(untilMs) {
+  if (Number.isFinite(untilMs) && untilMs > originCooldownUntil) {
+    originCooldownUntil = untilMs;
+  }
+}
+export function resetOriginCooldown() { originCooldownUntil = 0; }
+
+export const backoffMs = (attempt, baseDelayMs = 400) =>
+  Math.min(8000, baseDelayMs * 2 ** attempt) + Math.random() * 250;
+
+export const parseRetryAfterMs = (header, baseDelayMs = 400, attempt = 0) => {
+  if (header != null && String(header).trim() !== '') {
+    const secs = Number(String(header).trim());
+    if (Number.isFinite(secs)) return Math.max(0, Math.min(60000, secs * 1000));
+    const at = Date.parse(String(header).trim());
+    if (Number.isFinite(at)) return Math.max(0, Math.min(60000, at - Date.now()));
+  }
+  return backoffMs(attempt, baseDelayMs);
+};
+
 function makeTypedError(message, props = {}) {
   const err = new Error(message);
   Object.assign(err, props);
