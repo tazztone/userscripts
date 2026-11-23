@@ -15,6 +15,8 @@ import { syncMiniToggle } from "./mini-toggle.js";
 import { buildCalcControls, syncCalcControls } from './toolbar-calc.js';
 import { wireFilterPopover, syncFilterRow } from './toolbar-filter.js';
 
+let barCalcDocBound = false;
+
 function getSuiteBarPlacement() {
   const bar = document.getElementById('tp-suite-filter-bar');
   const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -191,8 +193,8 @@ export function renderSuiteFilterBar(counts = { neg: 0, min: 0, uncheckedDeals: 
     const calcPopover = bar.querySelector('#tp-bar-calc-popover');
     // ponytail: document listeners registered once per page (bar can be removed + recreated);
     // handlers re-query by ID so they always hit the live bar, never a detached one.
-    if (!window._tpBarCalcDocBound) {
-      window._tpBarCalcDocBound = true;
+    if (!barCalcDocBound) {
+      barCalcDocBound = true;
       document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
         for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn']]) {

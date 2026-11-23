@@ -19,33 +19,6 @@ import { bindDiagTrigger } from './diag-modal.js';
 import { ensureSkeleton } from './shell.js';
 import { writeCollapsed, clearCollapsedState } from './modal-template.js';
 
-export function snapshotModalState(dialog) {
-  if (!dialog) return null;
-  const state = new Map();
-  const fields = dialog.querySelectorAll('input:not([type="file"]), select, textarea');
-  for (const el of fields) {
-    if (!el.id) continue;
-    if (el.type === 'checkbox' || el.type === 'radio') {
-      state.set(el.id, el.checked);
-    } else {
-      state.set(el.id, el.value);
-    }
-  }
-  return state;
-}
-
-export function hasPendingChanges(dialog, initialSnapshot) {
-  if (!dialog || !initialSnapshot) return false;
-  const current = snapshotModalState(dialog);
-  if (!current) return false;
-  for (const [id, val] of initialSnapshot.entries()) {
-    if (current.get(id) !== val) {
-      return true;
-    }
-  }
-  return false;
-}
-
 export function wireModalActions(els) {
   els.cacheClearBtn?.addEventListener('click', () => {
     const removed = clearPriceStatsCache();
@@ -239,11 +212,8 @@ export function wireModalActions(els) {
     e.target.value = '';
   });
 
-  let initialSnapshot = null;
-
   const openModal = () => {
     syncFieldsFromConfig(els);
-    initialSnapshot = snapshotModalState(els.dialog);
     if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
     else els.dialog.setAttribute('open', '');
   };
@@ -255,7 +225,6 @@ export function wireModalActions(els) {
     els.shadow?.querySelectorAll('.tp-discord-extra-url')?.forEach(input => { input.value = ''; });
   };
   const closeModal = () => {
-    initialSnapshot = null;
     clearWebhookEditor();
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     if (typeof els.dialog.close === 'function') els.dialog.close();
@@ -287,7 +256,6 @@ export function wireModalActions(els) {
     updateBodyClasses();
     triggerProcessListings();
     syncFieldsFromConfig(els);
-    initialSnapshot = snapshotModalState(els.dialog);
     showToast('Einstellungen auf Standard zurückgesetzt');
   });
 
@@ -347,14 +315,12 @@ export function wireModalActions(els) {
 
     triggerProcessListings();
     syncFieldsFromConfig(els);
-    initialSnapshot = snapshotModalState(els.dialog);
     showToast(`${group.label} auf Standard zurückgesetzt`);
   });
   els.btnClose.addEventListener('click', closeModal);
   // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
   // closeModal and the els.shadow keydown handler — reset the preview anyway.
   els.dialog.addEventListener('close', () => {
-    initialSnapshot = null;
     clearWebhookEditor();
     document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
     document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   ctaStateFor,
   batchCompletionToast,
-  THRESHOLD_OPTIONS,
   FLOATING_CTA_ID
 } from '../../src/ui/floating-cta.js';
 
@@ -53,9 +52,8 @@ describe('Floating CTA label state machine (pure, no DOM)', () => {
     assert.equal(ctaStateFor({ isScanning: true, isRefreshing: true }).mode, 'scanning');
   });
 
-  it('exposes a stable DOM id and the documented threshold steps', () => {
+  it('exposes a stable DOM id', () => {
     assert.equal(FLOATING_CTA_ID, 'tp-floating-check-cta');
-    assert.deepEqual(THRESHOLD_OPTIONS, [20, 30, 40, 50, 60]);
   });
 });
 

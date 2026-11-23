@@ -33,7 +33,6 @@ import { getCardProductId } from "../page/cards.js";
 import { refreshFeed, isFeedRefreshing, cancelFeedRefresh, getFeedRefreshState } from "../page/feed-refresh.js";
 
 export const FLOATING_CTA_ID = 'tp-floating-check-cta';
-export const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
 
 let collapsedForSession = false;
 let lastCounts = { uncheckedDeals: 0 };
@@ -187,8 +186,10 @@ function ensureCta() {
   el.innerHTML = `
     <div id="tp-floating-check-col">
       <button type="button" id="tp-floating-check-btn" title="Differenzen anhand der Historie prüfen (ungeprüft ≠ Tiefstpreis)">
-        <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
-        <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+        <span id="tp-floating-check-labels">
+          <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
+          <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+        </span>
         <span id="tp-floating-check-count">🔍</span>
       </button>
       <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">

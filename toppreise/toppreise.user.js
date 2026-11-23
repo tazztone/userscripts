@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.542
+// @version      2.18.543
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -2553,6 +2553,11 @@ const STYLES_FLOATING_CTA = `
     0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
     50% { box-shadow: 0 4px 22px rgba(16, 185, 129, 0.35); }
   }
+  #tp-floating-check-col {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
   #tp-floating-check-btn {
     display: inline-flex !important;
     align-items: center !important;
@@ -2705,6 +2710,7 @@ const STYLES_FLOATING_CTA = `
   #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 2px !important; height: 30px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 0 8px !important; height: 24px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-labels,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
@@ -14408,33 +14414,6 @@ const SHADOW_MODAL_STYLES = `
 
 
 
-  function snapshotModalState(dialog) {
-    if (!dialog) return null;
-    const state = new Map();
-    const fields = dialog.querySelectorAll('input:not([type="file"]), select, textarea');
-    for (const el of fields) {
-      if (!el.id) continue;
-      if (el.type === 'checkbox' || el.type === 'radio') {
-        state.set(el.id, el.checked);
-      } else {
-        state.set(el.id, el.value);
-      }
-    }
-    return state;
-  }
-
-  function hasPendingChanges(dialog, initialSnapshot) {
-    if (!dialog || !initialSnapshot) return false;
-    const current = snapshotModalState(dialog);
-    if (!current) return false;
-    for (const [id, val] of initialSnapshot.entries()) {
-      if (current.get(id) !== val) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   function wireModalActions(els) {
     els.cacheClearBtn?.addEventListener('click', () => {
       const removed = clearPriceStatsCache();
@@ -14628,11 +14607,8 @@ const SHADOW_MODAL_STYLES = `
       e.target.value = '';
     });
 
-    let initialSnapshot = null;
-
     const openModal = () => {
       syncFieldsFromConfig(els);
-      initialSnapshot = snapshotModalState(els.dialog);
       if (typeof els.dialog.showModal === 'function') els.dialog.showModal();
       else els.dialog.setAttribute('open', '');
     };
@@ -14644,7 +14620,6 @@ const SHADOW_MODAL_STYLES = `
       els.shadow?.querySelectorAll('.tp-discord-extra-url')?.forEach(input => { input.value = ''; });
     };
     const closeModal = () => {
-      initialSnapshot = null;
       clearWebhookEditor();
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       if (typeof els.dialog.close === 'function') els.dialog.close();
@@ -14676,7 +14651,6 @@ const SHADOW_MODAL_STYLES = `
       updateBodyClasses();
       triggerProcessListings();
       syncFieldsFromConfig(els);
-      initialSnapshot = snapshotModalState(els.dialog);
       showToast('Einstellungen auf Standard zurückgesetzt');
     });
 
@@ -14736,14 +14710,12 @@ const SHADOW_MODAL_STYLES = `
 
       triggerProcessListings();
       syncFieldsFromConfig(els);
-      initialSnapshot = snapshotModalState(els.dialog);
       showToast(`${group.label} auf Standard zurückgesetzt`);
     });
     els.btnClose.addEventListener('click', closeModal);
     // Native `close` (Escape on backdrop/frame, cancel event) bypasses both
     // closeModal and the els.shadow keydown handler — reset the preview anyway.
     els.dialog.addEventListener('close', () => {
-      initialSnapshot = null;
       clearWebhookEditor();
       document.documentElement.style.setProperty('--tp-dim-opacity', CONFIG.DIM_OPACITY);
       document.documentElement.classList.toggle('tp-hide-ads', !!CONFIG.HIDE_ADS);
@@ -16450,6 +16422,8 @@ const SHADOW_MODAL_STYLES = `
 
 
 
+  let barCalcDocBound = false;
+
   function getSuiteBarPlacement() {
     const bar = document.getElementById('tp-suite-filter-bar');
     const isSafe = el => el && !el.closest('.header, [class*="MainTopHead"], [class*="MainHead"], .f_filter_plugin, .filters, .filterBox, #tp-root, dialog');
@@ -16626,8 +16600,8 @@ const SHADOW_MODAL_STYLES = `
       const calcPopover = bar.querySelector('#tp-bar-calc-popover');
       // ponytail: document listeners registered once per page (bar can be removed + recreated);
       // handlers re-query by ID so they always hit the live bar, never a detached one.
-      if (!window._tpBarCalcDocBound) {
-        window._tpBarCalcDocBound = true;
+      if (!barCalcDocBound) {
+        barCalcDocBound = true;
         document.addEventListener('keydown', e => {
           if (e.key !== 'Escape') return;
           for (const [popId, btnId] of [['tp-bar-calc-popover', 'tp-bar-calc-btn'], ['tp-bar-filter-popover', 'tp-bar-filter-btn']]) {
@@ -16734,7 +16708,6 @@ const SHADOW_MODAL_STYLES = `
 
 
   const FLOATING_CTA_ID = 'tp-floating-check-cta';
-  const THRESHOLD_OPTIONS = [20, 30, 40, 50, 60];
 
   let collapsedForSession = false;
   let lastCounts = { uncheckedDeals: 0 };
@@ -16888,8 +16861,10 @@ const SHADOW_MODAL_STYLES = `
     el.innerHTML = `
       <div id="tp-floating-check-col">
         <button type="button" id="tp-floating-check-btn" title="Differenzen anhand der Historie prüfen (ungeprüft ≠ Tiefstpreis)">
-          <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
-          <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+          <span id="tp-floating-check-labels">
+            <span id="tp-floating-check-main">🔍 Tiefstpreise prüfen</span>
+            <span id="tp-floating-check-sub">Echte Tiefstpreise verifizieren</span>
+          </span>
           <span id="tp-floating-check-count">🔍</span>
         </button>
         <label id="tp-floating-dealer-row" title="Günstigste Händler für Deals ab Schwelle mitladen (max. 3 parallel)">
@@ -18421,7 +18396,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.542';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.543';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

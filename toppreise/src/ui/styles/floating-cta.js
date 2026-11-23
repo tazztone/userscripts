@@ -51,6 +51,11 @@ export const STYLES_FLOATING_CTA = `
     0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
     50% { box-shadow: 0 4px 22px rgba(16, 185, 129, 0.35); }
   }
+  #tp-floating-check-col {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
   #tp-floating-check-btn {
     display: inline-flex !important;
     align-items: center !important;
@@ -203,6 +208,7 @@ export const STYLES_FLOATING_CTA = `
   #tp-floating-check-count { display: none !important; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap !important; }
   #tp-floating-check-cta.tp-collapsed { border-radius: var(--tp-r-pill) !important; padding: 2px !important; height: 30px !important; }
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-btn { border-radius: var(--tp-r-pill) !important; padding: 0 8px !important; height: 24px !important; }
+  #tp-floating-check-cta.tp-collapsed #tp-floating-check-labels,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-main,
   #tp-floating-check-cta.tp-collapsed #tp-floating-check-sub,
   #tp-floating-check-cta.tp-collapsed #tp-floating-dealer-row,
