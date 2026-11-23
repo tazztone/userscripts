@@ -451,7 +451,7 @@ export const FILTER_CAUSE_DEFS = [
   { flag: 'isLowOffers', modeKey: 'FILTER_MIN_MODE', enableKey: 'FILTER_MIN_ENABLED', scanExempt: false },
   { flag: 'isDealerLoser', modeKey: 'DEALER_MODE', enableKey: null, scanExempt: false, resetMode: 'dim' },
   { flag: 'isBelowMinDiscount', modeKey: 'FILTER_DEAL_DISCOUNT_MODE', enableKey: 'FILTER_DEAL_DISCOUNT_ENABLED', scanExempt: true },
-  { flag: 'isOutOfPriceRange', modeKey: 'FILTER_PRICE_MODE', enableKey: 'FILTER_PRICE_ENABLED', scanExempt: true },
+  { flag: 'isOutOfPriceRange', modeKey: 'FILTER_PRICE_MODE', enableKey: 'FILTER_PRICE_ENABLED', scanExempt: false },
   { flag: 'isBelowMinSavings', modeKey: 'FILTER_SAVINGS_MODE', enableKey: 'FILTER_SAVINGS_ENABLED', scanExempt: true },
   { flag: 'isUnchecked', modeKey: 'HIDE_UNCHECKED_MODE', enableKey: 'BESTPREISE_HIDE_UNCHECKED', scanExempt: true },
   { flag: 'isVortiefExcluded', modeKey: 'VORTIEF_MODE', enableKey: 'BESTPREISE_INCLUDE_VORTIEF', scanExempt: false, resetVal: true },

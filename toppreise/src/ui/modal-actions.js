@@ -4,7 +4,7 @@
  */
 
 import { showToast } from './toast.js';
-import { CONFIG, DEFAULTS, SECRET_KEYS, PAGE_SCOPED_KEYS, RESET_GROUPS, saveConfigKey, updateConfigs, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _getValue, _setValue } from '../state/config.js';
+import { CONFIG, DEFAULTS, SECRET_KEYS, PAGE_SCOPED_KEYS, RESET_GROUPS, saveConfigKey, updateConfigs, resetConfigToDefaults, updateBodyClasses, clampIntensity01, clampMinPoints, sanitizeReviewKeyword, sanitizeConfigValue, _getValue, _setValue } from '../state/config.js';
 import { clearPriceStatsCache, recomputeCachedMedians, STATS_CACHE_PREFIX } from '../scanner/cache.js';
 import { clearDealerMemory } from './badges.js';
 import { triggerProcessListings, clearCardCache } from '../page/adapter.js';
@@ -160,8 +160,8 @@ export function wireModalActions(els) {
       }
     } catch (e) {}
     _setValue('PAGE_PROFILES', null);
-    updateConfigs({ ...DEFAULTS });
-    updateBodyClasses();
+    resetConfigToDefaults({ includeSecrets: true, skipRender: true });
+    triggerProcessListings();
     syncFieldsFromConfig(els);
     if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
     showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
@@ -261,13 +261,7 @@ export function wireModalActions(els) {
     const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
     const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
     const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
-    _setValue('PAGE_PROFILES', null);
-    const updates = {};
-    for (const [k, v] of Object.entries(DEFAULTS)) {
-      if (SECRET_KEYS.has(k)) continue;
-      updates[k] = v;
-    }
-    updateConfigs(updates, { skipRender: true });
+    resetConfigToDefaults({ includeSecrets: false, skipRender: true });
     if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
       cancelBatchDealCheck();
       getProductCards().forEach(clearCardCache);

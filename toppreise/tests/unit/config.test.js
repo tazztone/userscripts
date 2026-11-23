@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey } from '../../src/state/config.js';
+import { _getValue, _setValue, weightText, horizonUiToStored, horizonStoredToUi, DEFAULTS, CONFIG, SECRET_KEYS, RESET_GROUPS, migrateLegacyDebug, migrateHideToDimDefaults, migrateDiscordChannels, getDiscordChannels, sanitizeChannels, realDealMinDiscount, sanitizeConfigValue, FILTER_CYCLE, cycleStateOf, syncUiControl, initPageProfiles, saveConfigKey, resetConfigToDefaults } from '../../src/state/config.js';
 import { SETTING_SCHEMA } from '../../src/state/config-store.js';
 
 describe('Config dual-layer storage', () => {
@@ -130,6 +130,27 @@ describe('Config dual-layer storage', () => {
 
     initPageProfiles('search');
     assert.equal(CONFIG.MIN_DEAL_DISCOUNT, 15);
+  });
+
+  it('resetConfigToDefaults resets both neue and search profiles cleanly when FILTER_REMEMBER_PER_PAGE_TYPE is true', () => {
+    CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE = true;
+    initPageProfiles('neue');
+    saveConfigKey('MIN_DEAL_DISCOUNT', 40);
+    initPageProfiles('search');
+    saveConfigKey('MIN_DEAL_DISCOUNT', 25);
+    CONFIG.DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/123/abc';
+
+    resetConfigToDefaults({ includeSecrets: false, skipRender: true });
+
+    assert.equal(CONFIG.MIN_DEAL_DISCOUNT, DEFAULTS.MIN_DEAL_DISCOUNT);
+    assert.equal(CONFIG.DISCORD_WEBHOOK_URL, 'https://discord.com/api/webhooks/123/abc');
+    const profiles = _getValue('PAGE_PROFILES', null);
+    assert.ok(profiles && typeof profiles === 'object');
+    assert.equal(profiles.neue.MIN_DEAL_DISCOUNT, DEFAULTS.MIN_DEAL_DISCOUNT);
+    assert.equal(profiles.search.MIN_DEAL_DISCOUNT, DEFAULTS.MIN_DEAL_DISCOUNT);
+
+    resetConfigToDefaults({ includeSecrets: true, skipRender: true });
+    assert.equal(CONFIG.DISCORD_WEBHOOK_URL, DEFAULTS.DISCORD_WEBHOOK_URL);
   });
 });
 

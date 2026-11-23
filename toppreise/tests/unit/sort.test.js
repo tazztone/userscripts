@@ -361,4 +361,48 @@ describe('applySorting fallback-tief order', () => {
 
     assert.deepEqual(row.children, [cardB, ad, cardA]);
   });
+
+  it('keeps .tp-fresh-arrival cards at top of feed after sort is toggled off', () => {
+    const row = makeRow();
+    const cardA = makeCard(row, 0);
+    const cardB = makeCard(row, 1);
+
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([cardA, cardB], false, [
+          { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+          { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 20, dMedian: 20, dRecord: 20 } }
+        ])));
+
+    const fresh1 = {
+      dataset: {},
+      parentElement: row,
+      closest: () => null,
+      classList: { contains: cls => cls === 'tp-fresh-arrival' },
+      style: { order: '', setProperty(k, v) { this[k] = v; }, removeProperty(k) { delete this[k]; } }
+    };
+    const fresh2 = {
+      dataset: {},
+      parentElement: row,
+      closest: () => null,
+      classList: { contains: cls => cls === 'tp-fresh-arrival' },
+      style: { order: '', setProperty(k, v) { this[k] = v; }, removeProperty(k) { delete this[k]; } }
+    };
+    row.children.unshift(fresh1, fresh2);
+
+    withConfig('BESTPREISE_MODE_ACTIVE', true, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([fresh1, fresh2, cardA, cardB], false, [
+          { card: fresh1, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+          { card: fresh2, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+          { card: cardA, cardPrice: 100, stats: null, displayDelta: null, dealScore: null },
+          { card: cardB, cardPrice: 50, stats: { tiefstpreis: 100, dataPointCount: 10 }, displayDelta: { kind: 'new-low' }, dealScore: { weightedDiff: 20, dMedian: 20, dRecord: 20 } }
+        ])));
+
+    withConfig('BESTPREISE_MODE_ACTIVE', false, () =>
+      withConfig('SORT_BY_OFFERS', 'none', () =>
+        applySorting([fresh1, fresh2, cardA, cardB], false)));
+
+    assert.deepEqual(row.children, [fresh1, fresh2, cardA, cardB]);
+  });
 });

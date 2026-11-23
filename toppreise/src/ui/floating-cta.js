@@ -140,11 +140,12 @@ export function startBatchCheck() {
   runBatchDealCheck(
     minDisc,
     () => syncFloatingCTA(),
-    (completed, total, newlyVerified) => {
+    (completed, total, newlyVerified, meta) => {
       armFreshDismiss();
       for (const item of newlyVerified || []) markFreshVerified(item.pid);
       // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
       triggerProcessListings();
+      if (meta?.abortedByCooldown) return;
       const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
       const checked = (newlyVerified || []).length;
       showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));

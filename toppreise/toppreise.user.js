@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.538
+// @version      2.18.539
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -3506,7 +3506,10 @@ const SHADOW_MODAL_STYLES = `
 
   const parsePrice = str => {
     if (!str) return 0;
-    let clean = str.replace(/\.(?:–|-)|\s*[.–\-]\s*$/g, '.00').replace(/[^\d,.]/g, '');
+    let clean = String(str)
+      .replace(/\.(?:–|-)(?!\d)/g, '.00')
+      .replace(/\s*[–\-]+\s*$/g, '')
+      .replace(/[^\d,.]/g, '');
 
     const lastComma = clean.lastIndexOf(',');
     const lastDot = clean.lastIndexOf('.');
@@ -5335,6 +5338,40 @@ const SHADOW_MODAL_STYLES = `
       triggerProcessListings();
     }
   }
+
+  function resetConfigToDefaults({ includeSecrets = false, skipRender = false } = {}) {
+    for (const [k, defaultVal] of Object.entries(DEFAULTS)) {
+      if (!includeSecrets && SECRET_KEYS.has(k)) continue;
+      const clean = SECRET_KEYS.has(k)
+        ? (k === 'DISCORD_CHANNELS' ? (sanitizeConfigValue(k, defaultVal) ?? []) : defaultVal)
+        : sanitizeConfigValue(k, defaultVal);
+      if (clean === undefined) continue;
+      CONFIG[k] = clean;
+      _setValue(k, clean);
+    }
+
+    if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) {
+      const seed = {};
+      for (const k of PAGE_SCOPED_KEYS) {
+        if (CONFIG[k] !== undefined) seed[k] = CONFIG[k];
+      }
+      _setValue('PAGE_PROFILES', { neue: { ...seed }, search: { ...seed } });
+      activeProfileType = typeof document !== 'undefined' ? getPageProfileType() : null;
+    } else {
+      _setValue('PAGE_PROFILES', null);
+      activeProfileType = null;
+    }
+
+    for (const k of Object.keys(DEFAULTS)) {
+      if (!includeSecrets && SECRET_KEYS.has(k)) continue;
+      syncUiControl(k, CONFIG[k]);
+    }
+    updateBodyClasses();
+    cacheLimitListener?.(CONFIG.CACHE_MEMORY_LIMIT);
+    if (!skipRender) {
+      triggerProcessListings();
+    }
+  }
   // Re-exports: storage/schema/migrate symbols moved to siblings — every
   // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
 
@@ -6830,7 +6867,7 @@ const SHADOW_MODAL_STYLES = `
     { flag: 'isLowOffers', modeKey: 'FILTER_MIN_MODE', enableKey: 'FILTER_MIN_ENABLED', scanExempt: false },
     { flag: 'isDealerLoser', modeKey: 'DEALER_MODE', enableKey: null, scanExempt: false, resetMode: 'dim' },
     { flag: 'isBelowMinDiscount', modeKey: 'FILTER_DEAL_DISCOUNT_MODE', enableKey: 'FILTER_DEAL_DISCOUNT_ENABLED', scanExempt: true },
-    { flag: 'isOutOfPriceRange', modeKey: 'FILTER_PRICE_MODE', enableKey: 'FILTER_PRICE_ENABLED', scanExempt: true },
+    { flag: 'isOutOfPriceRange', modeKey: 'FILTER_PRICE_MODE', enableKey: 'FILTER_PRICE_ENABLED', scanExempt: false },
     { flag: 'isBelowMinSavings', modeKey: 'FILTER_SAVINGS_MODE', enableKey: 'FILTER_SAVINGS_ENABLED', scanExempt: true },
     { flag: 'isUnchecked', modeKey: 'HIDE_UNCHECKED_MODE', enableKey: 'BESTPREISE_HIDE_UNCHECKED', scanExempt: true },
     { flag: 'isVortiefExcluded', modeKey: 'VORTIEF_MODE', enableKey: 'BESTPREISE_INCLUDE_VORTIEF', scanExempt: false, resetVal: true },
@@ -10275,6 +10312,7 @@ const SHADOW_MODAL_STYLES = `
   }
 
   let nextInitialOrder = 0;
+  let minInitialOrder = 0;
 
   function applySorting(cards, pageHasOffers, cardDataList = null) {
     const list = cards || [];
@@ -10298,6 +10336,14 @@ const SHADOW_MODAL_STYLES = `
 
     // Record initial order on every card plus the original placement of every
     // sortable item — independent of item identity (item === card included).
+    const freshUnstamped = list.filter(c => !c.dataset.tpInitialOrder && (c.classList?.contains('tp-fresh-arrival') || getCardSortableUnit(c)?.classList?.contains('tp-fresh-arrival')));
+    if (freshUnstamped.length > 0) {
+      const startOrder = minInitialOrder - freshUnstamped.length;
+      freshUnstamped.forEach((c, idx) => {
+        c.dataset.tpInitialOrder = String(startOrder + idx);
+      });
+      minInitialOrder = startOrder;
+    }
     list.forEach(c => {
       if (!c.dataset.tpInitialOrder) {
         c.dataset.tpInitialOrder = String(nextInitialOrder++);
@@ -10771,6 +10817,7 @@ const SHADOW_MODAL_STYLES = `
             const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
             if (inBadge && liveBadge) {
               liveBadge.innerHTML = inBadge.innerHTML;
+              delete liveBadge._tpLastHtml;
               if (liveBadge.dataset) {
                 delete liveBadge.dataset.tpPainted;
                 delete liveBadge.dataset.tpOriginalDiscount;
@@ -10901,6 +10948,7 @@ const SHADOW_MODAL_STYLES = `
    * Handles background batch checking, live price history retrieval,
    * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
    */
+
 
 
 
@@ -11312,13 +11360,30 @@ const SHADOW_MODAL_STYLES = `
     const total = targets.length;
     let completed = 0;
     const newlyVerified = [];
-    let nextIdx = 0;
+    const pendingIndices = targets.map((_, i) => i);
+    let abortedByCooldown = false;
+    let cooldownToastShown = false;
     const pidInFlightCount = new Map();
 
     async function worker() {
-      while (!isCancelled(signal, shouldCancelFn)) {
-        const idx = nextIdx++;
-        if (idx >= targets.length) break;
+      while (!abortedByCooldown && !isCancelled(signal, shouldCancelFn)) {
+        if (pendingIndices.length === 0) break;
+        const preCooldownMs = getOriginCooldownUntil() - Date.now();
+        if (preCooldownMs > 15000) {
+          abortedByCooldown = true;
+          scanState.batchCancelRequested = true;
+          if (!cooldownToastShown) {
+            cooldownToastShown = true;
+            showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
+          }
+          break;
+        }
+        if (preCooldownMs > 0) {
+          await interruptibleSleep(preCooldownMs + 250, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
+          continue;
+        }
+        const idx = pendingIndices.shift();
+        if (idx === undefined) break;
         const item = targets[idx];
         pidInFlightCount.set(item.pid, (pidInFlightCount.get(item.pid) || 0) + 1);
         scanState.batchScanningPids.add(item.pid);
@@ -11337,18 +11402,24 @@ const SHADOW_MODAL_STYLES = `
         } catch {}
 
         let stats = null;
+        let cardValid = false;
         try {
           // Pre-fetch identity guard: skip the fetch when the card detached or
           // was reused for another product while queued (post-fetch guard stays).
           if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
+            cardValid = true;
             const cardBasis = extractCanonicalPrice(item.card).basis;
             const cardElig = scanEligibility(item.card);
             const forceFresh = cardElig.state === 'basis-mismatch';
             stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
             // Card-identity guard: reused/detached cards must not collect an
             // earlier request's verification.
-            if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
-            else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+            if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) {
+              stats = null;
+              cardValid = false;
+            } else if (stats) {
+              newlyVerified.push({ pid: item.pid, card: item.card });
+            }
           }
         } finally {
           const remaining = (pidInFlightCount.get(item.pid) || 1) - 1;
@@ -11363,6 +11434,23 @@ const SHADOW_MODAL_STYLES = `
           }
         }
 
+        const postCooldownMs = getOriginCooldownUntil() - Date.now();
+        if (!stats && cardValid && postCooldownMs > 0) {
+          triggerProcessListings();
+          if (postCooldownMs > 15000) {
+            abortedByCooldown = true;
+            scanState.batchCancelRequested = true;
+            if (!cooldownToastShown) {
+              cooldownToastShown = true;
+              showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
+            }
+            break;
+          }
+          pendingIndices.unshift(idx);
+          await interruptibleSleep(postCooldownMs + 250, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
+          continue;
+        }
+
         completed++;
         Object.assign(scanState, { progress: { completed, total } });
         if (onProgress) onProgress(completed, total);
@@ -11370,7 +11458,7 @@ const SHADOW_MODAL_STYLES = `
         // failed/null card fetches immediately restore non-loading badge state.
         triggerProcessListings();
         const paceMs = (typeof document !== 'undefined' && document.visibilityState === 'hidden') ? 500 : 250;
-        await interruptibleSleep(paceMs, shouldCancelFn, signal);
+        await interruptibleSleep(paceMs, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
       }
     }
 
@@ -11378,9 +11466,9 @@ const SHADOW_MODAL_STYLES = `
       const worker1 = worker();
       const worker2 = (async () => {
         if (targets.length > 1) {
-          await interruptibleSleep(125, shouldCancelFn, signal);
+          await interruptibleSleep(125, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
         }
-        if (!isCancelled(signal, shouldCancelFn)) await worker();
+        if (!abortedByCooldown && !isCancelled(signal, shouldCancelFn)) await worker();
       })();
       await Promise.all([worker1, worker2]);
     } finally {
@@ -11389,8 +11477,9 @@ const SHADOW_MODAL_STYLES = `
     }
 
     triggerProcessListings();
-    if (onComplete) onComplete(completed, total, newlyVerified);
-    return { completed, total, newlyVerified };
+    const meta = { abortedByCooldown };
+    if (onComplete) onComplete(completed, total, newlyVerified, meta);
+    return { completed, total, newlyVerified, abortedByCooldown };
   }
 
   async function runScan({ minDiscount = 30, onProgress = null, onComplete = null } = {}) {
@@ -14307,8 +14396,8 @@ const SHADOW_MODAL_STYLES = `
         }
       } catch (e) {}
       _setValue('PAGE_PROFILES', null);
-      updateConfigs({ ...DEFAULTS });
-      updateBodyClasses();
+      resetConfigToDefaults({ includeSecrets: true, skipRender: true });
+      triggerProcessListings();
       syncFieldsFromConfig(els);
       if (els.cacheStatsLabel) els.cacheStatsLabel.textContent = `Lokaler Cache: 0 / ${CONFIG.CACHE_DISK_LIMIT || 300} Einträge`;
       showToast(`Alle Daten gelöscht (${removed} Cache-Einträge, Einstellungen zurückgesetzt)`);
@@ -14408,13 +14497,7 @@ const SHADOW_MODAL_STYLES = `
       const prevOutlierOn = CONFIG.OUTLIER_REJECTION_ENABLED;
       const prevOutlierBand = CONFIG.OUTLIER_DEVIATION_BAND;
       const prevOutlierHours = CONFIG.OUTLIER_MAX_GLITCH_HOURS;
-      _setValue('PAGE_PROFILES', null);
-      const updates = {};
-      for (const [k, v] of Object.entries(DEFAULTS)) {
-        if (SECRET_KEYS.has(k)) continue;
-        updates[k] = v;
-      }
-      updateConfigs(updates, { skipRender: true });
+      resetConfigToDefaults({ includeSecrets: false, skipRender: true });
       if (CONFIG.USE_SHIPPING_PRICE !== prevShipping) {
         cancelBatchDealCheck();
         getProductCards().forEach(clearCardCache);
@@ -16592,11 +16675,12 @@ const SHADOW_MODAL_STYLES = `
     runBatchDealCheck(
       minDisc,
       () => syncFloatingCTA(),
-      (completed, total, newlyVerified) => {
+      (completed, total, newlyVerified, meta) => {
         armFreshDismiss();
         for (const item of newlyVerified || []) markFreshVerified(item.pid);
         // Recompute counts → CTA flips to its dimmed empty form when nothing is left.
         triggerProcessListings();
+        if (meta?.abortedByCooldown) return;
         const fresh = new Set(Array.from(document.querySelectorAll('.tp-deal-fresh'), el => getCardProductId(el)).filter(Boolean)).size;
         const checked = (newlyVerified || []).length;
         showToast(batchCompletionToast({ completed, total, fresh, checked, unchecked, minDisc }));
@@ -18143,7 +18227,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.538';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.539';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

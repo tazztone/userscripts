@@ -1,6 +1,9 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchSingleProductPriceStats, activeFetches, requestWithRetry, resetOriginCooldown } from '../../src/scanner/scanner.js';
+import { fetchSingleProductPriceStats, activeFetches, requestWithRetry, resetOriginCooldown, runProductScanner } from '../../src/scanner/scanner.js';
+import { setOriginCooldownUntil } from '../../src/state/net.js';
+import { scanCandidateState, FILTER_CAUSE_DEFS } from '../../src/page/cards.js';
+import { scanState } from '../../src/state/store.js';
 import { setCachedPriceStats, getCachedPriceStats, memoryCache, statsKey, hasUsablePriceStats } from '../../src/scanner/cache.js';
 import { CONFIG } from '../../src/state/config.js';
 import { DAY } from './helpers.js';
@@ -306,5 +309,150 @@ describe('fetchSingleProductPriceStats refresh semantics', () => {
     setTimeout(() => { cancel = true; }, 20);
     const stats = await fetchSingleProductPriceStats(pid, 0, true, () => cancel, null, ac.signal);
     assert.equal(stats, null);
+  });
+});
+
+describe('runProductScanner 429 cooldown & price filter', () => {
+  const realFetch = globalThis.fetch;
+  const realDocument = globalThis.document;
+  let prevShipping;
+  let prevCancel;
+
+  beforeEach(() => {
+    memoryCache.clear();
+    activeFetches.clear();
+    resetOriginCooldown();
+    prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    CONFIG.USE_SHIPPING_PRICE = false;
+    prevCancel = scanState.batchCancelRequested;
+    scanState.batchCancelRequested = false;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    if (realDocument === undefined) delete globalThis.document;
+    else globalThis.document = realDocument;
+    CONFIG.USE_SHIPPING_PRICE = prevShipping;
+    scanState.batchCancelRequested = prevCancel;
+    memoryCache.clear();
+    activeFetches.clear();
+    resetOriginCooldown();
+  });
+
+  const makeScanCard = (pid, priceText = 'CHF 99.00') => {
+    const priceEl = { textContent: priceText };
+    const card = {
+      isConnected: true,
+      dataset: { entityId: String(pid) },
+      classList: { contains: () => false },
+      closest: () => null,
+      querySelector: sel => {
+        if (sel.includes('productPrice')) return priceEl;
+        return null;
+      },
+      querySelectorAll: () => [],
+      textContent: '-40%'
+    };
+    return card;
+  };
+
+  it('short 429 cooldown sleeps and retries target without skipping', async () => {
+    const card = makeScanCard('cooldown-short-1');
+    globalThis.document = {
+      body: { getAttribute: () => null, appendChild: () => {}, classList: { contains: () => false } },
+      head: { appendChild: () => {} },
+      visibilityState: 'visible',
+      getElementById: () => null,
+      createElement: () => ({
+        id: '',
+        style: {},
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: () => {},
+        appendChild: () => {},
+        attachShadow: () => ({
+          innerHTML: '',
+          getElementById: () => null,
+          querySelector: () => null,
+          querySelectorAll: () => [],
+          appendChild: () => {}
+        })
+      }),
+      querySelectorAll: sel => (sel.includes('Plugin_Product') ? [card] : []),
+      querySelector: () => null
+    };
+    let calls = 0;
+    globalThis.fetch = async (url, opts) => {
+      calls++;
+      if (calls === 1) {
+        setOriginCooldownUntil(Date.now() + 80);
+        return { ok: false, status: 429, headers: { get: () => '0' } };
+      }
+      if (opts?.method === 'POST') return { ok: true, json: async () => freshSeries };
+      return { ok: false, status: 404, headers: { get: () => null } };
+    };
+
+    const res = await runProductScanner({ isFeed: false, shouldCancelFn: () => scanState.batchCancelRequested });
+    assert.equal(res.abortedByCooldown, false);
+    assert.equal(res.completed, 1);
+    assert.equal(res.total, 1);
+    assert.equal(res.newlyVerified.length, 1);
+  });
+
+  it('long 429 cooldown (>15s) cancels cleanly with abortedByCooldown: true', async () => {
+    const card = makeScanCard('cooldown-long-1');
+    globalThis.document = {
+      body: { getAttribute: () => null, appendChild: () => {}, classList: { contains: () => false } },
+      head: { appendChild: () => {} },
+      visibilityState: 'visible',
+      getElementById: () => null,
+      createElement: () => ({
+        id: '',
+        style: {},
+        classList: { add: () => {}, remove: () => {} },
+        setAttribute: () => {},
+        appendChild: () => {},
+        attachShadow: () => ({
+          innerHTML: '',
+          getElementById: () => null,
+          querySelector: () => null,
+          querySelectorAll: () => [],
+          appendChild: () => {}
+        })
+      }),
+      querySelectorAll: sel => (sel.includes('Plugin_Product') ? [card] : []),
+      querySelector: () => null
+    };
+    setOriginCooldownUntil(Date.now() + 30000);
+
+    const res = await runProductScanner({ isFeed: false, shouldCancelFn: () => scanState.batchCancelRequested });
+    assert.equal(res.abortedByCooldown, true);
+    assert.equal(res.completed, 0);
+    assert.equal(scanState.batchCancelRequested, true);
+  });
+
+  it('FILTER_PRICE_MODE hide excludes out-of-range cards from scanCandidateState', () => {
+    const def = FILTER_CAUSE_DEFS.find(d => d.modeKey === 'FILTER_PRICE_MODE');
+    assert.equal(def?.scanExempt, false);
+
+    const prevEnabled = CONFIG.FILTERS_ENABLED;
+    const prevPriceEnabled = CONFIG.FILTER_PRICE_ENABLED;
+    const prevPriceMode = CONFIG.FILTER_PRICE_MODE;
+    try {
+      CONFIG.FILTERS_ENABLED = true;
+      CONFIG.FILTER_PRICE_ENABLED = true;
+      CONFIG.FILTER_PRICE_MODE = 'hide';
+      const card = makeScanCard('price-hidden-1');
+      const res = scanCandidateState({
+        pid: 'price-hidden-1',
+        card,
+        discountVal: 40,
+        filters: { isOutOfPriceRange: true }
+      });
+      assert.equal(res, null);
+    } finally {
+      CONFIG.FILTERS_ENABLED = prevEnabled;
+      CONFIG.FILTER_PRICE_ENABLED = prevPriceEnabled;
+      CONFIG.FILTER_PRICE_MODE = prevPriceMode;
+    }
   });
 });

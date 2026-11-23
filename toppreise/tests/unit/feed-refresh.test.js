@@ -161,7 +161,7 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
     });
 
     it('syncs .badge-dif and clears tpPainted dataset flags when price changes, and deduplicates incoming PIDs', () => {
-      const liveBadge = { innerHTML: 'old', dataset: { tpPainted: '1', tpOriginalDiscount: '10', tpOriginalPid: '101', tpPaintedText: 'old' } };
+      const liveBadge = { innerHTML: 'old', _tpLastHtml: 'old', dataset: { tpPainted: '1', tpOriginalDiscount: '10', tpOriginalPid: '101', tpPaintedText: 'old' } };
       const liveCard = createMockCard('101', '149.00');
       const origLiveQs = liveCard.querySelector.bind(liveCard);
       liveCard.querySelector = (sel) => (sel?.includes('badge-dif') ? liveBadge : origLiveQs(sel));
@@ -179,6 +179,7 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
       const result = reconcileFeedCards(inDoc, liveDoc);
       assert.deepEqual(result, { added: 1, updated: 1 });
       assert.equal(liveBadge.innerHTML, '-25%');
+      assert.equal(liveBadge._tpLastHtml, undefined);
       assert.equal(liveBadge.dataset.tpPainted, undefined);
       assert.equal(liveContainer.children.length, 2);
     });

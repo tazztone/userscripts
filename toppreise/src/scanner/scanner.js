@@ -11,6 +11,7 @@ import { isShippingPriceActive, isNeueToppreisePage, triggerProcessListings } fr
 import { CONFIG } from '../state/config.js';
 import { scanState } from '../state/store.js';
 import { setHtmlIfChanged } from '../ui/badges/dom-helpers.js';
+import { showToast } from '../ui/toast.js';
 import { logActivity } from '../state/activity-log.js';
 import { getOriginCooldownUntil, setOriginCooldownUntil, resetOriginCooldown, parseRetryAfterMs, backoffMs } from '../state/net.js';
 
@@ -416,13 +417,30 @@ export async function runProductScanner(options = {}) {
   const total = targets.length;
   let completed = 0;
   const newlyVerified = [];
-  let nextIdx = 0;
+  const pendingIndices = targets.map((_, i) => i);
+  let abortedByCooldown = false;
+  let cooldownToastShown = false;
   const pidInFlightCount = new Map();
 
   async function worker() {
-    while (!isCancelled(signal, shouldCancelFn)) {
-      const idx = nextIdx++;
-      if (idx >= targets.length) break;
+    while (!abortedByCooldown && !isCancelled(signal, shouldCancelFn)) {
+      if (pendingIndices.length === 0) break;
+      const preCooldownMs = getOriginCooldownUntil() - Date.now();
+      if (preCooldownMs > 15000) {
+        abortedByCooldown = true;
+        scanState.batchCancelRequested = true;
+        if (!cooldownToastShown) {
+          cooldownToastShown = true;
+          showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
+        }
+        break;
+      }
+      if (preCooldownMs > 0) {
+        await interruptibleSleep(preCooldownMs + 250, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
+        continue;
+      }
+      const idx = pendingIndices.shift();
+      if (idx === undefined) break;
       const item = targets[idx];
       pidInFlightCount.set(item.pid, (pidInFlightCount.get(item.pid) || 0) + 1);
       scanState.batchScanningPids.add(item.pid);
@@ -441,18 +459,24 @@ export async function runProductScanner(options = {}) {
       } catch {}
 
       let stats = null;
+      let cardValid = false;
       try {
         // Pre-fetch identity guard: skip the fetch when the card detached or
         // was reused for another product while queued (post-fetch guard stays).
         if (item.card.isConnected && getCardProductId(item.card) === item.pid) {
+          cardValid = true;
           const cardBasis = extractCanonicalPrice(item.card).basis;
           const cardElig = scanEligibility(item.card);
           const forceFresh = cardElig.state === 'basis-mismatch';
           stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
           // Card-identity guard: reused/detached cards must not collect an
           // earlier request's verification.
-          if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) stats = null;
-          else if (stats) newlyVerified.push({ pid: item.pid, card: item.card });
+          if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) {
+            stats = null;
+            cardValid = false;
+          } else if (stats) {
+            newlyVerified.push({ pid: item.pid, card: item.card });
+          }
         }
       } finally {
         const remaining = (pidInFlightCount.get(item.pid) || 1) - 1;
@@ -467,6 +491,23 @@ export async function runProductScanner(options = {}) {
         }
       }
 
+      const postCooldownMs = getOriginCooldownUntil() - Date.now();
+      if (!stats && cardValid && postCooldownMs > 0) {
+        triggerProcessListings();
+        if (postCooldownMs > 15000) {
+          abortedByCooldown = true;
+          scanState.batchCancelRequested = true;
+          if (!cooldownToastShown) {
+            cooldownToastShown = true;
+            showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
+          }
+          break;
+        }
+        pendingIndices.unshift(idx);
+        await interruptibleSleep(postCooldownMs + 250, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
+        continue;
+      }
+
       completed++;
       Object.assign(scanState, { progress: { completed, total } });
       if (onProgress) onProgress(completed, total);
@@ -474,7 +515,7 @@ export async function runProductScanner(options = {}) {
       // failed/null card fetches immediately restore non-loading badge state.
       triggerProcessListings();
       const paceMs = (typeof document !== 'undefined' && document.visibilityState === 'hidden') ? 500 : 250;
-      await interruptibleSleep(paceMs, shouldCancelFn, signal);
+      await interruptibleSleep(paceMs, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
     }
   }
 
@@ -482,9 +523,9 @@ export async function runProductScanner(options = {}) {
     const worker1 = worker();
     const worker2 = (async () => {
       if (targets.length > 1) {
-        await interruptibleSleep(125, shouldCancelFn, signal);
+        await interruptibleSleep(125, () => abortedByCooldown || isCancelled(signal, shouldCancelFn), signal);
       }
-      if (!isCancelled(signal, shouldCancelFn)) await worker();
+      if (!abortedByCooldown && !isCancelled(signal, shouldCancelFn)) await worker();
     })();
     await Promise.all([worker1, worker2]);
   } finally {
@@ -493,8 +534,9 @@ export async function runProductScanner(options = {}) {
   }
 
   triggerProcessListings();
-  if (onComplete) onComplete(completed, total, newlyVerified);
-  return { completed, total, newlyVerified };
+  const meta = { abortedByCooldown };
+  if (onComplete) onComplete(completed, total, newlyVerified, meta);
+  return { completed, total, newlyVerified, abortedByCooldown };
 }
 
 async function runScan({ minDiscount = 30, onProgress = null, onComplete = null } = {}) {

@@ -33,6 +33,7 @@ export function getCardSortableUnit(card) {
 }
 
 let nextInitialOrder = 0;
+let minInitialOrder = 0;
 
 export function applySorting(cards, pageHasOffers, cardDataList = null) {
   const list = cards || [];
@@ -56,6 +57,14 @@ export function applySorting(cards, pageHasOffers, cardDataList = null) {
 
   // Record initial order on every card plus the original placement of every
   // sortable item — independent of item identity (item === card included).
+  const freshUnstamped = list.filter(c => !c.dataset.tpInitialOrder && (c.classList?.contains('tp-fresh-arrival') || getCardSortableUnit(c)?.classList?.contains('tp-fresh-arrival')));
+  if (freshUnstamped.length > 0) {
+    const startOrder = minInitialOrder - freshUnstamped.length;
+    freshUnstamped.forEach((c, idx) => {
+      c.dataset.tpInitialOrder = String(startOrder + idx);
+    });
+    minInitialOrder = startOrder;
+  }
   list.forEach(c => {
     if (!c.dataset.tpInitialOrder) {
       c.dataset.tpInitialOrder = String(nextInitialOrder++);

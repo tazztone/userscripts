@@ -138,6 +138,7 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
           const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
           if (inBadge && liveBadge) {
             liveBadge.innerHTML = inBadge.innerHTML;
+            delete liveBadge._tpLastHtml;
             if (liveBadge.dataset) {
               delete liveBadge.dataset.tpPainted;
               delete liveBadge.dataset.tpOriginalDiscount;

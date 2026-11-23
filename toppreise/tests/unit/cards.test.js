@@ -716,7 +716,7 @@ describe('Min-Rabatt threshold filter core', () => {
     });
     withConfig('FILTER_PRICE_MODE', 'hide', () => {
       assert.equal(isCardFilteredOut(card, fPrice), true);
-      assert.equal(isCardFilteredOut(card, fPrice, { forScan: true }), false);
+      assert.equal(isCardFilteredOut(card, fPrice, { forScan: true }), true);
     });
 
     const fSavings = { isBelowMinSavings: true };

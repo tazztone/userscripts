@@ -32,7 +32,10 @@ const medianOf = sorted => {
 
 export const parsePrice = str => {
   if (!str) return 0;
-  let clean = str.replace(/\.(?:–|-)|\s*[.–\-]\s*$/g, '.00').replace(/[^\d,.]/g, '');
+  let clean = String(str)
+    .replace(/\.(?:–|-)(?!\d)/g, '.00')
+    .replace(/\s*[–\-]+\s*$/g, '')
+    .replace(/[^\d,.]/g, '');
 
   const lastComma = clean.lastIndexOf(',');
   const lastDot = clean.lastIndexOf('.');

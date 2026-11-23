@@ -288,6 +288,40 @@ export function updateConfigs(entries, options = {}) {
     triggerProcessListings();
   }
 }
+
+export function resetConfigToDefaults({ includeSecrets = false, skipRender = false } = {}) {
+  for (const [k, defaultVal] of Object.entries(DEFAULTS)) {
+    if (!includeSecrets && SECRET_KEYS.has(k)) continue;
+    const clean = SECRET_KEYS.has(k)
+      ? (k === 'DISCORD_CHANNELS' ? (sanitizeConfigValue(k, defaultVal) ?? []) : defaultVal)
+      : sanitizeConfigValue(k, defaultVal);
+    if (clean === undefined) continue;
+    CONFIG[k] = clean;
+    _setValue(k, clean);
+  }
+
+  if (CONFIG.FILTER_REMEMBER_PER_PAGE_TYPE) {
+    const seed = {};
+    for (const k of PAGE_SCOPED_KEYS) {
+      if (CONFIG[k] !== undefined) seed[k] = CONFIG[k];
+    }
+    _setValue('PAGE_PROFILES', { neue: { ...seed }, search: { ...seed } });
+    activeProfileType = typeof document !== 'undefined' ? getPageProfileType() : null;
+  } else {
+    _setValue('PAGE_PROFILES', null);
+    activeProfileType = null;
+  }
+
+  for (const k of Object.keys(DEFAULTS)) {
+    if (!includeSecrets && SECRET_KEYS.has(k)) continue;
+    syncUiControl(k, CONFIG[k]);
+  }
+  updateBodyClasses();
+  cacheLimitListener?.(CONFIG.CACHE_MEMORY_LIMIT);
+  if (!skipRender) {
+    triggerProcessListings();
+  }
+}
 // Re-exports: storage/schema/migrate symbols moved to siblings — every
 // existing `from './state/config.js'` / `'../state/config.js'` path keeps working.
 import { SETTING_SCHEMA, sanitizeChannels, RESET_GROUPS } from './config-store.js';
