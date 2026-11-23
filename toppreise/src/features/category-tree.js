@@ -17,7 +17,8 @@ import {
   evictStoredIdent, parseCategoryIdentsFromText, searchCategoryTree
 } from './category-tree-model.js';
 import {
-  observeIgnoredCategoriesBar, updateIgnoredCategoriesBarWithServerHtml,
+  observeIgnoredCategoriesBar, disconnectIgnoredBarObserver,
+  updateIgnoredCategoriesBarWithServerHtml,
   refreshProductFeed, executeServerCategoryToggle,
   executeServerCategoryExclusion, executeServerCategoryRestore,
   executeServerCategoryReset
@@ -25,6 +26,14 @@ import {
 
 let flyoutObserver = null;
 let boundBody = null;
+
+export function disconnectCategoryObservers() {
+  if (flyoutObserver) {
+    try { flyoutObserver.disconnect(); } catch {}
+    flyoutObserver = null;
+  }
+  disconnectIgnoredBarObserver();
+}
 
 function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
   if (isIgnored) {
@@ -528,28 +537,25 @@ export function enhanceCategorySidebar() {
           }
         }
       }, { capture: true });
+    }
 
-      // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
-      if (typeof MutationObserver === 'function') {
-        if (flyoutObserver) {
-          try { flyoutObserver.disconnect(); } catch {}
-        }
-        flyoutObserver = new MutationObserver(mutations => {
-          for (const m of mutations) {
-            for (const node of m.addedNodes) {
-              if (node.nodeType === 1) {
-                const menu = node.classList?.contains('IgnoredCategoriesMenu')
-                  ? node
-                  : node.querySelector?.('.IgnoredCategoriesMenu');
-                if (menu) {
-                  parseCategoryIdentsFromText(menu.outerHTML);
-                }
+    // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
+    if (!flyoutObserver && typeof MutationObserver === 'function' && isNeueToppreisePage()) {
+      flyoutObserver = new MutationObserver(mutations => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1) {
+              const menu = node.classList?.contains('IgnoredCategoriesMenu')
+                ? node
+                : node.querySelector?.('.IgnoredCategoriesMenu');
+              if (menu) {
+                parseCategoryIdentsFromText(menu.outerHTML);
               }
             }
           }
-        });
-        flyoutObserver.observe(document.body, { childList: true, subtree: true });
-      }
+        }
+      });
+      flyoutObserver.observe(document.body, { childList: true, subtree: true });
     }
   }
 }

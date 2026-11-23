@@ -17,14 +17,18 @@ import { fetchWithTimeout } from '../state/net.js';
 
 let ignoredBarObserver = null;
 
-export function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
-  if (!activeDoc || typeof MutationObserver !== 'function') return;
-  const doc = getDoc(activeDoc);
-  const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+export function disconnectIgnoredBarObserver() {
   if (ignoredBarObserver) {
     try { ignoredBarObserver.disconnect(); } catch {}
     ignoredBarObserver = null;
   }
+}
+
+export function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
+  if (!activeDoc || typeof MutationObserver !== 'function') return;
+  const doc = getDoc(activeDoc);
+  const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+  disconnectIgnoredBarObserver();
   if (!ignoredBar) return;
 
   ignoredBarObserver = new MutationObserver(() => {

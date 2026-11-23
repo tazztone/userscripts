@@ -1281,3 +1281,29 @@ test('parseCategoryIdentsFromText with targetMap does not overwrite global local
     if (prevStorage === undefined) delete globalThis.localStorage; else globalThis.localStorage = prevStorage;
   }
 });
+
+test('disconnectCategoryObservers disconnects flyout and ignoredBar observers and re-attaches on neue-toppreise', async () => {
+  const { disconnectCategoryObservers, observeIgnoredCategoriesBar, disconnectIgnoredBarObserver } = await import('../../src/features/category-tree.js');
+  const prevObserver = globalThis.MutationObserver;
+  const prevDoc = globalThis.document;
+  let activeObservers = 0;
+  let disconnectedCount = 0;
+  globalThis.MutationObserver = class {
+    observe() { activeObservers++; }
+    disconnect() { disconnectedCount++; }
+  };
+  const bar = { nodeType: 1 };
+  globalThis.document = {
+    querySelector: (sel) => (sel === '.Plugin_IgnoredCategories' ? bar : null),
+  };
+  try {
+    observeIgnoredCategoriesBar(globalThis.document);
+    assert.equal(activeObservers, 1);
+    disconnectCategoryObservers();
+    assert.equal(disconnectedCount, 1);
+    disconnectIgnoredBarObserver();
+  } finally {
+    if (prevObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevObserver;
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+  }
+});

@@ -62,14 +62,14 @@ import {
   cancelBatchDealCheck
 } from './scanner/scanner.js';
 import { scanState } from './state/store.js';
-import { processPriceAlarmModal, formatAlarmToast } from './features/price-alarm.js';
+import { processPriceAlarmModal, formatAlarmToast, closeFetchedAlarmDialogs } from './features/price-alarm.js';
 import { processProductDetailPage } from './features/product-detail.js';
-import { enhanceCategorySidebar } from './features/category-tree.js';
+import { enhanceCategorySidebar, disconnectCategoryObservers } from './features/category-tree.js';
 
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.541
+// @version      2.18.542
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -215,7 +215,12 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   let lastDiagBase = {};
+  let diagAttrTimer = null;
   function updateDiagAttr(extra = null) {
+    if (diagAttrTimer) {
+      clearTimeout(diagAttrTimer);
+      diagAttrTimer = null;
+    }
     if (extra) lastDiagBase = { ...lastDiagBase, ...extra };
     const rootEl = document.getElementById('tp-root');
     if (!rootEl) return;
@@ -228,10 +233,18 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
       ts: Date.now()
     }));
   }
-  subscribeActivityLog(() => updateDiagAttr());
+  function scheduleDiagAttrUpdate() {
+    if (diagAttrTimer) return;
+    diagAttrTimer = setTimeout(() => {
+      diagAttrTimer = null;
+      updateDiagAttr();
+    }, 250);
+  }
+  subscribeActivityLog(() => scheduleDiagAttrUpdate());
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
+  let lastKnownHref = typeof location !== 'undefined' ? location.href : '';
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
   const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
@@ -243,6 +256,10 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   };
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
+    if (typeof location !== 'undefined' && location.href !== lastKnownHref) {
+      handleRouteTransition();
+      return;
+    }
 
     let dirtyCard = false;
     let structural = false;
@@ -271,6 +288,15 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
       const hit = cardOf(targetEl);
       if (hit) {
         if (isOwnedNode(targetEl)) continue;
+        if (
+          m.type === 'attributes' &&
+          m.attributeName === 'class' &&
+          targetEl !== hit &&
+          !targetEl.matches?.('.priceContainer, .shippingPrice, .productPrice, .Plugin_Price, .badge-dif, [class*="badge-dif"], .f_tab, .d-none') &&
+          !targetEl.closest?.('.priceContainer, .Plugin_PriceInformation, .price_information_product')
+        ) {
+          continue;
+        }
         // All-changes-owned skips only pure self-paint: a mixed record (own
         // badge plus a genuine host replacement) still invalidates, or the
         // host update is lost with the badge.
@@ -349,6 +375,10 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   let lastPageProfileType = getPageProfileType();
 
   function checkPageProfileTransition() {
+    if (typeof location !== 'undefined' && location.href !== lastKnownHref) {
+      handleRouteTransition();
+      return;
+    }
     const curType = getPageProfileType();
     if (curType !== lastPageProfileType) {
       lastPageProfileType = curType;
@@ -360,9 +390,12 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   function handleRouteTransition() {
+    lastKnownHref = typeof location !== 'undefined' ? location.href : '';
     closeSparklinePopout();
     closeAiPopover();
     closeSharePreviewModal();
+    closeFetchedAlarmDialogs();
+    if (!isNeueToppreisePage()) disconnectCategoryObservers();
     cancelBatchDealCheck();
     cancelFeedRefresh();
     logActivity('info', 'app', 'Route transition');
@@ -390,7 +423,7 @@ import { enhanceCategorySidebar } from './features/category-tree.js';
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.541';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.542';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

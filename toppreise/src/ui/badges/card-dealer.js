@@ -112,7 +112,11 @@ export function renderDealerName(ctx, filters) {
     const isVisibleEl = el => {
       if (!el) return false;
       if (el.style?.display === 'none' || el.hidden || el.classList?.contains('d-none')) return false;
-      if (el.offsetParent === null && !el.classList?.contains('tp-filtered')) return false;
+      if (el.classList?.contains('shippingPrice') && !isShippingPriceActive(card)) return false;
+      if (el.classList?.contains('productPrice') && isShippingPriceActive(card)) {
+        const hasActiveShipping = !!card.querySelector?.('.priceContainer.shippingPrice:not(.d-none)');
+        if (hasActiveShipping) return false;
+      }
       return true;
     };
     let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;

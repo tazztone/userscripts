@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.541
+// @version      2.18.542
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -8070,14 +8070,18 @@ const SHADOW_MODAL_STYLES = `
 
   let ignoredBarObserver = null;
 
-  function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
-    if (!activeDoc || typeof MutationObserver !== 'function') return;
-    const doc = getDoc(activeDoc);
-    const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+  function disconnectIgnoredBarObserver() {
     if (ignoredBarObserver) {
       try { ignoredBarObserver.disconnect(); } catch {}
       ignoredBarObserver = null;
     }
+  }
+
+  function observeIgnoredCategoriesBar(activeDoc = (typeof document !== 'undefined' ? document : null)) {
+    if (!activeDoc || typeof MutationObserver !== 'function') return;
+    const doc = getDoc(activeDoc);
+    const ignoredBar = doc?.querySelector?.('.Plugin_IgnoredCategories');
+    disconnectIgnoredBarObserver();
     if (!ignoredBar) return;
 
     ignoredBarObserver = new MutationObserver(() => {
@@ -8316,6 +8320,14 @@ const SHADOW_MODAL_STYLES = `
 
   let flyoutObserver = null;
   let boundBody = null;
+
+  function disconnectCategoryObservers() {
+    if (flyoutObserver) {
+      try { flyoutObserver.disconnect(); } catch {}
+      flyoutObserver = null;
+    }
+    disconnectIgnoredBarObserver();
+  }
 
   function applyIgnoredElementState(targetEl, span, isIgnored, toggle = null) {
     if (isIgnored) {
@@ -8819,28 +8831,25 @@ const SHADOW_MODAL_STYLES = `
             }
           }
         }, { capture: true });
+      }
 
-        // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
-        if (typeof MutationObserver === 'function') {
-          if (flyoutObserver) {
-            try { flyoutObserver.disconnect(); } catch {}
-          }
-          flyoutObserver = new MutationObserver(mutations => {
-            for (const m of mutations) {
-              for (const node of m.addedNodes) {
-                if (node.nodeType === 1) {
-                  const menu = node.classList?.contains('IgnoredCategoriesMenu')
-                    ? node
-                    : node.querySelector?.('.IgnoredCategoriesMenu');
-                  if (menu) {
-                    parseCategoryIdentsFromText(menu.outerHTML);
-                  }
+      // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
+      if (!flyoutObserver && typeof MutationObserver === 'function' && isNeueToppreisePage()) {
+        flyoutObserver = new MutationObserver(mutations => {
+          for (const m of mutations) {
+            for (const node of m.addedNodes) {
+              if (node.nodeType === 1) {
+                const menu = node.classList?.contains('IgnoredCategoriesMenu')
+                  ? node
+                  : node.querySelector?.('.IgnoredCategoriesMenu');
+                if (menu) {
+                  parseCategoryIdentsFromText(menu.outerHTML);
                 }
               }
             }
-          });
-          flyoutObserver.observe(document.body, { childList: true, subtree: true });
-        }
+          }
+        });
+        flyoutObserver.observe(document.body, { childList: true, subtree: true });
       }
     }
   }
@@ -13001,7 +13010,11 @@ const SHADOW_MODAL_STYLES = `
       const isVisibleEl = el => {
         if (!el) return false;
         if (el.style?.display === 'none' || el.hidden || el.classList?.contains('d-none')) return false;
-        if (el.offsetParent === null && !el.classList?.contains('tp-filtered')) return false;
+        if (el.classList?.contains('shippingPrice') && !isShippingPriceActive(card)) return false;
+        if (el.classList?.contains('productPrice') && isShippingPriceActive(card)) {
+          const hasActiveShipping = !!card.querySelector?.('.priceContainer.shippingPrice:not(.d-none)');
+          if (hasActiveShipping) return false;
+        }
         return true;
       };
       let anchor = (cardPriceEl?.parentElement?.contains(cardPriceEl) && cardPriceEl.parentElement) || null;
@@ -18200,7 +18213,12 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   let lastDiagBase = {};
+  let diagAttrTimer = null;
   function updateDiagAttr(extra = null) {
+    if (diagAttrTimer) {
+      clearTimeout(diagAttrTimer);
+      diagAttrTimer = null;
+    }
     if (extra) lastDiagBase = { ...lastDiagBase, ...extra };
     const rootEl = document.getElementById('tp-root');
     if (!rootEl) return;
@@ -18213,10 +18231,18 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       ts: Date.now()
     }));
   }
-  subscribeActivityLog(() => updateDiagAttr());
+  function scheduleDiagAttrUpdate() {
+    if (diagAttrTimer) return;
+    diagAttrTimer = setTimeout(() => {
+      diagAttrTimer = null;
+      updateDiagAttr();
+    }, 250);
+  }
+  subscribeActivityLog(() => scheduleDiagAttrUpdate());
 
   // ─── OBSERVER & INITIALIZATION ───────────────────────────────────────────────
   let debounceTimer = null;
+  let lastKnownHref = typeof location !== 'undefined' ? location.href : '';
   const OBSERVE_OPTS = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'href', 'data-entity-id', 'data-tp-product-id', 'data-current_url', 'data-current-url'] };
   const TP_OWNED_SEL = '#tp-root,#tp-suite-filter-bar,#tp-floating-check-cta,#tp-sparkline-popout,#tp-empty-state-notice,.tp-injected-badge,.tp-card-subline-row,.tp-card-dealer-row,.tp-sparkline-container,.tp-card-historical-price,.tp-share-btn,.tp-dealer-name,.tp-review-search-btn,#tp-detail-subline,.tp-detail-subline,#tp-detail-share-btn,#tp-detail-sparkline,.tp-detail-share-btn,.tp-detail-review-btn,.tp-alarm-cog,.tp-card-alarm-group,.tp-card-alarm-btn,.tp-alarm-status,[data-tp-alarm-state]';
   const TP_CARD_SEL = '.Plugin_Product,.mixedBrowsingListProduct';
@@ -18228,6 +18254,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   };
   mainObserver = new MutationObserver(mutations => {
     if (isModifyingDOM) return;
+    if (typeof location !== 'undefined' && location.href !== lastKnownHref) {
+      handleRouteTransition();
+      return;
+    }
 
     let dirtyCard = false;
     let structural = false;
@@ -18256,6 +18286,15 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
       const hit = cardOf(targetEl);
       if (hit) {
         if (isOwnedNode(targetEl)) continue;
+        if (
+          m.type === 'attributes' &&
+          m.attributeName === 'class' &&
+          targetEl !== hit &&
+          !targetEl.matches?.('.priceContainer, .shippingPrice, .productPrice, .Plugin_Price, .badge-dif, [class*="badge-dif"], .f_tab, .d-none') &&
+          !targetEl.closest?.('.priceContainer, .Plugin_PriceInformation, .price_information_product')
+        ) {
+          continue;
+        }
         // All-changes-owned skips only pure self-paint: a mixed record (own
         // badge plus a genuine host replacement) still invalidates, or the
         // host update is lost with the badge.
@@ -18334,6 +18373,10 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   let lastPageProfileType = getPageProfileType();
 
   function checkPageProfileTransition() {
+    if (typeof location !== 'undefined' && location.href !== lastKnownHref) {
+      handleRouteTransition();
+      return;
+    }
     const curType = getPageProfileType();
     if (curType !== lastPageProfileType) {
       lastPageProfileType = curType;
@@ -18345,9 +18388,12 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   function handleRouteTransition() {
+    lastKnownHref = typeof location !== 'undefined' ? location.href : '';
     closeSparklinePopout();
     closeAiPopover();
     closeSharePreviewModal();
+    closeFetchedAlarmDialogs();
+    if (!isNeueToppreisePage()) disconnectCategoryObservers();
     cancelBatchDealCheck();
     cancelFeedRefresh();
     logActivity('info', 'app', 'Route transition');
@@ -18375,7 +18421,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.541';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.542';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

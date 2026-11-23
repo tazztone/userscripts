@@ -786,4 +786,65 @@ describe('dom-helpers setHtmlIfChanged / setTextIfChanged', () => {
       if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
     }
   });
+
+  it('renderDealerName checks anchor visibility via DOM/CSS state without reading offsetParent', async () => {
+    const { renderDealerName } = await import('../../src/ui/badges/card-chrome.js');
+    const { dealerCache } = await import('../../src/ui/badges/deal-badge.js');
+    const { CONFIG } = await import('../../src/state/config.js');
+    const prevShipping = CONFIG.USE_SHIPPING_PRICE;
+    const prevDoc = globalThis.document;
+    CONFIG.USE_SHIPPING_PRICE = true;
+    dealerCache.set('p-vis:s', { dealer: 'Digitec', url: 'https://www.digitec.ch/1' });
+
+    const createRow = () => ({ className: '', dataset: {}, parentElement: null, nextElementSibling: null, replaceChildren() {} });
+    const dealerRow = createRow();
+    const linkEl = { tagName: 'A', className: '', dataset: {}, style: {}, setAttribute() {}, addEventListener() {}, parentElement: null };
+    globalThis.document = {
+      body: { classList: { contains: c => c === 'showshippingprice' } },
+      createElement: (tag) => (tag === 'a' ? linkEl : dealerRow),
+    };
+
+    const makeHidden = (cls) => {
+      const el = {
+        classList: { contains: c => c === cls || c === 'priceContainer' },
+        style: {},
+        hidden: false,
+        parentElement: null,
+        contains: () => true,
+      };
+      Object.defineProperty(el, 'offsetParent', {
+        get() { throw new Error('forced layout read: offsetParent accessed'); }
+      });
+      return el;
+    };
+
+    const pp = makeHidden('productPrice');
+    const sp = makeHidden('shippingPrice');
+    const priceSpan = { parentElement: pp };
+    const inserted = [];
+    const card = {
+      querySelector: (sel) => {
+        if (sel === '.priceContainer.productPrice') return pp;
+        if (sel === '.priceContainer.shippingPrice') return sp;
+        if (sel === '.priceContainer.shippingPrice:not(.d-none)') return sp;
+        if (sel === '.tp-card-dealer-row') return dealerRow;
+        return null;
+      },
+      querySelectorAll: () => [],
+    };
+    const parentInfo = {
+      insertBefore(row, ref) { inserted.push(ref); row.nextElementSibling = ref; },
+    };
+    pp.parentElement = parentInfo;
+    sp.parentElement = parentInfo;
+
+    try {
+      renderDealerName({ card, pid: 'p-vis', cardPriceEl: priceSpan, stats: { tiefstpreis: 100 }, heatInfo: { pct: 20 } }, {});
+      assert.equal(inserted[0], sp);
+    } finally {
+      dealerCache.delete('p-vis:s');
+      CONFIG.USE_SHIPPING_PRICE = prevShipping;
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
 });
