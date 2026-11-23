@@ -426,6 +426,7 @@ export async function runProductScanner(options = {}) {
   const newlyVerified = [];
   const pendingIndices = targets.map((_, i) => i);
   let abortedByCooldown = false;
+  const effectiveCancel = () => abortedByCooldown || isCancelled(signal, shouldCancelFn);
   let cooldownToastShown = false;
   const pidInFlightCount = new Map();
 
@@ -435,7 +436,6 @@ export async function runProductScanner(options = {}) {
       const preCooldownMs = getOriginCooldownUntil() - Date.now();
       if (preCooldownMs > 15000) {
         abortedByCooldown = true;
-        scanState.batchCancelRequested = true;
         if (!cooldownToastShown) {
           cooldownToastShown = true;
           showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
@@ -475,7 +475,7 @@ export async function runProductScanner(options = {}) {
           const cardBasis = extractCanonicalPrice(item.card).basis;
           const cardElig = scanEligibility(item.card);
           const forceFresh = cardElig.state === 'basis-mismatch';
-          stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
+          stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, effectiveCancel, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
           // Card-identity guard: reused/detached cards must not collect an
           // earlier request's verification.
           if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) {
@@ -503,8 +503,7 @@ export async function runProductScanner(options = {}) {
         triggerProcessListings();
         if (postCooldownMs > 15000) {
           abortedByCooldown = true;
-          scanState.batchCancelRequested = true;
-          if (!cooldownToastShown) {
+            if (!cooldownToastShown) {
             cooldownToastShown = true;
             showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
           }
@@ -557,7 +556,7 @@ async function runScan({ minDiscount = 30, onProgress = null, onComplete = null 
 
   try {
     const isFeed = isNeueToppreisePage();
-    await runProductScanner({
+    const res = await runProductScanner({
       isFeed,
       minDiscount,
       sortByDiscount: false,
@@ -566,6 +565,7 @@ async function runScan({ minDiscount = 30, onProgress = null, onComplete = null 
       onComplete,
       signal: batchController.signal
     });
+    if (res?.abortedByCooldown) scanState.batchCancelRequested = true;
   } finally {
     Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
     triggerProcessListings();

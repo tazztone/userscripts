@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.543
+// @version      2.18.544
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -8575,10 +8575,32 @@ const SHADOW_MODAL_STYLES = `
     }).catch(() => {});
   }
 
+  function ensureCategoryObservers() {
+    observeIgnoredCategoriesBar(document);
+    if (!flyoutObserver && typeof MutationObserver === 'function' && isNeueToppreisePage()) {
+      flyoutObserver = new MutationObserver(mutations => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1) {
+              const menu = node.classList?.contains('IgnoredCategoriesMenu')
+                ? node
+                : node.querySelector?.('.IgnoredCategoriesMenu');
+              if (menu) {
+                parseCategoryIdentsFromText(menu.outerHTML);
+              }
+            }
+          }
+        }
+      });
+      flyoutObserver.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
   function enhanceCategorySidebar() {
     if (!isNeueToppreisePage()) return;
     const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
     if (!sidebar) return;
+    ensureCategoryObservers();
     if (sidebar.classList.contains('tp-tree-enhanced')) {
       convertLeafTogglesToSpacers(sidebar);
       return;
@@ -8786,9 +8808,6 @@ const SHADOW_MODAL_STYLES = `
     // Align any pre-rendered ignored states in sidebar with active chips
     syncCategoryTreeIgnoredState(sidebar);
 
-    // 3. MutationObserver on .Plugin_IgnoredCategories for dynamic sync
-    observeIgnoredCategoriesBar(document);
-
     // 4. Listen for category hide/show/reset to collapse/restore tree branches and sync chips
     if (typeof document !== 'undefined' && document.body?.addEventListener) {
       if (boundBody !== document.body) {
@@ -8837,25 +8856,6 @@ const SHADOW_MODAL_STYLES = `
             }
           }
         }, { capture: true });
-      }
-
-      // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
-      if (!flyoutObserver && typeof MutationObserver === 'function' && isNeueToppreisePage()) {
-        flyoutObserver = new MutationObserver(mutations => {
-          for (const m of mutations) {
-            for (const node of m.addedNodes) {
-              if (node.nodeType === 1) {
-                const menu = node.classList?.contains('IgnoredCategoriesMenu')
-                  ? node
-                  : node.querySelector?.('.IgnoredCategoriesMenu');
-                if (menu) {
-                  parseCategoryIdentsFromText(menu.outerHTML);
-                }
-              }
-            }
-          }
-        });
-        flyoutObserver.observe(document.body, { childList: true, subtree: true });
       }
     }
   }
@@ -10874,6 +10874,19 @@ const SHADOW_MODAL_STYLES = `
     return [null, null];
   }
 
+  // Sanitize a detached clone BEFORE it touches the live DOM so handlers on
+  // e.g. <img onerror> never fire during insertion.
+  function replaceWithSanitized(target, source, targetDoc) {
+    if (typeof target.replaceChildren === 'function' && typeof targetDoc?.importNode === 'function') {
+      const clean = targetDoc.importNode(source, true);
+      if (sanitizeImportedNode(clean) === null) return;
+      target.replaceChildren(...clean.childNodes);
+      return;
+    }
+    if (source.nodeType === 1) sanitizeImportedNode(source);
+    target.innerHTML = source.innerHTML;
+  }
+
   function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
     if (!incomingDoc || !targetDoc) {
       return { added: 0, updated: 0 };
@@ -10929,13 +10942,11 @@ const SHADOW_MODAL_STYLES = `
           if (inPrice && livePrice && inPrice !== livePrice) {
             // TP-owned children (alarm bell, sparkline) are re-created by the
             // triggerProcessListings pass that follows the merge.
-            liveContainer.innerHTML = inContainer.innerHTML;
-            sanitizeImportedNode(liveContainer);
+            replaceWithSanitized(liveContainer, inContainer, targetDoc);
             const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
             const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
             if (inBadge && liveBadge) {
-              liveBadge.innerHTML = inBadge.innerHTML;
-              sanitizeImportedNode(liveBadge);
+              replaceWithSanitized(liveBadge, inBadge, targetDoc);
               delete liveBadge._tpLastHtml;
               if (liveBadge.dataset) {
                 delete liveBadge.dataset.tpPainted;
@@ -11489,6 +11500,7 @@ const SHADOW_MODAL_STYLES = `
     const newlyVerified = [];
     const pendingIndices = targets.map((_, i) => i);
     let abortedByCooldown = false;
+    const effectiveCancel = () => abortedByCooldown || isCancelled(signal, shouldCancelFn);
     let cooldownToastShown = false;
     const pidInFlightCount = new Map();
 
@@ -11498,7 +11510,6 @@ const SHADOW_MODAL_STYLES = `
         const preCooldownMs = getOriginCooldownUntil() - Date.now();
         if (preCooldownMs > 15000) {
           abortedByCooldown = true;
-          scanState.batchCancelRequested = true;
           if (!cooldownToastShown) {
             cooldownToastShown = true;
             showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
@@ -11538,7 +11549,7 @@ const SHADOW_MODAL_STYLES = `
             const cardBasis = extractCanonicalPrice(item.card).basis;
             const cardElig = scanEligibility(item.card);
             const forceFresh = cardElig.state === 'basis-mismatch';
-            stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, shouldCancelFn, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
+            stats = await fetchSingleProductPriceStats(item.pid, 2, forceFresh, effectiveCancel, (() => { try { const cp = extractCanonicalPrice(item.card).price; return Number.isFinite(cp) && cp > 0 ? cp : null; } catch { return null; } })(), signal, cardBasis);
             // Card-identity guard: reused/detached cards must not collect an
             // earlier request's verification.
             if (!(item.card.isConnected && getCardProductId(item.card) === item.pid)) {
@@ -11566,8 +11577,7 @@ const SHADOW_MODAL_STYLES = `
           triggerProcessListings();
           if (postCooldownMs > 15000) {
             abortedByCooldown = true;
-            scanState.batchCancelRequested = true;
-            if (!cooldownToastShown) {
+              if (!cooldownToastShown) {
               cooldownToastShown = true;
               showToast('⏳ Rate-Limit erreicht – Prüfung pausiert');
             }
@@ -11620,7 +11630,7 @@ const SHADOW_MODAL_STYLES = `
 
     try {
       const isFeed = isNeueToppreisePage();
-      await runProductScanner({
+      const res = await runProductScanner({
         isFeed,
         minDiscount,
         sortByDiscount: false,
@@ -11629,6 +11639,7 @@ const SHADOW_MODAL_STYLES = `
         onComplete,
         signal: batchController.signal
       });
+      if (res?.abortedByCooldown) scanState.batchCancelRequested = true;
     } finally {
       Object.assign(scanState, { isBatchChecking: false, batchCancelRequested: false });
       triggerProcessListings();
@@ -14537,7 +14548,6 @@ const SHADOW_MODAL_STYLES = `
           for (const hook of hooks) GM_deleteValue(discordForumFlagKey(hook));
         }
       } catch (e) {}
-      _setValue('PAGE_PROFILES', null);
       resetConfigToDefaults({ includeSecrets: true, skipRender: true });
       triggerProcessListings();
       syncFieldsFromConfig(els);
@@ -18396,7 +18406,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.543';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.544';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

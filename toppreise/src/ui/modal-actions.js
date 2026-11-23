@@ -142,7 +142,6 @@ export function wireModalActions(els) {
         for (const hook of hooks) GM_deleteValue(discordForumFlagKey(hook));
       }
     } catch (e) {}
-    _setValue('PAGE_PROFILES', null);
     resetConfigToDefaults({ includeSecrets: true, skipRender: true });
     triggerProcessListings();
     syncFieldsFromConfig(els);

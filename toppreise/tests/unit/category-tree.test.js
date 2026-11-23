@@ -1307,3 +1307,42 @@ test('disconnectCategoryObservers disconnects flyout and ignoredBar observers an
     if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
   }
 });
+
+test('enhanceCategorySidebar re-attaches observers on an already enhanced sidebar', async () => {
+  const { enhanceCategorySidebar, disconnectCategoryObservers, disconnectIgnoredBarObserver } = await import('../../src/features/category-tree.js');
+  const prevObserver = globalThis.MutationObserver;
+  const prevDoc = globalThis.document;
+  const prevLoc = globalThis.location;
+  let observed = 0;
+  globalThis.MutationObserver = class {
+    observe() { observed++; }
+    disconnect() {}
+  };
+  const sidebar = createMockElement('div', { className: 'Plugin_CategoryMainSelectionLeft tp-tree-enhanced' });
+  const bar = { nodeType: 1 };
+  globalThis.document = {
+    body: {
+      classList: { contains: c => c === 'Page_ListTopPriceReductionProducts' },
+      getAttribute: a => (a === 'data-current_url' ? '/neue-toppreise' : null)
+    },
+    querySelector: sel => {
+      if (sel.includes('Plugin_CategoryMainSelectionLeft')) return sidebar;
+      if (sel === '.Plugin_IgnoredCategories') return bar;
+      return null;
+    },
+    createElement: tag => createMockElement(tag)
+  };
+  globalThis.location = { href: 'https://www.toppreise.ch/neue-toppreise', pathname: '/neue-toppreise' };
+  try {
+    disconnectCategoryObservers();
+    disconnectIgnoredBarObserver();
+    enhanceCategorySidebar();
+    assert.equal(observed, 2, 'ignored-bar + flyout observers re-attached');
+  } finally {
+    disconnectCategoryObservers();
+    disconnectIgnoredBarObserver();
+    if (prevObserver === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = prevObserver;
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    if (prevLoc === undefined) delete globalThis.location; else globalThis.location = prevLoc;
+  }
+});

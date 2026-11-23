@@ -204,6 +204,53 @@ describe('Feed Refresh Engine (feed-refresh.js)', () => {
       assert.equal(liveContainer.children[1].dataset.entityId, '101');
     });
 
+    it('sanitizes price container and badge clones before they reach the live DOM', () => {
+      const mkNode = (tagName, attrs = {}, children = []) => {
+        const node = {
+          nodeType: 1, tagName, children: [], childNodes: [],
+          attributes: Object.entries(attrs).map(([name, value]) => ({ name, value })),
+          removeAttribute(n) { this.attributes = this.attributes.filter(a => a.name !== n); },
+          remove() { if (this.parent) { this.parent.children = this.parent.children.filter(c => c !== this); this.parent.childNodes = this.parent.children; } }
+        };
+        for (const c of children) { c.parent = node; node.children.push(c); }
+        node.childNodes = node.children;
+        return node;
+      };
+      const serialize = n => `<${n.tagName}${n.attributes.map(a => ` ${a.name}="${a.value}"`).join('')}>${n.children.map(serialize).join('')}`;
+      const liveCard = createMockCard('101', '149.00');
+      const liveContainer = liveCard.querySelector('PriceInformation');
+      const liveBadge = { dataset: {}, _html: '', set innerHTML(v) { this._html = v; }, get innerHTML() { return this._html; } };
+      let containerHtml = '';
+      Object.defineProperty(liveContainer, 'innerHTML', { get: () => containerHtml, set: v => { containerHtml = v; }, configurable: true });
+      const inserted = [];
+      for (const t of [liveContainer, liveBadge]) t.replaceChildren = (...nodes) => inserted.push(...nodes.map(serialize));
+      const origQs = liveCard.querySelector.bind(liveCard);
+      liveCard.querySelector = sel => (sel?.includes('badge-dif') ? liveBadge : origQs(sel));
+      const liveRoot = createMockContainer([liveCard]);
+      const liveDoc = createMockDoc(liveRoot, [liveCard]);
+      liveDoc.importNode = () => mkNode('SPAN', {}, [
+        mkNode('IMG', { src: 'x', onerror: 'alert(1)' }),
+        mkNode('SCRIPT'),
+        mkNode('STYLE'),
+        mkNode('A', { href: 'javascript:alert(1)' })
+      ]);
+
+      const inCard = createMockCard('101', '119.00');
+      const inBadge = { innerHTML: '<img src=x onerror=alert(1)>' };
+      const origInQs = inCard.querySelector.bind(inCard);
+      inCard.querySelector = sel => (sel?.includes('badge-dif') ? inBadge : origInQs(sel));
+      const inDoc = createMockDoc(createMockContainer([inCard]), [inCard]);
+
+      assert.deepEqual(reconcileFeedCards(inDoc, liveDoc), { added: 0, updated: 1 });
+      assert.equal(containerHtml, '');
+      assert.equal(liveBadge.innerHTML, '');
+      assert.equal(inserted.length, 4);
+      assert.ok(inserted.some(h => h === '<IMG src="x">'));
+      for (const html of inserted) {
+        assert.ok(!/onerror|script|style|javascript:/i.test(html), html);
+      }
+    });
+
     it('updates price and clears cache when an existing card has a changed price', () => {
       const liveCard = createMockCard('101', '149.00');
       liveCard._tpPriceInfo = { cached: true };

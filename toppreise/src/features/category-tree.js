@@ -275,10 +275,32 @@ export function convertLeafTogglesToSpacers(sidebar) {
   }).catch(() => {});
 }
 
+function ensureCategoryObservers() {
+  observeIgnoredCategoriesBar(document);
+  if (!flyoutObserver && typeof MutationObserver === 'function' && isNeueToppreisePage()) {
+    flyoutObserver = new MutationObserver(mutations => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType === 1) {
+            const menu = node.classList?.contains('IgnoredCategoriesMenu')
+              ? node
+              : node.querySelector?.('.IgnoredCategoriesMenu');
+            if (menu) {
+              parseCategoryIdentsFromText(menu.outerHTML);
+            }
+          }
+        }
+      }
+    });
+    flyoutObserver.observe(document.body, { childList: true, subtree: true });
+  }
+}
+
 export function enhanceCategorySidebar() {
   if (!isNeueToppreisePage()) return;
   const sidebar = document.querySelector('.Plugin_CategoryMainSelectionLeft');
   if (!sidebar) return;
+  ensureCategoryObservers();
   if (sidebar.classList.contains('tp-tree-enhanced')) {
     convertLeafTogglesToSpacers(sidebar);
     return;
@@ -486,9 +508,6 @@ export function enhanceCategorySidebar() {
   // Align any pre-rendered ignored states in sidebar with active chips
   syncCategoryTreeIgnoredState(sidebar);
 
-  // 3. MutationObserver on .Plugin_IgnoredCategories for dynamic sync
-  observeIgnoredCategoriesBar(document);
-
   // 4. Listen for category hide/show/reset to collapse/restore tree branches and sync chips
   if (typeof document !== 'undefined' && document.body?.addEventListener) {
     if (boundBody !== document.body) {
@@ -537,25 +556,6 @@ export function enhanceCategorySidebar() {
           }
         }
       }, { capture: true });
-    }
-
-    // 5. Observe native IgnoredCategoriesMenu to harvest authentic breadcrumb tokens
-    if (!flyoutObserver && typeof MutationObserver === 'function' && isNeueToppreisePage()) {
-      flyoutObserver = new MutationObserver(mutations => {
-        for (const m of mutations) {
-          for (const node of m.addedNodes) {
-            if (node.nodeType === 1) {
-              const menu = node.classList?.contains('IgnoredCategoriesMenu')
-                ? node
-                : node.querySelector?.('.IgnoredCategoriesMenu');
-              if (menu) {
-                parseCategoryIdentsFromText(menu.outerHTML);
-              }
-            }
-          }
-        }
-      });
-      flyoutObserver.observe(document.body, { childList: true, subtree: true });
     }
   }
 }

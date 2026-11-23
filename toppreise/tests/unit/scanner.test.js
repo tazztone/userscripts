@@ -427,7 +427,7 @@ describe('runProductScanner 429 cooldown & price filter', () => {
     const res = await runProductScanner({ isFeed: false, shouldCancelFn: () => scanState.batchCancelRequested });
     assert.equal(res.abortedByCooldown, true);
     assert.equal(res.completed, 0);
-    assert.equal(scanState.batchCancelRequested, true);
+    assert.equal(scanState.batchCancelRequested, false, 'runScan mirrors abortedByCooldown, not runProductScanner');
   });
 
   it('FILTER_PRICE_MODE hide excludes out-of-range cards from scanCandidateState', () => {

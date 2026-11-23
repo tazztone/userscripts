@@ -79,6 +79,19 @@ export function resolvePriceContainerPair(inCard, liveCard) {
   return [null, null];
 }
 
+// Sanitize a detached clone BEFORE it touches the live DOM so handlers on
+// e.g. <img onerror> never fire during insertion.
+function replaceWithSanitized(target, source, targetDoc) {
+  if (typeof target.replaceChildren === 'function' && typeof targetDoc?.importNode === 'function') {
+    const clean = targetDoc.importNode(source, true);
+    if (sanitizeImportedNode(clean) === null) return;
+    target.replaceChildren(...clean.childNodes);
+    return;
+  }
+  if (source.nodeType === 1) sanitizeImportedNode(source);
+  target.innerHTML = source.innerHTML;
+}
+
 export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !== 'undefined' ? document : null)) {
   if (!incomingDoc || !targetDoc) {
     return { added: 0, updated: 0 };
@@ -134,13 +147,11 @@ export function reconcileFeedCards(incomingDoc, targetDoc = (typeof document !==
         if (inPrice && livePrice && inPrice !== livePrice) {
           // TP-owned children (alarm bell, sparkline) are re-created by the
           // triggerProcessListings pass that follows the merge.
-          liveContainer.innerHTML = inContainer.innerHTML;
-          sanitizeImportedNode(liveContainer);
+          replaceWithSanitized(liveContainer, inContainer, targetDoc);
           const inBadge = inCard.querySelector?.(SELECTORS.cards.diffBadge);
           const liveBadge = existing.querySelector?.(SELECTORS.cards.diffBadge);
           if (inBadge && liveBadge) {
-            liveBadge.innerHTML = inBadge.innerHTML;
-            sanitizeImportedNode(liveBadge);
+            replaceWithSanitized(liveBadge, inBadge, targetDoc);
             delete liveBadge._tpLastHtml;
             if (liveBadge.dataset) {
               delete liveBadge.dataset.tpPainted;
