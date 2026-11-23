@@ -55,7 +55,7 @@ describe('product-offers module', () => {
     assert.equal(isAllowedAmazonUrl('ftp://amazon.de/dp/B08N5WRWNW'), false);
     assert.equal(isAllowedAmazonUrl('data:text/html,<script>1</script>'), false);
     assert.equal(isAllowedAmazonUrl('amazon.de/dp/B08N5WRWNW'), false);
-    const blocked = await resolveAmazonAsin('p-blocked', 'https://evil.example.com/dp/B08N5WRWNW');
+    const blocked = await resolveAmazonAsin('https://evil.example.com/dp/B08N5WRWNW', 'p-blocked');
     assert.equal(blocked, null);
   });
 

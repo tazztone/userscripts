@@ -182,7 +182,7 @@ const GLOBALS = new Set([
   'ClipboardItem',
   'AbortController', 'MutationObserver', 'IntersectionObserver', 'ResizeObserver',
   'Event', 'CustomEvent', 'KeyboardEvent', 'MouseEvent', 'Image', 'DOMParser', 'XMLSerializer',
-  'JSON', 'Math', 'Number', 'String', 'Array', 'Object', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Date', 'RegExp', 'Error', 'Symbol', 'BigInt',
+  'JSON', 'Math', 'Number', 'Boolean', 'String', 'Array', 'Object', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Date', 'RegExp', 'Error', 'Symbol', 'BigInt',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent', 'decodeURIComponent',
   'requestAnimationFrame', 'cancelAnimationFrame', 'getComputedStyle', 'Proxy',
   'GM_getValue', 'GM_setValue', 'GM_deleteValue', 'GM_xmlhttpRequest', 'GM_info',

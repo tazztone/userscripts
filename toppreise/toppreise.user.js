@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.544
+// @version      2.18.545
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -11073,27 +11073,15 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  // ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────
+  // ─── MODULE: src/scanner/transport.js ───────────────────────────────────────
   /**
-   * Price History & Product Scanner Engine
-   * Handles background batch checking, live price history retrieval,
-   * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
+   * Scanner Transport
+   * Retry/backoff HTTP layer and price time-series fetch used by the scanner.
    */
 
 
 
 
-
-
-
-
-
-
-
-  const activeFetches = new Map();
-
-  // Single-flight abort for the running batch scan. Next run replaces it.
-  let batchController = null;
 
   async function interruptibleSleep(ms, shouldCancelFn = null, signal = null) {
     const step = 100;
@@ -11273,6 +11261,29 @@ const SHADOW_MODAL_STYLES = `
     }
     return null;
   }
+
+  // ─── MODULE: src/scanner/scanner.js ─────────────────────────────────────────
+  /**
+   * Price History & Product Scanner Engine
+   * Handles background batch checking, live price history retrieval,
+   * adaptive 429 rate-limit backoff, interruptible delays, and scan progress tracking.
+   */
+
+
+
+
+
+
+
+
+
+
+
+
+  const activeFetches = new Map();
+
+  // Single-flight abort for the running batch scan. Next run replaces it.
+  let batchController = null;
 
   // Per-caller cancel over a shared promise: rejects only this caller (typed
   // `cancelled`), never the transport siblings still await.
@@ -18406,7 +18417,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.544';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.545';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

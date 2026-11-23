@@ -85,6 +85,7 @@ export function buildBundle() {
     'features/share-discord.js',
     'page/sort.js',
     'page/feed-refresh.js',
+    'scanner/transport.js',
     'scanner/scanner.js',
     'ui/fresh-dismiss.js',
     'ui/badges/dom-helpers.js',
