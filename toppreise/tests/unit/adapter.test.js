@@ -179,19 +179,16 @@ describe('Page Adapter Layer', () => {
       });
     });
 
-    it('never falls back to product prices when shipping is active', () => {
-      const queried = [];
+    it('falls back to product prices with product basis when shipping price is absent', () => {
       globalThis.document = {
         querySelector: sel => {
-          queried.push(sel);
           if (sel === '.productPrice .Plugin_Price') return { textContent: 'CHF 39.00' };
           return null;
         }
       };
       withConfig('USE_SHIPPING_PRICE', true, () => {
-        assert.deepEqual(getDetailLowestPrice(), { price: 0, basis: null });
+        assert.deepEqual(getDetailLowestPrice(), { price: 39, basis: 'product' });
       });
-      assert.ok(queried.every(sel => !sel.includes('.productPrice')));
     });
 
     it('returns the shipping basis when shipping is active', () => {

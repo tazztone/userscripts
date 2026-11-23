@@ -46,7 +46,10 @@ import {
   extractDealer,
   extractDealerUrl,
   fetchProductInfo,
-  resolveAmazonAsin
+  resolveAmazonAsin,
+  parseProductOffers,
+  pickCheapestOffer,
+  jsonLdOfferTotal
 } from '../../page/product-offers.js';
 import { showToast } from '../toast.js';
 import { isShippingPriceActive, scheduleProcessListings, getDetailProductId } from '../../page/adapter.js';
@@ -180,6 +183,24 @@ export async function triggerDiscordShare({
   const cachedDealer = getCachedDealer(snap.pid, useShipping);
   let loadedOffers = overrideOfferCount || fresh?.offerCount || cachedDealer?.offers || 0;
   let totalOffers = cachedDealer?.totalOffers || 0;
+  if (isDetailPage && typeof document !== 'undefined') {
+    const liveOffers = parseProductOffers(document);
+    if (liveOffers.length > 0) {
+      const best = pickCheapestOffer(liveOffers, useShipping);
+      if (best) {
+        dealer = dealer || best.dealer || '';
+        if (!dealerUrl && best.url) {
+          try {
+            dealerUrl = url ? new URL(best.url, url).href : best.url;
+          } catch {
+            dealerUrl = best.url;
+          }
+        }
+      }
+      loadedOffers = loadedOffers || liveOffers.length;
+    }
+    totalOffers = totalOffers || jsonLdOfferTotal(document) || 0;
+  }
   let offers = totalOffers || loadedOffers;
 
   let currentFields = {

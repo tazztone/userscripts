@@ -15,7 +15,7 @@ import { CONFIG, sanitizeReviewKeyword } from '../state/config.js';
 import { formatSearchQuery, formatReviewTooltip } from './tavily-search.js';
 import { openAiPopover } from '../ui/badges/card-ai-popover.js';
 import { openSparklinePopout, renderSparkline } from '../ui/sparkline.js';
-import { extractShareData } from '../page/product-offers.js';
+import { extractShareData, parseProductOffers, pickCheapestOffer } from '../page/product-offers.js';
 import { triggerDiscordShare } from '../ui/badges/card-share.js';
 import { getSharedDeal, fullSeries } from '../scanner/cache.js';
 import { setHtmlIfChanged, setTextIfChanged, setTitleIfChanged } from '../ui/badges/dom-helpers.js';
@@ -325,7 +325,7 @@ export function renderDetailShareButton({ pid, currentPrice, priceBasis, stats, 
   }
 }
 
-export function renderDetailSparkline(pid, title, currentPrice, stats) {
+export function renderDetailSparkline(pid, title, currentPrice, stats, priceBasis = null) {
   let sparkContainer = document.getElementById('tp-detail-sparkline');
   const baseSeries = fullSeries(stats) || stats?.timeSeries;
   const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && Array.isArray(baseSeries) && baseSeries.length >= 2;
@@ -351,9 +351,22 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
   }
 
   const series = withLivePrice(baseSeries, currentPrice);
+  const useShipping = priceBasis ? priceBasis === 'shipping' : isShippingPriceActive();
+  const best = pickCheapestOffer(parseProductOffers(document), useShipping);
+  const pageUrl = typeof location !== 'undefined' ? location.href : '';
+  let resolvedDirectUrl = pageUrl;
+  if (best?.url) {
+    try {
+      resolvedDirectUrl = pageUrl ? new URL(best.url, pageUrl).href : best.url;
+    } catch {
+      resolvedDirectUrl = best.url;
+    }
+  }
   sparkContainer._tpSeries = series;
   sparkContainer._tpTitle = title;
   sparkContainer._tpPid = pid;
+  sparkContainer._tpDealer = best?.dealer || '';
+  sparkContainer._tpDirectUrl = resolvedDirectUrl;
 
   const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
   const lastPriceCents = priceToCents(currentPrice);
@@ -376,7 +389,8 @@ export function renderDetailSparkline(pid, title, currentPrice, stats) {
       openSparklinePopout(sparkContainer._tpSeries, {
         title: sparkContainer._tpTitle || title,
         pid: sparkContainer._tpPid ?? pid,
-        directUrl: (typeof location !== 'undefined' ? location.href : '')
+        dealer: sparkContainer._tpDealer || '',
+        directUrl: sparkContainer._tpDirectUrl || (typeof location !== 'undefined' ? location.href : '')
       });
     };
     sparkContainer.addEventListener('click', e => {
@@ -453,7 +467,7 @@ export async function processProductDetailPage(domLock = fn => fn()) {
       renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating });
 
       // Render Mini Sparkline below chart thumbnail
-      renderDetailSparkline(pid, title, currentPrice, stats);
+      renderDetailSparkline(pid, title, currentPrice, stats, priceBasis);
 
       // Update Web Search / AI review button with stats
       for (const h of headings) {

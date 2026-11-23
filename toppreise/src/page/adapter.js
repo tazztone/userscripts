@@ -162,12 +162,16 @@ export function getDetailLowestPrice() {
     '.price_information_product .shippingPrice .Plugin_Price',
     '.shippingPrice .Plugin_Price'
   ];
-  const selectors = shipping ? shippingFirst : productFirst;
-  for (const sel of selectors) {
-    const priceEl = queryDetailPriceEl(sel, { skipShipping: !shipping });
-    if (priceEl) {
-      const price = parsePrice(priceEl.textContent);
-      if (price > 0) return { price, basis: shipping ? 'shipping' : 'product' };
+  const passes = shipping
+    ? [{ selectors: shippingFirst, basis: 'shipping', skipShipping: false }, { selectors: productFirst, basis: 'product', skipShipping: true }]
+    : [{ selectors: productFirst, basis: 'product', skipShipping: true }, { selectors: shippingFirst, basis: 'shipping', skipShipping: false }];
+  for (const pass of passes) {
+    for (const sel of pass.selectors) {
+      const priceEl = queryDetailPriceEl(sel, { skipShipping: pass.skipShipping });
+      if (priceEl) {
+        const price = parsePrice(priceEl.textContent);
+        if (price > 0) return { price, basis: pass.basis };
+      }
     }
   }
   return { price: 0, basis: null };

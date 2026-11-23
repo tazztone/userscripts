@@ -38,6 +38,78 @@ describe('UI modal & controls', () => {
     }
   });
 
+  it('openSharePreviewModal.setError keeps channel buttons disabled before updateContent and re-enables after', async () => {
+    const { openSharePreviewModal, closeSharePreviewModal } = await import('../../src/ui/modal-share-preview.js');
+    const prevDoc = globalThis.document;
+    const body = createMockNode('body');
+    const head = createMockNode('head');
+    const docEl = createMockNode('html');
+    const elementsById = new Map();
+    const makeEl = (tag) => {
+      const node = createMockNode(tag);
+      let realId = '';
+      Object.defineProperty(node, 'id', {
+        get: () => realId,
+        set: v => {
+          if (realId) elementsById.delete(realId);
+          realId = v;
+          if (v) elementsById.set(v, node);
+        }
+      });
+      return node;
+    };
+    globalThis.document = {
+      createElement: makeEl,
+      getElementById: id => elementsById.get(id) || null,
+      body,
+      documentElement: docEl,
+      head,
+    };
+    try {
+      const loadingEl = createMockNode('div');
+      loadingEl.id = 'tp-share-preview-loading';
+      const errorEl = createMockNode('div');
+      errorEl.id = 'tp-share-preview-error';
+      const btn = createMockNode('button');
+      btn.className = 'tp-share-channel-btn';
+      btn.dataset.channelId = 'c1';
+      btn.disabled = true;
+
+      const origCreate = globalThis.document.createElement;
+      globalThis.document.createElement = (tag) => {
+        const node = origCreate(tag);
+        if (tag === 'dialog') {
+          node.querySelector = (sel) => {
+            if (sel === '#tp-share-preview-loading') return loadingEl;
+            if (sel === '#tp-share-preview-error') return errorEl;
+            return null;
+          };
+          node.querySelectorAll = (sel) => (sel === '.tp-share-channel-btn' ? [btn] : []);
+        }
+        return node;
+      };
+
+      const controller = openSharePreviewModal({
+        channels: [{ id: 'c1', name: 'Deals' }]
+      });
+      assert.ok(controller);
+
+      controller.setError('Prep failed');
+      assert.equal(loadingEl.style.display, 'none');
+      assert.equal(errorEl.textContent, 'Prep failed');
+      assert.equal(btn.disabled, true);
+
+      controller.updateContent({ formattedContent: 'Deal ready' });
+      assert.equal(btn.disabled, false);
+
+      controller.setError('Send failed');
+      assert.equal(btn.disabled, false);
+    } finally {
+      closeSharePreviewModal();
+      if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    }
+  });
+
   it('mini-toggle syncMiniToggle and paintCycleButton update button state', async () => {
     const { syncMiniToggle, paintCycleButton } = await import('../../src/ui/mini-toggle.js');
     const stateEl = createMockNode('span');

@@ -107,6 +107,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
 
   const createdUrls = [];
   let isSending = false;
+  let isReady = false;
   let lastReplyCount = 1;
   let lastOverflow = false;
 
@@ -249,6 +250,7 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
 
       if (contentWrap) contentWrap.style.display = '';
 
+      isReady = true;
       channelBtns.forEach(btn => {
         btn.disabled = false;
       });
@@ -256,12 +258,13 @@ export function openSharePreviewModal({ channels = [], onSend, onCancel, onComme
 
     setError(errorMessage) {
       isSending = false;
+      if (loadingEl) loadingEl.style.display = 'none';
       if (errorEl) {
         errorEl.textContent = errorMessage || 'Fehler beim Senden';
         errorEl.style.display = '';
       }
       channelBtns.forEach(btn => {
-        btn.disabled = false;
+        btn.disabled = !isReady;
         const ch = channels.find(c => c.id === btn.dataset.channelId);
         btn.textContent = `📤 ${ch?.name || 'Kanal'}`;
       });

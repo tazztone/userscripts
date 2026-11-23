@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toppreise.ch Suite: Power Filter & Price Alarm Auto-Filler
 // @namespace    https://github.com/tazztone/userscripts
-// @version      2.18.539
+// @version      2.18.540
 // @description  All-in-one suite for Toppreise.ch: Highlights best prices, discount heatmap, excludes negative keywords, sorts/filters by offer count/discount, checks real all-time Tiefstpreise, and automates price alarms.
 // @author       tazztone
 // @license      MIT
@@ -6288,12 +6288,16 @@ const SHADOW_MODAL_STYLES = `
       '.price_information_product .shippingPrice .Plugin_Price',
       '.shippingPrice .Plugin_Price'
     ];
-    const selectors = shipping ? shippingFirst : productFirst;
-    for (const sel of selectors) {
-      const priceEl = queryDetailPriceEl(sel, { skipShipping: !shipping });
-      if (priceEl) {
-        const price = parsePrice(priceEl.textContent);
-        if (price > 0) return { price, basis: shipping ? 'shipping' : 'product' };
+    const passes = shipping
+      ? [{ selectors: shippingFirst, basis: 'shipping', skipShipping: false }, { selectors: productFirst, basis: 'product', skipShipping: true }]
+      : [{ selectors: productFirst, basis: 'product', skipShipping: true }, { selectors: shippingFirst, basis: 'shipping', skipShipping: false }];
+    for (const pass of passes) {
+      for (const sel of pass.selectors) {
+        const priceEl = queryDetailPriceEl(sel, { skipShipping: pass.skipShipping });
+        if (priceEl) {
+          const price = parsePrice(priceEl.textContent);
+          if (price > 0) return { price, basis: pass.basis };
+        }
       }
     }
     return { price: 0, basis: null };
@@ -12296,6 +12300,24 @@ const SHADOW_MODAL_STYLES = `
     const cachedDealer = getCachedDealer(snap.pid, useShipping);
     let loadedOffers = overrideOfferCount || fresh?.offerCount || cachedDealer?.offers || 0;
     let totalOffers = cachedDealer?.totalOffers || 0;
+    if (isDetailPage && typeof document !== 'undefined') {
+      const liveOffers = parseProductOffers(document);
+      if (liveOffers.length > 0) {
+        const best = pickCheapestOffer(liveOffers, useShipping);
+        if (best) {
+          dealer = dealer || best.dealer || '';
+          if (!dealerUrl && best.url) {
+            try {
+              dealerUrl = url ? new URL(best.url, url).href : best.url;
+            } catch {
+              dealerUrl = best.url;
+            }
+          }
+        }
+        loadedOffers = loadedOffers || liveOffers.length;
+      }
+      totalOffers = totalOffers || jsonLdOfferTotal(document) || 0;
+    }
     let offers = totalOffers || loadedOffers;
 
     let currentFields = {
@@ -14880,6 +14902,7 @@ const SHADOW_MODAL_STYLES = `
 
     const createdUrls = [];
     let isSending = false;
+    let isReady = false;
     let lastReplyCount = 1;
     let lastOverflow = false;
 
@@ -15022,6 +15045,7 @@ const SHADOW_MODAL_STYLES = `
 
         if (contentWrap) contentWrap.style.display = '';
 
+        isReady = true;
         channelBtns.forEach(btn => {
           btn.disabled = false;
         });
@@ -15029,12 +15053,13 @@ const SHADOW_MODAL_STYLES = `
 
       setError(errorMessage) {
         isSending = false;
+        if (loadingEl) loadingEl.style.display = 'none';
         if (errorEl) {
           errorEl.textContent = errorMessage || 'Fehler beim Senden';
           errorEl.style.display = '';
         }
         channelBtns.forEach(btn => {
-          btn.disabled = false;
+          btn.disabled = !isReady;
           const ch = channels.find(c => c.id === btn.dataset.channelId);
           btn.textContent = `📤 ${ch?.name || 'Kanal'}`;
         });
@@ -17778,7 +17803,7 @@ const SHADOW_MODAL_STYLES = `
     }
   }
 
-  function renderDetailSparkline(pid, title, currentPrice, stats) {
+  function renderDetailSparkline(pid, title, currentPrice, stats, priceBasis = null) {
     let sparkContainer = document.getElementById('tp-detail-sparkline');
     const baseSeries = fullSeries(stats) || stats?.timeSeries;
     const hasSeries = CONFIG.ENABLE_SPARKLINES !== false && Array.isArray(baseSeries) && baseSeries.length >= 2;
@@ -17804,9 +17829,22 @@ const SHADOW_MODAL_STYLES = `
     }
 
     const series = withLivePrice(baseSeries, currentPrice);
+    const useShipping = priceBasis ? priceBasis === 'shipping' : isShippingPriceActive();
+    const best = pickCheapestOffer(parseProductOffers(document), useShipping);
+    const pageUrl = typeof location !== 'undefined' ? location.href : '';
+    let resolvedDirectUrl = pageUrl;
+    if (best?.url) {
+      try {
+        resolvedDirectUrl = pageUrl ? new URL(best.url, pageUrl).href : best.url;
+      } catch {
+        resolvedDirectUrl = best.url;
+      }
+    }
     sparkContainer._tpSeries = series;
     sparkContainer._tpTitle = title;
     sparkContainer._tpPid = pid;
+    sparkContainer._tpDealer = best?.dealer || '';
+    sparkContainer._tpDirectUrl = resolvedDirectUrl;
 
     const baseLastTs = baseSeries.length ? (+baseSeries[baseSeries.length - 1][0] || 0) : 0;
     const lastPriceCents = priceToCents(currentPrice);
@@ -17829,7 +17867,8 @@ const SHADOW_MODAL_STYLES = `
         openSparklinePopout(sparkContainer._tpSeries, {
           title: sparkContainer._tpTitle || title,
           pid: sparkContainer._tpPid ?? pid,
-          directUrl: (typeof location !== 'undefined' ? location.href : '')
+          dealer: sparkContainer._tpDealer || '',
+          directUrl: sparkContainer._tpDirectUrl || (typeof location !== 'undefined' ? location.href : '')
         });
       };
       sparkContainer.addEventListener('click', e => {
@@ -17906,7 +17945,7 @@ const SHADOW_MODAL_STYLES = `
         renderDetailShareButton({ pid, currentPrice, priceBasis, stats, title, url, imageUrl, nativeRating });
 
         // Render Mini Sparkline below chart thumbnail
-        renderDetailSparkline(pid, title, currentPrice, stats);
+        renderDetailSparkline(pid, title, currentPrice, stats, priceBasis);
 
         // Update Web Search / AI review button with stats
         for (const h of headings) {
@@ -18227,7 +18266,7 @@ const log = (...args) => { if (CONFIG.DEBUG) console.log('[Toppreise-Suite]', ..
   }
 
   if (typeof window !== 'undefined') {
-    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.539';
+    const suiteVersion = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '2.18.540';
     const isDebugHost = CONFIG.DEBUG === true || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname || ''));
     if (isDebugHost) {
       window.ToppreiseSuite = {

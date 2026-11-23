@@ -9,6 +9,8 @@ import {
   processProductDetailPage
 } from '../../src/features/product-detail.js';
 import { setCachedPriceStats, clearPriceStatsCache } from '../../src/scanner/cache.js';
+import { triggerDiscordShare } from '../../src/ui/badges/card-share.js';
+import { closeSharePreviewModal } from '../../src/ui/modal-share-preview.js';
 import { withConfig, createMockNode } from './helpers.js';
 
 describe('Product Detail Page Feature Suite', () => {
@@ -568,5 +570,87 @@ describe('Product Detail Page Feature Suite', () => {
     }
     assert.equal(shareBtn.disabled, false);
     assert.equal(shareBtn.classList.contains('tp-share-loading'), false);
+  });
+
+  it('renderDetailSparkline forwards cheapest Amazon dealer and resolved directUrl to popout', () => {
+    const chart = mockNode('div');
+    chart.className = 'chartProductPrice';
+    document.body.appendChild(chart);
+
+    const offer = mockNode('div');
+    offer.className = 'Plugin_Offer';
+    const logoImg = mockNode('img');
+    logoImg.setAttribute('alt', 'Amazon.de');
+    const priceSpan = mockNode('span');
+    priceSpan.className = 'Plugin_Price';
+    priceSpan.textContent = 'CHF 89.00';
+    const extLink = mockNode('a');
+    extLink.setAttribute('href', '/ext_de?id=999');
+    offer.querySelector = sel => {
+      if (sel.includes('img[alt]')) return logoImg;
+      if (sel.includes('productPrice')) return priceSpan;
+      if (sel.includes('/ext_')) return extLink;
+      return null;
+    };
+    document.body.appendChild(offer);
+
+    const stats = {
+      timeSeries: [[1000, 120], [2000, 89]]
+    };
+
+    withConfig('USE_SHIPPING_PRICE', false, () => {
+      renderDetailSparkline('867323', 'Surface Laptop', 89, stats, 'product');
+    });
+
+    const spark = document.getElementById('tp-detail-sparkline');
+    assert.ok(spark);
+    assert.equal(spark._tpDealer, 'Amazon.de');
+    assert.equal(spark._tpDirectUrl, 'https://www.toppreise.ch/ext_de?id=999');
+  });
+
+  it('triggerDiscordShare on detail page performs zero fetch() calls when .Plugin_Offer is in DOM', async () => {
+    const prevFetch = globalThis.fetch;
+    let fetchCount = 0;
+    globalThis.fetch = async () => {
+      fetchCount++;
+      return { ok: true, text: async () => '' };
+    };
+
+    const offer = mockNode('div');
+    offer.className = 'Plugin_Offer';
+    const logoImg = mockNode('img');
+    logoImg.setAttribute('alt', 'Digitec');
+    const priceSpan = mockNode('span');
+    priceSpan.className = 'Plugin_Price';
+    priceSpan.textContent = 'CHF 199.00';
+    const extLink = mockNode('a');
+    extLink.setAttribute('href', '/ext_de?id=123');
+    offer.querySelector = sel => {
+      if (sel.includes('img[alt]')) return logoImg;
+      if (sel.includes('productPrice')) return priceSpan;
+      if (sel.includes('/ext_')) return extLink;
+      return null;
+    };
+    document.body.appendChild(offer);
+
+    try {
+      await withConfig('DISCORD_CHANNELS', [{ id: 'c1', name: 'Deals', url: 'https://discord.com/api/webhooks/123/abc' }], async () => {
+        await triggerDiscordShare({
+          pid: '867323',
+          cardPrice: 199,
+          priceBasis: 'product',
+          stats: { tiefstpreis: 199, timeSeries: [[1000, 220], [2000, 199]] },
+          title: 'Test Product',
+          url: 'https://www.toppreise.ch/preisvergleich/Notebooks/Surface-Laptop-p867323',
+          imageUrl: '',
+          isDetailPage: true
+        });
+        await new Promise(r => setTimeout(r, 30));
+      });
+      assert.equal(fetchCount, 0);
+    } finally {
+      closeSharePreviewModal();
+      globalThis.fetch = prevFetch;
+    }
   });
 });
